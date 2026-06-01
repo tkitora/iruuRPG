@@ -1,0 +1,4 @@
+name: iruuRPG
+version: '1.0-SNAPSHOT'
+main: net.tkgon.mc.iruuRPG.IruuRPG
+api-version: '1.20'
