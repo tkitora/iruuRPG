@@ -65,6 +65,7 @@ public final class StatsMenu implements Listener {
         inventory.setItem(12, category(Material.DIAMOND_SWORD, "攻撃", NamedTextColor.GOLD, statLines(profile.finalStats(),
                 StatType.WEAPON_DAMAGE,
                 StatType.STRENGTH,
+                StatType.STRENGTH_PERCENT,
                 StatType.MAGIC,
                 StatType.ADD_DAMAGE,
                 StatType.MELEE_DAMAGE,
@@ -252,7 +253,8 @@ public final class StatsMenu implements Listener {
 
     private boolean isPercent(StatType type) {
         return switch (type) {
-            case MELEE_DAMAGE_PERCENT,
+            case STRENGTH_PERCENT,
+                    MELEE_DAMAGE_PERCENT,
                     RANGE_DAMAGE_PERCENT,
                     CRIT_DAMAGE,
                     CRIT_CHANCE,
@@ -279,6 +281,7 @@ public final class StatsMenu implements Listener {
             case MP_REGEN -> "MP自動回復";
             case WEAPON_DAMAGE -> "武器ダメージ";
             case STRENGTH -> "筋力";
+            case STRENGTH_PERCENT -> "筋力%";
             case MAGIC -> "魔力";
             case ADD_DAMAGE -> "追加ダメージ";
             case MELEE_DAMAGE -> "近接ダメージ";

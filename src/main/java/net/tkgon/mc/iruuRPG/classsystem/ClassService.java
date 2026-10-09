@@ -2,25 +2,35 @@ package net.tkgon.mc.iruuRPG.classsystem;
 
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
+/**
+ * Class rules:
+ * <ul>
+ *   <li>SP earned = floor(level / levels-per-point), capped at max-points.</li>
+ *   <li>Every spend-node level costs 1 SP and has no upper limit.</li>
+ *   <li>One milestone node unlocks for free per milestone-interval SP spent, in the class's fixed order.</li>
+ * </ul>
+ */
 public final class ClassService {
 
-    private final ClassRegistry classRegistry;
-    private final SkillTreeShapeRegistry shapeRegistry;
+    private static final int DEFAULT_LEVELS_PER_POINT = 5;
+    private static final int DEFAULT_MAX_POINTS = 40;
+    private static final int DEFAULT_MILESTONE_INTERVAL = 5;
 
-    public ClassService(ClassRegistry classRegistry, SkillTreeShapeRegistry shapeRegistry) {
+    private final JavaPlugin plugin;
+    private final ClassRegistry classRegistry;
+
+    public ClassService(JavaPlugin plugin, ClassRegistry classRegistry) {
+        this.plugin = plugin;
         this.classRegistry = classRegistry;
-        this.shapeRegistry = shapeRegistry;
     }
 
     public Optional<ClassDefinition> currentClass(PlayerProfile profile) {
@@ -37,17 +47,16 @@ public final class ClassService {
     }
 
     /**
-     * Sets the player's class. Changing to a different class resets the skill tree
-     * and refunds the spent points first.
+     * Sets the player's class. Changing to a different class clears the invested levels
+     * (their SP is returned automatically because SP is derived from level).
      */
     public boolean select(PlayerProfile profile, String classId) {
         ClassDefinition target = classRegistry.find(classId).orElse(null);
         if (target == null) return false;
 
         if (!target.id().equals(profile.classId())) {
-            reset(profile);
+            profile.classLevels().clear();
             profile.setClassId(target.id());
-            profile.classNodes().clear();
         }
         profile.setClassChosen(true);
         updateActiveBindings(profile);
@@ -56,90 +65,94 @@ public final class ClassService {
 
     public void ensureProfile(PlayerProfile profile) {
         ensureClassId(profile);
-        syncEarnedSkillPoints(profile);
+        trimOverspent(profile);
         updateActiveBindings(profile);
     }
 
-    public boolean acquire(Player player, PlayerProfile profile, String nodeId) {
+    // ---- SP rules -------------------------------------------------------
+
+    public int earnedPoints(PlayerProfile profile) {
+        int perPoint = Math.max(1, config().getInt("class-skill-points.levels-per-point", DEFAULT_LEVELS_PER_POINT));
+        int max = Math.max(0, config().getInt("class-skill-points.max-points", DEFAULT_MAX_POINTS));
+        return Math.min(max, Math.max(0, profile.level()) / perPoint);
+    }
+
+    public int spentPoints(PlayerProfile profile) {
+        return profile.spentSkillPoints();
+    }
+
+    public int availablePoints(PlayerProfile profile) {
+        return Math.max(0, earnedPoints(profile) - spentPoints(profile));
+    }
+
+    public int milestoneInterval() {
+        return Math.max(1, config().getInt("class-skill-points.milestone-interval", DEFAULT_MILESTONE_INTERVAL));
+    }
+
+    public int unlockedMilestoneCount(PlayerProfile profile) {
+        ClassDefinition definition = currentClass(profile).orElse(null);
+        if (definition == null) return 0;
+        return Math.min(definition.milestones().size(), spentPoints(profile) / milestoneInterval());
+    }
+
+    public boolean isMilestoneUnlocked(PlayerProfile profile, int index) {
+        return index >= 0 && index < unlockedMilestoneCount(profile);
+    }
+
+    // ---- actions --------------------------------------------------------
+
+    public boolean levelUp(PlayerProfile profile, String nodeId) {
         ensureProfile(profile);
         ClassDefinition definition = currentClass(profile).orElse(null);
-        if (definition == null) return false;
+        if (definition == null || definition.spendNode(nodeId) == null) return false;
+        if (availablePoints(profile) < 1) return false;
 
-        ClassNodeDefinition node = definition.node(nodeId);
-        if (node == null || profile.classNodes().contains(nodeId)) return false;
-        if (profile.skillPoints() < node.cost()) return false;
-        if (!parentAcquired(profile, nodeId)) return false;
-
-        profile.classNodes().add(nodeId);
-        profile.setSkillPoints(profile.skillPoints() - node.cost());
-        profile.setSpentSkillPoints(profile.spentSkillPoints() + node.cost());
+        profile.classLevels().merge(nodeId, 1, Integer::sum);
         updateActiveBindings(profile);
         return true;
     }
 
-    public boolean release(Player player, PlayerProfile profile, String nodeId) {
+    public boolean levelDown(PlayerProfile profile, String nodeId) {
         ensureProfile(profile);
-        ClassDefinition definition = currentClass(profile).orElse(null);
-        if (definition == null || !profile.classNodes().contains(nodeId)) return false;
+        int current = profile.classLevel(nodeId);
+        if (current <= 0) return false;
 
-        List<String> removed = acquiredDescendants(profile, nodeId);
-        removed.sort(Comparator.comparingInt(this::order).reversed());
-        int refund = 0;
-        for (String removedId : removed) {
-            ClassNodeDefinition node = definition.node(removedId);
-            if (node == null) continue;
-
-            profile.classNodes().remove(removedId);
-            refund += node.cost();
+        if (current == 1) {
+            profile.classLevels().remove(nodeId);
+        } else {
+            profile.classLevels().put(nodeId, current - 1);
         }
-
-        profile.setSpentSkillPoints(profile.spentSkillPoints() - refund);
-        profile.setSkillPoints(profile.skillPoints() + refund);
         updateActiveBindings(profile);
         return true;
     }
 
     public void reset(PlayerProfile profile) {
-        ensureProfile(profile);
-        ClassDefinition definition = currentClass(profile).orElse(null);
-        if (definition == null) return;
-
-        int refund = 0;
-        for (String nodeId : new ArrayList<>(profile.classNodes())) {
-            ClassNodeDefinition node = definition.node(nodeId);
-            if (node != null) {
-                refund += node.cost();
-            }
-        }
-        profile.classNodes().clear();
-        profile.setSpentSkillPoints(profile.spentSkillPoints() - refund);
-        profile.setSkillPoints(profile.skillPoints() + refund);
+        ensureClassId(profile);
+        profile.classLevels().clear();
         updateActiveBindings(profile);
     }
 
-    public boolean canAcquire(PlayerProfile profile, String nodeId) {
-        ensureProfile(profile);
-        ClassDefinition definition = currentClass(profile).orElse(null);
-        if (definition == null) return false;
-
-        ClassNodeDefinition node = definition.node(nodeId);
-        return node != null
-                && !profile.classNodes().contains(nodeId)
-                && profile.skillPoints() >= node.cost()
-                && parentAcquired(profile, nodeId);
-    }
+    // ---- stats / skills -------------------------------------------------
 
     public void applyClassStats(Player player, PlayerProfile profile) {
         ensureProfile(profile);
         ClassDefinition definition = currentClass(profile).orElse(null);
         StatSet stats = new StatSet();
         if (definition != null) {
-            for (String nodeId : profile.classNodes()) {
-                ClassNodeDefinition node = definition.node(nodeId);
-                if (node == null) continue;
-                if (node.nodeType() != ClassNodeType.PASSIVE || node.effectType() != ClassPassiveEffectType.STATUS) continue;
-
-                stats.addAll(node.status());
+            stats.addAll(definition.growth().scaled(Math.max(0, profile.level())));
+            for (SpendNodeDefinition node : definition.spendNodes()) {
+                int levels = profile.classLevel(node.id());
+                if (levels > 0) {
+                    stats.add(node.stat(), node.perLevel() * levels);
+                }
+            }
+            List<ClassNodeDefinition> milestones = definition.milestones();
+            int unlocked = unlockedMilestoneCount(profile);
+            for (int index = 0; index < unlocked; index++) {
+                ClassNodeDefinition node = milestones.get(index);
+                if (node.effectType() == ClassPassiveEffectType.STATUS) {
+                    stats.addAll(node.status());
+                }
             }
         }
         profile.classStats().replaceWith(stats);
@@ -151,32 +164,19 @@ public final class ClassService {
         return profile.activeClassSkills().get(hotKey.key());
     }
 
-    public SkillTreeShape shape() {
-        return shapeRegistry.shape();
-    }
+    /** True when a milestone that grants {@code skillName} (passive skill effect) is unlocked. */
+    public boolean hasSkill(PlayerProfile profile, String skillName) {
+        ClassDefinition definition = currentClass(profile).orElse(null);
+        if (definition == null || skillName == null) return false;
 
-    private boolean parentAcquired(PlayerProfile profile, String nodeId) {
-        SkillTreeNodeShape shape = shapeRegistry.shape().node(nodeId);
-        if (shape == null || shape.parentId() == null) return true;
-        return profile.classNodes().contains(shape.parentId());
-    }
-
-    private List<String> acquiredDescendants(PlayerProfile profile, String nodeId) {
-        Set<String> result = new HashSet<>();
-        ArrayDeque<String> queue = new ArrayDeque<>();
-        queue.add(nodeId);
-        while (!queue.isEmpty()) {
-            String current = queue.removeFirst();
-            if (!result.add(current)) continue;
-
-            for (SkillTreeNodeShape shape : shapeRegistry.shape().nodes().values()) {
-                if (!current.equals(shape.parentId())) continue;
-                if (profile.classNodes().contains(shape.id())) {
-                    queue.addLast(shape.id());
-                }
+        int unlocked = unlockedMilestoneCount(profile);
+        for (int index = 0; index < unlocked; index++) {
+            ClassNodeDefinition node = definition.milestones().get(index);
+            if (node.effectType() == ClassPassiveEffectType.SKILL && node.skillName().equalsIgnoreCase(skillName)) {
+                return true;
             }
         }
-        return new ArrayList<>(result);
+        return false;
     }
 
     private void updateActiveBindings(PlayerProfile profile) {
@@ -184,21 +184,28 @@ public final class ClassService {
         ClassDefinition definition = classRegistry.find(profile.classId()).orElse(null);
         if (definition == null) return;
 
-        profile.classNodes().stream()
-                .sorted(Comparator.comparingInt(this::order))
-                .forEach(nodeId -> {
-                    ClassNodeDefinition node = definition.node(nodeId);
-                    if (node == null) return;
-                    if (node.nodeType() != ClassNodeType.ACTIVE || node.hotKey() == null || node.skillName().isBlank()) return;
-                    profile.activeClassSkills().put(node.hotKey().key(), node.skillName());
-                });
+        int unlocked = unlockedMilestoneCount(profile);
+        for (int index = 0; index < unlocked; index++) {
+            ClassNodeDefinition node = definition.milestones().get(index);
+            if (node.nodeType() != ClassNodeType.ACTIVE || node.hotKey() == null || node.skillName().isBlank()) continue;
+            profile.activeClassSkills().put(node.hotKey().key(), node.skillName());
+        }
     }
 
-    private void syncEarnedSkillPoints(PlayerProfile profile) {
-        int earned = Math.max(0, profile.level() - 1);
-        int currentTotal = profile.skillPoints() + profile.spentSkillPoints();
-        if (currentTotal < earned) {
-            profile.addSkillPoints(earned - currentTotal);
+    /** If the level dropped below what was spent (admin command, reset), remove levels until it fits. */
+    private void trimOverspent(PlayerProfile profile) {
+        int excess = spentPoints(profile) - earnedPoints(profile);
+        if (excess <= 0) return;
+
+        Map<String, Integer> levels = profile.classLevels();
+        while (excess > 0 && !levels.isEmpty()) {
+            String largest = null;
+            for (Map.Entry<String, Integer> entry : levels.entrySet()) {
+                if (largest == null || entry.getValue() > levels.get(largest)) largest = entry.getKey();
+            }
+            int value = levels.get(largest);
+            if (value <= 1) levels.remove(largest); else levels.put(largest, value - 1);
+            excess--;
         }
     }
 
@@ -208,8 +215,7 @@ public final class ClassService {
         }
     }
 
-    private int order(String nodeId) {
-        SkillTreeNodeShape shape = shapeRegistry.shape().node(nodeId);
-        return shape == null ? Integer.MAX_VALUE : shape.order();
+    private FileConfiguration config() {
+        return plugin.getConfig();
     }
 }

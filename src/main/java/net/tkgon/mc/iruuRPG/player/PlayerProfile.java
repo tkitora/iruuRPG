@@ -5,9 +5,7 @@ import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public final class PlayerProfile {
@@ -19,10 +17,7 @@ public final class PlayerProfile {
     private double currentMp;
     private String classId = "";
     private boolean classChosen;
-    private int skillPoints;
-    private int spentSkillPoints;
-    private int classScroll;
-    private final Set<String> classNodes = new HashSet<>();
+    private final Map<String, Integer> classLevels = new HashMap<>();
     private final Map<String, String> activeClassSkills = new HashMap<>();
 
     private final StatSet baseStats = new StatSet();
@@ -97,36 +92,17 @@ public final class PlayerProfile {
         this.classChosen = classChosen;
     }
 
-    public int skillPoints() {
-        return skillPoints;
+    /** Levels invested per spend node (1 SP per level). */
+    public Map<String, Integer> classLevels() {
+        return classLevels;
     }
 
-    public void setSkillPoints(int skillPoints) {
-        this.skillPoints = Math.max(0, skillPoints);
-    }
-
-    public void addSkillPoints(int amount) {
-        setSkillPoints(this.skillPoints + Math.max(0, amount));
+    public int classLevel(String nodeId) {
+        return classLevels.getOrDefault(nodeId, 0);
     }
 
     public int spentSkillPoints() {
-        return spentSkillPoints;
-    }
-
-    public void setSpentSkillPoints(int spentSkillPoints) {
-        this.spentSkillPoints = Math.max(0, spentSkillPoints);
-    }
-
-    public int classScroll() {
-        return classScroll;
-    }
-
-    public void setClassScroll(int classScroll) {
-        this.classScroll = Math.max(0, classScroll);
-    }
-
-    public Set<String> classNodes() {
-        return classNodes;
+        return classLevels.values().stream().mapToInt(Integer::intValue).sum();
     }
 
     public Map<String, String> activeClassSkills() {

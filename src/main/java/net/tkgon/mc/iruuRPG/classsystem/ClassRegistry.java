@@ -4,12 +4,14 @@ import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.MemoryConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,7 +28,7 @@ public final class ClassRegistry {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "classes");
-        ensureFolder(folder, "classes/default.yml");
+        ensureFolder(folder, "classes/warrior.yml");
 
         File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".yml") || name.toLowerCase().endsWith(".yaml"));
         if (files == null || files.length == 0) {
@@ -73,35 +75,58 @@ public final class ClassRegistry {
         String normalizedId = normalize(id);
         String name = section.getString("name", id);
         Material icon = material(section.getString("icon"), Material.BOOK);
-        Map<String, ClassNodeDefinition> nodes = new HashMap<>();
-        ConfigurationSection nodeSection = section.getConfigurationSection("nodes");
-        if (nodeSection != null) {
-            for (String nodeId : nodeSection.getKeys(false)) {
-                ConfigurationSection node = nodeSection.getConfigurationSection(nodeId);
+        StatSet growth = loadStatus(normalizedId + ".growth", section.getConfigurationSection("growth"));
+
+        List<SpendNodeDefinition> spendNodes = new ArrayList<>();
+        ConfigurationSection spendSection = section.getConfigurationSection("spend");
+        if (spendSection != null) {
+            for (String nodeId : spendSection.getKeys(false)) {
+                ConfigurationSection node = spendSection.getConfigurationSection(nodeId);
                 if (node == null) continue;
-                nodes.put(nodeId, loadNode(nodeId, node));
+                SpendNodeDefinition spend = loadSpendNode(normalizedId, nodeId, node);
+                if (spend != null) spendNodes.add(spend);
             }
         }
 
-        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, nodes));
+        List<ClassNodeDefinition> milestones = new ArrayList<>();
+        List<Map<?, ?>> milestoneList = section.getMapList("milestones");
+        for (int index = 0; index < milestoneList.size(); index++) {
+            ConfigurationSection node = new MemoryConfiguration().createSection("m", milestoneList.get(index));
+            milestones.add(loadMilestone("milestone_" + (index + 1), node));
+        }
+
+        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, growth, spendNodes, milestones));
     }
 
-    private ClassNodeDefinition loadNode(String id, ConfigurationSection section) {
+    private SpendNodeDefinition loadSpendNode(String classId, String id, ConfigurationSection section) {
+        Optional<StatType> stat = StatType.fromConfigKey(section.getString("stat", id));
+        if (stat.isEmpty()) {
+            plugin.getLogger().warning("classes: unknown stat '" + section.getString("stat", id) + "' in " + classId + ".spend." + id);
+            return null;
+        }
+        return new SpendNodeDefinition(
+                id,
+                section.getString("name", id),
+                material(section.getString("icon"), Material.PAPER),
+                stat.get(),
+                section.getDouble("per-level", 0.0)
+        );
+    }
+
+    private ClassNodeDefinition loadMilestone(String id, ConfigurationSection section) {
         ClassNodeType nodeType = ClassNodeType.fromConfig(section.getString("node_type", section.getString("node-type", "passive")));
         ClassPassiveEffectType effectType = ClassPassiveEffectType.fromConfig(section.getString("effect_type", section.getString("effect-type")));
         Material fallback = nodeType == ClassNodeType.ACTIVE ? Material.NETHER_STAR : Material.PAPER;
-        Material icon = material(section.getString("icon"), fallback);
 
         return new ClassNodeDefinition(
                 id,
                 section.getString("node_name", section.getString("node-name", id)),
-                section.getInt("cost", 0),
                 nodeType,
                 effectType,
                 loadStatus(id, section.getConfigurationSection("status")),
                 section.getString("name", ""),
                 ClassHotKey.fromConfig(section.getString("hot_key", section.getString("hot-key"))),
-                icon
+                material(section.getString("icon"), fallback)
         );
     }
 

@@ -36,6 +36,15 @@ public final class StatSet {
         values.clear();
     }
 
+    /** Returns a copy with every value multiplied by {@code factor}. */
+    public StatSet scaled(double factor) {
+        StatSet result = new StatSet();
+        for (Map.Entry<StatType, Double> entry : asMap().entrySet()) {
+            result.set(entry.getKey(), entry.getValue() * factor);
+        }
+        return result;
+    }
+
     public StatSet copy() {
         StatSet copy = new StatSet();
         copy.values.putAll(values);

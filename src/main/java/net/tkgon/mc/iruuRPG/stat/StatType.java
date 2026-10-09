@@ -13,6 +13,7 @@ public enum StatType {
 
     WEAPON_DAMAGE("weapon-damage", "Weapon Damage", "weaponDmg"),
     STRENGTH("strength", "Strength", "addPower"),
+    STRENGTH_PERCENT("strength-percent", "Strength %"),
     MAGIC("magic", "Magic", "addAPower"),
     ADD_DAMAGE("add-damage", "Add Damage", "addDmg"),
 

@@ -49,6 +49,7 @@ public final class DamageCalculator {
                 * spike.elementMultiplier
                 * defenseFactor
                 * resistFactor
+                * damageReductionFactor(input.victim())
                 * finalTypeMultiplier(input.attacker(), weapon)
                 * critical.multiplier;
 
@@ -61,7 +62,8 @@ public final class DamageCalculator {
         Element element = weapon.element();
 
         double power = switch (weapon.damageKind()) {
-            case PHYSICAL -> attackerStats.get(StatType.STRENGTH);
+            case PHYSICAL -> attackerStats.get(StatType.STRENGTH)
+                    * (1.0 + Math.max(0.0, attackerStats.get(StatType.STRENGTH_PERCENT)) / 100.0);
             case MAGIC -> attackerStats.get(StatType.MAGIC);
             default -> 0.0;
         };
@@ -146,6 +148,12 @@ public final class DamageCalculator {
         }
 
         return new SpikeResult(base, typeMultiplier, elementMultiplier);
+    }
+
+    /** Damage Reduction % uses diminishing returns: 100 / (100 + reduction). */
+    private double damageReductionFactor(PlayerProfile victim) {
+        double reduction = Math.max(0.0, victim.finalStats().get(StatType.DAMAGE_REDUCTION));
+        return 100.0 / (100.0 + reduction);
     }
 
     private double defenseFactor(double defense) {
