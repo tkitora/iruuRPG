@@ -410,7 +410,7 @@ public final class StatsMenu implements Listener {
         return format(profile.xp()) + "/" + format(required);
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
 
         private final UUID ownerId;
         private Inventory inventory;

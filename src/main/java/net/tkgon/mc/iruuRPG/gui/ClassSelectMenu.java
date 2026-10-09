@@ -147,7 +147,7 @@ public final class ClassSelectMenu implements Listener {
         return item;
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private final List<String> classIds;
         private final int backSlot;

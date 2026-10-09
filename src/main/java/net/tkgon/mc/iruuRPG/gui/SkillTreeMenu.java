@@ -373,7 +373,7 @@ public final class SkillTreeMenu implements Listener {
                 .replaceAll("\\.$", "");
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private Inventory inventory;
 
