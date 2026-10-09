@@ -13,6 +13,9 @@
 #   active           : hot_key で cskill/*.yml の name を発動
 #     hot_key: F / Q / L / R / SL(シフト左クリック) / SR(シフト右クリック)
 #
+# 4番目の固有スキルのホットキーは全クラス F(持ち替えキー)で統一。
+# 右クリックは近接のアイテムスキル、遠距離武器の通常攻撃と衝突するため使わない。
+#
 # 数値は 200Lv 時点でクラス全体が「装備のみ」比で、
 # ダメージ約1.5倍・実効HP約1.8倍になるように試算して決めた (仮)。
 
@@ -77,7 +80,7 @@ milestones:
   - node_name: "武神の一撃"
     icon: NETHER_STAR
     node_type: active
-    hot_key: R
+    hot_key: F
     name: warrior_strike
   # 5: SP 25
   - node_name: "会心の極意"
