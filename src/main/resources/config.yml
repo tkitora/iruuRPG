@@ -32,8 +32,11 @@ mob:
 combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
-  range-area-damage-rate: 0.50
+  range-area-damage-rate: 0.45
   area-radius: 3.0
+  # 遠距離範囲攻撃はクラス関係なく標準で範囲3・割合45%。メイジの「遠距離範囲の強化」で範囲5・割合60%
+  range-area-expanded-damage-rate: 0.60
+  range-area-expanded-radius: 5.0
   area-requires-facing: true
   range-distance: 16.0
   range-ray-size: 0.6

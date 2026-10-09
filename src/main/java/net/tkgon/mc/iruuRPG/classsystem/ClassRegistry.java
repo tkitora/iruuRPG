@@ -28,7 +28,7 @@ public final class ClassRegistry {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "classes");
-        ensureFolder(folder, "classes/warrior.yml");
+        ensureFolder(folder, "classes/warrior.yml", "classes/mage.yml");
 
         File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".yml") || name.toLowerCase().endsWith(".yaml"));
         if (files == null || files.length == 0) {
@@ -151,18 +151,20 @@ public final class ClassRegistry {
         return material == null ? fallback : material;
     }
 
-    private void ensureFolder(File folder, String defaultResource) {
+    private void ensureFolder(File folder, String... defaultResources) {
         if (!folder.exists() && !folder.mkdirs()) {
-            plugin.getLogger().warning("Could not create classes folder: " + folder.getAbsolutePath());
+            plugin.getLogger().warning("Could not create folder: " + folder.getAbsolutePath());
         }
 
-        File defaultFile = new File(plugin.getDataFolder(), defaultResource);
-        if (defaultFile.exists()) return;
+        for (String defaultResource : defaultResources) {
+            File defaultFile = new File(plugin.getDataFolder(), defaultResource);
+            if (defaultFile.exists()) continue;
 
-        try {
-            plugin.saveResource(defaultResource, false);
-        } catch (IllegalArgumentException ignored) {
-            plugin.getLogger().warning("Missing bundled class resource: " + defaultResource);
+            try {
+                plugin.saveResource(defaultResource, false);
+            } catch (IllegalArgumentException ignored) {
+                plugin.getLogger().warning("Missing bundled class resource: " + defaultResource);
+            }
         }
     }
 

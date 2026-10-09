@@ -298,6 +298,11 @@ public final class StatusEffectService {
         bleed.add(sourceId, value);
     }
 
+    /** Applies a slow for a fixed time. 100 or more stops the target completely. */
+    public void applyTimedSlow(LivingEntity target, double percent, long durationMillis, UUID sourceId) {
+        applySingle(target, StatusEffectType.SLOW, percent, durationMillis, sourceId, true);
+    }
+
     private void applySlow(LivingEntity target, double value, UUID sourceId) {
         if (value <= EPSILON) return;
 
@@ -419,7 +424,7 @@ public final class StatusEffectService {
     }
 
     private void applySlowAttribute(LivingEntity target, double value) {
-        double percent = Math.max(0.0, Math.min(95.0, value));
+        double percent = Math.max(0.0, Math.min(100.0, value));
         AttributeInstance movement = target.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
         if (movement == null) {
             int amplifier = Math.max(0, Math.min(4, (int) Math.ceil(percent / 20.0) - 1));

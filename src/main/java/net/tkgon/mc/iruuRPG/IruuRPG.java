@@ -124,6 +124,7 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.setDebugTargetService(debugTargetService);
         this.attackService.setClassService(classService);
         this.classSkillService = new ClassSkillService(this, attackService, classService, profileManager);
+        this.classSkillService.setStatusEffectService(statusEffectService);
         this.deployService = new DeployService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.statsMenu = new StatsMenu(equipmentService, levelService);

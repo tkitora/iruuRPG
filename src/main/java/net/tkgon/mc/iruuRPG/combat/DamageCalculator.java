@@ -64,7 +64,8 @@ public final class DamageCalculator {
         double power = switch (weapon.damageKind()) {
             case PHYSICAL -> attackerStats.get(StatType.STRENGTH)
                     * (1.0 + Math.max(0.0, attackerStats.get(StatType.STRENGTH_PERCENT)) / 100.0);
-            case MAGIC -> attackerStats.get(StatType.MAGIC);
+            case MAGIC -> attackerStats.get(StatType.MAGIC)
+                    * (1.0 + Math.max(0.0, attackerStats.get(StatType.MAGIC_PERCENT)) / 100.0);
             default -> 0.0;
         };
 
