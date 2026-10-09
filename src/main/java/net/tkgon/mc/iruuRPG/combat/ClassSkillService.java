@@ -32,6 +32,9 @@ public final class ClassSkillService {
 
     public static final String WARRIOR_STRIKE = "warrior_strike";
     public static final String WARRIOR_STRIKE_UPGRADE = "warrior_strike_upgrade";
+    public static final String INSTINCT_RELEASE = "instinct_release";
+    public static final String SANCTUARY = "sanctuary";
+    public static final String SANCTUARY_UPGRADE = "sanctuary_upgrade";
     public static final String ICE_LANCE = "ice_lance";
     public static final String ICE_LANCE_UPGRADE = "ice_lance_upgrade";
 
@@ -48,12 +51,17 @@ public final class ClassSkillService {
     private final ClassService classService;
     private final PlayerProfileManager profileManager;
     private StatusEffectService statusEffectService;
+    private ClassEffectService classEffectService;
 
     public ClassSkillService(JavaPlugin plugin, AttackService attackService, ClassService classService, PlayerProfileManager profileManager) {
         this.plugin = plugin;
         this.attackService = attackService;
         this.classService = classService;
         this.profileManager = profileManager;
+    }
+
+    public void setClassEffectService(ClassEffectService classEffectService) {
+        this.classEffectService = classEffectService;
     }
 
     public void setStatusEffectService(StatusEffectService statusEffectService) {
@@ -68,16 +76,30 @@ public final class ClassSkillService {
         if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
             return precheckIceLance(player);
         }
+        if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) {
+            return Precheck.ready(null, null);
+        }
+        if (SANCTUARY.equalsIgnoreCase(skill.id())) {
+            return precheckSanctuary(player);
+        }
         return Precheck.noEffect();
     }
 
     /** Runs the effect decided in {@link #precheck}. */
     public void execute(Player player, ClassSkillDefinition skill, Precheck precheck) {
+        if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) {
+            if (classEffectService != null) {
+                classEffectService.activateInstinct(player, skill.values().getOrDefault("duration-seconds", 10.0));
+            }
+            return;
+        }
         if (precheck.weapon() == null) return;
         if (precheck.target() != null && WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
             warriorStrike(player, skill, precheck.target(), precheck.weapon());
         } else if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
             iceLance(player, skill, precheck.weapon());
+        } else if (SANCTUARY.equalsIgnoreCase(skill.id())) {
+            sanctuary(player, skill, precheck.weapon());
         }
     }
 
@@ -97,6 +119,18 @@ public final class ClassSkillService {
             return Precheck.rejected("前方に対象がいません。");
         }
         return Precheck.ready(target, weapon);
+    }
+
+    private Precheck precheckSanctuary(Player player) {
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null || !weapon.isWeaponLike()) {
+            return Precheck.rejected("武器を持っていないと使えません。");
+        }
+        if (!attackService.canUseItem(player, weapon)) {
+            attackService.sendLevelRequirement(player, weapon);
+            return Precheck.rejected(null);
+        }
+        return Precheck.ready(null, weapon);
     }
 
     private Precheck precheckIceLance(Player player) {
@@ -213,6 +247,110 @@ public final class ClassSkillService {
                 world.spawnParticle(Particle.FLASH, head, 1);
             }
         }
+    }
+
+    // ---- sanctuary (healer) --------------------------------------------------------
+
+    private static final UUID NO_KNOCKBACK_ID = UUID.fromString("6c0b1c7e-5d54-4b7a-9d83-2f6a1d9e0a11");
+    private static final Particle.DustOptions SANCTUARY_RING = new Particle.DustOptions(Color.fromRGB(90, 230, 120), 1.3f);
+    private static final Particle.DustOptions SANCTUARY_LIGHT = new Particle.DustOptions(Color.fromRGB(200, 255, 210), 1.0f);
+
+    /**
+     * A healing area (radius 7). Every second it heals allies in it by the damage the held weapon would deal
+     * (no enemy armor; deploy weapons include the stability bonus). Upgrade: lasts longer and blocks knockback.
+     */
+    private void sanctuary(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        boolean upgraded = classService.hasSkill(profile, SANCTUARY_UPGRADE);
+        double radius = skill.values().getOrDefault("radius", 7.0);
+        double seconds = upgraded
+                ? skill.values().getOrDefault("upgrade-duration-seconds", 10.0)
+                : skill.values().getOrDefault("duration-seconds", 5.0);
+
+        PlayerProfile snapshot = attackService.snapshotAttacker(player);
+        double heal = attackService.calculateNeutralDamage(snapshot, weapon).damage();
+        if (heal <= 0.0) {
+            heal = Math.max(snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.WEAPON_DAMAGE),
+                    snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.SPECIAL_DAMAGE));
+        }
+        final double healPerSecond = heal;
+        final Location center = player.getLocation().clone();
+        World world = center.getWorld();
+        if (world == null) return;
+
+        world.playSound(center, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.4f);
+        int totalTicks = (int) Math.round(seconds * 20.0);
+
+        new BukkitRunnable() {
+            private int tick;
+            private final java.util.Set<UUID> shielded = new java.util.HashSet<>();
+
+            @Override
+            public void run() {
+                boolean finished = tick >= totalTicks || !player.isOnline();
+                if (tick % 20 == 0 && !finished) {
+                    for (Player ally : alliesIn(center, radius)) {
+                        attackService.healPlayerBy(player, ally, healPerSecond);
+                    }
+                }
+                if (upgraded) {
+                    updateKnockbackShield(finished ? java.util.List.of() : alliesIn(center, radius), shielded);
+                }
+                if (finished) {
+                    cancel();
+                    return;
+                }
+                if (tick % 5 == 0) drawSanctuary(world, center, radius, tick);
+                tick += 5;
+            }
+        }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    private java.util.List<Player> alliesIn(Location center, double radius) {
+        java.util.List<Player> allies = new ArrayList<>();
+        for (Player other : center.getWorld().getPlayers()) {
+            if (other.isDead() || !other.isValid()) continue;
+            if (other.getLocation().distanceSquared(center) <= radius * radius) allies.add(other);
+        }
+        return allies;
+    }
+
+    /** Knockback immunity for the players inside; removed as soon as they leave or it ends. */
+    private void updateKnockbackShield(java.util.List<Player> inside, java.util.Set<UUID> shielded) {
+        java.util.Set<UUID> insideIds = new java.util.HashSet<>();
+        for (Player player : inside) {
+            insideIds.add(player.getUniqueId());
+            org.bukkit.attribute.AttributeInstance attribute = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_KNOCKBACK_RESISTANCE);
+            if (attribute != null && shielded.add(player.getUniqueId())) {
+                attribute.removeModifier(NO_KNOCKBACK_ID);
+                attribute.addTransientModifier(new org.bukkit.attribute.AttributeModifier(
+                        NO_KNOCKBACK_ID, "iruuRPG sanctuary", 1.0, org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER));
+            }
+        }
+        shielded.removeIf(id -> {
+            if (insideIds.contains(id)) return false;
+            Player player = plugin.getServer().getPlayer(id);
+            if (player != null) {
+                org.bukkit.attribute.AttributeInstance attribute = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_KNOCKBACK_RESISTANCE);
+                if (attribute != null) attribute.removeModifier(NO_KNOCKBACK_ID);
+            }
+            return true;
+        });
+    }
+
+    private void drawSanctuary(World world, Location center, double radius, int tick) {
+        int points = 48;
+        double rotation = tick * 0.05;
+        for (int index = 0; index < points; index++) {
+            double angle = 2.0 * Math.PI * index / points + rotation;
+            Location edge = center.clone().add(Math.cos(angle) * radius, 0.12, Math.sin(angle) * radius);
+            world.spawnParticle(Particle.REDSTONE, edge, 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_RING, true);
+            if (index % 6 == 0) {
+                double rise = (tick % 40) / 40.0 * 2.5;
+                world.spawnParticle(Particle.REDSTONE, edge.clone().add(0, rise, 0), 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_LIGHT, true);
+            }
+        }
+        world.spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 0.6, 0), 3, radius / 3.0, 0.3, radius / 3.0, 0.0);
     }
 
     // ---- ice lance (mage) ---------------------------------------------------

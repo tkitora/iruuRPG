@@ -212,7 +212,7 @@ public final class ItemSkillService {
 
         PlayerProfile snapshot = attackService.snapshotAttacker(player);
         double amount = round(snapshot.maxHp() * skill.value("heal-rate", HEAL_MELEE_RATE));
-        if (attackService.healPlayer(player, amount)) {
+        if (attackService.healPlayerBy(player, player, amount)) {
             attackEffects.playHealBurst(player, weapon);
         }
 
@@ -228,7 +228,7 @@ public final class ItemSkillService {
         double amount = round(snapshot.maxHp() * skill.value("heal-rate", HEAL_RANGE_RATE));
         attackEffects.playHealRing(player.getLocation(), weapon, radius);
         for (Player target : playersAround(player.getLocation(), player, radius, false)) {
-            if (attackService.healPlayer(target, amount)) {
+            if (attackService.healPlayerBy(player, target, amount)) {
                 attackEffects.playHealBurst(target, weapon);
             }
         }

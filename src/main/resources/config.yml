@@ -127,3 +127,16 @@ class-conditions:
   check-ticks: 5
   # 位置が動いていない判定が何回続いたら「立ち止まっている」とするか (check-ticks × この回数)
   stationary-samples: 2
+
+# クラス効果の倍率。設計メモの式のとおり(1.0)。桁が大きすぎる場合の調整用
+class-effects:
+  gifted:
+    # 出血 = レベル × 近接ダメージ × (100% + 近接ダメージ%) × この値
+    bleed-scale: 1.0
+    # 腐食・腐敗 = レベル × 遠距離ダメージ × (100% + 遠距離ダメージ%) × この値
+    decay-scale: 1.0
+    # 本能開放の裂傷 = 設置ダメージ × 設置ダメージ% ÷ 100 × この値
+    laceration-scale: 1.0
+  healer:
+    # 回復→敵ダメージの範囲(ブロック)
+    pulse-radius: 7

@@ -59,6 +59,7 @@ public final class AttackService {
     private final StatusEffectService statusEffectService;
     private RpgMobService mobService;
     private ClassService classService;
+    private ClassEffectService classEffectService;
     private DebugTargetService debugTargetService;
 
     public AttackService(
@@ -321,6 +322,9 @@ public final class AttackService {
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            if (classEffectService != null) {
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            }
         }
         return applied;
     }
@@ -351,6 +355,9 @@ public final class AttackService {
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            if (classEffectService != null) {
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            }
         }
         return applied;
     }
@@ -472,7 +479,16 @@ public final class AttackService {
 
         playerBars.sync(player, profile);
         attackEffects.playHealNumber(player, healed);
+        if (classEffectService != null) {
+            classEffectService.onSelfHealed(player, healed);
+        }
         return true;
+    }
+
+    /** A heal cast by {@code caster}: class bonuses to the caster's heals (e.g. the healer's protection) apply. */
+    public boolean healPlayerBy(Player caster, Player target, double amount) {
+        double multiplier = classEffectService == null ? 1.0 : classEffectService.healMultiplier(caster);
+        return healPlayer(target, amount * multiplier);
     }
 
     /** Melee area attacks are a class skill (milestone "melee_area"), not a weapon trait. */
@@ -483,6 +499,10 @@ public final class AttackService {
     private boolean hasSkill(Player attacker, String skillName) {
         if (classService == null) return false;
         return classService.hasSkill(profileManager.getOrCreate(attacker), skillName);
+    }
+
+    public void setClassEffectService(ClassEffectService classEffectService) {
+        this.classEffectService = classEffectService;
     }
 
     public void setClassService(ClassService classService) {

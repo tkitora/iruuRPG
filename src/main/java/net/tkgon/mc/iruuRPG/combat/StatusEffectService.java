@@ -369,6 +369,29 @@ public final class StatusEffectService {
         }
     }
 
+    // ---- API used by class effects (ClassEffectService) ---------------------
+
+    /** Adds bleed to the target as if a weapon with this bleed value hit it. */
+    public void addBleed(LivingEntity target, double value, UUID sourceId) {
+        applyBleed(target, value, sourceId);
+        refreshDisplay(target);
+    }
+
+    public void addCorrosion(LivingEntity target, double value, UUID sourceId) {
+        applyTimedStack(corrosionEffects, target, StatusEffectType.CORROSION, value, CORROSION_DURATION_MILLIS, sourceId);
+        refreshDisplay(target);
+    }
+
+    public void addDecay(LivingEntity target, double value, UUID sourceId) {
+        applyTimedStack(decayEffects, target, StatusEffectType.DECAY, value, DECAY_DURATION_MILLIS, sourceId);
+        refreshDisplay(target);
+    }
+
+    /** Flat extra damage shown as a status damage number (e.g. a laceration burst). */
+    public void dealStatusDamage(LivingEntity target, StatusEffectType type, double amount, UUID sourceId) {
+        applyStatusDamage(target, type, Map.of(sourceId, amount));
+    }
+
     private void applyStatusDamage(LivingEntity target, StatusEffectType type, Map<UUID, Double> amounts) {
         if (target == null || target.isDead() || !target.isValid() || amounts == null || amounts.isEmpty()) return;
 
