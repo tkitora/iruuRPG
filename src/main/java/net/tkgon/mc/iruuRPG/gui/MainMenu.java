@@ -218,7 +218,7 @@ public final class MainMenu implements Listener {
         return format.format(value);
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private Inventory inventory;
 

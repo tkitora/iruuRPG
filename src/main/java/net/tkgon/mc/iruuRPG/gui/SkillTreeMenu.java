@@ -50,6 +50,7 @@ public final class SkillTreeMenu implements Listener {
     private static final int SIZE = 54;
     private static final int INFO_SLOT = 4;
     private static final int RESET_SLOT = 49;
+    private static final int BACK_SLOT = 45;
     private static final int SPEND_LABEL_SLOT = 9;
     private static final int MILESTONE_LABEL_SLOT = 27;
     private static final int SPEND_CENTER_SLOT = 22;
@@ -63,6 +64,11 @@ public final class SkillTreeMenu implements Listener {
     private final ClassSkillRegistry classSkillRegistry;
     private final PlayerProfileManager profileManager;
     private final PlayerBars playerBars;
+    private MainMenu mainMenu;
+
+    public void setMainMenu(MainMenu mainMenu) {
+        this.mainMenu = mainMenu;
+    }
 
     public SkillTreeMenu(
             EquipmentService equipmentService,
@@ -100,6 +106,10 @@ public final class SkillTreeMenu implements Listener {
 
         PlayerProfile profile = profileManager.getOrCreate(player);
         int slot = event.getRawSlot();
+        if (slot == BACK_SLOT && mainMenu != null) {
+            mainMenu.open(player);
+            return;
+        }
         if (slot == RESET_SLOT) {
             classService.reset(profile);
             sync(player, profile);
@@ -152,6 +162,7 @@ public final class SkillTreeMenu implements Listener {
         fill(inventory);
         ClassDefinition definition = classService.currentClass(profile).orElse(null);
         inventory.setItem(INFO_SLOT, infoItem(profile, definition));
+        inventory.setItem(BACK_SLOT, MenuButtons.back());
         inventory.setItem(RESET_SLOT, button(Material.BARRIER, "SPをリセット", NamedTextColor.RED,
                 List.of(text("全ノードのレベルを0に戻します", NamedTextColor.GRAY), text("(SPは全額戻ります)", NamedTextColor.GRAY))));
         if (definition == null) return;
@@ -362,7 +373,7 @@ public final class SkillTreeMenu implements Listener {
                 .replaceAll("\\.$", "");
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private Inventory inventory;
 

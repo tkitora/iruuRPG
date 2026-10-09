@@ -39,6 +39,11 @@ public final class ClassSelectMenu implements Listener {
     private final ClassService classService;
     private final PlayerProfileManager profileManager;
     private final PlayerBars playerBars;
+    private MainMenu mainMenu;
+
+    public void setMainMenu(MainMenu mainMenu) {
+        this.mainMenu = mainMenu;
+    }
 
     public ClassSelectMenu(
             EquipmentService equipmentService,
@@ -68,12 +73,19 @@ public final class ClassSelectMenu implements Listener {
             return;
         }
 
-        Holder holder = new Holder(player.getUniqueId(), classes.stream().map(ClassDefinition::id).toList(), speechByClassId, onSelected);
-        int rows = Math.max(1, (classes.size() + ROW_SIZE - 1) / ROW_SIZE);
+        // The back button is only offered after a class was chosen (the first choice must not be skipped)
+        // and never inside the tutorial, where choosing the class is a step of the flow.
+        boolean canGoBack = profile.classChosen() && mainMenu != null && onSelected == null;
+        int classRows = Math.max(1, (classes.size() + ROW_SIZE - 1) / ROW_SIZE);
+        int rows = classRows + (canGoBack ? 1 : 0);
+        Holder holder = new Holder(player.getUniqueId(), classes.stream().map(ClassDefinition::id).toList(), speechByClassId, onSelected, canGoBack ? classRows * ROW_SIZE : -1);
         Inventory inventory = Bukkit.createInventory(holder, rows * ROW_SIZE, TITLE);
         holder.setInventory(inventory);
         for (int slot = 0; slot < classes.size(); slot++) {
             inventory.setItem(slot, icon(classes.get(slot), profile, speechByClassId == null ? null : speechByClassId.get(classes.get(slot).id())));
+        }
+        if (canGoBack) {
+            inventory.setItem(classRows * ROW_SIZE, MenuButtons.back());
         }
         player.openInventory(inventory);
     }
@@ -85,6 +97,10 @@ public final class ClassSelectMenu implements Listener {
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (!holder.ownerId().equals(player.getUniqueId())) return;
+        if (event.getRawSlot() == holder.backSlot() && holder.backSlot() >= 0 && mainMenu != null) {
+            mainMenu.open(player);
+            return;
+        }
         if (event.getRawSlot() < 0 || event.getRawSlot() >= holder.classIds().size()) return;
 
         String classId = holder.classIds().get(event.getRawSlot());
@@ -146,18 +162,24 @@ public final class ClassSelectMenu implements Listener {
         return item;
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private final List<String> classIds;
         private final Map<String, String> speech;
         private final Consumer<String> onSelected;
+        private final int backSlot;
         private Inventory inventory;
 
-        private Holder(UUID ownerId, List<String> classIds, Map<String, String> speech, Consumer<String> onSelected) {
+        private Holder(UUID ownerId, List<String> classIds, Map<String, String> speech, Consumer<String> onSelected, int backSlot) {
             this.ownerId = ownerId;
             this.classIds = classIds;
             this.speech = speech;
             this.onSelected = onSelected;
+            this.backSlot = backSlot;
+        }
+
+        private int backSlot() {
+            return backSlot;
         }
 
         private Consumer<String> onSelected() {

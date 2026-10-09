@@ -77,6 +77,16 @@ public final class StatLabels {
         return (rounded >= 0 ? "+" : "") + rounded + (percent ? "%" : "");
     }
 
+    /** A whole-number text without a sign, e.g. "1200" or "15%". Resists are shown as percent. */
+    public static String plain(StatType type, double value) {
+        double shown = FRACTION_STATS.contains(type) ? value * 100.0 : value;
+        return Math.round(shown) + (isPercent(type) ? "%" : "");
+    }
+
+    public static String plainElement(double value, boolean percent) {
+        return Math.round(value) + (percent ? "%" : "");
+    }
+
     public static boolean isPercent(StatType type) {
         return switch (type) {
             case STRENGTH_PERCENT, MAGIC_PERCENT, MELEE_DAMAGE_PERCENT, RANGE_DAMAGE_PERCENT, DEPLOY_DAMAGE_PERCENT,

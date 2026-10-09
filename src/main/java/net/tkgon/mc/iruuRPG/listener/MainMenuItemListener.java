@@ -1,6 +1,7 @@
 package net.tkgon.mc.iruuRPG.listener;
 
 import net.tkgon.mc.iruuRPG.gui.MainMenu;
+import net.tkgon.mc.iruuRPG.gui.MenuHolder;
 import net.tkgon.mc.iruuRPG.gui.MainMenuItemService;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -10,6 +11,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -56,6 +58,24 @@ public final class MainMenuItemListener implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         if (isProtectedMenuClick(event)) {
+            event.setCancelled(true);
+            scheduleEnsure(player);
+        }
+    }
+
+    /**
+     * Creative mode: the client takes and places items by itself, so cancelling the click is not enough
+     * (the item stays on the cursor and can be put in another slot as a real copy). Every creative action
+     * that involves the menu item, or happens inside an iruuRPG menu, is cancelled and the client is resynced.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onCreativeClick(InventoryCreativeEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        boolean inOurMenu = event.getView().getTopInventory().getHolder() instanceof MenuHolder;
+        if (inOurMenu
+                || menuItemService.isMenuItem(event.getCursor())
+                || menuItemService.isMenuItem(event.getCurrentItem())) {
             event.setCancelled(true);
             scheduleEnsure(player);
         }
@@ -119,7 +139,11 @@ public final class MainMenuItemListener implements Listener {
     private void scheduleEnsure(Player player) {
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline()) {
+                if (menuItemService.isMenuItem(player.getItemOnCursor())) {
+                    player.setItemOnCursor(null);
+                }
                 menuItemService.ensure(player);
+                player.updateInventory();
             }
         });
     }
