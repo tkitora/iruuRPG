@@ -190,17 +190,17 @@ public final class ClassEffectService {
     }
 
     /**
-     * Healer: when the healer is healed (item or class skills), the amount that actually healed x level / 25
+     * Healer: when the healer is healed (item or class skills), the whole heal amount (overheal included) x level / 25
      * hits every enemy within 7 blocks as green damage (green damage buffs apply).
      */
-    public void onSelfHealed(Player player, double healed) {
-        if (healed <= 0.0 || attackService == null) return;
+    public void onSelfHealed(Player player, double healAmount) {
+        if (healAmount <= 0.0 || attackService == null) return;
 
         PlayerProfile profile = profileManager.getOrCreate(player);
         if (!classService.hasSkill(profile, HEALER_PULSE)) return;
 
         double radius = plugin.getConfig().getDouble("class-effects.healer.pulse-radius", 7.0);
-        double damage = healed * Math.max(1, profile.level()) / HEALER_PULSE_DIVISOR * greenFactor(profile);
+        double damage = healAmount * Math.max(1, profile.level()) / HEALER_PULSE_DIVISOR * greenFactor(profile);
         if (damage <= 0.0) return;
 
         Location center = player.getLocation();
