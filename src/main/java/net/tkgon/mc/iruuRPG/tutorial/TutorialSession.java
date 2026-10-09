@@ -68,8 +68,8 @@ final class TutorialSession {
         this.steps = steps;
     }
 
-    /** One band of the rainbow beside the NPC: an arc from startDeg to endDeg (0 = player's right, 180 = left, 90 = above). */
-    record MistArc(Color color, double startDeg, double endDeg, int createdTick) {
+    /** One colored dot on the half-circle beside the NPC (0 deg = player's right, 180 = left, 90 = above). */
+    record MistArc(Color color, double slotDeg, int createdTick) {
     }
 
     /** What the player looked like before the tutorial, so a stop can put everything back. */
