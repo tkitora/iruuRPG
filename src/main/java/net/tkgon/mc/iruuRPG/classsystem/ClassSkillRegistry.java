@@ -24,7 +24,7 @@ public final class ClassSkillRegistry {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "cskill");
-        ensureFolder(folder, "cskill/warrior_strike.yml", "cskill/ice_lance.yml", "cskill/instinct_release.yml", "cskill/sanctuary.yml");
+        ensureFolder(folder, "cskill/warrior_strike.yml", "cskill/ice_lance.yml", "cskill/instinct_release.yml", "cskill/sanctuary.yml", "cskill/satsujin.yml");
 
         File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".yml") || name.toLowerCase().endsWith(".yaml"));
         if (files == null) return;

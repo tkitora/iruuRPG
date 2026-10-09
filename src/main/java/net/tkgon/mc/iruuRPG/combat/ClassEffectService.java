@@ -28,12 +28,17 @@ public final class ClassEffectService {
     public static final String GIFTED_BLEED = "gifted_bleed";
     public static final String GIFTED_DECAY = "gifted_decay";
     public static final String INSTINCT_UPGRADE = "instinct_release_upgrade";
+    public static final String ICE_LANCE_UPGRADE = "ice_lance_upgrade";
+    public static final String ASSASSIN_ORANGE = "assassin_orange_strike";
+    public static final String ASSASSIN_BLAST = "assassin_blast";
+    private static final double ASSASSIN_BLAST_DIVISOR = 40.0;
     public static final String HEALER_PULSE = "healer_pulse";
     public static final String HEALER_GUARD = "healer_guard";
     private static final double HEALER_PULSE_DIVISOR = 25.0;
     private static final double ELEMENT_SCALE = 800.0;
 
     private static final Particle.DustOptions WHITE_AURA = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.4f);
+    private static final Particle.DustOptions ORANGE_HIT = new Particle.DustOptions(Color.fromRGB(255, 150, 30), 1.3f);
     private static final Particle.DustOptions GREEN_PULSE = new Particle.DustOptions(Color.fromRGB(90, 230, 120), 1.2f);
     private static final Particle.DustOptions SILVER_AURA = new Particle.DustOptions(Color.fromRGB(205, 220, 255), 1.0f);
 
@@ -43,6 +48,8 @@ public final class ClassEffectService {
     private final StatusEffectService statusEffectService;
     private final Map<UUID, Long> instinctUntilMillis = new HashMap<>();
     private AttackService attackService;
+    private final Map<UUID, UUID> lastTargets = new HashMap<>();
+    private final Map<UUID, Long> lastTargetTimes = new HashMap<>();
 
     public ClassEffectService(JavaPlugin plugin, ClassService classService, PlayerProfileManager profileManager, StatusEffectService statusEffectService) {
         this.plugin = plugin;
@@ -62,7 +69,67 @@ public final class ClassEffectService {
         PlayerProfile profile = profileManager.getOrCreate(attacker);
         if (profile.classId().isBlank()) return;
 
+        lastTargets.put(attacker.getUniqueId(), victim.getUniqueId());
+        lastTargetTimes.put(attacker.getUniqueId(), System.currentTimeMillis());
         giftedOnHit(attacker, victim, profile);
+        assassinOnHit(attacker, victim, weapon, damage, profile);
+        mageOnHit(attacker, victim, damage, profile);
+    }
+
+    /** Mage upgrade: hits on a stopped enemy (slow 100%+) add corrosion and decay equal to the final damage. */
+    private void mageOnHit(Player attacker, LivingEntity victim, double damage, PlayerProfile profile) {
+        if (damage <= 0.0 || !classService.hasSkill(profile, ICE_LANCE_UPGRADE)) return;
+        if (statusEffectService.slowOf(victim) < 100.0 - 1.0E-6) return;
+
+        UUID sourceId = attacker.getUniqueId();
+        statusEffectService.addCorrosion(victim, damage, sourceId);
+        statusEffectService.addDecay(victim, damage, sourceId);
+    }
+
+    // ---- assassin -------------------------------------------------------------
+
+    /**
+     * Assassin: every hit adds orange damage of hit damage x (100% + level %); hits with an orange weapon
+     * also add an explosion of hit damage x (target's confusion / 40).
+     */
+    private void assassinOnHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, PlayerProfile profile) {
+        if (attackService == null || damage <= 0.0) return;
+
+        UUID sourceId = attacker.getUniqueId();
+        if (classService.hasSkill(profile, ASSASSIN_ORANGE)) {
+            double extra = damage * (1.0 + Math.max(1, profile.level()) / 100.0);
+            if (attackService.applyDirectDamage(attacker, victim, Math.round(extra * 10.0) / 10.0)) {
+                playOrangeHit(victim);
+            }
+        }
+        if (victim.isDead() || !victim.isValid()) return;
+
+        if (classService.hasSkill(profile, ASSASSIN_BLAST)
+                && weapon != null && weapon.element() == net.tkgon.mc.iruuRPG.stat.Element.ORANGE) {
+            double confusion = statusEffectService.confusionOf(victim);
+            double blast = damage * confusion / ASSASSIN_BLAST_DIVISOR;
+            if (blast > 0.0) {
+                statusEffectService.addExplosion(victim, blast, sourceId);
+            }
+        }
+    }
+
+    private void playOrangeHit(LivingEntity victim) {
+        World world = victim.getWorld();
+        Location center = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+        world.spawnParticle(Particle.REDSTONE, center, 10, 0.35, 0.45, 0.35, 0.0, ORANGE_HIT, true);
+    }
+
+    /** The enemy the player hit last, if still valid within {@code maxSeconds}. */
+    public LivingEntity lastTarget(Player player, double maxSeconds) {
+        UUID targetId = lastTargets.get(player.getUniqueId());
+        Long time = lastTargetTimes.get(player.getUniqueId());
+        if (targetId == null || time == null) return null;
+        if (System.currentTimeMillis() - time > maxSeconds * 1000.0) return null;
+
+        org.bukkit.entity.Entity entity = org.bukkit.Bukkit.getEntity(targetId);
+        if (!(entity instanceof LivingEntity living) || living.isDead() || !living.isValid()) return null;
+        return living.getWorld().equals(player.getWorld()) ? living : null;
     }
 
     // ---- gifted ---------------------------------------------------------------

@@ -33,6 +33,8 @@ public final class ClassSkillService {
     public static final String WARRIOR_STRIKE = "warrior_strike";
     public static final String WARRIOR_STRIKE_UPGRADE = "warrior_strike_upgrade";
     public static final String INSTINCT_RELEASE = "instinct_release";
+    public static final String SATSUJIN = "satsujin";
+    public static final String SATSUJIN_UPGRADE = "satsujin_upgrade";
     public static final String SANCTUARY = "sanctuary";
     public static final String SANCTUARY_UPGRADE = "sanctuary_upgrade";
     public static final String ICE_LANCE = "ice_lance";
@@ -82,6 +84,9 @@ public final class ClassSkillService {
         if (SANCTUARY.equalsIgnoreCase(skill.id())) {
             return precheckSanctuary(player);
         }
+        if (SATSUJIN.equalsIgnoreCase(skill.id())) {
+            return precheckSatsujin(player, skill);
+        }
         return Precheck.noEffect();
     }
 
@@ -100,6 +105,8 @@ public final class ClassSkillService {
             iceLance(player, skill, precheck.weapon());
         } else if (SANCTUARY.equalsIgnoreCase(skill.id())) {
             sanctuary(player, skill, precheck.weapon());
+        } else if (SATSUJIN.equalsIgnoreCase(skill.id()) && precheck.target() != null) {
+            satsujin(player, skill, precheck.target(), precheck.weapon());
         }
     }
 
@@ -117,6 +124,27 @@ public final class ClassSkillService {
         LivingEntity target = findTarget(player, range);
         if (target == null) {
             return Precheck.rejected("前方に対象がいません。");
+        }
+        return Precheck.ready(target, weapon);
+    }
+
+    private Precheck precheckSatsujin(Player player, ClassSkillDefinition skill) {
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null || !weapon.isWeaponLike()) {
+            return Precheck.rejected("武器を持っていないと使えません。");
+        }
+        if (!attackService.canUseItem(player, weapon)) {
+            attackService.sendLevelRequirement(player, weapon);
+            return Precheck.rejected(null);
+        }
+        if (classEffectService == null) return Precheck.rejected("対象がいません。");
+
+        LivingEntity target = classEffectService.lastTarget(player, skill.values().getOrDefault("target-memory-seconds", 15.0));
+        if (target == null) {
+            return Precheck.rejected("最後に攻撃した敵がいません。");
+        }
+        if (target.getLocation().distance(player.getLocation()) > skill.values().getOrDefault("max-distance", 40.0)) {
+            return Precheck.rejected("対象が遠すぎます。");
         }
         return Precheck.ready(target, weapon);
     }
@@ -247,6 +275,94 @@ public final class ClassSkillService {
                 world.spawnParticle(Particle.FLASH, head, 1);
             }
         }
+    }
+
+    // ---- satsujin (assassin) --------------------------------------------------------
+
+    private static final Particle.DustOptions SATSUJIN_TRAIL = new Particle.DustOptions(Color.fromRGB(255, 130, 20), 1.4f);
+
+    /**
+     * Teleports to the enemy hit last, stuns it (confusion 100) and attacks once as a normal attack
+     * (no normal attack cooldown). Upgrade: keeps repeating the same attack, up to 9 more times, until it dies.
+     */
+    private void satsujin(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon) {
+        Location from = player.getLocation().clone();
+        Location behind = target.getLocation().clone();
+        Vector away = behind.getDirection().setY(0);
+        if (away.lengthSquared() < 1.0E-6) away = new Vector(0, 0, 1);
+        behind.subtract(away.normalize().multiply(1.2));
+        behind.setDirection(target.getLocation().toVector().subtract(behind.toVector()));
+        player.teleport(behind);
+        playTeleportTrail(from, behind);
+
+        if (statusEffectService != null) {
+            statusEffectService.addConfusion(target, skill.values().getOrDefault("confusion", 100.0), player.getUniqueId());
+        }
+        normalAttack(player, target, weapon);
+
+        boolean upgraded = classService.hasSkill(profileManager.getOrCreate(player), SATSUJIN_UPGRADE);
+        if (!upgraded) return;
+
+        int repeats = (int) Math.round(skill.values().getOrDefault("upgrade-repeats", 9.0));
+        long interval = Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-interval-ticks", 3.0)));
+        new BukkitRunnable() {
+            private int done;
+
+            @Override
+            public void run() {
+                if (done >= repeats || !player.isOnline() || target.isDead() || !target.isValid()) {
+                    cancel();
+                    return;
+                }
+                normalAttack(player, target, weapon);
+                done++;
+            }
+        }.runTaskTimer(plugin, interval, interval);
+    }
+
+    /** One normal attack with the held weapon, without spending the attack cooldown. */
+    private void normalAttack(Player player, LivingEntity target, RpgItemDefinition weapon) {
+        AttackService.AttackDamage attack = attackService.calculateDamage(player, target, weapon);
+        double damage = attack.result().damage();
+        boolean critical = attack.result().critical();
+        AttackType type = weapon.attackType();
+        boolean applied;
+        if (type == AttackType.RANGE) {
+            applied = attackService.applyRangeDamage(player, target, damage, weapon, critical);
+            if (applied) attackService.playRangeImpact(target.getLocation().add(0, target.getHeight() * 0.5, 0), weapon);
+        } else {
+            applied = attackService.applyDirectDamage(player, target, damage, weapon, critical);
+            if (applied && type == AttackType.MELEE) {
+                attackService.playMeleeImpact(player, target);
+                attackService.playMeleeSlash(player, weapon);
+            }
+        }
+        if (!applied) return;
+
+        attackService.sendDamageDebug(player, type, target, damage, critical, false);
+        if (type == AttackType.MELEE || type == AttackType.RANGE) {
+            attackService.applyAreaDamage(player, target, damage, type, weapon);
+        }
+    }
+
+    private void playTeleportTrail(Location from, Location to) {
+        World world = to.getWorld();
+        if (world == null) return;
+
+        world.playSound(from, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.5f);
+        world.playSound(to, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.2f);
+        Vector step = to.toVector().subtract(from.toVector());
+        double length = step.length();
+        if (length < 1.0E-6) return;
+
+        int points = Math.max(4, (int) (length * 3.0));
+        step.multiply(1.0 / points);
+        Location cursor = from.clone().add(0, 1.0, 0);
+        for (int index = 0; index <= points; index++) {
+            world.spawnParticle(Particle.REDSTONE, cursor, 2, 0.1, 0.2, 0.1, 0.0, SATSUJIN_TRAIL, true);
+            cursor.add(step);
+        }
+        world.spawnParticle(Particle.SWEEP_ATTACK, to.clone().add(0, 1.0, 0), 3, 0.4, 0.3, 0.4, 0.0);
     }
 
     // ---- sanctuary (healer) --------------------------------------------------------

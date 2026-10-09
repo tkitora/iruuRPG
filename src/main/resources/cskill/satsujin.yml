@@ -1,0 +1,28 @@
+# クラススキル定義: アサシンの「SATUJIN」(解放ノード4 / ホットキー F)
+#
+# 最後に攻撃した敵の背後へ瞬間移動し、混乱を100与え、持っている武器で通常攻撃を1回行う
+# (通常攻撃のクールタイムは発生しない)。
+# 強化(解放ノード8)を解放済みなら、同じ攻撃を最大9回、対象が死ぬまで繰り返す。
+
+id: satsujin
+name: "SATUJIN"
+
+# 消費MP
+cost: 40
+
+# クールダウン秒数
+cooldown: 20
+
+description:
+  - "最後に攻撃した敵の背後へ移動し、混乱を与えて攻撃する。"
+
+values:
+  # target-memory-seconds: 最後に攻撃した敵を覚えている時間(秒)
+  target-memory-seconds: 15
+  # max-distance: 移動できる最大距離(ブロック)
+  max-distance: 40
+  # confusion: 与える混乱の量 (100で行動停止)
+  confusion: 100
+  # upgrade-repeats: 強化後に追加で繰り返す回数 / upgrade-interval-ticks: その間隔(tick)
+  upgrade-repeats: 9
+  upgrade-interval-ticks: 3

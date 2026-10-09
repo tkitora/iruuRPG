@@ -1,0 +1,133 @@
+# クラス定義: アサシン (橙 / 橙ダメージ・超低耐久)
+# 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
+#
+# 橙以外の属性ダメージを減らす値や、防御系を減らす値は、+側と同じ価値だけ減らす初期案。
+# (白・緑の属性ダメージの減少量と、保護の減少量は仮置き)
+
+id: assassin
+name: "アサシン"
+icon: IRON_SWORD
+
+growth:
+  attack-speed: 0.05
+  element-stats:
+    damage:
+      orange: 0.8
+
+spend:
+  orange_damage:
+    name: "橙の刃"
+    icon: ORANGE_DYE
+    per-level:
+      element-stats:
+        damage:
+          orange: 19
+          red: -65
+          blue: -65
+          white: -65
+          green: -65
+  orange_percent:
+    name: "橙の極み"
+    icon: ORANGE_CONCRETE
+    per-level:
+      element-stats:
+        damage-percent:
+          orange: 1.1
+          red: -1.1
+          blue: -1.1
+          white: -1.1
+          green: -1.1
+  move_speed:
+    name: "移動速度"
+    icon: FEATHER
+    per-level:
+      move-speed: 0.5
+  attack_speed:
+    name: "攻撃速度"
+    icon: CLOCK
+    per-level:
+      attack-speed: 0.5
+  glass_cannon:
+    name: "紙一重"
+    icon: TNT
+    per-level:
+      strength: 2.4
+      magic: 2.4
+      melee-damage: 20
+      defense: -17
+      physical-resist: -0.0075
+      magic-resist: -0.0075
+      damage-reduction: -0.75
+      protection: -0.3
+
+milestones:
+  # 1: SP 5 (ステータス)
+  - node_name: "橙の素養"
+    icon: ORANGE_DYE
+    node_type: passive
+    effect_type: status
+    element-stats:
+      damage-percent:
+        orange: 6
+      damage:
+        orange: 103
+  # 2: SP 10 (クラス特有: 攻撃時に橙属性ダメージを追加)
+  - node_name: "追い打ち"
+    icon: BLAZE_POWDER
+    node_type: passive
+    effect_type: skill
+    name: assassin_orange_strike
+    description:
+      - "攻撃するたびに、橙属性のダメージが追加で入る"
+  # 3: SP 15 (ステータス)
+  - node_name: "惑わす刃"
+    icon: POPPED_CHORUS_FRUIT
+    node_type: passive
+    effect_type: status
+    status:
+      confusion: 1
+    element-stats:
+      damage:
+        orange: 103
+  # 4: SP 20 (クラススキル / F)
+  - node_name: "SATUJIN"
+    icon: NETHERITE_SWORD
+    node_type: active
+    hot_key: F
+    name: satsujin
+  # 5: SP 25 (ステータス)
+  - node_name: "混濁の眼"
+    icon: SPIDER_EYE
+    node_type: passive
+    effect_type: status
+    status:
+      confusion: 1
+    element-stats:
+      damage-percent:
+        orange: 6
+  # 6: SP 30 (クラス特有: 橙の武器で攻撃時、混乱に応じた爆破)
+  - node_name: "誘爆"
+    icon: TNT
+    node_type: passive
+    effect_type: skill
+    name: assassin_blast
+    description:
+      - "橙属性の武器で攻撃すると、敵の混乱の分だけ爆破が溜まる"
+  # 7: SP 35 (ステータス)
+  - node_name: "橙の極意"
+    icon: ORANGE_GLAZED_TERRACOTTA
+    node_type: passive
+    effect_type: status
+    element-stats:
+      damage-percent:
+        orange: 6
+      damage:
+        orange: 103
+  # 8: SP 40 (クラススキル強化)
+  - node_name: "SATUJIN・極"
+    icon: END_CRYSTAL
+    node_type: passive
+    effect_type: skill
+    name: satsujin_upgrade
+    description:
+      - "同じ攻撃を最大9回、対象が倒れるまで繰り返す"

@@ -30,7 +30,7 @@ public final class ClassRegistry {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "classes");
-        ensureFolder(folder, "classes/warrior.yml", "classes/mage.yml", "classes/gifted.yml", "classes/healer.yml");
+        ensureFolder(folder, "classes/warrior.yml", "classes/mage.yml", "classes/gifted.yml", "classes/healer.yml", "classes/assassin.yml");
 
         File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".yml") || name.toLowerCase().endsWith(".yaml"));
         if (files == null || files.length == 0) {

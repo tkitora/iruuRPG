@@ -401,6 +401,28 @@ public final class StatusEffectService {
         refreshDisplay(target);
     }
 
+    /** Stacks confusion (100 stuns). Returns nothing; the stun is handled by the status task. */
+    public void addConfusion(LivingEntity target, double add, UUID sourceId) {
+        applyConfusionStack(target, add, plugin.getConfig().getLong("combat.status-effects.class-confusion-millis", 5000L), sourceId);
+        refreshDisplay(target);
+    }
+
+    /** Current slow percent on the target (0 when not slowed). 100 or more means stopped. */
+    public double slowOf(LivingEntity target) {
+        ActiveEffect slow = active(target, StatusEffectType.SLOW);
+        return slow == null ? 0.0 : slow.value();
+    }
+
+    public double confusionOf(LivingEntity target) {
+        ActiveEffect confusion = active(target, StatusEffectType.CONFUSION);
+        return confusion == null ? 0.0 : confusion.value();
+    }
+
+    public void addExplosion(LivingEntity target, double value, UUID sourceId) {
+        applyExplosion(target, value, sourceId);
+        refreshDisplay(target);
+    }
+
     /** Flat extra damage shown as a status damage number (e.g. a laceration burst). */
     public void dealStatusDamage(LivingEntity target, StatusEffectType type, double amount, UUID sourceId) {
         applyStatusDamage(target, type, Map.of(sourceId, amount));
