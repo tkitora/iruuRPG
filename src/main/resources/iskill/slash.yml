@@ -1,0 +1,61 @@
+# アイテムスキル設定: slash / 斬撃
+#
+# cost/cooldown/duration/lore/values の意味は iskill/sweep.yml を参照。
+
+id: slash
+name: "斬撃"
+
+melee:
+  enabled: true
+  trigger: "右クリック"
+  description:
+    - "前方の敵1体へ一瞬で6連撃を行う。"
+  cost: 15
+  cooldown: 30
+  values:
+    # radius: 前方にいる対象を探す半径
+    radius: 5.0
+    # hits: 連撃回数
+    hits: 6
+    # interval-ticks: 連撃の間隔。1tick = 0.05秒、6hitなら約0.25秒
+    interval-ticks: 1
+
+range:
+  enabled: true
+  trigger: "シフト右クリック"
+  description:
+    - "前方10mへ斬撃を飛ばす。"
+  lore:
+    - "命中時、通常ダメージの3～4倍。"
+  cost: 20
+  cooldown: 30
+  values:
+    # distance: 最大射程
+    distance: 10.0
+    # step: 1tickごとに進む距離
+    step: 0.65
+    # hit-radius: 命中判定の半径
+    hit-radius: 1.25
+    # min-multiplier / max-multiplier: ランダムダメージ倍率の下限/上限
+    min-multiplier: 3.0
+    max-multiplier: 4.0
+
+deploy:
+  enabled: true
+  trigger: "パッシブ"
+  description:
+    - "攻撃時、敵を追尾する斬撃を召喚する。"
+  lore:
+    - "斬撃に最も近い範囲内の敵1体を追尾。"
+  duration: 10
+  values:
+    # radius: 追尾対象を探す設置範囲
+    radius: 6.0
+    # attack-period-ticks: 何tickごとに追尾斬撃を出すか。攻撃速度ステータスで短縮される
+    attack-period-ticks: 40
+    # slash-speed: 追尾斬撃の移動速度
+    slash-speed: 0.62
+    # hit-radius: 追尾斬撃の命中判定
+    hit-radius: 0.85
+    # max-ticks: 追尾斬撃が消えるまでの最大tick数
+    max-ticks: 45

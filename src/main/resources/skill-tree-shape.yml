@@ -1,0 +1,61 @@
+# 全クラス共通のスキルツリー形状。
+# ここにはノードの「形」「順番」「親子関係」「GUIボタン位置」だけを書く。
+# 各ノードの名前、効果、コスト、スキル内容は classes/*.yml 側に書く。
+
+tree:
+  # チェストGUIサイズ。基本は 54。
+  size: 54
+
+  # 画面に同時表示するノード数。中央縦に表示する。
+  visible-rows: 5
+
+  controls:
+    # 上位ノード側へスクロールするボタン
+    scroll-up-slot: 8
+    # 下位ノード側へスクロールするボタン
+    scroll-down-slot: 17
+    # 全ノード解除。ポイント返却あり
+    reset-slot: 44
+    # 残りポイント表示
+    point-slot: 53
+
+  nodes:
+    node_1:
+      order: 1
+      parent: null
+    node_2:
+      order: 2
+      parent: node_1
+    node_3:
+      order: 3
+      parent: node_2
+    node_4:
+      order: 4
+      parent: node_3
+    node_5:
+      order: 5
+      parent: node_4
+    node_6:
+      order: 6
+      parent: node_5
+    node_7:
+      order: 7
+      parent: node_6
+    node_8:
+      order: 8
+      parent: node_7
+    node_9:
+      order: 9
+      parent: node_8
+    node_10:
+      order: 10
+      parent: node_9
+    node_11:
+      order: 11
+      parent: node_10
+    node_12:
+      order: 12
+      parent: node_11
+    node_13:
+      order: 13
+      parent: node_12

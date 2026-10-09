@@ -1,0 +1,48 @@
+# アイテムスキル設定: dash / 疾走
+#
+# cost/cooldown/duration/lore/values の意味は iskill/sweep.yml を参照。
+
+id: dash
+name: "疾走"
+
+melee:
+  enabled: true
+  trigger: "右クリック"
+  description:
+    - "上方と前方へ大きくリープする。"
+  cost: 3
+  cooldown: 5
+  values:
+    # forward-velocity: 前方へ飛ぶ強さ
+    forward-velocity: 2.15
+    # up-velocity: 上方向へ飛ぶ強さ
+    up-velocity: 0.92
+
+range:
+  enabled: true
+  trigger: "シフト右クリック"
+  description:
+    - "視線方向へテレポートする。"
+  cost: 5
+  cooldown: 4
+  values:
+    # distance: 最大テレポート距離
+    distance: 15.0
+
+deploy:
+  enabled: true
+  trigger: "終了時"
+  description:
+    - "範囲内の敵を中心へ集めてダメージを与える。"
+  duration: 10
+  values:
+    # radius: 終了時に敵を集める半径
+    radius: 6.0
+    # attack-period-ticks: 通常deploy処理用。dashでは主に持続終了時効果のみを使う
+    attack-period-ticks: 40
+    # damage-rate: 終了時のダメージ倍率
+    damage-rate: 1.7
+    # pull-strength: 敵を中心へ引き寄せる強さ
+    pull-strength: 1.15
+    # up-velocity: 引き寄せ時に少し浮かせる強さ
+    up-velocity: 0.35

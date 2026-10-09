@@ -1,4 +1,25 @@
 name: iruuRPG
-version: '1.0-SNAPSHOT'
+version: '${version}'
 main: net.tkgon.mc.iruuRPG.IruuRPG
 api-version: '1.20'
+commands:
+  iruurpg:
+    description: iruuRPG admin and debug command
+    usage: /iruurpg <status|stats|class|level|reload|item|mob|dummy>
+  stats:
+    description: Opens your iruuRPG status menu
+    usage: /stats
+    aliases:
+      - stat
+      - rpgstats
+  class:
+    description: Opens your iruuRPG class skill tree
+    usage: /class
+    aliases:
+      - classes
+      - skilltree
+      - tree
+permissions:
+  iruurpg.admin:
+    description: Allows iruuRPG admin commands
+    default: op

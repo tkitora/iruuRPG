@@ -1,0 +1,128 @@
+items:
+  training_sword:
+    material: IRON_SWORD
+    name: Training Sword
+    required-level: 1
+    rarity: RARE
+    element: RED
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    skill: sweep
+    stats:
+      weapon-damage: 12
+      strength: 5
+      melee-damage: 4
+    description:
+      - Melee test weapon.
+
+  apprentice_staff:
+    material: BLAZE_ROD
+    name: Apprentice Staff
+    required-level: 1
+    rarity: RARE
+    element: BLUE
+    damage-kind: MAGIC
+    attack-type: RANGE
+    skill: sweep
+    stats:
+      weapon-damage: 10
+      magic: 6
+      range-damage: 4
+    description:
+      - Range test weapon.
+
+  green_hood:
+    material: LEATHER_HELMET
+    name: Green Hood
+    required-level: 1
+    rarity: RARE
+    element: GREEN
+    damage-kind: NONE
+    attack-type: SPECIAL
+    stats:
+      max-hp: 10
+      hp-regen: 0.5
+      defense: 4
+      mp-regen: 0.8
+
+  deploy_core:
+    material: SEA_LANTERN
+    name: Deploy Core
+    required-level: 1
+    rarity: EPIC
+    element: WHITE
+    damage-kind: MAGIC
+    attack-type: DEPLOY
+    skill: sweep
+    stats:
+      weapon-damage: 18
+      magic: 20
+      stability: 20
+    element-stats:
+      damage:
+        white: 12
+      damage-percent:
+        white: 15
+
+  debug_overlord_blade:
+    material: NETHERITE_SWORD
+    name: Debug Overlord Blade
+    required-level: 1
+    rarity: MYTHIC
+    element: ORANGE
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    stats:
+      max-hp: 9999
+      hp-regen: 999
+      max-mp: 9999
+      mp-regen: 999
+      weapon-damage: 1200
+      strength: 5000
+      magic: 5000
+      add-damage: 9999
+      melee-damage: 5000
+      melee-damage-percent: 500
+      range-damage: 5000
+      range-damage-percent: 500
+      crit-damage: 1000
+      crit-chance: 100
+      adrenaline: 500
+      magic-overload: 500
+      stability: 500
+      duration: 500
+      attack-speed: 500
+      move-speed: 500
+      defense: 9999
+      protection: 500
+      physical-resist: 500
+      magic-resist: 500
+      damage-reduction: 500
+      special-damage: 9999
+      bleed: 999
+      absorb-percent: 500
+      slow-percent: 500
+      corrosion: 999
+      decay: 999
+      laceration: 999
+      confusion: 999
+      explosion: 999
+    element-stats:
+      damage:
+        red: 5000
+        blue: 5000
+        white: 5000
+        green: 5000
+        orange: 5000
+      damage-percent:
+        red: 500
+        blue: 500
+        white: 500
+        green: 500
+        orange: 500
+      resist:
+        red: 500
+        blue: 500
+        white: 500
+        green: 500
+        orange: 500
