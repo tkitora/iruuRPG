@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
 import net.tkgon.mc.iruuRPG.hud.PlayerBars;
 import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
@@ -51,9 +52,12 @@ public final class AttackService {
     private final DamageCalculator damageCalculator;
     private final AttackCooldowns attackCooldowns;
     private final AttackEffects attackEffects;
+    private static final String MELEE_AREA_SKILL = "melee_area";
+
     private final PlayerBars playerBars;
     private final StatusEffectService statusEffectService;
     private RpgMobService mobService;
+    private ClassService classService;
     private DebugTargetService debugTargetService;
 
     public AttackService(
@@ -368,6 +372,7 @@ public final class AttackService {
 
     public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType, RpgItemDefinition weapon) {
         if (sourceDamage <= 0.0) return;
+        if (attackType == AttackType.MELEE && !hasMeleeAreaSkill(attacker)) return;
 
         double damageRate = areaDamageRate(attackType);
         if (damageRate <= 0.0) return;
@@ -466,9 +471,19 @@ public final class AttackService {
         return true;
     }
 
+    /** Melee area attacks are a class skill (milestone "melee_area"), not a weapon trait. */
+    private boolean hasMeleeAreaSkill(Player attacker) {
+        if (classService == null) return false;
+        return classService.hasSkill(profileManager.getOrCreate(attacker), MELEE_AREA_SKILL);
+    }
+
+    public void setClassService(ClassService classService) {
+        this.classService = classService;
+    }
+
     private double areaDamageRate(AttackType attackType) {
         return switch (attackType) {
-            case MELEE -> plugin.getConfig().getDouble("combat.melee-area-damage-rate", 0.70);
+            case MELEE -> plugin.getConfig().getDouble("combat.melee-area-damage-rate", 0.65);
             case RANGE -> plugin.getConfig().getDouble("combat.range-area-damage-rate", 0.50);
             case DEPLOY, SPECIAL -> 0.0;
         };

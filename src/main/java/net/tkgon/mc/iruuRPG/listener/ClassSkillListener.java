@@ -5,6 +5,7 @@ import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillDefinition;
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillRegistry;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
+import net.tkgon.mc.iruuRPG.combat.ClassSkillService;
 import net.tkgon.mc.iruuRPG.gui.MainMenuItemService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
@@ -31,6 +32,7 @@ public final class ClassSkillListener implements Listener {
     private final PlayerProfileManager profileManager;
     private final AttackService attackService;
     private final MainMenuItemService mainMenuItemService;
+    private final ClassSkillService classSkillService;
     private final Map<UUID, Map<String, Long>> cooldownUntilMillis = new HashMap<>();
 
     public ClassSkillListener(
@@ -38,13 +40,15 @@ public final class ClassSkillListener implements Listener {
             ClassSkillRegistry skillRegistry,
             PlayerProfileManager profileManager,
             AttackService attackService,
-            MainMenuItemService mainMenuItemService
+            MainMenuItemService mainMenuItemService,
+            ClassSkillService classSkillService
     ) {
         this.classService = classService;
         this.skillRegistry = skillRegistry;
         this.profileManager = profileManager;
         this.attackService = attackService;
         this.mainMenuItemService = mainMenuItemService;
+        this.classSkillService = classSkillService;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -91,12 +95,23 @@ public final class ClassSkillListener implements Listener {
             player.sendMessage("[iruuRPG] " + skill.name() + "のクールダウン中: " + formatSeconds(remaining) + "秒");
             return true;
         }
+        ClassSkillService.Precheck precheck = classSkillService.precheck(player, skill);
+        if (precheck.rejected()) {
+            if (!precheck.rejection().isBlank()) {
+                player.sendMessage("[iruuRPG] " + precheck.rejection());
+            }
+            return true;
+        }
         if (!attackService.consumeMp(player, skill.cost())) {
             player.sendMessage("[iruuRPG] MPが足りません。");
             return true;
         }
 
         startCooldown(player, skill);
+        if (precheck.hasEffect()) {
+            classSkillService.execute(player, skill, precheck);
+            return true;
+        }
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.35f);
         player.sendMessage("[iruuRPG] クラススキル: " + skill.name());
         if (!skill.description().isEmpty()) {
