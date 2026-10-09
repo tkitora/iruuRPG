@@ -160,3 +160,12 @@ tutorial:
   npc-side-offset: 2.0
   # ねずみを攻撃しなかったとき、促すまでの秒数
   idle-nudge-seconds: 20
+
+quest:
+  # 通貨の名前
+  currency-name: "ゴールド"
+  # サブ依頼が入れ替わる時刻 (この時刻から24時間)。タイムゾーンは下
+  sub-reset-hour: 4
+  time-zone: "Asia/Tokyo"
+  # 一度に出るサブ依頼の件数
+  sub-count: 4
