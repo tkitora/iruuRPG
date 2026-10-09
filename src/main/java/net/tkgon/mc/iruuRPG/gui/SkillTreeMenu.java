@@ -56,6 +56,7 @@ public final class SkillTreeMenu implements Listener {
     private static final int MILESTONE_ROW_START = 36;
     private static final int BULK_LEVELS = 5;
     private static final int ROW = 9;
+    private static final int MAX_STACK_DISPLAY = 64;
 
     private final EquipmentService equipmentService;
     private final ClassService classService;
@@ -213,7 +214,10 @@ public final class SkillTreeMenu implements Listener {
         lore.add(Component.empty());
         lore.add(text("左クリック: +1  シフト左: +" + BULK_LEVELS, NamedTextColor.GREEN));
         lore.add(text("右クリック: -1", NamedTextColor.RED));
-        return item(node.icon(), node.name(), level > 0 ? NamedTextColor.GREEN : NamedTextColor.YELLOW, lore, level > 0);
+        ItemStack stack = item(node.icon(), node.name(), level > 0 ? NamedTextColor.GREEN : NamedTextColor.YELLOW, lore, level > 0);
+        // The stack size shows the invested level at a glance (the game caps stacks at 64; the lore has the exact level).
+        stack.setAmount(Math.max(1, Math.min(MAX_STACK_DISPLAY, level)));
+        return stack;
     }
 
     /** Whole numbers and Japanese names only: no decimals, internal keys or formulas. */
