@@ -1,8 +1,8 @@
-# クラス定義: ヒーラー (緑 / 耐久力特化)
+# クラス定義: クレリック (緑 / 耐久力特化。旧名ヒーラー)
 # 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
 
 id: healer
-name: "ヒーラー"
+name: "クレリック"
 icon: GOLDEN_APPLE
 description:
   - "耐久力と回復で仲間を支える緑のクラス。"

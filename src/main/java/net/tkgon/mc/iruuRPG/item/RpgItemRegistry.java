@@ -306,6 +306,15 @@ public final class RpgItemRegistry {
                 plugin.saveResource(defaultResource, false);
             }
         }
+
+        // The starter weapons given by the tutorial must exist even on servers that already have item files.
+        if (!new File(folder, "starter.yml").exists()) {
+            try {
+                plugin.saveResource("items/starter.yml", false);
+            } catch (IllegalArgumentException ignored) {
+                plugin.getLogger().warning("Missing bundled starter items resource.");
+            }
+        }
     }
 
     private File[] yamlFiles(File folder) {
