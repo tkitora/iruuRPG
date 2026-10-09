@@ -14,7 +14,8 @@ cost: 50
 cooldown: 40
 
 description:
-  - "10秒間、全ての攻撃で裂傷が追加で発動する。"
+  - "白いオーラをまとい、10秒間、"
+  - "全ての攻撃で裂傷が追加で発動する。"
 
 values:
   # duration-seconds: 効果時間(秒)

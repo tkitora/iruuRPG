@@ -16,7 +16,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
@@ -215,7 +214,13 @@ public final class ClassSkillService {
         boolean critical = attack.result().critical();
 
         playLightning(target.getEyeLocation(), target.getLocation(), big);
-        if (!attackService.applyDirectDamage(player, target, damage, weapon, critical)) return;
+        if (!attackService.applyDirectDamage(player, target, damage, weapon, critical)) {
+            player.sendMessage("[iruuRPG] " + skill.name() + "はダメージを与えられませんでした。");
+            return;
+        }
+        if (damage <= 0.0) {
+            player.sendMessage("[iruuRPG] " + skill.name() + "のダメージが0です。武器と対象を確認してください。");
+        }
 
         attackService.sendDamageDebug(player, AttackType.MELEE, target, damage, critical, false);
         // Melee area passive (if unlocked) also splashes each hit at the usual area rate.
@@ -230,11 +235,11 @@ public final class ClassSkillService {
         world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, big ? 1.0f : 0.7f, big ? 1.2f : 1.6f);
         world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, big ? 1.0f : 0.8f, big ? 0.9f : 1.2f);
 
-        new BukkitRunnable() {
+        new SafeTask(plugin) {
             private int flash;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (flash >= BOLT_FLASHES) {
                     cancel();
                     return;
@@ -256,9 +261,9 @@ public final class ClassSkillService {
             // The jitter shrinks toward the head so the bolt always lands on it.
             double spread = (1.0 - progress) * (big ? 1.3 : 0.9);
             Location point = top.clone().add(
-                    (head.getX() - top.getX()) * progress + random.nextDouble(-spread, spread),
+                    (head.getX() - top.getX()) * progress + jitter(random, spread),
                     (head.getY() - top.getY()) * progress,
-                    (head.getZ() - top.getZ()) * progress + random.nextDouble(-spread, spread)
+                    (head.getZ() - top.getZ()) * progress + jitter(random, spread)
             );
             if (index == segments) {
                 point = head.clone();
@@ -305,11 +310,11 @@ public final class ClassSkillService {
 
         int repeats = (int) Math.round(skill.values().getOrDefault("upgrade-repeats", 9.0));
         long interval = Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-interval-ticks", 3.0)));
-        new BukkitRunnable() {
+        new SafeTask(plugin) {
             private int done;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (done >= repeats || !player.isOnline() || target.isDead() || !target.isValid()) {
                     cancel();
                     return;
@@ -397,12 +402,12 @@ public final class ClassSkillService {
         world.playSound(center, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.4f);
         int totalTicks = (int) Math.round(seconds * 20.0);
 
-        new BukkitRunnable() {
+        new SafeTask(plugin) {
             private int tick;
             private final java.util.Set<UUID> shielded = new java.util.HashSet<>();
 
             @Override
-            public void run() {
+            protected void tick() {
                 boolean finished = tick >= totalTicks || !player.isOnline();
                 if (tick % 20 == 0 && !finished) {
                     for (Player ally : alliesIn(center, radius)) {
@@ -538,11 +543,11 @@ public final class ClassSkillService {
         final Vector sideAxis = side;
         final Vector upAxis = up;
 
-        new BukkitRunnable() {
+        new SafeTask(plugin) {
             private int tick;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (tick >= LANCE_TICKS) {
                     cancel();
                     return;
@@ -581,6 +586,11 @@ public final class ClassSkillService {
             world.spawnParticle(Particle.BLOCK_CRACK, center, 30, 0.4, 0.5, 0.4, 0.0,
                     org.bukkit.Material.BLUE_ICE.createBlockData());
         }
+    }
+
+    /** A random offset in [-spread, spread]; zero when there is no spread (nextDouble rejects an empty range). */
+    private static double jitter(ThreadLocalRandom random, double spread) {
+        return spread < 1.0E-9 ? 0.0 : random.nextDouble(-spread, spread);
     }
 
     private void drawSegment(World world, Location from, Location to, boolean big) {

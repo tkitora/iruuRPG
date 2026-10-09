@@ -13,6 +13,9 @@
 id: warrior
 name: "戦士"
 icon: IRON_SWORD
+description:
+  - "筋力を武器に、近接戦で敵を叩き伏せる前衛。"
+  - "体力と防御に優れ、窮地でこそ本領を発揮する。"
 
 growth:
   strength: 0.1
@@ -22,27 +25,37 @@ spend:
   strength:
     name: "筋力"
     icon: IRON_AXE
+    description:
+      - "筋力が上がり、物理攻撃の威力が増す。"
     per-level:
       strength: 2.4
   defense:
     name: "防御"
     icon: SHIELD
+    description:
+      - "防御が上がり、受けるダメージが減る。"
     per-level:
       defense: 17
   crit_chance:
     name: "会心率"
     icon: AMETHYST_SHARD
+    description:
+      - "会心が出やすくなる。"
     per-level:
       crit-chance: 1.3
   strength_percent:
     name: "筋力%"
     icon: NETHERITE_AXE
+    description:
+      - "筋力が大きく伸びる。代わりに魔力が少し落ちる。"
     per-level:
       strength-percent: 3.9
       magic-percent: -1.95
   red_damage:
     name: "赤属性ダメージ"
     icon: REDSTONE
+    description:
+      - "赤属性の与ダメージが増える。"
     per-level:
       element-stats:
         damage:
@@ -52,6 +65,8 @@ milestones:
   # 1: SP 5 (ステータス)
   - node_name: "剛力の鍛錬"
     icon: IRON_INGOT
+    description:
+      - "筋力と体力が大きく伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -68,6 +83,8 @@ milestones:
   # 3: SP 15 (ステータス)
   - node_name: "不屈の肉体"
     icon: GOLDEN_APPLE
+    description:
+      - "体力と会心の威力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -82,6 +99,8 @@ milestones:
   # 5: SP 25 (ステータス)
   - node_name: "会心の極意"
     icon: AMETHYST_CLUSTER
+    description:
+      - "会心の威力と筋力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -90,6 +109,8 @@ milestones:
   # 6: SP 30 (クラス特有: 体力が半分を下回っている間)
   - node_name: "背水の陣"
     icon: REDSTONE_BLOCK
+    description:
+      - "体力が半分を下回っている間だけ、守りと筋力が上がる。"
     node_type: passive
     effect_type: status
     condition: hp_below_half
@@ -99,6 +120,8 @@ milestones:
   # 7: SP 35 (ステータス)
   - node_name: "戦士の極意"
     icon: NETHERITE_CHESTPLATE
+    description:
+      - "筋力と体力がさらに伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -107,6 +130,8 @@ milestones:
   # 8: SP 40 (クラススキル強化)
   - node_name: "武神の一撃・極"
     icon: END_CRYSTAL
+    description:
+      - "武神の一撃が2段階の雷になり、威力と演出が増す。"
     node_type: passive
     effect_type: skill
     name: warrior_strike_upgrade

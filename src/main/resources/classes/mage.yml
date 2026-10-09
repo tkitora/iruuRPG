@@ -4,6 +4,9 @@
 id: mage
 name: "メイジ"
 icon: BLAZE_ROD
+description:
+  - "魔力を操り、遠距離から範囲魔法で敵を焼き払う後衛。"
+  - "氷槍で敵を足止めし、止まった敵をさらに蝕む。"
 
 growth:
   magic: 0.1
@@ -13,27 +16,37 @@ spend:
   magic:
     name: "魔力"
     icon: AMETHYST_SHARD
+    description:
+      - "魔力が上がり、魔法の威力が増す。"
     per-level:
       magic: 2.4
   max_mp:
     name: "最大MP"
     icon: LAPIS_LAZULI
+    description:
+      - "最大MPが増え、スキルを多く使える。"
     per-level:
       max-mp: 1.5
   mp_regen:
     name: "MP回復"
     icon: PRISMARINE_CRYSTALS
+    description:
+      - "MPの回復が速くなる。"
     per-level:
       mp-regen: 0.2
   magic_percent:
     name: "魔力%"
     icon: ENCHANTED_BOOK
+    description:
+      - "魔力が大きく伸びる。代わりに筋力が少し落ちる。"
     per-level:
       magic-percent: 3.9
       strength-percent: -1.95
   blue_damage:
     name: "青属性ダメージ"
     icon: LAPIS_BLOCK
+    description:
+      - "青属性の与ダメージが増える。"
     per-level:
       element-stats:
         damage:
@@ -43,6 +56,8 @@ milestones:
   # 1: SP 5 (ステータス)
   - node_name: "魔導の素養"
     icon: ENCHANTING_TABLE
+    description:
+      - "魔力と魔法の威力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -59,6 +74,8 @@ milestones:
   # 3: SP 15 (ステータス)
   - node_name: "魔力の泉"
     icon: LAPIS_BLOCK
+    description:
+      - "魔法の威力と最大MPが伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -73,6 +90,8 @@ milestones:
   # 5: SP 25 (ステータス)
   - node_name: "魔導の極意"
     icon: AMETHYST_CLUSTER
+    description:
+      - "最大MPと魔力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -81,6 +100,8 @@ milestones:
   # 6: SP 30 (クラス特有: 立ち止まっている間)
   - node_name: "静かなる集中"
     icon: CLOCK
+    description:
+      - "立ち止まっている間だけ、MP回復と魔法の威力が上がる。"
     node_type: passive
     effect_type: status
     condition: stationary
@@ -90,6 +111,8 @@ milestones:
   # 7: SP 35 (ステータス)
   - node_name: "賢者の叡智"
     icon: BOOK
+    description:
+      - "魔力と魔法の威力がさらに伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -98,6 +121,8 @@ milestones:
   # 8: SP 40 (クラススキル強化)
   - node_name: "氷槍・極"
     icon: BLUE_ICE
+    description:
+      - "氷槍に当たった敵が完全に停止し、止まった敵にはさらに腐食と腐敗が付く。"
     node_type: passive
     effect_type: skill
     name: ice_lance_upgrade

@@ -7,6 +7,9 @@
 id: assassin
 name: "アサシン"
 icon: IRON_SWORD
+description:
+  - "橙の確定ダメージで一撃を叩き込む、超低耐久の暗殺者。"
+  - "最後に殴った敵へ瞬間移動して仕留める。"
 
 growth:
   attack-speed: 0.05
@@ -18,6 +21,8 @@ spend:
   orange_damage:
     name: "橙の刃"
     icon: ORANGE_DYE
+    description:
+      - "橙属性の与ダメージが増える。代わりに他の属性を捨てる。"
     per-level:
       element-stats:
         damage:
@@ -29,6 +34,8 @@ spend:
   orange_percent:
     name: "橙の極み"
     icon: ORANGE_CONCRETE
+    description:
+      - "橙属性の伸びが増す。代わりに他の属性の伸びを捨てる。"
     per-level:
       element-stats:
         damage-percent:
@@ -40,16 +47,22 @@ spend:
   move_speed:
     name: "移動速度"
     icon: FEATHER
+    description:
+      - "移動が速くなる。"
     per-level:
       move-speed: 0.5
   attack_speed:
     name: "攻撃速度"
     icon: CLOCK
+    description:
+      - "攻撃が速くなる。"
     per-level:
       attack-speed: 0.5
   glass_cannon:
     name: "紙一重"
     icon: TNT
+    description:
+      - "攻撃力が大きく増える。代わりに防御と耐性を大きく捨てる。"
     per-level:
       strength: 2.4
       magic: 2.4
@@ -64,6 +77,8 @@ milestones:
   # 1: SP 5 (ステータス)
   - node_name: "橙の素養"
     icon: ORANGE_DYE
+    description:
+      - "橙の威力が伸びる。"
     node_type: passive
     effect_type: status
     element-stats:
@@ -82,6 +97,8 @@ milestones:
   # 3: SP 15 (ステータス)
   - node_name: "惑わす刃"
     icon: POPPED_CHORUS_FRUIT
+    description:
+      - "混乱を与えやすくなり、橙の威力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -98,6 +115,8 @@ milestones:
   # 5: SP 25 (ステータス)
   - node_name: "混濁の眼"
     icon: SPIDER_EYE
+    description:
+      - "混乱を与えやすくなり、橙の伸びが増す。"
     node_type: passive
     effect_type: status
     status:
@@ -116,6 +135,8 @@ milestones:
   # 7: SP 35 (ステータス)
   - node_name: "橙の極意"
     icon: ORANGE_GLAZED_TERRACOTTA
+    description:
+      - "橙の威力がさらに伸びる。"
     node_type: passive
     effect_type: status
     element-stats:
