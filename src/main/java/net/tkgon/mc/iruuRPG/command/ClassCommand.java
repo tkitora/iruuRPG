@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.command;
 
+import net.tkgon.mc.iruuRPG.gui.ClassSelectMenu;
 import net.tkgon.mc.iruuRPG.gui.SkillTreeMenu;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -14,9 +15,11 @@ import java.util.List;
 public final class ClassCommand implements CommandExecutor, TabCompleter {
 
     private final SkillTreeMenu skillTreeMenu;
+    private final ClassSelectMenu classSelectMenu;
 
-    public ClassCommand(SkillTreeMenu skillTreeMenu) {
+    public ClassCommand(SkillTreeMenu skillTreeMenu, ClassSelectMenu classSelectMenu) {
         this.skillTreeMenu = skillTreeMenu;
+        this.classSelectMenu = classSelectMenu;
     }
 
     @Override
@@ -26,12 +29,17 @@ public final class ClassCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
+        if (args.length > 0 && (args[0].equalsIgnoreCase("select") || args[0].equalsIgnoreCase("change"))) {
+            classSelectMenu.open(player);
+            return true;
+        }
+
         skillTreeMenu.open(player);
         return true;
     }
 
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
-        return List.of();
+        return args.length == 1 ? List.of("select") : List.of();
     }
 }

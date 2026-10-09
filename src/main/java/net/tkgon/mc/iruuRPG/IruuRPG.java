@@ -15,6 +15,7 @@ import net.tkgon.mc.iruuRPG.combat.DeployService;
 import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
 import net.tkgon.mc.iruuRPG.combat.StatusEffectService;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
+import net.tkgon.mc.iruuRPG.gui.ClassSelectMenu;
 import net.tkgon.mc.iruuRPG.gui.MainMenu;
 import net.tkgon.mc.iruuRPG.gui.MainMenuItemService;
 import net.tkgon.mc.iruuRPG.gui.SkillTreeMenu;
@@ -72,6 +73,7 @@ public final class IruuRPG extends JavaPlugin {
     private LevelService levelService;
     private StatsMenu statsMenu;
     private SkillTreeMenu skillTreeMenu;
+    private ClassSelectMenu classSelectMenu;
     private MainMenu mainMenu;
     private MainMenuItemService mainMenuItemService;
 
@@ -126,6 +128,7 @@ public final class IruuRPG extends JavaPlugin {
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
+        this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu);
         this.mainMenuItemService = new MainMenuItemService(this);
         this.mobService.startTargetTask();
@@ -179,14 +182,14 @@ public final class IruuRPG extends JavaPlugin {
             return;
         }
 
-        ClassCommand classExecutor = new ClassCommand(skillTreeMenu);
+        ClassCommand classExecutor = new ClassCommand(skillTreeMenu, classSelectMenu);
         classCommand.setExecutor(classExecutor);
         classCommand.setTabCompleter(classExecutor);
     }
 
     private void registerListeners() {
         getServer().getPluginManager().registerEvents(
-                new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService),
+                new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
                 this
         );
         getServer().getPluginManager().registerEvents(
@@ -215,6 +218,7 @@ public final class IruuRPG extends JavaPlugin {
         );
         getServer().getPluginManager().registerEvents(statsMenu, this);
         getServer().getPluginManager().registerEvents(skillTreeMenu, this);
+        getServer().getPluginManager().registerEvents(classSelectMenu, this);
         getServer().getPluginManager().registerEvents(mainMenu, this);
         getServer().getPluginManager().registerEvents(
                 new MainMenuItemListener(this, mainMenu, mainMenuItemService),
