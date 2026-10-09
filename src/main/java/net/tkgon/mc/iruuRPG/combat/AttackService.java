@@ -474,14 +474,18 @@ public final class AttackService {
         double before = profile.currentHp();
         profile.setCurrentHp(before + amount);
         double healed = profile.currentHp() - before;
+        // Class effects that scale with healing (the healer's pulse) count the whole heal, overheal included.
         if (Math.abs(healed) <= 1.0E-9) {
+            if (classEffectService != null) {
+                classEffectService.onSelfHealed(player, amount);
+            }
             return false;
         }
 
         playerBars.sync(player, profile);
         attackEffects.playHealNumber(player, healed);
         if (classEffectService != null) {
-            classEffectService.onSelfHealed(player, healed);
+            classEffectService.onSelfHealed(player, amount);
         }
         return true;
     }
