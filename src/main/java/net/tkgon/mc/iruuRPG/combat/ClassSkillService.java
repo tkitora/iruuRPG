@@ -4,7 +4,9 @@ import net.tkgon.mc.iruuRPG.classsystem.ClassSkillDefinition;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
+import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import org.bukkit.Color;
+import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -15,9 +17,14 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 /** Combat behavior of class active skills (cskill/*.yml). Skills without an entry here only show their message. */
@@ -25,6 +32,8 @@ public final class ClassSkillService {
 
     public static final String WARRIOR_STRIKE = "warrior_strike";
     public static final String WARRIOR_STRIKE_UPGRADE = "warrior_strike_upgrade";
+    public static final String ICE_LANCE = "ice_lance";
+    public static final String ICE_LANCE_UPGRADE = "ice_lance_upgrade";
 
     private static final Particle.DustOptions BOLT_CORE = new Particle.DustOptions(Color.fromRGB(255, 244, 150), 1.5f);
     private static final Particle.DustOptions BOLT_GLOW = new Particle.DustOptions(Color.fromRGB(255, 214, 20), 1.1f);
@@ -38,6 +47,7 @@ public final class ClassSkillService {
     private final AttackService attackService;
     private final ClassService classService;
     private final PlayerProfileManager profileManager;
+    private StatusEffectService statusEffectService;
 
     public ClassSkillService(JavaPlugin plugin, AttackService attackService, ClassService classService, PlayerProfileManager profileManager) {
         this.plugin = plugin;
@@ -46,18 +56,28 @@ public final class ClassSkillService {
         this.profileManager = profileManager;
     }
 
+    public void setStatusEffectService(StatusEffectService statusEffectService) {
+        this.statusEffectService = statusEffectService;
+    }
+
     /** What the skill needs before it may spend MP/cooldown; null means the skill has no combat effect yet. */
     public Precheck precheck(Player player, ClassSkillDefinition skill) {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
             return precheckWarriorStrike(player, skill);
+        }
+        if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
+            return precheckIceLance(player);
         }
         return Precheck.noEffect();
     }
 
     /** Runs the effect decided in {@link #precheck}. */
     public void execute(Player player, ClassSkillDefinition skill, Precheck precheck) {
-        if (precheck.target() != null && precheck.weapon() != null && WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
+        if (precheck.weapon() == null) return;
+        if (precheck.target() != null && WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
             warriorStrike(player, skill, precheck.target(), precheck.weapon());
+        } else if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
+            iceLance(player, skill, precheck.weapon());
         }
     }
 
@@ -77,6 +97,18 @@ public final class ClassSkillService {
             return Precheck.rejected("前方に対象がいません。");
         }
         return Precheck.ready(target, weapon);
+    }
+
+    private Precheck precheckIceLance(Player player) {
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.RANGE) {
+            return Precheck.rejected("遠距離武器を持っていないと使えません。");
+        }
+        if (!attackService.canUseItem(player, weapon)) {
+            attackService.sendLevelRequirement(player, weapon);
+            return Precheck.rejected(null);
+        }
+        return Precheck.ready(null, weapon);
     }
 
     private LivingEntity findTarget(Player player, double range) {
@@ -180,6 +212,120 @@ public final class ClassSkillService {
                 drawRing(world, feet.clone().add(0, 0.1, 0), 1.2, true);
                 world.spawnParticle(Particle.FLASH, head, 1);
             }
+        }
+    }
+
+    // ---- ice lance (mage) ---------------------------------------------------
+
+    private static final Particle.DustOptions ICE_CORE = new Particle.DustOptions(Color.fromRGB(200, 240, 255), 1.6f);
+    private static final Particle.DustOptions ICE_GLOW = new Particle.DustOptions(Color.fromRGB(60, 140, 255), 1.2f);
+    private static final Particle.DustOptions ICE_FROST = new Particle.DustOptions(Color.fromRGB(150, 205, 255), 1.0f);
+    private static final int LANCE_TICKS = 5;
+
+    /** Pierces everything on a straight line, slows (or freezes, when upgraded) whatever it hits. */
+    private void iceLance(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        boolean upgraded = classService.hasSkill(profile, ICE_LANCE_UPGRADE);
+        double range = skill.values().getOrDefault("range", 18.0);
+        double width = skill.values().getOrDefault("width", 0.9);
+        double rate = skill.values().getOrDefault("damage-rate", 3.5);
+        double slowPercent = upgraded
+                ? skill.values().getOrDefault("upgrade-slow-percent", 999.0)
+                : skill.values().getOrDefault("slow-percent", 50.0);
+        long slowMillis = Math.round(skill.values().getOrDefault("slow-seconds", 7.0) * 1000.0);
+
+        World world = player.getWorld();
+        Location start = player.getEyeLocation().add(0.0, -0.25, 0.0);
+        Vector direction = player.getEyeLocation().getDirection().normalize();
+        RayTraceResult wall = world.rayTraceBlocks(start, direction, range, FluidCollisionMode.NEVER, true);
+        double length = wall == null ? range : Math.max(1.0, start.toVector().distance(wall.getHitPosition()));
+
+        world.playSound(start, Sound.BLOCK_GLASS_BREAK, 0.8f, 1.5f);
+        world.playSound(start, Sound.ENTITY_PLAYER_HURT_FREEZE, 1.0f, upgraded ? 0.7f : 1.1f);
+        playLanceTrail(world, start, direction, length, upgraded);
+
+        UUID sourceId = player.getUniqueId();
+        for (LivingEntity victim : entitiesOnLine(player, start, direction, length, width)) {
+            AttackService.AttackDamage attack = attackService.calculateDamage(player, victim, weapon);
+            double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
+            boolean critical = attack.result().critical();
+            if (!attackService.applyRangeDamage(player, victim, damage, weapon, critical)) continue;
+
+            attackService.sendDamageDebug(player, AttackType.RANGE, victim, damage, critical, false);
+            if (statusEffectService != null && victim.isValid() && !victim.isDead()) {
+                statusEffectService.applyTimedSlow(victim, slowPercent, slowMillis, sourceId);
+            }
+            playLanceImpact(victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0), upgraded);
+        }
+    }
+
+    private List<LivingEntity> entitiesOnLine(Player player, Location start, Vector direction, double length, double width) {
+        Location mid = start.clone().add(direction.clone().multiply(length / 2.0));
+        double half = length / 2.0 + width + 2.0;
+        List<LivingEntity> hits = new ArrayList<>();
+        for (Entity entity : start.getWorld().getNearbyEntities(mid, half, half, half)) {
+            if (!isValidTarget(player, entity)) continue;
+
+            BoundingBox box = entity.getBoundingBox().expand(width / 2.0);
+            if (box.rayTrace(start.toVector(), direction, length) != null) {
+                hits.add((LivingEntity) entity);
+            }
+        }
+        hits.sort(Comparator.comparingDouble(entity -> entity.getLocation().distanceSquared(start)));
+        return hits;
+    }
+
+    /** The spear flies out over a few ticks as a thick blue-white dust line with frost. */
+    private void playLanceTrail(World world, Location start, Vector direction, double length, boolean upgraded) {
+        Vector side = direction.clone().crossProduct(new Vector(0, 1, 0));
+        if (side.lengthSquared() < 1.0E-6) side = new Vector(1, 0, 0);
+        side.normalize();
+        Vector up = side.clone().crossProduct(direction).normalize();
+        final Vector sideAxis = side;
+        final Vector upAxis = up;
+
+        new BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                if (tick >= LANCE_TICKS) {
+                    cancel();
+                    return;
+                }
+                double from = length * tick / LANCE_TICKS;
+                double to = length * (tick + 1) / LANCE_TICKS;
+                for (double distance = from; distance < to; distance += 0.25) {
+                    Location point = start.clone().add(direction.clone().multiply(distance));
+                    world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, ICE_CORE, true);
+                    double thickness = upgraded ? 0.34 : 0.24;
+                    for (int index = 0; index < 4; index++) {
+                        double angle = Math.PI / 2.0 * index + distance * 2.0;
+                        Vector offset = sideAxis.clone().multiply(Math.cos(angle) * thickness)
+                                .add(upAxis.clone().multiply(Math.sin(angle) * thickness));
+                        world.spawnParticle(Particle.REDSTONE, point.clone().add(offset), 1, 0.0, 0.0, 0.0, 0.0, ICE_GLOW, true);
+                    }
+                    if (ThreadLocalRandom.current().nextInt(3) == 0) {
+                        world.spawnParticle(Particle.SNOWFLAKE, point, 1, 0.15, 0.15, 0.15, 0.01, null, true);
+                    }
+                }
+                Location tip = start.clone().add(direction.clone().multiply(to));
+                world.spawnParticle(Particle.REDSTONE, tip, upgraded ? 6 : 3, 0.12, 0.12, 0.12, 0.0, ICE_CORE, true);
+                tick++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private void playLanceImpact(Location center, boolean upgraded) {
+        World world = center.getWorld();
+        if (world == null) return;
+
+        world.playSound(center, Sound.BLOCK_GLASS_BREAK, 0.9f, 1.1f);
+        world.spawnParticle(Particle.SNOWFLAKE, center, upgraded ? 40 : 18, 0.4, 0.5, 0.4, 0.05, null, true);
+        world.spawnParticle(Particle.REDSTONE, center, upgraded ? 24 : 10, 0.45, 0.55, 0.45, 0.0, ICE_FROST, true);
+        if (upgraded) {
+            world.spawnParticle(Particle.BLOCK_CRACK, center, 30, 0.4, 0.5, 0.4, 0.0,
+                    org.bukkit.Material.BLUE_ICE.createBlockData());
         }
     }
 

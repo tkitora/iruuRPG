@@ -1,0 +1,32 @@
+# クラススキル定義: メイジの「氷槍」(解放ノード4 / ホットキー F)
+#
+# 前方へ青い粉の氷の槍を放ち、一直線上の敵をすべて貫通する。
+# 当たった敵は移動速度が下がる。
+# 遠距離武器(RANGE)を持っているときだけ使える。
+# 強化(解放ノード7「氷槍・極」)を解放済みなら、当たった敵は完全に停止する。
+
+id: ice_lance
+name: "氷槍"
+
+# 消費MP
+cost: 40
+
+# クールダウン秒数
+cooldown: 15
+
+description:
+  - "前方へ氷の槍を放って貫通し、当たった敵の足を鈍らせる。"
+
+values:
+  # range: 槍が飛ぶ距離(ブロック)。壁にぶつかると止まる
+  range: 18.0
+  # width: 当たり判定の太さ
+  width: 0.9
+  # damage-rate: 通常の遠距離攻撃ダメージに対する倍率
+  damage-rate: 3.5
+  # slow-percent: 当たった敵の移動速度低下(%)
+  slow-percent: 50
+  # slow-seconds: 低下の持続秒数
+  slow-seconds: 7
+  # upgrade-slow-percent: 強化後。100以上で完全停止
+  upgrade-slow-percent: 999
