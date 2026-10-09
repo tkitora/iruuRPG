@@ -1,0 +1,58 @@
+# アイテムスキル設定: strike / 強襲
+#
+# cost/cooldown/duration/lore/values の意味は iskill/sweep.yml を参照。
+
+id: strike
+name: "強襲"
+
+melee:
+  enabled: true
+  trigger: "右クリック"
+  description:
+    - "前方へ突進し、周囲の敵を攻撃する。"
+  cost: 10
+  cooldown: 5
+  values:
+    # radius: 突進中に当たる攻撃判定の半径
+    radius: 2.6
+    # forward-velocity: 突進速度
+    forward-velocity: 1.45
+    # up-velocity: 突進時の上方向速度
+    up-velocity: 0.28
+    # active-ticks: ダメージ判定が残るtick数。14ticks = 0.7秒
+    active-ticks: 14
+
+range:
+  enabled: true
+  trigger: "シフト右クリック"
+  description:
+    - "1秒溜めて前方へ強い射撃を放つ。"
+  cost: 20
+  cooldown: 20
+  values:
+    # charge-ticks: 発射前の溜め時間
+    charge-ticks: 20
+    # distance: 最大射程
+    distance: 40.0
+    # step: 1tickごとに進む距離。大きいほど速いが判定が粗くなる
+    step: 0.85
+    # hit-radius: 命中判定の半径。大きいほどかすっても当たりやすい
+    hit-radius: 2.7
+    # damage-rate: 通常ダメージに掛ける倍率
+    damage-rate: 4.0
+
+deploy:
+  enabled: true
+  trigger: "罠"
+  description:
+    - "敵の侵入時に範囲全体へ大ダメージ。"
+  lore:
+    - "発動後、この設置は終了する。"
+  duration: 10
+  values:
+    # radius: 罠の感知/ダメージ範囲
+    radius: 6.0
+    # trigger-delay-ticks: 敵が入ってから発生するまでの遅延。20ticks = 1秒
+    trigger-delay-ticks: 20
+    # damage-rate: 罠発動時のダメージ倍率
+    damage-rate: 15.0

@@ -1,0 +1,65 @@
+# アイテムスキル設定: sweep / 凪払い
+#
+# 共通キー:
+# id: items.yml の skill: sweep と対応するID
+# name: アイテムloreに表示するスキル名
+#
+# 各攻撃タイプ(melee/range/deploy)で使える主なキー:
+# enabled: false にすると、その攻撃タイプではスキル説明/発動を無効化
+# trigger: loreに出す発動方法
+# description: loreに出す説明文。1行目は trigger と同じ行に表示される
+# lore: 追加説明。数値の補足や仕様メモ向け
+# cost: 消費MP。melee/rangeの手動スキルで使用
+# cooldown: クールダウン秒数。melee/rangeの手動スキルで使用
+# cooldown-ticks: tick指定したい場合はこちら。20ticks = 1秒
+# duration: 効果時間秒数。deployでは設置の持続時間を上書き
+# duration-ticks: tick指定したい場合はこちら
+# values: 実際の挙動で使う数値。スキルごとにキーが違う
+
+id: sweep
+name: "凪払い"
+
+melee:
+  enabled: true
+  trigger: "右クリック"
+  description:
+    - "前方を力強く薙ぎ払う。"
+  cost: 10
+  cooldown: 7
+  values:
+    # radius: 前方判定の半径。大きいほど巻き込みやすい
+    radius: 4.0
+    # damage-rate: 通常ダメージに掛ける倍率
+    damage-rate: 1.2
+
+range:
+  enabled: true
+  trigger: "シフト右クリック"
+  description:
+    - "周囲を攻撃し、後ろへ緊急回避する。"
+  cost: 20
+  cooldown: 15
+  values:
+    # radius: 周囲攻撃の半径
+    radius: 5.0
+    # knockback: 敵を外側へ押し出す強さ
+    knockback: 0.9
+
+deploy:
+  enabled: true
+  trigger: "パッシブ"
+  description:
+    - "確率で少し強い斬撃を行う。"
+  lore:
+    - "33%で範囲ダメージが1.2倍。"
+  # duration: 設置の基本持続時間。装備の効果時間ステータスで増減する
+  duration: 10
+  values:
+    # radius: 設置範囲の半径
+    radius: 6.0
+    # attack-period-ticks: 何tickごとに攻撃するか。攻撃速度ステータスで短縮される
+    attack-period-ticks: 40
+    # chance: 強化斬撃が出る確率。0.33 = 33%
+    chance: 0.33
+    # damage-rate: 強化斬撃時のダメージ倍率
+    damage-rate: 1.2

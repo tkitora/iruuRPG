@@ -1,0 +1,77 @@
+mobs:
+  red_training_zombie:
+    type: ZOMBIE
+    name: Red Training Zombie
+    level: 1
+    experience: 35
+    ai: true
+    gravity: true
+    silent: false
+    glowing: false
+    invulnerable: false
+    fire-proof: true
+    persistent: true
+    remove-when-far-away: false
+    baby: false
+    show-health: true
+    stats:
+      max-hp: 120
+      max-mp: 1
+      defense: 12
+      physical-resist: 0.15
+      magic-resist: 0.05
+      strength: 8
+      weapon-damage: 8
+    element-stats:
+      damage:
+        red: 8
+      resist:
+        red: 0.20
+        blue: 0.05
+    equipment:
+      main-hand:
+        item: training_sword
+      helmet:
+        material: IRON_HELMET
+    drops:
+      training_sword:
+        drop-chance: 5
+        amount: 1
+
+  blue_guard_skeleton:
+    type: SKELETON
+    name: Blue Guard Skeleton
+    level: 3
+    experience: 90
+    ai: true
+    gravity: true
+    fire-proof: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 180
+      max-mp: 20
+      defense: 20
+      magic-resist: 0.25
+      range-damage: 12
+      range-damage-percent: 10
+      weapon-damage: 12
+    element-stats:
+      damage:
+        blue: 15
+      damage-percent:
+        blue: 10
+      resist:
+        blue: 0.30
+    equipment:
+      main-hand:
+        item: apprentice_staff
+      helmet:
+        item: green_hood
+    drops:
+      apprentice_staff:
+        drop-chance: 8
+        amount: 1
+      green_hood:
+        drop-chance: 3
+        amount: 1

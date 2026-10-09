@@ -1,0 +1,96 @@
+rarity:
+  mark: "🙥"
+
+player:
+  level-cap: 256
+  first-release-level-cap: 20
+  default-max-hp: 20.0
+  default-hp-regen-per-3s: 1.0
+  default-max-mp: 20.0
+  default-mp-regen-per-3s: 5.0
+  mp-regen-period-ticks: 60
+  leveling:
+    drop-experience-orbs: true
+    experience-orb-speed: 0.32
+
+mob:
+  default-max-hp: 20.0
+  default-max-mp: 1.0
+  vanilla-health-proxy: 20.0
+  spawn-distance: 3.0
+  target-range: 24.0
+  player-damage-multiplier: 0.10
+  status-display:
+    enabled: true
+    y-offset: 0.0
+    anchor-lift: 0.45
+    line-width: 90
+    view-range: 24.0
+    update-period-ticks: 1
+    teleport-duration-ticks: 0
+
+combat:
+  debug-damage-in-creative: true
+  melee-area-damage-rate: 0.70
+  range-area-damage-rate: 0.50
+  area-radius: 3.0
+  area-requires-facing: true
+  range-distance: 16.0
+  range-ray-size: 0.6
+  min-cooldown-ticks: 1
+  status-effects:
+    duration-ticks: 100
+    explosion-delay-ticks: 40
+    explosion-radius: 3.0
+  cooldown-ticks:
+    melee: 14
+    range: 10
+    deploy: 200
+    special: 2
+  deploy:
+    radius: 6.0
+    duration-ticks: 200
+    min-duration-ticks: 20
+    attack-period-ticks: 40
+    min-attack-period-ticks: 6
+    spawn-distance: 3.0
+    height: 1.4
+    bob-amplitude: 0.25
+    bob-period-ticks: 40.0
+    rotation-degrees-per-tick: 4.0
+  effects:
+    particle-size: 0.85
+    melee-slash:
+      enabled: true
+      particles: 14
+      radius: 1.35
+      height: 1.15
+      forward-offset: 0.25
+      vertical-lift: 0.30
+      angle-degrees: 105.0
+    range-trail:
+      enabled: true
+      spacing: 0.55
+      max-points: 30
+      start-offset: 0.65
+    range-impact:
+      enabled: true
+      particles: 12
+      radius: 0.45
+    range-hurt:
+      enabled: true
+      damage-indicators: 5
+      red-dust: 5
+    deploy-ring:
+      enabled: true
+      period-ticks: 2
+      points: 72
+      height: 0.15
+    deploy-pulse:
+      enabled: true
+      points: 42
+
+debug:
+  target:
+    max-health: 1000.0
+    spawn-distance: 3.0

@@ -1,0 +1,23 @@
+# クラススキル定義。
+# activeノードの name: warrior_strike から参照される。
+#
+# 今は形式とMP/CD/説明の読み込みまで。
+# 実際の攻撃・回復・召喚などの挙動は、スキル案が固まってから追加する。
+
+id: warrior_strike
+name: "武神の一撃"
+
+# 消費MP
+cost: 30
+
+# クールダウン秒数。tickで書きたい場合は cooldown-ticks を使う。
+cooldown: 20
+
+description:
+  - "前方の敵へ強力な一撃を放つ。"
+
+values:
+  # radius: 将来の攻撃範囲用
+  radius: 4.0
+  # damage-rate: 将来のダメージ倍率用
+  damage-rate: 3.0
