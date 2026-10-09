@@ -136,6 +136,7 @@ public final class IruuRPG extends JavaPlugin {
         this.levelService.startOrbTask();
         this.statusEffectService.startTask();
         this.mainMenuItemService.startTask();
+        this.classService.startConditionTask(equipmentService, playerBars);
 
         registerCommands();
         registerListeners();

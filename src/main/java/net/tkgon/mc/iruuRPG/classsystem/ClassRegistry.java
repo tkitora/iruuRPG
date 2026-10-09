@@ -1,5 +1,7 @@
 package net.tkgon.mc.iruuRPG.classsystem;
 
+import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Material;
@@ -75,7 +77,9 @@ public final class ClassRegistry {
         String normalizedId = normalize(id);
         String name = section.getString("name", id);
         Material icon = material(section.getString("icon"), Material.BOOK);
-        StatSet growth = loadStatus(normalizedId + ".growth", section.getConfigurationSection("growth"));
+        ConfigurationSection growthSection = section.getConfigurationSection("growth");
+        StatSet growth = loadStatus(normalizedId + ".growth", growthSection);
+        ElementStatSet growthElements = loadElements(growthSection == null ? null : growthSection.getConfigurationSection("element-stats"));
 
         List<SpendNodeDefinition> spendNodes = new ArrayList<>();
         ConfigurationSection spendSection = section.getConfigurationSection("spend");
@@ -83,8 +87,14 @@ public final class ClassRegistry {
             for (String nodeId : spendSection.getKeys(false)) {
                 ConfigurationSection node = spendSection.getConfigurationSection(nodeId);
                 if (node == null) continue;
-                SpendNodeDefinition spend = loadSpendNode(normalizedId, nodeId, node);
-                if (spend != null) spendNodes.add(spend);
+                ConfigurationSection perLevel = node.getConfigurationSection("per-level");
+                spendNodes.add(new SpendNodeDefinition(
+                        nodeId,
+                        node.getString("name", nodeId),
+                        material(node.getString("icon"), Material.PAPER),
+                        loadStatus(normalizedId + ".spend." + nodeId, perLevel),
+                        loadElements(perLevel == null ? null : perLevel.getConfigurationSection("element-stats"))
+                ));
             }
         }
 
@@ -92,25 +102,10 @@ public final class ClassRegistry {
         List<Map<?, ?>> milestoneList = section.getMapList("milestones");
         for (int index = 0; index < milestoneList.size(); index++) {
             ConfigurationSection node = new MemoryConfiguration().createSection("m", milestoneList.get(index));
-            milestones.add(loadMilestone("milestone_" + (index + 1), node));
+            milestones.add(loadMilestone(normalizedId + ".milestone_" + (index + 1), node));
         }
 
-        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, growth, spendNodes, milestones));
-    }
-
-    private SpendNodeDefinition loadSpendNode(String classId, String id, ConfigurationSection section) {
-        Optional<StatType> stat = StatType.fromConfigKey(section.getString("stat", id));
-        if (stat.isEmpty()) {
-            plugin.getLogger().warning("classes: unknown stat '" + section.getString("stat", id) + "' in " + classId + ".spend." + id);
-            return null;
-        }
-        return new SpendNodeDefinition(
-                id,
-                section.getString("name", id),
-                material(section.getString("icon"), Material.PAPER),
-                stat.get(),
-                section.getDouble("per-level", 0.0)
-        );
+        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, growth, growthElements, spendNodes, milestones));
     }
 
     private ClassNodeDefinition loadMilestone(String id, ConfigurationSection section) {
@@ -123,11 +118,30 @@ public final class ClassRegistry {
                 section.getString("node_name", section.getString("node-name", id)),
                 nodeType,
                 effectType,
+                ClassConditionType.fromConfig(section.getString("condition")),
                 loadStatus(id, section.getConfigurationSection("status")),
+                loadElements(section.getConfigurationSection("element-stats")),
                 section.getString("name", ""),
                 ClassHotKey.fromConfig(section.getString("hot_key", section.getString("hot-key"))),
-                material(section.getString("icon"), fallback)
+                material(section.getString("icon"), fallback),
+                section.getStringList("description")
         );
+    }
+
+    private ElementStatSet loadElements(ConfigurationSection section) {
+        ElementStatSet result = new ElementStatSet();
+        if (section == null) return result;
+
+        for (Element element : Element.values()) {
+            String key = element.name().toLowerCase();
+            ConfigurationSection damage = section.getConfigurationSection("damage");
+            ConfigurationSection percent = section.getConfigurationSection("damage-percent");
+            ConfigurationSection resist = section.getConfigurationSection("resist");
+            if (damage != null) result.setDamage(element, damage.getDouble(key, 0.0));
+            if (percent != null) result.setDamagePercent(element, percent.getDouble(key, 0.0));
+            if (resist != null) result.setResist(element, resist.getDouble(key, 0.0));
+        }
+        return result;
     }
 
     private StatSet loadStatus(String nodeId, ConfigurationSection section) {
@@ -135,6 +149,7 @@ public final class ClassRegistry {
         if (section == null) return stats;
 
         for (String key : section.getKeys(false)) {
+            if (key.equals("element-stats")) continue;
             Optional<StatType> type = StatType.fromConfigKey(key);
             if (type.isEmpty()) {
                 plugin.getLogger().warning("classes: unknown stat key '" + key + "' in node " + nodeId);

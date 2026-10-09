@@ -23,6 +23,7 @@ public final class PlayerProfile {
     private final StatSet baseStats = new StatSet();
     private final StatSet equipmentStats = new StatSet();
     private final StatSet classStats = new StatSet();
+    private final ElementStatSet classElementStats = new ElementStatSet();
     private final StatSet buffStats = new StatSet();
     private StatSet finalStats = new StatSet();
 
@@ -121,6 +122,10 @@ public final class PlayerProfile {
         return classStats;
     }
 
+    public ElementStatSet classElementStats() {
+        return classElementStats;
+    }
+
     public StatSet buffStats() {
         return buffStats;
     }
@@ -168,6 +173,7 @@ public final class PlayerProfile {
 
         ElementStatSet nextElementStats = baseElementStats.copy();
         nextElementStats.addAll(equipmentElementStats);
+        nextElementStats.addAll(classElementStats);
         nextElementStats.addAll(buffElementStats);
         finalElementStats = nextElementStats;
 

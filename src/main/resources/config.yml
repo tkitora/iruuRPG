@@ -110,3 +110,20 @@ class-skill-points:
   max-points: 40
   # SPを何ポイント使うごとに、解放ノードを順番に1つ無料で解放するか
   milestone-interval: 5
+
+# 全クラス共通のレベル成長 (1レベルあたり)。クラス固有の成長は classes/*.yml の growth
+level-growth:
+  max-hp: 10
+  max-mp: 0.4
+  strength: 0.1
+  magic: 0.1
+  defense: 1.5
+  hp-regen: 0.5
+  mp-regen: 0.05
+
+# 条件付きパッシブ (体力が半分以下 / 立ち止まっている間)
+class-conditions:
+  # 何tickごとに判定するか
+  check-ticks: 5
+  # 位置が動いていない判定が何回続いたら「立ち止まっている」とするか (check-ticks × この回数)
+  stationary-samples: 2

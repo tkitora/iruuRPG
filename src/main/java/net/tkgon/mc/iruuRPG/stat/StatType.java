@@ -21,6 +21,8 @@ public enum StatType {
     MELEE_DAMAGE_PERCENT("melee-damage-percent", "Melee Damage %", "meleeDmgS"),
     RANGE_DAMAGE("range-damage", "Range Damage", "rangeDmg"),
     RANGE_DAMAGE_PERCENT("range-damage-percent", "Range Damage %", "rangeDmgS"),
+    DEPLOY_DAMAGE("deploy-damage", "Deploy Damage"),
+    DEPLOY_DAMAGE_PERCENT("deploy-damage-percent", "Deploy Damage %"),
 
     CRIT_DAMAGE("crit-damage", "Critical Damage %", "addCritDmg"),
     CRIT_CHANCE("crit-chance", "Critical Chance %", "addCritChance"),

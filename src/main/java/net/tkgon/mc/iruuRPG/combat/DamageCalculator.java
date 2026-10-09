@@ -78,12 +78,14 @@ public final class DamageCalculator {
         double typeDamage = switch (weapon.attackType()) {
             case MELEE -> attackerStats.get(StatType.MELEE_DAMAGE);
             case RANGE -> attackerStats.get(StatType.RANGE_DAMAGE);
+            case DEPLOY -> attackerStats.get(StatType.DEPLOY_DAMAGE);
             default -> 0.0;
         };
 
         double typePercent = switch (weapon.attackType()) {
             case MELEE -> attackerStats.get(StatType.MELEE_DAMAGE_PERCENT);
             case RANGE -> attackerStats.get(StatType.RANGE_DAMAGE_PERCENT);
+            case DEPLOY -> attackerStats.get(StatType.DEPLOY_DAMAGE_PERCENT);
             default -> 0.0;
         };
 
