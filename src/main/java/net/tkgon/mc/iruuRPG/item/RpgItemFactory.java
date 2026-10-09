@@ -247,7 +247,6 @@ public final class RpgItemFactory {
             case STRENGTH -> new StatDisplay("筋力", NamedTextColor.RED, false);
             case STRENGTH_PERCENT -> new StatDisplay("筋力", NamedTextColor.RED, true);
             case MAGIC -> new StatDisplay("魔力", NamedTextColor.DARK_AQUA, false);
-            case ADD_DAMAGE -> new StatDisplay("追加ダメージ", NamedTextColor.YELLOW, false);
             case MELEE_DAMAGE -> new StatDisplay("近接ダメージ", NamedTextColor.RED, false);
             case MELEE_DAMAGE_PERCENT -> new StatDisplay("近接ダメージ", NamedTextColor.RED, true);
             case RANGE_DAMAGE -> new StatDisplay("遠距離ダメージ", NamedTextColor.DARK_AQUA, false);

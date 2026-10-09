@@ -80,7 +80,6 @@ items:
       weapon-damage: 1200
       strength: 5000
       magic: 5000
-      add-damage: 9999
       melee-damage: 5000
       melee-damage-percent: 500
       range-damage: 5000

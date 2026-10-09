@@ -15,7 +15,6 @@ public enum StatType {
     STRENGTH("strength", "Strength", "addPower"),
     STRENGTH_PERCENT("strength-percent", "Strength %"),
     MAGIC("magic", "Magic", "addAPower"),
-    ADD_DAMAGE("add-damage", "Add Damage", "addDmg"),
 
     MELEE_DAMAGE("melee-damage", "Melee Damage", "meleeDmg"),
     MELEE_DAMAGE_PERCENT("melee-damage-percent", "Melee Damage %", "meleeDmgS"),

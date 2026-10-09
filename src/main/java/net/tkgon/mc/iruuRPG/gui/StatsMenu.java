@@ -67,7 +67,6 @@ public final class StatsMenu implements Listener {
                 StatType.STRENGTH,
                 StatType.STRENGTH_PERCENT,
                 StatType.MAGIC,
-                StatType.ADD_DAMAGE,
                 StatType.MELEE_DAMAGE,
                 StatType.MELEE_DAMAGE_PERCENT,
                 StatType.RANGE_DAMAGE,
@@ -283,7 +282,6 @@ public final class StatsMenu implements Listener {
             case STRENGTH -> "筋力";
             case STRENGTH_PERCENT -> "筋力%";
             case MAGIC -> "魔力";
-            case ADD_DAMAGE -> "追加ダメージ";
             case MELEE_DAMAGE -> "近接ダメージ";
             case MELEE_DAMAGE_PERCENT -> "近接ダメージ倍率";
             case RANGE_DAMAGE -> "遠距離ダメージ";
