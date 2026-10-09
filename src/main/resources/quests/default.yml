@@ -1,0 +1,113 @@
+# 依頼ボードの依頼 (架空の内容。あとで差し替える)。
+#
+# category: main = ストーリーに関係する依頼 (一度きり。requires で順番に解放)
+#           sub  = 24時間で更新される短い依頼 (毎日、候補から数件が選ばれる)
+# type:     kill    = target のモブを amount 体倒す (mobs/*.yml のID)
+#           deliver = target のアイテムを amount 個納品する (items/*.yml のID)
+#           info    = 話を聞くだけ (explanation を順に表示して達成)
+# towns:    ボードのある町 (省略 = どの町でも出る)。アトラスはチュートリアルを兼ねる
+# reward:   報酬の通貨
+#
+# サブ依頼の更新時刻・件数は config.yml の quest: で変える
+
+quests:
+  main_board_intro:
+    category: main
+    type: info
+    towns: [atlas]
+    name: "依頼ボードの使い方"
+    description:
+      - "ボードの使い方を、受付の人に聞いてみよう。"
+    reward: 30
+    explanation:
+      - "ここは依頼ボード。町の人や商人からの頼みごとが貼り出されている。"
+      - "メインの依頼は、物語に関わる大事な頼みごとだ。一度きりで、順番に開いていく。"
+      - "サブの依頼は、短い頼みごと。24時間たつと、新しいものに入れ替わる。"
+      - "依頼を受けたら、ボードを開き直して、達成した依頼から報酬を受け取るんだ。"
+  main_gacha_intro:
+    category: main
+    type: info
+    towns: [atlas]
+    requires: [main_board_intro]
+    name: "ガチャってなんだ?"
+    description:
+      - "依頼で貯めた通貨の使い道を、聞いてみよう。"
+    reward: 50
+    explanation:
+      - "依頼でもらえる通貨は、ガチャで使うんだ。"
+      - "ガチャを回すと、武器や防具が手に入る。珍しいものほど、当たりにくい。"
+      - "お金を貯めて、欲しいものが出るまで回すのがこの世界の楽しみ方さ。"
+      - "回し方は、ガチャのある場所で、また教えよう。"
+  main_atlas_boars:
+    category: main
+    type: kill
+    towns: [atlas]
+    requires: [main_gacha_intro]
+    name: "畑を荒らすイノシシ"
+    description:
+      - "村の畑にイノシシが出て困っている。5匹追い払ってほしい。"
+    target: wild_boar
+    target-name: "イノシシ"
+    amount: 5
+    reward: 120
+  main_goblin_fangs:
+    category: main
+    type: deliver
+    towns: [atlas]
+    requires: [main_atlas_boars]
+    name: "ゴブリンの足跡"
+    description:
+      - "村の外れでゴブリンの足跡が見つかった。"
+      - "牙を3つ集めて、持ってきてほしい。"
+    target: goblin_fang
+    target-name: "ゴブリンの牙"
+    amount: 3
+    reward: 200
+
+# サブ依頼のテンプレート。毎日 (config.yml の quest.sub-reset-hour の時刻に) 、ここから
+# quest.sub-count 件がランダムに作られる。対象・数・報酬もランダム。
+# 同じ日は、全員・どの町のボードでも同じ内容になる。
+# 名前・説明の {target} は対象、{amount} は数、{unit} は単位に置き換わる
+# amount: [最小, 最大]  / reward-per-unit: 1つあたりの報酬 (数に比例し、少しばらつく)
+sub-templates:
+  - id: hunt
+    type: kill
+    name: "{target}退治"
+    description:
+      - "{target}が増えすぎている。{amount}{unit}倒してほしい。"
+    targets:
+      - { id: wild_boar, name: "イノシシ", unit: "匹" }
+      - { id: goblin, name: "ゴブリン", unit: "体" }
+    amount: [3, 10]
+    reward-per-unit: 24
+  - id: cull
+    type: kill
+    name: "{target}の大掃除"
+    description:
+      - "{target}の数が多すぎる。{amount}{unit}まとめて片付けてほしい。"
+    targets:
+      - { id: goblin, name: "ゴブリン", unit: "体" }
+      - { id: wild_boar, name: "イノシシ", unit: "匹" }
+    amount: [8, 15]
+    reward-per-unit: 26
+  - id: collect
+    type: deliver
+    name: "{target}の納品"
+    description:
+      - "{target}が足りない。{amount}{unit}納品してほしい。"
+    targets:
+      - { id: goblin_fang, name: "ゴブリンの牙", unit: "個" }
+      - { id: boar_meat, name: "イノシシの肉", unit: "個" }
+      - { id: moon_herb, name: "月光草", unit: "個" }
+    amount: [2, 6]
+    reward-per-unit: 38
+  - id: stock
+    type: deliver
+    name: "{target}がほしい"
+    description:
+      - "店の仕入れに、{target}が要る。{amount}{unit}納品してほしい。"
+    targets:
+      - { id: moon_herb, name: "月光草", unit: "個" }
+      - { id: boar_meat, name: "イノシシの肉", unit: "個" }
+    amount: [4, 8]
+    reward-per-unit: 30

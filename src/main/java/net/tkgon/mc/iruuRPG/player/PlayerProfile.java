@@ -18,6 +18,14 @@ public final class PlayerProfile {
     private String classId = "";
     private boolean classChosen;
     private final Map<String, Integer> classLevels = new HashMap<>();
+
+    // quests (see quest package): currency, active quests (id -> progress), finished main quests,
+    // and the sub quests finished on the current daily rotation
+    private long currency;
+    private final Map<String, Integer> questProgress = new java.util.LinkedHashMap<>();
+    private final java.util.Set<String> completedQuests = new java.util.LinkedHashSet<>();
+    private final java.util.Set<String> completedSubQuests = new java.util.LinkedHashSet<>();
+    private String subQuestDay = "";
     private final Map<String, String> activeClassSkills = new HashMap<>();
 
     private final StatSet baseStats = new StatSet();
@@ -104,6 +112,34 @@ public final class PlayerProfile {
 
     public int spentSkillPoints() {
         return classLevels.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    public long currency() {
+        return currency;
+    }
+
+    public void setCurrency(long currency) {
+        this.currency = Math.max(0L, currency);
+    }
+
+    public Map<String, Integer> questProgress() {
+        return questProgress;
+    }
+
+    public java.util.Set<String> completedQuests() {
+        return completedQuests;
+    }
+
+    public java.util.Set<String> completedSubQuests() {
+        return completedSubQuests;
+    }
+
+    public String subQuestDay() {
+        return subQuestDay;
+    }
+
+    public void setSubQuestDay(String subQuestDay) {
+        this.subQuestDay = subQuestDay == null ? "" : subQuestDay;
     }
 
     public Map<String, String> activeClassSkills() {

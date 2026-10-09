@@ -19,6 +19,11 @@ commands:
       - classes
       - skilltree
       - tree
+  quest:
+    description: Opens the quest board (and quest helpers)
+    usage: /quest [board [town]] | money [add n] | reset | reroll
+    aliases:
+      - board
   tutorialstart:
     description: Starts the debug tutorial at your position
     usage: /tutorialstart

@@ -63,6 +63,7 @@ public final class RpgMobService {
     private final Map<UUID, MobRuntime> runtimes = new HashMap<>();
     private final Map<UUID, UUID> statusDisplays = new HashMap<>();
     private final Map<UUID, TargetLock> targetLocks = new HashMap<>();
+    private java.util.function.BiConsumer<Player, String> killHook;
 
     public RpgMobService(
             JavaPlugin plugin,
@@ -153,6 +154,26 @@ public final class RpgMobService {
         applyHealth(entity, profile);
         updateName(entity);
         return true;
+    }
+
+    /** Called once per player who gets credit for a kill (dealt at least 5% of the mob's max HP), with the mob's id. */
+    public void setKillHook(java.util.function.BiConsumer<Player, String> killHook) {
+        this.killHook = killHook;
+    }
+
+    public void creditKill(LivingEntity entity) {
+        MobRuntime runtime = runtime(entity);
+        if (runtime == null || killHook == null) return;
+
+        double minimumDamage = Math.max(0.0, runtime.profile().maxHp() * 0.05);
+        for (Map.Entry<UUID, Double> entry : runtime.damageByPlayer().entrySet()) {
+            if (entry.getValue() + 1.0E-9 < minimumDamage) continue;
+
+            Player player = Bukkit.getPlayer(entry.getKey());
+            if (player != null) {
+                killHook.accept(player, runtime.definition().id());
+            }
+        }
     }
 
     public void dropRewards(LivingEntity entity) {
