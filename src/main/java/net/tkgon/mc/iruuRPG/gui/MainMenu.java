@@ -3,6 +3,8 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.classsystem.ClassDefinition;
+import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
@@ -38,7 +40,19 @@ public final class MainMenu implements Listener {
     private final StatsMenu statsMenu;
     private final SkillTreeMenu skillTreeMenu;
 
-    public MainMenu(EquipmentService equipmentService, LevelService levelService, StatsMenu statsMenu, SkillTreeMenu skillTreeMenu) {
+    private final ClassService classService;
+    private final ClassSelectMenu classSelectMenu;
+
+    public MainMenu(
+            EquipmentService equipmentService,
+            LevelService levelService,
+            StatsMenu statsMenu,
+            SkillTreeMenu skillTreeMenu,
+            ClassService classService,
+            ClassSelectMenu classSelectMenu
+    ) {
+        this.classService = classService;
+        this.classSelectMenu = classSelectMenu;
         this.equipmentService = equipmentService;
         this.levelService = levelService;
         this.statsMenu = statsMenu;
@@ -55,23 +69,17 @@ public final class MainMenu implements Listener {
         inventory.setItem(4, playerIcon(player, profile));
         inventory.setItem(20, levelUpButton(profile));
         inventory.setItem(22, button(Material.COMPASS, "ステータス", NamedTextColor.AQUA, List.of(
-                Component.text("/stats を開く", NamedTextColor.GRAY)
+                Component.text("現在の能力値を確認します", NamedTextColor.GRAY)
         )));
-        inventory.setItem(24, button(Material.LECTERN, "職業 / クラス", NamedTextColor.LIGHT_PURPLE, List.of(
-                Component.text("スキルツリーを開く", NamedTextColor.GRAY),
-                Component.text("クラス別ノードを取得・解除できます", NamedTextColor.GRAY)
+        inventory.setItem(24, button(Material.NETHER_STAR, "スキル", NamedTextColor.LIGHT_PURPLE, List.of(
+                Component.text("スキルポイントを振り分けます", NamedTextColor.GRAY),
+                Component.text("残りSP: " + classService.availablePoints(profile), NamedTextColor.GREEN),
+                Component.text("解放ノードの確認もここから", NamedTextColor.GRAY)
         )));
-        inventory.setItem(38, placeholder(Material.AMETHYST_SHARD, "スキルポイント", List.of(
-                Component.text("未実装", NamedTextColor.DARK_GRAY),
-                Component.text("レベルアップ報酬として獲得予定", NamedTextColor.GRAY)
-        )));
-        inventory.setItem(40, placeholder(Material.ANVIL, "基礎ステータス強化", List.of(
-                Component.text("未実装", NamedTextColor.DARK_GRAY),
-                Component.text("ポイントをHP、MP、攻撃、防御などへ割り振る予定", NamedTextColor.GRAY)
-        )));
-        inventory.setItem(42, placeholder(Material.MAP, "拡張予定", List.of(
-                Component.text("未考案", NamedTextColor.DARK_GRAY),
-                Component.text("今後のシステム用に空けている枠", NamedTextColor.GRAY)
+        inventory.setItem(31, button(Material.LECTERN, "クラス変更", NamedTextColor.GOLD, List.of(
+                Component.text("現在: " + currentClassName(profile), NamedTextColor.WHITE),
+                Component.text("別のクラスを選び直します", NamedTextColor.GRAY),
+                Component.text("変更するとSPの振り分けはリセットされます", NamedTextColor.RED)
         )));
 
         player.openInventory(inventory);
@@ -94,6 +102,7 @@ public final class MainMenu implements Listener {
             }
             case 22 -> statsMenu.open(player);
             case 24 -> skillTreeMenu.open(player);
+            case 31 -> classSelectMenu.open(player);
             default -> {
             }
         }
@@ -104,6 +113,10 @@ public final class MainMenu implements Listener {
         if (!isMainMenu(event.getView())) return;
 
         event.setCancelled(true);
+    }
+
+    private String currentClassName(PlayerProfile profile) {
+        return classService.currentClass(profile).map(ClassDefinition::name).orElse("未設定");
     }
 
     private boolean isMainMenu(InventoryView view) {
@@ -156,10 +169,6 @@ public final class MainMenu implements Listener {
         lore.add(Component.empty());
         lore.add(Component.text("レベルアップ時にHP/MPを全回復し、演出を再生します", NamedTextColor.GRAY));
         return button(material, "レベルアップ", color, lore);
-    }
-
-    private ItemStack placeholder(Material material, String name, List<Component> lore) {
-        return button(material, name, NamedTextColor.DARK_GRAY, lore);
     }
 
     private ItemStack button(Material material, String name, NamedTextColor color, List<Component> lore) {
