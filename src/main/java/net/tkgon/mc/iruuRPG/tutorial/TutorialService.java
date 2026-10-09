@@ -414,7 +414,15 @@ public final class TutorialService implements TutorialDamageHook {
         session.tasks.add(runnable.runTaskTimer(plugin, 1L, 1L));
     }
 
-    /** Adds one spark spot per color (in order); "off" makes them all vanish at once. */
+    private static final double RAINBOW_RADIUS = 1.5;
+    private static final double RAINBOW_CENTER_HEIGHT = 1.0;
+    private static final int RAINBOW_BANDS = 5;
+    private static final int RAINBOW_POINTS = 7;
+
+    /**
+     * Adds one rainbow band per color, in order: the rainbow is drawn in the plane the player faces (his right and up),
+     * starting right beside the NPC on the player's left and arching over to the right. "off" pops everything at once.
+     */
     private void setMist(TutorialSession session, Player player, Object colors) {
         if (!(colors instanceof List<?> list)) {
             popMist(session, player);
@@ -423,32 +431,57 @@ public final class TutorialService implements TutorialDamageHook {
         for (Object entry : list) {
             Color color = mistColor(String.valueOf(entry));
             if (color == null) continue;
-            if (session.mistAnchors.stream().anyMatch(anchor -> anchor.color().equals(color))) continue;
+            if (session.mistArcs.stream().anyMatch(arc -> arc.color().equals(color))) continue;
+            if (session.mistArcs.size() >= RAINBOW_BANDS) continue;
 
-            int index = session.mistAnchors.size();
-            double angle = Math.toRadians(40.0 + 72.0 * index);
-            Vector offset = new Vector(Math.cos(angle) * 1.1, 1.3 + 0.18 * index, Math.sin(angle) * 1.1);
-            session.mistAnchors.add(new TutorialSession.MistAnchor(offset, color));
+            double band = 180.0 / RAINBOW_BANDS;
+            double start = 180.0 - band * session.mistArcs.size();
+            session.mistArcs.add(new TutorialSession.MistArc(color, start, start - band, session.mistClock));
             if (session.npc != null) {
-                Location at = session.npc.getLocation().add(offset);
-                player.spawnParticle(Particle.REDSTONE, at, 6, 0.08, 0.08, 0.08, 0.0, new Particle.DustOptions(color, 1.0f));
-                player.playSound(at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.6f, 1.0f + 0.15f * index);
+                player.playSound(rainbowPoint(session, start), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 0.8f + 0.2f * session.mistArcs.size());
+            }
+        }
+    }
+
+    /** A point of the rainbow, {@code deg} degrees around the NPC's chest (0 = player's right, 180 = left). */
+    private Location rainbowPoint(TutorialSession session, double deg) {
+        double radians = Math.toRadians(deg);
+        Vector right = right(session.originYaw);
+        return session.npc.getLocation().add(
+                right.getX() * RAINBOW_RADIUS * Math.cos(radians),
+                RAINBOW_CENTER_HEIGHT + RAINBOW_RADIUS * Math.sin(radians),
+                right.getZ() * RAINBOW_RADIUS * Math.cos(radians));
+    }
+
+    private void emitRainbow(TutorialSession session, Player player) {
+        session.mistClock++;
+        for (TutorialSession.MistArc arc : session.mistArcs) {
+            int age = session.mistClock - arc.createdTick();
+            int visible = Math.min(RAINBOW_POINTS, age / 2 + 1);
+            boolean sweeping = visible < RAINBOW_POINTS;
+            Particle.DustOptions dust = new Particle.DustOptions(arc.color(), 1.25f);
+            for (int index = 0; index < visible; index++) {
+                boolean leading = index == visible - 1;
+                if (!(sweeping && leading) && session.mistClock % 4 != 0) continue;
+
+                double deg = arc.startDeg() + (arc.endDeg() - arc.startDeg()) * index / (RAINBOW_POINTS - 1);
+                player.spawnParticle(Particle.REDSTONE, rainbowPoint(session, deg), 2, 0.04, 0.04, 0.04, 0.0, dust);
             }
         }
     }
 
     private void popMist(TutorialSession session, Player player) {
         if (session.npc != null) {
-            for (TutorialSession.MistAnchor anchor : session.mistAnchors) {
-                Location at = session.npc.getLocation().add(anchor.offset());
-                player.spawnParticle(Particle.REDSTONE, at, 14, 0.15, 0.15, 0.15, 0.0, new Particle.DustOptions(anchor.color(), 1.3f));
+            for (TutorialSession.MistArc arc : session.mistArcs) {
+                Location at = rainbowPoint(session, (arc.startDeg() + arc.endDeg()) / 2.0);
+                player.spawnParticle(Particle.REDSTONE, at, 14, 0.15, 0.15, 0.15, 0.0, new Particle.DustOptions(arc.color(), 1.3f));
                 player.spawnParticle(Particle.CLOUD, at, 4, 0.1, 0.1, 0.1, 0.02);
             }
-            if (!session.mistAnchors.isEmpty()) {
+            if (!session.mistArcs.isEmpty()) {
                 player.playSound(session.npc.getLocation(), Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.5f, 1.6f);
             }
         }
-        session.mistAnchors.clear();
+        session.mistArcs.clear();
     }
 
     private static Color mistColor(String name) {
@@ -687,11 +720,8 @@ public final class TutorialService implements TutorialDamageHook {
             session.speech.teleport(npc.getLocation().add(0, 2.6, 0));
         }
 
-        if (!session.mistAnchors.isEmpty() && player.getTicksLived() % 3 == 0) {
-            for (TutorialSession.MistAnchor anchor : session.mistAnchors) {
-                Location at = npc.getLocation().add(anchor.offset());
-                player.spawnParticle(Particle.REDSTONE, at, 2, 0.05, 0.05, 0.05, 0.0, new Particle.DustOptions(anchor.color(), 0.9f));
-            }
+        if (!session.mistArcs.isEmpty()) {
+            emitRainbow(session, player);
         }
     }
 

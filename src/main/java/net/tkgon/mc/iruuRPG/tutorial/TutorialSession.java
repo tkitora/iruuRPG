@@ -45,7 +45,8 @@ final class TutorialSession {
 
     /** How far below the executor's position the view sits (he starts slouching); 0 once he stands up. */
     float yDrop;
-    final List<MistAnchor> mistAnchors = new ArrayList<>();
+    final List<MistArc> mistArcs = new ArrayList<>();
+    int mistClock;
 
     boolean waitingClassMenu;
     String chosenClass;
@@ -67,8 +68,8 @@ final class TutorialSession {
         this.steps = steps;
     }
 
-    /** One color of the floating sparks: a fixed spot around the NPC that keeps emitting a few particles. */
-    record MistAnchor(org.bukkit.util.Vector offset, Color color) {
+    /** One band of the rainbow beside the NPC: an arc from startDeg to endDeg (0 = player's right, 180 = left, 90 = above). */
+    record MistArc(Color color, double startDeg, double endDeg, int createdTick) {
     }
 
     /** What the player looked like before the tutorial, so a stop can put everything back. */
