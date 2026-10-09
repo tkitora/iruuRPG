@@ -274,7 +274,7 @@ public final class DeployService {
             if (!target.getWorld().equals(center.getWorld())) return;
             if (target.getLocation().distanceSquared(center) > radiusSquared) return;
 
-            if (attackService.healPlayer(target, amount)) {
+            if (attackService.healPlayerBy(owner, target, amount)) {
                 attackEffects.playHealBurst(target, weapon);
             }
         }

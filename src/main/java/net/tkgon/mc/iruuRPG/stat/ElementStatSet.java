@@ -68,6 +68,17 @@ public final class ElementStatSet {
         resist.clear();
     }
 
+    /** Returns a copy with every value multiplied by {@code factor}. */
+    public ElementStatSet scaled(double factor) {
+        ElementStatSet result = new ElementStatSet();
+        for (Element element : Element.values()) {
+            result.setDamage(element, damage(element) * factor);
+            result.setDamagePercent(element, damagePercent(element) * factor);
+            result.setResist(element, resist(element) * factor);
+        }
+        return result;
+    }
+
     public ElementStatSet copy() {
         ElementStatSet copy = new ElementStatSet();
         copy.damage.putAll(damage);

@@ -35,6 +35,11 @@ public final class EquipmentService {
         this.classService = classService;
     }
 
+    /** The cached profile without recalculating (null if not loaded). */
+    public PlayerProfile profile(Player player) {
+        return profileManager.get(player).orElse(null);
+    }
+
     public PlayerProfile recalculate(Player player) {
         PlayerProfile profile = profileManager.getOrCreate(player);
         StatSet equipmentStats = new StatSet();

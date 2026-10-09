@@ -1,0 +1,103 @@
+# クラス定義: メイジ (青 / 魔力特化)
+# 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
+
+id: mage
+name: "メイジ"
+icon: BLAZE_ROD
+
+growth:
+  magic: 0.1
+  max-mp: 0.1
+
+spend:
+  magic:
+    name: "魔力"
+    icon: AMETHYST_SHARD
+    per-level:
+      magic: 2.4
+  max_mp:
+    name: "最大MP"
+    icon: LAPIS_LAZULI
+    per-level:
+      max-mp: 1.5
+  mp_regen:
+    name: "MP回復"
+    icon: PRISMARINE_CRYSTALS
+    per-level:
+      mp-regen: 0.2
+  magic_percent:
+    name: "魔力%"
+    icon: ENCHANTED_BOOK
+    per-level:
+      magic-percent: 3.9
+      strength-percent: -1.95
+  blue_damage:
+    name: "青属性ダメージ"
+    icon: LAPIS_BLOCK
+    per-level:
+      element-stats:
+        damage:
+          blue: 65
+
+milestones:
+  # 1: SP 5 (ステータス)
+  - node_name: "魔導の素養"
+    icon: ENCHANTING_TABLE
+    node_type: passive
+    effect_type: status
+    status:
+      magic-percent: 21
+      magic-overload: 3
+  # 2: SP 10 (クラス特有: 魔法武器の範囲強化 / 範囲5・60%はコード側)
+  - node_name: "広域魔法"
+    icon: HEART_OF_THE_SEA
+    node_type: passive
+    effect_type: skill
+    name: range_area_expand
+    description:
+      - "遠距離攻撃の範囲が広がり、威力も上がる"
+  # 3: SP 15 (ステータス)
+  - node_name: "魔力の泉"
+    icon: LAPIS_BLOCK
+    node_type: passive
+    effect_type: status
+    status:
+      magic-overload: 3
+      max-mp: 20
+  # 4: SP 20 (クラススキル / F)
+  - node_name: "氷槍"
+    icon: PACKED_ICE
+    node_type: active
+    hot_key: F
+    name: ice_lance
+  # 5: SP 25 (ステータス)
+  - node_name: "魔導の極意"
+    icon: AMETHYST_CLUSTER
+    node_type: passive
+    effect_type: status
+    status:
+      max-mp: 20
+      magic-percent: 21
+  # 6: SP 30 (クラス特有: 立ち止まっている間)
+  - node_name: "静かなる集中"
+    icon: CLOCK
+    node_type: passive
+    effect_type: status
+    condition: stationary
+    status:
+      mp-regen: 10
+      magic-overload: 5
+  # 7: SP 35 (ステータス)
+  - node_name: "賢者の叡智"
+    icon: BOOK
+    node_type: passive
+    effect_type: status
+    status:
+      magic-percent: 21
+      magic-overload: 3
+  # 8: SP 40 (クラススキル強化)
+  - node_name: "氷槍・極"
+    icon: BLUE_ICE
+    node_type: passive
+    effect_type: skill
+    name: ice_lance_upgrade

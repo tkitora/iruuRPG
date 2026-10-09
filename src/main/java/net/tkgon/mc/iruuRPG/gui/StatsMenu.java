@@ -67,11 +67,13 @@ public final class StatsMenu implements Listener {
                 StatType.STRENGTH,
                 StatType.STRENGTH_PERCENT,
                 StatType.MAGIC,
-                StatType.ADD_DAMAGE,
+                StatType.MAGIC_PERCENT,
                 StatType.MELEE_DAMAGE,
                 StatType.MELEE_DAMAGE_PERCENT,
                 StatType.RANGE_DAMAGE,
-                StatType.RANGE_DAMAGE_PERCENT
+                StatType.RANGE_DAMAGE_PERCENT,
+                StatType.DEPLOY_DAMAGE,
+                StatType.DEPLOY_DAMAGE_PERCENT
         )));
         inventory.setItem(14, category(Material.CLOCK, "戦闘補助", NamedTextColor.YELLOW, statLines(profile.finalStats(),
                 StatType.CRIT_DAMAGE,
@@ -254,8 +256,10 @@ public final class StatsMenu implements Listener {
     private boolean isPercent(StatType type) {
         return switch (type) {
             case STRENGTH_PERCENT,
+                    MAGIC_PERCENT,
                     MELEE_DAMAGE_PERCENT,
                     RANGE_DAMAGE_PERCENT,
+                    DEPLOY_DAMAGE_PERCENT,
                     CRIT_DAMAGE,
                     CRIT_CHANCE,
                     ADRENALINE,
@@ -283,7 +287,9 @@ public final class StatsMenu implements Listener {
             case STRENGTH -> "筋力";
             case STRENGTH_PERCENT -> "筋力%";
             case MAGIC -> "魔力";
-            case ADD_DAMAGE -> "追加ダメージ";
+            case MAGIC_PERCENT -> "魔力%";
+            case DEPLOY_DAMAGE -> "設置ダメージ";
+            case DEPLOY_DAMAGE_PERCENT -> "設置ダメージ%";
             case MELEE_DAMAGE -> "近接ダメージ";
             case MELEE_DAMAGE_PERCENT -> "近接ダメージ倍率";
             case RANGE_DAMAGE -> "遠距離ダメージ";

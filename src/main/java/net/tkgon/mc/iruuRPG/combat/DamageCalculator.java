@@ -64,7 +64,8 @@ public final class DamageCalculator {
         double power = switch (weapon.damageKind()) {
             case PHYSICAL -> attackerStats.get(StatType.STRENGTH)
                     * (1.0 + Math.max(0.0, attackerStats.get(StatType.STRENGTH_PERCENT)) / 100.0);
-            case MAGIC -> attackerStats.get(StatType.MAGIC);
+            case MAGIC -> attackerStats.get(StatType.MAGIC)
+                    * (1.0 + Math.max(0.0, attackerStats.get(StatType.MAGIC_PERCENT)) / 100.0);
             default -> 0.0;
         };
 
@@ -77,12 +78,14 @@ public final class DamageCalculator {
         double typeDamage = switch (weapon.attackType()) {
             case MELEE -> attackerStats.get(StatType.MELEE_DAMAGE);
             case RANGE -> attackerStats.get(StatType.RANGE_DAMAGE);
+            case DEPLOY -> attackerStats.get(StatType.DEPLOY_DAMAGE);
             default -> 0.0;
         };
 
         double typePercent = switch (weapon.attackType()) {
             case MELEE -> attackerStats.get(StatType.MELEE_DAMAGE_PERCENT);
             case RANGE -> attackerStats.get(StatType.RANGE_DAMAGE_PERCENT);
+            case DEPLOY -> attackerStats.get(StatType.DEPLOY_DAMAGE_PERCENT);
             default -> 0.0;
         };
 

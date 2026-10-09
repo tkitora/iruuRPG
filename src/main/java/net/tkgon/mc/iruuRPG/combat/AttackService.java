@@ -53,11 +53,13 @@ public final class AttackService {
     private final AttackCooldowns attackCooldowns;
     private final AttackEffects attackEffects;
     private static final String MELEE_AREA_SKILL = "melee_area";
+    private static final String RANGE_AREA_EXPAND_SKILL = "range_area_expand";
 
     private final PlayerBars playerBars;
     private final StatusEffectService statusEffectService;
     private RpgMobService mobService;
     private ClassService classService;
+    private ClassEffectService classEffectService;
     private DebugTargetService debugTargetService;
 
     public AttackService(
@@ -320,6 +322,9 @@ public final class AttackService {
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            if (classEffectService != null) {
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            }
         }
         return applied;
     }
@@ -350,6 +355,9 @@ public final class AttackService {
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            if (classEffectService != null) {
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            }
         }
         return applied;
     }
@@ -374,10 +382,13 @@ public final class AttackService {
         if (sourceDamage <= 0.0) return;
         if (attackType == AttackType.MELEE && !hasMeleeAreaSkill(attacker)) return;
 
-        double damageRate = areaDamageRate(attackType);
+        boolean expanded = attackType == AttackType.RANGE && hasSkill(attacker, RANGE_AREA_EXPAND_SKILL);
+        double damageRate = areaDamageRate(attackType, expanded);
         if (damageRate <= 0.0) return;
 
-        double radius = plugin.getConfig().getDouble("combat.area-radius", 3.0);
+        double radius = expanded
+                ? plugin.getConfig().getDouble("combat.range-area-expanded-radius", 5.0)
+                : plugin.getConfig().getDouble("combat.area-radius", 3.0);
         double radiusSquared = radius * radius;
         double areaDamage = round(sourceDamage * damageRate);
         if (areaDamage <= 0.0) return;
@@ -468,23 +479,42 @@ public final class AttackService {
 
         playerBars.sync(player, profile);
         attackEffects.playHealNumber(player, healed);
+        if (classEffectService != null) {
+            classEffectService.onSelfHealed(player, healed);
+        }
         return true;
+    }
+
+    /** A heal cast by {@code caster}: class bonuses to the caster's heals (e.g. the healer's protection) apply. */
+    public boolean healPlayerBy(Player caster, Player target, double amount) {
+        double multiplier = classEffectService == null ? 1.0 : classEffectService.healMultiplier(caster);
+        return healPlayer(target, amount * multiplier);
     }
 
     /** Melee area attacks are a class skill (milestone "melee_area"), not a weapon trait. */
     private boolean hasMeleeAreaSkill(Player attacker) {
+        return hasSkill(attacker, MELEE_AREA_SKILL);
+    }
+
+    private boolean hasSkill(Player attacker, String skillName) {
         if (classService == null) return false;
-        return classService.hasSkill(profileManager.getOrCreate(attacker), MELEE_AREA_SKILL);
+        return classService.hasSkill(profileManager.getOrCreate(attacker), skillName);
+    }
+
+    public void setClassEffectService(ClassEffectService classEffectService) {
+        this.classEffectService = classEffectService;
     }
 
     public void setClassService(ClassService classService) {
         this.classService = classService;
     }
 
-    private double areaDamageRate(AttackType attackType) {
+    private double areaDamageRate(AttackType attackType, boolean expanded) {
         return switch (attackType) {
             case MELEE -> plugin.getConfig().getDouble("combat.melee-area-damage-rate", 0.65);
-            case RANGE -> plugin.getConfig().getDouble("combat.range-area-damage-rate", 0.50);
+            case RANGE -> expanded
+                    ? plugin.getConfig().getDouble("combat.range-area-expanded-damage-rate", 0.60)
+                    : plugin.getConfig().getDouble("combat.range-area-damage-rate", 0.45);
             case DEPLOY, SPECIAL -> 0.0;
         };
     }

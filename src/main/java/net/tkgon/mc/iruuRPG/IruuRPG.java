@@ -9,6 +9,7 @@ import net.tkgon.mc.iruuRPG.command.StatsCommand;
 import net.tkgon.mc.iruuRPG.combat.AttackCooldowns;
 import net.tkgon.mc.iruuRPG.combat.AttackEffects;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
+import net.tkgon.mc.iruuRPG.combat.ClassEffectService;
 import net.tkgon.mc.iruuRPG.combat.ClassSkillService;
 import net.tkgon.mc.iruuRPG.combat.DamageCalculator;
 import net.tkgon.mc.iruuRPG.combat.DeployService;
@@ -68,6 +69,7 @@ public final class IruuRPG extends JavaPlugin {
     private AttackService attackService;
     private DeployService deployService;
     private ClassSkillService classSkillService;
+    private ClassEffectService classEffectService;
     private ItemSkillService itemSkillService;
     private StatusEffectService statusEffectService;
     private LevelService levelService;
@@ -124,6 +126,11 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.setDebugTargetService(debugTargetService);
         this.attackService.setClassService(classService);
         this.classSkillService = new ClassSkillService(this, attackService, classService, profileManager);
+        this.classSkillService.setStatusEffectService(statusEffectService);
+        this.classEffectService = new ClassEffectService(this, classService, profileManager, statusEffectService);
+        this.attackService.setClassEffectService(classEffectService);
+        this.classSkillService.setClassEffectService(classEffectService);
+        this.classEffectService.setAttackService(attackService);
         this.deployService = new DeployService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
@@ -135,6 +142,7 @@ public final class IruuRPG extends JavaPlugin {
         this.levelService.startOrbTask();
         this.statusEffectService.startTask();
         this.mainMenuItemService.startTask();
+        this.classService.startConditionTask(equipmentService, playerBars);
 
         registerCommands();
         registerListeners();

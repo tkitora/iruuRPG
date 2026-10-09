@@ -1,15 +1,24 @@
 package net.tkgon.mc.iruuRPG.classsystem;
 
+import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
+import net.tkgon.mc.iruuRPG.hud.PlayerBars;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
+import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
+import net.tkgon.mc.iruuRPG.stat.StatType;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Class rules:
@@ -136,26 +145,106 @@ public final class ClassService {
 
     public void applyClassStats(Player player, PlayerProfile profile) {
         ensureProfile(profile);
+        int level = Math.max(0, profile.level());
+        StatSet stats = commonGrowth().scaled(level);
+        ElementStatSet elements = new ElementStatSet();
+
         ClassDefinition definition = currentClass(profile).orElse(null);
-        StatSet stats = new StatSet();
         if (definition != null) {
-            stats.addAll(definition.growth().scaled(Math.max(0, profile.level())));
+            stats.addAll(definition.growth().scaled(level));
+            elements.addAll(definition.growthElements().scaled(level));
             for (SpendNodeDefinition node : definition.spendNodes()) {
                 int levels = profile.classLevel(node.id());
-                if (levels > 0) {
-                    stats.add(node.stat(), node.perLevel() * levels);
-                }
+                if (levels <= 0) continue;
+
+                stats.addAll(node.stats().scaled(levels));
+                elements.addAll(node.elementStats().scaled(levels));
             }
             List<ClassNodeDefinition> milestones = definition.milestones();
             int unlocked = unlockedMilestoneCount(profile);
             for (int index = 0; index < unlocked; index++) {
                 ClassNodeDefinition node = milestones.get(index);
-                if (node.effectType() == ClassPassiveEffectType.STATUS) {
-                    stats.addAll(node.status());
-                }
+                if (node.effectType() != ClassPassiveEffectType.STATUS) continue;
+                if (!conditionActive(player, profile, node.condition())) continue;
+
+                stats.addAll(node.status());
+                elements.addAll(node.elementStatus());
             }
         }
         profile.classStats().replaceWith(stats);
+        profile.classElementStats().replaceWith(elements);
+    }
+
+    /** Level growth shared by every class (config: level-growth). */
+    private StatSet commonGrowth() {
+        StatSet growth = new StatSet();
+        ConfigurationSection section = config().getConfigurationSection("level-growth");
+        if (section == null) return growth;
+
+        for (String key : section.getKeys(false)) {
+            StatType.fromConfigKey(key).ifPresent(type -> growth.set(type, section.getDouble(key, 0.0)));
+        }
+        return growth;
+    }
+
+    // ---- conditional passives -------------------------------------------
+
+    private final Map<UUID, Location> lastLocations = new HashMap<>();
+    private final Map<UUID, Integer> stillSamples = new HashMap<>();
+    private final Map<UUID, Integer> conditionMasks = new HashMap<>();
+
+    public boolean conditionActive(Player player, PlayerProfile profile, ClassConditionType condition) {
+        return switch (condition) {
+            case ALWAYS -> true;
+            case HP_BELOW_HALF -> profile.currentHp() < profile.maxHp() * 0.5;
+            case STATIONARY -> player != null && stillSamples.getOrDefault(player.getUniqueId(), 0) >= stationarySamples();
+        };
+    }
+
+    private int stationarySamples() {
+        return Math.max(1, config().getInt("class-conditions.stationary-samples", 2));
+    }
+
+    /**
+     * Polls conditional passives (HP below half, standing still) and recalculates stats
+     * when a player's condition state changes.
+     */
+    public void startConditionTask(EquipmentService equipmentService, PlayerBars playerBars) {
+        long period = Math.max(1L, config().getLong("class-conditions.check-ticks", 5L));
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                trackMovement(player);
+                int mask = conditionMask(player, equipmentService);
+                Integer previous = conditionMasks.put(player.getUniqueId(), mask);
+                if (previous != null && previous == mask) continue;
+
+                PlayerProfile profile = equipmentService.recalculate(player);
+                playerBars.sync(player, profile);
+            }
+            conditionMasks.keySet().removeIf(id -> Bukkit.getPlayer(id) == null);
+        }, period, period);
+    }
+
+    private void trackMovement(Player player) {
+        Location now = player.getLocation();
+        Location before = lastLocations.put(player.getUniqueId(), now);
+        boolean still = before != null && before.getWorld() == now.getWorld()
+                && before.distanceSquared(now) < 1.0E-4
+                && !player.isInsideVehicle();
+        stillSamples.put(player.getUniqueId(), still ? stillSamples.getOrDefault(player.getUniqueId(), 0) + 1 : 0);
+    }
+
+    private int conditionMask(Player player, EquipmentService equipmentService) {
+        PlayerProfile profile = equipmentService.profile(player);
+        if (profile == null) return 0;
+
+        int mask = 0;
+        for (ClassConditionType type : ClassConditionType.values()) {
+            if (type != ClassConditionType.ALWAYS && conditionActive(player, profile, type)) {
+                mask |= 1 << type.ordinal();
+            }
+        }
+        return mask;
     }
 
     public String activeSkill(PlayerProfile profile, ClassHotKey hotKey) {

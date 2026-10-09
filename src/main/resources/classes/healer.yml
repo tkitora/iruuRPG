@@ -1,0 +1,112 @@
+# クラス定義: ヒーラー (緑 / 耐久力特化)
+# 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
+
+id: healer
+name: "ヒーラー"
+icon: GOLDEN_APPLE
+
+growth:
+  max-hp: 3
+  element-stats:
+    damage:
+      green: 0.1
+
+spend:
+  max_hp:
+    name: "最大HP"
+    icon: GOLDEN_APPLE
+    per-level:
+      max-hp: 75
+  max_mp:
+    name: "最大MP"
+    icon: LAPIS_LAZULI
+    per-level:
+      max-mp: 1.5
+  resist:
+    name: "耐性"
+    icon: PRISMARINE_SHARD
+    per-level:
+      physical-resist: 0.0075
+      magic-resist: 0.0075
+  green_damage:
+    name: "緑属性ダメージ"
+    icon: EMERALD
+    per-level:
+      element-stats:
+        damage:
+          green: 3.6
+  damage_reduction:
+    name: "ダメージ軽減"
+    icon: IRON_CHESTPLATE
+    per-level:
+      damage-reduction: 0.75
+
+milestones:
+  # 1: SP 5 (ステータス)
+  - node_name: "癒しの祈り"
+    icon: GLISTERING_MELON_SLICE
+    node_type: passive
+    effect_type: status
+    status:
+      protection: 4
+    element-stats:
+      damage-percent:
+        green: 8.3
+  # 2: SP 10 (クラス特有: 自分が回復した時、周囲の敵に緑属性ダメージ)
+  - node_name: "命の反響"
+    icon: SCULK_SENSOR
+    node_type: passive
+    effect_type: skill
+    name: healer_pulse
+    description:
+      - "自分が回復すると、周囲の敵に緑属性のダメージを与える"
+  # 3: SP 15 (ステータス)
+  - node_name: "豊かな魔力"
+    icon: LAPIS_BLOCK
+    node_type: passive
+    effect_type: status
+    status:
+      mp-regen: 8
+    element-stats:
+      damage-percent:
+        green: 8.3
+  # 4: SP 20 (クラススキル / F)
+  - node_name: "聖域"
+    icon: BEACON
+    node_type: active
+    hot_key: F
+    name: sanctuary
+  # 5: SP 25 (ステータス)
+  - node_name: "静かな巡り"
+    icon: PRISMARINE_CRYSTALS
+    node_type: passive
+    effect_type: status
+    status:
+      mp-regen: 8
+      protection: 4
+  # 6: SP 30 (クラス特有: 発動した回復に保護%の倍率)
+  - node_name: "加護の手"
+    icon: SHIELD
+    node_type: passive
+    effect_type: skill
+    name: healer_guard
+    description:
+      - "自分が発動した回復に、保護の分だけ倍率が乗る"
+  # 7: SP 35 (ステータス)
+  - node_name: "癒し手の極意"
+    icon: ENCHANTED_GOLDEN_APPLE
+    node_type: passive
+    effect_type: status
+    status:
+      protection: 4
+    element-stats:
+      damage-percent:
+        green: 8.3
+  # 8: SP 40 (クラススキル強化)
+  - node_name: "聖域・極"
+    icon: END_CRYSTAL
+    node_type: passive
+    effect_type: skill
+    name: sanctuary_upgrade
+    description:
+      - "効果時間が長くなり、範囲内はノックバックを受けない"

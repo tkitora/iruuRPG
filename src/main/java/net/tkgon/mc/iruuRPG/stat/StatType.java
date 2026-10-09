@@ -15,12 +15,14 @@ public enum StatType {
     STRENGTH("strength", "Strength", "addPower"),
     STRENGTH_PERCENT("strength-percent", "Strength %"),
     MAGIC("magic", "Magic", "addAPower"),
-    ADD_DAMAGE("add-damage", "Add Damage", "addDmg"),
+    MAGIC_PERCENT("magic-percent", "Magic %"),
 
     MELEE_DAMAGE("melee-damage", "Melee Damage", "meleeDmg"),
     MELEE_DAMAGE_PERCENT("melee-damage-percent", "Melee Damage %", "meleeDmgS"),
     RANGE_DAMAGE("range-damage", "Range Damage", "rangeDmg"),
     RANGE_DAMAGE_PERCENT("range-damage-percent", "Range Damage %", "rangeDmgS"),
+    DEPLOY_DAMAGE("deploy-damage", "Deploy Damage"),
+    DEPLOY_DAMAGE_PERCENT("deploy-damage-percent", "Deploy Damage %"),
 
     CRIT_DAMAGE("crit-damage", "Critical Damage %", "addCritDmg"),
     CRIT_CHANCE("crit-chance", "Critical Chance %", "addCritChance"),

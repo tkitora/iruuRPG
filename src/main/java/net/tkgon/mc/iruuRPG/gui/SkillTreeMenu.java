@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.classsystem.ClassConditionType;
 import net.tkgon.mc.iruuRPG.classsystem.ClassDefinition;
 import net.tkgon.mc.iruuRPG.classsystem.ClassNodeDefinition;
 import net.tkgon.mc.iruuRPG.classsystem.ClassNodeType;
@@ -15,6 +16,10 @@ import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
 import net.tkgon.mc.iruuRPG.hud.PlayerBars;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
+import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
+import net.tkgon.mc.iruuRPG.stat.StatLabels;
+import net.tkgon.mc.iruuRPG.stat.StatSet;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -197,12 +202,46 @@ public final class SkillTreeMenu implements Listener {
         int level = profile.classLevel(node.id());
         List<Component> lore = new ArrayList<>();
         lore.add(line("レベル", String.valueOf(level), level > 0 ? NamedTextColor.GREEN : NamedTextColor.GRAY));
-        lore.add(line("1レベルあたり", "+" + format(node.perLevel()) + " " + node.stat().key(), NamedTextColor.AQUA));
-        lore.add(line("現在の合計", "+" + format(node.perLevel() * level) + " " + node.stat().key(), NamedTextColor.GREEN));
+        lore.add(Component.empty());
+        lore.add(text("1レベルごと", NamedTextColor.AQUA));
+        addEffectLines(lore, node.stats(), node.elementStats(), 1);
+        if (level > 0) {
+            lore.add(Component.empty());
+            lore.add(text("現在の合計", NamedTextColor.GREEN));
+            addEffectLines(lore, node.stats(), node.elementStats(), level);
+        }
         lore.add(Component.empty());
         lore.add(text("左クリック: +1  シフト左: +" + BULK_LEVELS, NamedTextColor.GREEN));
         lore.add(text("右クリック: -1", NamedTextColor.RED));
         return item(node.icon(), node.name(), level > 0 ? NamedTextColor.GREEN : NamedTextColor.YELLOW, lore, level > 0);
+    }
+
+    /** Whole numbers and Japanese names only: no decimals, internal keys or formulas. */
+    private void addEffectLines(List<Component> lore, StatSet stats, ElementStatSet elements, int times) {
+        stats.asMap().entrySet().stream()
+                .sorted(Comparator.comparing(entry -> entry.getKey().ordinal()))
+                .forEach(entry -> lore.add(effectLine(StatLabels.name(entry.getKey()),
+                        StatLabels.signed(entry.getKey(), entry.getValue() * times), entry.getValue())));
+        for (Element element : Element.values()) {
+            addElementLine(lore, StatLabels.elementName(element), elements.damage(element) * times, false);
+            addElementLine(lore, StatLabels.elementName(element) + "%", elements.damagePercent(element) * times, true);
+            addElementLine(lore, elementResistName(element), elements.resist(element) * times, false);
+        }
+    }
+
+    private String elementResistName(Element element) {
+        return StatLabels.elementName(element).replace("ダメージ", "耐性");
+    }
+
+    private void addElementLine(List<Component> lore, String label, double value, boolean percent) {
+        if (Math.abs(value) < 1.0E-9) return;
+        lore.add(effectLine(label, StatLabels.signedElement(value, percent), value));
+    }
+
+    private Component effectLine(String label, String value, double raw) {
+        return Component.text(label + " ", NamedTextColor.GRAY)
+                .append(Component.text(value, raw >= 0 ? NamedTextColor.GREEN : NamedTextColor.RED))
+                .decoration(TextDecoration.ITALIC, false);
     }
 
     private ItemStack milestoneItem(PlayerProfile profile, ClassNodeDefinition node, int index) {
@@ -219,25 +258,36 @@ public final class SkillTreeMenu implements Listener {
         } else {
             lore.add(line("種別", "ステータス", NamedTextColor.AQUA));
         }
-        node.status().asMap().entrySet().stream()
-                .sorted(Comparator.comparing(entry -> entry.getKey().key()))
-                .forEach(entry -> lore.add(line(entry.getKey().key(), "+" + format(entry.getValue()), NamedTextColor.GREEN)));
+        if (node.condition() != ClassConditionType.ALWAYS) {
+            lore.add(line("発動条件", conditionText(node.condition()), NamedTextColor.GOLD));
+        }
+        addEffectLines(lore, node.status(), node.elementStatus(), 1);
+        for (String description : node.description()) {
+            lore.add(text(description, NamedTextColor.GRAY));
+        }
         if (!node.skillName().isBlank()) {
             classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill));
         }
         if (node.hotKey() != null) {
-            lore.add(line("ホットキー", node.hotKey().key() + " / " + node.hotKey().displayName(), NamedTextColor.YELLOW));
+            lore.add(line("操作", node.hotKey().displayName(), NamedTextColor.YELLOW));
         }
         return item(node.icon(), node.nodeName(), color, lore, unlocked);
     }
 
+    private String conditionText(ClassConditionType condition) {
+        return switch (condition) {
+            case HP_BELOW_HALF -> "体力が半分を下回っている間";
+            case STATIONARY -> "立ち止まっている間";
+            case ALWAYS -> "常時";
+        };
+    }
+
     private void appendSkillLore(List<Component> lore, ClassSkillDefinition skill) {
-        lore.add(line("スキル名", skill.name(), NamedTextColor.LIGHT_PURPLE));
-        if (skill.cost() > 0.0) {
-            lore.add(line("MP", format(skill.cost()), NamedTextColor.AQUA));
+                if (skill.cost() > 0.0) {
+            lore.add(line("消費MP", String.valueOf((long) Math.ceil(skill.cost())), NamedTextColor.AQUA));
         }
         if (skill.cooldownTicks() > 0) {
-            lore.add(line("CD", format(skill.cooldownTicks() / 20.0) + "秒", NamedTextColor.YELLOW));
+            lore.add(line("クールタイム", (long) Math.ceil(skill.cooldownTicks() / 20.0) + "秒", NamedTextColor.YELLOW));
         }
         for (String description : skill.description()) {
             lore.add(text(description, NamedTextColor.GRAY));

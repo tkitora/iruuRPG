@@ -32,16 +32,22 @@ mob:
 combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
-  range-area-damage-rate: 0.50
+  range-area-damage-rate: 0.45
   area-radius: 3.0
+  # 遠距離範囲攻撃はクラス関係なく標準で範囲3・割合45%。メイジの「遠距離範囲の強化」で範囲5・割合60%
+  range-area-expanded-damage-rate: 0.60
+  range-area-expanded-radius: 5.0
   area-requires-facing: true
   range-distance: 16.0
   range-ray-size: 0.6
   min-cooldown-ticks: 1
   status-effects:
     duration-ticks: 100
+    # 爆破: 10スタックで周囲(explosion-radius)に、貯めた分のダメージ。explosion-delay-ticks 後に爆発 (0で即時)
     explosion-delay-ticks: 40
     explosion-radius: 3.0
+    # 混乱: 100までスタックし、満タンでこのtick数だけ行動不能 (40 = 2秒)
+    confusion-stun-ticks: 40
   cooldown-ticks:
     melee: 14
     range: 10
@@ -107,3 +113,33 @@ class-skill-points:
   max-points: 40
   # SPを何ポイント使うごとに、解放ノードを順番に1つ無料で解放するか
   milestone-interval: 5
+
+# 全クラス共通のレベル成長 (1レベルあたり)。クラス固有の成長は classes/*.yml の growth
+level-growth:
+  max-hp: 10
+  max-mp: 0.4
+  strength: 0.1
+  magic: 0.1
+  defense: 1.5
+  hp-regen: 0.5
+  mp-regen: 0.05
+
+# 条件付きパッシブ (体力が半分以下 / 立ち止まっている間)
+class-conditions:
+  # 何tickごとに判定するか
+  check-ticks: 5
+  # 位置が動いていない判定が何回続いたら「立ち止まっている」とするか (check-ticks × この回数)
+  stationary-samples: 2
+
+# クラス効果の倍率。設計メモの式のとおり(1.0)。桁が大きすぎる場合の調整用
+class-effects:
+  gifted:
+    # 出血 = レベル × 近接ダメージ × (100% + 近接ダメージ%) × この値
+    bleed-scale: 1.0
+    # 腐食・腐敗 = レベル × 遠距離ダメージ × (100% + 遠距離ダメージ%) × この値
+    decay-scale: 1.0
+    # 本能開放の裂傷 = 設置ダメージ × 設置ダメージ% ÷ 100 × この値
+    laceration-scale: 1.0
+  healer:
+    # 回復→敵ダメージの範囲(ブロック)
+    pulse-radius: 7

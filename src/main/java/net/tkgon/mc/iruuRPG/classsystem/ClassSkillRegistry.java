@@ -24,7 +24,7 @@ public final class ClassSkillRegistry {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "cskill");
-        ensureFolder(folder, "cskill/warrior_strike.yml");
+        ensureFolder(folder, "cskill/warrior_strike.yml", "cskill/ice_lance.yml", "cskill/instinct_release.yml", "cskill/sanctuary.yml", "cskill/satsujin.yml");
 
         File[] files = folder.listFiles((dir, name) -> name.toLowerCase().endsWith(".yml") || name.toLowerCase().endsWith(".yaml"));
         if (files == null) return;
@@ -71,18 +71,20 @@ public final class ClassSkillRegistry {
         return values;
     }
 
-    private void ensureFolder(File folder, String defaultResource) {
+    private void ensureFolder(File folder, String... defaultResources) {
         if (!folder.exists() && !folder.mkdirs()) {
-            plugin.getLogger().warning("Could not create cskill folder: " + folder.getAbsolutePath());
+            plugin.getLogger().warning("Could not create folder: " + folder.getAbsolutePath());
         }
 
-        File defaultFile = new File(plugin.getDataFolder(), defaultResource);
-        if (defaultFile.exists()) return;
+        for (String defaultResource : defaultResources) {
+            File defaultFile = new File(plugin.getDataFolder(), defaultResource);
+            if (defaultFile.exists()) continue;
 
-        try {
-            plugin.saveResource(defaultResource, false);
-        } catch (IllegalArgumentException ignored) {
-            plugin.getLogger().warning("Missing bundled class skill resource: " + defaultResource);
+            try {
+                plugin.saveResource(defaultResource, false);
+            } catch (IllegalArgumentException ignored) {
+                plugin.getLogger().warning("Missing bundled class skill resource: " + defaultResource);
+            }
         }
     }
 
