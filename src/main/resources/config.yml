@@ -40,8 +40,11 @@ combat:
   min-cooldown-ticks: 1
   status-effects:
     duration-ticks: 100
+    # 爆破: 10スタックで周囲(explosion-radius)に、貯めた分のダメージ。explosion-delay-ticks 後に爆発 (0で即時)
     explosion-delay-ticks: 40
     explosion-radius: 3.0
+    # 混乱: 100までスタックし、満タンでこのtick数だけ行動不能 (40 = 2秒)
+    confusion-stun-ticks: 40
   cooldown-ticks:
     melee: 14
     range: 10
