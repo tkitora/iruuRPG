@@ -326,6 +326,10 @@ public final class AttackService {
 
     public boolean applyDirectDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
         if (tutorialHook != null && tutorialHook.isActive(attacker)) {
+            if (tutorialHook.isNpc(victim)) {
+                tutorialHook.onNpcHit(attacker);
+                return false;
+            }
             if (tutorialHook.isRat(victim)) {
                 attackEffects.playDamageNumber(victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
                 tutorialHook.onRatHit(attacker, victim);
@@ -367,6 +371,10 @@ public final class AttackService {
 
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
         if (tutorialHook != null && tutorialHook.isActive(attacker)) {
+            if (tutorialHook.isNpc(victim)) {
+                tutorialHook.onNpcHit(attacker);
+                return false;
+            }
             if (tutorialHook.isRat(victim)) {
                 attackEffects.playDamageNumber(victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
                 tutorialHook.onRatHit(attacker, victim);

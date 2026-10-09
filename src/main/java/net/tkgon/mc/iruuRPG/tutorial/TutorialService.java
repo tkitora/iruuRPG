@@ -14,6 +14,7 @@ import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
+import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Particle;
@@ -33,6 +34,10 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.Vector;
+
+import org.joml.AxisAngle4f;
+import org.joml.Vector3f;
+import org.bukkit.util.Transformation;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -187,6 +192,19 @@ public final class TutorialService implements TutorialDamageHook {
     }
 
     @Override
+    public boolean isNpc(LivingEntity entity) {
+        return sessionOfNpc(entity) != null;
+    }
+
+    @Override
+    public void onNpcHit(Player attacker) {
+        TutorialSession session = sessions.get(attacker.getUniqueId());
+        if (session != null) {
+            onNpcHit(session);
+        }
+    }
+
+    @Override
     public boolean isRat(LivingEntity entity) {
         for (TutorialSession session : sessions.values()) {
             if (session.rat != null && session.rat.getUniqueId().equals(entity.getUniqueId())) return true;
@@ -201,6 +219,7 @@ public final class TutorialService implements TutorialDamageHook {
 
         session.ratHits++;
         session.lastRatHitMillis = System.currentTimeMillis();
+        rat.customName(ratName(session.ratHits));
         rat.getWorld().spawnParticle(Particle.CRIT, rat.getLocation().add(0, 0.2, 0), 8, 0.2, 0.1, 0.2, 0.1);
         if (session.ratHits < 3 || !session.ratWaiting) return;
 
@@ -208,6 +227,14 @@ public final class TutorialService implements TutorialDamageHook {
         rat.setHealth(0.0);
         session.rat = null;
         resume(session, 30L);
+    }
+
+    /** "ねずみ" with a three-segment health bar (one segment per hit it can still take). */
+    private static Component ratName(int hits) {
+        int left = Math.max(0, 3 - hits);
+        return Component.text("ねずみ ", NamedTextColor.WHITE)
+                .append(Component.text("■".repeat(left), NamedTextColor.RED))
+                .append(Component.text("■".repeat(3 - left), NamedTextColor.DARK_GRAY));
     }
 
     /** The player hit the NPC: he comments on it, once. */
@@ -252,8 +279,8 @@ public final class TutorialService implements TutorialDamageHook {
                 delay = step.ticks() >= 0 ? step.ticks() : readTicks(step.say());
             }
             if (step.hasNarrate()) {
-                narrate(player, step.narrate());
-                delay = Math.max(delay, step.ticks() >= 0 ? step.ticks() : Math.max(30L, readTicks(step.narrate()) * 4 / 5));
+                // The narration text is only a note for the script writer: it is never shown. It sets the pace.
+                delay = Math.max(delay, step.ticks() >= 0 ? step.ticks() : 30L);
             }
             boolean blocking = step.action() != null && perform(session, player, step);
             if (blocking) return;
@@ -289,8 +316,10 @@ public final class TutorialService implements TutorialDamageHook {
             case "begin" -> begin(session, player);
             case "look_up" -> lookUp(session);
             case "head_shake" -> headShake(session);
-            case "mist" -> setMist(session, step.args().get("colors"));
+            case "mist" -> setMist(session, player, step.args().get("colors"));
+            case "stand_up" -> animate(session, 14, progress -> session.yDrop = 0.6f * (1.0f - progress), null);
             case "open_class_menu" -> {
+                leaveSpectator(session, player);
                 session.waitingClassMenu = true;
                 openClassMenu(session, player);
                 return true;
@@ -323,7 +352,13 @@ public final class TutorialService implements TutorialDamageHook {
         session.attackLocked = true;
         player.setWalkSpeed(0.0f);
         player.setFlySpeed(0.0f);
-        player.setRotation(session.lockYaw, session.lockPitch);
+        // Spectator until the class menu (so the player cannot touch anything), and sitting a little low.
+        session.yDrop = 0.6f;
+        player.setGameMode(GameMode.SPECTATOR);
+        Location low = session.origin.clone().add(0.0, -session.yDrop, 0.0);
+        low.setYaw(session.lockYaw);
+        low.setPitch(session.lockPitch);
+        player.teleport(low);
 
         double distance = plugin.getConfig().getDouble("tutorial.npc-distance", 2.5);
         Location npcLocation = session.origin.clone().add(forward(session.originYaw).multiply(distance));
@@ -379,18 +414,41 @@ public final class TutorialService implements TutorialDamageHook {
         session.tasks.add(runnable.runTaskTimer(plugin, 1L, 1L));
     }
 
-    @SuppressWarnings("unchecked")
-    private void setMist(TutorialSession session, Object colors) {
-        if (colors instanceof List<?> list) {
-            List<Color> parsed = new ArrayList<>();
-            for (Object entry : list) {
-                Color color = mistColor(String.valueOf(entry));
-                if (color != null) parsed.add(color);
-            }
-            session.mist = parsed;
-        } else {
-            session.mist = List.of();
+    /** Adds one spark spot per color (in order); "off" makes them all vanish at once. */
+    private void setMist(TutorialSession session, Player player, Object colors) {
+        if (!(colors instanceof List<?> list)) {
+            popMist(session, player);
+            return;
         }
+        for (Object entry : list) {
+            Color color = mistColor(String.valueOf(entry));
+            if (color == null) continue;
+            if (session.mistAnchors.stream().anyMatch(anchor -> anchor.color().equals(color))) continue;
+
+            int index = session.mistAnchors.size();
+            double angle = Math.toRadians(40.0 + 72.0 * index);
+            Vector offset = new Vector(Math.cos(angle) * 1.1, 1.3 + 0.18 * index, Math.sin(angle) * 1.1);
+            session.mistAnchors.add(new TutorialSession.MistAnchor(offset, color));
+            if (session.npc != null) {
+                Location at = session.npc.getLocation().add(offset);
+                player.spawnParticle(Particle.REDSTONE, at, 6, 0.08, 0.08, 0.08, 0.0, new Particle.DustOptions(color, 1.0f));
+                player.playSound(at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.6f, 1.0f + 0.15f * index);
+            }
+        }
+    }
+
+    private void popMist(TutorialSession session, Player player) {
+        if (session.npc != null) {
+            for (TutorialSession.MistAnchor anchor : session.mistAnchors) {
+                Location at = session.npc.getLocation().add(anchor.offset());
+                player.spawnParticle(Particle.REDSTONE, at, 14, 0.15, 0.15, 0.15, 0.0, new Particle.DustOptions(anchor.color(), 1.3f));
+                player.spawnParticle(Particle.CLOUD, at, 4, 0.1, 0.1, 0.1, 0.02);
+            }
+            if (!session.mistAnchors.isEmpty()) {
+                player.playSound(session.npc.getLocation(), Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.5f, 1.6f);
+            }
+        }
+        session.mistAnchors.clear();
     }
 
     private static Color mistColor(String name) {
@@ -402,6 +460,18 @@ public final class TutorialService implements TutorialDamageHook {
             case "orange" -> Color.fromRGB(255, 150, 30);
             default -> null;
         };
+    }
+
+    /** The class menu needs a normal game mode (spectators cannot click menus). Movement and attacks stay locked. */
+    private void leaveSpectator(TutorialSession session, Player player) {
+        session.yDrop = 0.0f;
+        if (player.getGameMode() == GameMode.SPECTATOR) {
+            player.setGameMode(session.snapshot.gameMode());
+            Location back = session.origin.clone();
+            back.setYaw(player.getLocation().getYaw());
+            back.setPitch(player.getLocation().getPitch());
+            player.teleport(back);
+        }
     }
 
     private void openClassMenu(TutorialSession session, Player player) {
@@ -458,7 +528,7 @@ public final class TutorialService implements TutorialDamageHook {
             entity.setSilent(true);
             entity.setPersistent(false);
             entity.setCollidable(false);
-            entity.customName(Component.text("ねずみ"));
+            entity.customName(ratName(0));
             entity.setCustomNameVisible(true);
             mark(entity, session);
         });
@@ -570,8 +640,9 @@ public final class TutorialService implements TutorialDamageHook {
         if (session.lookLocked) {
             player.setRotation(session.lockYaw, session.lockPitch);
         }
-        if (session.moveLocked && player.getLocation().distanceSquared(session.origin) > 0.01) {
-            Location back = session.origin.clone();
+        Location hold = session.origin.clone().add(0.0, -session.yDrop, 0.0);
+        if (session.moveLocked && player.getLocation().distanceSquared(hold) > 0.01) {
+            Location back = hold.clone();
             back.setYaw(player.getLocation().getYaw());
             back.setPitch(player.getLocation().getPitch());
             player.teleport(back);
@@ -613,22 +684,14 @@ public final class TutorialService implements TutorialDamageHook {
         face(npc, player);
 
         if (session.speech != null) {
-            session.speech.teleport(npc.getLocation().add(0, 2.35, 0));
+            session.speech.teleport(npc.getLocation().add(0, 2.6, 0));
         }
 
-        if (!session.mist.isEmpty() && session.moveTick % 2 == 0) {
-            emitMist(session, player, npc.getLocation());
-        }
-    }
-
-    private void emitMist(TutorialSession session, Player player, Location center) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        for (int index = 0; index < 5; index++) {
-            Color color = session.mist.get(random.nextInt(session.mist.size()));
-            double angle = random.nextDouble(Math.PI * 2.0);
-            double radius = 0.7 + random.nextDouble(0.9);
-            Location point = center.clone().add(Math.cos(angle) * radius, 0.3 + random.nextDouble(1.9), Math.sin(angle) * radius);
-            player.spawnParticle(Particle.REDSTONE, point, 1, 0.12, 0.1, 0.12, 0.0, new Particle.DustOptions(color, 1.7f));
+        if (!session.mistAnchors.isEmpty() && player.getTicksLived() % 3 == 0) {
+            for (TutorialSession.MistAnchor anchor : session.mistAnchors) {
+                Location at = npc.getLocation().add(anchor.offset());
+                player.spawnParticle(Particle.REDSTONE, at, 2, 0.05, 0.05, 0.05, 0.0, new Particle.DustOptions(anchor.color(), 0.9f));
+            }
         }
     }
 
@@ -647,13 +710,16 @@ public final class TutorialService implements TutorialDamageHook {
         session.speechUntilMillis = System.currentTimeMillis() + ticks * 50L;
         Component component = Component.text(line, NamedTextColor.WHITE);
         if (session.speech == null || !session.speech.isValid()) {
-            Location location = session.npc.getLocation().add(0, 2.35, 0);
+            Location location = session.npc.getLocation().add(0, 2.6, 0);
             TextDisplay display = player.getWorld().spawn(location, TextDisplay.class, entity -> {
                 entity.setVisibleByDefault(false);
                 entity.setBillboard(Display.Billboard.CENTER);
-                entity.setLineWidth(260);
-                entity.setBackgroundColor(Color.fromARGB(150, 0, 0, 0));
+                entity.setLineWidth(220);
+                entity.setBackgroundColor(Color.fromARGB(205, 0, 0, 0));
+                entity.setShadowed(true);
+                entity.setSeeThrough(false);
                 entity.setPersistent(false);
+                entity.setTransformation(new Transformation(new Vector3f(), new AxisAngle4f(), new Vector3f(1.35f, 1.35f, 1.35f), new AxisAngle4f()));
                 entity.text(component);
                 mark(entity, session);
             });
@@ -663,12 +729,6 @@ public final class TutorialService implements TutorialDamageHook {
             session.speech.text(component);
         }
         player.playSound(session.npc.getLocation(), Sound.ENTITY_VILLAGER_AMBIENT, 0.4f, 1.0f);
-    }
-
-    private void narrate(Player player, String text) {
-        Component line = Component.text("（" + text + "）", NamedTextColor.GRAY, TextDecoration.ITALIC);
-        player.sendMessage(line);
-        player.sendActionBar(line);
     }
 
     // ---- helpers ---------------------------------------------------------------------------------------------

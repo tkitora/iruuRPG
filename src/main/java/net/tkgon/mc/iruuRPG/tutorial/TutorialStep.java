@@ -26,8 +26,27 @@ record TutorialStep(String say, String narrate, String action, Map<String, Objec
     record Script(List<TutorialStep> steps, YamlConfiguration yaml) {
     }
 
+    private static int fileVersion(File file) {
+        return YamlConfiguration.loadConfiguration(file).getInt("version", 0);
+    }
+
+    private static int bundledVersion(org.bukkit.plugin.java.JavaPlugin plugin) {
+        try (Reader reader = new InputStreamReader(plugin.getResource("tutorial/debug.yml"), StandardCharsets.UTF_8)) {
+            return YamlConfiguration.loadConfiguration(reader).getInt("version", 0);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
     static Script load(org.bukkit.plugin.java.JavaPlugin plugin) {
         File file = new File(plugin.getDataFolder(), "tutorial/debug.yml");
+        if (file.exists() && fileVersion(file) < bundledVersion(plugin)) {
+            // the plugin ships a newer script: keep the old one as a backup and use the new one
+            File backup = new File(file.getParentFile(), "debug.yml.bak-" + System.currentTimeMillis());
+            if (!file.renameTo(backup)) {
+                plugin.getLogger().warning("tutorial: could not back up the old script; using it as is");
+            }
+        }
         if (!file.exists()) {
             plugin.saveResource("tutorial/debug.yml", false);
         }
