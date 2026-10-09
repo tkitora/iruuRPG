@@ -136,7 +136,7 @@ public final class IruuRPG extends JavaPlugin {
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
-        this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu);
+        this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.mainMenuItemService = new MainMenuItemService(this);
         this.mobService.startTargetTask();
         this.levelService.startOrbTask();
