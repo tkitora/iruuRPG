@@ -152,7 +152,7 @@ public final class ClassEffectService {
         if (classService.hasSkill(profile, GIFTED_DECAY)) {
             double range = Math.max(0.0, stats.get(StatType.RANGE_DAMAGE));
             double percent = Math.max(0.0, stats.get(StatType.RANGE_DAMAGE_PERCENT));
-            double value = scale("gifted.decay-scale") * level * range * (1.0 + percent / 100.0);
+            double value = scaleOrDefault("gifted.decay-scale", 0.1) * level * range * (1.0 + percent / 100.0);
             statusEffectService.addCorrosion(victim, value, sourceId);
             statusEffectService.addDecay(victim, value, sourceId);
         }
@@ -167,6 +167,10 @@ public final class ClassEffectService {
                 statusEffectService.dealStatusDamage(victim, StatusEffectType.LACERATION, burst, sourceId);
             }
         }
+    }
+
+    private double scaleOrDefault(String path, double fallback) {
+        return plugin.getConfig().getDouble("class-effects." + path, fallback);
     }
 
     private double scale(String path) {

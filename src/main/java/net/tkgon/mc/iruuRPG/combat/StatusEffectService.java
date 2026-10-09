@@ -148,23 +148,27 @@ public final class StatusEffectService {
         long now = System.currentTimeMillis();
         pruneExpired(victim, now);
 
-        double multiplier = 1.0;
-        double corrosion = timedTotal(corrosionEffects.get(victim.getUniqueId()), now);
-        if (corrosion > EPSILON) {
-            multiplier += Math.max(0.0, corrosion) / 150.0;
-        }
-
+        // Decay: each time the victim takes damage, the decay value is added as special damage
+        // (no ceiling). Corrosion is not applied here: it lowers defense inside the damage formula.
         double decay = timedTotal(decayEffects.get(victim.getUniqueId()), now);
-        if (decay > EPSILON) {
-            multiplier += Math.max(0.0, decay) / 200.0;
-        }
+        double total = damage + Math.max(0.0, decay);
 
+        double multiplier = 1.0;
         ActiveEffect protection = active(victim, StatusEffectType.PROTECTION);
         if (protection != null) {
             multiplier *= 1.0 - Math.min(80.0, Math.max(0.0, protection.value())) / 100.0;
         }
 
-        return Math.max(0.0, damage * multiplier);
+        return Math.max(0.0, total * multiplier);
+    }
+
+    /** Current corrosion on the target: the defense it removes in the damage formula. */
+    public double corrosionOf(LivingEntity target) {
+        if (target == null) return 0.0;
+
+        long now = System.currentTimeMillis();
+        pruneExpired(target, now);
+        return Math.max(0.0, timedTotal(corrosionEffects.get(target.getUniqueId()), now));
     }
 
     public Component statusLine(LivingEntity entity) {
