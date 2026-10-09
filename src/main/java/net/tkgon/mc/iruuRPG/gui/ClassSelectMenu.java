@@ -24,7 +24,9 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 /** Chest GUI for choosing (or changing) the player's class. */
 public final class ClassSelectMenu implements Listener {
@@ -56,6 +58,14 @@ public final class ClassSelectMenu implements Listener {
     }
 
     public void open(Player player) {
+        open(player, null, null);
+    }
+
+    /**
+     * Opens the menu with custom descriptions (class id -> line) and a callback that runs after a class is chosen.
+     * Used by the tutorial, where the NPC explains each class.
+     */
+    public void open(Player player, Map<String, String> speechByClassId, Consumer<String> onSelected) {
         PlayerProfile profile = profileManager.getOrCreate(player);
         List<ClassDefinition> classes = sortedClasses();
         if (classes.isEmpty()) {
@@ -63,15 +73,16 @@ public final class ClassSelectMenu implements Listener {
             return;
         }
 
-        // The back button is only offered after a class was chosen (the first choice must not be skipped).
-        boolean canGoBack = profile.classChosen() && mainMenu != null;
+        // The back button is only offered after a class was chosen (the first choice must not be skipped)
+        // and never inside the tutorial, where choosing the class is a step of the flow.
+        boolean canGoBack = profile.classChosen() && mainMenu != null && onSelected == null;
         int classRows = Math.max(1, (classes.size() + ROW_SIZE - 1) / ROW_SIZE);
         int rows = classRows + (canGoBack ? 1 : 0);
-        Holder holder = new Holder(player.getUniqueId(), classes.stream().map(ClassDefinition::id).toList(), canGoBack ? classRows * ROW_SIZE : -1);
+        Holder holder = new Holder(player.getUniqueId(), classes.stream().map(ClassDefinition::id).toList(), speechByClassId, onSelected, canGoBack ? classRows * ROW_SIZE : -1);
         Inventory inventory = Bukkit.createInventory(holder, rows * ROW_SIZE, TITLE);
         holder.setInventory(inventory);
         for (int slot = 0; slot < classes.size(); slot++) {
-            inventory.setItem(slot, icon(classes.get(slot), profile));
+            inventory.setItem(slot, icon(classes.get(slot), profile, speechByClassId == null ? null : speechByClassId.get(classes.get(slot).id())));
         }
         if (canGoBack) {
             inventory.setItem(classRows * ROW_SIZE, MenuButtons.back());
@@ -105,6 +116,9 @@ public final class ClassSelectMenu implements Listener {
         player.closeInventory();
         String name = classService.currentClass(profile).map(ClassDefinition::name).orElse(classId);
         player.sendMessage("[iruuRPG] クラスを「" + name + "」に設定しました。");
+        if (holder.onSelected() != null) {
+            holder.onSelected().accept(classId);
+        }
     }
 
     @EventHandler
@@ -121,7 +135,7 @@ public final class ClassSelectMenu implements Listener {
                 .toList();
     }
 
-    private ItemStack icon(ClassDefinition definition, PlayerProfile profile) {
+    private ItemStack icon(ClassDefinition definition, PlayerProfile profile, String speech) {
         ItemStack item = new ItemStack(definition.icon());
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
@@ -129,10 +143,11 @@ public final class ClassSelectMenu implements Listener {
         meta.displayName(Component.text(definition.name(), NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
-        for (String line : definition.description()) {
+        List<String> lines = speech == null ? definition.description() : List.of(speech);
+        for (String line : lines) {
             lore.add(Component.text(line, NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false));
         }
-        if (!definition.description().isEmpty()) lore.add(Component.empty());
+        if (!lines.isEmpty()) lore.add(Component.empty());
         lore.add(Component.text("クリックでこのクラスを選択", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
         if (profile.classChosen() && definition.id().equals(profile.classId())) {
@@ -150,17 +165,25 @@ public final class ClassSelectMenu implements Listener {
     private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private final List<String> classIds;
+        private final Map<String, String> speech;
+        private final Consumer<String> onSelected;
         private final int backSlot;
         private Inventory inventory;
 
-        private Holder(UUID ownerId, List<String> classIds, int backSlot) {
+        private Holder(UUID ownerId, List<String> classIds, Map<String, String> speech, Consumer<String> onSelected, int backSlot) {
             this.ownerId = ownerId;
             this.classIds = classIds;
+            this.speech = speech;
+            this.onSelected = onSelected;
             this.backSlot = backSlot;
         }
 
         private int backSlot() {
             return backSlot;
+        }
+
+        private Consumer<String> onSelected() {
+            return onSelected;
         }
 
         private UUID ownerId() {

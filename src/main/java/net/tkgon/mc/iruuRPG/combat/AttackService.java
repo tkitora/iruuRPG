@@ -59,6 +59,8 @@ public final class AttackService {
     private final StatusEffectService statusEffectService;
     private RpgMobService mobService;
     private ClassService classService;
+    private TutorialDamageHook tutorialHook;
+    private static final double TUTORIAL_DAMAGE_CAP = 99.0;
     private ClassEffectService classEffectService;
     private DebugTargetService debugTargetService;
 
@@ -145,7 +147,14 @@ public final class AttackService {
                 + "から使用できます。現在Lv" + profile.level() + "です。");
     }
 
+    public void setTutorialHook(TutorialDamageHook tutorialHook) {
+        this.tutorialHook = tutorialHook;
+    }
+
     public boolean tryStart(Player attacker, AttackType attackType) {
+        if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) {
+            return false;
+        }
         int cooldownTicks = effectiveCooldownTicks(attacker, attackType);
         if (!attackCooldowns.tryStart(attacker, attackType, cooldownTicks)) {
             return false;
@@ -316,6 +325,14 @@ public final class AttackService {
     }
 
     public boolean applyDirectDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
+        if (tutorialHook != null && tutorialHook.isActive(attacker)) {
+            if (tutorialHook.isRat(victim)) {
+                attackEffects.playDamageNumber(victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
+                tutorialHook.onRatHit(attacker, victim);
+                return true;
+            }
+            damage = Math.min(damage, TUTORIAL_DAMAGE_CAP);
+        }
         Location numberLocation = victim.getLocation().clone();
         double numberHeight = victim.getHeight();
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
@@ -349,6 +366,14 @@ public final class AttackService {
     }
 
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
+        if (tutorialHook != null && tutorialHook.isActive(attacker)) {
+            if (tutorialHook.isRat(victim)) {
+                attackEffects.playDamageNumber(victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
+                tutorialHook.onRatHit(attacker, victim);
+                return true;
+            }
+            damage = Math.min(damage, TUTORIAL_DAMAGE_CAP);
+        }
         Location numberLocation = victim.getLocation().clone();
         double numberHeight = victim.getHeight();
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);

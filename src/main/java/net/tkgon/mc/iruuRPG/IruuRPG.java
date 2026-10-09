@@ -46,6 +46,9 @@ import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileStorage;
 import net.tkgon.mc.iruuRPG.player.PlayerResourceTask;
+import net.tkgon.mc.iruuRPG.tutorial.TutorialCommand;
+import net.tkgon.mc.iruuRPG.tutorial.TutorialListener;
+import net.tkgon.mc.iruuRPG.tutorial.TutorialService;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
@@ -76,6 +79,7 @@ public final class IruuRPG extends JavaPlugin {
     private StatsMenu statsMenu;
     private SkillTreeMenu skillTreeMenu;
     private ClassSelectMenu classSelectMenu;
+    private TutorialService tutorialService;
     private MainMenu mainMenu;
     private MainMenuItemService mainMenuItemService;
 
@@ -136,6 +140,8 @@ public final class IruuRPG extends JavaPlugin {
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
+        this.tutorialService = new TutorialService(this, profileManager, equipmentService, classService, classSelectMenu, itemRegistry, itemFactory, playerBars);
+        this.attackService.setTutorialHook(tutorialService);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.statsMenu.setMainMenu(mainMenu);
         this.skillTreeMenu.setMainMenu(mainMenu);
@@ -150,6 +156,7 @@ public final class IruuRPG extends JavaPlugin {
         registerCommands();
         registerListeners();
         loadOnlinePlayers();
+        Bukkit.getScheduler().runTask(this, tutorialService::sweepEntities);
         PlayerHudTask.start(this, profileManager, playerBars, levelService, new PlayerHud(levelService));
         PlayerResourceTask.start(this, profileManager, playerBars);
         getLogger().info("iruuRPG enabled.");
@@ -157,6 +164,9 @@ public final class IruuRPG extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (tutorialService != null) {
+            tutorialService.shutdown();
+        }
         if (profileManager != null) {
             profileManager.saveAll();
         }
@@ -167,6 +177,12 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     private void registerCommands() {
+        TutorialCommand tutorialCommand = new TutorialCommand(tutorialService);
+        for (String name : new String[]{"tutorialstart", "tutorialstop"}) {
+            PluginCommand tutorial = getCommand(name);
+            if (tutorial != null) tutorial.setExecutor(tutorialCommand);
+        }
+
         PluginCommand command = getCommand("iruurpg");
         if (command == null) {
             getLogger().severe("Command iruurpg is missing from plugin.yml.");
@@ -199,6 +215,8 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     private void registerListeners() {
+        // registered first so the tutorial locks cancel events before the combat listeners act on them
+        getServer().getPluginManager().registerEvents(new TutorialListener(tutorialService), this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
                 this
