@@ -59,6 +59,7 @@ public final class PlayerProfileStorage {
         yaml.set("current-hp", profile.currentHp());
         yaml.set("current-mp", profile.currentMp());
         yaml.set("class.id", profile.classId());
+        yaml.set("class.chosen", profile.classChosen());
         yaml.set("class.skill-points", profile.skillPoints());
         yaml.set("class.spent-points", profile.spentSkillPoints());
         yaml.set("class.scroll", profile.classScroll());
@@ -102,6 +103,7 @@ public final class PlayerProfileStorage {
         if (section == null) return;
 
         profile.setClassId(section.getString("id", section.getString("class", "")));
+        profile.setClassChosen(section.getBoolean("chosen", false));
         profile.setSkillPoints(section.getInt("skill-points", 0));
         profile.setSpentSkillPoints(section.getInt("spent-points", 0));
         profile.setClassScroll(section.getInt("scroll", 0));

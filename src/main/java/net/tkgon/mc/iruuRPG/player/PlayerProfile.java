@@ -18,6 +18,7 @@ public final class PlayerProfile {
     private double currentHp;
     private double currentMp;
     private String classId = "";
+    private boolean classChosen;
     private int skillPoints;
     private int spentSkillPoints;
     private int classScroll;
@@ -86,6 +87,14 @@ public final class PlayerProfile {
 
     public void setClassId(String classId) {
         this.classId = classId == null ? "" : classId.trim().toLowerCase();
+    }
+
+    public boolean classChosen() {
+        return classChosen;
+    }
+
+    public void setClassChosen(boolean classChosen) {
+        this.classChosen = classChosen;
     }
 
     public int skillPoints() {

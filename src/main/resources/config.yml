@@ -94,3 +94,8 @@ debug:
   target:
     max-health: 1000.0
     spawn-distance: 3.0
+
+class-selection:
+  # true: クラス未選択のプレイヤーがログインするとクラス選択メニューを開く
+  open-on-join: true
+  open-delay-ticks: 40

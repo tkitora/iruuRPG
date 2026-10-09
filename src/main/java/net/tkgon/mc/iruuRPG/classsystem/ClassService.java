@@ -6,6 +6,7 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -25,6 +26,32 @@ public final class ClassService {
     public Optional<ClassDefinition> currentClass(PlayerProfile profile) {
         ensureClassId(profile);
         return classRegistry.find(profile.classId());
+    }
+
+    public boolean needsSelection(PlayerProfile profile) {
+        return !profile.classChosen() && !classRegistry.all().isEmpty();
+    }
+
+    public Collection<ClassDefinition> selectableClasses() {
+        return classRegistry.all().values();
+    }
+
+    /**
+     * Sets the player's class. Changing to a different class resets the skill tree
+     * and refunds the spent points first.
+     */
+    public boolean select(PlayerProfile profile, String classId) {
+        ClassDefinition target = classRegistry.find(classId).orElse(null);
+        if (target == null) return false;
+
+        if (!target.id().equals(profile.classId())) {
+            reset(profile);
+            profile.setClassId(target.id());
+            profile.classNodes().clear();
+        }
+        profile.setClassChosen(true);
+        updateActiveBindings(profile);
+        return true;
     }
 
     public void ensureProfile(PlayerProfile profile) {
