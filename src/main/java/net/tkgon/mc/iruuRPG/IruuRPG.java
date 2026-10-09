@@ -9,6 +9,7 @@ import net.tkgon.mc.iruuRPG.command.StatsCommand;
 import net.tkgon.mc.iruuRPG.combat.AttackCooldowns;
 import net.tkgon.mc.iruuRPG.combat.AttackEffects;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
+import net.tkgon.mc.iruuRPG.combat.ClassSkillService;
 import net.tkgon.mc.iruuRPG.combat.DamageCalculator;
 import net.tkgon.mc.iruuRPG.combat.DeployService;
 import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
@@ -66,6 +67,7 @@ public final class IruuRPG extends JavaPlugin {
     private RpgMobService mobService;
     private AttackService attackService;
     private DeployService deployService;
+    private ClassSkillService classSkillService;
     private ItemSkillService itemSkillService;
     private StatusEffectService statusEffectService;
     private LevelService levelService;
@@ -120,6 +122,8 @@ public final class IruuRPG extends JavaPlugin {
         this.statusEffectService.setMobService(mobService);
         this.attackService.setMobService(mobService);
         this.attackService.setDebugTargetService(debugTargetService);
+        this.attackService.setClassService(classService);
+        this.classSkillService = new ClassSkillService(this, attackService, classService, profileManager);
         this.deployService = new DeployService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
@@ -221,7 +225,7 @@ public final class IruuRPG extends JavaPlugin {
                 this
         );
         getServer().getPluginManager().registerEvents(
-                new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService),
+                new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService),
                 this
         );
     }
