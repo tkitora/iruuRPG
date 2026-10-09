@@ -8,6 +8,7 @@ import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.stat.Element;
 import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
+import net.tkgon.mc.iruuRPG.stat.StatLabels;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Bukkit;
@@ -39,6 +40,12 @@ public final class StatsMenu implements Listener {
 
     private final EquipmentService equipmentService;
     private final LevelService levelService;
+    private MainMenu mainMenu;
+    private static final int BACK_SLOT = 49;
+
+    public void setMainMenu(MainMenu mainMenu) {
+        this.mainMenu = mainMenu;
+    }
 
     public StatsMenu(EquipmentService equipmentService, LevelService levelService) {
         this.equipmentService = equipmentService;
@@ -53,6 +60,7 @@ public final class StatsMenu implements Listener {
 
         fill(inventory);
         inventory.setItem(4, playerIcon(player, profile));
+        inventory.setItem(BACK_SLOT, MenuButtons.back());
         inventory.setItem(10, category(Material.RED_DYE, "体力とマナ", NamedTextColor.RED, List.of(
                 resourceLine("HP", profile.currentHp(), profile.maxHp(), NamedTextColor.RED),
                 resourceLine("MP", profile.currentMp(), profile.maxMp(), NamedTextColor.AQUA),
@@ -115,8 +123,12 @@ public final class StatsMenu implements Listener {
         if (!isStatsView(event.getView())) return;
 
         event.setCancelled(true);
-        if (event.getRawSlot() != 4) return;
         if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getRawSlot() == BACK_SLOT && mainMenu != null) {
+            mainMenu.open(player);
+            return;
+        }
+        if (event.getRawSlot() != 4) return;
         if (!levelService.canLevelUp(levelService.profile(player))) return;
 
         if (levelService.tryLevelUp(player)) {
@@ -159,6 +171,7 @@ public final class StatsMenu implements Listener {
                     resourceLine("HP", profile.currentHp(), profile.maxHp(), NamedTextColor.RED),
                     resourceLine("MP", profile.currentMp(), profile.maxMp(), NamedTextColor.AQUA)
             ));
+            addFinalStats(lore, profile);
             if (levelService.canLevelUp(profile)) {
                 lore.add(Component.empty());
                 lore.add(Component.text("クリックでレベルアップ", NamedTextColor.GREEN)
@@ -169,6 +182,42 @@ public final class StatsMenu implements Listener {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    /** The player's current final stats (non-zero only), in whole numbers. */
+    private void addFinalStats(List<Component> lore, PlayerProfile profile) {
+        lore.add(Component.empty());
+        lore.add(Component.text("現在のステータス", NamedTextColor.GOLD, TextDecoration.BOLD)
+                .decoration(TextDecoration.ITALIC, false));
+        int lines = 0;
+        for (StatType type : StatType.values()) {
+            double value = profile.finalStats().get(type);
+            if (Math.abs(value) < 1.0E-9) continue;
+
+            lore.add(finalStatLine(StatLabels.name(type), StatLabels.plain(type, value)));
+            lines++;
+        }
+        for (Element element : Element.values()) {
+            lines += addElementLine(lore, StatLabels.elementName(element), profile.finalElementStats().damage(element), false);
+            lines += addElementLine(lore, StatLabels.elementName(element) + "%", profile.finalElementStats().damagePercent(element), true);
+            lines += addElementLine(lore, StatLabels.elementName(element).replace("ダメージ", "耐性"), profile.finalElementStats().resist(element), true);
+        }
+        if (lines == 0) {
+            lore.add(Component.text("なし", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        }
+    }
+
+    private int addElementLine(List<Component> lore, String label, double value, boolean percent) {
+        if (Math.abs(value) < 1.0E-9) return 0;
+
+        lore.add(finalStatLine(label, StatLabels.plainElement(value, percent)));
+        return 1;
+    }
+
+    private Component finalStatLine(String label, String value) {
+        return Component.text(label + ": ", NamedTextColor.GRAY)
+                .append(Component.text(value, NamedTextColor.WHITE))
+                .decoration(TextDecoration.ITALIC, false);
     }
 
     private ItemStack category(Material material, String name, NamedTextColor color, List<Component> lore) {
