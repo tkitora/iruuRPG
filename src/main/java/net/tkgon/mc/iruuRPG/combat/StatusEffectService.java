@@ -258,6 +258,7 @@ public final class StatusEffectService {
         if (stunnedUntil != null) {
             if (stunnedUntil > now) {
                 holdStunned(target);
+                drainConfusion(targetId, stunnedUntil, now);
             } else {
                 endStun(target);
             }
@@ -430,8 +431,9 @@ public final class StatusEffectService {
         ActiveEffect current = active.get(StatusEffectType.CONFUSION);
         double total = Math.min(CONFUSION_MAX, (current == null ? 0.0 : current.value()) + add);
         if (total >= CONFUSION_MAX - EPSILON) {
-            active.remove(StatusEffectType.CONFUSION);
-            stun(target);
+            // Full stack: stun, and let the stack drain from 100 to 0 over the stun (see tickEffects).
+            long stunEnd = stun(target);
+            active.put(StatusEffectType.CONFUSION, new ActiveEffect(StatusEffectType.CONFUSION, CONFUSION_MAX, stunEnd, sourceId));
             return;
         }
 
@@ -449,9 +451,10 @@ public final class StatusEffectService {
         return until != null && until > System.currentTimeMillis();
     }
 
-    private void stun(LivingEntity target) {
+    private long stun(LivingEntity target) {
         long ticks = Math.max(1, plugin.getConfig().getInt("combat.status-effects.confusion-stun-ticks", 40));
-        stunUntil.put(target.getUniqueId(), System.currentTimeMillis() + ticks * 50L);
+        long end = System.currentTimeMillis() + ticks * 50L;
+        stunUntil.put(target.getUniqueId(), end);
         if (target instanceof Mob mob) {
             mob.setTarget(null);
             mob.setAware(false);
@@ -462,6 +465,7 @@ public final class StatusEffectService {
         world.playSound(head, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 0.8f, 0.6f);
         world.spawnParticle(Particle.PORTAL, head, 24, 0.3, 0.2, 0.3, 0.2);
         holdStunned(target);
+        return end;
     }
 
     /** Keeps a stunned target from moving or acting. */
@@ -475,6 +479,17 @@ public final class StatusEffectService {
         Location head = target.getLocation().add(0.0, target.getHeight() + 0.15, 0.0);
         target.getWorld().spawnParticle(Particle.REDSTONE, head, 3, 0.2, 0.08, 0.2, 0.0,
                 new Particle.DustOptions(Color.fromRGB(170, 70, 230), 1.0f));
+    }
+
+    /** During the stun the confusion stack falls linearly from 100 to 0. */
+    private void drainConfusion(UUID targetId, long stunEnd, long now) {
+        EnumMap<StatusEffectType, ActiveEffect> active = singleEffects.get(targetId);
+        ActiveEffect confusion = active == null ? null : active.get(StatusEffectType.CONFUSION);
+        if (confusion == null) return;
+
+        long totalMillis = Math.max(1, plugin.getConfig().getInt("combat.status-effects.confusion-stun-ticks", 40)) * 50L;
+        double remaining = Math.max(0.0, Math.min(1.0, (stunEnd - now) / (double) totalMillis));
+        confusion.setValue(CONFUSION_MAX * remaining);
     }
 
     private void endStun(LivingEntity target) {
