@@ -34,7 +34,7 @@ public final class DamageCalculator {
             return new DamageResult(round(Math.max(0.0, damage)), false);
         }
 
-        DamageParts parts = buildParts(input.attacker(), input.victim(), weapon);
+        DamageParts parts = buildParts(input.attacker(), input.victim(), weapon, input.defenseReduction());
         double base = baseDamage(parts);
         double typeMultiplier = typeMultiplier(parts);
         double elementMultiplier = elementMultiplier(parts);
@@ -56,7 +56,7 @@ public final class DamageCalculator {
         return new DamageResult(round(Math.max(0.0, finalDamage)), critical.critical);
     }
 
-    private DamageParts buildParts(PlayerProfile attacker, PlayerProfile victim, RpgItemDefinition weapon) {
+    private DamageParts buildParts(PlayerProfile attacker, PlayerProfile victim, RpgItemDefinition weapon, double defenseReduction) {
         StatSet attackerStats = attacker.finalStats();
         StatSet victimStats = victim.finalStats();
         Element element = weapon.element();
@@ -89,7 +89,8 @@ public final class DamageCalculator {
             default -> 0.0;
         };
 
-        double defense = victimStats.get(StatType.DEFENSE);
+        // Corrosion lowers the victim's defense by its value (never below 0).
+        double defense = Math.max(0.0, victimStats.get(StatType.DEFENSE) - defenseReduction);
         double elementResist = victim.finalElementStats().resist(element);
         if (element == Element.ORANGE) {
             defense = 0.0;

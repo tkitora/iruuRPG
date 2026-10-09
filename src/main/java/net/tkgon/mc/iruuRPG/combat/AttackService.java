@@ -177,7 +177,7 @@ public final class AttackService {
 
     public AttackDamage calculateDamage(PlayerProfile attackerProfile, LivingEntity victim, RpgItemDefinition weapon) {
         PlayerProfile victimProfile = profileForVictim(victim);
-        DamageResult result = damageCalculator.calculate(new DamageInput(attackerProfile, victimProfile, weapon));
+        DamageResult result = damageCalculator.calculate(new DamageInput(attackerProfile, victimProfile, weapon, statusEffectService.corrosionOf(victim)));
         return new AttackDamage(result, victimProfile);
     }
 
@@ -198,10 +198,11 @@ public final class AttackService {
         if (attackerProfile == null) return OptionalDouble.empty();
 
         PlayerProfile victimProfile = equipmentService.recalculate(victim);
+        double corrosion = statusEffectService.corrosionOf(victim);
         RpgItemDefinition weapon = mobService.attackWeapon(attacker)
                 .filter(RpgItemDefinition::isWeaponLike)
                 .orElseGet(this::fallbackMobWeapon);
-        DamageResult result = damageCalculator.calculate(new DamageInput(attackerProfile, victimProfile, weapon));
+        DamageResult result = damageCalculator.calculate(new DamageInput(attackerProfile, victimProfile, weapon, corrosion));
         return OptionalDouble.of(scaleIncomingRpgMobDamage(Math.max(0.0, result.damage()), victimProfile));
     }
 
