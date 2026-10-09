@@ -14,6 +14,7 @@ public record ClassDefinition(
         String id,
         String name,
         Material icon,
+        List<String> description,
         StatSet growth,
         ElementStatSet growthElements,
         List<SpendNodeDefinition> spendNodes,
@@ -24,6 +25,7 @@ public record ClassDefinition(
         id = id == null ? "" : id;
         name = name == null || name.isBlank() ? id : name;
         icon = icon == null ? Material.BOOK : icon;
+        description = description == null ? List.of() : List.copyOf(description);
         growth = growth == null ? new StatSet() : growth.copy();
         growthElements = growthElements == null ? new ElementStatSet() : growthElements.copy();
         spendNodes = spendNodes == null ? List.of() : List.copyOf(spendNodes);

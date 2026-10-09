@@ -6,6 +6,9 @@
 id: gifted
 name: "ギフテッド"
 icon: NETHER_STAR
+description:
+  - "近接・遠距離・設置のどれでも戦える万能の天才。"
+  - "全ての攻撃で敵を蝕み、属性ダメージには頼らない。"
 
 growth:
   melee-damage: 0.8
@@ -16,6 +19,8 @@ spend:
   melee_percent:
     name: "近接特化"
     icon: IRON_SWORD
+    description:
+      - "近接の威力が増す。代わりに筋力と赤属性を捨てる。"
     per-level:
       melee-damage-percent: 1.3
       strength-percent: -3.9
@@ -25,6 +30,8 @@ spend:
   range_percent:
     name: "遠距離特化"
     icon: BOW
+    description:
+      - "遠距離の威力が増す。代わりに魔力と青属性を捨てる。"
     per-level:
       range-damage-percent: 1.3
       magic-percent: -3.9
@@ -34,6 +41,8 @@ spend:
   deploy_percent:
     name: "設置特化"
     icon: SEA_LANTERN
+    description:
+      - "設置の威力と安定性が増す。代わりに会心を捨てる。"
     per-level:
       deploy-damage-percent: 1.3
       stability: 1
@@ -42,6 +51,8 @@ spend:
   all_damage:
     name: "全能の才"
     icon: NETHER_STAR
+    description:
+      - "近接・遠距離・設置の威力がまとめて増える。"
     per-level:
       melee-damage: 20
       range-damage: 20
@@ -49,6 +60,8 @@ spend:
   move_speed:
     name: "移動速度"
     icon: FEATHER
+    description:
+      - "移動が速くなる。"
     per-level:
       move-speed: 0.5
 
@@ -56,6 +69,8 @@ milestones:
   # 1: SP 5 (ステータス)
   - node_name: "才能の萌芽"
     icon: AMETHYST_SHARD
+    description:
+      - "近接と遠距離の威力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -72,6 +87,8 @@ milestones:
   # 3: SP 15 (ステータス)
   - node_name: "才能の開花"
     icon: GLOWSTONE_DUST
+    description:
+      - "遠距離と設置の威力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -86,6 +103,8 @@ milestones:
   # 5: SP 25 (ステータス)
   - node_name: "天賦の輝き"
     icon: NETHER_STAR
+    description:
+      - "設置と近接の威力が伸びる。"
     node_type: passive
     effect_type: status
     status:
@@ -102,6 +121,8 @@ milestones:
   # 7: SP 35 (ステータス)
   - node_name: "天才の証"
     icon: DIAMOND
+    description:
+      - "近接と遠距離の威力がさらに伸びる。"
     node_type: passive
     effect_type: status
     status:

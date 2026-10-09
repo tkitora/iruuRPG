@@ -202,6 +202,10 @@ public final class SkillTreeMenu implements Listener {
     private ItemStack spendItem(PlayerProfile profile, SpendNodeDefinition node) {
         int level = profile.classLevel(node.id());
         List<Component> lore = new ArrayList<>();
+        for (String description : node.description()) {
+            lore.add(text(description, NamedTextColor.WHITE));
+        }
+        if (!node.description().isEmpty()) lore.add(Component.empty());
         lore.add(line("レベル", String.valueOf(level), level > 0 ? NamedTextColor.GREEN : NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(text("1レベルごと", NamedTextColor.AQUA));

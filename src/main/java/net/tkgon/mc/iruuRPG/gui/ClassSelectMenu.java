@@ -114,6 +114,10 @@ public final class ClassSelectMenu implements Listener {
         meta.displayName(Component.text(definition.name(), NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
         List<Component> lore = new ArrayList<>();
+        for (String line : definition.description()) {
+            lore.add(Component.text(line, NamedTextColor.WHITE).decoration(TextDecoration.ITALIC, false));
+        }
+        if (!definition.description().isEmpty()) lore.add(Component.empty());
         lore.add(Component.text("クリックでこのクラスを選択", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
         if (profile.classChosen() && definition.id().equals(profile.classId())) {

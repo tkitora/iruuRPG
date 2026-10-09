@@ -257,11 +257,11 @@ public final class ClassEffectService {
     /** A white dust halo that circles the player while the instinct lasts. */
     private void playAura(Player player, double seconds) {
         int totalTicks = (int) Math.round(seconds * 20.0);
-        new org.bukkit.scheduler.BukkitRunnable() {
+        new SafeTask(plugin) {
             private int tick;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (tick >= totalTicks || !player.isOnline() || player.isDead() || !instinctActive(player.getUniqueId())) {
                     cancel();
                     return;

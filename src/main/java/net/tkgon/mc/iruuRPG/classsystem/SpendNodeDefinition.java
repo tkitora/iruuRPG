@@ -12,6 +12,7 @@ public record SpendNodeDefinition(
         String id,
         String name,
         Material icon,
+        java.util.List<String> description,
         StatSet stats,
         ElementStatSet elementStats
 ) {
@@ -20,6 +21,7 @@ public record SpendNodeDefinition(
         id = id == null ? "" : id;
         name = name == null || name.isBlank() ? id : name;
         icon = icon == null ? Material.PAPER : icon;
+        description = description == null ? java.util.List.of() : java.util.List.copyOf(description);
         stats = stats == null ? new StatSet() : stats.copy();
         elementStats = elementStats == null ? new ElementStatSet() : elementStats.copy();
     }

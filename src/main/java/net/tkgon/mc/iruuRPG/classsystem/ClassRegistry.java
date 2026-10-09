@@ -92,6 +92,7 @@ public final class ClassRegistry {
                         nodeId,
                         node.getString("name", nodeId),
                         material(node.getString("icon"), Material.PAPER),
+                        node.getStringList("description"),
                         loadStatus(normalizedId + ".spend." + nodeId, perLevel),
                         loadElements(perLevel == null ? null : perLevel.getConfigurationSection("element-stats"))
                 ));
@@ -105,7 +106,7 @@ public final class ClassRegistry {
             milestones.add(loadMilestone(normalizedId + ".milestone_" + (index + 1), node));
         }
 
-        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, growth, growthElements, spendNodes, milestones));
+        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, section.getStringList("description"), growth, growthElements, spendNodes, milestones));
     }
 
     private ClassNodeDefinition loadMilestone(String id, ConfigurationSection section) {
