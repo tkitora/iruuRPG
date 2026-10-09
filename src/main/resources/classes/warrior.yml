@@ -1,0 +1,108 @@
+# クラス定義: 戦士 (赤 / 近接ファイター)
+#
+# 仕組み
+#   growth      : レベル1ごとに自動で加算されるステータス (成長係数)
+#   spend       : SP(1レベル=1SP)で上限なくレベルを上げられるノード
+#                 per-level × レベル数 が stat に加算される
+#   milestones  : SPを config.yml の class-skill-points.milestone-interval ごとに
+#                 使うたび、上から順に無料で解放される。順番は固定
+#
+# milestones の node_type / effect_type
+#   passive + status : status: のステータスを加算
+#   passive + skill  : name: のスキル効果フラグが立つ (効果の実装はコード側)
+#   active           : hot_key で cskill/*.yml の name を発動
+#     hot_key: F / Q / L / R / SL(シフト左クリック) / SR(シフト右クリック)
+#
+# 数値は 200Lv 時点でクラス全体が「装備のみ」比で、
+# ダメージ約1.5倍・実効HP約1.8倍になるように試算して決めた (仮)。
+
+id: warrior
+name: "戦士"
+icon: IRON_SWORD
+
+growth:
+  max-hp: 0.75
+  strength: 1.2
+  defense: 0.5
+
+spend:
+  strength:
+    name: "筋力"
+    icon: IRON_AXE
+    stat: strength
+    per-level: 8
+  defense:
+    name: "防御"
+    icon: SHIELD
+    stat: defense
+    per-level: 4
+  damage_reduction:
+    name: "ダメージ軽減"
+    icon: IRON_CHESTPLATE
+    stat: damage-reduction
+    per-level: 0.6
+  melee_damage:
+    name: "近接ダメージ"
+    icon: IRON_SWORD
+    stat: melee-damage
+    per-level: 10
+  crit_chance:
+    name: "会心率"
+    icon: AMETHYST_SHARD
+    stat: crit-chance
+    per-level: 0.5
+
+milestones:
+  # 1: SP 5
+  - node_name: "疾風の足運び"
+    icon: FEATHER
+    node_type: passive
+    effect_type: status
+    status:
+      move-speed: 10
+  # 2: SP 10
+  - node_name: "薙ぎ払い"
+    icon: DIAMOND_AXE
+    node_type: passive
+    effect_type: skill
+    name: melee_area
+  # 3: SP 15
+  - node_name: "不屈の肉体"
+    icon: GOLDEN_APPLE
+    node_type: passive
+    effect_type: status
+    status:
+      max-hp: 80
+  # 4: SP 20
+  - node_name: "武神の一撃"
+    icon: NETHER_STAR
+    node_type: active
+    hot_key: R
+    name: warrior_strike
+  # 5: SP 25
+  - node_name: "会心の極意"
+    icon: AMETHYST_CLUSTER
+    node_type: passive
+    effect_type: status
+    status:
+      crit-damage: 30
+  # 6: SP 30
+  - node_name: "剛腕"
+    icon: NETHERITE_SWORD
+    node_type: passive
+    effect_type: status
+    status:
+      melee-damage-percent: 15
+  # 7: SP 35
+  - node_name: "武神の一撃・極"
+    icon: END_CRYSTAL
+    node_type: passive
+    effect_type: skill
+    name: warrior_strike_upgrade
+  # 8: SP 40
+  - node_name: "戦士の極意"
+    icon: NETHERITE_CHESTPLATE
+    node_type: passive
+    effect_type: status
+    status:
+      strength-percent: 10

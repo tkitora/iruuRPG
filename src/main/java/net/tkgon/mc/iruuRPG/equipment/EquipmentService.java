@@ -8,10 +8,17 @@ import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
+import net.tkgon.mc.iruuRPG.stat.StatType;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
 public final class EquipmentService {
+
+    private static final double VANILLA_WALK_SPEED = 0.1;
+    private static final double MIN_MOVE_SPEED_PERCENT = -90.0;
+    private static final double MAX_MOVE_SPEED = 1.0;
 
     private final PlayerProfileManager profileManager;
     private final ItemIdentifier itemIdentifier;
@@ -42,7 +49,20 @@ public final class EquipmentService {
             classService.applyClassStats(player, profile);
         }
         profile.replaceEquipmentStats(equipmentStats, equipmentElementStats);
+        applyMoveSpeed(player, profile);
         return profile;
+    }
+
+    /** Move Speed % scales the vanilla walking speed (base 0.1). */
+    private void applyMoveSpeed(Player player, PlayerProfile profile) {
+        AttributeInstance attribute = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
+        if (attribute == null) return;
+
+        double percent = Math.max(MIN_MOVE_SPEED_PERCENT, profile.finalStats().get(StatType.MOVE_SPEED));
+        double value = Math.min(MAX_MOVE_SPEED, VANILLA_WALK_SPEED * (1.0 + percent / 100.0));
+        if (Math.abs(attribute.getBaseValue() - value) > 1.0E-9) {
+            attribute.setBaseValue(value);
+        }
     }
 
     public boolean canUse(Player player, ItemStack item) {

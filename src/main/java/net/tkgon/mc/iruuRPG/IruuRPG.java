@@ -5,7 +5,6 @@ import net.tkgon.mc.iruuRPG.command.ClassCommand;
 import net.tkgon.mc.iruuRPG.classsystem.ClassRegistry;
 import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillRegistry;
-import net.tkgon.mc.iruuRPG.classsystem.SkillTreeShapeRegistry;
 import net.tkgon.mc.iruuRPG.command.StatsCommand;
 import net.tkgon.mc.iruuRPG.combat.AttackCooldowns;
 import net.tkgon.mc.iruuRPG.combat.AttackEffects;
@@ -56,7 +55,6 @@ public final class IruuRPG extends JavaPlugin {
     private RpgItemFactory itemFactory;
     private ItemSkillRegistry itemSkillRegistry;
     private ClassRegistry classRegistry;
-    private SkillTreeShapeRegistry skillTreeShapeRegistry;
     private ClassSkillRegistry classSkillRegistry;
     private ClassService classService;
     private PlayerProfileManager profileManager;
@@ -88,8 +86,6 @@ public final class IruuRPG extends JavaPlugin {
         this.itemSkillRegistry = new ItemSkillRegistry(this);
         this.itemSkillRegistry.reload();
         this.itemRegistry.reload();
-        this.skillTreeShapeRegistry = new SkillTreeShapeRegistry(this);
-        this.skillTreeShapeRegistry.reload();
         this.classRegistry = new ClassRegistry(this);
         this.classRegistry.reload();
         this.classSkillRegistry = new ClassSkillRegistry(this);
@@ -99,7 +95,7 @@ public final class IruuRPG extends JavaPlugin {
         this.mobRegistry.reload();
         this.profileManager = new PlayerProfileManager(new PlayerProfileStorage(this));
         this.equipmentService = new EquipmentService(profileManager, itemIdentifier, itemRegistry);
-        this.classService = new ClassService(classRegistry, skillTreeShapeRegistry);
+        this.classService = new ClassService(this, classRegistry);
         this.equipmentService.setClassService(classService);
         this.playerBars = new PlayerBars();
         this.levelService = new LevelService(this, profileManager, equipmentService, playerBars);
@@ -244,7 +240,6 @@ public final class IruuRPG extends JavaPlugin {
         profileManager.saveAll();
         reloadConfig();
         itemSkillRegistry.reload();
-        skillTreeShapeRegistry.reload();
         classRegistry.reload();
         classSkillRegistry.reload();
         itemRegistry.reload();

@@ -3,10 +3,10 @@ package net.tkgon.mc.iruuRPG.classsystem;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
 import org.bukkit.Material;
 
+/** A milestone node: unlocked for free once enough SP has been spent. */
 public record ClassNodeDefinition(
         String id,
         String nodeName,
-        int cost,
         ClassNodeType nodeType,
         ClassPassiveEffectType effectType,
         StatSet status,
@@ -18,7 +18,6 @@ public record ClassNodeDefinition(
     public ClassNodeDefinition {
         id = id == null ? "" : id;
         nodeName = nodeName == null || nodeName.isBlank() ? id : nodeName;
-        cost = Math.max(0, cost);
         nodeType = nodeType == null ? ClassNodeType.PASSIVE : nodeType;
         effectType = effectType == null ? ClassPassiveEffectType.NONE : effectType;
         status = status == null ? new StatSet() : status.copy();

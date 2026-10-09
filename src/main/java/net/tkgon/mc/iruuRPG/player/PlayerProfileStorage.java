@@ -60,10 +60,9 @@ public final class PlayerProfileStorage {
         yaml.set("current-mp", profile.currentMp());
         yaml.set("class.id", profile.classId());
         yaml.set("class.chosen", profile.classChosen());
-        yaml.set("class.skill-points", profile.skillPoints());
-        yaml.set("class.spent-points", profile.spentSkillPoints());
-        yaml.set("class.scroll", profile.classScroll());
-        yaml.set("class.nodes", profile.classNodes().stream().sorted().toList());
+        for (var entry : profile.classLevels().entrySet()) {
+            yaml.set("class.levels." + entry.getKey(), entry.getValue());
+        }
         for (var entry : profile.activeClassSkills().entrySet()) {
             yaml.set("class.active-skills." + entry.getKey(), entry.getValue());
         }
@@ -104,11 +103,16 @@ public final class PlayerProfileStorage {
 
         profile.setClassId(section.getString("id", section.getString("class", "")));
         profile.setClassChosen(section.getBoolean("chosen", false));
-        profile.setSkillPoints(section.getInt("skill-points", 0));
-        profile.setSpentSkillPoints(section.getInt("spent-points", 0));
-        profile.setClassScroll(section.getInt("scroll", 0));
-        profile.classNodes().clear();
-        profile.classNodes().addAll(section.getStringList("nodes"));
+        profile.classLevels().clear();
+        ConfigurationSection levels = section.getConfigurationSection("levels");
+        if (levels != null) {
+            for (String key : levels.getKeys(false)) {
+                int value = levels.getInt(key, 0);
+                if (value > 0) {
+                    profile.classLevels().put(key, value);
+                }
+            }
+        }
 
         profile.activeClassSkills().clear();
         ConfigurationSection activeSkills = section.getConfigurationSection("active-skills");

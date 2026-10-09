@@ -10,13 +10,11 @@ import net.tkgon.mc.iruuRPG.classsystem.ClassPassiveEffectType;
 import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillDefinition;
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillRegistry;
-import net.tkgon.mc.iruuRPG.classsystem.SkillTreeNodeShape;
-import net.tkgon.mc.iruuRPG.classsystem.SkillTreeShape;
+import net.tkgon.mc.iruuRPG.classsystem.SpendNodeDefinition;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
 import net.tkgon.mc.iruuRPG.hud.PlayerBars;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
-import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -37,9 +35,22 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Skill menu: a row of SP spend nodes (left click +1 level, right click -1, shift+left +5)
+ * and a row of milestone nodes that unlock for free as SP is spent.
+ */
 public final class SkillTreeMenu implements Listener {
 
-    private static final Component TITLE = Component.text("iruuRPG スキルツリー");
+    private static final Component TITLE = Component.text("iruuRPG スキル");
+    private static final int SIZE = 54;
+    private static final int INFO_SLOT = 4;
+    private static final int RESET_SLOT = 49;
+    private static final int SPEND_LABEL_SLOT = 9;
+    private static final int MILESTONE_LABEL_SLOT = 27;
+    private static final int SPEND_CENTER_SLOT = 22;
+    private static final int MILESTONE_ROW_START = 36;
+    private static final int BULK_LEVELS = 5;
+    private static final int ROW = 9;
 
     private final EquipmentService equipmentService;
     private final ClassService classService;
@@ -64,12 +75,11 @@ public final class SkillTreeMenu implements Listener {
     public void open(Player player) {
         PlayerProfile profile = equipmentService.recalculate(player);
         classService.ensureProfile(profile);
-        profile.setClassScroll(Math.min(profile.classScroll(), classService.shape().maxScrollOffset()));
 
         Holder holder = new Holder(player.getUniqueId());
-        Inventory inventory = Bukkit.createInventory(holder, classService.shape().size(), TITLE);
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, TITLE);
         holder.setInventory(inventory);
-        render(inventory, player, profile);
+        render(inventory, profile);
         player.openInventory(inventory);
     }
 
@@ -80,50 +90,49 @@ public final class SkillTreeMenu implements Listener {
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (!isOwner(event.getView(), player)) return;
-        if (event.getRawSlot() >= event.getView().getTopInventory().getSize()) return;
+        if (event.getRawSlot() < 0 || event.getRawSlot() >= SIZE) return;
 
         PlayerProfile profile = profileManager.getOrCreate(player);
-        SkillTreeShape shape = classService.shape();
         int slot = event.getRawSlot();
-        if (slot == shape.scrollUpSlot()) {
-            profile.setClassScroll(Math.min(shape.maxScrollOffset(), profile.classScroll() + 1));
-            open(player);
-            return;
-        }
-        if (slot == shape.scrollDownSlot()) {
-            profile.setClassScroll(Math.max(0, profile.classScroll() - 1));
-            open(player);
-            return;
-        }
-        if (slot == shape.resetSlot()) {
+        if (slot == RESET_SLOT) {
             classService.reset(profile);
             sync(player, profile);
-            player.sendMessage("[iruuRPG] スキルツリーをリセットしました。");
+            player.sendMessage("[iruuRPG] スキルポイントをリセットしました。");
             open(player);
             return;
         }
 
-        String nodeId = nodeIdAtSlot(profile, slot);
-        if (nodeId == null) return;
-
-        if (event.isLeftClick()) {
-            if (!classService.acquire(player, profile, nodeId)) {
-                player.sendMessage("[iruuRPG] このノードはまだ取得できません。");
-            } else {
-                sync(player, profile);
-            }
-            open(player);
+        ClassDefinition definition = classService.currentClass(profile).orElse(null);
+        if (definition == null) return;
+        List<SpendNodeDefinition> spendNodes = definition.spendNodes();
+        int start = spendStartSlot(spendNodes.size());
+        int times = event.isShiftClick() ? BULK_LEVELS : 1;
+        boolean up;
+        int index;
+        if (slot >= start && slot < start + spendNodes.size()) {
+            index = slot - start;
+            up = event.isLeftClick();
+            if (!event.isLeftClick() && !event.isRightClick()) return;
+        } else if (slot >= start - ROW && slot < start - ROW + spendNodes.size()) {
+            index = slot - (start - ROW);
+            up = true;
+        } else if (slot >= start + ROW && slot < start + ROW + spendNodes.size()) {
+            index = slot - (start + ROW);
+            up = false;
+        } else {
             return;
         }
 
-        if (event.isRightClick()) {
-            if (!classService.release(player, profile, nodeId)) {
-                player.sendMessage("[iruuRPG] このノードは解除できません。");
-            } else {
-                sync(player, profile);
-            }
-            open(player);
+        String nodeId = spendNodes.get(index).id();
+        boolean changed = false;
+        for (int count = 0; count < times; count++) {
+            boolean ok = up ? classService.levelUp(profile, nodeId) : classService.levelDown(profile, nodeId);
+            if (!ok) break;
+            changed = true;
         }
+        if (!changed && up) player.sendMessage("[iruuRPG] スキルポイントが足りません。");
+        if (changed) sync(player, profile);
+        open(player);
     }
 
     @EventHandler
@@ -133,69 +142,93 @@ public final class SkillTreeMenu implements Listener {
         event.setCancelled(true);
     }
 
-    private void render(Inventory inventory, Player player, PlayerProfile profile) {
+    private void render(Inventory inventory, PlayerProfile profile) {
         fill(inventory);
-        ClassDefinition classDefinition = classService.currentClass(profile).orElse(null);
-        SkillTreeShape shape = classService.shape();
-        List<SkillTreeNodeShape> nodes = shape.orderedNodes();
+        ClassDefinition definition = classService.currentClass(profile).orElse(null);
+        inventory.setItem(INFO_SLOT, infoItem(profile, definition));
+        inventory.setItem(RESET_SLOT, button(Material.BARRIER, "SPをリセット", NamedTextColor.RED,
+                List.of(text("全ノードのレベルを0に戻します", NamedTextColor.GRAY), text("(SPは全額戻ります)", NamedTextColor.GRAY))));
+        if (definition == null) return;
 
-        inventory.setItem(shape.scrollUpSlot(), button(Material.ARROW, "上へ", NamedTextColor.AQUA, List.of(
-                text("上位ノード側へスクロール", NamedTextColor.GRAY)
-        )));
-        inventory.setItem(shape.scrollDownSlot(), button(Material.ARROW, "下へ", NamedTextColor.AQUA, List.of(
-                text("下位ノード側へスクロール", NamedTextColor.GRAY)
-        )));
-        inventory.setItem(shape.resetSlot(), button(Material.BARRIER, "リセット", NamedTextColor.RED, List.of(
-                text("取得済みノードをすべて解除", NamedTextColor.GRAY),
-                text("消費ポイントは返却されます", NamedTextColor.GRAY)
-        )));
-        inventory.setItem(shape.pointSlot(), pointItem(profile, classDefinition));
+        inventory.setItem(SPEND_LABEL_SLOT, button(Material.EXPERIENCE_BOTTLE, "SPで強化", NamedTextColor.GREEN, List.of(
+                text("1レベル = 1SP。上限なし", NamedTextColor.GRAY),
+                text("左クリック: +1  シフト左: +" + BULK_LEVELS, NamedTextColor.GREEN),
+                text("右クリック: -1", NamedTextColor.RED))));
+        inventory.setItem(MILESTONE_LABEL_SLOT, button(Material.NETHER_STAR, "解放ノード", NamedTextColor.GOLD, List.of(
+                text("SPを" + classService.milestoneInterval() + "使うごとに順番に無料で解放", NamedTextColor.GRAY),
+                text("解放順は固定です", NamedTextColor.GRAY))));
 
-        int start = Math.max(0, Math.min(profile.classScroll(), Math.max(0, nodes.size() - shape.visibleRows())));
-        int end = Math.min(nodes.size(), start + shape.visibleRows());
-        List<SkillTreeNodeShape> visible = nodes.subList(start, end);
-        for (int index = 0; index < visible.size(); index++) {
-            SkillTreeNodeShape nodeShape = visible.get(index);
-            int slot = nodeSlot(index);
-            ClassNodeDefinition node = classDefinition == null ? null : classDefinition.node(nodeShape.id());
-            inventory.setItem(slot, nodeItem(profile, classDefinition, nodeShape, node));
+        List<SpendNodeDefinition> spendNodes = definition.spendNodes();
+        int spendStart = spendStartSlot(spendNodes.size());
+        for (int index = 0; index < spendNodes.size(); index++) {
+            inventory.setItem(spendStart + index, spendItem(profile, spendNodes.get(index)));
+            inventory.setItem(spendStart + index - ROW, button(Material.LIME_STAINED_GLASS_PANE, "+1 レベル", NamedTextColor.GREEN,
+                    List.of(text(spendNodes.get(index).name() + " を強化 (1SP)", NamedTextColor.GRAY),
+                            text("シフト: +" + BULK_LEVELS, NamedTextColor.DARK_GREEN))));
+            inventory.setItem(spendStart + index + ROW, button(Material.RED_STAINED_GLASS_PANE, "-1 レベル", NamedTextColor.RED,
+                    List.of(text(spendNodes.get(index).name() + " を戻す (1SP返却)", NamedTextColor.GRAY),
+                            text("シフト: -" + BULK_LEVELS, NamedTextColor.DARK_RED))));
+        }
+
+        List<ClassNodeDefinition> milestones = definition.milestones();
+        int milestoneStart = MILESTONE_ROW_START + Math.max(0, (9 - milestones.size()) / 2);
+        for (int index = 0; index < milestones.size() && index < 9; index++) {
+            inventory.setItem(milestoneStart + index, milestoneItem(profile, milestones.get(index), index));
         }
     }
 
-    private ItemStack nodeItem(PlayerProfile profile, ClassDefinition classDefinition, SkillTreeNodeShape shape, ClassNodeDefinition node) {
-        boolean acquired = profile.classNodes().contains(shape.id());
-        boolean available = classService.canAcquire(profile, shape.id());
-        Material material = node == null ? Material.GRAY_DYE : node.icon();
-        NamedTextColor color = acquired ? NamedTextColor.GREEN : available ? NamedTextColor.YELLOW : NamedTextColor.GRAY;
-        String name = node == null ? shape.id() : node.nodeName();
-        List<Component> lore = new ArrayList<>();
-        lore.add(line("ID", shape.id(), NamedTextColor.DARK_AQUA));
-        lore.add(line("状態", acquired ? "取得済み" : available ? "取得可能" : "未解放", color));
-        lore.add(line("Cost", node == null ? "-" : String.valueOf(node.cost()), NamedTextColor.GOLD));
-        if (shape.parentId() != null) {
-            lore.add(line("前提", shape.parentId(), NamedTextColor.GRAY));
-        }
-        if (node != null) {
-            lore.add(Component.empty());
-            lore.add(line("種別", node.nodeType() == ClassNodeType.ACTIVE ? "active" : "passive", NamedTextColor.AQUA));
-            if (node.nodeType() == ClassNodeType.PASSIVE && node.effectType() == ClassPassiveEffectType.STATUS) {
-                node.status().asMap().entrySet().stream()
-                        .sorted(Comparator.comparing(entry -> entry.getKey().key()))
-                        .forEach(entry -> lore.add(line(entry.getKey().key(), format(entry.getValue()), NamedTextColor.GREEN)));
-            }
-            if (!node.skillName().isBlank()) {
-                lore.add(line("skill", node.skillName(), NamedTextColor.LIGHT_PURPLE));
-                classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill));
-            }
-            if (node.hotKey() != null) {
-                lore.add(line("hot_key", node.hotKey().key() + " / " + node.hotKey().displayName(), NamedTextColor.YELLOW));
-            }
-        }
-        lore.add(Component.empty());
-        lore.add(text("左クリック: 取得", NamedTextColor.GREEN));
-        lore.add(text("右クリック: 解除", NamedTextColor.RED));
+    private int spendStartSlot(int count) {
+        return SPEND_CENTER_SLOT - count / 2;
+    }
 
-        return item(material, name, color, lore, acquired);
+    private ItemStack infoItem(PlayerProfile profile, ClassDefinition definition) {
+        List<Component> lore = new ArrayList<>();
+        lore.add(line("クラス", definition == null ? "未設定" : definition.name(), NamedTextColor.GOLD));
+        lore.add(line("レベル", String.valueOf(profile.level()), NamedTextColor.AQUA));
+        lore.add(line("残りSP", String.valueOf(classService.availablePoints(profile)), NamedTextColor.GREEN));
+        lore.add(line("使用SP", classService.spentPoints(profile) + " / " + classService.earnedPoints(profile), NamedTextColor.YELLOW));
+        if (definition != null) {
+            lore.add(line("解放ノード", classService.unlockedMilestoneCount(profile) + " / " + definition.milestones().size(), NamedTextColor.LIGHT_PURPLE));
+        }
+        return item(Material.AMETHYST_SHARD, "スキルポイント", NamedTextColor.LIGHT_PURPLE, lore, false);
+    }
+
+    private ItemStack spendItem(PlayerProfile profile, SpendNodeDefinition node) {
+        int level = profile.classLevel(node.id());
+        List<Component> lore = new ArrayList<>();
+        lore.add(line("レベル", String.valueOf(level), level > 0 ? NamedTextColor.GREEN : NamedTextColor.GRAY));
+        lore.add(line("1レベルあたり", "+" + format(node.perLevel()) + " " + node.stat().key(), NamedTextColor.AQUA));
+        lore.add(line("現在の合計", "+" + format(node.perLevel() * level) + " " + node.stat().key(), NamedTextColor.GREEN));
+        lore.add(Component.empty());
+        lore.add(text("左クリック: +1  シフト左: +" + BULK_LEVELS, NamedTextColor.GREEN));
+        lore.add(text("右クリック: -1", NamedTextColor.RED));
+        return item(node.icon(), node.name(), level > 0 ? NamedTextColor.GREEN : NamedTextColor.YELLOW, lore, level > 0);
+    }
+
+    private ItemStack milestoneItem(PlayerProfile profile, ClassNodeDefinition node, int index) {
+        boolean unlocked = classService.isMilestoneUnlocked(profile, index);
+        int needed = (index + 1) * classService.milestoneInterval();
+        NamedTextColor color = unlocked ? NamedTextColor.GREEN : NamedTextColor.GRAY;
+        List<Component> lore = new ArrayList<>();
+        lore.add(line("状態", unlocked ? "解放済み" : "SP " + needed + " 使用で解放 (あと" + Math.max(0, needed - classService.spentPoints(profile)) + ")", color));
+        lore.add(Component.empty());
+        if (node.nodeType() == ClassNodeType.ACTIVE) {
+            lore.add(line("種別", "アクティブ", NamedTextColor.AQUA));
+        } else if (node.effectType() == ClassPassiveEffectType.SKILL) {
+            lore.add(line("種別", "スキル効果", NamedTextColor.AQUA));
+        } else {
+            lore.add(line("種別", "ステータス", NamedTextColor.AQUA));
+        }
+        node.status().asMap().entrySet().stream()
+                .sorted(Comparator.comparing(entry -> entry.getKey().key()))
+                .forEach(entry -> lore.add(line(entry.getKey().key(), "+" + format(entry.getValue()), NamedTextColor.GREEN)));
+        if (!node.skillName().isBlank()) {
+            classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill));
+        }
+        if (node.hotKey() != null) {
+            lore.add(line("ホットキー", node.hotKey().key() + " / " + node.hotKey().displayName(), NamedTextColor.YELLOW));
+        }
+        return item(node.icon(), node.nodeName(), color, lore, unlocked);
     }
 
     private void appendSkillLore(List<Component> lore, ClassSkillDefinition skill) {
@@ -209,31 +242,6 @@ public final class SkillTreeMenu implements Listener {
         for (String description : skill.description()) {
             lore.add(text(description, NamedTextColor.GRAY));
         }
-    }
-
-    private ItemStack pointItem(PlayerProfile profile, ClassDefinition classDefinition) {
-        List<Component> lore = new ArrayList<>();
-        lore.add(line("クラス", classDefinition == null ? "未設定" : classDefinition.name(), NamedTextColor.GOLD));
-        lore.add(line("残りSP", String.valueOf(profile.skillPoints()), NamedTextColor.GREEN));
-        lore.add(line("使用SP", String.valueOf(profile.spentSkillPoints()), NamedTextColor.YELLOW));
-        lore.add(line("取得ノード", String.valueOf(profile.classNodes().size()), NamedTextColor.AQUA));
-        return item(Material.AMETHYST_SHARD, "スキルポイント", NamedTextColor.LIGHT_PURPLE, lore, false);
-    }
-
-    private String nodeIdAtSlot(PlayerProfile profile, int slot) {
-        SkillTreeShape shape = classService.shape();
-        List<SkillTreeNodeShape> nodes = shape.orderedNodes();
-        int start = Math.max(0, Math.min(profile.classScroll(), Math.max(0, nodes.size() - shape.visibleRows())));
-        for (int index = 0; index < shape.visibleRows(); index++) {
-            if (slot != nodeSlot(index)) continue;
-            int nodeIndex = start + index;
-            return nodeIndex >= 0 && nodeIndex < nodes.size() ? nodes.get(nodeIndex).id() : null;
-        }
-        return null;
-    }
-
-    private int nodeSlot(int index) {
-        return (4 - index) * 9 + 4;
     }
 
     private void sync(Player player, PlayerProfile profile) {

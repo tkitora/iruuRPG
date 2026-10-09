@@ -99,3 +99,11 @@ class-selection:
   # true: クラス未選択のプレイヤーがログインするとクラス選択メニューを開く
   open-on-join: true
   open-delay-ticks: 40
+
+class-skill-points:
+  # 何レベルごとに1SP獲得するか
+  levels-per-point: 5
+  # 獲得できるSPの上限。200Lvで完成(=40SP)。201Lv以降はエンドコンテンツ用に保留
+  max-points: 40
+  # SPを何ポイント使うごとに、解放ノードを順番に1つ無料で解放するか
+  milestone-interval: 5
