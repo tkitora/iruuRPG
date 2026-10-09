@@ -1,0 +1,105 @@
+# デバッグ用チュートリアルの台本。/tutorialstart のたびに読み込まれる。
+#
+# say:     NPC(農家)のセリフ。「」を付けて、NPCの頭上と実行者のチャットに出す
+# narrate: 場面の状況説明。灰色のチャットとアクションバーに出す
+# do:      そのステップの開始時に起こす動作 (文字列、または action: と引数のマップ)
+#
+# メッセージ送りは、文字数に合わせた自動送り:
+#   表示時間 = 1.2秒 + 1文字0.15秒 (最短2秒・最長8秒)。 ticks: で上書きできる
+#
+# do の種類:
+#   begin               NPCを前に出し、下を向かせ、視線・移動・攻撃をロック
+#   look_up             顔を上げる (視線ロックは継続)
+#   head_shake          首を軽く横に振り、その後に視線ロックを解除
+#   mist (colors: [red, blue, white, green, orange] / off)   NPCの周りの色のもや
+#   open_class_menu     クラス選択UIを開き、選ぶまで待つ
+#   give_weapon         選んだクラスの最初の武器を渡し、移動と攻撃のロックを解除
+#   npc_side_and_rat    NPCを横へ動かし、さっきまでいた位置にねずみを出す
+#   wait_rat            ねずみを3回攻撃して倒すまで待つ
+#   finish              暗転 → 物語の開始地点へテレポート → 後始末
+
+steps:
+  - narrate: "プレイヤーは下を向いている。"
+    do: begin
+  - say: "おい、何寝てんだ。気分悪いのか？"
+  - narrate: "プレイヤーは顔を上げる。NPCが立っている。"
+    do: look_up
+  - say: "俺？ただのアトラス村の農家だ"
+  - say: "戦地に駆り出されたが、もうすぐ故郷に帰れるっつってな。浮かれてんだ"
+  - say: "お前もそうだろ？どこの奴だ？"
+  - narrate: "プレイヤーが首を軽く横に振る。"
+    do: head_shake
+  - say: "どうしたんだ、何も覚えてないのか？"
+  - say: "戦争のことすらもか。。"
+  - say: "相当激戦だったんだな。わかるぜ"
+  - say: "そう気を落とすな、たまにいるさ"
+  - say: "この先また自分探しするんだろ、そのままでやれるのか？"
+  - say: "俺も下っ端だがな、基礎くらいは教えてやれるぞ。立つんだ。"
+  - narrate: "NPCの周りに、色のついたもやが宙に浮かぶ。"
+    do:
+      action: mist
+      colors: [red, blue, white, green]
+  - say: "4つの色があってな、それぞれ特徴があるんだ。"
+  - say: "赤色は死地をかけて返り血で真っ赤になるやつが似合うんだぜ"
+    do:
+      action: mist
+      colors: [red]
+  - say: "青は頭脳派だな。俺には無理だ。お前はどうだろな"
+    do:
+      action: mist
+      colors: [blue]
+  - say: "白は何にも染まらん純白さが特徴。染められない自我がないと成せないぞ"
+    do:
+      action: mist
+      colors: [white]
+  - say: "緑は慈愛だな。まあみりゃわかるか。"
+    do:
+      action: mist
+      colors: [green]
+  - say: "これ？橙だ。他の色と違って何にも干渉されないできないハズレもんだ。"
+    do:
+      action: mist
+      colors: [orange]
+  - narrate: "浮かんでいた色が消える。"
+    do:
+      action: mist
+      colors: off
+  - say: "得意な得物きっとあるだろ。剣か杖か、はたまたランタンか？"
+  - say: "ランタンも知らんのか。ぽんおきすれば勝手に攻撃してくれるスグレもんだ。気にいるぞ"
+  - say: "クラスも自称するもんだ。好きに選んでいいぞ"
+  - narrate: "クラスを選択するUIが出現する。"
+    do: open_class_menu
+  - narrate: "選んだクラスの最初の武器が渡される。動けるようになった。"
+    do: give_weapon
+  - narrate: "NPCは少し横に移動する。さっきまでNPCがいた位置に、ねずみが現れる。"
+    do: npc_side_and_rat
+  - say: "ちょうど練習相手がいるな。攻撃してみろ"
+    do: wait_rat
+  - say: "そうだ。筋はあるようだな。"
+  - say: "なあ。せっかくだし肩慣らしにアトラス村で過ごせよ。"
+  - say: "まだ不安だろ？みんなやさしいぜ"
+  - say: "金が欲しいなら依頼をこなしに行けばいいさ"
+  - say: "ほらもう着くぞ。"
+  - narrate: "暗転。"
+    do: finish
+
+# 台本の外のセリフ
+extra:
+  # ねずみを攻撃せずに待ったとき (1回だけ)
+  idle-nudge: "どうした、遠慮するな"
+  # NPCを攻撃したとき (1回だけ)
+  hit-npc: "船酔いしたか？足ふらついてんぞ"
+  # クラス選択UIの、各クラスの説明 (NPCのセリフ)
+  class-speech:
+    warrior: "赤色は死地をかけて返り血で真っ赤になるやつが似合うんだぜ。"
+    mage: "青は頭脳派だな。俺には無理だ。お前はどうだろな。"
+    gifted: "言い忘れてたが白を扱えるのは天才だけだ。"
+    healer: "緑は慈愛だな。まあみりゃわかるか。"
+    assassin: "橙にすんのか？お前まだそういうのやってんのか。"
+  # 選んだクラスごとに渡す最初の武器 (items/starter.yml)
+  class-weapon:
+    warrior: starter_sword
+    mage: starter_staff
+    gifted: starter_lantern
+    healer: starter_green_staff
+    assassin: starter_dagger

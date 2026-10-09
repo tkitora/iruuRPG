@@ -1,0 +1,73 @@
+# 最初に渡される、一番弱い武器 (チュートリアルで、選んだクラスに応じて渡される)。
+# どれも必要レベル1。チュートリアル中だけ、与えるダメージが99に制限される (コード側)。
+items:
+  starter_sword:
+    material: WOODEN_SWORD
+    name: "見習いの剣"
+    required-level: 1
+    rarity: COMMON
+    element: RED
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    stats:
+      weapon-damage: 10
+      strength: 4
+      melee-damage: 3
+    description:
+      - "最初に渡される、一番弱い剣。"
+  starter_staff:
+    material: BLAZE_ROD
+    name: "見習いの杖"
+    required-level: 1
+    rarity: COMMON
+    element: BLUE
+    damage-kind: MAGIC
+    attack-type: RANGE
+    stats:
+      weapon-damage: 10
+      magic: 4
+      range-damage: 3
+    description:
+      - "最初に渡される、一番弱い杖。"
+  starter_lantern:
+    material: SEA_LANTERN
+    name: "見習いのランタン"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: MAGIC
+    attack-type: DEPLOY
+    stats:
+      weapon-damage: 8
+      magic: 4
+      stability: 20
+    description:
+      - "最初に渡される、一番弱いランタン。置くと勝手に攻撃する。"
+  starter_green_staff:
+    material: STICK
+    name: "見習いの緑杖"
+    required-level: 1
+    rarity: COMMON
+    element: GREEN
+    damage-kind: MAGIC
+    attack-type: RANGE
+    stats:
+      weapon-damage: 10
+      magic: 4
+      range-damage: 3
+    description:
+      - "最初に渡される、一番弱い緑の杖。"
+  starter_dagger:
+    material: GOLDEN_SWORD
+    name: "見習いの短剣"
+    required-level: 1
+    rarity: COMMON
+    element: ORANGE
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    stats:
+      weapon-damage: 9
+      strength: 4
+      melee-damage: 3
+    description:
+      - "最初に渡される、一番弱い短剣。"

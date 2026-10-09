@@ -19,6 +19,14 @@ commands:
       - classes
       - skilltree
       - tree
+  tutorialstart:
+    description: Starts the debug tutorial at your position
+    usage: /tutorialstart
+    permission: iruurpg.admin
+  tutorialstop:
+    description: Stops the debug tutorial and cleans up
+    usage: /tutorialstop
+    permission: iruurpg.admin
 permissions:
   iruurpg.admin:
     description: Allows iruuRPG admin commands

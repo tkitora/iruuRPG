@@ -144,3 +144,19 @@ class-effects:
   healer:
     # 回復→敵ダメージの範囲(ブロック)
     pulse-radius: 7
+
+tutorial:
+  # デバッグ用チュートリアル (/tutorialstart, /tutorialstop)
+  # 終了時のテレポート先 (物語の開始地点)。world を空にすると実行者のいるワールド
+  end-location:
+    world: ""
+    x: 60.5
+    y: 80.0
+    z: 170.5
+    yaw: 0.0
+    pitch: 0.0
+  # NPCが前方に立つ距離と、横へ移動する距離 (実行位置からの相対ブロック数)
+  npc-distance: 2.5
+  npc-side-offset: 2.0
+  # ねずみを攻撃しなかったとき、促すまでの秒数
+  idle-nudge-seconds: 20
