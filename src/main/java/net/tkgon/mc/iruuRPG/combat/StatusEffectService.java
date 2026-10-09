@@ -18,6 +18,7 @@ import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.attribute.AttributeModifier;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Mob;
@@ -48,6 +49,7 @@ public final class StatusEffectService {
     private static final long DECAY_DURATION_MILLIS = 4000L;
     private static final long EXPLOSION_DURATION_MILLIS = 30000L;
     private static final int EXPLOSION_TRIGGER_STACKS = 10;
+    private static final double CONFUSION_MAX = 100.0;
     private static final UUID SLOW_MODIFIER_ID = UUID.fromString("5a15657a-2d7b-4d7a-9d5f-0f47b3d2456e");
 
     private final JavaPlugin plugin;
@@ -58,6 +60,8 @@ public final class StatusEffectService {
     private final Map<UUID, List<TimedStack>> corrosionEffects = new HashMap<>();
     private final Map<UUID, List<TimedStack>> decayEffects = new HashMap<>();
     private final Map<UUID, ExplosionEffect> explosionEffects = new HashMap<>();
+    private final Map<UUID, Long> stunUntil = new HashMap<>();
+    private final Set<UUID> awareDisabled = new HashSet<>();
     private RpgMobService mobService;
     private AttackEffects attackEffects;
 
@@ -116,7 +120,7 @@ public final class StatusEffectService {
         applySlow(target, stats.get(StatType.SLOW_PERCENT), sourceId);
         applyTimedStack(corrosionEffects, target, StatusEffectType.CORROSION, stats.get(StatType.CORROSION), CORROSION_DURATION_MILLIS, sourceId);
         applyTimedStack(decayEffects, target, StatusEffectType.DECAY, stats.get(StatType.DECAY), DECAY_DURATION_MILLIS, sourceId);
-        applySingle(target, StatusEffectType.CONFUSION, stats.get(StatType.CONFUSION), durationMillis(attackerProfile, "duration-ticks", 100), sourceId, true);
+        applyConfusionStack(target, stats.get(StatType.CONFUSION), durationMillis(attackerProfile, "duration-ticks", 100), sourceId);
         applyExplosion(target, stats.get(StatType.EXPLOSION), sourceId);
         refreshDisplay(target);
     }
@@ -249,6 +253,16 @@ public final class StatusEffectService {
 
     private void tickEffects(LivingEntity target, long now) {
         UUID targetId = target.getUniqueId();
+
+        Long stunnedUntil = stunUntil.get(targetId);
+        if (stunnedUntil != null) {
+            if (stunnedUntil > now) {
+                holdStunned(target);
+                drainConfusion(targetId, stunnedUntil, now);
+            } else {
+                endStun(target);
+            }
+        }
 
         BleedEffect bleed = bleedEffects.get(targetId);
         if (bleed != null && bleed.total() > EPSILON) {
@@ -432,18 +446,137 @@ public final class StatusEffectService {
         }
     }
 
+    /**
+     * Confusion stacks up to 100. When it fills, the target is stunned for a short time
+     * (config combat.status-effects.confusion-stun-ticks, default 40 = 2s) and the stack is cleared.
+     */
+    private void applyConfusionStack(LivingEntity target, double add, long durationMillis, UUID sourceId) {
+        if (add <= EPSILON || durationMillis <= 0L) return;
+        if (isStunned(target)) return;
+
+        long expiresAt = System.currentTimeMillis() + durationMillis;
+        EnumMap<StatusEffectType, ActiveEffect> active = singleEffects.computeIfAbsent(target.getUniqueId(), ignored -> new EnumMap<>(StatusEffectType.class));
+        ActiveEffect current = active.get(StatusEffectType.CONFUSION);
+        double total = Math.min(CONFUSION_MAX, (current == null ? 0.0 : current.value()) + add);
+        if (total >= CONFUSION_MAX - EPSILON) {
+            // Full stack: stun, and let the stack drain from 100 to 0 over the stun (see tickEffects).
+            long stunEnd = stun(target);
+            active.put(StatusEffectType.CONFUSION, new ActiveEffect(StatusEffectType.CONFUSION, CONFUSION_MAX, stunEnd, sourceId));
+            return;
+        }
+
+        if (current == null) {
+            active.put(StatusEffectType.CONFUSION, new ActiveEffect(StatusEffectType.CONFUSION, total, expiresAt, sourceId));
+        } else {
+            current.setValue(total);
+            current.setExpiresAtMillis(Math.max(current.expiresAtMillis(), expiresAt));
+            current.setSourceId(sourceId);
+        }
+    }
+
+    private boolean isStunned(Entity entity) {
+        Long until = stunUntil.get(entity.getUniqueId());
+        return until != null && until > System.currentTimeMillis();
+    }
+
+    private long stun(LivingEntity target) {
+        long ticks = Math.max(1, plugin.getConfig().getInt("combat.status-effects.confusion-stun-ticks", 40));
+        long end = System.currentTimeMillis() + ticks * 50L;
+        stunUntil.put(target.getUniqueId(), end);
+        if (target instanceof Mob mob) {
+            mob.setTarget(null);
+            mob.setAware(false);
+            awareDisabled.add(target.getUniqueId());
+        }
+        World world = target.getWorld();
+        Location head = target.getLocation().add(0.0, target.getHeight() + 0.2, 0.0);
+        world.playSound(head, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 0.8f, 0.6f);
+        world.spawnParticle(Particle.PORTAL, head, 24, 0.3, 0.2, 0.3, 0.2);
+        holdStunned(target);
+        return end;
+    }
+
+    /** Keeps a stunned target from moving or acting. */
+    private void holdStunned(LivingEntity target) {
+        if (target instanceof Mob mob) {
+            mob.setTarget(null);
+        }
+        Vector velocity = target.getVelocity();
+        target.setVelocity(new Vector(0.0, Math.min(0.0, velocity.getY()), 0.0));
+        target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 6, 7, false, false, false));
+        Location head = target.getLocation().add(0.0, target.getHeight() + 0.15, 0.0);
+        target.getWorld().spawnParticle(Particle.REDSTONE, head, 3, 0.2, 0.08, 0.2, 0.0,
+                new Particle.DustOptions(Color.fromRGB(170, 70, 230), 1.0f));
+    }
+
+    /** During the stun the confusion stack falls linearly from 100 to 0. */
+    private void drainConfusion(UUID targetId, long stunEnd, long now) {
+        EnumMap<StatusEffectType, ActiveEffect> active = singleEffects.get(targetId);
+        ActiveEffect confusion = active == null ? null : active.get(StatusEffectType.CONFUSION);
+        if (confusion == null) return;
+
+        long totalMillis = Math.max(1, plugin.getConfig().getInt("combat.status-effects.confusion-stun-ticks", 40)) * 50L;
+        double remaining = Math.max(0.0, Math.min(1.0, (stunEnd - now) / (double) totalMillis));
+        confusion.setValue(CONFUSION_MAX * remaining);
+    }
+
+    private void endStun(LivingEntity target) {
+        stunUntil.remove(target.getUniqueId());
+        restoreAware(target);
+    }
+
+    private void restoreAware(LivingEntity target) {
+        if (awareDisabled.remove(target.getUniqueId()) && target instanceof Mob mob) {
+            mob.setAware(true);
+        }
+    }
+
+    /**
+     * Ten stacked explosion hits detonate around the target: everything nearby takes the
+     * accumulated amount. Radius and fuse come from combat.status-effects.explosion-radius / -delay-ticks.
+     */
     private void explode(LivingEntity target, ExplosionEffect explosion) {
         explosionEffects.remove(target.getUniqueId());
+        Map<UUID, Double> amounts = explosion.sourceAmounts();
+        long delay = Math.max(0, plugin.getConfig().getInt("combat.status-effects.explosion-delay-ticks", 40));
+        double radius = Math.max(0.5, plugin.getConfig().getDouble("combat.status-effects.explosion-radius", 3.0));
 
-        Location center = target.getLocation().add(0.0, target.getHeight() * 0.45, 0.0);
+        Runnable detonate = () -> detonate(target, amounts, radius);
+        if (delay <= 0L) {
+            detonate.run();
+            return;
+        }
+
         World world = target.getWorld();
-        world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 0.75f, 1.4f);
-        world.spawnParticle(Particle.EXPLOSION_NORMAL, center, 10, 0.35, 0.35, 0.35, 0.02);
-        world.spawnParticle(Particle.REDSTONE, center, 16, 0.45, 0.45, 0.45, 0.0,
-                new Particle.DustOptions(Color.fromRGB(255, 150, 40), 1.25f));
+        Location fuse = target.getLocation().add(0.0, target.getHeight() * 0.6, 0.0);
+        world.playSound(fuse, Sound.ENTITY_CREEPER_PRIMED, 0.8f, 1.2f);
+        world.spawnParticle(Particle.SMOKE_NORMAL, fuse, 12, 0.3, 0.3, 0.3, 0.02);
+        plugin.getServer().getScheduler().runTaskLater(plugin, detonate, delay);
+    }
 
-        applyStatusDamage(target, StatusEffectType.EXPLOSION, explosion.sourceAmounts());
-        refreshDisplay(target);
+    private void detonate(LivingEntity origin, Map<UUID, Double> amounts, double radius) {
+        World world = origin.getWorld();
+        Location center = origin.getLocation().add(0.0, origin.getHeight() * 0.45, 0.0);
+        world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 0.9f, 1.3f);
+        world.spawnParticle(Particle.EXPLOSION_LARGE, center, 2, 0.4, 0.3, 0.4, 0.0);
+        world.spawnParticle(Particle.REDSTONE, center, 30, radius * 0.4, 0.5, radius * 0.4, 0.0,
+                new Particle.DustOptions(Color.fromRGB(255, 150, 40), 1.4f));
+
+        List<LivingEntity> victims = new ArrayList<>();
+        if (origin.isValid() && !origin.isDead()) {
+            victims.add(origin);
+        }
+        for (Entity entity : world.getNearbyEntities(center, radius, radius, radius)) {
+            if (!(entity instanceof LivingEntity living) || living.equals(origin)) continue;
+            if (living instanceof Player || living instanceof ArmorStand || DeployService.isDeployEntity(living)) continue;
+            if (!living.isValid() || living.isDead()) continue;
+            if (living.getLocation().distanceSquared(center) > radius * radius) continue;
+            victims.add(living);
+        }
+        for (LivingEntity victim : victims) {
+            applyStatusDamage(victim, StatusEffectType.EXPLOSION, amounts);
+            refreshDisplay(victim);
+        }
     }
 
     private void applySlowAttribute(LivingEntity target, double value) {
@@ -604,6 +737,7 @@ public final class StatusEffectService {
         ids.addAll(corrosionEffects.keySet());
         ids.addAll(decayEffects.keySet());
         ids.addAll(explosionEffects.keySet());
+        ids.addAll(stunUntil.keySet());
         return ids;
     }
 
@@ -613,8 +747,12 @@ public final class StatusEffectService {
         corrosionEffects.remove(id);
         decayEffects.remove(id);
         explosionEffects.remove(id);
+        stunUntil.remove(id);
         if (living != null) {
+            restoreAware(living);
             removeSlowAttribute(living);
+        } else {
+            awareDisabled.remove(id);
         }
     }
 
