@@ -130,12 +130,6 @@ public final class QuestBoardMenu implements Listener {
             case READY -> NamedTextColor.GREEN;
             case DONE -> NamedTextColor.DARK_GRAY;
         };
-        Material material = switch (quest.type()) {
-            case KILL -> Material.IRON_SWORD;
-            case DELIVER -> Material.CHEST;
-            case INFO -> Material.BOOK;
-        };
-
         List<Component> lore = new ArrayList<>();
         for (String line : quest.description()) lore.add(text(line, NamedTextColor.WHITE));
         lore.add(Component.empty());
@@ -152,7 +146,8 @@ public final class QuestBoardMenu implements Listener {
             case READY -> "クリックで報酬を受け取る";
             case DONE -> "達成済み";
         }, color));
-        return item(material, quest.name(), color, lore, state == QuestState.READY);
+        // every quest is a sheet of paper pinned on the board; the details are in its description
+        return item(Material.PAPER, quest.name(), color, lore, state == QuestState.READY);
     }
 
     private String objective(QuestService.Entry entry) {
