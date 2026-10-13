@@ -1,0 +1,35 @@
+# 依頼用の素材アイテム (架空)。依頼ボードの「納品」に使う。
+items:
+  goblin_fang:
+    material: BONE
+    name: "ゴブリンの牙"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    description:
+      - "ゴブリンから取れる、ぎざぎざの牙。"
+      - "依頼の納品に使う。"
+  boar_meat:
+    material: PORKCHOP
+    name: "イノシシの肉"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    description:
+      - "脂の乗ったイノシシの肉。"
+      - "依頼の納品に使う。"
+  moon_herb:
+    material: FERN
+    name: "月光草"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    description:
+      - "夜に淡く光る薬草。"
+      - "依頼の納品に使う。"

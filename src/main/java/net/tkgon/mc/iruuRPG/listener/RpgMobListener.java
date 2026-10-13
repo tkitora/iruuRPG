@@ -83,6 +83,7 @@ public final class RpgMobListener implements Listener {
     public void onDeath(EntityDeathEvent event) {
         if (mobService.isRpgMob(event.getEntity())) {
             event.getDrops().clear();
+            mobService.creditKill(event.getEntity());
             mobService.dropRewards(event.getEntity());
         }
         mobService.remove(event.getEntity());

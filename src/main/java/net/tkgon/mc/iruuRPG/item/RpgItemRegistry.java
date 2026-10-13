@@ -307,12 +307,14 @@ public final class RpgItemRegistry {
             }
         }
 
-        // The starter weapons given by the tutorial must exist even on servers that already have item files.
-        if (!new File(folder, "starter.yml").exists()) {
-            try {
-                plugin.saveResource("items/starter.yml", false);
-            } catch (IllegalArgumentException ignored) {
-                plugin.getLogger().warning("Missing bundled starter items resource.");
+        // The starter weapons (tutorial) and the quest materials must exist even on servers that already have item files.
+        for (String extra : new String[]{"starter.yml", "quest.yml"}) {
+            if (!new File(folder, extra).exists()) {
+                try {
+                    plugin.saveResource("items/" + extra, false);
+                } catch (IllegalArgumentException ignored) {
+                    plugin.getLogger().warning("Missing bundled items resource: " + extra);
+                }
             }
         }
     }

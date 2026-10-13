@@ -35,6 +35,7 @@ public final class PlayerProfileStorage {
         profile.setLevel(yaml.getInt("level", profile.level()));
         profile.setXp(yaml.getLong("xp", profile.xp()));
         loadClassData(profile, yaml.getConfigurationSection("class"));
+        loadQuestData(profile, yaml.getConfigurationSection("quest"));
 
         ConfigurationSection baseStats = yaml.getConfigurationSection("base-stats");
         if (baseStats != null) {
@@ -58,6 +59,13 @@ public final class PlayerProfileStorage {
         yaml.set("xp", profile.xp());
         yaml.set("current-hp", profile.currentHp());
         yaml.set("current-mp", profile.currentMp());
+        yaml.set("quest.currency", profile.currency());
+        yaml.set("quest.sub-day", profile.subQuestDay());
+        yaml.set("quest.completed", new java.util.ArrayList<>(profile.completedQuests()));
+        yaml.set("quest.sub-completed", new java.util.ArrayList<>(profile.completedSubQuests()));
+        for (var entry : profile.questProgress().entrySet()) {
+            yaml.set("quest.active." + entry.getKey(), entry.getValue());
+        }
         yaml.set("class.id", profile.classId());
         yaml.set("class.chosen", profile.classChosen());
         for (var entry : profile.classLevels().entrySet()) {
@@ -96,6 +104,24 @@ public final class PlayerProfileStorage {
         profile.baseStats().set(StatType.CRIT_DAMAGE, 50.0);
         profile.recalculate();
         return profile;
+    }
+
+    private void loadQuestData(PlayerProfile profile, ConfigurationSection section) {
+        if (section == null) return;
+
+        profile.setCurrency(section.getLong("currency", 0L));
+        profile.setSubQuestDay(section.getString("sub-day", ""));
+        profile.completedQuests().clear();
+        profile.completedQuests().addAll(section.getStringList("completed"));
+        profile.completedSubQuests().clear();
+        profile.completedSubQuests().addAll(section.getStringList("sub-completed"));
+        profile.questProgress().clear();
+        ConfigurationSection active = section.getConfigurationSection("active");
+        if (active != null) {
+            for (String key : active.getKeys(false)) {
+                profile.questProgress().put(key, active.getInt(key, 0));
+            }
+        }
     }
 
     private void loadClassData(PlayerProfile profile, ConfigurationSection section) {

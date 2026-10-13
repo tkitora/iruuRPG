@@ -49,6 +49,10 @@ import net.tkgon.mc.iruuRPG.player.PlayerResourceTask;
 import net.tkgon.mc.iruuRPG.tutorial.TutorialCommand;
 import net.tkgon.mc.iruuRPG.tutorial.TutorialListener;
 import net.tkgon.mc.iruuRPG.tutorial.TutorialService;
+import net.tkgon.mc.iruuRPG.gui.QuestBoardMenu;
+import net.tkgon.mc.iruuRPG.quest.QuestCommand;
+import net.tkgon.mc.iruuRPG.quest.QuestRegistry;
+import net.tkgon.mc.iruuRPG.quest.QuestService;
 import org.bukkit.Bukkit;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.entity.Player;
@@ -80,6 +84,9 @@ public final class IruuRPG extends JavaPlugin {
     private SkillTreeMenu skillTreeMenu;
     private ClassSelectMenu classSelectMenu;
     private TutorialService tutorialService;
+    private QuestRegistry questRegistry;
+    private QuestService questService;
+    private QuestBoardMenu questBoardMenu;
     private MainMenu mainMenu;
     private MainMenuItemService mainMenuItemService;
 
@@ -142,6 +149,11 @@ public final class IruuRPG extends JavaPlugin {
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
         this.tutorialService = new TutorialService(this, profileManager, equipmentService, classService, classSelectMenu, itemRegistry, itemFactory, playerBars);
         this.attackService.setTutorialHook(tutorialService);
+        this.questRegistry = new QuestRegistry(this);
+        this.questRegistry.reload();
+        this.questService = new QuestService(this, questRegistry, profileManager, itemIdentifier);
+        this.questBoardMenu = new QuestBoardMenu(questService);
+        this.mobService.setKillHook(questService::onMobKilled);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.statsMenu.setMainMenu(mainMenu);
         this.skillTreeMenu.setMainMenu(mainMenu);
@@ -177,6 +189,13 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     private void registerCommands() {
+        PluginCommand questCommand = getCommand("quest");
+        if (questCommand != null) {
+            QuestCommand quest = new QuestCommand(questService, questBoardMenu);
+            questCommand.setExecutor(quest);
+            questCommand.setTabCompleter(quest);
+        }
+
         TutorialCommand tutorialCommand = new TutorialCommand(tutorialService);
         for (String name : new String[]{"tutorialstart", "tutorialstop"}) {
             PluginCommand tutorial = getCommand(name);
@@ -217,6 +236,7 @@ public final class IruuRPG extends JavaPlugin {
     private void registerListeners() {
         // registered first so the tutorial locks cancel events before the combat listeners act on them
         getServer().getPluginManager().registerEvents(new TutorialListener(tutorialService), this);
+        getServer().getPluginManager().registerEvents(questBoardMenu, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
                 this
@@ -277,6 +297,8 @@ public final class IruuRPG extends JavaPlugin {
         classSkillRegistry.reload();
         itemRegistry.reload();
         mobRegistry.reload();
+        questRegistry.reload();
+        questService.rerollNow();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             PlayerProfile profile = equipmentService.recalculate(player);

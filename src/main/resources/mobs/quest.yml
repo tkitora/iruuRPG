@@ -1,0 +1,48 @@
+# 依頼用のモブ (架空)。/iruurpg mob <id> で出せる。
+mobs:
+  wild_boar:
+    type: PIG
+    name: "イノシシ"
+    level: 1
+    experience: 12
+    ai: true
+    gravity: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 60
+      max-mp: 1
+      defense: 2
+      weapon-damage: 4
+      strength: 2
+    drops:
+      boar_meat:
+        drop-chance: 60
+        amount: 1
+      moon_herb:
+        drop-chance: 20
+        amount: 1
+  goblin:
+    type: ZOMBIE
+    name: "ゴブリン"
+    level: 2
+    experience: 24
+    ai: true
+    gravity: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 90
+      max-mp: 1
+      defense: 4
+      weapon-damage: 6
+      strength: 4
+    drops:
+      goblin_fang:
+        drop-chance: 50
+        amount: 1
+      moon_herb:
+        drop-chance: 25
+        amount: 1

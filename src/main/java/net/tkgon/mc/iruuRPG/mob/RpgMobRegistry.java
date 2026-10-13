@@ -418,6 +418,15 @@ public final class RpgMobRegistry {
                 plugin.saveResource(defaultResource, false);
             }
         }
+
+        // The quest mobs must exist even on servers that already have mob files.
+        if (!new File(folder, "quest.yml").exists()) {
+            try {
+                plugin.saveResource("mobs/quest.yml", false);
+            } catch (IllegalArgumentException ignored) {
+                plugin.getLogger().warning("Missing bundled mobs resource: quest.yml");
+            }
+        }
     }
 
     private File[] yamlFiles(File folder) {
