@@ -10,6 +10,7 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -60,7 +61,21 @@ public final class MainMenuItemListener implements Listener {
         if (isProtectedMenuClick(event)) {
             event.setCancelled(true);
             scheduleEnsure(player);
+            openFromInventory(event, player);
         }
+    }
+
+    /** Clicking the menu item inside the inventory screen opens the menu too (like using it from the hotbar). */
+    private void openFromInventory(InventoryClickEvent event, Player player) {
+        if (!menuItemService.isMenuItem(event.getCurrentItem())) return;
+        if (!(event.getClickedInventory() instanceof PlayerInventory)) return;
+        if (event.getView().getTopInventory().getHolder() instanceof MenuHolder) return;
+        if (event.getClick() != ClickType.LEFT && event.getClick() != ClickType.RIGHT) return;
+
+        // opening on the next tick: the click event itself is still being processed
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) mainMenu.open(player);
+        });
     }
 
     /**
