@@ -182,3 +182,27 @@ crafting:
   max-chance: 0.85
   slots-level-step: 4
   max-slots: 4
+  # ランダム強化の値の上限: クラフトレベル → キャラレベルに直し (level-to-character-level 倍)、
+  # そのレベルの標準的な装備の強さ(efficiency-curve) の一部 (bonus-share) までを上限にする。
+  # 値は 1 からその上限までの完全ランダム
+  level-to-character-level: 10
+  bonus-share: 0.15
+  efficiency-curve: [[1, 35], [20, 150], [100, 1300], [200, 2700]]
+  # stat-scale: efficiency 1あたりの値 (上限 = 値 × efficiency × bonus-share)
+  stat-scale:
+    strength: 0.023
+    magic: 0.023
+    melee-damage: 0.34
+    range-damage: 0.34
+    max-hp: 0.75
+    defense: 0.15
+    max-mp: 0.0093
+    hp-regen: 0.0185
+  # stat-cap: キャラレベル200での上限 (レベルに比例して小さくなる)
+  stat-cap:
+    crit-chance: 10
+    crit-damage: 40
+    attack-speed: 8
+    damage-reduction: 5
+    move-speed: 6
+    mp-regen: 3

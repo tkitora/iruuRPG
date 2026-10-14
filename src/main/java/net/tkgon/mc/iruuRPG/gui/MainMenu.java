@@ -59,6 +59,17 @@ public final class MainMenu implements Listener {
         this.skillTreeMenu = skillTreeMenu;
     }
 
+    private CraftMenu craftMenu;
+    private QuestBoardMenu questBoardMenu;
+
+    public void setCraftMenu(CraftMenu craftMenu) {
+        this.craftMenu = craftMenu;
+    }
+
+    public void setQuestBoardMenu(QuestBoardMenu questBoardMenu) {
+        this.questBoardMenu = questBoardMenu;
+    }
+
     public void open(Player player) {
         PlayerProfile profile = equipmentService.recalculate(player);
         Holder holder = new Holder(player.getUniqueId());
@@ -75,6 +86,14 @@ public final class MainMenu implements Listener {
                 Component.text("スキルポイントを振り分けます", NamedTextColor.GRAY),
                 Component.text("残りSP: " + classService.availablePoints(profile), NamedTextColor.GREEN),
                 Component.text("解放ノードの確認もここから", NamedTextColor.GRAY)
+        )));
+        inventory.setItem(29, button(Material.ANVIL, "クラフト", NamedTextColor.GOLD, List.of(
+                Component.text("素材から装備を作ります", NamedTextColor.GRAY),
+                Component.text("クラフトレベルが高いほど、ランダム強化が付きやすい", NamedTextColor.GRAY)
+        )));
+        inventory.setItem(33, button(Material.PAPER, "依頼ボード", NamedTextColor.YELLOW, List.of(
+                Component.text("依頼を受けて、報酬をもらいます", NamedTextColor.GRAY),
+                Component.text("サブ依頼は24時間で入れ替わります", NamedTextColor.GRAY)
         )));
         inventory.setItem(31, button(Material.LECTERN, "クラス変更", NamedTextColor.GOLD, List.of(
                 Component.text("現在: " + currentClassName(profile), NamedTextColor.WHITE),
@@ -102,6 +121,12 @@ public final class MainMenu implements Listener {
             }
             case 22 -> statsMenu.open(player);
             case 24 -> skillTreeMenu.open(player);
+            case 29 -> {
+                if (craftMenu != null) craftMenu.open(player);
+            }
+            case 33 -> {
+                if (questBoardMenu != null) questBoardMenu.open(player, "atlas");
+            }
             case 31 -> classSelectMenu.open(player);
             default -> {
             }
