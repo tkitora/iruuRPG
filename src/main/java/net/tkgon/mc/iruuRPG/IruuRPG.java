@@ -29,7 +29,10 @@ import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
 import net.tkgon.mc.iruuRPG.item.ItemKeys;
 import net.tkgon.mc.iruuRPG.item.ItemSkillRegistry;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
+import net.tkgon.mc.iruuRPG.gui.MarketMenu;
 import net.tkgon.mc.iruuRPG.item.ResourceSync;
+import net.tkgon.mc.iruuRPG.market.MarketCommand;
+import net.tkgon.mc.iruuRPG.market.MarketService;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
 import net.tkgon.mc.iruuRPG.listener.CombatListener;
 import net.tkgon.mc.iruuRPG.listener.DebugTargetListener;
@@ -97,6 +100,8 @@ public final class IruuRPG extends JavaPlugin {
     private CraftMenu craftMenu;
     private MainMenu mainMenu;
     private MainMenuItemService mainMenuItemService;
+    private MarketService marketService;
+    private MarketMenu marketMenu;
 
     @Override
     public void onEnable() {
@@ -176,10 +181,16 @@ public final class IruuRPG extends JavaPlugin {
         this.skillTreeMenu.setMainMenu(mainMenu);
         this.classSelectMenu.setMainMenu(mainMenu);
         this.mainMenuItemService = new MainMenuItemService(this);
+        this.marketService = new MarketService(this, profileManager);
+        this.marketService.load();
+        this.marketMenu = new MarketMenu(marketService, item -> !mainMenuItemService.isMenuItem(item));
+        this.marketMenu.setMainMenu(mainMenu);
+        this.mainMenu.setMarketMenu(marketMenu);
         this.mobService.startTargetTask();
         this.levelService.startOrbTask();
         this.statusEffectService.startTask();
         this.mainMenuItemService.startTask();
+        this.marketService.startTask();
         this.classService.startConditionTask(equipmentService, playerBars);
 
         registerCommands();
@@ -199,6 +210,9 @@ public final class IruuRPG extends JavaPlugin {
         if (profileManager != null) {
             profileManager.saveAll();
         }
+        if (marketService != null) {
+            marketService.save();
+        }
         if (mobService != null) {
             mobService.clear();
         }
@@ -211,6 +225,11 @@ public final class IruuRPG extends JavaPlugin {
             CraftCommand craft = new CraftCommand(craftService, craftMenu);
             craftCommand.setExecutor(craft);
             craftCommand.setTabCompleter(craft);
+        }
+
+        PluginCommand marketCommand = getCommand("market");
+        if (marketCommand != null) {
+            marketCommand.setExecutor(new MarketCommand(marketMenu));
         }
 
         PluginCommand questCommand = getCommand("quest");
@@ -262,6 +281,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TutorialListener(tutorialService), this);
         getServer().getPluginManager().registerEvents(questBoardMenu, this);
         getServer().getPluginManager().registerEvents(craftMenu, this);
+        getServer().getPluginManager().registerEvents(marketMenu, this);
+        getServer().getPluginManager().registerEvents(marketService, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),

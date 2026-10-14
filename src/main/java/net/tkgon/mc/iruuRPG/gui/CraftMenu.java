@@ -496,7 +496,7 @@ public final class CraftMenu implements Listener {
         return stack;
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private final Map<Integer, String> slots = new HashMap<>();
         private final List<BukkitTask> tasks = new ArrayList<>();

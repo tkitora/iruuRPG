@@ -24,6 +24,12 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  market:
+    description: Opens the free market (buy / sell items for gold)
+    usage: /market
+    aliases:
+      - fm
+      - freemarket
   quest:
     description: Opens the quest board (and quest helpers)
     usage: /quest [board [town]] | money [add n] | reset | reroll

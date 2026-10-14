@@ -182,7 +182,7 @@ public final class QuestBoardMenu implements Listener {
         return stack;
     }
 
-    private static final class Holder implements InventoryHolder {
+    private static final class Holder implements MenuHolder {
         private final UUID ownerId;
         private final String town;
         private final Map<Integer, String> quests = new HashMap<>();
