@@ -37,7 +37,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The crafting screens, all inside the inventory and dressed with colorful glass panes and iron bars:
+ * The crafting screens, all inside the inventory and framed with glass panes (one calm color, rainbow while crafting):
  * list (wipes in when opened) -> confirm (wipes in after picking a recipe) -> working (anvil hits, progress bar,
  * flashing panes) -> result (the item and its random stats).
  */
@@ -54,6 +54,8 @@ public final class CraftMenu implements Listener {
     private static final int PREVIEW_SLOT = 15;
     private static final int YES_SLOT = 42;
     private static final int NO_SLOT = 43;
+    /** The one calm color of the list and confirm screens (and of their transitions). */
+    private static final Material CALM = Material.CYAN_STAINED_GLASS_PANE;
     private static final Material[] RAINBOW = {
             Material.RED_STAINED_GLASS_PANE, Material.ORANGE_STAINED_GLASS_PANE, Material.YELLOW_STAINED_GLASS_PANE,
             Material.LIME_STAINED_GLASS_PANE, Material.CYAN_STAINED_GLASS_PANE, Material.LIGHT_BLUE_STAINED_GLASS_PANE,
@@ -95,7 +97,7 @@ public final class CraftMenu implements Listener {
         holder.slots.clear();
         Inventory inventory = holder.inventory;
         clearInside(inventory);
-        decorate(inventory, 0);
+        decorate(inventory, 0, false);
 
         int level = service.level(player);
         List<Component> info = new ArrayList<>();
@@ -119,7 +121,7 @@ public final class CraftMenu implements Listener {
         holder.slots.clear();
         Inventory inventory = holder.inventory;
         clearInside(inventory);
-        decorate(inventory, 3);
+        decorate(inventory, 0, false);
 
         int level = service.level(player);
         inventory.setItem(4, item(Material.PAPER, "この装備を作りますか?", NamedTextColor.YELLOW, List.of(
@@ -182,7 +184,7 @@ public final class CraftMenu implements Listener {
         holder.screen = Screen.WORKING;
         holder.slots.clear();
         clearInside(holder.inventory);
-        decorate(holder.inventory, 0);
+        decorate(holder.inventory, 0, true);
         holder.inventory.setItem(CENTER, item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD, List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
         int index = 0;
         for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
@@ -205,7 +207,7 @@ public final class CraftMenu implements Listener {
                     return;
                 }
                 tick++;
-                decorate(holder.inventory, tick);
+                decorate(holder.inventory, tick, true);
                 holder.inventory.setItem(CENTER - 9 * (tick % 2), null);
                 holder.inventory.setItem(CENTER - 9 * ((tick + 1) % 2), item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD,
                         List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
@@ -233,7 +235,7 @@ public final class CraftMenu implements Listener {
         holder.slots.clear();
         Inventory inventory = holder.inventory;
         clearInside(inventory);
-        decorate(inventory, 7);
+        decorate(inventory, 7, true);
         inventory.setItem(CENTER, result.clone());
         inventory.setItem(4, item(Material.NETHER_STAR, "完成!", NamedTextColor.GOLD, List.of(
                 text(recipe.name() + " を作った。持ち物に入っている", NamedTextColor.GRAY)), true));
@@ -266,7 +268,7 @@ public final class CraftMenu implements Listener {
                     cancel();
                     return;
                 }
-                decorate(holder.inventory, tick++);
+                decorate(holder.inventory, tick++, true);
             }
         }.runTaskTimer(plugin, 2L, 2L);
         holder.tasks.add(sparkle);
@@ -347,7 +349,7 @@ public final class CraftMenu implements Listener {
                 if (tick <= 8) {
                     // cover: one column of glass per tick
                     for (int slot = 0; slot < SIZE; slot++) {
-                        if (slot % 9 == tick) holder.inventory.setItem(slot, pane(RAINBOW[(slot / 9 + tick) % RAINBOW.length]));
+                        if (slot % 9 == tick) holder.inventory.setItem(slot, pane(CALM));
                     }
                     if (tick == 0) player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 1.0f);
                     return;
@@ -357,7 +359,7 @@ public final class CraftMenu implements Listener {
                     then.run();
                     target = holder.inventory.getContents().clone();
                     for (int slot = 0; slot < SIZE; slot++) {
-                        if (!isBorder(slot)) holder.inventory.setItem(slot, pane(RAINBOW[(slot / 9 + slot % 9) % RAINBOW.length]));
+                        if (!isBorder(slot)) holder.inventory.setItem(slot, pane(CALM));
                     }
                     player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.4f, 1.4f);
                     return;
@@ -379,20 +381,13 @@ public final class CraftMenu implements Listener {
         holder.tasks.add(task);
     }
 
-    /** Border: colored glass panes on the top and bottom rows and the sides, iron bars on the corners and mid-sides. */
-    private void decorate(Inventory inventory, int phase) {
+    /**
+     * Border of glass panes. Calm screens (list, confirm) use one color; only the crafting and the finished screen
+     * run through the rainbow.
+     */
+    private void decorate(Inventory inventory, int phase, boolean colorful) {
         for (int slot = 0; slot < SIZE; slot++) {
-            if (!isBorder(slot)) continue;
-
-            int row = slot / 9;
-            int column = slot % 9;
-            boolean corner = (row == 0 || row == 5) && (column == 0 || column == 8);
-            boolean midSide = (column == 0 || column == 8) && (row == 2 || row == 3);
-            if (corner || midSide) {
-                inventory.setItem(slot, item(Material.IRON_BARS, " ", NamedTextColor.DARK_GRAY, List.of(), false));
-            } else {
-                inventory.setItem(slot, pane(RAINBOW[(slot + phase) % RAINBOW.length]));
-            }
+            if (isBorder(slot)) inventory.setItem(slot, pane(colorful ? RAINBOW[(slot + phase) % RAINBOW.length] : CALM));
         }
     }
 

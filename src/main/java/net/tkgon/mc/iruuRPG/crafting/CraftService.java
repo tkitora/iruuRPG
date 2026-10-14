@@ -247,10 +247,10 @@ public final class CraftService implements Listener {
         profileManager.save(player);
     }
 
-    /** Builds the result item: more stat bonuses make it a higher rarity than the plain recipe item. */
+    /** Builds the result item: every two stat bonuses lift it one rarity tier above the plain recipe item. */
     private ItemStack createResult(RpgItemDefinition definition, CraftRecipe recipe, int level) {
         StatSet bonus = rollBonus(recipe, level);
-        Rarity rarity = definition.rarity().up(bonus.asMap().size());
+        Rarity rarity = definition.rarity().up(bonus.asMap().size() / 2);
         return itemFactory.createCrafted(definition, rarity, bonus);
     }
 

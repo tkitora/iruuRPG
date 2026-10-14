@@ -4,7 +4,7 @@ items:
     material: STONE_SWORD
     name: "牙の剣"
     required-level: 1
-    rarity: COMMON
+    rarity: 1
     element: RED
     damage-kind: PHYSICAL
     attack-type: MELEE
@@ -18,7 +18,7 @@ items:
     material: GOLDEN_SWORD
     name: "牙の短剣"
     required-level: 1
-    rarity: COMMON
+    rarity: 1
     element: ORANGE
     damage-kind: PHYSICAL
     attack-type: MELEE
@@ -32,7 +32,7 @@ items:
     material: BLAZE_ROD
     name: "月光草の杖"
     required-level: 1
-    rarity: COMMON
+    rarity: 1
     element: BLUE
     damage-kind: MAGIC
     attack-type: RANGE
@@ -46,7 +46,7 @@ items:
     material: LEATHER_HELMET
     name: "牙の兜"
     required-level: 1
-    rarity: COMMON
+    rarity: 1
     element: WHITE
     damage-kind: NONE
     attack-type: SPECIAL
@@ -59,7 +59,7 @@ items:
     material: LEATHER_LEGGINGS
     name: "月光草の脚当て"
     required-level: 1
-    rarity: COMMON
+    rarity: 1
     element: GREEN
     damage-kind: NONE
     attack-type: SPECIAL

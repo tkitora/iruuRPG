@@ -117,14 +117,6 @@ public final class RpgItemFactory {
                 .append(Component.text("]", NamedTextColor.AQUA));
     }
 
-    private Component rarityLine(Rarity rarity) {
-        String mark = plugin.getConfig().getString("rarity.mark", "*");
-        String stars = rarity.tier() > 0 && mark != null ? " " + mark.repeat(rarity.tier()) : "";
-        return Component.text("レアリティ ", NamedTextColor.GRAY)
-                .append(Component.text(rarity.displayName() + stars, rarity.color(), TextDecoration.BOLD))
-                .decoration(TextDecoration.ITALIC, false);
-    }
-
     private Component dashedLine() {
         return Component.text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false);
     }
@@ -137,7 +129,6 @@ public final class RpgItemFactory {
                 .append(Component.text("  " + definition.damageKind().displayName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD))
                 .append(Component.text("  " + definition.attackType().displayName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD))
                 .decoration(TextDecoration.ITALIC, false));
-        lore.add(rarityLine(rarity));
 
         for (StatType type : StatType.values()) {
             double value = definition.stats().get(type);
