@@ -165,6 +165,7 @@ public final class IruuRPG extends JavaPlugin {
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
         this.tutorialService = new TutorialService(this, profileManager, equipmentService, classService, classSelectMenu, itemRegistry, itemFactory, playerBars);
         this.attackService.setTutorialHook(tutorialService);
+        this.statusEffectService.setTutorialHook(tutorialService);
         this.questRegistry = new QuestRegistry(this);
         this.questRegistry.reload();
         this.questService = new QuestService(this, questRegistry, profileManager, itemIdentifier);
