@@ -179,13 +179,19 @@ public final class MarketMenu implements Listener {
         long total = listing.unitPrice() * holder.buyQty;
 
         inventory.setItem(13, listingItem(listing, now, holder.ownerId));
-        inventory.setItem(20, step(false, "-10"));
-        inventory.setItem(21, step(false, "-1"));
+        // a button is green / red only while pressing it stays within the stock and the gold the player has
+        int cap = listing.infinite() ? 64 * 9 : listing.remaining();
+        long afford = listing.unitPrice() <= 0 ? cap : service.gold(player) / listing.unitPrice();
+        int maxBuy = (int) Math.max(1, Math.min(cap, afford));
+        inventory.setItem(20, stepButton(false, "-10", holder.buyQty - 10 >= 1));
+        inventory.setItem(21, stepButton(false, "-1", holder.buyQty - 1 >= 1));
         ItemStack qty = item(Material.PAPER, holder.buyQty + " 個", NamedTextColor.WHITE, List.of(text(listing.infinite() ? "買う個数" : "買う個数 (残り " + listing.remaining() + ")", NamedTextColor.GRAY)));
         inventory.setItem(22, qty);
-        inventory.setItem(23, step(true, "+1"));
-        inventory.setItem(24, step(true, "+10"));
-        inventory.setItem(25, item(Material.EMERALD, "買える最大", NamedTextColor.GREEN, List.of(text("所持金で買える数 (残りの範囲)", NamedTextColor.GRAY))));
+        inventory.setItem(23, stepButton(true, "+1", holder.buyQty + 1 <= maxBuy));
+        inventory.setItem(24, stepButton(true, "+10", holder.buyQty + 10 <= maxBuy));
+        boolean canMax = holder.buyQty < maxBuy;
+        inventory.setItem(25, item(canMax ? Material.EMERALD : Material.GRAY_DYE, "買える最大", canMax ? NamedTextColor.GREEN : NamedTextColor.GRAY,
+                List.of(text("所持金で買える数 (残りの範囲): " + maxBuy + " 個", NamedTextColor.GRAY))));
         inventory.setItem(31, item(Material.GOLD_INGOT, "合計 " + total + " " + service.currencyName(), NamedTextColor.GOLD, List.of(
                 text("単価 " + listing.unitPrice() + " × " + holder.buyQty, NamedTextColor.GRAY),
                 text("所持金 " + service.gold(player) + " " + service.currencyName(), service.gold(player) >= total ? NamedTextColor.WHITE : NamedTextColor.RED))));
@@ -194,11 +200,11 @@ public final class MarketMenu implements Listener {
                 text(ok ? "クリックで購入" : listing.sellerId().equals(holder.ownerId) ? "自分の出品は買えません" : !listing.isAvailable(now) ? "まだ購入できません" : service.currencyName() + "が足りません",
                         ok ? NamedTextColor.WHITE : NamedTextColor.RED))));
         inventory.setItem(42, item(Material.RED_CONCRETE, "やめる", NamedTextColor.RED, List.of(text("一覧に戻る", NamedTextColor.GRAY))));
-        holder.actions.put(20, "q:-10");
-        holder.actions.put(21, "q:-1");
-        holder.actions.put(23, "q:+1");
-        holder.actions.put(24, "q:+10");
-        holder.actions.put(25, "q:max");
+        if (holder.buyQty - 10 >= 1) holder.actions.put(20, "q:-10");
+        if (holder.buyQty - 1 >= 1) holder.actions.put(21, "q:-1");
+        if (holder.buyQty + 1 <= maxBuy) holder.actions.put(23, "q:+1");
+        if (holder.buyQty + 10 <= maxBuy) holder.actions.put(24, "q:+10");
+        if (canMax) holder.actions.put(25, "q:max");
         holder.actions.put(40, "buy");
         holder.actions.put(42, "browse");
     }
@@ -236,13 +242,13 @@ public final class MarketMenu implements Listener {
         }
 
         // four setting rows: [-big][-mid][-small] value [+small][+mid][+big]
-        settingRow(inventory, holder, 1, "price", Material.GOLD_INGOT, "単価 " + holder.price + " " + service.currencyName(),
+        settingRow(player, inventory, holder, 1, "price", Material.GOLD_INGOT, "単価 " + holder.price + " " + service.currencyName(),
                 List.of(text("1個あたりの値段", NamedTextColor.GRAY), text("最大 " + service.maxPrice(), NamedTextColor.GRAY)), new int[]{1, 10, 100});
-        settingRow(inventory, holder, 2, "qty", holder.template == null ? Material.CHEST : holder.template.getType(), "個数 " + holder.qty + " 個",
+        settingRow(player, inventory, holder, 2, "qty", holder.template == null ? Material.CHEST : holder.template.getType(), "個数 " + holder.qty + " 個",
                 List.of(text("売る数 (持っている数まで)", NamedTextColor.GRAY), text("持っている数: " + owned, NamedTextColor.GRAY)), new int[]{1, 5, 10});
-        settingRow(inventory, holder, 3, "delay", Material.CLOCK, "購入可能までの期間 " + (holder.delay == 0 ? "なし (すぐ)" : hours(holder.delay)),
+        settingRow(player, inventory, holder, 3, "delay", Material.CLOCK, "購入可能までの期間 " + (holder.delay == 0 ? "なし (すぐ)" : hours(holder.delay)),
                 List.of(text("出品してから、買えるようになるまでの待ち時間", NamedTextColor.GRAY), text("最大 " + hours(service.maxDelayHours()), NamedTextColor.GRAY)), new int[]{1, 6, 24});
-        settingRow(inventory, holder, 4, "duration", Material.REPEATER, "購入可能期間 " + hours(holder.duration),
+        settingRow(player, inventory, holder, 4, "duration", Material.REPEATER, "購入可能期間 " + hours(holder.duration),
                 List.of(text("買えるようになってから、売れ残りが返ってくるまで", NamedTextColor.GRAY), text("最大 " + hours(service.maxDurationHours()), NamedTextColor.GRAY)), new int[]{1, 6, 24});
 
         MarketService.Fee fee = holder.admin ? new MarketService.Fee(0, 0, 0, 0, 0) : service.fee(holder.price, holder.qty, holder.delay, holder.duration);
@@ -273,7 +279,7 @@ public final class MarketMenu implements Listener {
         holder.actions.put(51, "list");
     }
 
-    private void settingRow(Inventory inventory, Holder holder, int row, String key, Material icon, String title, List<Component> lore, int[] steps) {
+    private void settingRow(Player player, Inventory inventory, Holder holder, int row, String key, Material icon, String title, List<Component> lore, int[] steps) {
         int base = row * 9;
         List<Component> valueLore = new ArrayList<>(lore);
         valueLore.add(text("左クリック ×1 / 右クリック ×10 / Shift ×100", NamedTextColor.DARK_GRAY));
@@ -282,10 +288,12 @@ public final class MarketMenu implements Listener {
             int minus = base + 1 + i;
             int plus = base + 7 - i;
             int step = steps[2 - i];
-            inventory.setItem(minus, step(false, "-" + step));
-            inventory.setItem(plus, step(true, "+" + step));
-            holder.actions.put(minus, "adj:" + key + ":-" + step);
-            holder.actions.put(plus, "adj:" + key + ":" + step);
+            boolean canMinus = adjustAllowed(player, holder, key, -step);
+            boolean canPlus = adjustAllowed(player, holder, key, step);
+            inventory.setItem(minus, stepButton(false, "-" + step, canMinus));
+            inventory.setItem(plus, stepButton(true, "+" + step, canPlus));
+            if (canMinus) holder.actions.put(minus, "adj:" + key + ":-" + step);
+            if (canPlus) holder.actions.put(plus, "adj:" + key + ":" + step);
         }
     }
 
@@ -378,23 +386,25 @@ public final class MarketMenu implements Listener {
             shown.setItemMeta(meta);
         }
         inventory.setItem(13, shown);
-        inventory.setItem(20, step(false, "-10"));
-        inventory.setItem(21, step(false, "-1"));
+        inventory.setItem(20, stepButton(false, "-10", holder.offerQty - 10 >= 1));
+        inventory.setItem(21, stepButton(false, "-1", holder.offerQty - 1 >= 1));
         inventory.setItem(22, item(Material.PAPER, holder.offerQty + " 個", NamedTextColor.WHITE, List.of(text("売る個数", NamedTextColor.GRAY))));
-        inventory.setItem(23, step(true, "+1"));
-        inventory.setItem(24, step(true, "+10"));
-        inventory.setItem(25, item(Material.EMERALD, "売れる最大", NamedTextColor.GREEN, List.of(text("持っている数 (買取の残りの範囲)", NamedTextColor.GRAY))));
+        inventory.setItem(23, stepButton(true, "+1", holder.offerQty + 1 <= cap));
+        inventory.setItem(24, stepButton(true, "+10", holder.offerQty + 10 <= cap));
+        boolean canMaxSell = holder.offerQty < cap;
+        inventory.setItem(25, item(canMaxSell ? Material.EMERALD : Material.GRAY_DYE, "売れる最大", canMaxSell ? NamedTextColor.GREEN : NamedTextColor.GRAY,
+                List.of(text("持っている数 (買取の残りの範囲): " + cap + " 個", NamedTextColor.GRAY))));
         inventory.setItem(31, item(Material.GOLD_INGOT, "受け取り " + total + " " + service.currencyName(), NamedTextColor.GOLD, List.of(
                 text("単価 " + offer.unitPrice() + " × " + holder.offerQty, NamedTextColor.GRAY))));
         boolean ok = owned >= holder.offerQty && owned > 0;
         inventory.setItem(40, item(ok ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE, "売る", ok ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
                 text(ok ? "クリックで売却" : "持っていません", ok ? NamedTextColor.WHITE : NamedTextColor.RED))));
         inventory.setItem(42, item(Material.RED_CONCRETE, "やめる", NamedTextColor.RED, List.of(text("一覧に戻る", NamedTextColor.GRAY))));
-        holder.actions.put(20, "q:-10");
-        holder.actions.put(21, "q:-1");
-        holder.actions.put(23, "q:+1");
-        holder.actions.put(24, "q:+10");
-        holder.actions.put(25, "q:max");
+        if (holder.offerQty - 10 >= 1) holder.actions.put(20, "q:-10");
+        if (holder.offerQty - 1 >= 1) holder.actions.put(21, "q:-1");
+        if (holder.offerQty + 1 <= cap) holder.actions.put(23, "q:+1");
+        if (holder.offerQty + 10 <= cap) holder.actions.put(24, "q:+10");
+        if (canMaxSell) holder.actions.put(25, "q:max");
         holder.actions.put(40, "sell");
         holder.actions.put(42, "offers");
     }
@@ -412,9 +422,9 @@ public final class MarketMenu implements Listener {
         } else {
             inventory.setItem(4, holder.template.clone());
         }
-        settingRow(inventory, holder, 1, "price", Material.GOLD_INGOT, "買取単価 " + holder.price + " " + service.currencyName(),
+        settingRow(player, inventory, holder, 1, "price", Material.GOLD_INGOT, "買取単価 " + holder.price + " " + service.currencyName(),
                 List.of(text("1個あたりの買取価格", NamedTextColor.GRAY)), new int[]{1, 10, 100});
-        settingRow(inventory, holder, 2, "limit", Material.HOPPER, holder.limit == 0 ? "買取の上限 なし" : "買取の上限 " + holder.limit + " 個",
+        settingRow(player, inventory, holder, 2, "limit", Material.HOPPER, holder.limit == 0 ? "買取の上限 なし" : "買取の上限 " + holder.limit + " 個",
                 List.of(text("これだけ買い取ったら終わり (0 は無制限)", NamedTextColor.GRAY)), new int[]{1, 10, 100});
         for (int slot = 45; slot < SIZE; slot++) inventory.setItem(slot, pane());
         inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
@@ -533,8 +543,7 @@ public final class MarketMenu implements Listener {
             }
         } else if (action.startsWith("adj:")) {
             String[] parts = action.split(":");
-            long multiplier = click.isShiftClick() ? 100 : click.isRightClick() ? 10 : 1;
-            long delta = Long.parseLong(parts[2]) * multiplier;
+            long delta = allowedDelta(player, holder, parts[1], Long.parseLong(parts[2]), click);
             if (parts[1].equals("price")) holder.price += delta;
             else if (parts[1].equals("limit")) holder.limit += (int) delta;
             renderOfferEdit(player, holder);
@@ -733,8 +742,7 @@ public final class MarketMenu implements Listener {
             }
         } else if (action.startsWith("adj:")) {
             String[] parts = action.split(":");
-            long multiplier = click.isShiftClick() ? 100 : click.isRightClick() ? 10 : 1;
-            long delta = Long.parseLong(parts[2]) * multiplier;
+            long delta = allowedDelta(player, holder, parts[1], Long.parseLong(parts[2]), click);
             switch (parts[1]) {
                 case "price" -> holder.price += delta;
                 case "qty" -> holder.qty += (int) delta;
@@ -745,6 +753,16 @@ public final class MarketMenu implements Listener {
             }
             renderSell(player, holder);
         }
+    }
+
+    /** The change for a click: the click's multiplier (x1 / x10 / x100) if allowed, else the largest smaller one that is; 0 if none. */
+    private long allowedDelta(Player player, Holder holder, String key, long base, ClickType click) {
+        long wanted = click.isShiftClick() ? 100 : click.isRightClick() ? 10 : 1;
+        for (long multiplier : new long[]{wanted, 10, 1}) {
+            if (multiplier > wanted) continue;
+            if (adjustAllowed(player, holder, key, base * multiplier)) return base * multiplier;
+        }
+        return 0;
     }
 
     private void selectItem(Player player, Holder holder, ItemStack clicked) {
@@ -806,6 +824,48 @@ public final class MarketMenu implements Listener {
 
     private ItemStack goldItem(Player player) {
         return item(Material.GOLD_INGOT, "所持金 " + service.gold(player) + " " + service.currencyName(), NamedTextColor.GOLD, List.of());
+    }
+
+    /**
+     * Whether changing a setting by {@code delta} stays inside what is possible: inside the limits, within the
+     * number of items the player has and (when it raises the fee) within the gold the player has.
+     */
+    private boolean adjustAllowed(Player player, Holder holder, String key, long delta) {
+        long price = holder.price;
+        int qty = holder.qty;
+        int delay = holder.delay;
+        int duration = holder.duration;
+        switch (key) {
+            case "price" -> price += delta;
+            case "qty" -> qty += (int) delta;
+            case "delay" -> delay += (int) delta;
+            case "duration" -> duration += (int) delta;
+            case "limit" -> {
+                return holder.limit + delta >= 0;
+            }
+            default -> {
+                return false;
+            }
+        }
+        if (price < 1 || price > service.maxPrice()) return false;
+        if (holder.screen == Screen.OFFER_EDIT) return true;
+
+        boolean house = holder.admin && holder.infinite;
+        int owned = holder.template == null ? 0 : service.count(player, holder.template);
+        int maxQty = house ? service.maxQuantity() : Math.min(owned, service.maxQuantity());
+        if (qty < 1 || qty > Math.max(1, maxQty)) return false;
+        if (delay < 0 || delay > service.maxDelayHours()) return false;
+        if (duration < 1 || duration > service.maxDurationHours()) return false;
+        if (delta > 0 && !holder.admin) {
+            return service.fee(price, qty, delay, duration).total() <= service.gold(player);
+        }
+        return true;
+    }
+
+    /** +/- button: green / red while it can be used, grey (and dead) when it would go past what is possible. */
+    private ItemStack stepButton(boolean plus, String label, boolean allowed) {
+        if (allowed) return step(plus, label);
+        return item(Material.GRAY_STAINED_GLASS_PANE, label, NamedTextColor.DARK_GRAY, List.of(text("これ以上は選べません", NamedTextColor.RED)));
     }
 
     private ItemStack step(boolean plus, String label) {
