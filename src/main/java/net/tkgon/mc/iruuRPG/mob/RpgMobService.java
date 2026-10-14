@@ -645,7 +645,9 @@ public final class RpgMobService {
             spawned.setLineWidth(Math.max(20, plugin.getConfig().getInt("mob.status-display.line-width", 90)));
             spawned.setViewRange((float) Math.max(1.0, plugin.getConfig().getDouble("mob.status-display.view-range", 24.0)));
             spawned.setBrightness(new Display.Brightness(15, 15));
-            spawned.setTeleportDuration(Math.max(0, plugin.getConfig().getInt("mob.status-display.teleport-duration-ticks", 0)));
+            // The mob is interpolated by the client; the display is moved every tick, so it is interpolated too
+            // (a duration of 0 made it jump while the mob glided).
+            spawned.setTeleportDuration(Math.max(1, Math.min(59, plugin.getConfig().getInt("mob.status-display.interpolation-ticks", 3))));
             spawned.setGravity(false);
             spawned.setSilent(true);
             spawned.setPersistent(false);

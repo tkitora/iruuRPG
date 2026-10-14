@@ -27,7 +27,8 @@ mob:
     line-width: 90
     view-range: 24.0
     update-period-ticks: 1
-    teleport-duration-ticks: 0
+    # 頭上の表示の動きをなめらかにする補間のtick数 (大きいほど滑らかだが、少し遅れる)
+    interpolation-ticks: 3
 
 combat:
   debug-damage-in-creative: true

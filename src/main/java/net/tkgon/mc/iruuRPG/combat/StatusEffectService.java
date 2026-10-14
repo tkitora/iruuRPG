@@ -309,11 +309,20 @@ public final class StatusEffectService {
         }
     }
 
+    /** Weapon bleed: the total can reach three times the bleed of the weapon that hit last. */
+    private static final double WEAPON_BLEED_CAP = 3.0;
+    /** Bleed from a class effect (gifted): the total never exceeds the amount applied now. */
+    private static final double CLASS_BLEED_CAP = 1.0;
+
     private void applyBleed(LivingEntity target, double value, UUID sourceId) {
+        applyBleed(target, value, sourceId, WEAPON_BLEED_CAP);
+    }
+
+    private void applyBleed(LivingEntity target, double value, UUID sourceId, double capMultiplier) {
         if (value <= EPSILON) return;
 
         BleedEffect bleed = bleedEffects.computeIfAbsent(target.getUniqueId(), ignored -> new BleedEffect());
-        bleed.add(sourceId, value);
+        bleed.add(sourceId, value, capMultiplier);
     }
 
     /** Applies a slow for a fixed time. 100 or more stops the target completely. */
@@ -389,9 +398,9 @@ public final class StatusEffectService {
 
     // ---- API used by class effects (ClassEffectService) ---------------------
 
-    /** Adds bleed to the target as if a weapon with this bleed value hit it. */
+    /** Adds bleed from a class effect: the target's bleed can never be more than {@code value} in total. */
     public void addBleed(LivingEntity target, double value, UUID sourceId) {
-        applyBleed(target, value, sourceId);
+        applyBleed(target, value, sourceId, CLASS_BLEED_CAP);
         refreshDisplay(target);
     }
 
@@ -881,8 +890,8 @@ public final class StatusEffectService {
     private static final class BleedEffect {
         private final Map<UUID, Double> sourceAmounts = new HashMap<>();
 
-        private void add(UUID sourceId, double value) {
-            double cap = Math.max(0.0, value * 3.0);
+        private void add(UUID sourceId, double value, double capMultiplier) {
+            double cap = Math.max(0.0, value * capMultiplier);
             double current = total();
             if (current + EPSILON >= cap) return;
 
