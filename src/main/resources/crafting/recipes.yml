@@ -1,0 +1,71 @@
+# クラフトのレシピ (架空)。/craft で開く。素材を持っていれば、リストから選んで、カンカンして完成する。
+#
+# result:             完成品の元になるアイテム (items/craft.yml など)
+# ingredients:        素材のアイテムID: 数
+# min-craft-level:    必要なクラフトレベル
+# bonus-pool:         ランダムに付く強化の候補。ステータス: [最小, 最大]
+#   付くかどうか・何個付くか・値の大きさは、クラフトレベルで変わる (config.yml の crafting:)
+#   つくかどうかは運しだいで、何も付かないこともある
+
+recipes:
+  craft_fang_sword:
+    name: "牙の剣"
+    result: craft_fang_sword
+    ingredients:
+      goblin_fang: 3
+      moon_herb: 1
+    min-craft-level: 1
+    bonus-pool:
+      strength: [1, 4]
+      melee-damage: [1, 5]
+      crit-chance: [1, 3]
+      attack-speed: [1, 3]
+  craft_fang_dagger:
+    name: "牙の短剣"
+    result: craft_fang_dagger
+    ingredients:
+      goblin_fang: 2
+      boar_meat: 1
+    min-craft-level: 1
+    bonus-pool:
+      strength: [1, 3]
+      melee-damage: [1, 4]
+      crit-chance: [1, 4]
+      crit-damage: [2, 8]
+      attack-speed: [1, 4]
+  craft_herb_staff:
+    name: "月光草の杖"
+    result: craft_herb_staff
+    ingredients:
+      moon_herb: 4
+      goblin_fang: 1
+    min-craft-level: 2
+    bonus-pool:
+      magic: [1, 4]
+      range-damage: [1, 5]
+      max-mp: [2, 8]
+      mp-regen: [1, 2]
+  craft_fang_helm:
+    name: "牙の兜"
+    result: craft_fang_helm
+    ingredients:
+      goblin_fang: 4
+      boar_meat: 1
+    min-craft-level: 2
+    bonus-pool:
+      max-hp: [4, 16]
+      defense: [2, 8]
+      damage-reduction: [1, 3]
+      physical-resist: [1, 2]
+  craft_herb_leggings:
+    name: "月光草の脚当て"
+    result: craft_herb_leggings
+    ingredients:
+      moon_herb: 3
+      boar_meat: 2
+    min-craft-level: 3
+    bonus-pool:
+      max-hp: [4, 14]
+      defense: [2, 7]
+      hp-regen: [1, 3]
+      move-speed: [1, 3]

@@ -88,7 +88,10 @@ public final class EquipmentService {
         itemIdentifier.itemId(item)
                 .flatMap(itemRegistry::find)
                 .filter(definition -> canUse(player, definition))
-                .ifPresent(definition -> accumulate(definition, targetStats, targetElementStats));
+                .ifPresent(definition -> {
+                    accumulate(definition, targetStats, targetElementStats);
+                    targetStats.addAll(itemIdentifier.bonusStats(item)); // random stats of a crafted item
+                });
     }
 
     private void accumulate(RpgItemDefinition definition, StatSet targetStats, ElementStatSet targetElementStats) {

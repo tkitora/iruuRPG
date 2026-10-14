@@ -170,3 +170,15 @@ quest:
   time-zone: "Asia/Tokyo"
   # 一度に出るサブ依頼の件数
   sub-count: 4
+
+crafting:
+  # クラフトを1回するたびに経験が1たまり、この回数ごとにクラフトレベルが1上がる
+  crafts-per-level: 3
+  max-level: 20
+  # ランダム強化: 1つの強化が付く確率 = base-chance + chance-per-level * レベル (上限 max-chance)
+  # 強化の最大数 = 1 + レベル / slots-level-step (上限 max-slots)
+  base-chance: 0.2
+  chance-per-level: 0.05
+  max-chance: 0.85
+  slots-level-step: 4
+  max-slots: 4

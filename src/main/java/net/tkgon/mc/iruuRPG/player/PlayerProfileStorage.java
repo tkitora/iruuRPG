@@ -36,6 +36,7 @@ public final class PlayerProfileStorage {
         profile.setXp(yaml.getLong("xp", profile.xp()));
         loadClassData(profile, yaml.getConfigurationSection("class"));
         loadQuestData(profile, yaml.getConfigurationSection("quest"));
+        profile.setCraftXp(yaml.getLong("craft.xp", 0L));
 
         ConfigurationSection baseStats = yaml.getConfigurationSection("base-stats");
         if (baseStats != null) {
@@ -59,6 +60,7 @@ public final class PlayerProfileStorage {
         yaml.set("xp", profile.xp());
         yaml.set("current-hp", profile.currentHp());
         yaml.set("current-mp", profile.currentMp());
+        yaml.set("craft.xp", profile.craftXp());
         yaml.set("quest.currency", profile.currency());
         yaml.set("quest.sub-day", profile.subQuestDay());
         yaml.set("quest.completed", new java.util.ArrayList<>(profile.completedQuests()));
