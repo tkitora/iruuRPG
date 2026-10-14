@@ -97,7 +97,7 @@ public final class CraftMenu implements Listener {
         holder.slots.clear();
         Inventory inventory = holder.inventory;
         clearInside(inventory);
-        decorate(inventory, 0, false);
+        decorate(holder, 0, false);
 
         int level = service.level(player);
         List<Component> info = new ArrayList<>();
@@ -105,7 +105,8 @@ public final class CraftMenu implements Listener {
         info.add(text("(強化が付かないこともある)", NamedTextColor.GRAY));
         int next = service.craftsToNextLevel(player);
         info.add(text(next > 0 ? "次のレベルまで、あと" + next + "回" : "最大レベル", NamedTextColor.YELLOW));
-        inventory.setItem(INFO_SLOT, item(Material.ANVIL, "クラフトレベル " + level, NamedTextColor.GOLD, info, false));
+        holder.header = item(Material.ANVIL, "クラフトレベル " + level, NamedTextColor.GOLD, info, false);
+        inventory.setItem(INFO_SLOT, holder.header);
 
         List<CraftRecipe> recipes = service.registry().all();
         for (int index = 0; index < recipes.size() && index < RECIPE_SLOTS.length; index++) {
@@ -121,11 +122,12 @@ public final class CraftMenu implements Listener {
         holder.slots.clear();
         Inventory inventory = holder.inventory;
         clearInside(inventory);
-        decorate(inventory, 0, false);
+        decorate(holder, 0, false);
 
         int level = service.level(player);
-        inventory.setItem(4, item(Material.PAPER, "この装備を作りますか?", NamedTextColor.YELLOW, List.of(
-                text("素材は、作り始めると消えます", NamedTextColor.GRAY)), false));
+        holder.header = item(Material.PAPER, "この装備を作りますか?", NamedTextColor.YELLOW, List.of(
+                text("素材は、作り始めると消えます", NamedTextColor.GRAY)), false);
+        inventory.setItem(4, holder.header);
 
         // left: the materials, one icon each, top to bottom
         int index = 0;
@@ -180,7 +182,10 @@ public final class CraftMenu implements Listener {
         holder.screen = Screen.WORKING;
         holder.slots.clear();
         clearInside(holder.inventory);
-        decorate(holder.inventory, 0, true);
+        holder.header = item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD, List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), true);
+        decorate(holder, 0, true);
+        // the finished item stays in view, top right (what it gets is revealed when the hammering is done)
+        holder.inventory.setItem(PREVIEW_SLOT, previewItem(recipe, service.level(player)));
         holder.inventory.setItem(CENTER, item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD, List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
         int index = 0;
         for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
@@ -203,7 +208,7 @@ public final class CraftMenu implements Listener {
                     return;
                 }
                 tick++;
-                decorate(holder.inventory, tick, true);
+                decorate(holder, tick, true);
                 holder.inventory.setItem(CENTER - 9 * (tick % 2), null);
                 holder.inventory.setItem(CENTER - 9 * ((tick + 1) % 2), item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD,
                         List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
@@ -221,7 +226,7 @@ public final class CraftMenu implements Listener {
         // a flash of orange/yellow panes on every hit
         Material flash = hit % 2 == 0 ? Material.ORANGE_STAINED_GLASS_PANE : Material.YELLOW_STAINED_GLASS_PANE;
         for (int slot = 0; slot < SIZE; slot++) {
-            if (isBorder(slot)) holder.inventory.setItem(slot, pane(flash));
+            if (isBorder(slot) && slot != INFO_SLOT) holder.inventory.setItem(slot, pane(flash));
         }
     }
 
@@ -233,10 +238,11 @@ public final class CraftMenu implements Listener {
         holder.slots.clear();
         Inventory inventory = holder.inventory;
         clearInside(inventory);
-        decorate(inventory, 7, true);
+        decorate(holder, 7, true);
         inventory.setItem(CENTER, result.clone());
-        inventory.setItem(4, item(Material.NETHER_STAR, "完成!", NamedTextColor.GOLD, List.of(
-                text(recipe.name() + " を作った。持ち物に入っている", NamedTextColor.GRAY)), true));
+        holder.header = item(Material.NETHER_STAR, "完成!", NamedTextColor.GOLD, List.of(
+                text(recipe.name() + " を作った。持ち物に入っている", NamedTextColor.GRAY)), true);
+        inventory.setItem(4, holder.header);
 
         // the random stats, spelled out
         ItemMeta meta = result.getItemMeta();
@@ -266,7 +272,7 @@ public final class CraftMenu implements Listener {
                     cancel();
                     return;
                 }
-                decorate(holder.inventory, tick++, true);
+                decorate(holder, tick++, true);
             }
         }.runTaskTimer(plugin, 2L, 2L);
         holder.tasks.add(sparkle);
@@ -383,10 +389,13 @@ public final class CraftMenu implements Listener {
      * Border of glass panes. Calm screens (list, confirm) use one color; only the crafting and the finished screen
      * run through the rainbow.
      */
-    private void decorate(Inventory inventory, int phase, boolean colorful) {
+    private void decorate(Holder holder, int phase, boolean colorful) {
+        Inventory inventory = holder.inventory;
         for (int slot = 0; slot < SIZE; slot++) {
             if (isBorder(slot)) inventory.setItem(slot, pane(colorful ? RAINBOW[(slot + phase) % RAINBOW.length] : CALM));
         }
+        // the title item sits in the top border; repainting must not wipe it
+        if (holder.header != null) inventory.setItem(INFO_SLOT, holder.header);
     }
 
     private static boolean isBorder(int slot) {
@@ -427,7 +436,7 @@ public final class CraftMenu implements Listener {
         lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
     }
 
-    /** A list entry: the finished item itself (its stats and description), then what it needs and might get. */
+    /** A list entry: the finished item itself (its stats and description), then what it needs (kept short: tall tooltips get cut off). */
     private ItemStack recipeItem(Player player, CraftRecipe recipe, int level) {
         RpgItemDefinition definition = itemRegistry.find(recipe.resultItemId()).orElse(null);
         boolean levelOk = level >= recipe.minCraftLevel();
@@ -450,8 +459,6 @@ public final class CraftMenu implements Listener {
         if (recipe.minCraftLevel() > 1) {
             lore.add(text("必要なクラフトレベル: " + recipe.minCraftLevel(), levelOk ? NamedTextColor.WHITE : NamedTextColor.RED));
         }
-        lore.add(Component.empty());
-        addCandidates(lore, recipe, definition, level);
         lore.add(Component.empty());
         lore.add(text(ready ? "クリックで作る" : !levelOk ? "クラフトレベルが足りない" : "素材が足りない",
                 ready ? NamedTextColor.GREEN : NamedTextColor.RED));
@@ -497,6 +504,7 @@ public final class CraftMenu implements Listener {
         private Screen screen = Screen.LIST;
         private CraftRecipe recipe;
         private ItemStack result;
+        private ItemStack header;
         private boolean transition;
 
         private Holder(UUID ownerId) {
