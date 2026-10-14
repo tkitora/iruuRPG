@@ -26,7 +26,6 @@ public enum StatType {
 
     CRIT_DAMAGE("crit-damage", "Critical Damage %", "addCritDmg"),
     CRIT_CHANCE("crit-chance", "Critical Chance %", "addCritChance"),
-    ADRENALINE("adrenaline", "Adrenaline %"),
     MAGIC_OVERLOAD("magic-overload", "Magic Amplify %", "apOver", "magic-amplify", "magic-amplification"),
     STABILITY("stability", "Stability %", "stable"),
     DURATION("duration", "Duration", "duration"),

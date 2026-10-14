@@ -29,6 +29,7 @@ import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
 import net.tkgon.mc.iruuRPG.item.ItemKeys;
 import net.tkgon.mc.iruuRPG.item.ItemSkillRegistry;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
+import net.tkgon.mc.iruuRPG.item.ResourceSync;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
 import net.tkgon.mc.iruuRPG.listener.CombatListener;
 import net.tkgon.mc.iruuRPG.listener.DebugTargetListener;
@@ -104,6 +105,9 @@ public final class IruuRPG extends JavaPlugin {
         ItemKeys itemKeys = new ItemKeys(this);
         this.itemIdentifier = new ItemIdentifier(itemKeys);
 
+        // plugin-owned data files: bring older copies on the server up to date (the old copy is kept as a backup)
+        ResourceSync.sync(this, "items/craft.yml");
+        ResourceSync.sync(this, "crafting/recipes.yml");
         this.itemRegistry = new RpgItemRegistry(this);
         this.itemSkillRegistry = new ItemSkillRegistry(this);
         this.itemSkillRegistry.reload();

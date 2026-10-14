@@ -23,7 +23,6 @@ public final class StatLabels {
             Map.entry(StatType.DEPLOY_DAMAGE_PERCENT, "設置ダメージ%"),
             Map.entry(StatType.CRIT_DAMAGE, "会心ダメージ"),
             Map.entry(StatType.CRIT_CHANCE, "会心率"),
-            Map.entry(StatType.ADRENALINE, "アドレナリン"),
             Map.entry(StatType.MAGIC_OVERLOAD, "魔力増幅"),
             Map.entry(StatType.STABILITY, "安定性"),
             Map.entry(StatType.DURATION, "効果時間"),
@@ -95,7 +94,7 @@ public final class StatLabels {
     public static boolean isPercent(StatType type) {
         return switch (type) {
             case STRENGTH_PERCENT, MAGIC_PERCENT, MELEE_DAMAGE_PERCENT, RANGE_DAMAGE_PERCENT, DEPLOY_DAMAGE_PERCENT,
-                 CRIT_DAMAGE, CRIT_CHANCE, ADRENALINE, MAGIC_OVERLOAD, STABILITY, ATTACK_SPEED, MOVE_SPEED,
+                 CRIT_DAMAGE, CRIT_CHANCE, MAGIC_OVERLOAD, STABILITY, ATTACK_SPEED, MOVE_SPEED,
                  PROTECTION, PHYSICAL_RESIST, MAGIC_RESIST, DAMAGE_REDUCTION, ABSORB_PERCENT, SLOW_PERCENT -> true;
             default -> false;
         };

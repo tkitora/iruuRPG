@@ -86,7 +86,6 @@ items:
       range-damage-percent: 500
       crit-damage: 1000
       crit-chance: 100
-      adrenaline: 500
       magic-overload: 500
       stability: 500
       duration: 500

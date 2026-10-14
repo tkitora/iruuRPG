@@ -186,7 +186,6 @@ crafting:
 craft-caps:
   # クラフトレベルの最大
   max-level: 255
-  # 属性の上限 (属性ダメージ2000 / 属性ダメージ% 15 / 属性防御% 20): 属性の強化は未対応 (候補に入れられない)
   # ランダム強化の値の上限: 「クラフトレベル最大(max-level)のときの最大値」を stat-max に書く。
   # 実際の上限 = その値 × (いまのクラフトレベル / max-level)。値は 1 から上限までの完全ランダム。
   # 耐性(physical-resist / magic-resist)は % で書く。
@@ -214,6 +213,7 @@ craft-caps:
     stability: 20
     duration: 20
     attack-speed: 20
+    move-speed: 50
     defense: 2000
     physical-resist: 100
     magic-resist: 100
@@ -221,3 +221,7 @@ craft-caps:
     special-damage: 2000
     absorb-percent: 5
     slow-percent: 30
+    # 属性 (5色それぞれに同じ上限)
+    element-damage: 2000
+    element-damage-percent: 15
+    element-resist: 20

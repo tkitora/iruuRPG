@@ -1,5 +1,7 @@
 package net.tkgon.mc.iruuRPG.crafting;
 
+import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.stat.ElementKind;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -70,19 +72,43 @@ public final class CraftRegistry {
         }
 
         // the stats a craft can roll; how high they can go depends on the craft level (config crafting:)
-        List<StatType> pool = new ArrayList<>();
+        List<BonusOption> pool = new ArrayList<>();
         List<String> poolKeys = section.getStringList("bonus-pool");
         if (poolKeys.isEmpty() && section.getConfigurationSection("bonus-pool") != null) {
             poolKeys = new ArrayList<>(section.getConfigurationSection("bonus-pool").getKeys(false)); // old format
         }
         for (String key : poolKeys) {
-            var type = StatType.fromConfigKey(key);
-            if (type.isEmpty()) {
+            List<BonusOption> options = parseOptions(key);
+            if (options.isEmpty()) {
                 plugin.getLogger().warning("crafting: unknown bonus stat '" + key + "' in recipe " + id);
                 continue;
             }
-            pool.add(type.get());
+            pool.addAll(options);
         }
         recipes.put(id, new CraftRecipe(id, section.getString("name", id), result, ingredients, section.getInt("min-craft-level", 1), pool));
+    }
+
+    /**
+     * A pool entry: a stat key ("strength"), one element stat ("red-damage", "blue-damage-percent", "green-resist"),
+     * or all five colors of one kind ("all-element-damage", "all-element-damage-percent", "all-element-resist").
+     */
+    static List<BonusOption> parseOptions(String raw) {
+        String key = raw == null ? "" : raw.trim().toLowerCase(java.util.Locale.ROOT);
+        List<BonusOption> options = new ArrayList<>();
+        var stat = StatType.fromConfigKey(key);
+        if (stat.isPresent()) {
+            options.add(BonusOption.ofStat(stat.get()));
+            return options;
+        }
+        for (ElementKind kind : ElementKind.values()) {
+            if (key.equals("all-element-" + kind.key())) {
+                for (Element element : Element.values()) options.add(BonusOption.ofElement(kind, element));
+                return options;
+            }
+            for (Element element : Element.values()) {
+                if (key.equals(element.key() + "-" + kind.key())) options.add(BonusOption.ofElement(kind, element));
+            }
+        }
+        return options;
     }
 }
