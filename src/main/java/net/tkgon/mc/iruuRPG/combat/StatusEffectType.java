@@ -4,7 +4,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 
 public enum StatusEffectType {
     BLEED("❣", NamedTextColor.RED, true),
-    ADRENALINE("✦", NamedTextColor.YELLOW, false),
     MAGIC_AMPLIFY("✹", NamedTextColor.AQUA, false),
     PROTECTION("◆", NamedTextColor.BLUE, false),
     SLOW("❄", NamedTextColor.BLUE, true),

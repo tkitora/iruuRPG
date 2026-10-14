@@ -95,7 +95,6 @@ public final class StatusEffectService {
         if (!target.isValid() || target.isDead()) return;
 
         long selfDurationMillis = durationMillis(attackerProfile, "duration-ticks", 100);
-        applySingle(attacker, StatusEffectType.ADRENALINE, stats.get(StatType.ADRENALINE), selfDurationMillis, sourceId, false);
         applySingle(attacker, StatusEffectType.PROTECTION, stats.get(StatType.PROTECTION), selfDurationMillis, sourceId, false);
         if (weapon.damageKind() == DamageKind.MAGIC || weapon.attackType() == AttackType.RANGE) {
             applySingle(attacker, StatusEffectType.MAGIC_AMPLIFY, stats.get(StatType.MAGIC_OVERLOAD), selfDurationMillis, sourceId, false);
@@ -129,11 +128,6 @@ public final class StatusEffectService {
         if (attacker == null || weapon == null || damage <= 0.0) return damage;
 
         double multiplier = 1.0;
-        ActiveEffect adrenaline = active(attacker, StatusEffectType.ADRENALINE);
-        if (adrenaline != null) {
-            multiplier += Math.max(0.0, adrenaline.value()) / 200.0;
-        }
-
         ActiveEffect magicAmplify = active(attacker, StatusEffectType.MAGIC_AMPLIFY);
         if (magicAmplify != null && (weapon.damageKind() == DamageKind.MAGIC || weapon.attackType() == AttackType.RANGE)) {
             multiplier += Math.max(0.0, magicAmplify.value()) / 100.0;
@@ -302,7 +296,6 @@ public final class StatusEffectService {
             switch (effect.type()) {
                 case SLOW -> applySlowAttribute(target, effect.value());
                 case CONFUSION -> applyConfusion(target, effect.value());
-                case ADRENALINE -> applyAdrenaline(target, effect.value());
                 default -> {
                 }
             }
@@ -639,13 +632,6 @@ public final class StatusEffectService {
         }
     }
 
-    private void applyAdrenaline(LivingEntity target, double value) {
-        if (!(target instanceof Player player)) return;
-
-        int amplifier = Math.max(0, Math.min(3, (int) Math.floor(Math.max(0.0, value) / 35.0)));
-        player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 45, amplifier, false, false, true));
-    }
-
     private void applyConfusion(LivingEntity target, double value) {
         if (target instanceof Mob mob) {
             mob.setTarget(null);
@@ -695,7 +681,6 @@ public final class StatusEffectService {
                 world.spawnParticle(Particle.REDSTONE, fuse, dust, 0.22, 0.18, 0.22, 0.0,
                         new Particle.DustOptions(Color.fromRGB(255, 125, 15), 0.95f));
             }
-            case ADRENALINE -> world.spawnParticle(Particle.CRIT, center, 5, 0.28, 0.35, 0.28, 0.02);
             case MAGIC_AMPLIFY -> world.spawnParticle(Particle.SPELL_WITCH, center, 5, 0.28, 0.35, 0.28, 0.02);
             case PROTECTION -> world.spawnParticle(Particle.REDSTONE, center, 5, 0.35, 0.45, 0.35, 0.0,
                     new Particle.DustOptions(Color.fromRGB(55, 120, 255), 0.85f));

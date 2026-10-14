@@ -224,22 +224,20 @@ public final class CraftService implements Listener {
         }
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.4f);
 
-        StatSet bonus = itemIdentifier.bonusStats(result);
+        CraftBonus bonus = bonusOf(result);
         player.sendMessage(Component.text("[クラフト] 「" + recipe.name() + "」が完成した!", NamedTextColor.GREEN));
-        List<String> parts = new ArrayList<>();
-        if (bonus.isEmpty()) {
+        List<String> parts = bonus.lines();
+        if (parts.isEmpty()) {
             player.sendMessage(Component.text("  ステータスの強化: なし", NamedTextColor.GRAY));
         } else {
-            for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
-                String line = StatLabels.name(entry.getKey()) + " " + StatLabels.signed(entry.getKey(), entry.getValue());
-                parts.add(line);
+            for (String line : parts) {
                 player.sendMessage(Component.text("  ▲ " + line, NamedTextColor.AQUA));
             }
         }
         // a big title so the enhancement (what and how much) cannot be missed
         player.showTitle(Title.title(
-                Component.text(recipe.name() + (bonus.isEmpty() ? "" : " " + "★".repeat(parts.size())), bonus.isEmpty() ? NamedTextColor.WHITE : NamedTextColor.GOLD),
-                Component.text(bonus.isEmpty() ? "強化なし" : "強化: " + String.join(" / ", parts), bonus.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.AQUA),
+                Component.text(recipe.name() + (parts.isEmpty() ? "" : " " + "★".repeat(parts.size())), parts.isEmpty() ? NamedTextColor.WHITE : NamedTextColor.GOLD),
+                Component.text(parts.isEmpty() ? "強化なし" : "強化: " + String.join(" / ", parts), parts.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.AQUA),
                 Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(800))));
         if (after > before) {
             player.sendMessage(Component.text("[クラフト] クラフトレベルが " + after + " に上がった!", NamedTextColor.GOLD));
@@ -249,9 +247,11 @@ public final class CraftService implements Listener {
 
     /** Builds the result item: every two stat bonuses lift it one rarity tier above the plain recipe item. */
     private ItemStack createResult(RpgItemDefinition definition, CraftRecipe recipe, int level) {
-        StatSet bonus = rollBonus(recipe, level, definition);
-        Rarity rarity = definition.rarity().up(bonus.asMap().size() / 2);
-        return itemFactory.createCrafted(definition, rarity, bonus);
+        CraftBonus bonus = rollBonus(recipe, level, definition);
+        Rarity rarity = definition.rarity().up(bonus.count() / 2);
+        ItemStack item = itemFactory.createCrafted(definition, rarity, bonus.stats(), bonus.elements());
+        itemIdentifier.setBonusElementStats(item, bonus.elements());
+        return item;
     }
 
     // ---- random stats: cap by the game's current scale, value fully random below the cap -----------------------
@@ -259,24 +259,39 @@ public final class CraftService implements Listener {
     private static final java.util.Set<StatType> DEBUFF_STATS = java.util.EnumSet.of(
             StatType.BLEED, StatType.CORROSION, StatType.DECAY, StatType.LACERATION, StatType.CONFUSION, StatType.EXPLOSION);
 
+    /** The maximum of each stat at the top craft level (config craft-caps.stat-max overrides these). */
+    private static final Map<String, Double> DEFAULT_MAX = Map.ofEntries(
+            Map.entry("max-hp", 2000.0), Map.entry("max-mp", 2000.0), Map.entry("hp-regen", 100.0), Map.entry("mp-regen", 100.0),
+            Map.entry("weapon-damage", 50.0), Map.entry("strength", 1000.0), Map.entry("magic", 1000.0),
+            Map.entry("strength-percent", 10.0), Map.entry("magic-percent", 10.0),
+            Map.entry("melee-damage", 2000.0), Map.entry("range-damage", 2000.0), Map.entry("deploy-damage", 2000.0),
+            Map.entry("melee-damage-percent", 20.0), Map.entry("range-damage-percent", 20.0), Map.entry("deploy-damage-percent", 20.0),
+            Map.entry("crit-damage", 100.0), Map.entry("crit-chance", 20.0), Map.entry("magic-overload", 200.0),
+            Map.entry("stability", 20.0), Map.entry("duration", 20.0), Map.entry("attack-speed", 20.0), Map.entry("move-speed", 50.0),
+            Map.entry("defense", 2000.0), Map.entry("physical-resist", 100.0), Map.entry("magic-resist", 100.0),
+            Map.entry("damage-reduction", 20.0), Map.entry("special-damage", 2000.0),
+            Map.entry("absorb-percent", 5.0), Map.entry("slow-percent", 30.0),
+            Map.entry("element-damage", 2000.0), Map.entry("element-damage-percent", 15.0), Map.entry("element-resist", 20.0));
+
     /** The largest value of a stat at craft level {@code maxLevel}, as shown to the player (resists in percent). */
-    public double maxAtTopLevel(StatType type, RpgItemDefinition definition) {
+    public double maxAtTopLevel(BonusOption option, RpgItemDefinition definition) {
         var config = plugin.getConfig();
-        if (DEBUFF_STATS.contains(type)) {
+        if (!option.isElement() && DEBUFF_STATS.contains(option.stat())) {
             // other debuffs: a multiple of the weapon's own weapon damage
             double weaponDamage = definition == null ? 0.0 : definition.stats().get(StatType.WEAPON_DAMAGE);
             return config.getDouble("craft-caps.debuff-weapon-multiplier", 200.0) * weaponDamage;
         }
-        return config.getDouble("craft-caps.stat-max." + type.key(), 0.0);
+        // config.yml may be an older copy without newer keys, so every key has a built-in default
+        return config.getDouble("craft-caps.stat-max." + option.capKey(), DEFAULT_MAX.getOrDefault(option.capKey(), 0.0));
     }
 
     /**
      * The highest value a random stat can get at this craft level: the stat's maximum at the top craft level,
      * scaled in proportion to the level (so a low craft level never gets a top-level value). Shown in whole numbers.
      */
-    public int capFor(StatType type, int craftLevel, RpgItemDefinition definition) {
+    public int capFor(BonusOption option, int craftLevel, RpgItemDefinition definition) {
         double share = Math.max(0.0, Math.min(1.0, craftLevel / (double) maxLevel()));
-        return (int) Math.max(1L, Math.round(maxAtTopLevel(type, definition) * share));
+        return (int) Math.max(1L, Math.round(maxAtTopLevel(option, definition) * share));
     }
 
     /**
@@ -284,7 +299,7 @@ public final class CraftService implements Listener {
      * (so there may be none), with a stat picked at random from the recipe's pool, and a value that is completely
      * random from 1 up to that stat's cap at this level (the cap grows in proportion to the craft level).
      */
-    StatSet rollBonus(CraftRecipe recipe, int level, RpgItemDefinition definition) {
+    CraftBonus rollBonus(CraftRecipe recipe, int level, RpgItemDefinition definition) {
         var config = plugin.getConfig();
         double chance = Math.min(config.getDouble("crafting.max-chance", 0.85),
                 config.getDouble("crafting.base-chance", 0.2) + config.getDouble("crafting.chance-per-level", 0.05) * level);
@@ -292,25 +307,29 @@ public final class CraftService implements Listener {
                 1 + level / Math.max(1, config.getInt("crafting.slots-level-step", 4)));
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        List<StatType> pool = new ArrayList<>(recipe.bonusPool());
+        List<BonusOption> pool = new ArrayList<>(recipe.bonusPool());
         Collections.shuffle(pool, random);
 
-        StatSet bonus = new StatSet();
+        CraftBonus bonus = CraftBonus.empty();
         int filled = 0;
         for (int slot = 0; slot < slots && filled < pool.size(); slot++) {
             if (random.nextDouble() >= chance) continue;
 
-            StatType type = pool.get(filled++);
-            double value = 1 + random.nextInt(capFor(type, level, definition));
-            // resists are stored as fractions (0.01 = 1%) but rolled in percent
-            bonus.add(type, StatLabels.isFraction(type) ? value / 100.0 : value);
+            BonusOption option = pool.get(filled++);
+            double value = 1 + random.nextInt(capFor(option, level, definition));
+            if (option.isElement()) {
+                option.kind().add(bonus.elements(), option.element(), value);
+            } else {
+                // resists are stored as fractions (0.01 = 1%) but rolled in percent
+                bonus.stats().add(option.stat(), StatLabels.isFraction(option.stat()) ? value / 100.0 : value);
+            }
         }
         return bonus;
     }
 
     /** The random stats stored on a crafted item (for the result screen). */
-    public StatSet bonusOf(ItemStack item) {
-        return itemIdentifier.bonusStats(item);
+    public CraftBonus bonusOf(ItemStack item) {
+        return new CraftBonus(itemIdentifier.bonusStats(item), itemIdentifier.bonusElementStats(item));
     }
 
     /** A craft in progress is finished at once if the player leaves (so nothing is lost). */

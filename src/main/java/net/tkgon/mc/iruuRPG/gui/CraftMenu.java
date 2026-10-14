@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.crafting.BonusOption;
 import net.tkgon.mc.iruuRPG.crafting.CraftRecipe;
 import net.tkgon.mc.iruuRPG.crafting.CraftService;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
@@ -248,9 +249,8 @@ public final class CraftMenu implements Listener {
         ItemMeta meta = result.getItemMeta();
         List<Component> lines = new ArrayList<>();
         boolean any = false;
-        var bonus = service.bonusOf(result);
-        for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
-            lines.add(text("  ▲ " + StatLabels.name(entry.getKey()) + " " + StatLabels.signed(entry.getKey(), entry.getValue()), NamedTextColor.AQUA));
+        for (String line : service.bonusOf(result).lines()) {
+            lines.add(text("  ▲ " + line, NamedTextColor.AQUA));
             any = true;
         }
         if (!any) lines.add(text("  ステータスの強化は付かなかった", NamedTextColor.GRAY));
@@ -429,9 +429,9 @@ public final class CraftMenu implements Listener {
     /** The stats a craft might enhance, with the highest value possible at the current craft level. */
     private void addCandidates(List<Component> lore, CraftRecipe recipe, RpgItemDefinition definition, int level) {
         lore.add(text("作ると、次のステータスが強化されることがある", NamedTextColor.AQUA));
-        for (StatType type : recipe.bonusPool()) {
-            lore.add(text("  " + StatLabels.name(type) + " +1〜" + service.capFor(type, level, definition)
-                    + (StatLabels.isPercent(type) ? "%" : ""), NamedTextColor.AQUA));
+        for (BonusOption option : recipe.bonusPool()) {
+            lore.add(text("  " + option.label() + " +1〜" + service.capFor(option, level, definition)
+                    + (option.percent() ? "%" : ""), NamedTextColor.AQUA));
         }
         lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
     }

@@ -5,8 +5,13 @@
 # min-craft-level:    必要なクラフトレベル
 # bonus-pool:         ランダムに付く強化の候補 (ステータス名のリスト)
 #   付くかどうか・何個付くかはクラフトレベルで変わり、何も付かないこともある。
+#   ステータス名のほか、属性は red-damage / blue-damage-percent / green-resist のように色+種類で書く。
+#   all-element-damage / all-element-damage-percent / all-element-resist は5色すべて。
 #   値は 1 から「そのレベルでの上限」までの完全ランダム。上限は config.yml の crafting.stat-max
 #   (クラフトレベル最大のときの最大値) に、いまのクラフトレベルの割合をかけた値
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 2
+
 
 recipes:
   craft_fang_sword:
@@ -21,6 +26,8 @@ recipes:
       - melee-damage
       - crit-chance
       - attack-speed
+      - all-element-damage
+      - all-element-damage-percent
   craft_fang_dagger:
     name: "牙の短剣"
     result: craft_fang_dagger
@@ -34,6 +41,8 @@ recipes:
       - crit-chance
       - crit-damage
       - attack-speed
+      - all-element-damage
+      - all-element-damage-percent
   craft_herb_staff:
     name: "月光草の杖"
     result: craft_herb_staff
@@ -46,6 +55,8 @@ recipes:
       - range-damage
       - max-mp
       - mp-regen
+      - all-element-damage
+      - all-element-damage-percent
   craft_fang_helm:
     name: "牙の兜"
     result: craft_fang_helm
@@ -58,6 +69,7 @@ recipes:
       - defense
       - damage-reduction
       - physical-resist
+      - all-element-resist
   craft_herb_leggings:
     name: "月光草の脚当て"
     result: craft_herb_leggings
@@ -70,3 +82,20 @@ recipes:
       - defense
       - hp-regen
       - magic-resist
+      - move-speed
+      - all-element-resist
+
+  # デバッグ用 (あとで消す): 今ある素材だけで、すぐ Debug Overlord Blade が作れる
+  debug_overlord_blade:
+    name: "Debug Overlord Blade"
+    result: debug_overlord_blade
+    ingredients:
+      goblin_fang: 1
+    min-craft-level: 1
+    bonus-pool:
+      - strength
+      - melee-damage
+      - crit-chance
+      - move-speed
+      - all-element-damage
+      - all-element-damage-percent

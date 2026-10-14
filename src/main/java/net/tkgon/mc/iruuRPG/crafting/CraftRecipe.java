@@ -1,7 +1,5 @@
 package net.tkgon.mc.iruuRPG.crafting;
 
-import net.tkgon.mc.iruuRPG.stat.StatType;
-
 import java.util.List;
 import java.util.Map;
 
@@ -12,7 +10,7 @@ public record CraftRecipe(
         String resultItemId,
         Map<String, Integer> ingredients,
         int minCraftLevel,
-        List<StatType> bonusPool
+        List<BonusOption> bonusPool
 ) {
 
     public CraftRecipe {

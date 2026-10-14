@@ -91,6 +91,7 @@ public final class EquipmentService {
                 .ifPresent(definition -> {
                     accumulate(definition, targetStats, targetElementStats);
                     targetStats.addAll(itemIdentifier.bonusStats(item)); // random stats of a crafted item
+                    targetElementStats.addAll(itemIdentifier.bonusElementStats(item));
                 });
     }
 

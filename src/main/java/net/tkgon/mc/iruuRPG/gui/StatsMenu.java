@@ -86,7 +86,6 @@ public final class StatsMenu implements Listener {
         inventory.setItem(14, category(Material.CLOCK, "戦闘補助", NamedTextColor.YELLOW, statLines(profile.finalStats(),
                 StatType.CRIT_DAMAGE,
                 StatType.CRIT_CHANCE,
-                StatType.ADRENALINE,
                 StatType.MAGIC_OVERLOAD,
                 StatType.STABILITY,
                 StatType.DURATION,
@@ -311,7 +310,6 @@ public final class StatsMenu implements Listener {
                     DEPLOY_DAMAGE_PERCENT,
                     CRIT_DAMAGE,
                     CRIT_CHANCE,
-                    ADRENALINE,
                     MAGIC_OVERLOAD,
                     STABILITY,
                     ATTACK_SPEED,
@@ -345,7 +343,6 @@ public final class StatsMenu implements Listener {
             case RANGE_DAMAGE_PERCENT -> "遠距離ダメージ倍率";
             case CRIT_DAMAGE -> "クリティカルダメージ";
             case CRIT_CHANCE -> "クリティカル率";
-            case ADRENALINE -> "アドレナリン";
             case MAGIC_OVERLOAD -> "魔力増幅";
             case STABILITY -> "安定性";
             case DURATION -> "効果時間";
