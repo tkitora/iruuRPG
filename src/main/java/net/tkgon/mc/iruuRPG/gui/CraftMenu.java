@@ -6,19 +6,26 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.crafting.CraftRecipe;
 import net.tkgon.mc.iruuRPG.crafting.CraftService;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
+import net.tkgon.mc.iruuRPG.stat.StatLabels;
+import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.Sound;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
@@ -27,28 +34,59 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** The crafting list: pick what to make. Items you can make right now glow green. */
+/**
+ * The crafting screens, all inside the inventory and dressed with colorful glass panes and iron bars:
+ * list (wipes in when opened) -> confirm (wipes in after picking a recipe) -> working (anvil hits, progress bar,
+ * flashing panes) -> result (the item and its random stats).
+ */
 public final class CraftMenu implements Listener {
 
     private static final int SIZE = 54;
     private static final int INFO_SLOT = 4;
     private static final int[] RECIPE_SLOTS = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34};
+    private static final int CENTER = 22;
+    private static final int BUTTON_LEFT = 38;
+    private static final int BUTTON_RIGHT = 42;
+    private static final Material[] RAINBOW = {
+            Material.RED_STAINED_GLASS_PANE, Material.ORANGE_STAINED_GLASS_PANE, Material.YELLOW_STAINED_GLASS_PANE,
+            Material.LIME_STAINED_GLASS_PANE, Material.CYAN_STAINED_GLASS_PANE, Material.LIGHT_BLUE_STAINED_GLASS_PANE,
+            Material.BLUE_STAINED_GLASS_PANE, Material.PURPLE_STAINED_GLASS_PANE, Material.MAGENTA_STAINED_GLASS_PANE,
+            Material.PINK_STAINED_GLASS_PANE
+    };
 
+    private enum Screen { LIST, CONFIRM, WORKING, RESULT }
+
+    private final JavaPlugin plugin;
     private final CraftService service;
     private final RpgItemRegistry itemRegistry;
 
-    public CraftMenu(CraftService service, RpgItemRegistry itemRegistry) {
+    public CraftMenu(JavaPlugin plugin, CraftService service, RpgItemRegistry itemRegistry) {
+        this.plugin = plugin;
         this.service = service;
         this.itemRegistry = itemRegistry;
     }
 
+    // ---- entry ---------------------------------------------------------------------------------------------
+
+    /** Opens the crafting list; the colored border wipes in from the left. */
     public void open(Player player) {
         Holder holder = new Holder(player.getUniqueId());
         Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("クラフト"));
         holder.setInventory(inventory);
+        holder.screen = Screen.LIST;
+        player.openInventory(inventory);
+        player.playSound(player.getLocation(), Sound.BLOCK_ANVIL_USE, 0.3f, 1.6f);
+        wipeIn(player, holder, () -> renderList(player, holder));
+    }
 
-        ItemStack filler = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of(), false);
-        for (int slot = 0; slot < SIZE; slot++) inventory.setItem(slot, filler);
+    // ---- screens ------------------------------------------------------------------------------------------------
+
+    private void renderList(Player player, Holder holder) {
+        holder.screen = Screen.LIST;
+        holder.slots.clear();
+        Inventory inventory = holder.inventory;
+        clearInside(inventory);
+        decorate(inventory, 0);
 
         int level = service.level(player);
         List<Component> info = new ArrayList<>();
@@ -62,10 +100,145 @@ public final class CraftMenu implements Listener {
         for (int index = 0; index < recipes.size() && index < RECIPE_SLOTS.length; index++) {
             CraftRecipe recipe = recipes.get(index);
             inventory.setItem(RECIPE_SLOTS[index], recipeItem(player, recipe, level));
-            holder.recipes.put(RECIPE_SLOTS[index], recipe.id());
+            holder.slots.put(RECIPE_SLOTS[index], recipe.id());
         }
-        player.openInventory(inventory);
     }
+
+    private void renderConfirm(Player player, Holder holder, CraftRecipe recipe) {
+        holder.screen = Screen.CONFIRM;
+        holder.recipe = recipe;
+        holder.slots.clear();
+        Inventory inventory = holder.inventory;
+        clearInside(inventory);
+        decorate(inventory, 3);
+
+        int level = service.level(player);
+        inventory.setItem(CENTER, recipeItem(player, recipe, level));
+        inventory.setItem(4, item(Material.PAPER, "この装備を作りますか?", NamedTextColor.YELLOW, List.of(
+                text("素材は、作り始めると消えます", NamedTextColor.GRAY)), false));
+
+        // the materials, one icon each
+        int slot = 11;
+        for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
+            int have = service.count(player, entry.getKey());
+            Material icon = itemRegistry.find(entry.getKey()).map(definition -> definition.material()).orElse(Material.PAPER);
+            ItemStack stack = item(icon, service.itemName(entry.getKey()), have >= entry.getValue() ? NamedTextColor.GREEN : NamedTextColor.RED,
+                    List.of(text("所持 " + have + " / 必要 " + entry.getValue(), NamedTextColor.GRAY)), false);
+            stack.setAmount(Math.max(1, Math.min(64, entry.getValue())));
+            inventory.setItem(slot, stack);
+            slot += 2;
+        }
+
+        boolean ready = level >= recipe.minCraftLevel() && service.hasIngredients(player, recipe);
+        inventory.setItem(BUTTON_LEFT, item(ready ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE, "作る", ready ? NamedTextColor.GREEN : NamedTextColor.GRAY,
+                List.of(text(ready ? "クリックで、カンカンと叩き始める" : "いまは作れない", ready ? NamedTextColor.WHITE : NamedTextColor.RED)), ready));
+        inventory.setItem(BUTTON_RIGHT, item(Material.RED_CONCRETE, "やめる", NamedTextColor.RED, List.of(text("リストに戻る", NamedTextColor.GRAY)), false));
+        holder.slots.put(BUTTON_LEFT, "craft");
+        holder.slots.put(BUTTON_RIGHT, "back");
+    }
+
+    private void startWorking(Player player, Holder holder, CraftRecipe recipe) {
+        boolean started = service.craft(player, recipe,
+                hit -> onHit(player, holder, hit),
+                result -> onComplete(player, holder, recipe, result));
+        if (!started) {
+            renderConfirm(player, holder, recipe);
+            return;
+        }
+        holder.screen = Screen.WORKING;
+        holder.slots.clear();
+        clearInside(holder.inventory);
+        decorate(holder.inventory, 0);
+        holder.inventory.setItem(CENTER, item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD, List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
+        int slot = 11;
+        for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
+            Material icon = itemRegistry.find(entry.getKey()).map(definition -> definition.material()).orElse(Material.PAPER);
+            holder.inventory.setItem(slot, item(icon, service.itemName(entry.getKey()), NamedTextColor.GRAY, List.of(), false));
+            slot += 2;
+        }
+        for (int index = 0; index < 4; index++) {
+            holder.inventory.setItem(progressSlot(index), item(Material.GRAY_STAINED_GLASS_PANE, "…", NamedTextColor.DARK_GRAY, List.of(), false));
+        }
+
+        // between the hits the border shimmers and the anvil "bounces"
+        BukkitTask shimmer = new BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                if (holder.screen != Screen.WORKING || !isViewing(player, holder)) {
+                    cancel();
+                    return;
+                }
+                tick++;
+                decorate(holder.inventory, tick);
+                holder.inventory.setItem(CENTER - 9 * (tick % 2), null);
+                holder.inventory.setItem(CENTER - 9 * ((tick + 1) % 2), item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD,
+                        List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
+            }
+        }.runTaskTimer(plugin, 2L, 2L);
+        holder.tasks.add(shimmer);
+    }
+
+    private void onHit(Player player, Holder holder, int hit) {
+        if (holder.screen != Screen.WORKING || !isViewing(player, holder)) return;
+
+        holder.inventory.setItem(progressSlot(hit - 1), item(Material.LIME_STAINED_GLASS_PANE, hit + " / 4", NamedTextColor.GREEN, List.of(), true));
+        // a flash of orange/yellow panes on every hit
+        Material flash = hit % 2 == 0 ? Material.ORANGE_STAINED_GLASS_PANE : Material.YELLOW_STAINED_GLASS_PANE;
+        for (int slot = 0; slot < SIZE; slot++) {
+            if (isBorder(slot)) holder.inventory.setItem(slot, pane(flash));
+        }
+    }
+
+    private void onComplete(Player player, Holder holder, CraftRecipe recipe, ItemStack result) {
+        holder.result = result;
+        if (holder.screen != Screen.WORKING || !isViewing(player, holder)) return;
+
+        holder.screen = Screen.RESULT;
+        holder.slots.clear();
+        Inventory inventory = holder.inventory;
+        clearInside(inventory);
+        decorate(inventory, 7);
+        inventory.setItem(CENTER, result.clone());
+        inventory.setItem(4, item(Material.NETHER_STAR, "完成!", NamedTextColor.GOLD, List.of(
+                text(recipe.name() + " を作った。持ち物に入っている", NamedTextColor.GRAY)), true));
+
+        // the random stats, spelled out
+        ItemMeta meta = result.getItemMeta();
+        List<Component> lines = new ArrayList<>();
+        boolean any = false;
+        var bonus = service.bonusOf(result);
+        for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
+            lines.add(text("  " + StatLabels.signed(entry.getKey(), entry.getValue()), NamedTextColor.AQUA));
+            any = true;
+        }
+        if (!any) lines.add(text("  ランダム強化は付かなかった", NamedTextColor.GRAY));
+        inventory.setItem(31, item(any ? Material.AMETHYST_SHARD : Material.GRAY_DYE,
+                any ? "★ ランダム強化" : "ランダム強化なし", any ? NamedTextColor.AQUA : NamedTextColor.GRAY, lines, any));
+        inventory.setItem(BUTTON_LEFT, item(Material.ANVIL, "もう一度作る", NamedTextColor.GREEN, List.of(text("リストに戻る", NamedTextColor.GRAY)), false));
+        inventory.setItem(BUTTON_RIGHT, item(Material.BARRIER, "閉じる", NamedTextColor.RED, List.of(), false));
+        holder.slots.put(BUTTON_LEFT, "back");
+        holder.slots.put(BUTTON_RIGHT, "close");
+        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.6f, 1.2f);
+
+        // sparkle: the border runs through the rainbow for a moment
+        BukkitTask sparkle = new BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                if (holder.screen != Screen.RESULT || !isViewing(player, holder) || tick > 20) {
+                    cancel();
+                    return;
+                }
+                decorate(holder.inventory, tick++);
+            }
+        }.runTaskTimer(plugin, 2L, 2L);
+        holder.tasks.add(sparkle);
+    }
+
+    // ---- clicks ----------------------------------------------------------------------------------------------------
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
@@ -73,17 +246,33 @@ public final class CraftMenu implements Listener {
 
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player) || !holder.ownerId.equals(player.getUniqueId())) return;
+        if (holder.transition) return; // ignore clicks while a wipe is running
 
-        String recipeId = holder.recipes.get(event.getRawSlot());
-        if (recipeId == null) return;
+        String action = holder.slots.get(event.getRawSlot());
+        if (action == null) return;
 
-        service.registry().find(recipeId).ifPresent(recipe -> {
-            if (service.craft(player, recipe)) {
-                player.closeInventory(); // watch the hammering; the list can be opened again afterwards
-            } else {
-                open(player);
+        switch (holder.screen) {
+            case LIST -> service.registry().find(action).ifPresent(recipe -> {
+                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
+                wipeIn(player, holder, () -> renderConfirm(player, holder, recipe));
+            });
+            case CONFIRM -> {
+                if (action.equals("craft") && holder.recipe != null) {
+                    startWorking(player, holder, holder.recipe);
+                } else if (action.equals("back")) {
+                    wipeIn(player, holder, () -> renderList(player, holder));
+                }
             }
-        });
+            case RESULT -> {
+                if (action.equals("back")) {
+                    wipeIn(player, holder, () -> renderList(player, holder));
+                } else if (action.equals("close")) {
+                    player.closeInventory();
+                }
+            }
+            case WORKING -> {
+            }
+        }
     }
 
     @EventHandler
@@ -92,6 +281,87 @@ public final class CraftMenu implements Listener {
             event.setCancelled(true);
         }
     }
+
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (event.getInventory().getHolder() instanceof Holder holder) {
+            holder.cancelTasks();
+        }
+    }
+
+    // ---- animation helpers -------------------------------------------------------------------------------------------
+
+    /** The colored border wipes in from the left, then {@code then} fills the screen. */
+    private void wipeIn(Player player, Holder holder, Runnable then) {
+        holder.cancelTasks();
+        holder.transition = true;
+        clearInside(holder.inventory);
+        BukkitTask task = new BukkitRunnable() {
+            private int column = -1;
+
+            @Override
+            public void run() {
+                if (!isViewing(player, holder)) {
+                    holder.transition = false;
+                    cancel();
+                    return;
+                }
+                column++;
+                for (int slot = 0; slot < SIZE; slot++) {
+                    int c = slot % 9;
+                    if (c == column) {
+                        holder.inventory.setItem(slot, pane(RAINBOW[(slot / 9 + c) % RAINBOW.length]));
+                    }
+                }
+                if (column == 0) player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 1.0f);
+                if (column >= 8) {
+                    holder.transition = false;
+                    cancel();
+                    then.run();
+                }
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
+        holder.tasks.add(task);
+    }
+
+    /** Border: colored glass panes on the top and bottom rows and the sides, iron bars on the corners and mid-sides. */
+    private void decorate(Inventory inventory, int phase) {
+        for (int slot = 0; slot < SIZE; slot++) {
+            if (!isBorder(slot)) continue;
+
+            int row = slot / 9;
+            int column = slot % 9;
+            boolean corner = (row == 0 || row == 5) && (column == 0 || column == 8);
+            boolean midSide = (column == 0 || column == 8) && (row == 2 || row == 3);
+            if (corner || midSide) {
+                inventory.setItem(slot, item(Material.IRON_BARS, " ", NamedTextColor.DARK_GRAY, List.of(), false));
+            } else {
+                inventory.setItem(slot, pane(RAINBOW[(slot + phase) % RAINBOW.length]));
+            }
+        }
+    }
+
+    private static boolean isBorder(int slot) {
+        int row = slot / 9;
+        int column = slot % 9;
+        return row == 0 || row == 5 || column == 0 || column == 8;
+    }
+
+    private void clearInside(Inventory inventory) {
+        for (int slot = 0; slot < SIZE; slot++) {
+            if (!isBorder(slot)) inventory.setItem(slot, null);
+        }
+    }
+
+    private static int progressSlot(int index) {
+        return 38 + index; // 38..41
+    }
+
+    private boolean isViewing(Player player, Holder holder) {
+        return player.isOnline() && player.getOpenInventory().getTopInventory().getHolder() == holder;
+    }
+
+    // ---- items -------------------------------------------------------------------------------------------------------
 
     private ItemStack recipeItem(Player player, CraftRecipe recipe, int level) {
         Material icon = itemRegistry.find(recipe.resultItemId()).map(definition -> definition.material()).orElse(Material.PAPER);
@@ -110,14 +380,24 @@ public final class CraftMenu implements Listener {
         lore.add(Component.empty());
         lore.add(text("必要なクラフトレベル: " + recipe.minCraftLevel(), levelOk ? NamedTextColor.WHITE : NamedTextColor.RED));
         lore.add(text("ランダム強化の候補 (いまのレベルの上限)", NamedTextColor.AQUA));
-        for (var type : recipe.bonusPool()) {
-            lore.add(text("  " + net.tkgon.mc.iruuRPG.stat.StatLabels.name(type) + " +1〜" + service.capFor(type, level), NamedTextColor.AQUA));
+        for (StatType type : recipe.bonusPool()) {
+            lore.add(text("  " + StatLabels.name(type) + " +1〜" + service.capFor(type, level), NamedTextColor.AQUA));
         }
         lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(text(ready ? "クリックで作る" : !levelOk ? "クラフトレベルが足りない" : "素材が足りない",
                 ready ? NamedTextColor.GREEN : NamedTextColor.RED));
         return item(icon, recipe.name(), ready ? NamedTextColor.GREEN : NamedTextColor.GRAY, lore, ready);
+    }
+
+    private ItemStack pane(Material material) {
+        ItemStack stack = new ItemStack(material);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text(" "));
+            stack.setItemMeta(meta);
+        }
+        return stack;
     }
 
     private static Component text(String value, NamedTextColor color) {
@@ -139,8 +419,13 @@ public final class CraftMenu implements Listener {
 
     private static final class Holder implements InventoryHolder {
         private final UUID ownerId;
-        private final Map<Integer, String> recipes = new HashMap<>();
+        private final Map<Integer, String> slots = new HashMap<>();
+        private final List<BukkitTask> tasks = new ArrayList<>();
         private Inventory inventory;
+        private Screen screen = Screen.LIST;
+        private CraftRecipe recipe;
+        private ItemStack result;
+        private boolean transition;
 
         private Holder(UUID ownerId) {
             this.ownerId = ownerId;
@@ -148,6 +433,12 @@ public final class CraftMenu implements Listener {
 
         private void setInventory(Inventory inventory) {
             this.inventory = inventory;
+        }
+
+        private void cancelTasks() {
+            for (BukkitTask task : tasks) task.cancel();
+            tasks.clear();
+            transition = false;
         }
 
         @Override

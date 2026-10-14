@@ -146,6 +146,14 @@ public final class CraftService implements Listener {
 
     /** Starts crafting. Returns false (with a message) if it cannot be done right now. */
     public boolean craft(Player player, CraftRecipe recipe) {
+        return craft(player, recipe, null, null);
+    }
+
+    /**
+     * Starts crafting. {@code onHit} gets the number of the anvil hit (1..4) and {@code onComplete} the finished item
+     * (already in the player's inventory), so a menu can animate the crafting.
+     */
+    public boolean craft(Player player, CraftRecipe recipe, java.util.function.IntConsumer onHit, java.util.function.Consumer<ItemStack> onComplete) {
         if (pending.containsKey(player.getUniqueId())) {
             player.sendMessage(Component.text("[クラフト] いま作っている最中だ。", NamedTextColor.RED));
             return false;
@@ -168,7 +176,10 @@ public final class CraftService implements Listener {
         consume(player, recipe);
         int level = level(player);
         ItemStack result = createResult(definition, recipe, level);
-        Runnable finish = () -> complete(player, recipe, result);
+        Runnable finish = () -> {
+            complete(player, recipe, result);
+            if (onComplete != null) onComplete.accept(result);
+        };
         pending.put(player.getUniqueId(), finish);
 
         new BukkitRunnable() {
@@ -189,6 +200,7 @@ public final class CraftService implements Listener {
                 player.getWorld().playSound(spot, Sound.BLOCK_ANVIL_PLACE, 0.6f, 1.0f + 0.08f * hit);
                 player.getWorld().spawnParticle(Particle.CRIT, spot, 8, 0.15, 0.1, 0.15, 0.3);
                 player.sendActionBar(Component.text("カン".repeat(hit) + "…", NamedTextColor.GOLD));
+                if (onHit != null) onHit.accept(hit);
                 if (hit >= HAMMER_HITS) {
                     cancel();
                     Runnable done = pending.remove(player.getUniqueId());
@@ -338,6 +350,11 @@ public final class CraftService implements Listener {
             bonus.add(type, 1 + random.nextInt(capFor(type, level)));
         }
         return bonus;
+    }
+
+    /** The random stats stored on a crafted item (for the result screen). */
+    public StatSet bonusOf(ItemStack item) {
+        return itemIdentifier.bonusStats(item);
     }
 
     /** A craft in progress is finished at once if the player leaves (so nothing is lost). */
