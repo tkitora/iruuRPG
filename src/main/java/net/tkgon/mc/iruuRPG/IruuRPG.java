@@ -49,6 +49,10 @@ import net.tkgon.mc.iruuRPG.player.PlayerResourceTask;
 import net.tkgon.mc.iruuRPG.tutorial.TutorialCommand;
 import net.tkgon.mc.iruuRPG.tutorial.TutorialListener;
 import net.tkgon.mc.iruuRPG.tutorial.TutorialService;
+import net.tkgon.mc.iruuRPG.crafting.CraftCommand;
+import net.tkgon.mc.iruuRPG.crafting.CraftRegistry;
+import net.tkgon.mc.iruuRPG.crafting.CraftService;
+import net.tkgon.mc.iruuRPG.gui.CraftMenu;
 import net.tkgon.mc.iruuRPG.gui.QuestBoardMenu;
 import net.tkgon.mc.iruuRPG.quest.QuestCommand;
 import net.tkgon.mc.iruuRPG.quest.QuestRegistry;
@@ -87,6 +91,9 @@ public final class IruuRPG extends JavaPlugin {
     private QuestRegistry questRegistry;
     private QuestService questService;
     private QuestBoardMenu questBoardMenu;
+    private CraftRegistry craftRegistry;
+    private CraftService craftService;
+    private CraftMenu craftMenu;
     private MainMenu mainMenu;
     private MainMenuItemService mainMenuItemService;
 
@@ -154,6 +161,10 @@ public final class IruuRPG extends JavaPlugin {
         this.questService = new QuestService(this, questRegistry, profileManager, itemIdentifier);
         this.questBoardMenu = new QuestBoardMenu(questService);
         this.mobService.setKillHook(questService::onMobKilled);
+        this.craftRegistry = new CraftRegistry(this);
+        this.craftRegistry.reload();
+        this.craftService = new CraftService(this, craftRegistry, profileManager, itemIdentifier, itemRegistry, itemFactory);
+        this.craftMenu = new CraftMenu(craftService, itemRegistry);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.statsMenu.setMainMenu(mainMenu);
         this.skillTreeMenu.setMainMenu(mainMenu);
@@ -189,6 +200,13 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     private void registerCommands() {
+        PluginCommand craftCommand = getCommand("craft");
+        if (craftCommand != null) {
+            CraftCommand craft = new CraftCommand(craftService, craftMenu);
+            craftCommand.setExecutor(craft);
+            craftCommand.setTabCompleter(craft);
+        }
+
         PluginCommand questCommand = getCommand("quest");
         if (questCommand != null) {
             QuestCommand quest = new QuestCommand(questService, questBoardMenu);
@@ -237,6 +255,8 @@ public final class IruuRPG extends JavaPlugin {
         // registered first so the tutorial locks cancel events before the combat listeners act on them
         getServer().getPluginManager().registerEvents(new TutorialListener(tutorialService), this);
         getServer().getPluginManager().registerEvents(questBoardMenu, this);
+        getServer().getPluginManager().registerEvents(craftMenu, this);
+        getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
                 this
@@ -298,6 +318,7 @@ public final class IruuRPG extends JavaPlugin {
         itemRegistry.reload();
         mobRegistry.reload();
         questRegistry.reload();
+        craftRegistry.reload();
         questService.rerollNow();
 
         for (Player player : Bukkit.getOnlinePlayers()) {

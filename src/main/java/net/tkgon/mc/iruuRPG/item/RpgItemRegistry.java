@@ -308,7 +308,7 @@ public final class RpgItemRegistry {
         }
 
         // The starter weapons (tutorial) and the quest materials must exist even on servers that already have item files.
-        for (String extra : new String[]{"starter.yml", "quest.yml"}) {
+        for (String extra : new String[]{"starter.yml", "quest.yml", "craft.yml"}) {
             if (!new File(folder, extra).exists()) {
                 try {
                     plugin.saveResource("items/" + extra, false);

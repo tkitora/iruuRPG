@@ -22,6 +22,7 @@ public final class PlayerProfile {
     // quests (see quest package): currency, active quests (id -> progress), finished main quests,
     // and the sub quests finished on the current daily rotation
     private long currency;
+    private long craftXp;
     private final Map<String, Integer> questProgress = new java.util.LinkedHashMap<>();
     private final java.util.Set<String> completedQuests = new java.util.LinkedHashSet<>();
     private final java.util.Set<String> completedSubQuests = new java.util.LinkedHashSet<>();
@@ -112,6 +113,14 @@ public final class PlayerProfile {
 
     public int spentSkillPoints() {
         return classLevels.values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    public long craftXp() {
+        return craftXp;
+    }
+
+    public void setCraftXp(long craftXp) {
+        this.craftXp = Math.max(0L, craftXp);
     }
 
     public long currency() {

@@ -1,0 +1,71 @@
+# クラフトで作れる装備のもと (架空)。クラフトすると、ここの数値に、ランダムな強化が付くことがある。
+items:
+  craft_fang_sword:
+    material: STONE_SWORD
+    name: "牙の剣"
+    required-level: 1
+    rarity: COMMON
+    element: RED
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    stats:
+      weapon-damage: 14
+      strength: 5
+      melee-damage: 4
+    description:
+      - "ゴブリンの牙を削り出した剣。"
+  craft_fang_dagger:
+    material: GOLDEN_SWORD
+    name: "牙の短剣"
+    required-level: 1
+    rarity: COMMON
+    element: ORANGE
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    stats:
+      weapon-damage: 12
+      strength: 4
+      melee-damage: 3
+    description:
+      - "牙を研いだ、軽い短剣。"
+  craft_herb_staff:
+    material: BLAZE_ROD
+    name: "月光草の杖"
+    required-level: 1
+    rarity: COMMON
+    element: BLUE
+    damage-kind: MAGIC
+    attack-type: RANGE
+    stats:
+      weapon-damage: 12
+      magic: 6
+      range-damage: 4
+    description:
+      - "月光草を編み込んだ杖。淡く光る。"
+  craft_fang_helm:
+    material: LEATHER_HELMET
+    name: "牙の兜"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    stats:
+      max-hp: 12
+      defense: 6
+    description:
+      - "牙を縫い付けた革の兜。"
+  craft_herb_leggings:
+    material: LEATHER_LEGGINGS
+    name: "月光草の脚当て"
+    required-level: 1
+    rarity: COMMON
+    element: GREEN
+    damage-kind: NONE
+    attack-type: SPECIAL
+    stats:
+      max-hp: 10
+      defense: 5
+      mp-regen: 0.5
+    description:
+      - "月光草の繊維で編んだ脚当て。"
