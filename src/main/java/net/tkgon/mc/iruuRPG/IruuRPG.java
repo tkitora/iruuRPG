@@ -164,7 +164,7 @@ public final class IruuRPG extends JavaPlugin {
         this.craftRegistry = new CraftRegistry(this);
         this.craftRegistry.reload();
         this.craftService = new CraftService(this, craftRegistry, profileManager, itemIdentifier, itemRegistry, itemFactory);
-        this.craftMenu = new CraftMenu(this, craftService, itemRegistry);
+        this.craftMenu = new CraftMenu(this, craftService, itemRegistry, itemFactory);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.mainMenu.setCraftMenu(craftMenu);
         this.mainMenu.setQuestBoardMenu(questBoardMenu);

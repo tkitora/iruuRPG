@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
+import net.tkgon.mc.iruuRPG.item.Rarity;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
@@ -227,18 +228,18 @@ public final class CraftService implements Listener {
         player.sendMessage(Component.text("[クラフト] 「" + recipe.name() + "」が完成した!", NamedTextColor.GREEN));
         List<String> parts = new ArrayList<>();
         if (bonus.isEmpty()) {
-            player.sendMessage(Component.text("  ランダム強化: なし", NamedTextColor.GRAY));
+            player.sendMessage(Component.text("  ステータスの強化: なし", NamedTextColor.GRAY));
         } else {
             for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
-                String line = StatLabels.signed(entry.getKey(), entry.getValue());
+                String line = StatLabels.name(entry.getKey()) + " " + StatLabels.signed(entry.getKey(), entry.getValue());
                 parts.add(line);
-                player.sendMessage(Component.text("  ★ ランダム強化: " + line, NamedTextColor.AQUA));
+                player.sendMessage(Component.text("  ▲ " + line, NamedTextColor.AQUA));
             }
         }
         // a big title so the enhancement (what and how much) cannot be missed
         player.showTitle(Title.title(
                 Component.text(recipe.name() + (bonus.isEmpty() ? "" : " " + "★".repeat(parts.size())), bonus.isEmpty() ? NamedTextColor.WHITE : NamedTextColor.GOLD),
-                Component.text(bonus.isEmpty() ? "ランダム強化なし" : "強化: " + String.join(" / ", parts), bonus.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.AQUA),
+                Component.text(bonus.isEmpty() ? "強化なし" : "強化: " + String.join(" / ", parts), bonus.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.AQUA),
                 Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(800))));
         if (after > before) {
             player.sendMessage(Component.text("[クラフト] クラフトレベルが " + after + " に上がった!", NamedTextColor.GOLD));
@@ -246,34 +247,11 @@ public final class CraftService implements Listener {
         profileManager.save(player);
     }
 
-    /** Builds the result item with its random stats (kept on the item, shown in its description). */
+    /** Builds the result item: more stat bonuses make it a higher rarity than the plain recipe item. */
     private ItemStack createResult(RpgItemDefinition definition, CraftRecipe recipe, int level) {
-        ItemStack item = itemFactory.create(definition);
         StatSet bonus = rollBonus(recipe, level);
-        itemIdentifier.setBonusStats(item, bonus);
-
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            if (!bonus.isEmpty() && meta.displayName() != null) {
-                meta.displayName(meta.displayName().append(Component.text(" " + "★".repeat(bonus.asMap().size()), NamedTextColor.GOLD))
-                        .decoration(TextDecoration.ITALIC, false));
-            }
-            List<Component> lore = new ArrayList<>();
-            lore.add(Component.text("クラフト品 (クラフトレベル " + level + ")", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
-            if (bonus.isEmpty()) {
-                lore.add(Component.text("ランダム強化なし", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
-            } else {
-                lore.add(Component.text("★ ランダム強化", NamedTextColor.AQUA, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
-                for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
-                    lore.add(Component.text("  " + StatLabels.signed(entry.getKey(), entry.getValue()), NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
-                }
-            }
-            lore.add(Component.empty());
-            if (meta.lore() != null) lore.addAll(meta.lore());
-            meta.lore(lore);
-            item.setItemMeta(meta);
-        }
-        return item;
+        Rarity rarity = definition.rarity().up(bonus.asMap().size());
+        return itemFactory.createCrafted(definition, rarity, bonus);
     }
 
     // ---- random stats: cap by the game's current scale, value fully random below the cap -----------------------

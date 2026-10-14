@@ -10,7 +10,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
-import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -68,10 +67,15 @@ public final class MainMenuItemListener implements Listener {
     /** Clicking the menu item inside the inventory screen opens the menu too (like using it from the hotbar). */
     private void openFromInventory(InventoryClickEvent event, Player player) {
         if (!menuItemService.isMenuItem(event.getCurrentItem())) return;
-        if (!(event.getClickedInventory() instanceof PlayerInventory)) return;
         if (event.getView().getTopInventory().getHolder() instanceof MenuHolder) return;
-        if (event.getClick() != ClickType.LEFT && event.getClick() != ClickType.RIGHT) return;
+        switch (event.getClick()) {
+            case LEFT, RIGHT, SHIFT_LEFT, SHIFT_RIGHT, MIDDLE, CREATIVE -> openNextTick(player);
+            default -> {
+            }
+        }
+    }
 
+    private void openNextTick(Player player) {
         // opening on the next tick: the click event itself is still being processed
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline()) mainMenu.open(player);
@@ -93,6 +97,8 @@ public final class MainMenuItemListener implements Listener {
                 || menuItemService.isMenuItem(event.getCurrentItem())) {
             event.setCancelled(true);
             scheduleEnsure(player);
+            // creative inventories send this event instead of a normal click: clicking the menu item opens the menu
+            if (!inOurMenu && menuItemService.isMenuItem(event.getCurrentItem())) openNextTick(player);
         }
     }
 
