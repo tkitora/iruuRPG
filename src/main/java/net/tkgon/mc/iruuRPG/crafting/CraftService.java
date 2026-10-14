@@ -12,6 +12,7 @@ import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import net.tkgon.mc.iruuRPG.stat.StatLabels;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
+import net.kyori.adventure.title.Title;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -25,6 +26,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -211,13 +213,21 @@ public final class CraftService implements Listener {
 
         StatSet bonus = itemIdentifier.bonusStats(result);
         player.sendMessage(Component.text("[クラフト] 「" + recipe.name() + "」が完成した!", NamedTextColor.GREEN));
+        List<String> parts = new ArrayList<>();
         if (bonus.isEmpty()) {
             player.sendMessage(Component.text("  ランダム強化: なし", NamedTextColor.GRAY));
         } else {
             for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
-                player.sendMessage(Component.text("  ランダム強化: " + StatLabels.signed(entry.getKey(), entry.getValue()), NamedTextColor.AQUA));
+                String line = StatLabels.signed(entry.getKey(), entry.getValue());
+                parts.add(line);
+                player.sendMessage(Component.text("  ★ ランダム強化: " + line, NamedTextColor.AQUA));
             }
         }
+        // a big title so the enhancement (what and how much) cannot be missed
+        player.showTitle(Title.title(
+                Component.text(recipe.name() + (bonus.isEmpty() ? "" : " " + "★".repeat(parts.size())), bonus.isEmpty() ? NamedTextColor.WHITE : NamedTextColor.GOLD),
+                Component.text(bonus.isEmpty() ? "ランダム強化なし" : "強化: " + String.join(" / ", parts), bonus.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.AQUA),
+                Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(800))));
         if (after > before) {
             player.sendMessage(Component.text("[クラフト] クラフトレベルが " + after + " に上がった!", NamedTextColor.GOLD));
         }
@@ -232,25 +242,81 @@ public final class CraftService implements Listener {
 
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            List<Component> lore = meta.lore() == null ? new ArrayList<>() : new ArrayList<>(meta.lore());
-            lore.add(Component.empty());
+            if (!bonus.isEmpty() && meta.displayName() != null) {
+                meta.displayName(meta.displayName().append(Component.text(" " + "★".repeat(bonus.asMap().size()), NamedTextColor.GOLD))
+                        .decoration(TextDecoration.ITALIC, false));
+            }
+            List<Component> lore = new ArrayList<>();
             lore.add(Component.text("クラフト品 (クラフトレベル " + level + ")", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
             if (bonus.isEmpty()) {
                 lore.add(Component.text("ランダム強化なし", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             } else {
+                lore.add(Component.text("★ ランダム強化", NamedTextColor.AQUA, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
                 for (Map.Entry<StatType, Double> entry : bonus.asMap().entrySet()) {
-                    lore.add(Component.text("強化 " + StatLabels.signed(entry.getKey(), entry.getValue()), NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                    lore.add(Component.text("  " + StatLabels.signed(entry.getKey(), entry.getValue()), NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
                 }
             }
+            lore.add(Component.empty());
+            if (meta.lore() != null) lore.addAll(meta.lore());
             meta.lore(lore);
             item.setItemMeta(meta);
         }
         return item;
     }
 
+    // ---- random stats: cap by the game's current scale, value fully random below the cap -----------------------
+
+    /** Gear "efficiency" (weapon damage + armor defense of a well-equipped character) at a character level. */
+    private double efficiency(double characterLevel) {
+        List<?> curve = plugin.getConfig().getList("crafting.efficiency-curve");
+        double[][] points = {{1, 35}, {20, 150}, {100, 1300}, {200, 2700}};
+        if (curve != null && curve.size() >= 2) {
+            double[][] parsed = new double[curve.size()][];
+            boolean ok = true;
+            for (int index = 0; index < curve.size(); index++) {
+                if (curve.get(index) instanceof List<?> pair && pair.size() >= 2
+                        && pair.get(0) instanceof Number x && pair.get(1) instanceof Number y) {
+                    parsed[index] = new double[]{x.doubleValue(), y.doubleValue()};
+                } else {
+                    ok = false;
+                }
+            }
+            if (ok) points = parsed;
+        }
+        if (characterLevel <= points[0][0]) return points[0][1];
+        for (int index = 1; index < points.length; index++) {
+            if (characterLevel <= points[index][0]) {
+                double span = points[index][0] - points[index - 1][0];
+                double t = span <= 0 ? 1.0 : (characterLevel - points[index - 1][0]) / span;
+                return points[index - 1][1] + (points[index][1] - points[index - 1][1]) * t;
+            }
+        }
+        return points[points.length - 1][1];
+    }
+
+    /**
+     * The highest value a random stat can get at this craft level. It follows the game's current scale: the craft
+     * level maps to a character level, and the cap is a share of what a level-appropriate piece of gear has.
+     */
+    public int capFor(StatType type, int craftLevel) {
+        var config = plugin.getConfig();
+        double characterLevel = craftLevel * config.getDouble("crafting.level-to-character-level", 10.0);
+        double share = config.getDouble("crafting.bonus-share", 0.15);
+        double cap;
+        if (config.isSet("crafting.stat-scale." + type.key())) {
+            cap = config.getDouble("crafting.stat-scale." + type.key()) * efficiency(characterLevel) * share;
+        } else if (config.isSet("crafting.stat-cap." + type.key())) {
+            cap = config.getDouble("crafting.stat-cap." + type.key()) * Math.max(0.05, Math.min(1.0, characterLevel / 200.0));
+        } else {
+            cap = 1.0;
+        }
+        return (int) Math.max(1L, Math.round(cap));
+    }
+
     /**
      * Random stats: each of up to (1 + level / step) slots is filled with a chance that grows with the craft level
-     * (so there may be none), and the value is rolled between the minimum and a maximum that also grows with the level.
+     * (so there may be none), with a stat picked at random from the recipe's pool, and a value that is completely
+     * random from 1 up to that stat's cap at this level.
      */
     StatSet rollBonus(CraftRecipe recipe, int level) {
         var config = plugin.getConfig();
@@ -258,10 +324,9 @@ public final class CraftService implements Listener {
                 config.getDouble("crafting.base-chance", 0.2) + config.getDouble("crafting.chance-per-level", 0.05) * level);
         int slots = Math.min(Math.max(1, config.getInt("crafting.max-slots", 4)),
                 1 + level / Math.max(1, config.getInt("crafting.slots-level-step", 4)));
-        double levelFraction = maxLevel() <= 1 ? 1.0 : (level - 1) / (double) (maxLevel() - 1);
 
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        List<StatType> pool = new ArrayList<>(recipe.bonusPool().keySet());
+        List<StatType> pool = new ArrayList<>(recipe.bonusPool());
         Collections.shuffle(pool, random);
 
         StatSet bonus = new StatSet();
@@ -270,10 +335,7 @@ public final class CraftService implements Listener {
             if (random.nextDouble() >= chance) continue;
 
             StatType type = pool.get(filled++);
-            int[] range = recipe.bonusPool().get(type);
-            double top = range[0] + (range[1] - range[0]) * (0.4 + 0.6 * levelFraction);
-            long value = Math.round(range[0] + random.nextDouble() * (top - range[0]));
-            bonus.add(type, Math.max(1L, value));
+            bonus.add(type, 1 + random.nextInt(capFor(type, level)));
         }
         return bonus;
     }

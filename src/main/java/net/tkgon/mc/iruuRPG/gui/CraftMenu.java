@@ -109,7 +109,11 @@ public final class CraftMenu implements Listener {
         }
         lore.add(Component.empty());
         lore.add(text("必要なクラフトレベル: " + recipe.minCraftLevel(), levelOk ? NamedTextColor.WHITE : NamedTextColor.RED));
-        lore.add(text("ランダムな強化が付くことがある", NamedTextColor.AQUA));
+        lore.add(text("ランダム強化の候補 (いまのレベルの上限)", NamedTextColor.AQUA));
+        for (var type : recipe.bonusPool()) {
+            lore.add(text("  " + net.tkgon.mc.iruuRPG.stat.StatLabels.name(type) + " +1〜" + service.capFor(type, level), NamedTextColor.AQUA));
+        }
+        lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(text(ready ? "クリックで作る" : !levelOk ? "クラフトレベルが足りない" : "素材が足りない",
                 ready ? NamedTextColor.GREEN : NamedTextColor.RED));

@@ -6,6 +6,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -68,18 +69,19 @@ public final class CraftRegistry {
             ingredients.put(itemId, Math.max(1, ingredientSection.getInt(itemId, 1)));
         }
 
-        Map<StatType, int[]> pool = new LinkedHashMap<>();
-        ConfigurationSection poolSection = section.getConfigurationSection("bonus-pool");
-        if (poolSection != null) {
-            for (String key : poolSection.getKeys(false)) {
-                var type = StatType.fromConfigKey(key);
-                List<Integer> range = poolSection.getIntegerList(key);
-                if (type.isEmpty() || range.size() < 2) {
-                    plugin.getLogger().warning("crafting: bad bonus '" + key + "' in recipe " + id);
-                    continue;
-                }
-                pool.put(type.get(), new int[]{Math.min(range.get(0), range.get(1)), Math.max(range.get(0), range.get(1))});
+        // the stats a craft can roll; how high they can go depends on the craft level (config crafting:)
+        List<StatType> pool = new ArrayList<>();
+        List<String> poolKeys = section.getStringList("bonus-pool");
+        if (poolKeys.isEmpty() && section.getConfigurationSection("bonus-pool") != null) {
+            poolKeys = new ArrayList<>(section.getConfigurationSection("bonus-pool").getKeys(false)); // old format
+        }
+        for (String key : poolKeys) {
+            var type = StatType.fromConfigKey(key);
+            if (type.isEmpty()) {
+                plugin.getLogger().warning("crafting: unknown bonus stat '" + key + "' in recipe " + id);
+                continue;
             }
+            pool.add(type.get());
         }
         recipes.put(id, new CraftRecipe(id, section.getString("name", id), result, ingredients, section.getInt("min-craft-level", 1), pool));
     }
