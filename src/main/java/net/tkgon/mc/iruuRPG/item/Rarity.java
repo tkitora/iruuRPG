@@ -1,28 +1,20 @@
 package net.tkgon.mc.iruuRPG.item;
 
-import net.kyori.adventure.text.format.NamedTextColor;
-
 import java.util.Locale;
 
 public enum Rarity {
-    COMMON(0, "Common", NamedTextColor.GRAY),
-    RARE(1, "Rare", NamedTextColor.AQUA),
-    EPIC(2, "Epic", NamedTextColor.LIGHT_PURPLE),
-    LEGENDARY(3, "Legendary", NamedTextColor.GOLD),
-    MYTHIC(4, "Mythic", NamedTextColor.RED);
+    COMMON(0, "Common"),
+    RARE(1, "Rare"),
+    EPIC(2, "Epic"),
+    LEGENDARY(3, "Legendary"),
+    MYTHIC(4, "Mythic");
 
     private final int tier;
     private final String displayName;
-    private final NamedTextColor color;
 
-    Rarity(int tier, String displayName, NamedTextColor color) {
+    Rarity(int tier, String displayName) {
         this.tier = tier;
         this.displayName = displayName;
-        this.color = color;
-    }
-
-    public NamedTextColor color() {
-        return color;
     }
 
     /** One tier up (stops at the top). */
