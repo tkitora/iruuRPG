@@ -205,6 +205,21 @@ public final class TutorialService implements TutorialDamageHook {
     }
 
     @Override
+    public boolean isProtected(LivingEntity entity) {
+        return entity != null && isTutorialEntity(entity);
+    }
+
+    @Override
+    public boolean isOwnTarget(Player player, LivingEntity entity) {
+        TutorialSession session = player == null || entity == null ? null : sessions.get(player.getUniqueId());
+        if (session == null) return false;
+
+        UUID id = entity.getUniqueId();
+        return session.npc != null && session.npc.getUniqueId().equals(id)
+                || session.rat != null && session.rat.getUniqueId().equals(id);
+    }
+
+    @Override
     public boolean isRat(LivingEntity entity) {
         for (TutorialSession session : sessions.values()) {
             if (session.rat != null && session.rat.getUniqueId().equals(entity.getUniqueId())) return true;

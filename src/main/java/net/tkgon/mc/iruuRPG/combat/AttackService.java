@@ -147,6 +147,11 @@ public final class AttackService {
                 + "から使用できます。現在Lv" + profile.level() + "です。");
     }
 
+    /** The tutorial's NPC and rat: only the player running that tutorial can interact with them. */
+    private boolean isTutorialProtected(LivingEntity victim) {
+        return tutorialHook != null && victim != null && tutorialHook.isProtected(victim);
+    }
+
     public void setTutorialHook(TutorialDamageHook tutorialHook) {
         this.tutorialHook = tutorialHook;
     }
@@ -303,7 +308,7 @@ public final class AttackService {
     }
 
     public boolean applyDirectDamage(Player attacker, LivingEntity victim, double damage) {
-        if (DeployService.isDeployEntity(victim)) {
+        if (DeployService.isDeployEntity(victim) || isTutorialProtected(victim)) {
             return false;
         }
 
@@ -325,6 +330,9 @@ public final class AttackService {
     }
 
     public boolean applyDirectDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
+        if (isTutorialProtected(victim) && !tutorialHook.isOwnTarget(attacker, victim)) {
+            return false;
+        }
         if (tutorialHook != null && tutorialHook.isActive(attacker)) {
             if (tutorialHook.isNpc(victim)) {
                 tutorialHook.onNpcHit(attacker);
@@ -352,7 +360,7 @@ public final class AttackService {
     }
 
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage) {
-        if (DeployService.isDeployEntity(victim)) {
+        if (DeployService.isDeployEntity(victim) || isTutorialProtected(victim)) {
             return false;
         }
 
@@ -370,6 +378,9 @@ public final class AttackService {
     }
 
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
+        if (isTutorialProtected(victim) && !tutorialHook.isOwnTarget(attacker, victim)) {
+            return false;
+        }
         if (tutorialHook != null && tutorialHook.isActive(attacker)) {
             if (tutorialHook.isNpc(victim)) {
                 tutorialHook.onNpcHit(attacker);

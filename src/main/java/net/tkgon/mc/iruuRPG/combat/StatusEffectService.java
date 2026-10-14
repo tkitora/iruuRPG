@@ -64,6 +64,7 @@ public final class StatusEffectService {
     private final Set<UUID> awareDisabled = new HashSet<>();
     private RpgMobService mobService;
     private AttackEffects attackEffects;
+    private TutorialDamageHook tutorialHook;
 
     public StatusEffectService(JavaPlugin plugin, EquipmentService equipmentService, PlayerBars playerBars) {
         this.plugin = plugin;
@@ -73,6 +74,15 @@ public final class StatusEffectService {
 
     public void setMobService(RpgMobService mobService) {
         this.mobService = mobService;
+    }
+
+    public void setTutorialHook(TutorialDamageHook tutorialHook) {
+        this.tutorialHook = tutorialHook;
+    }
+
+    /** The tutorial's NPC and rat never get any status effect, from anyone. */
+    private boolean isShielded(Entity target) {
+        return tutorialHook != null && target instanceof LivingEntity living && tutorialHook.isProtected(living);
     }
 
     public void setAttackEffects(AttackEffects attackEffects) {
@@ -85,7 +95,7 @@ public final class StatusEffectService {
 
     public void onDamageDealt(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical) {
         if (attacker == null || target == null || weapon == null || damage <= 0.0) return;
-        if (target instanceof Player || DeployService.isDeployEntity(target) || target.isDead() || !target.isValid()) return;
+        if (target instanceof Player || DeployService.isDeployEntity(target) || isShielded(target) || target.isDead() || !target.isValid()) return;
 
         PlayerProfile attackerProfile = equipmentService.recalculate(attacker);
         StatSet stats = attackerProfile.finalStats();
@@ -112,6 +122,8 @@ public final class StatusEffectService {
     }
 
     private void applyOffensiveEffects(LivingEntity target, PlayerProfile attackerProfile, StatSet stats, UUID sourceId) {
+        if (isShielded(target)) return;
+
         triggerLaceration(target, stats.get(StatType.LACERATION), sourceId);
         if (!target.isValid() || target.isDead()) return;
 
@@ -312,7 +324,7 @@ public final class StatusEffectService {
     }
 
     private void applyBleed(LivingEntity target, double value, UUID sourceId, double capMultiplier) {
-        if (value <= EPSILON) return;
+        if (value <= EPSILON || isShielded(target)) return;
 
         BleedEffect bleed = bleedEffects.computeIfAbsent(target.getUniqueId(), ignored -> new BleedEffect());
         bleed.add(sourceId, value, capMultiplier);
@@ -330,7 +342,7 @@ public final class StatusEffectService {
     }
 
     private void applyTimedStack(Map<UUID, List<TimedStack>> targetMap, LivingEntity target, StatusEffectType type, double value, long durationMillis, UUID sourceId) {
-        if (value <= EPSILON || durationMillis <= 0L) return;
+        if (value <= EPSILON || durationMillis <= 0L || isShielded(target)) return;
 
         long expiresAt = System.currentTimeMillis() + durationMillis;
         targetMap.computeIfAbsent(target.getUniqueId(), ignored -> new ArrayList<>())
@@ -338,7 +350,7 @@ public final class StatusEffectService {
     }
 
     private void applyExplosion(LivingEntity target, double value, UUID sourceId) {
-        if (value <= EPSILON) return;
+        if (value <= EPSILON || isShielded(target)) return;
 
         ExplosionEffect explosion = explosionEffects.computeIfAbsent(target.getUniqueId(), ignored -> new ExplosionEffect());
         explosion.add(sourceId, value, System.currentTimeMillis() + EXPLOSION_DURATION_MILLIS);
@@ -348,7 +360,7 @@ public final class StatusEffectService {
     }
 
     private void triggerLaceration(LivingEntity target, double value, UUID sourceId) {
-        if (value <= EPSILON) return;
+        if (value <= EPSILON || isShielded(target)) return;
 
         BleedEffect bleed = bleedEffects.get(target.getUniqueId());
         double bleedAmount = bleed == null ? 0.0 : bleed.total();
@@ -358,7 +370,7 @@ public final class StatusEffectService {
     }
 
     private void applySingle(Entity target, StatusEffectType type, double value, long durationMillis, UUID sourceId, boolean refreshEvenWhenLower) {
-        if (value <= EPSILON || durationMillis <= 0L) return;
+        if (value <= EPSILON || durationMillis <= 0L || isShielded(target)) return;
 
         long expiresAt = System.currentTimeMillis() + durationMillis;
         EnumMap<StatusEffectType, ActiveEffect> active = singleEffects.computeIfAbsent(target.getUniqueId(), ignored -> new EnumMap<>(StatusEffectType.class));
@@ -435,7 +447,7 @@ public final class StatusEffectService {
     }
 
     private void applyStatusDamage(LivingEntity target, StatusEffectType type, Map<UUID, Double> amounts) {
-        if (target == null || target.isDead() || !target.isValid() || amounts == null || amounts.isEmpty()) return;
+        if (target == null || isShielded(target) || target.isDead() || !target.isValid() || amounts == null || amounts.isEmpty()) return;
 
         double total = 0.0;
         for (Map.Entry<UUID, Double> entry : amounts.entrySet()) {
@@ -479,7 +491,7 @@ public final class StatusEffectService {
      * (config combat.status-effects.confusion-stun-ticks, default 40 = 2s) and the stack is cleared.
      */
     private void applyConfusionStack(LivingEntity target, double add, long durationMillis, UUID sourceId) {
-        if (add <= EPSILON || durationMillis <= 0L) return;
+        if (add <= EPSILON || durationMillis <= 0L || isShielded(target)) return;
         if (isStunned(target)) return;
 
         long expiresAt = System.currentTimeMillis() + durationMillis;
@@ -596,7 +608,7 @@ public final class StatusEffectService {
         }
         for (Entity entity : world.getNearbyEntities(center, radius, radius, radius)) {
             if (!(entity instanceof LivingEntity living) || living.equals(origin)) continue;
-            if (living instanceof Player || living instanceof ArmorStand || DeployService.isDeployEntity(living)) continue;
+            if (living instanceof Player || living instanceof ArmorStand || DeployService.isDeployEntity(living) || isShielded(living)) continue;
             if (!living.isValid() || living.isDead()) continue;
             if (living.getLocation().distanceSquared(center) > radius * radius) continue;
             victims.add(living);

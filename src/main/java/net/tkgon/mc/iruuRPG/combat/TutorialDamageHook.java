@@ -18,6 +18,15 @@ public interface TutorialDamageHook {
     /** The player tried to hit the NPC. */
     void onNpcHit(Player attacker);
 
+    /**
+     * True for any entity the tutorial spawned (NPC, rat). Nobody but the tutorial player can hurt them, and nothing
+     * (damage, debuffs, area effects) may ever land on them from other players.
+     */
+    boolean isProtected(LivingEntity entity);
+
+    /** True if the entity is the NPC or the rat of this player's own tutorial run. */
+    boolean isOwnTarget(Player player, LivingEntity entity);
+
     /** True if the entity is the tutorial's practice rat. */
     boolean isRat(LivingEntity entity);
 
