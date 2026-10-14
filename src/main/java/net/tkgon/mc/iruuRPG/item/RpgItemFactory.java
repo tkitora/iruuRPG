@@ -6,6 +6,8 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
 import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.stat.StatLabels;
+import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Bukkit;
 import org.bukkit.enchantments.Enchantment;
@@ -20,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 public final class RpgItemFactory {
@@ -37,12 +40,26 @@ public final class RpgItemFactory {
     }
 
     public ItemStack create(RpgItemDefinition definition) {
+        return build(definition, definition.rarity(), null);
+    }
+
+    /**
+     * A crafted item: its rarity may differ from the recipe's base item, and the stat bonuses it got are listed in
+     * their own dashed section between the stats and the description.
+     */
+    public ItemStack createCrafted(RpgItemDefinition definition, Rarity rarity, StatSet bonus) {
+        ItemStack item = build(definition, rarity, bonus);
+        identifier.setBonusStats(item, bonus);
+        return item;
+    }
+
+    private ItemStack build(RpgItemDefinition definition, Rarity rarity, StatSet craftedBonus) {
         ItemStack item = new ItemStack(definition.material());
         ItemMeta meta = item.getItemMeta();
 
         if (meta != null) {
-            meta.displayName(displayName(definition));
-            meta.lore(lore(definition));
+            meta.displayName(displayName(definition, rarity));
+            meta.lore(lore(definition, rarity, craftedBonus));
             meta.setUnbreakable(true);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_UNBREAKABLE);
             applyVisualOptions(definition, meta);
@@ -73,13 +90,13 @@ public final class RpgItemFactory {
         }
     }
 
-    private Component displayName(RpgItemDefinition definition) {
+    private Component displayName(RpgItemDefinition definition, Rarity itemRarity) {
         Component name = Component.text(definition.name(), color(definition.element()));
-        if (definition.rarity().tier() <= 0) {
+        if (itemRarity.tier() <= 0) {
             return name.decoration(TextDecoration.ITALIC, false);
         }
 
-        Component rarity = rarityMarks(definition.rarity());
+        Component rarity = rarityMarks(itemRarity);
         if (rarity.equals(Component.empty())) {
             return name.decoration(TextDecoration.ITALIC, false);
         }
@@ -100,7 +117,19 @@ public final class RpgItemFactory {
                 .append(Component.text("]", NamedTextColor.AQUA));
     }
 
-    private List<Component> lore(RpgItemDefinition definition) {
+    private Component rarityLine(Rarity rarity) {
+        String mark = plugin.getConfig().getString("rarity.mark", "*");
+        String stars = rarity.tier() > 0 && mark != null ? " " + mark.repeat(rarity.tier()) : "";
+        return Component.text("レアリティ ", NamedTextColor.GRAY)
+                .append(Component.text(rarity.displayName() + stars, rarity.color(), TextDecoration.BOLD))
+                .decoration(TextDecoration.ITALIC, false);
+    }
+
+    private Component dashedLine() {
+        return Component.text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false);
+    }
+
+    private List<Component> lore(RpgItemDefinition definition, Rarity rarity, StatSet craftedBonus) {
         List<Component> lore = new ArrayList<>();
 
         lore.add(Component.text("Lv", NamedTextColor.GOLD, TextDecoration.BOLD)
@@ -108,6 +137,7 @@ public final class RpgItemFactory {
                 .append(Component.text("  " + definition.damageKind().displayName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD))
                 .append(Component.text("  " + definition.attackType().displayName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD))
                 .decoration(TextDecoration.ITALIC, false));
+        lore.add(rarityLine(rarity));
 
         for (StatType type : StatType.values()) {
             double value = definition.stats().get(type);
@@ -134,8 +164,23 @@ public final class RpgItemFactory {
 
         addSkillLore(lore, definition);
 
+        if (craftedBonus != null) {
+            lore.add(dashedLine());
+            lore.add(Component.text("✦ クラフト品", NamedTextColor.GOLD, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
+            if (craftedBonus.isEmpty()) {
+                lore.add(Component.text("  ステータスの強化なし", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+            } else {
+                lore.add(Component.text("  ステータスが強化されている", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                for (Map.Entry<StatType, Double> entry : craftedBonus.asMap().entrySet()) {
+                    lore.add(Component.text("  ▲ " + StatLabels.name(entry.getKey()) + " " + StatLabels.signed(entry.getKey(), entry.getValue()),
+                            NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
+                }
+            }
+            lore.add(dashedLine());
+        }
+
         if (!definition.description().isEmpty()) {
-            lore.add(Component.empty());
+            if (craftedBonus == null) lore.add(Component.empty());
             for (String line : definition.description()) {
                 lore.add(Component.text(line, NamedTextColor.DARK_GRAY).decoration(TextDecoration.ITALIC, false));
             }
