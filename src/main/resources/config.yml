@@ -225,3 +225,18 @@ craft-caps:
     element-damage: 2000
     element-damage-percent: 15
     element-resist: 20
+
+# フリーマーケット (/market)。ゴールドの名前は quest.currency-name
+market:
+  max-price: 1000000          # 単価の上限
+  max-quantity: 9999          # 1回の出品の個数の上限
+  max-delay-hours: 168        # 購入可能までの期間の上限 (時間)
+  max-duration-hours: 168     # 購入可能期間の上限 (時間)
+  max-listings-per-player: 10 # 同時に出品できる件数
+  # 手数料 = 値段の分 + 個数の分 + 待ち時間の分 + 販売期間の分 (それぞれ切り上げ、合計は最低 minimum)
+  fee:
+    price-percent: 1.0                # 総額 (単価×個数) の何%
+    per-item: 1.0                     # 1個あたり何ゴールド
+    delay-percent-per-hour: 0.1       # 購入可能までの待ち時間 1時間あたり、総額の何%
+    duration-percent-per-day: 0.5     # 購入可能期間 1日あたり、総額の何%
+    minimum: 1
