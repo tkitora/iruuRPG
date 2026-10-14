@@ -162,11 +162,7 @@ public final class CraftMenu implements Listener {
             List<Component> lore = new ArrayList<>(meta.lore() == null ? List.<Component>of() : meta.lore());
             lore.add(Component.empty());
             lore.add(text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY));
-            lore.add(text("作ると、次のステータスが強化されることがある", NamedTextColor.AQUA));
-            for (StatType type : recipe.bonusPool()) {
-                lore.add(text("  " + StatLabels.name(type) + " +1〜" + service.capFor(type, level), NamedTextColor.AQUA));
-            }
-            lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
+            addCandidates(lore, recipe, definition, level);
             meta.lore(lore);
             stack.setItemMeta(meta);
         }
@@ -188,12 +184,12 @@ public final class CraftMenu implements Listener {
         holder.inventory.setItem(CENTER, item(Material.ANVIL, "カンカン…", NamedTextColor.GOLD, List.of(text("叩いて、形にしている", NamedTextColor.GRAY)), false));
         int index = 0;
         for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
-            if (index >= MATERIAL_SLOTS.length) break;
+            if (index >= 3) break; // rows 1-3 only: the progress bar takes the bottom row
             Material icon = itemRegistry.find(entry.getKey()).map(definition -> definition.material()).orElse(Material.PAPER);
             holder.inventory.setItem(MATERIAL_SLOTS[index++], item(icon, service.itemName(entry.getKey()), NamedTextColor.GRAY, List.of(), false));
         }
-        for (int bar = 0; bar < 4; bar++) {
-            holder.inventory.setItem(progressSlot(bar), item(Material.GRAY_STAINED_GLASS_PANE, "…", NamedTextColor.DARK_GRAY, List.of(), false));
+        for (int slot = 37; slot <= 43; slot++) {
+            holder.inventory.setItem(slot, item(Material.GRAY_STAINED_GLASS_PANE, "…", NamedTextColor.DARK_GRAY, List.of(), false));
         }
 
         // between the hits the border shimmers and the anvil "bounces"
@@ -219,7 +215,9 @@ public final class CraftMenu implements Listener {
     private void onHit(Player player, Holder holder, int hit) {
         if (holder.screen != Screen.WORKING || !isViewing(player, holder)) return;
 
-        holder.inventory.setItem(progressSlot(hit - 1), item(Material.LIME_STAINED_GLASS_PANE, hit + " / 4", NamedTextColor.GREEN, List.of(), true));
+        for (int slot : progressSlots(hit)) {
+            holder.inventory.setItem(slot, item(Material.LIME_STAINED_GLASS_PANE, hit + " / 4", NamedTextColor.GREEN, List.of(), true));
+        }
         // a flash of orange/yellow panes on every hit
         Material flash = hit % 2 == 0 ? Material.ORANGE_STAINED_GLASS_PANE : Material.YELLOW_STAINED_GLASS_PANE;
         for (int slot = 0; slot < SIZE; slot++) {
@@ -403,8 +401,14 @@ public final class CraftMenu implements Listener {
         }
     }
 
-    private static int progressSlot(int index) {
-        return 38 + index; // 38..41
+    /** The progress bar is the middle row of seven slots, filling from the center outward so it is always symmetric. */
+    private static int[] progressSlots(int hit) {
+        return switch (hit) {
+            case 1 -> new int[]{40};
+            case 2 -> new int[]{39, 41};
+            case 3 -> new int[]{38, 42};
+            default -> new int[]{37, 43};
+        };
     }
 
     private boolean isViewing(Player player, Holder holder) {
@@ -413,13 +417,29 @@ public final class CraftMenu implements Listener {
 
     // ---- items -------------------------------------------------------------------------------------------------------
 
+    /** The stats a craft might enhance, with the highest value possible at the current craft level. */
+    private void addCandidates(List<Component> lore, CraftRecipe recipe, RpgItemDefinition definition, int level) {
+        lore.add(text("作ると、次のステータスが強化されることがある", NamedTextColor.AQUA));
+        for (StatType type : recipe.bonusPool()) {
+            lore.add(text("  " + StatLabels.name(type) + " +1〜" + service.capFor(type, level, definition)
+                    + (StatLabels.isPercent(type) ? "%" : ""), NamedTextColor.AQUA));
+        }
+        lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
+    }
+
+    /** A list entry: the finished item itself (its stats and description), then what it needs and might get. */
     private ItemStack recipeItem(Player player, CraftRecipe recipe, int level) {
-        Material icon = itemRegistry.find(recipe.resultItemId()).map(definition -> definition.material()).orElse(Material.PAPER);
+        RpgItemDefinition definition = itemRegistry.find(recipe.resultItemId()).orElse(null);
         boolean levelOk = level >= recipe.minCraftLevel();
         boolean hasAll = service.hasIngredients(player, recipe);
         boolean ready = levelOk && hasAll;
 
-        List<Component> lore = new ArrayList<>();
+        ItemStack stack = definition == null ? new ItemStack(Material.PAPER) : itemFactory.create(definition);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) return stack;
+
+        List<Component> lore = new ArrayList<>(meta.lore() == null ? List.<Component>of() : meta.lore());
+        lore.add(text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY));
         lore.add(text("必要な素材", NamedTextColor.GRAY));
         for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
             int have = service.count(player, entry.getKey());
@@ -427,19 +447,19 @@ public final class CraftMenu implements Listener {
             lore.add(text((enough ? "✔ " : "✖ ") + service.itemName(entry.getKey()) + " " + have + "/" + entry.getValue(),
                     enough ? NamedTextColor.GREEN : NamedTextColor.RED));
         }
-        lore.add(Component.empty());
         if (recipe.minCraftLevel() > 1) {
             lore.add(text("必要なクラフトレベル: " + recipe.minCraftLevel(), levelOk ? NamedTextColor.WHITE : NamedTextColor.RED));
         }
-        lore.add(text("強化されることがあるステータス", NamedTextColor.AQUA));
-        for (StatType type : recipe.bonusPool()) {
-            lore.add(text("  " + StatLabels.name(type) + " +1〜" + service.capFor(type, level), NamedTextColor.AQUA));
-        }
-        lore.add(text("  (付かないこともある。付く数と値は完全にランダム)", NamedTextColor.GRAY));
+        lore.add(Component.empty());
+        addCandidates(lore, recipe, definition, level);
         lore.add(Component.empty());
         lore.add(text(ready ? "クリックで作る" : !levelOk ? "クラフトレベルが足りない" : "素材が足りない",
                 ready ? NamedTextColor.GREEN : NamedTextColor.RED));
-        return item(icon, recipe.name(), ready ? NamedTextColor.GREEN : NamedTextColor.GRAY, lore, ready);
+        meta.lore(lore);
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS);
+        if (ready) meta.addEnchant(Enchantment.LUCK, 1, true);
+        stack.setItemMeta(meta);
+        return stack;
     }
 
     private ItemStack pane(Material material) {

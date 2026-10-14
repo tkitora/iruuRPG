@@ -51,6 +51,11 @@ public final class StatLabels {
     private StatLabels() {
     }
 
+    /** True for stats stored as fractions (0.01 = 1%). */
+    public static boolean isFraction(StatType type) {
+        return FRACTION_STATS.contains(type);
+    }
+
     public static String name(StatType type) {
         return NAMES.getOrDefault(type, type.key());
     }

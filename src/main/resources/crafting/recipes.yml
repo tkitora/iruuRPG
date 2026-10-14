@@ -5,8 +5,8 @@
 # min-craft-level:    必要なクラフトレベル
 # bonus-pool:         ランダムに付く強化の候補 (ステータス名のリスト)
 #   付くかどうか・何個付くかはクラフトレベルで変わり、何も付かないこともある。
-#   値は 1 から「そのレベルでの上限」までの完全ランダム。上限は config.yml の crafting: で、
-#   いまのゲームの装備の強さ (レベルごとの基準) に合わせて決まる
+#   値は 1 から「そのレベルでの上限」までの完全ランダム。上限は config.yml の crafting.stat-max
+#   (クラフトレベル最大のときの最大値) に、いまのクラフトレベルの割合をかけた値
 
 recipes:
   craft_fang_sword:
@@ -57,6 +57,7 @@ recipes:
       - max-hp
       - defense
       - damage-reduction
+      - physical-resist
   craft_herb_leggings:
     name: "月光草の脚当て"
     result: craft_herb_leggings
@@ -68,4 +69,4 @@ recipes:
       - max-hp
       - defense
       - hp-regen
-      - move-speed
+      - magic-resist
