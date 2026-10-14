@@ -81,7 +81,7 @@ public final class CraftService implements Listener {
     }
 
     public int maxLevel() {
-        return Math.max(1, plugin.getConfig().getInt("crafting.max-level", 20));
+        return Math.max(1, plugin.getConfig().getInt("craft-caps.max-level", 255));
     }
 
     public int level(Player player) {
@@ -249,66 +249,42 @@ public final class CraftService implements Listener {
 
     /** Builds the result item: every two stat bonuses lift it one rarity tier above the plain recipe item. */
     private ItemStack createResult(RpgItemDefinition definition, CraftRecipe recipe, int level) {
-        StatSet bonus = rollBonus(recipe, level);
+        StatSet bonus = rollBonus(recipe, level, definition);
         Rarity rarity = definition.rarity().up(bonus.asMap().size() / 2);
         return itemFactory.createCrafted(definition, rarity, bonus);
     }
 
     // ---- random stats: cap by the game's current scale, value fully random below the cap -----------------------
 
-    /** Gear "efficiency" (weapon damage + armor defense of a well-equipped character) at a character level. */
-    private double efficiency(double characterLevel) {
-        List<?> curve = plugin.getConfig().getList("crafting.efficiency-curve");
-        double[][] points = {{1, 35}, {20, 150}, {100, 1300}, {200, 2700}};
-        if (curve != null && curve.size() >= 2) {
-            double[][] parsed = new double[curve.size()][];
-            boolean ok = true;
-            for (int index = 0; index < curve.size(); index++) {
-                if (curve.get(index) instanceof List<?> pair && pair.size() >= 2
-                        && pair.get(0) instanceof Number x && pair.get(1) instanceof Number y) {
-                    parsed[index] = new double[]{x.doubleValue(), y.doubleValue()};
-                } else {
-                    ok = false;
-                }
-            }
-            if (ok) points = parsed;
+    private static final java.util.Set<StatType> DEBUFF_STATS = java.util.EnumSet.of(
+            StatType.BLEED, StatType.CORROSION, StatType.DECAY, StatType.LACERATION, StatType.CONFUSION, StatType.EXPLOSION);
+
+    /** The largest value of a stat at craft level {@code maxLevel}, as shown to the player (resists in percent). */
+    public double maxAtTopLevel(StatType type, RpgItemDefinition definition) {
+        var config = plugin.getConfig();
+        if (DEBUFF_STATS.contains(type)) {
+            // other debuffs: a multiple of the weapon's own weapon damage
+            double weaponDamage = definition == null ? 0.0 : definition.stats().get(StatType.WEAPON_DAMAGE);
+            return config.getDouble("craft-caps.debuff-weapon-multiplier", 200.0) * weaponDamage;
         }
-        if (characterLevel <= points[0][0]) return points[0][1];
-        for (int index = 1; index < points.length; index++) {
-            if (characterLevel <= points[index][0]) {
-                double span = points[index][0] - points[index - 1][0];
-                double t = span <= 0 ? 1.0 : (characterLevel - points[index - 1][0]) / span;
-                return points[index - 1][1] + (points[index][1] - points[index - 1][1]) * t;
-            }
-        }
-        return points[points.length - 1][1];
+        return config.getDouble("craft-caps.stat-max." + type.key(), 0.0);
     }
 
     /**
-     * The highest value a random stat can get at this craft level. It follows the game's current scale: the craft
-     * level maps to a character level, and the cap is a share of what a level-appropriate piece of gear has.
+     * The highest value a random stat can get at this craft level: the stat's maximum at the top craft level,
+     * scaled in proportion to the level (so a low craft level never gets a top-level value). Shown in whole numbers.
      */
-    public int capFor(StatType type, int craftLevel) {
-        var config = plugin.getConfig();
-        double characterLevel = craftLevel * config.getDouble("crafting.level-to-character-level", 10.0);
-        double share = config.getDouble("crafting.bonus-share", 0.15);
-        double cap;
-        if (config.isSet("crafting.stat-scale." + type.key())) {
-            cap = config.getDouble("crafting.stat-scale." + type.key()) * efficiency(characterLevel) * share;
-        } else if (config.isSet("crafting.stat-cap." + type.key())) {
-            cap = config.getDouble("crafting.stat-cap." + type.key()) * Math.max(0.05, Math.min(1.0, characterLevel / 200.0));
-        } else {
-            cap = 1.0;
-        }
-        return (int) Math.max(1L, Math.round(cap));
+    public int capFor(StatType type, int craftLevel, RpgItemDefinition definition) {
+        double share = Math.max(0.0, Math.min(1.0, craftLevel / (double) maxLevel()));
+        return (int) Math.max(1L, Math.round(maxAtTopLevel(type, definition) * share));
     }
 
     /**
      * Random stats: each of up to (1 + level / step) slots is filled with a chance that grows with the craft level
      * (so there may be none), with a stat picked at random from the recipe's pool, and a value that is completely
-     * random from 1 up to that stat's cap at this level.
+     * random from 1 up to that stat's cap at this level (the cap grows in proportion to the craft level).
      */
-    StatSet rollBonus(CraftRecipe recipe, int level) {
+    StatSet rollBonus(CraftRecipe recipe, int level, RpgItemDefinition definition) {
         var config = plugin.getConfig();
         double chance = Math.min(config.getDouble("crafting.max-chance", 0.85),
                 config.getDouble("crafting.base-chance", 0.2) + config.getDouble("crafting.chance-per-level", 0.05) * level);
@@ -325,7 +301,9 @@ public final class CraftService implements Listener {
             if (random.nextDouble() >= chance) continue;
 
             StatType type = pool.get(filled++);
-            bonus.add(type, 1 + random.nextInt(capFor(type, level)));
+            double value = 1 + random.nextInt(capFor(type, level, definition));
+            // resists are stored as fractions (0.01 = 1%) but rolled in percent
+            bonus.add(type, StatLabels.isFraction(type) ? value / 100.0 : value);
         }
         return bonus;
     }

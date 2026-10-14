@@ -174,7 +174,6 @@ quest:
 crafting:
   # クラフトを1回するたびに経験が1たまり、この回数ごとにクラフトレベルが1上がる
   crafts-per-level: 3
-  max-level: 20
   # ランダム強化: 1つの強化が付く確率 = base-chance + chance-per-level * レベル (上限 max-chance)
   # 強化の最大数 = 1 + レベル / slots-level-step (上限 max-slots)
   base-chance: 0.2
@@ -182,27 +181,43 @@ crafting:
   max-chance: 0.85
   slots-level-step: 4
   max-slots: 4
-  # ランダム強化の値の上限: クラフトレベル → キャラレベルに直し (level-to-character-level 倍)、
-  # そのレベルの標準的な装備の強さ(efficiency-curve) の一部 (bonus-share) までを上限にする。
-  # 値は 1 からその上限までの完全ランダム
-  level-to-character-level: 10
-  bonus-share: 0.15
-  efficiency-curve: [[1, 35], [20, 150], [100, 1300], [200, 2700]]
-  # stat-scale: efficiency 1あたりの値 (上限 = 値 × efficiency × bonus-share)
-  stat-scale:
-    strength: 0.023
-    magic: 0.023
-    melee-damage: 0.34
-    range-damage: 0.34
-    max-hp: 0.75
-    defense: 0.15
-    max-mp: 0.0093
-    hp-regen: 0.0185
-  # stat-cap: キャラレベル200での上限 (レベルに比例して小さくなる)
-  stat-cap:
-    crit-chance: 10
-    crit-damage: 40
-    attack-speed: 8
-    damage-reduction: 5
-    move-speed: 6
-    mp-regen: 3
+
+# クラフトのランダム強化の上限。(サーバーの config.yml に自動で足されるよう、crafting とは別の節にしてある)
+craft-caps:
+  # クラフトレベルの最大
+  max-level: 255
+  # 属性の上限 (属性ダメージ2000 / 属性ダメージ% 15 / 属性防御% 20): 属性の強化は未対応 (候補に入れられない)
+  # ランダム強化の値の上限: 「クラフトレベル最大(max-level)のときの最大値」を stat-max に書く。
+  # 実際の上限 = その値 × (いまのクラフトレベル / max-level)。値は 1 から上限までの完全ランダム。
+  # 耐性(physical-resist / magic-resist)は % で書く。
+  # 出血・腐食・腐敗・裂傷・混乱・爆破は、その武器の武器ダメージ × debuff-weapon-multiplier
+  debuff-weapon-multiplier: 200
+  stat-max:
+    max-hp: 2000
+    max-mp: 2000
+    hp-regen: 100
+    mp-regen: 100
+    weapon-damage: 50
+    strength: 1000
+    magic: 1000
+    strength-percent: 10
+    magic-percent: 10
+    melee-damage: 2000
+    range-damage: 2000
+    deploy-damage: 2000
+    melee-damage-percent: 20
+    range-damage-percent: 20
+    deploy-damage-percent: 20
+    crit-damage: 100
+    crit-chance: 20
+    magic-overload: 200
+    stability: 20
+    duration: 20
+    attack-speed: 20
+    defense: 2000
+    physical-resist: 100
+    magic-resist: 100
+    damage-reduction: 20
+    special-damage: 2000
+    absorb-percent: 5
+    slow-percent: 30
