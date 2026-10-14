@@ -16,9 +16,15 @@ public final class MarketListing {
     private final long listedAt;
     private final long availableAt;
     private final long expiresAt;
+    private final boolean infinite;
 
     public MarketListing(long id, UUID sellerId, String sellerName, ItemStack item, int remaining, long unitPrice,
                          long listedAt, long availableAt, long expiresAt) {
+        this(id, sellerId, sellerName, item, remaining, unitPrice, listedAt, availableAt, expiresAt, false);
+    }
+
+    public MarketListing(long id, UUID sellerId, String sellerName, ItemStack item, int remaining, long unitPrice,
+                         long listedAt, long availableAt, long expiresAt, boolean infinite) {
         this.id = id;
         this.sellerId = sellerId;
         this.sellerName = sellerName;
@@ -29,6 +35,7 @@ public final class MarketListing {
         this.listedAt = listedAt;
         this.availableAt = availableAt;
         this.expiresAt = expiresAt;
+        this.infinite = infinite;
     }
 
     public long id() {
@@ -70,6 +77,11 @@ public final class MarketListing {
 
     public long expiresAt() {
         return expiresAt;
+    }
+
+    /** An operator listing that never runs out. */
+    public boolean infinite() {
+        return infinite;
     }
 
     public boolean isAvailable(long now) {

@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.market.MarketBuyOffer;
 import net.tkgon.mc.iruuRPG.market.MarketListing;
 import net.tkgon.mc.iruuRPG.market.MarketService;
 import org.bukkit.Bukkit;
@@ -39,7 +40,7 @@ public final class MarketMenu implements Listener {
     private static final int PAGE_SIZE = 45;
     private static final Material FRAME = Material.CYAN_STAINED_GLASS_PANE;
 
-    private enum Screen { HOME, BROWSE, BUY, SELL, MINE }
+    private enum Screen { HOME, BROWSE, BUY, SELL, MINE, OFFERS, OFFER_QTY, OFFER_EDIT, ADMIN, HOUSE }
 
     private enum Sort {
         NEWEST("新しい順"), CHEAPEST("安い順"), ENDING("終わりが近い順");
@@ -97,6 +98,15 @@ public final class MarketMenu implements Listener {
         mine.add(text("受け取れる売上: " + money + " " + service.currencyName(), NamedTextColor.GOLD));
         mine.add(text("受け取れる返却品: " + stacks + " 組", NamedTextColor.AQUA));
         inventory.setItem(31, item(Material.BOOK, "自分の出品・受け取り", NamedTextColor.AQUA, mine));
+        inventory.setItem(29, item(Material.GOLD_BLOCK, "買取 (運営に売る)", NamedTextColor.YELLOW, List.of(
+                text("運営 (iruuRPG) が決まった値段で買い取ります", NamedTextColor.GRAY),
+                text("買取の種類: " + service.offers().size() + " 件", NamedTextColor.YELLOW))));
+        holder.actions.put(29, "offers");
+        if (player.hasPermission(MarketService.ADMIN_PERMISSION)) {
+            inventory.setItem(33, item(Material.NETHER_STAR, "運営メニュー", NamedTextColor.LIGHT_PURPLE, List.of(
+                    text("iruuRPG として出品・買取・回収をします", NamedTextColor.GRAY))));
+            holder.actions.put(33, "admin");
+        }
         inventory.setItem(45, item(Material.ARROW, "メインメニューへ", NamedTextColor.GRAY, List.of()));
         holder.actions.put(20, "browse");
         holder.actions.put(24, "sell");
@@ -125,12 +135,20 @@ public final class MarketMenu implements Listener {
             int at = holder.page * PAGE_SIZE + index;
             if (at >= shown.size()) break;
             MarketListing listing = shown.get(at);
-            inventory.setItem(index, listingItem(listing, now, holder.ownerId));
-            holder.actions.put(index, "L:" + listing.id());
+            ItemStack shownItem = listingItem(listing, now, holder.ownerId);
+            if (holder.manage) {
+                ItemMeta shownMeta = shownItem.getItemMeta();
+                List<Component> shownLore = new ArrayList<>(shownMeta.lore() == null ? List.<Component>of() : shownMeta.lore());
+                shownLore.add(text("クリックで取り下げ (残りは出品者の受け取り場所へ)", NamedTextColor.RED));
+                shownMeta.lore(shownLore);
+                shownItem.setItemMeta(shownMeta);
+            }
+            inventory.setItem(index, shownItem);
+            holder.actions.put(index, (holder.manage ? "M:" : "L:") + listing.id());
         }
         for (int slot = PAGE_SIZE; slot < SIZE; slot++) inventory.setItem(slot, pane());
         inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
-        holder.actions.put(45, "home");
+        holder.actions.put(45, holder.manage ? "admin" : "home");
         if (holder.page > 0) {
             inventory.setItem(47, item(Material.SPECTRAL_ARROW, "前のページ", NamedTextColor.YELLOW, List.of()));
             holder.actions.put(47, "prev");
@@ -157,13 +175,13 @@ public final class MarketMenu implements Listener {
         begin(holder, Screen.BUY);
         Inventory inventory = holder.inventory;
         frame(inventory);
-        holder.buyQty = Math.max(1, Math.min(holder.buyQty, listing.remaining()));
+        holder.buyQty = Math.max(1, Math.min(holder.buyQty, listing.infinite() ? 64 * 9 : listing.remaining()));
         long total = listing.unitPrice() * holder.buyQty;
 
         inventory.setItem(13, listingItem(listing, now, holder.ownerId));
         inventory.setItem(20, step(false, "-10"));
         inventory.setItem(21, step(false, "-1"));
-        ItemStack qty = item(Material.PAPER, holder.buyQty + " 個", NamedTextColor.WHITE, List.of(text("買う個数 (残り " + listing.remaining() + ")", NamedTextColor.GRAY)));
+        ItemStack qty = item(Material.PAPER, holder.buyQty + " 個", NamedTextColor.WHITE, List.of(text(listing.infinite() ? "買う個数" : "買う個数 (残り " + listing.remaining() + ")", NamedTextColor.GRAY)));
         inventory.setItem(22, qty);
         inventory.setItem(23, step(true, "+1"));
         inventory.setItem(24, step(true, "+10"));
@@ -192,9 +210,10 @@ public final class MarketMenu implements Listener {
         Inventory inventory = holder.inventory;
         frame(inventory);
 
+        boolean house = holder.admin && holder.infinite;
         int owned = holder.template == null ? 0 : service.count(player, holder.template);
-        if (holder.template != null && owned <= 0) holder.template = null;
-        holder.qty = Math.max(1, Math.min(holder.qty, Math.max(1, Math.min(owned, service.maxQuantity()))));
+        if (holder.template != null && owned <= 0 && !house) holder.template = null;
+        holder.qty = Math.max(1, Math.min(holder.qty, house ? service.maxQuantity() : Math.max(1, Math.min(owned, service.maxQuantity()))));
         holder.price = Math.max(1, Math.min(holder.price, service.maxPrice()));
         holder.delay = Math.max(0, Math.min(holder.delay, service.maxDelayHours()));
         holder.duration = Math.max(1, Math.min(holder.duration, service.maxDurationHours()));
@@ -226,7 +245,7 @@ public final class MarketMenu implements Listener {
         settingRow(inventory, holder, 4, "duration", Material.REPEATER, "購入可能期間 " + hours(holder.duration),
                 List.of(text("買えるようになってから、売れ残りが返ってくるまで", NamedTextColor.GRAY), text("最大 " + hours(service.maxDurationHours()), NamedTextColor.GRAY)), new int[]{1, 6, 24});
 
-        MarketService.Fee fee = service.fee(holder.price, holder.qty, holder.delay, holder.duration);
+        MarketService.Fee fee = holder.admin ? new MarketService.Fee(0, 0, 0, 0, 0) : service.fee(holder.price, holder.qty, holder.delay, holder.duration);
         long value = holder.price * holder.qty;
         long gold = service.gold(player);
         List<Component> feeLore = new ArrayList<>();
@@ -240,11 +259,17 @@ public final class MarketMenu implements Listener {
         for (int slot = 36 + 9; slot < SIZE; slot++) inventory.setItem(slot, pane());
         inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
         inventory.setItem(47, item(Material.PAPER, "手数料", NamedTextColor.GOLD, feeLore));
-        boolean ready = holder.template != null && owned >= holder.qty && gold >= fee.total();
-        inventory.setItem(51, item(ready ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE, "出品する", ready ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
-                text(ready ? "クリックで出品 (手数料 " + fee.total() + ")" : holder.template == null ? "アイテムを選んでください" : owned < holder.qty ? "持っている数が足りません" : "手数料が足りません",
+        boolean ready = holder.template != null && (house || owned >= holder.qty) && gold >= fee.total();
+        inventory.setItem(51, item(ready ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE, holder.admin ? "iruuRPG として出品する" : "出品する", ready ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                text(ready ? (holder.admin ? "クリックで出品 (手数料なし)" : "クリックで出品 (手数料 " + fee.total() + ")") : holder.template == null ? "アイテムを選んでください" : owned < holder.qty ? "持っている数が足りません" : "手数料が足りません",
                         ready ? NamedTextColor.WHITE : NamedTextColor.RED))));
-        holder.actions.put(45, "home");
+        if (holder.admin) {
+            inventory.setItem(49, item(holder.infinite ? Material.ENDER_CHEST : Material.CHEST, holder.infinite ? "在庫: 無限" : "在庫: 持ち物から出す", holder.infinite ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.WHITE, List.of(
+                    text("無限: 持ち物を使わず、売れても減らない", NamedTextColor.GRAY),
+                    text("クリックで切り替え", NamedTextColor.GRAY))));
+            holder.actions.put(49, "inf");
+        }
+        holder.actions.put(45, holder.admin ? "admin" : "home");
         holder.actions.put(51, "list");
     }
 
@@ -295,6 +320,258 @@ public final class MarketMenu implements Listener {
         if (mine.isEmpty()) inventory.setItem(22, item(Material.PAPER, "出品中のものはありません", NamedTextColor.GRAY, List.of()));
     }
 
+    private void renderOffers(Player player, Holder holder) {
+        begin(holder, Screen.OFFERS);
+        Inventory inventory = holder.inventory;
+        List<MarketBuyOffer> offers = service.offers();
+        for (int index = 0; index < offers.size() && index < PAGE_SIZE; index++) {
+            MarketBuyOffer offer = offers.get(index);
+            ItemStack stack = offer.item();
+            ItemMeta meta = stack.getItemMeta();
+            if (meta != null) {
+                List<Component> lore = new ArrayList<>(meta.lore() == null ? List.<Component>of() : meta.lore());
+                lore.add(text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY));
+                lore.add(text("買取価格: " + offer.unitPrice() + " " + service.currencyName() + " (1個)", NamedTextColor.GOLD));
+                lore.add(text(offer.unlimited() ? "買取の残り: 無制限" : "買取の残り: " + offer.remaining() + " 個", NamedTextColor.YELLOW));
+                if (holder.manage) {
+                    lore.add(text("クリックで買取をやめる", NamedTextColor.RED));
+                } else {
+                    lore.add(text("持っている数: " + service.count(player, offer.item()), NamedTextColor.GRAY));
+                    lore.add(text("クリックで売る", NamedTextColor.GREEN));
+                }
+                meta.lore(lore);
+                stack.setItemMeta(meta);
+            }
+            inventory.setItem(index, stack);
+            holder.actions.put(index, (holder.manage ? "OM:" : "O:") + offer.id());
+        }
+        for (int slot = PAGE_SIZE; slot < SIZE; slot++) inventory.setItem(slot, pane());
+        inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
+        holder.actions.put(45, holder.manage ? "admin" : "home");
+        inventory.setItem(49, item(Material.GOLD_INGOT, "所持金 " + service.gold(player) + " " + service.currencyName(), NamedTextColor.GOLD, List.of(
+                text(offers.isEmpty() ? "いまは買取がありません" : holder.manage ? "やめたい買取をクリック" : "売りたいものをクリック", NamedTextColor.WHITE))));
+    }
+
+    private void renderOfferQty(Player player, Holder holder) {
+        MarketBuyOffer offer = service.findOffer(holder.offerId);
+        if (offer == null) {
+            player.sendMessage(Component.text("[フリマ] その買取はもう終わっています。", NamedTextColor.RED));
+            renderOffers(player, holder);
+            return;
+        }
+        begin(holder, Screen.OFFER_QTY);
+        Inventory inventory = holder.inventory;
+        frame(inventory);
+        int owned = service.count(player, offer.item());
+        int cap = Math.max(1, offer.unlimited() ? owned : Math.min(owned, offer.remaining()));
+        holder.offerQty = Math.max(1, Math.min(holder.offerQty, cap));
+        long total = offer.unitPrice() * holder.offerQty;
+
+        ItemStack shown = offer.item();
+        ItemMeta meta = shown.getItemMeta();
+        if (meta != null) {
+            List<Component> lore = new ArrayList<>(meta.lore() == null ? List.<Component>of() : meta.lore());
+            lore.add(text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY));
+            lore.add(text("買取価格: " + offer.unitPrice() + " " + service.currencyName() + " (1個)", NamedTextColor.GOLD));
+            lore.add(text("持っている数: " + owned, NamedTextColor.GRAY));
+            meta.lore(lore);
+            shown.setItemMeta(meta);
+        }
+        inventory.setItem(13, shown);
+        inventory.setItem(20, step(false, "-10"));
+        inventory.setItem(21, step(false, "-1"));
+        inventory.setItem(22, item(Material.PAPER, holder.offerQty + " 個", NamedTextColor.WHITE, List.of(text("売る個数", NamedTextColor.GRAY))));
+        inventory.setItem(23, step(true, "+1"));
+        inventory.setItem(24, step(true, "+10"));
+        inventory.setItem(25, item(Material.EMERALD, "売れる最大", NamedTextColor.GREEN, List.of(text("持っている数 (買取の残りの範囲)", NamedTextColor.GRAY))));
+        inventory.setItem(31, item(Material.GOLD_INGOT, "受け取り " + total + " " + service.currencyName(), NamedTextColor.GOLD, List.of(
+                text("単価 " + offer.unitPrice() + " × " + holder.offerQty, NamedTextColor.GRAY))));
+        boolean ok = owned >= holder.offerQty && owned > 0;
+        inventory.setItem(40, item(ok ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE, "売る", ok ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                text(ok ? "クリックで売却" : "持っていません", ok ? NamedTextColor.WHITE : NamedTextColor.RED))));
+        inventory.setItem(42, item(Material.RED_CONCRETE, "やめる", NamedTextColor.RED, List.of(text("一覧に戻る", NamedTextColor.GRAY))));
+        holder.actions.put(20, "q:-10");
+        holder.actions.put(21, "q:-1");
+        holder.actions.put(23, "q:+1");
+        holder.actions.put(24, "q:+10");
+        holder.actions.put(25, "q:max");
+        holder.actions.put(40, "sell");
+        holder.actions.put(42, "offers");
+    }
+
+    private void renderOfferEdit(Player player, Holder holder) {
+        begin(holder, Screen.OFFER_EDIT);
+        Inventory inventory = holder.inventory;
+        frame(inventory);
+        holder.price = Math.max(1, Math.min(holder.price, service.maxPrice()));
+        holder.limit = Math.max(0, holder.limit);
+
+        if (holder.template == null) {
+            inventory.setItem(4, item(Material.PAPER, "買い取るアイテムを選ぶ", NamedTextColor.YELLOW, List.of(
+                    text("下の自分の持ち物の中から、アイテムをクリック", NamedTextColor.GRAY))));
+        } else {
+            inventory.setItem(4, holder.template.clone());
+        }
+        settingRow(inventory, holder, 1, "price", Material.GOLD_INGOT, "買取単価 " + holder.price + " " + service.currencyName(),
+                List.of(text("1個あたりの買取価格", NamedTextColor.GRAY)), new int[]{1, 10, 100});
+        settingRow(inventory, holder, 2, "limit", Material.HOPPER, holder.limit == 0 ? "買取の上限 なし" : "買取の上限 " + holder.limit + " 個",
+                List.of(text("これだけ買い取ったら終わり (0 は無制限)", NamedTextColor.GRAY)), new int[]{1, 10, 100});
+        for (int slot = 45; slot < SIZE; slot++) inventory.setItem(slot, pane());
+        inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
+        boolean ready = holder.template != null;
+        inventory.setItem(51, item(ready ? Material.LIME_CONCRETE : Material.GRAY_CONCRETE, "買取を始める", ready ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                text(ready ? "クリックで、この値段で買い取る" : "アイテムを選んでください", ready ? NamedTextColor.WHITE : NamedTextColor.RED))));
+        holder.actions.put(45, "admin");
+        holder.actions.put(51, "create");
+    }
+
+    private void renderAdmin(Player player, Holder holder) {
+        if (!player.hasPermission(MarketService.ADMIN_PERMISSION)) {
+            renderHome(player, holder);
+            return;
+        }
+        begin(holder, Screen.ADMIN);
+        holder.manage = false;
+        holder.admin = false;
+        Inventory inventory = holder.inventory;
+        frame(inventory);
+        inventory.setItem(4, item(Material.NETHER_STAR, "運営メニュー (iruuRPG)", NamedTextColor.LIGHT_PURPLE, List.of(
+                text("プレイヤーには iruuRPG の名前で見えます", NamedTextColor.GRAY))));
+        inventory.setItem(20, item(Material.GOLD_INGOT, "iruuRPG として出品", NamedTextColor.GOLD, List.of(
+                text("手数料なし。在庫を無限にもできる", NamedTextColor.GRAY))));
+        inventory.setItem(22, item(Material.GOLD_BLOCK, "買取を始める", NamedTextColor.YELLOW, List.of(
+                text("決まった値段で、プレイヤーから買い取る", NamedTextColor.GRAY))));
+        inventory.setItem(24, item(Material.HOPPER, "買取の管理", NamedTextColor.AQUA, List.of(
+                text("買取の一覧。クリックでやめる", NamedTextColor.GRAY), text("買取中: " + service.offers().size() + " 件", NamedTextColor.YELLOW))));
+        inventory.setItem(29, item(Material.CHEST, "全出品の管理", NamedTextColor.RED, List.of(
+                text("全員の出品の一覧。クリックで取り下げ", NamedTextColor.GRAY), text("出品中: " + service.all().size() + " 件", NamedTextColor.YELLOW))));
+        inventory.setItem(31, item(Material.CHEST_MINECART, "売上・在庫の回収", NamedTextColor.GREEN, List.of(
+                text("iruuRPG の売上: " + service.pendingProceeds(MarketService.SYSTEM_ID) + " " + service.currencyName(), NamedTextColor.GOLD),
+                text("買い取った・売れ残った品: " + service.pendingReturnStacks(MarketService.SYSTEM_ID) + " 組", NamedTextColor.AQUA))));
+        inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
+        holder.actions.put(20, "house-sell");
+        holder.actions.put(22, "offer-new");
+        holder.actions.put(24, "offer-manage");
+        holder.actions.put(29, "listing-manage");
+        holder.actions.put(31, "house");
+        holder.actions.put(45, "home");
+    }
+
+    private void renderHouse(Player player, Holder holder) {
+        begin(holder, Screen.HOUSE);
+        Inventory inventory = holder.inventory;
+        frame(inventory);
+        long money = service.pendingProceeds(MarketService.SYSTEM_ID);
+        int stacks = service.pendingReturnStacks(MarketService.SYSTEM_ID);
+        inventory.setItem(4, item(Material.NETHER_STAR, "iruuRPG の売上・在庫", NamedTextColor.LIGHT_PURPLE, List.of()));
+        inventory.setItem(22, item(Material.CHEST_MINECART, "回収する", NamedTextColor.GREEN, List.of(
+                text("売上: " + money + " " + service.currencyName() + " (自分の所持金に入る)", NamedTextColor.GOLD),
+                text("品物: " + stacks + " 組 (自分の持ち物に入る分だけ)", NamedTextColor.AQUA),
+                text("クリックで回収", NamedTextColor.GRAY))));
+        inventory.setItem(45, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of()));
+        holder.actions.put(22, "claimhouse");
+        holder.actions.put(45, "admin");
+    }
+
+    private void onOffersClick(Player player, Holder holder, String action) {
+        if (action.equals("home")) {
+            renderHome(player, holder);
+        } else if (action.equals("admin")) {
+            renderAdmin(player, holder);
+        } else if (action.startsWith("O:")) {
+            holder.offerId = Long.parseLong(action.substring(2));
+            holder.offerQty = 1;
+            renderOfferQty(player, holder);
+        } else if (action.startsWith("OM:")) {
+            String error = service.removeOffer(player, Long.parseLong(action.substring(3)));
+            if (error != null) player.sendMessage(Component.text("[フリマ] " + error, NamedTextColor.RED));
+            renderOffers(player, holder);
+        }
+    }
+
+    private void onOfferQtyClick(Player player, Holder holder, String action) {
+        MarketBuyOffer offer = service.findOffer(holder.offerId);
+        switch (action) {
+            case "offers" -> renderOffers(player, holder);
+            case "sell" -> {
+                String error = service.sellToHouse(player, holder.offerId, holder.offerQty);
+                if (error != null) {
+                    player.sendMessage(Component.text("[フリマ] " + error, NamedTextColor.RED));
+                    renderOfferQty(player, holder);
+                } else {
+                    player.sendMessage(Component.text("[フリマ] 売った! (" + holder.offerQty + " 個)", NamedTextColor.GREEN));
+                    player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.6f, 1.2f);
+                    renderOffers(player, holder);
+                }
+            }
+            case "q:max" -> {
+                if (offer != null) {
+                    int owned = service.count(player, offer.item());
+                    holder.offerQty = Math.max(1, offer.unlimited() ? owned : Math.min(owned, offer.remaining()));
+                }
+                renderOfferQty(player, holder);
+            }
+            default -> {
+                if (action.startsWith("q:")) holder.offerQty += Integer.parseInt(action.substring(2).replace("+", ""));
+                renderOfferQty(player, holder);
+            }
+        }
+    }
+
+    private void onOfferEditClick(Player player, Holder holder, String action, ClickType click) {
+        if (action.equals("admin")) {
+            renderAdmin(player, holder);
+        } else if (action.equals("create")) {
+            String error = service.addOffer(player, holder.template, holder.price, holder.limit == 0 ? -1 : holder.limit);
+            if (error != null) {
+                player.sendMessage(Component.text("[フリマ] " + error, NamedTextColor.RED));
+                renderOfferEdit(player, holder);
+            } else {
+                player.sendMessage(Component.text("[フリマ] 買取を始めた。", NamedTextColor.GREEN));
+                holder.template = null;
+                renderAdmin(player, holder);
+            }
+        } else if (action.startsWith("adj:")) {
+            String[] parts = action.split(":");
+            long multiplier = click.isShiftClick() ? 100 : click.isRightClick() ? 10 : 1;
+            long delta = Long.parseLong(parts[2]) * multiplier;
+            if (parts[1].equals("price")) holder.price += delta;
+            else if (parts[1].equals("limit")) holder.limit += (int) delta;
+            renderOfferEdit(player, holder);
+        }
+    }
+
+    private void onAdminClick(Player player, Holder holder, String action) {
+        if (!player.hasPermission(MarketService.ADMIN_PERMISSION)) return;
+        switch (action) {
+            case "home" -> renderHome(player, holder);
+            case "house-sell" -> {
+                holder.admin = true;
+                holder.infinite = true;
+                holder.template = null;
+                renderSell(player, holder);
+            }
+            case "offer-new" -> {
+                holder.template = null;
+                holder.price = 100;
+                holder.limit = 0;
+                renderOfferEdit(player, holder);
+            }
+            case "offer-manage" -> {
+                holder.manage = true;
+                renderOffers(player, holder);
+            }
+            case "listing-manage" -> {
+                holder.manage = true;
+                holder.page = 0;
+                renderBrowse(player, holder);
+            }
+            case "house" -> renderHouse(player, holder);
+            default -> {
+            }
+        }
+    }
+
     // ---- clicks -------------------------------------------------------------------------------------------------------
 
     @EventHandler
@@ -307,7 +584,7 @@ public final class MarketMenu implements Listener {
         int top = event.getView().getTopInventory().getSize();
         if (event.getRawSlot() >= top) {
             // clicking an item in the own inventory picks it to sell
-            if (holder.screen == Screen.SELL) selectItem(player, holder, event.getCurrentItem());
+            if (holder.screen == Screen.SELL || holder.screen == Screen.OFFER_EDIT) selectItem(player, holder, event.getCurrentItem());
             return;
         }
 
@@ -318,8 +595,22 @@ public final class MarketMenu implements Listener {
         switch (holder.screen) {
             case HOME -> {
                 switch (action) {
-                    case "browse" -> renderBrowse(player, holder);
-                    case "sell" -> renderSell(player, holder);
+                    case "browse" -> {
+                        holder.manage = false;
+                        renderBrowse(player, holder);
+                    }
+                    case "sell" -> {
+                        holder.admin = false;
+                        holder.infinite = false;
+                        renderSell(player, holder);
+                    }
+                    case "offers" -> {
+                        holder.manage = false;
+                        renderOffers(player, holder);
+                    }
+                    case "admin" -> {
+                        if (player.hasPermission(MarketService.ADMIN_PERMISSION)) renderAdmin(player, holder);
+                    }
                     case "mine" -> renderMine(player, holder);
                     case "main" -> {
                         if (mainMenu != null) mainMenu.open(player);
@@ -333,9 +624,14 @@ public final class MarketMenu implements Listener {
                     holder.buyId = Long.parseLong(action.substring(2));
                     holder.buyQty = 1;
                     renderBuy(player, holder);
+                } else if (action.startsWith("M:")) {
+                    String error = service.removeListing(player, Long.parseLong(action.substring(2)));
+                    if (error != null) player.sendMessage(Component.text("[フリマ] " + error, NamedTextColor.RED));
+                    renderBrowse(player, holder);
                 } else {
                     switch (action) {
                         case "home" -> renderHome(player, holder);
+                        case "admin" -> renderAdmin(player, holder);
                         case "prev" -> {
                             holder.page--;
                             renderBrowse(player, holder);
@@ -356,6 +652,18 @@ public final class MarketMenu implements Listener {
             }
             case BUY -> onBuyClick(player, holder, action);
             case SELL -> onSellClick(player, holder, action, event.getClick());
+            case OFFERS -> onOffersClick(player, holder, action);
+            case OFFER_QTY -> onOfferQtyClick(player, holder, action);
+            case OFFER_EDIT -> onOfferEditClick(player, holder, action, event.getClick());
+            case ADMIN -> onAdminClick(player, holder, action);
+            case HOUSE -> {
+                if (action.equals("claimhouse")) {
+                    service.claimHouse(player);
+                    renderHouse(player, holder);
+                } else if (action.equals("admin")) {
+                    renderAdmin(player, holder);
+                }
+            }
             case MINE -> {
                 if (action.startsWith("c:")) {
                     String error = service.cancel(player, Long.parseLong(action.substring(2)));
@@ -391,7 +699,7 @@ public final class MarketMenu implements Listener {
                 if (listing != null) {
                     long gold = service.gold(player);
                     long afford = listing.unitPrice() <= 0 ? listing.remaining() : gold / listing.unitPrice();
-                    holder.buyQty = (int) Math.max(1, Math.min(listing.remaining(), afford));
+                    holder.buyQty = (int) Math.max(1, Math.min(listing.infinite() ? 64 * 9 : listing.remaining(), afford));
                 }
                 renderBuy(player, holder);
             }
@@ -405,8 +713,15 @@ public final class MarketMenu implements Listener {
     private void onSellClick(Player player, Holder holder, String action, ClickType click) {
         if (action.equals("home")) {
             renderHome(player, holder);
+        } else if (action.equals("admin")) {
+            renderAdmin(player, holder);
+        } else if (action.equals("inf")) {
+            holder.infinite = !holder.infinite;
+            renderSell(player, holder);
         } else if (action.equals("list")) {
-            String error = service.list(player, holder.template, holder.qty, holder.price, holder.delay, holder.duration);
+            String error = holder.admin
+                    ? service.listAsHouse(player, holder.template, holder.qty, holder.price, holder.delay, holder.duration, holder.infinite)
+                    : service.list(player, holder.template, holder.qty, holder.price, holder.delay, holder.duration);
             if (error != null) {
                 player.sendMessage(Component.text("[フリマ] " + error, NamedTextColor.RED));
                 renderSell(player, holder);
@@ -414,7 +729,7 @@ public final class MarketMenu implements Listener {
                 player.sendMessage(Component.text("[フリマ] 出品した。", NamedTextColor.GREEN));
                 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.5f, 1.5f);
                 holder.template = null;
-                renderMine(player, holder);
+                if (holder.admin) renderAdmin(player, holder); else renderMine(player, holder);
             }
         } else if (action.startsWith("adj:")) {
             String[] parts = action.split(":");
@@ -442,7 +757,7 @@ public final class MarketMenu implements Listener {
         holder.template.setAmount(1);
         holder.qty = 1;
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.4f, 1.6f);
-        renderSell(player, holder);
+        if (holder.screen == Screen.OFFER_EDIT) renderOfferEdit(player, holder); else renderSell(player, holder);
     }
 
     @EventHandler
@@ -477,7 +792,7 @@ public final class MarketMenu implements Listener {
         lore.add(text("- - - - - - - - - - - -", NamedTextColor.DARK_GRAY));
         lore.add(text("出品者: " + listing.sellerName() + (listing.sellerId().equals(viewer) ? " (自分)" : ""), NamedTextColor.GRAY));
         lore.add(text("単価: " + listing.unitPrice() + " " + service.currencyName(), NamedTextColor.GOLD));
-        lore.add(text("残り: " + listing.remaining() + " 個", NamedTextColor.YELLOW));
+        lore.add(text(listing.infinite() ? "在庫: 無限 (運営)" : "残り: " + listing.remaining() + " 個", NamedTextColor.YELLOW));
         if (!listing.isAvailable(now)) {
             lore.add(text("あと " + remaining(listing.availableAt() - now) + " で購入できる", NamedTextColor.RED));
             lore.add(text("購入できる期間: " + remaining(listing.expiresAt() - listing.availableAt()), NamedTextColor.GRAY));
@@ -555,6 +870,12 @@ public final class MarketMenu implements Listener {
         private long price = 100;
         private int delay;
         private int duration = 24;
+        private boolean admin;     // selling as "iruuRPG"
+        private boolean infinite;  // operator listing that never runs out
+        private boolean manage;    // operator manage mode in the list screens
+        private long offerId;
+        private int offerQty = 1;
+        private int limit;         // buy offer limit, 0 = none
 
         private Holder(UUID ownerId) {
             this.ownerId = ownerId;

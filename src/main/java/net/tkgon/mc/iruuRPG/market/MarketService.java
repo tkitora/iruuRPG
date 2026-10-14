@@ -35,12 +35,18 @@ public final class MarketService implements Listener {
     public record Fee(long price, long quantity, long delay, long duration, long total) {
     }
 
+    /** The operator account: listings and money of "iruuRPG" itself. */
+    public static final UUID SYSTEM_ID = UUID.fromString("00000000-0000-0000-0000-00000000a001");
+    public static final String SYSTEM_NAME = "iruuRPG";
+    public static final String ADMIN_PERMISSION = "iruurpg.admin";
+
     private final JavaPlugin plugin;
     private final PlayerProfileManager profileManager;
     private final File file;
     private final Map<Long, MarketListing> listings = new LinkedHashMap<>();
     private final Map<UUID, Long> proceeds = new HashMap<>();
     private final Map<UUID, List<ItemStack>> returns = new HashMap<>();
+    private final Map<Long, MarketBuyOffer> offers = new LinkedHashMap<>();
     private long nextId = 1;
 
     public MarketService(JavaPlugin plugin, PlayerProfileManager profileManager) {
@@ -197,7 +203,8 @@ public final class MarketService implements Listener {
         if (listing == null || listing.isExpired(now)) return "その出品はもう終わっています。";
         if (!listing.isAvailable(now)) return "まだ購入できません。";
         if (listing.sellerId().equals(buyer.getUniqueId())) return "自分の出品は買えません。";
-        if (quantity < 1 || quantity > listing.remaining()) return "個数が正しくありません。(残り " + listing.remaining() + ")";
+        int cap = listing.infinite() ? Math.min(listing.remaining(), 64 * 9) : listing.remaining();
+        if (quantity < 1 || quantity > cap) return "個数が正しくありません。(最大 " + cap + ")";
 
         long total = listing.unitPrice() * quantity;
         PlayerProfile profile = profileManager.getOrCreate(buyer);
@@ -208,8 +215,10 @@ public final class MarketService implements Listener {
         profileManager.save(buyer);
         giveItems(buyer, listing.item(), quantity);
 
-        listing.setRemaining(listing.remaining() - quantity);
-        if (listing.remaining() <= 0) listings.remove(id);
+        if (!listing.infinite()) {
+            listing.setRemaining(listing.remaining() - quantity);
+            if (listing.remaining() <= 0) listings.remove(id);
+        }
         creditSeller(listing.sellerId(), total, buyer.getName(), listing.item(), quantity);
         save();
         return null;
@@ -269,7 +278,16 @@ public final class MarketService implements Listener {
 
     /** Pays out waiting sale money and hands over returned items (what does not fit stays in the box). */
     public void claim(Player player) {
-        UUID id = player.getUniqueId();
+        claimFor(player, player.getUniqueId());
+    }
+
+    /** The operator picks up the money and items of the "iruuRPG" account. */
+    public void claimHouse(Player admin) {
+        if (!admin.hasPermission(ADMIN_PERMISSION)) return;
+        claimFor(admin, SYSTEM_ID);
+    }
+
+    private void claimFor(Player player, UUID id) {
         Long money = proceeds.remove(id);
         if (money != null && money > 0) {
             PlayerProfile profile = profileManager.getOrCreate(player);
@@ -301,6 +319,105 @@ public final class MarketService implements Listener {
         save();
     }
 
+    // ---- operator (iruuRPG) -------------------------------------------------------------------------------------------
+
+    private String adminCheck(Player admin) {
+        return admin.hasPermission(ADMIN_PERMISSION) ? null : "運営だけの操作です。";
+    }
+
+    /**
+     * Lists an item as "iruuRPG": no fee. With {@code infinite} nothing is taken from the operator and the listing
+     * never runs out; otherwise the items are taken from the operator's inventory and unsold ones go to the house box.
+     */
+    public String listAsHouse(Player admin, ItemStack template, int quantity, long unitPrice, int delayHours, int durationHours, boolean infinite) {
+        String denied = adminCheck(admin);
+        if (denied != null) return denied;
+        if (template == null || template.getType().isAir()) return "出品するアイテムを選んでください。";
+        if (unitPrice < 1 || unitPrice > maxPrice()) return "単価は 1〜" + maxPrice() + " の範囲です。";
+        if (quantity < 1 || quantity > maxQuantity()) return "個数は 1〜" + maxQuantity() + " の範囲です。";
+        if (delayHours < 0 || delayHours > maxDelayHours()) return "購入可能までの期間は 0〜" + maxDelayHours() + " 時間です。";
+        if (durationHours < 1 || durationHours > maxDurationHours()) return "購入可能期間は 1〜" + maxDurationHours() + " 時間です。";
+        if (!infinite) {
+            if (count(admin, template) < quantity) return "持っている個数が足りません。";
+            removeItems(admin, template, quantity);
+        }
+
+        long now = System.currentTimeMillis();
+        long availableAt = now + delayHours * 3_600_000L;
+        long expiresAt = availableAt + durationHours * 3_600_000L;
+        MarketListing listing = new MarketListing(nextId++, SYSTEM_ID, SYSTEM_NAME, template, quantity, unitPrice, now, availableAt, expiresAt, infinite);
+        listings.put(listing.id(), listing);
+        save();
+        return null;
+    }
+
+    /** Takes any listing off the market; the rest goes to its seller's pick-up box. */
+    public String removeListing(Player admin, long id) {
+        String denied = adminCheck(admin);
+        if (denied != null) return denied;
+        MarketListing listing = listings.remove(id);
+        if (listing == null) return "その出品はもうありません。";
+
+        if (!listing.infinite()) addReturn(listing.sellerId(), listing.item(), listing.remaining());
+        Player seller = Bukkit.getPlayer(listing.sellerId());
+        if (seller != null && !listing.sellerId().equals(SYSTEM_ID)) {
+            seller.sendMessage(Component.text("[フリマ] 運営が「" + itemName(listing.item()) + "」の出品を取り下げた。残りは受け取り場所に戻っている。", NamedTextColor.YELLOW));
+        }
+        save();
+        return null;
+    }
+
+    public List<MarketBuyOffer> offers() {
+        return new ArrayList<>(offers.values());
+    }
+
+    public MarketBuyOffer findOffer(long id) {
+        return offers.get(id);
+    }
+
+    /** {@code limit} < 0 for no limit. */
+    public String addOffer(Player admin, ItemStack template, long unitPrice, int limit) {
+        String denied = adminCheck(admin);
+        if (denied != null) return denied;
+        if (template == null || template.getType().isAir()) return "買い取るアイテムを選んでください。";
+        if (unitPrice < 1 || unitPrice > maxPrice()) return "単価は 1〜" + maxPrice() + " の範囲です。";
+
+        MarketBuyOffer offer = new MarketBuyOffer(nextId++, template, unitPrice, limit);
+        offers.put(offer.id(), offer);
+        save();
+        return null;
+    }
+
+    public String removeOffer(Player admin, long id) {
+        String denied = adminCheck(admin);
+        if (denied != null) return denied;
+        if (offers.remove(id) == null) return "その買取はもうありません。";
+        save();
+        return null;
+    }
+
+    /** A player sells items to the operator at the offer's price. The items go to the house box. */
+    public String sellToHouse(Player seller, long offerId, int quantity) {
+        MarketBuyOffer offer = offers.get(offerId);
+        if (offer == null) return "その買取はもう終わっています。";
+        if (quantity < 1) return "個数が正しくありません。";
+        if (!offer.unlimited() && quantity > offer.remaining()) return "買取の残りは " + offer.remaining() + " 個です。";
+        ItemStack template = offer.item();
+        if (count(seller, template) < quantity) return "持っている個数が足りません。";
+
+        removeItems(seller, template, quantity);
+        PlayerProfile profile = profileManager.getOrCreate(seller);
+        profile.setCurrency(profile.currency() + offer.unitPrice() * quantity);
+        profileManager.save(seller);
+        addReturn(SYSTEM_ID, template, quantity);
+        if (!offer.unlimited()) {
+            offer.setRemaining(offer.remaining() - quantity);
+            if (offer.remaining() <= 0) offers.remove(offerId);
+        }
+        save();
+        return null;
+    }
+
     // ---- expiry ---------------------------------------------------------------------------------------------------------
 
     /** Moves listings whose time is up into their seller's pick-up box. */
@@ -311,7 +428,7 @@ public final class MarketService implements Listener {
             if (!listing.isExpired(now)) continue;
 
             listings.remove(listing.id());
-            addReturn(listing.sellerId(), listing.item(), listing.remaining());
+            if (!listing.infinite()) addReturn(listing.sellerId(), listing.item(), listing.remaining());
             changed = true;
             Player seller = Bukkit.getPlayer(listing.sellerId());
             if (seller != null) {
@@ -350,6 +467,7 @@ public final class MarketService implements Listener {
         listings.clear();
         proceeds.clear();
         returns.clear();
+        offers.clear();
         if (!file.exists()) return;
 
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
@@ -366,10 +484,25 @@ public final class MarketService implements Listener {
                     long id = Long.parseLong(key);
                     listings.put(id, new MarketListing(id, UUID.fromString(seller), entry.getString("seller-name", "?"), item,
                             entry.getInt("remaining"), entry.getLong("price"), entry.getLong("listed-at"),
-                            entry.getLong("available-at"), entry.getLong("expires-at")));
+                            entry.getLong("available-at"), entry.getLong("expires-at"), entry.getBoolean("infinite", false)));
                     nextId = Math.max(nextId, id + 1);
                 } catch (IllegalArgumentException e) {
                     plugin.getLogger().warning("market: skipped a damaged listing " + key);
+                }
+            }
+        }
+        ConfigurationSection offerSection = yaml.getConfigurationSection("offers");
+        if (offerSection != null) {
+            for (String key : offerSection.getKeys(false)) {
+                ConfigurationSection entry = offerSection.getConfigurationSection(key);
+                ItemStack item = entry == null ? null : entry.getItemStack("item");
+                if (item == null) continue;
+                try {
+                    long id = Long.parseLong(key);
+                    offers.put(id, new MarketBuyOffer(id, item, entry.getLong("price"), entry.getInt("remaining", -1)));
+                    nextId = Math.max(nextId, id + 1);
+                } catch (NumberFormatException e) {
+                    plugin.getLogger().warning("market: skipped a damaged buy offer " + key);
                 }
             }
         }
@@ -412,6 +545,13 @@ public final class MarketService implements Listener {
             yaml.set(base + "listed-at", listing.listedAt());
             yaml.set(base + "available-at", listing.availableAt());
             yaml.set(base + "expires-at", listing.expiresAt());
+            yaml.set(base + "infinite", listing.infinite());
+        }
+        for (MarketBuyOffer offer : offers.values()) {
+            String base = "offers." + offer.id() + ".";
+            yaml.set(base + "item", offer.item());
+            yaml.set(base + "price", offer.unitPrice());
+            yaml.set(base + "remaining", offer.remaining());
         }
         for (Map.Entry<UUID, Long> entry : proceeds.entrySet()) {
             yaml.set("proceeds." + entry.getKey(), entry.getValue());
