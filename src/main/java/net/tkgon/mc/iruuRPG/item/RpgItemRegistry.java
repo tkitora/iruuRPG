@@ -30,7 +30,19 @@ public final class RpgItemRegistry {
         this.plugin = plugin;
     }
 
+    /** Reloads every item; if loading throws, the previous definitions stay (never half empty). */
     public void reload() {
+        Map<String, RpgItemDefinition> previous = new HashMap<>(definitions);
+        try {
+            load();
+        } catch (RuntimeException e) {
+            definitions.clear();
+            definitions.putAll(previous);
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "items: reload failed, keeping the previous items", e);
+        }
+    }
+
+    private void load() {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "items");

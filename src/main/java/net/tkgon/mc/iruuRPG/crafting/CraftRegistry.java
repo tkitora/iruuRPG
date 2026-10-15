@@ -25,7 +25,19 @@ public final class CraftRegistry {
         this.plugin = plugin;
     }
 
+    /** Reloads every recipe; if loading throws, the previous recipes stay (never half empty). */
     public void reload() {
+        Map<String, CraftRecipe> previous = new LinkedHashMap<>(recipes);
+        try {
+            load();
+        } catch (RuntimeException e) {
+            recipes.clear();
+            recipes.putAll(previous);
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "crafting: reload failed, keeping the previous recipes", e);
+        }
+    }
+
+    private void load() {
         recipes.clear();
 
         File folder = new File(plugin.getDataFolder(), "crafting");
@@ -39,6 +51,8 @@ public final class CraftRegistry {
             files = folder.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".yml"));
         }
         if (files == null) return;
+        // a fixed order (by name), so a recipe id found in two files always ends up the same
+        java.util.Arrays.sort(files, (left, right) -> left.getName().compareToIgnoreCase(right.getName()));
 
         for (File file : files) {
             ConfigurationSection section = YamlConfiguration.loadConfiguration(file).getConfigurationSection("recipes");
