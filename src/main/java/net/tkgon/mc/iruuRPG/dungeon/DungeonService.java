@@ -82,6 +82,9 @@ import java.util.stream.Stream;
 public final class DungeonService implements Listener {
 
     public static final String ADMIN_PERMISSION = "iruurpg.admin";
+    /** Mobs with this tag drop nothing when they die (dungeon bosses: the rewards are in the reward room). */
+    public static final String NO_DROPS_TAG = "iruurpg_no_drops";
+    private static final double BOSS_TRIGGER_RANGE = 3.0;
     private static final String INSTANCE_PREFIX = "dungeon_instance_";
     private static final Set<String> SKIPPED_FILES = Set.of("uid.dat", "session.lock");
     private static final Set<String> SKIPPED_FOLDERS = Set.of("playerdata", "stats", "advancements");
@@ -102,6 +105,10 @@ public final class DungeonService implements Listener {
         private final Map<UUID, Downed> downed = new HashMap<>();
         private final Map<UUID, Long> exitNotice = new HashMap<>();
         private final Set<UUID> chestOpened = new HashSet<>();
+        /** road chest index -> players who opened it */
+        private final Map<Integer, Set<UUID>> roadOpened = new HashMap<>();
+        private boolean bossRoomOpened;
+        private TextDisplay triggerLabel;
         private TextDisplay exitLabel;
         private long deadline;
         private int emptySeconds;
@@ -337,12 +344,29 @@ public final class DungeonService implements Listener {
             mobService.spawnAt(location, spawn.mobId()).ifPresentOrElse(entity -> {
                 entity.getPersistentDataContainer().set(instanceKey, PersistentDataType.INTEGER, instance.number);
                 instance.mobs.add(entity.getUniqueId());
-                if (spawn.mobId().equals(instance.definition.boss())) instance.bosses.add(entity.getUniqueId());
+                if (spawn.mobId().equals(instance.definition.boss())) {
+                    instance.bosses.add(entity.getUniqueId());
+                    entity.addScoreboardTag(NO_DROPS_TAG); // the boss's rewards are in the reward room
+                }
             }, () -> plugin.getLogger().warning("dungeon " + instance.definition.id() + ": unknown mob '" + spawn.mobId() + "'"));
         }
         if (instance.mobs.isEmpty() || (instance.definition.boss() != null && instance.bosses.isEmpty())) {
             abort(instance, "敵を置けませんでした。(設定を確認してください)");
             return;
+        }
+        for (DungeonDefinition.Point road : instance.definition.roadChests()) {
+            Block block = road.in(world).getBlock();
+            block.getChunk().load();
+            if (block.getType() != Material.CHEST) block.setType(Material.CHEST);
+        }
+        if (instance.definition.bossTrigger() != null && instance.definition.bossRoom() != null) {
+            Location at = instance.definition.bossTrigger().in(world).add(0, 2.0, 0);
+            at.getChunk().load();
+            instance.triggerLabel = world.spawn(at, TextDisplay.class, display -> {
+                display.setBillboard(Display.Billboard.CENTER);
+                display.setPersistent(false);
+                display.text(triggerText(0, 1));
+            });
         }
         if (instance.definition.chest() != null) {
             Block block = instance.definition.chest().in(world).getBlock();
@@ -565,6 +589,7 @@ public final class DungeonService implements Listener {
             return;
         }
         exitParticles(instance, false);
+        tickBossTrigger(instance);
         tickDowned(instance);
         if (instance.state != State.ACTIVE) return;
         long left = instance.deadline - now;
@@ -842,8 +867,20 @@ public final class DungeonService implements Listener {
         if (!isInstanceWorld(block.getWorld())) return;
         Player player = event.getPlayer();
         Instance instance = byPlayer.get(player.getUniqueId());
-        if (instance == null || instance.definition.chest() == null) return;
+        if (instance == null) return;
+        int road = instance.definition.roadChestAt(block.getX(), block.getY(), block.getZ());
+        if (road >= 0) {
+            event.setCancelled(true);
+            if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
+            if (!instance.roadOpened.computeIfAbsent(road, key -> new HashSet<>()).add(player.getUniqueId())) {
+                player.sendMessage(Component.text("[ダンジョン] この宝箱はもう開けた。", NamedTextColor.GRAY));
+                return;
+            }
+            openChest(player, instance, DungeonLoot.loadRoad(plugin, instance.definition), "宝箱");
+            return;
+        }
         DungeonDefinition.Point chest = instance.definition.chest();
+        if (chest == null) return;
         if (block.getX() != (int) Math.floor(chest.x()) || block.getY() != (int) Math.floor(chest.y()) || block.getZ() != (int) Math.floor(chest.z())) return;
 
         event.setCancelled(true);
@@ -858,12 +895,12 @@ public final class DungeonService implements Listener {
             player.sendMessage(Component.text("[ダンジョン] 宝箱はもう開けた。(1人1回)", NamedTextColor.GRAY));
             return;
         }
-        openChest(player, instance);
+        openChest(player, instance, DungeonLoot.load(plugin, instance.definition), "報酬の宝箱");
     }
 
-    /** Rolls the chest, gives everything right away, then shows it with the flicker. */
-    private void openChest(Player player, Instance instance) {
-        DungeonLoot.Roll roll = DungeonLoot.load(plugin, instance.definition).roll();
+    /** Rolls a chest, gives everything right away, then shows it with the flicker. */
+    private void openChest(Player player, Instance instance, DungeonLoot loot, String title) {
+        DungeonLoot.Roll roll = loot.roll();
         PlayerProfile profile = profileManager.getOrCreate(player);
         profile.setCurrency(profile.currency() + roll.gold());
         profileManager.save(player);
@@ -899,11 +936,70 @@ public final class DungeonService implements Listener {
         player.sendMessage(Component.text("[ダンジョン] 宝箱: +" + roll.gold() + " " + currency() + " / 経験値 +" + roll.xp()
                 + (shownItem != null ? " / アイテム ×" + roll.amount() : ""), NamedTextColor.GOLD));
         if (rewardChestMenu != null) {
-            rewardChestMenu.open(player, Component.text("報酬の宝箱"),
+            rewardChestMenu.open(player, Component.text(title),
                     RewardChestMenu.display(Material.GOLD_INGOT, "+" + roll.gold() + " " + currency(), NamedTextColor.GOLD, List.of()),
                     RewardChestMenu.display(Material.EXPERIENCE_BOTTLE, "経験値 +" + roll.xp(), NamedTextColor.GREEN, List.of()),
                     shownItem, rare);
         }
+    }
+
+    // ---- boss room ------------------------------------------------------------------------------------------------------------
+
+    private Component triggerText(int here, int need) {
+        return Component.text("ボス部屋への入口", NamedTextColor.RED, TextDecoration.BOLD).append(Component.newline())
+                .append(Component.text("ここに集まる: " + here + " / " + need + " 人", NamedTextColor.WHITE));
+    }
+
+    /**
+     * When enough of the party stands at the trigger (party size - 1, at least 1), everyone is taken to the boss room
+     * a few seconds later (fallen teammates too: their body moves with them, so they can still be revived).
+     */
+    private void tickBossTrigger(Instance instance) {
+        DungeonDefinition definition = instance.definition;
+        if (instance.bossRoomOpened || definition.bossTrigger() == null || definition.bossRoom() == null) return;
+        Location trigger = definition.bossTrigger().in(instance.world);
+        instance.world.spawnParticle(Particle.FLAME, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
+
+        int need = Math.max(1, instance.players.size() - 1);
+        int here = 0;
+        for (UUID id : instance.players) {
+            Player player = Bukkit.getPlayer(id);
+            if (player == null || instance.downed.containsKey(id) || player.getGameMode() == GameMode.SPECTATOR) continue;
+            if (!player.getWorld().equals(instance.world)) continue;
+            if (player.getLocation().distanceSquared(trigger) <= BOSS_TRIGGER_RANGE * BOSS_TRIGGER_RANGE) here++;
+        }
+        if (instance.triggerLabel != null && instance.triggerLabel.isValid()) instance.triggerLabel.text(triggerText(here, need));
+        if (here < need) return;
+
+        instance.bossRoomOpened = true;
+        for (UUID id : instance.players) {
+            Player player = Bukkit.getPlayer(id);
+            if (player == null) continue;
+            player.showTitle(Title.title(Component.text("ボス部屋へ", NamedTextColor.RED, TextDecoration.BOLD),
+                    Component.text("3秒後に全員で移動する", NamedTextColor.GRAY),
+                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(3), Duration.ofMillis(500))));
+            player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.4f, 1.2f);
+        }
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (instance.state != State.ACTIVE || instance.world == null) return;
+            Location room = definition.bossRoom().in(instance.world);
+            room.getChunk().load();
+            for (UUID id : new ArrayList<>(instance.players)) {
+                Player player = Bukkit.getPlayer(id);
+                if (player == null || !player.getWorld().equals(instance.world) || player.isDead()) continue;
+                Downed down = instance.downed.get(id);
+                if (down != null) {
+                    // the body goes with the party
+                    down.corpse.setX(room.getX());
+                    down.corpse.setY(room.getY());
+                    down.corpse.setZ(room.getZ());
+                    if (down.label != null && down.label.isValid()) down.label.teleport(room.clone().add(0, 0.6, 0));
+                }
+                player.teleport(room);
+                player.playSound(room, Sound.BLOCK_PORTAL_TRAVEL, 0.3f, 1.4f);
+            }
+            if (instance.triggerLabel != null && instance.triggerLabel.isValid()) instance.triggerLabel.remove();
+        }, 60L);
     }
 
     // ---- team -----------------------------------------------------------------------------------------------------------------
@@ -1165,6 +1261,17 @@ public final class DungeonService implements Listener {
         if (definition.chest() != null) {
             labels.add(label(definition.chest().in(world).add(0.5, 1.5, 0.5), Component.text("報酬の宝箱", NamedTextColor.GOLD, TextDecoration.BOLD)));
         }
+        for (int index = 0; index < definition.roadChests().size(); index++) {
+            labels.add(label(definition.roadChests().get(index).in(world).add(0.5, 1.5, 0.5),
+                    Component.text("道中の宝箱 #" + (index + 1), NamedTextColor.YELLOW, TextDecoration.BOLD)));
+        }
+        if (definition.bossTrigger() != null) {
+            labels.add(label(definition.bossTrigger().in(world).add(0, 2.2, 0),
+                    Component.text("ボス部屋への入口 (集まると移動)", NamedTextColor.RED, TextDecoration.BOLD)));
+        }
+        if (definition.bossRoom() != null) {
+            labels.add(label(definition.bossRoom().in(world).add(0, 2.2, 0), Component.text("ボス部屋 (移動先)", NamedTextColor.RED, TextDecoration.BOLD)));
+        }
         markers.put(definition.templateWorldName(), labels);
     }
 
@@ -1207,6 +1314,9 @@ public final class DungeonService implements Listener {
             world.spawnParticle(Particle.COMPOSTER, definition.entry().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
             if (definition.exit() != null) {
                 world.spawnParticle(Particle.END_ROD, definition.exit().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+            }
+            if (definition.bossTrigger() != null) {
+                world.spawnParticle(Particle.FLAME, definition.bossTrigger().in(world).add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
             }
         }
     }

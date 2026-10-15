@@ -84,7 +84,8 @@ public final class RpgMobListener implements Listener {
         if (mobService.isRpgMob(event.getEntity())) {
             event.getDrops().clear();
             mobService.creditKill(event.getEntity());
-            mobService.dropRewards(event.getEntity());
+            // dungeon bosses drop nothing: their rewards are in the reward room
+            if (!event.getEntity().getScoreboardTags().contains("iruurpg_no_drops")) mobService.dropRewards(event.getEntity());
         }
         mobService.remove(event.getEntity());
     }

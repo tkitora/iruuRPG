@@ -17,6 +17,10 @@ import java.util.List;
  * @param maxPlayers        how many players one run can hold (the first one invites the others)
  * @param rewardRoom        where everyone is taken a few seconds after the clear (null: they stay where they are)
  * @param chest             the reward chest; each player opens it once for gold, XP and an item (loot/&lt;id&gt;.yml)
+ * @param bossTrigger       stand here with enough of the party (party size - 1, at least 1) and everyone is taken to
+ *                          the boss room
+ * @param bossRoom          where the party is taken by the boss trigger
+ * @param roadChests        chests along the way; each player opens each once (the "road" table of loot/&lt;id&gt;.yml)
  */
 public record DungeonDefinition(
         String id,
@@ -35,7 +39,10 @@ public record DungeonDefinition(
         DeathMode deathMode,
         int maxPlayers,
         Point rewardRoom,
-        Point chest
+        Point chest,
+        Point bossTrigger,
+        Point bossRoom,
+        List<Point> roadChests
 ) {
 
     public enum DeathMode { REVIVE, LIVES }
@@ -70,6 +77,7 @@ public record DungeonDefinition(
         closeDelaySeconds = Math.max(1, closeDelaySeconds);
         deathMode = deathMode == null ? DeathMode.REVIVE : deathMode;
         maxPlayers = Math.max(1, maxPlayers);
+        roadChests = roadChests == null ? List.of() : List.copyOf(roadChests);
     }
 
     /** The template world that is copied for each run. */
@@ -91,31 +99,55 @@ public record DungeonDefinition(
 
     public DungeonDefinition withEntry(Point point) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                point, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
+                point, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
     }
 
     public DungeonDefinition withSpawns(List<MobSpawn> newSpawns) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, newSpawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
+                entry, newSpawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
     }
 
     public DungeonDefinition withBoss(String newBoss) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, newBoss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
+                entry, spawns, newBoss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
     }
 
     public DungeonDefinition withExit(Point newExit) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, newExit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
+                entry, spawns, boss, newExit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
     }
 
     public DungeonDefinition withRewardRoom(Point newRoom) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, newRoom, chest);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, newRoom, chest, bossTrigger, bossRoom, roadChests);
     }
 
     public DungeonDefinition withChest(Point newChest) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, newChest);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, newChest, bossTrigger, bossRoom, roadChests);
+    }
+
+    public DungeonDefinition withBossTrigger(Point newTrigger) {
+        return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, newTrigger, bossRoom, roadChests);
+    }
+
+    public DungeonDefinition withBossRoom(Point newRoom) {
+        return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, newRoom, roadChests);
+    }
+
+    public DungeonDefinition withRoadChests(List<Point> newChests) {
+        return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, newChests);
+    }
+
+    /** The road chest at this block, or -1. */
+    public int roadChestAt(int x, int y, int z) {
+        for (int index = 0; index < roadChests.size(); index++) {
+            Point point = roadChests.get(index);
+            if ((int) Math.floor(point.x()) == x && (int) Math.floor(point.y()) == y && (int) Math.floor(point.z()) == z) return index;
+        }
+        return -1;
     }
 }
