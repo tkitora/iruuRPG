@@ -69,12 +69,12 @@ public final class MarketService implements Listener {
         return Math.max(1, plugin.getConfig().getInt("market.max-quantity", 9999));
     }
 
-    public int maxDelayHours() {
-        return Math.max(0, plugin.getConfig().getInt("market.max-delay-hours", 168));
+    public int maxDelayMinutes() {
+        return Math.max(0, plugin.getConfig().getInt("market.max-delay-hours", 168)) * 60;
     }
 
-    public int maxDurationHours() {
-        return Math.max(1, plugin.getConfig().getInt("market.max-duration-hours", 168));
+    public int maxDurationMinutes() {
+        return Math.max(1, plugin.getConfig().getInt("market.max-duration-hours", 168)) * 60;
     }
 
     public int maxListingsPerPlayer() {
@@ -84,14 +84,15 @@ public final class MarketService implements Listener {
     /**
      * Fee = price part (a share of the total value) + quantity part (per item) + delay part (a share of the value per
      * hour of waiting) + duration part (a share of the value per day on sale). Every part is rounded up; at least 1.
+     * The delay and the duration are in minutes.
      */
-    public Fee fee(long unitPrice, int quantity, int delayHours, int durationHours) {
+    public Fee fee(long unitPrice, int quantity, int delayMinutes, int durationMinutes) {
         var config = plugin.getConfig();
         double value = (double) unitPrice * quantity;
         long price = (long) Math.ceil(value * config.getDouble("market.fee.price-percent", 1.0) / 100.0);
         long quantityFee = (long) Math.ceil(quantity * config.getDouble("market.fee.per-item", 1.0));
-        long delay = (long) Math.ceil(value * config.getDouble("market.fee.delay-percent-per-hour", 0.1) / 100.0 * delayHours);
-        long duration = (long) Math.ceil(value * config.getDouble("market.fee.duration-percent-per-day", 0.5) / 100.0 * (durationHours / 24.0));
+        long delay = (long) Math.ceil(value * config.getDouble("market.fee.delay-percent-per-hour", 0.1) / 100.0 * (delayMinutes / 60.0));
+        long duration = (long) Math.ceil(value * config.getDouble("market.fee.duration-percent-per-day", 0.5) / 100.0 * (durationMinutes / 1440.0));
         long total = Math.max(Math.max(1L, config.getLong("market.fee.minimum", 1L)), price + quantityFee + delay + duration);
         return new Fee(price, quantityFee, delay, duration, total);
     }
@@ -139,16 +140,16 @@ public final class MarketService implements Listener {
     // ---- selling ----------------------------------------------------------------------------------------------------
 
     /** Lists the items. Returns an error text, or null on success. */
-    public String list(Player seller, ItemStack template, int quantity, long unitPrice, int delayHours, int durationHours) {
+    public String list(Player seller, ItemStack template, int quantity, long unitPrice, int delayMinutes, int durationMinutes) {
         if (template == null || template.getType().isAir()) return "出品するアイテムを選んでください。";
         if (unitPrice < 1 || unitPrice > maxPrice()) return "単価は 1〜" + maxPrice() + " の範囲です。";
         if (quantity < 1 || quantity > maxQuantity()) return "個数は 1〜" + maxQuantity() + " の範囲です。";
-        if (delayHours < 0 || delayHours > maxDelayHours()) return "購入可能までの期間は 0〜" + maxDelayHours() + " 時間です。";
-        if (durationHours < 1 || durationHours > maxDurationHours()) return "購入可能期間は 1〜" + maxDurationHours() + " 時間です。";
+        if (delayMinutes < 0 || delayMinutes > maxDelayMinutes()) return "購入可能までの期間は 0〜" + maxDelayMinutes() / 60 + " 時間です。";
+        if (durationMinutes < 1 || durationMinutes > maxDurationMinutes()) return "購入可能期間は 1 分〜" + maxDurationMinutes() / 60 + " 時間です。";
         if (listingsOf(seller.getUniqueId()).size() >= maxListingsPerPlayer()) return "出品できるのは同時に " + maxListingsPerPlayer() + " 件までです。";
         if (count(seller, template) < quantity) return "持っている個数が足りません。";
 
-        Fee fee = fee(unitPrice, quantity, delayHours, durationHours);
+        Fee fee = fee(unitPrice, quantity, delayMinutes, durationMinutes);
         PlayerProfile profile = profileManager.getOrCreate(seller);
         if (profile.currency() < fee.total()) return "手数料 " + fee.total() + " " + currencyName() + " が足りません。(所持: " + profile.currency() + ")";
 
@@ -157,8 +158,8 @@ public final class MarketService implements Listener {
         profileManager.save(seller);
 
         long now = System.currentTimeMillis();
-        long availableAt = now + delayHours * 3_600_000L;
-        long expiresAt = availableAt + durationHours * 3_600_000L;
+        long availableAt = now + delayMinutes * 60_000L;
+        long expiresAt = availableAt + durationMinutes * 60_000L;
         MarketListing listing = new MarketListing(nextId++, seller.getUniqueId(), seller.getName(), template, quantity, unitPrice, now, availableAt, expiresAt);
         listings.put(listing.id(), listing);
         save();
@@ -329,22 +330,22 @@ public final class MarketService implements Listener {
      * Lists an item as "iruuRPG": no fee. With {@code infinite} nothing is taken from the operator and the listing
      * never runs out; otherwise the items are taken from the operator's inventory and unsold ones go to the house box.
      */
-    public String listAsHouse(Player admin, ItemStack template, int quantity, long unitPrice, int delayHours, int durationHours, boolean infinite) {
+    public String listAsHouse(Player admin, ItemStack template, int quantity, long unitPrice, int delayMinutes, int durationMinutes, boolean infinite) {
         String denied = adminCheck(admin);
         if (denied != null) return denied;
         if (template == null || template.getType().isAir()) return "出品するアイテムを選んでください。";
         if (unitPrice < 1 || unitPrice > maxPrice()) return "単価は 1〜" + maxPrice() + " の範囲です。";
         if (quantity < 1 || quantity > maxQuantity()) return "個数は 1〜" + maxQuantity() + " の範囲です。";
-        if (delayHours < 0 || delayHours > maxDelayHours()) return "購入可能までの期間は 0〜" + maxDelayHours() + " 時間です。";
-        if (durationHours < 1 || durationHours > maxDurationHours()) return "購入可能期間は 1〜" + maxDurationHours() + " 時間です。";
+        if (delayMinutes < 0 || delayMinutes > maxDelayMinutes()) return "購入可能までの期間は 0〜" + maxDelayMinutes() / 60 + " 時間です。";
+        if (durationMinutes < 1 || durationMinutes > maxDurationMinutes()) return "購入可能期間は 1 分〜" + maxDurationMinutes() / 60 + " 時間です。";
         if (!infinite) {
             if (count(admin, template) < quantity) return "持っている個数が足りません。";
             removeItems(admin, template, quantity);
         }
 
         long now = System.currentTimeMillis();
-        long availableAt = now + delayHours * 3_600_000L;
-        long expiresAt = availableAt + durationHours * 3_600_000L;
+        long availableAt = now + delayMinutes * 60_000L;
+        long expiresAt = availableAt + durationMinutes * 60_000L;
         MarketListing listing = new MarketListing(nextId++, SYSTEM_ID, SYSTEM_NAME, template, quantity, unitPrice, now, availableAt, expiresAt, infinite);
         listings.put(listing.id(), listing);
         save();
