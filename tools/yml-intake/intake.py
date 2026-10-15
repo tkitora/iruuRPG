@@ -85,7 +85,7 @@ def parse_entries(text, entry_id, kind):
     Returns (kind, [(id, body), ...])."""
     data = yaml.safe_load(text)
     if not isinstance(data, dict) or not data:
-        raise ValueError("yml がマップ(キー: 値)になっていません")
+        raise ValueError("yml の中身が読めません。`mobs:` / `items:` / `recipes:` から、キー: 値の形で書いてください (受け取った文字: %r)" % text[:30])
     for top in ("items", "mobs", "recipes"):
         if top in data:
             if len(data) != 1 or not isinstance(data[top], dict) or not data[top]:
@@ -153,6 +153,9 @@ def validate(kind, entry_id, body, repo):
     elif kind == "mobs":
         if not body.get("type"):
             problems.append("type (モブの種類) がありません")
+        area = body.get("area")
+        if area is not None and not (isinstance(area, str) or (isinstance(area, list) and all(isinstance(a, str) for a in area))):
+            problems.append("area は、文字列か、文字列のリスト (例: area: [cave, field1]) で書いてください")
     else:
         result = body.get("result")
         ingredients = body.get("ingredients")
