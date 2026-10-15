@@ -207,6 +207,16 @@ public final class DungeonService implements Listener {
         this.rewardChestMenu = rewardChestMenu;
     }
 
+    /** plugins/iruuRPG/loot/&lt;table&gt;.yml */
+    public File lootFile(String table) {
+        return new File(plugin.getDataFolder(), "loot/" + table + ".yml");
+    }
+
+    /** The loot table names in loot/ (for completion and the editor). */
+    public List<String> lootTables() {
+        return DungeonLoot.tableNames(plugin);
+    }
+
     public DungeonRegistry registry() {
         return registry;
     }
@@ -356,8 +366,8 @@ public final class DungeonService implements Listener {
             abort(instance, "敵を置けませんでした。(設定を確認してください)");
             return;
         }
-        for (DungeonDefinition.Point road : instance.definition.roadChests()) {
-            Block block = road.in(world).getBlock();
+        for (DungeonDefinition.RoadChest road : instance.definition.roadChests()) {
+            Block block = road.at().in(world).getBlock();
             block.getChunk().load();
             if (block.getType() != Material.CHEST) block.setType(Material.CHEST);
         }
@@ -885,7 +895,13 @@ public final class DungeonService implements Listener {
                 player.sendMessage(Component.text("[ダンジョン] この宝箱はもう開けた。", NamedTextColor.GRAY));
                 return;
             }
-            openChest(player, instance, DungeonLoot.loadRoad(plugin, instance.definition), "宝箱");
+            DungeonLoot loot = DungeonLoot.loadTable(plugin, instance.definition.roadChests().get(road).table(), instance.definition);
+            if (loot.empty()) {
+                player.sendMessage(Component.text("[ダンジョン] 宝箱は空だった。", NamedTextColor.GRAY));
+                player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.6f, 0.6f);
+                return;
+            }
+            openChest(player, instance, loot, "宝箱");
             return;
         }
         DungeonDefinition.Point chest = instance.definition.chest();
@@ -1307,8 +1323,11 @@ public final class DungeonService implements Listener {
             labels.add(label(definition.chest().in(world).add(0.5, 1.5, 0.5), Component.text("報酬の宝箱", NamedTextColor.GOLD, TextDecoration.BOLD)));
         }
         for (int index = 0; index < definition.roadChests().size(); index++) {
-            labels.add(label(definition.roadChests().get(index).in(world).add(0.5, 1.5, 0.5),
-                    Component.text("道中の宝箱 #" + (index + 1), NamedTextColor.YELLOW, TextDecoration.BOLD)));
+            DungeonDefinition.RoadChest road = definition.roadChests().get(index);
+            boolean exists = new File(plugin.getDataFolder(), "loot/" + road.table() + ".yml").exists();
+            labels.add(label(road.at().in(world).add(0.5, 1.5, 0.5),
+                    Component.text("宝箱 #" + (index + 1) + ": " + road.table(), NamedTextColor.YELLOW, TextDecoration.BOLD)
+                            .append(exists ? Component.empty() : Component.newline().append(Component.text("(表のファイルが無い)", NamedTextColor.RED)))));
         }
         if (definition.bossTrigger() != null) {
             labels.add(label(definition.bossTrigger().in(world).add(0, 2.2, 0),

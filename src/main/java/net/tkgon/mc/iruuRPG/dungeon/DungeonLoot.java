@@ -50,12 +50,43 @@ public record DungeonLoot(long goldMin, long goldMax, long xpMin, long xpMax, Li
         return fromSection(YamlConfiguration.loadConfiguration(file), gold, xp);
     }
 
-    /** The "road:" table of loot/&lt;id&gt;.yml (chests along the way); small gold and XP only when missing. */
-    public static DungeonLoot loadRoad(JavaPlugin plugin, DungeonDefinition definition) {
-        File file = new File(plugin.getDataFolder(), "loot/" + definition.id() + ".yml");
-        ConfigurationSection road = file.exists() ? YamlConfiguration.loadConfiguration(file).getConfigurationSection("road") : null;
-        if (road == null) return new DungeonLoot(10, 30, 20, 60, List.of());
-        return fromSection(road, 10, 20);
+    private static final java.util.Set<String> WARNED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** No gold, no XP, no item: what a chest gives when its table is missing. */
+    public boolean empty() {
+        return goldMax <= 0 && xpMax <= 0 && items.isEmpty();
+    }
+
+    /**
+     * A road chest's table, loot/&lt;table&gt;.yml (gold / xp default to 0). For the default table &lt;id&gt;_road, an older
+     * "road:" section of loot/&lt;id&gt;.yml is used when the file is missing. A missing table is warned about once and
+     * gives nothing (the chest shows as empty).
+     */
+    public static DungeonLoot loadTable(JavaPlugin plugin, String table, DungeonDefinition definition) {
+        File file = new File(plugin.getDataFolder(), "loot/" + table + ".yml");
+        if (DungeonRegistry.validTable(table) && file.exists()) {
+            return fromSection(YamlConfiguration.loadConfiguration(file), 0, 0);
+        }
+        if (table.equals(definition.defaultChestTable())) {
+            File legacy = new File(plugin.getDataFolder(), "loot/" + definition.id() + ".yml");
+            ConfigurationSection road = legacy.exists() ? YamlConfiguration.loadConfiguration(legacy).getConfigurationSection("road") : null;
+            if (road != null) return fromSection(road, 0, 0);
+        }
+        if (WARNED.add(table)) {
+            plugin.getLogger().warning("dungeon loot: table '" + table + "' (loot/" + table + ".yml) is missing; that chest gives nothing");
+        }
+        return new DungeonLoot(0, 0, 0, 0, List.of());
+    }
+
+    /** The names of the loot tables in loot/ (file names without .yml), sorted. */
+    public static List<String> tableNames(JavaPlugin plugin) {
+        File[] files = new File(plugin.getDataFolder(), "loot").listFiles((dir, name) -> name.endsWith(".yml"));
+        List<String> names = new ArrayList<>();
+        if (files != null) {
+            for (File file : files) names.add(file.getName().substring(0, file.getName().length() - 4));
+        }
+        names.sort(String::compareTo);
+        return names;
     }
 
     private static DungeonLoot fromSection(ConfigurationSection section, long fallbackGold, long fallbackXp) {

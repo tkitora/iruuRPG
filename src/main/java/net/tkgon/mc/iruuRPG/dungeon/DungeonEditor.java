@@ -132,6 +132,7 @@ public final class DungeonEditor implements Listener {
         private Block pendingBlock;
         private Kind lastEntrance;
         private Kind lastChest;
+        private String lastTable;
 
         private Session(String dungeonId, ItemStack[] savedHotbar) {
             this.dungeonId = dungeonId;
@@ -305,6 +306,7 @@ public final class DungeonEditor implements Listener {
             event.setCancelled(true);
             if (event.getView().getTopInventory().getHolder() instanceof Picker picker) onPick(player, picker, event.getRawSlot());
             if (event.getView().getTopInventory().getHolder() instanceof Choice choice) onChoice(player, choice, event.getRawSlot());
+            if (event.getView().getTopInventory().getHolder() instanceof Tables tables) onTable(player, tables, event.getRawSlot());
         }
     }
 
@@ -406,7 +408,11 @@ public final class DungeonEditor implements Listener {
             }
             case CHEST -> {
                 if (player.isSneaking() && session.lastChest != null) {
-                    apply(player, session, session.lastChest);
+                    if (session.lastChest == Kind.ROAD_CHEST) {
+                        placeRoadChest(player, session, session.lastTable == null ? definition.defaultChestTable() : session.lastTable);
+                    } else {
+                        apply(player, session, session.lastChest);
+                    }
                 } else {
                     openChoice(player, "どの宝箱にする?", CHEST_KINDS);
                 }
@@ -457,13 +463,7 @@ public final class DungeonEditor implements Listener {
                 session.lastEntrance = kind;
                 done(player, definition, "ここを報酬部屋にした。");
             }
-            case ROAD_CHEST -> {
-                session.pendingBlock.setType(Material.CHEST);
-                registry.addRoadChest(definition, session.pendingBlock.getLocation());
-                session.lastChest = kind;
-                DungeonDefinition updated = registry.find(definition.id()).orElse(definition);
-                done(player, updated, "道中の宝箱 #" + updated.roadChests().size() + " を置いた。");
-            }
+            case ROAD_CHEST -> openTables(player, definition); // the table is chosen next
             case CLEAR_CHEST -> {
                 session.pendingBlock.setType(Material.CHEST);
                 registry.setChest(definition, session.pendingBlock.getLocation());
@@ -471,6 +471,65 @@ public final class DungeonEditor implements Listener {
                 done(player, definition, "ここにクリアの宝箱を置いた。");
             }
         }
+    }
+
+    /** Places (or re-tables) the road chest at the clicked block with this table. */
+    private void placeRoadChest(Player player, Session session, String table) {
+        DungeonDefinition definition = registry.find(session.dungeonId).orElse(null);
+        if (definition == null || session.pendingBlock == null) return;
+        session.pendingBlock.setType(Material.CHEST);
+        boolean existed = definition.roadChestAt(session.pendingBlock.getX(), session.pendingBlock.getY(), session.pendingBlock.getZ()) >= 0;
+        registry.setRoadChest(definition, session.pendingBlock.getLocation(), table);
+        session.lastChest = Kind.ROAD_CHEST;
+        session.lastTable = table;
+        DungeonDefinition updated = registry.find(definition.id()).orElse(definition);
+        int index = updated.roadChestAt(session.pendingBlock.getX(), session.pendingBlock.getY(), session.pendingBlock.getZ());
+        done(player, updated, (existed ? "宝箱 #" + (index + 1) + " の表を " : "宝箱 #" + (index + 1) + " を置いた。表: ") + table + (existed ? " にした。" : ""));
+    }
+
+    // ---- choosing a loot table for a road chest ------------------------------------------------------------------------
+
+    private static final class Tables implements MenuHolder {
+        private final Map<Integer, String> tables = new HashMap<>();
+        private Inventory inventory;
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private void openTables(Player player, DungeonDefinition definition) {
+        Tables holder = new Tables();
+        holder.inventory = Bukkit.createInventory(holder, 54, Component.text("宝箱の中身 (表) を選ぶ"));
+        List<String> names = new ArrayList<>(DungeonLoot.tableNames(plugin));
+        names.remove(definition.defaultChestTable());
+        names.add(0, definition.defaultChestTable());
+        for (int index = 0; index < names.size() && index < 45; index++) {
+            String name = names.get(index);
+            boolean exists = new File(plugin.getDataFolder(), "loot/" + name + ".yml").exists();
+            List<Component> lore = new ArrayList<>();
+            lore.add(text("loot/" + name + ".yml", NamedTextColor.GRAY));
+            if (index == 0) lore.add(text("このダンジョンの道中の宝箱の基本の表", NamedTextColor.YELLOW));
+            if (!exists) lore.add(text("ファイルが無い (開けると空)", NamedTextColor.RED));
+            holder.inventory.setItem(index, button(exists ? Material.CHEST : Material.GRAY_DYE, name, exists ? NamedTextColor.GOLD : NamedTextColor.GRAY, lore));
+            holder.tables.put(index, name);
+        }
+        holder.inventory.setItem(49, button(Material.ARROW, "やめる", NamedTextColor.GRAY, List.of()));
+        player.openInventory(holder.inventory);
+    }
+
+    private void onTable(Player player, Tables holder, int slot) {
+        Session session = sessions.get(player.getUniqueId());
+        if (session == null) return;
+        if (slot == 49) {
+            player.closeInventory();
+            return;
+        }
+        String table = holder.tables.get(slot);
+        if (table == null) return;
+        player.closeInventory();
+        placeRoadChest(player, session, table);
     }
 
     // ---- choosing a kind (entrance / chest) --------------------------------------------------------------------------

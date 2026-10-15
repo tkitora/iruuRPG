@@ -21,7 +21,7 @@ import java.util.Locale;
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "addchest", "removechest", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -181,6 +181,56 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 service.refreshMarkers(id);
                 player.sendMessage(String.format(Locale.ROOT, "[ダンジョン] 報酬の宝箱を (%d, %d, %d) にした。(中身は loot/%s.yml)", at.getBlockX(), at.getBlockY(), at.getBlockZ(), id));
             }
+            case "addchest" -> {
+                if (!player.getWorld().getName().equals(definition.templateWorldName())) {
+                    player.sendMessage("[ダンジョン] ひな形のワールド (" + definition.templateWorldName() + ") の中で使ってください。");
+                    return true;
+                }
+                String table = args.length >= 3 ? args[2].toLowerCase(Locale.ROOT) : definition.defaultChestTable();
+                if (!DungeonRegistry.validTable(table)) {
+                    player.sendMessage("[ダンジョン] 表の名前は a-z・0-9・_ (1〜40文字) です。");
+                    return true;
+                }
+                // the chest being looked at, the block on top of the one looked at, or the block at the feet
+                org.bukkit.block.Block target = player.getTargetBlockExact(5);
+                org.bukkit.block.Block block = target == null ? player.getLocation().getBlock()
+                        : target.getType() == org.bukkit.Material.CHEST ? target : target.getRelative(org.bukkit.block.BlockFace.UP);
+                boolean existed = definition.roadChestAt(block.getX(), block.getY(), block.getZ()) >= 0;
+                block.setType(org.bukkit.Material.CHEST);
+                registry.setRoadChest(definition, block.getLocation(), table);
+                service.refreshMarkers(id);
+                boolean file = service.lootFile(table).exists();
+                player.sendMessage(String.format(Locale.ROOT, "[ダンジョン] %s宝箱 (%d, %d, %d)、表: %s%s", existed ? "表を変えた: " : "置いた: ",
+                        block.getX(), block.getY(), block.getZ(), table, file ? "" : " (loot/" + table + ".yml がまだ無い。開けると空)"));
+            }
+            case "removechest" -> {
+                if (!player.getWorld().getName().equals(definition.templateWorldName())) {
+                    player.sendMessage("[ダンジョン] ひな形のワールド (" + definition.templateWorldName() + ") の中で使ってください。");
+                    return true;
+                }
+                org.bukkit.block.Block target = player.getTargetBlockExact(5);
+                int index = target == null ? -1 : definition.roadChestAt(target.getX(), target.getY(), target.getZ());
+                if (index < 0) {
+                    // nearest within 3 blocks of the feet
+                    double best = 9.0;
+                    for (int i = 0; i < definition.roadChests().size(); i++) {
+                        double distance = definition.roadChests().get(i).at().in(player.getWorld()).add(0.5, 0.5, 0.5).distanceSquared(player.getLocation());
+                        if (distance <= best) {
+                            best = distance;
+                            index = i;
+                        }
+                    }
+                }
+                if (index < 0) {
+                    player.sendMessage("[ダンジョン] 宝箱を見ながら(または3ブロック以内で)使ってください。");
+                    return true;
+                }
+                DungeonDefinition.RoadChest removed = definition.roadChests().get(index);
+                registry.removeRoadChest(definition, index);
+                removed.at().in(player.getWorld()).getBlock().setType(org.bukkit.Material.AIR);
+                service.refreshMarkers(id);
+                player.sendMessage("[ダンジョン] 宝箱 #" + (index + 1) + " (表: " + removed.table() + ") を消した。");
+            }
             case "boss" -> {
                 if (args.length < 3 || mobRegistry.find(args[2]).isEmpty()) {
                     player.sendMessage("[ダンジョン] /dungeon boss " + id + " <mobId> (このモブが倒れたらクリア)");
@@ -200,6 +250,12 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 for (int index = 0; index < definition.spawns().size(); index++) {
                     DungeonDefinition.MobSpawn spawn = definition.spawns().get(index);
                     player.sendMessage(String.format(Locale.ROOT, "  #%d %s  (%.1f, %.1f, %.1f)", index + 1, spawn.mobId(), spawn.x(), spawn.y(), spawn.z()));
+                }
+                player.sendMessage("[ダンジョン] 道中の宝箱: " + definition.roadChests().size() + " 個");
+                for (int index = 0; index < definition.roadChests().size(); index++) {
+                    DungeonDefinition.RoadChest chest = definition.roadChests().get(index);
+                    player.sendMessage(String.format(Locale.ROOT, "  宝箱 #%d 表: %s  (%d, %d, %d)", index + 1, chest.table(),
+                            (int) chest.at().x(), (int) chest.at().y(), (int) chest.at().z()));
                 }
             }
             case "removespawn" -> {
@@ -257,6 +313,8 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
             for (Player online : org.bukkit.Bukkit.getOnlinePlayers()) if (!online.equals(sender)) options.add(online.getName());
         } else if (args.length == 2 && !List.of("leave", "reload", "new", "join").contains(args[0].toLowerCase(Locale.ROOT))) {
             for (DungeonDefinition definition : service.registry().all()) options.add(definition.id());
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("addchest") && admin) {
+            options.addAll(service.lootTables());
         } else if (args.length == 3 && args[0].equalsIgnoreCase("removespawn") && admin) {
             service.registry().find(args[1]).ifPresent(definition -> {
                 for (int i = 1; i <= definition.spawns().size(); i++) options.add(String.valueOf(i));

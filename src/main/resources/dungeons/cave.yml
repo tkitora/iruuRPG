@@ -11,6 +11,8 @@
 #   /dungeon boss cave cave_boss    このモブが倒れたらクリア (置いたモブの中に必要)
 #   /dungeon rewardroom cave        今の位置を報酬部屋にする (クリアの5秒後に全員ここへ移動)
 #   /dungeon chest cave             見ている宝箱 (なければ足元) を報酬の宝箱にする。中身は loot/cave.yml
+#   /dungeon addchest cave [表]     見ているブロックの上 (宝箱ならその宝箱) に道中の宝箱。中身は loot/<表>.yml (省くと cave_road)
+#   /dungeon removechest cave       見ている (または近くの) 道中の宝箱を消す
 #   /dungeon save cave              テンプレートを保存して元の場所へ戻る
 # モブが1体以上 (ボスを決めたらボスも) 置かれると「入れる」状態になる。
 
