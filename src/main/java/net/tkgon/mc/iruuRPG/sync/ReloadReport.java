@@ -89,6 +89,27 @@ public final class ReloadReport {
         checkItems(new File(dataFolder, "items"));
         checkMobs(new File(dataFolder, "mobs"), itemRegistry);
         checkRecipes(new File(dataFolder, "crafting"), itemRegistry);
+        checkDungeonChests(new File(dataFolder, "dungeons"), new File(dataFolder, "loot"));
+    }
+
+    /** chests: entries whose table (loot/&lt;table&gt;.yml) does not exist. */
+    private void checkDungeonChests(File folder, File lootFolder) {
+        for (File file : sorted(folder)) {
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+            String id = yaml.getString("id", file.getName().replace(".yml", ""));
+            List<Map<?, ?>> chests = yaml.getMapList("chests");
+            for (int index = 0; index < chests.size(); index++) {
+                Object raw = chests.get(index).get("table");
+                String table = raw == null ? id + "_road" : String.valueOf(raw).trim().toLowerCase(Locale.ROOT);
+                if (!table.matches("[a-z0-9_]{1,40}")) {
+                    add(file, id, "宝箱 #" + (index + 1) + " の表の名前 '" + raw + "' が使えない (a-z・0-9・_)");
+                } else if (!new File(lootFolder, table + ".yml").exists()) {
+                    boolean legacy = table.equals(id + "_road") && new File(lootFolder, id + ".yml").exists()
+                            && YamlConfiguration.loadConfiguration(new File(lootFolder, id + ".yml")).isConfigurationSection("road");
+                    if (!legacy) add(file, id, "宝箱 #" + (index + 1) + " の表 loot/" + table + ".yml が無い (開けると空)");
+                }
+            }
+        }
     }
 
     private void checkItems(File folder) {

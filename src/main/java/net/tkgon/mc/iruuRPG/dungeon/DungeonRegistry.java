@@ -105,7 +105,7 @@ public final class DungeonRegistry {
                 point(yaml.getConfigurationSection("chest")),
                 point(yaml.getConfigurationSection("boss-trigger")),
                 point(yaml.getConfigurationSection("boss-room")),
-                roadChests(yaml.getMapList("road-chests"))
+                roadChests(yaml, id)
         );
     }
 
@@ -115,12 +115,36 @@ public final class DungeonRegistry {
                 (float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
     }
 
-    private static List<DungeonDefinition.Point> roadChests(List<Map<?, ?>> raw) {
-        List<DungeonDefinition.Point> chests = new ArrayList<>();
-        for (Map<?, ?> entry : raw) {
-            chests.add(new DungeonDefinition.Point(number(entry.get("x")), number(entry.get("y")), number(entry.get("z")), 0.0f, 0.0f));
+    private static final java.util.regex.Pattern TABLE = java.util.regex.Pattern.compile("[a-z0-9_]{1,40}");
+
+    /** A loot table name: a-z, 0-9, _ (it is a file name under loot/). */
+    public static boolean validTable(String table) {
+        return table != null && TABLE.matcher(table).matches();
+    }
+
+    /**
+     * "chests:" entries (x, y, z, yaw, pitch, table). The older "road-chests:" (no table) is read too, with the
+     * dungeon's default table &lt;id&gt;_road.
+     */
+    private List<DungeonDefinition.RoadChest> roadChests(YamlConfiguration yaml, String id) {
+        List<DungeonDefinition.RoadChest> chests = new ArrayList<>();
+        for (Map<?, ?> entry : yaml.getMapList("chests")) {
+            String table = entry.get("table") == null ? id + "_road" : String.valueOf(entry.get("table")).trim().toLowerCase(java.util.Locale.ROOT);
+            if (!validTable(table)) {
+                plugin.getLogger().warning("dungeon " + id + ": invalid chest table '" + table + "' (use a-z, 0-9, _); using " + id + "_road");
+                table = id + "_road";
+            }
+            chests.add(new DungeonDefinition.RoadChest(pointOf(entry), table));
+        }
+        for (Map<?, ?> entry : yaml.getMapList("road-chests")) {
+            chests.add(new DungeonDefinition.RoadChest(pointOf(entry), id + "_road"));
         }
         return chests;
+    }
+
+    private static DungeonDefinition.Point pointOf(Map<?, ?> entry) {
+        return new DungeonDefinition.Point(number(entry.get("x")), number(entry.get("y")), number(entry.get("z")),
+                (float) number(entry.get("yaw")), (float) number(entry.get("pitch")));
     }
 
     private static Map<String, Object> pointMap(DungeonDefinition.Point point) {
@@ -191,17 +215,23 @@ public final class DungeonRegistry {
         put(definition.withBossRoom(DungeonDefinition.Point.of(location)));
     }
 
-    /** Adds a road chest at this block (no-op if one is already there). */
-    public void addRoadChest(DungeonDefinition definition, Location block) {
-        if (definition.roadChestAt(block.getBlockX(), block.getBlockY(), block.getBlockZ()) >= 0) return;
-        List<DungeonDefinition.Point> chests = new ArrayList<>(definition.roadChests());
-        chests.add(new DungeonDefinition.Point(block.getBlockX(), block.getBlockY(), block.getBlockZ(), 0.0f, 0.0f));
+    /** Adds a road chest at this block, or changes the table of the one already there. */
+    public void setRoadChest(DungeonDefinition definition, Location block, String table) {
+        List<DungeonDefinition.RoadChest> chests = new ArrayList<>(definition.roadChests());
+        DungeonDefinition.RoadChest chest = new DungeonDefinition.RoadChest(
+                new DungeonDefinition.Point(block.getBlockX(), block.getBlockY(), block.getBlockZ(), 0.0f, 0.0f), table);
+        int index = definition.roadChestAt(block.getBlockX(), block.getBlockY(), block.getBlockZ());
+        if (index >= 0) {
+            chests.set(index, chest);
+        } else {
+            chests.add(chest);
+        }
         put(definition.withRoadChests(chests));
     }
 
     public boolean removeRoadChest(DungeonDefinition definition, int index) {
         if (index < 0 || index >= definition.roadChests().size()) return false;
-        List<DungeonDefinition.Point> chests = new ArrayList<>(definition.roadChests());
+        List<DungeonDefinition.RoadChest> chests = new ArrayList<>(definition.roadChests());
         chests.remove(index);
         put(definition.withRoadChests(chests));
         return true;
@@ -266,9 +296,13 @@ public final class DungeonRegistry {
         if (d.chest() != null) yaml.set("chest", pointMap(d.chest()));
         if (d.bossTrigger() != null) yaml.set("boss-trigger", pointMap(d.bossTrigger()));
         if (d.bossRoom() != null) yaml.set("boss-room", pointMap(d.bossRoom()));
-        List<Map<String, Object>> road = new ArrayList<>();
-        for (DungeonDefinition.Point point : d.roadChests()) road.add(pointMap(point));
-        if (!road.isEmpty()) yaml.set("road-chests", road);
+        List<Map<String, Object>> chests = new ArrayList<>();
+        for (DungeonDefinition.RoadChest chest : d.roadChests()) {
+            Map<String, Object> map = pointMap(chest.at());
+            map.put("table", chest.table());
+            chests.add(map);
+        }
+        if (!chests.isEmpty()) yaml.set("chests", chests);
         File file = new File(folder(), d.id() + ".yml");
         try {
             yaml.save(file);

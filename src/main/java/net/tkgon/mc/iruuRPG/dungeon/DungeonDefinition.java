@@ -20,7 +20,8 @@ import java.util.List;
  * @param bossTrigger       stand here with enough of the party (party size - 1, at least 1) and everyone is taken to
  *                          the boss room
  * @param bossRoom          where the party is taken by the boss trigger
- * @param roadChests        chests along the way; each player opens each once (the "road" table of loot/&lt;id&gt;.yml)
+ * @param roadChests        chests along the way ("chests:" in the file), each with its own table loot/&lt;table&gt;.yml;
+ *                          each player opens each once per run, also before the boss
  */
 public record DungeonDefinition(
         String id,
@@ -42,10 +43,14 @@ public record DungeonDefinition(
         Point chest,
         Point bossTrigger,
         Point bossRoom,
-        List<Point> roadChests
+        List<RoadChest> roadChests
 ) {
 
     public enum DeathMode { REVIVE, LIVES }
+
+    /** A chest along the way and the name of its loot table (loot/&lt;table&gt;.yml). */
+    public record RoadChest(Point at, String table) {
+    }
 
     public record Point(double x, double y, double z, float yaw, float pitch) {
 
@@ -137,15 +142,20 @@ public record DungeonDefinition(
                 entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, newRoom, roadChests);
     }
 
-    public DungeonDefinition withRoadChests(List<Point> newChests) {
+    public DungeonDefinition withRoadChests(List<RoadChest> newChests) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
                 entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, newChests);
+    }
+
+    /** The default table name for a new road chest of this dungeon. */
+    public String defaultChestTable() {
+        return id + "_road";
     }
 
     /** The road chest at this block, or -1. */
     public int roadChestAt(int x, int y, int z) {
         for (int index = 0; index < roadChests.size(); index++) {
-            Point point = roadChests.get(index);
+            Point point = roadChests.get(index).at();
             if ((int) Math.floor(point.x()) == x && (int) Math.floor(point.y()) == y && (int) Math.floor(point.z()) == z) return index;
         }
         return -1;
