@@ -1,0 +1,109 @@
+# ダンジョン「アトラスの洞窟」の敵 (Lv1〜7)。/iruurpg mob <id> でも出せる。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
+mobs:
+  cave_crawler:
+    type: SILVERFISH
+    name: "岩ムシ"
+    level: 1
+    experience: 10
+    ai: true
+    gravity: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 50
+      max-mp: 1
+      defense: 2
+      weapon-damage: 3
+      strength: 2
+    drops:
+      crawler_shell:
+        drop-chance: 50
+        amount: 1
+  cave_bones:
+    type: SKELETON
+    name: "洞窟のガイコツ"
+    level: 3
+    experience: 30
+    ai: true
+    gravity: true
+    fire-proof: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 120
+      max-mp: 1
+      defense: 6
+      weapon-damage: 8
+      strength: 5
+    equipment:
+      main-hand:
+        material: STONE_SWORD
+        drop-chance: 0.0
+    drops:
+      old_bone:
+        drop-chance: 45
+        amount: 1
+      goblin_fang:
+        drop-chance: 15
+        amount: 1
+  cave_spider:
+    type: CAVE_SPIDER
+    name: "洞窟グモ"
+    level: 5
+    experience: 50
+    ai: true
+    gravity: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 170
+      max-mp: 1
+      defense: 10
+      weapon-damage: 12
+      strength: 8
+      slow-percent: 20
+    drops:
+      cave_silk:
+        drop-chance: 40
+        amount: 1
+      moon_herb:
+        drop-chance: 20
+        amount: 1
+  cave_boss:
+    type: VINDICATOR
+    name: "岩窟の主"
+    level: 7
+    experience: 400
+    ai: true
+    gravity: true
+    glowing: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    stats:
+      max-hp: 1600
+      max-mp: 1
+      defense: 22
+      weapon-damage: 22
+      strength: 16
+      crit-chance: 10
+    element-stats:
+      damage:
+        orange: 15
+    equipment:
+      main-hand:
+        material: IRON_AXE
+        drop-chance: 0.0
+    drops:
+      boss_crystal:
+        drop-chance: 100
+        amount: 1
+      old_bone:
+        drop-chance: 100
+        amount: 2
