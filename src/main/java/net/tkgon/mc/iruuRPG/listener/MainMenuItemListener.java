@@ -18,6 +18,7 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -78,8 +79,24 @@ public final class MainMenuItemListener implements Listener {
     private void openNextTick(Player player) {
         // opening on the next tick: the click event itself is still being processed
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (player.isOnline()) mainMenu.open(player);
+            if (!player.isOnline()) return;
+
+            returnCursorItem(player);
+            mainMenu.open(player);
         });
+    }
+
+    /** An item held on the cursor would be lost when the menu replaces the inventory screen: put it back in the inventory first. */
+    private void returnCursorItem(Player player) {
+        ItemStack held = player.getItemOnCursor();
+        if (held == null || held.getType().isAir()) return;
+
+        player.setItemOnCursor(null);
+        if (menuItemService.isMenuItem(held)) return;
+
+        for (ItemStack leftover : player.getInventory().addItem(held).values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), leftover);
+        }
     }
 
     /**
