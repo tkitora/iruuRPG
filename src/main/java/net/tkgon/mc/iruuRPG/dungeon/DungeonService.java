@@ -108,6 +108,8 @@ public final class DungeonService implements Listener {
         /** road chest index -> players who opened it */
         private final Map<Integer, Set<UUID>> roadOpened = new HashMap<>();
         private boolean bossRoomOpened;
+        /** How many non-boss mobs were placed when the run opened. */
+        private int trashTotal;
         private TextDisplay triggerLabel;
         private TextDisplay exitLabel;
         private long deadline;
@@ -373,6 +375,7 @@ public final class DungeonService implements Listener {
             block.getChunk().load();
             if (block.getType() != Material.CHEST) block.setType(Material.CHEST);
         }
+        instance.trashTotal = instance.mobs.size() - instance.bosses.size();
         if (instance.definition.exit() != null) {
             Location at = instance.definition.exit().in(world).add(0, 1.6, 0);
             at.getChunk().load();
@@ -607,6 +610,12 @@ public final class DungeonService implements Listener {
             Component bar = Component.text("残り " + clock((int) (left / 1000)), left < 60_000 ? NamedTextColor.RED : NamedTextColor.WHITE)
                     .append(Component.text("  敵 " + instance.mobs.size(), NamedTextColor.GOLD));
             if (instance.definition.boss() != null) bar = bar.append(Component.text("  ボス 生存", NamedTextColor.RED));
+            if (instance.definition.bossTrigger() != null && !instance.bossRoomOpened) {
+                int[] progress = trashProgress(instance);
+                if (progress[0] < progress[1]) {
+                    bar = bar.append(Component.text("  ボス部屋まで あと" + (progress[1] - progress[0]) + "体", NamedTextColor.GRAY));
+                }
+            }
             if (instance.definition.deathMode() == DungeonDefinition.DeathMode.LIVES) {
                 bar = bar.append(Component.text("  残機 " + instance.lives.getOrDefault(id, 0), NamedTextColor.AQUA));
             } else if (!instance.downed.isEmpty()) {
@@ -950,6 +959,27 @@ public final class DungeonService implements Listener {
                 .append(Component.text("ここに集まる: " + here + " / " + need + " 人", NamedTextColor.WHITE));
     }
 
+    private Component lockedText(int killed, int required) {
+        return Component.text("ボス部屋への入口 (閉じている)", NamedTextColor.GRAY, TextDecoration.BOLD).append(Component.newline())
+                .append(Component.text("敵を倒す: " + killed + " / " + required, NamedTextColor.RED));
+    }
+
+    /** Share of the dungeon's (non-boss) mobs that must be dead before the boss room trigger works. */
+    private double bossKillShare() {
+        return Math.max(0.0, Math.min(100.0, plugin.getConfig().getDouble("dungeon.boss-kill-percent", 80.0))) / 100.0;
+    }
+
+    /** Non-boss mobs killed so far, and how many are required (rounded up). */
+    private int[] trashProgress(Instance instance) {
+        int alive = 0;
+        for (UUID id : instance.mobs) {
+            if (!instance.bosses.contains(id)) alive++;
+        }
+        int killed = Math.max(0, instance.trashTotal - alive);
+        int required = (int) Math.ceil(instance.trashTotal * bossKillShare() - 1.0E-9);
+        return new int[]{killed, required};
+    }
+
     /**
      * When enough of the party stands at the trigger (party size - 1, at least 1), everyone is taken to the boss room
      * a few seconds later (fallen teammates too: their body moves with them, so they can still be revived).
@@ -958,6 +988,21 @@ public final class DungeonService implements Listener {
         DungeonDefinition definition = instance.definition;
         if (instance.bossRoomOpened || definition.bossTrigger() == null || definition.bossRoom() == null) return;
         Location trigger = definition.bossTrigger().in(instance.world);
+
+        // the way to the boss opens only after most of the dungeon's mobs are dead (running past them does not work)
+        int[] progress = trashProgress(instance);
+        if (progress[0] < progress[1]) {
+            instance.world.spawnParticle(Particle.SMOKE_NORMAL, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
+            if (instance.triggerLabel != null && instance.triggerLabel.isValid()) instance.triggerLabel.text(lockedText(progress[0], progress[1]));
+            for (UUID id : instance.players) {
+                Player player = Bukkit.getPlayer(id);
+                if (player == null || !player.getWorld().equals(instance.world)) continue;
+                if (player.getLocation().distanceSquared(trigger) <= BOSS_TRIGGER_RANGE * BOSS_TRIGGER_RANGE) {
+                    player.sendActionBar(Component.text("ボス部屋は、敵をあと " + (progress[1] - progress[0]) + " 体倒すと開く", NamedTextColor.RED));
+                }
+            }
+            return;
+        }
         instance.world.spawnParticle(Particle.FLAME, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
 
         int need = Math.max(1, instance.players.size() - 1);
