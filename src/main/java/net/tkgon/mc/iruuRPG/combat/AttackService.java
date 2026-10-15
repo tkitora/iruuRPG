@@ -458,10 +458,18 @@ public final class AttackService {
         }
     }
 
+    /**
+     * The hurt effect of a melee hit. A direct hit does not knock the target back; set
+     * {@code combat.melee-area-knockback-horizontal / -vertical} above 0 to bring a push back.
+     */
     public void playMeleeImpact(Player attacker, LivingEntity target) {
         if (target == null || target.isDead() || !target.isValid()) return;
 
         attackEffects.playRangeHurt(target);
+        double horizontal = plugin.getConfig().getDouble("combat.melee-area-knockback-horizontal", 0.0);
+        double vertical = plugin.getConfig().getDouble("combat.melee-area-knockback-vertical", 0.0);
+        if (horizontal <= 0.0 && vertical <= 0.0) return;
+
         Vector direction = target.getLocation().toVector().subtract(attacker.getLocation().toVector());
         direction.setY(0.0);
         if (direction.lengthSquared() <= 1.0E-9) {
@@ -473,9 +481,6 @@ public final class AttackService {
         } else {
             direction.normalize();
         }
-
-        double horizontal = plugin.getConfig().getDouble("combat.melee-area-knockback-horizontal", 0.55);
-        double vertical = plugin.getConfig().getDouble("combat.melee-area-knockback-vertical", 0.22);
         target.setVelocity(direction.multiply(horizontal).setY(vertical));
     }
 
