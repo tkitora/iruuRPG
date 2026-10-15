@@ -82,6 +82,15 @@ public final class YmlSyncService {
                 String before = revParse(folder);
                 GitResult pull = git(folder, "pull", "--ff-only", "origin", branch);
                 if (pull.code() != 0) {
+                    // a new file in the repository clashes with an untracked file of the same name (for example a
+                    // file the jar put there): the repository wins; the local file is kept as <name>.bak-<millis>
+                    List<String> blocking = untrackedInTheWay(pull.output());
+                    if (!blocking.isEmpty() && moveAside(folder, blocking)) {
+                        plugin.getLogger().info("yml-sync: moved aside untracked files in the way: " + String.join(", ", blocking));
+                        pull = git(folder, "pull", "--ff-only", "origin", branch);
+                    }
+                }
+                if (pull.code() != 0) {
                     warnOnce("yml-sync: git pull failed: " + firstLine(pull.output()));
                     reply(requester, "[同期] git pull に失敗: " + firstLine(pull.output()), NamedTextColor.RED);
                 } else {
@@ -126,6 +135,51 @@ public final class YmlSyncService {
                 if (!handedOver) running.set(false);
             }
         });
+    }
+
+    /** The paths git lists under "untracked working tree files would be overwritten by merge:". */
+    static List<String> untrackedInTheWay(String output) {
+        List<String> paths = new java.util.ArrayList<>();
+        if (output == null || !output.contains("untracked working tree files would be overwritten")) return paths;
+        boolean inList = false;
+        for (String line : output.split("\n")) {
+            if (line.contains("untracked working tree files would be overwritten")) {
+                inList = true;
+                continue;
+            }
+            if (!inList) continue;
+            if (!line.startsWith("\t") && !line.startsWith("    ")) {
+                if (!paths.isEmpty()) break; // "Please move or remove them..." ends the list
+                continue;
+            }
+            String path = line.trim();
+            if (!path.isEmpty()) paths.add(path);
+        }
+        return paths;
+    }
+
+    /** Renames each file to <name>.bak-<millis>; only files inside the data folder. False if any could not be moved. */
+    private boolean moveAside(File folder, List<String> paths) {
+        long stamp = System.currentTimeMillis();
+        try {
+            java.nio.file.Path root = folder.getCanonicalFile().toPath();
+            for (String path : paths) {
+                File file = new File(folder, path).getCanonicalFile();
+                if (!file.toPath().startsWith(root) || !file.isFile()) {
+                    warnOnce("yml-sync: refusing to move " + path);
+                    return false;
+                }
+                File backup = new File(file.getParentFile(), file.getName() + ".bak-" + stamp);
+                if (!file.renameTo(backup)) {
+                    warnOnce("yml-sync: could not move aside " + path);
+                    return false;
+                }
+            }
+            return true;
+        } catch (IOException e) {
+            warnOnce("yml-sync: could not move aside: " + e.getMessage());
+            return false;
+        }
     }
 
     private void reply(CommandSender requester, String message, NamedTextColor color) {
