@@ -70,33 +70,40 @@ public final class MainMenuItemListener implements Listener {
         if (!menuItemService.isMenuItem(event.getCurrentItem())) return;
         if (event.getView().getTopInventory().getHolder() instanceof MenuHolder) return;
         switch (event.getClick()) {
-            case LEFT, RIGHT, SHIFT_LEFT, SHIFT_RIGHT, MIDDLE, CREATIVE -> openNextTick(player);
+            case LEFT, RIGHT, SHIFT_LEFT, SHIFT_RIGHT, MIDDLE, CREATIVE -> openNextTick(player, event.getCursor());
             default -> {
             }
         }
     }
 
-    private void openNextTick(Player player) {
+    /**
+     * @param cursorAtClick the item that was held when the menu item was clicked. Normally the server still has it on
+     *                      the cursor next tick; if it does not (creative mode: the client holds the item by itself),
+     *                      this copy is what gets given back.
+     */
+    private void openNextTick(Player player, ItemStack cursorAtClick) {
+        ItemStack held = cursorAtClick == null || cursorAtClick.getType().isAir() || menuItemService.isMenuItem(cursorAtClick)
+                ? null : cursorAtClick.clone();
         // opening on the next tick: the click event itself is still being processed
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
 
-            returnCursorItem(player);
+            returnCursorItem(player, held);
             mainMenu.open(player);
         });
     }
 
     /** An item held on the cursor would be lost when the menu replaces the inventory screen: put it back in the inventory first. */
-    private void returnCursorItem(Player player) {
-        ItemStack held = player.getItemOnCursor();
-        if (held == null || held.getType().isAir()) return;
-
+    private void returnCursorItem(Player player, ItemStack heldAtClick) {
+        ItemStack onCursor = player.getItemOnCursor();
+        ItemStack back = onCursor == null || onCursor.getType().isAir() ? heldAtClick : onCursor.clone();
         player.setItemOnCursor(null);
-        if (menuItemService.isMenuItem(held)) return;
+        if (back == null || back.getType().isAir() || menuItemService.isMenuItem(back)) return;
 
-        for (ItemStack leftover : player.getInventory().addItem(held).values()) {
+        for (ItemStack leftover : player.getInventory().addItem(back).values()) {
             player.getWorld().dropItemNaturally(player.getLocation(), leftover);
         }
+        player.updateInventory();
     }
 
     /**
@@ -115,7 +122,7 @@ public final class MainMenuItemListener implements Listener {
             event.setCancelled(true);
             scheduleEnsure(player);
             // creative inventories send this event instead of a normal click: clicking the menu item opens the menu
-            if (!inOurMenu && menuItemService.isMenuItem(event.getCurrentItem())) openNextTick(player);
+            if (!inOurMenu && menuItemService.isMenuItem(event.getCurrentItem())) openNextTick(player, event.getCursor());
         }
     }
 
