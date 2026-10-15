@@ -4,6 +4,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
+import net.tkgon.mc.iruuRPG.mob.RpgMobDefinition;
+import net.tkgon.mc.iruuRPG.mob.RpgMobRegistry;
 import net.tkgon.mc.iruuRPG.mob.RpgMobService;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
@@ -139,6 +141,9 @@ public final class DungeonService implements Listener {
     private final JavaPlugin plugin;
     private final DungeonRegistry registry;
     private final RpgMobService mobService;
+    private final RpgMobRegistry mobRegistry;
+    /** template world name -> the marker labels shown while building it */
+    private final Map<String, List<Entity>> markers = new HashMap<>();
     private final LevelService levelService;
     private final PlayerProfileManager profileManager;
     private final NamespacedKey instanceKey;
@@ -157,10 +162,11 @@ public final class DungeonService implements Listener {
     private int nextNumber = 1;
     private BukkitTask task;
 
-    public DungeonService(JavaPlugin plugin, DungeonRegistry registry, RpgMobService mobService, LevelService levelService,
-                          PlayerProfileManager profileManager) {
+    public DungeonService(JavaPlugin plugin, DungeonRegistry registry, RpgMobService mobService, RpgMobRegistry mobRegistry,
+                          LevelService levelService, PlayerProfileManager profileManager) {
         this.plugin = plugin;
         this.registry = registry;
+        this.mobRegistry = mobRegistry;
         this.mobService = mobService;
         this.levelService = levelService;
         this.profileManager = profileManager;
@@ -216,6 +222,7 @@ public final class DungeonService implements Listener {
             if (player != null) player.teleport(entry.getValue());
         }
         builders.clear();
+        for (String world : new ArrayList<>(markers.keySet())) clearMarkers(world);
     }
 
     public Instance instanceOf(Player player) {
@@ -467,6 +474,7 @@ public final class DungeonService implements Listener {
     // ---- every second ------------------------------------------------------------------------------------------------------
 
     private void tick() {
+        tickMarkers();
         long now = System.currentTimeMillis();
         for (Instance instance : new ArrayList<>(instances.values())) {
             switch (instance.state) {
@@ -968,6 +976,7 @@ public final class DungeonService implements Listener {
         }
         if (!world.equals(admin.getWorld())) builders.putIfAbsent(admin.getUniqueId(), admin.getLocation());
         admin.teleport(definition.entry().in(world));
+        refreshMarkers(definition.id());
         admin.sendMessage(Component.text("[ダンジョン] 「" + definition.name() + "」のひな形にいる。建てたら /dungeon entry・spawn、終わったら /dungeon save " + definition.id(), NamedTextColor.YELLOW));
     }
 
@@ -978,11 +987,80 @@ public final class DungeonService implements Listener {
             admin.sendMessage(Component.text("[ダンジョン] ひな形のワールドは開かれていません。(保存済み)", NamedTextColor.GRAY));
             return;
         }
+        clearMarkers(definition.templateWorldName());
         world.save();
         Location back = builders.remove(admin.getUniqueId());
         if (admin.getWorld().equals(world)) admin.teleport(back == null ? fallback() : back);
         if (world.getPlayers().isEmpty()) Bukkit.unloadWorld(world, true);
         admin.sendMessage(Component.text("[ダンジョン] ひな形を保存した。", NamedTextColor.GREEN));
+    }
+
+    // ---- markers while building ------------------------------------------------------------------------------------------
+
+    /**
+     * Labels over every placed mob (number, name, id; the boss in red), the entry and the exit, in the template world
+     * while it is open. They are not saved with the world (not persistent), so the copies never contain them.
+     */
+    public void refreshMarkers(String id) {
+        DungeonDefinition definition = registry.find(id).orElse(null);
+        if (definition == null) return;
+        World world = Bukkit.getWorld(definition.templateWorldName());
+        clearMarkers(definition.templateWorldName());
+        if (world == null) return;
+
+        List<Entity> labels = new ArrayList<>();
+        List<DungeonDefinition.MobSpawn> spawns = definition.spawns();
+        for (int index = 0; index < spawns.size(); index++) {
+            DungeonDefinition.MobSpawn spawn = spawns.get(index);
+            boolean boss = spawn.mobId().equals(definition.boss());
+            String name = mobRegistry.find(spawn.mobId()).map(RpgMobDefinition::name).orElse("? 不明なモブ");
+            Component text = Component.text("#" + (index + 1) + " " + name + (boss ? " (ボス)" : ""), boss ? NamedTextColor.RED : NamedTextColor.YELLOW, TextDecoration.BOLD)
+                    .append(Component.newline())
+                    .append(Component.text(spawn.mobId(), NamedTextColor.GRAY));
+            labels.add(label(spawn.in(world).add(0, 1.8, 0), text));
+        }
+        labels.add(label(definition.entry().in(world).add(0, 2.2, 0), Component.text("入口", NamedTextColor.GREEN, TextDecoration.BOLD)));
+        if (definition.exit() != null) {
+            labels.add(label(definition.exit().in(world).add(0, 2.2, 0), Component.text("脱出口", NamedTextColor.AQUA, TextDecoration.BOLD)));
+        }
+        markers.put(definition.templateWorldName(), labels);
+    }
+
+    private Entity label(Location at, Component text) {
+        at.getChunk().load();
+        return at.getWorld().spawn(at, TextDisplay.class, display -> {
+            display.setBillboard(Display.Billboard.CENTER);
+            display.setPersistent(false);
+            display.setSeeThrough(true); // visible through walls while building
+            display.text(text);
+        });
+    }
+
+    private void clearMarkers(String templateWorld) {
+        List<Entity> old = markers.remove(templateWorld);
+        if (old == null) return;
+        for (Entity entity : old) {
+            if (entity.isValid()) entity.remove();
+        }
+    }
+
+    /** Every second: a column of particles at each placed mob, the entry and the exit, while someone is building. */
+    private void tickMarkers() {
+        for (String worldName : markers.keySet()) {
+            World world = Bukkit.getWorld(worldName);
+            if (world == null || world.getPlayers().isEmpty()) continue;
+            String id = worldName.substring("dungeon_template_".length());
+            DungeonDefinition definition = registry.find(id).orElse(null);
+            if (definition == null) continue;
+            for (DungeonDefinition.MobSpawn spawn : definition.spawns()) {
+                boolean boss = spawn.mobId().equals(definition.boss());
+                world.spawnParticle(boss ? Particle.FLAME : Particle.VILLAGER_HAPPY, spawn.in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+            }
+            world.spawnParticle(Particle.COMPOSTER, definition.entry().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+            if (definition.exit() != null) {
+                world.spawnParticle(Particle.END_ROD, definition.exit().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+            }
+        }
     }
 
     // ---- state file (where to send players back after a crash) ----------------------------------------------------------------

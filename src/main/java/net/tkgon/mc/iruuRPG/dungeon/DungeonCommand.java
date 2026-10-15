@@ -21,7 +21,7 @@ import java.util.Locale;
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "clearspawns", "exit", "boss", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -121,6 +121,7 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 registry.setEntry(definition, player.getLocation());
+                service.refreshMarkers(id);
                 player.sendMessage("[ダンジョン] 今の位置を入口にした。");
             }
             case "spawn" -> {
@@ -133,7 +134,9 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 registry.addSpawn(definition, args[2], player.getLocation());
-                player.sendMessage("[ダンジョン] " + args[2] + " を置いた。(全部で " + (definition.spawns().size() + 1) + " 体)");
+                service.refreshMarkers(id);
+                player.sendMessage("[ダンジョン] #" + (definition.spawns().size() + 1) + " " + args[2] + " を置いた。(消すときは /dungeon removespawn " + id + " "
+                        + (definition.spawns().size() + 1) + "、または近くで /dungeon removespawn " + id + ")");
             }
             case "exit" -> {
                 if (!player.getWorld().getName().equals(definition.templateWorldName())) {
@@ -141,6 +144,7 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 registry.setExit(definition, player.getLocation());
+                service.refreshMarkers(id);
                 player.sendMessage("[ダンジョン] 今の位置を脱出口にした。(ボスを倒すと通れる)");
             }
             case "boss" -> {
@@ -149,6 +153,7 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 registry.setBoss(definition, args[2]);
+                service.refreshMarkers(id);
                 boolean placed = definition.spawns().stream().anyMatch(spawn -> spawn.mobId().equals(args[2]));
                 player.sendMessage("[ダンジョン] ボスを " + args[2] + " にした。" + (placed ? "" : " (まだ置かれていない: /dungeon spawn " + id + " " + args[2] + ")"));
             }
@@ -156,12 +161,47 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage("[ダンジョン] ボス: " + (definition.boss() == null ? "なし (全滅でクリア)" : definition.boss())
                         + " / 脱出口: " + (definition.exit() == null ? "なし" : String.format(Locale.ROOT, "(%.1f, %.1f, %.1f)", definition.exit().x(), definition.exit().y(), definition.exit().z())));
                 player.sendMessage("[ダンジョン] " + definition.name() + " のモブ: " + definition.spawns().size() + " 体");
-                for (DungeonDefinition.MobSpawn spawn : definition.spawns()) {
-                    player.sendMessage(String.format(Locale.ROOT, "  %s  (%.1f, %.1f, %.1f)", spawn.mobId(), spawn.x(), spawn.y(), spawn.z()));
+                for (int index = 0; index < definition.spawns().size(); index++) {
+                    DungeonDefinition.MobSpawn spawn = definition.spawns().get(index);
+                    player.sendMessage(String.format(Locale.ROOT, "  #%d %s  (%.1f, %.1f, %.1f)", index + 1, spawn.mobId(), spawn.x(), spawn.y(), spawn.z()));
                 }
+            }
+            case "removespawn" -> {
+                int index = -1;
+                if (args.length >= 3) {
+                    try {
+                        index = Integer.parseInt(args[2]) - 1;
+                    } catch (NumberFormatException e) {
+                        player.sendMessage("[ダンジョン] /dungeon removespawn " + id + " [番号] (番号は /dungeon spawns で確認。省くと一番近いモブ)");
+                        return true;
+                    }
+                } else if (player.getWorld().getName().equals(definition.templateWorldName())) {
+                    // no number: the placed mob nearest to the player (within 4 blocks)
+                    double best = 16.0;
+                    for (int i = 0; i < definition.spawns().size(); i++) {
+                        double distance = definition.spawns().get(i).in(player.getWorld()).distanceSquared(player.getLocation());
+                        if (distance <= best) {
+                            best = distance;
+                            index = i;
+                        }
+                    }
+                    if (index < 0) {
+                        player.sendMessage("[ダンジョン] 近く(4ブロック以内)に置いたモブがありません。番号で指定してください。");
+                        return true;
+                    }
+                }
+                if (index < 0 || index >= definition.spawns().size()) {
+                    player.sendMessage("[ダンジョン] その番号のモブはありません。(/dungeon spawns " + id + " で確認)");
+                    return true;
+                }
+                String removed = definition.spawns().get(index).mobId();
+                registry.removeSpawn(definition, index);
+                service.refreshMarkers(id);
+                player.sendMessage("[ダンジョン] #" + (index + 1) + " " + removed + " を消した。(番号は詰めて付け直される)");
             }
             case "clearspawns" -> {
                 registry.clearSpawns(definition);
+                service.refreshMarkers(id);
                 player.sendMessage("[ダンジョン] モブの配置を全部消した。");
             }
             default -> {
@@ -181,6 +221,10 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
             for (Player online : org.bukkit.Bukkit.getOnlinePlayers()) if (!online.equals(sender)) options.add(online.getName());
         } else if (args.length == 2 && !List.of("leave", "reload", "new", "join").contains(args[0].toLowerCase(Locale.ROOT))) {
             for (DungeonDefinition definition : service.registry().all()) options.add(definition.id());
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("removespawn") && admin) {
+            service.registry().find(args[1]).ifPresent(definition -> {
+                for (int i = 1; i <= definition.spawns().size(); i++) options.add(String.valueOf(i));
+            });
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("spawn") || args[0].equalsIgnoreCase("boss")) && admin) {
             options.addAll(mobRegistry.all().keySet());
         }
