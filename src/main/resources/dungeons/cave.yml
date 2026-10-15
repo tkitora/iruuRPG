@@ -2,7 +2,8 @@
 #
 # 入るたびに、テンプレートワールド dungeon_template_<id> を丸ごとコピーして、
 # そのプレイヤー専用のワールドを作る。座標は、テンプレートとコピーで同じ。
-# 作り方 (op):
+# 作り方 (op): いちばん簡単なのは /dungeon edit cave (エディターモード。ホットバーの道具をクリックして設定)
+# コマンドで設定する場合:
 #   /dungeon build cave             テンプレートワールドへ移動 (無ければ空のワールドを作る)
 #   建築する → /dungeon entry cave  今の位置を入口にする
 #   /dungeon spawn cave cave_crawler 今の位置にモブを置く (何体でも。cave_crawler / cave_bones / cave_spider / cave_boss)

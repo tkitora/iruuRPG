@@ -21,11 +21,17 @@ import java.util.Locale;
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
     private final RpgMobRegistry mobRegistry;
+
+    private DungeonEditor editor;
+
+    public void setEditor(DungeonEditor editor) {
+        this.editor = editor;
+    }
 
     public DungeonCommand(DungeonService service, DungeonMenu menu, RpgMobRegistry mobRegistry) {
         this.service = service;
@@ -81,6 +87,11 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
         }
         if (!player.hasPermission(DungeonService.ADMIN_PERMISSION)) {
             player.sendMessage("[ダンジョン] この操作は管理者のみです。");
+            return true;
+        }
+        if (sub.equals("edit")) {
+            // editor mode: the hotbar becomes the tools (no id inside a template: switch on/off)
+            if (editor != null) editor.toggle(player, args.length >= 2 ? args[1].toLowerCase(Locale.ROOT) : null);
             return true;
         }
         if (sub.equals("reload")) {

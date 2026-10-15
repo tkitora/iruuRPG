@@ -153,6 +153,11 @@ public final class DungeonService implements Listener {
     private final RpgMobRegistry mobRegistry;
     /** template world name -> the marker labels shown while building it */
     private final Map<String, List<Entity>> markers = new HashMap<>();
+    /** The clickable box of a placed-mob marker -> which dungeon and which spawn (0-based). */
+    private final Map<UUID, MarkerRef> markerRefs = new HashMap<>();
+
+    public record MarkerRef(String dungeonId, int index) {
+    }
     private RpgItemRegistry itemRegistry;
     private RpgItemFactory itemFactory;
     private RewardChestMenu rewardChestMenu;
@@ -1139,6 +1144,16 @@ public final class DungeonService implements Listener {
                     .append(Component.newline())
                     .append(Component.text(spawn.mobId(), NamedTextColor.GRAY));
             labels.add(label(spawn.in(world).add(0, 1.8, 0), text));
+            // an invisible box over the spot, so the editor can click the placed mob
+            Location at = spawn.in(world);
+            org.bukkit.entity.Interaction box = world.spawn(at, org.bukkit.entity.Interaction.class, interaction -> {
+                interaction.setInteractionWidth(0.9f);
+                interaction.setInteractionHeight(1.8f);
+                interaction.setResponsive(true);
+                interaction.setPersistent(false);
+            });
+            markerRefs.put(box.getUniqueId(), new MarkerRef(definition.id(), index));
+            labels.add(box);
         }
         labels.add(label(definition.entry().in(world).add(0, 2.2, 0), Component.text("入口", NamedTextColor.GREEN, TextDecoration.BOLD)));
         if (definition.exit() != null) {
@@ -1151,6 +1166,11 @@ public final class DungeonService implements Listener {
             labels.add(label(definition.chest().in(world).add(0.5, 1.5, 0.5), Component.text("報酬の宝箱", NamedTextColor.GOLD, TextDecoration.BOLD)));
         }
         markers.put(definition.templateWorldName(), labels);
+    }
+
+    /** The placed mob behind a clicked marker box, or null. */
+    public MarkerRef markerOf(Entity entity) {
+        return entity == null ? null : markerRefs.get(entity.getUniqueId());
     }
 
     private Entity label(Location at, Component text) {
@@ -1167,6 +1187,7 @@ public final class DungeonService implements Listener {
         List<Entity> old = markers.remove(templateWorld);
         if (old == null) return;
         for (Entity entity : old) {
+            markerRefs.remove(entity.getUniqueId());
             if (entity.isValid()) entity.remove();
         }
     }
