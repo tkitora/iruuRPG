@@ -59,37 +59,26 @@ import java.util.UUID;
  * on and off at any time. The real hotbar is kept (also in a file, in case the server stops) and given back when
  * leaving the editor, the template world, or the server.
  *
- * Tools come in two pages (slots 1-6), plus 7 = switch the page and 8 = done (slot 9 keeps the menu item):
- * mobs page: place a mob (click a block, pick from the list; sneak = the last mob again), make boss (click a placed
- * mob), delete (a placed mob, or a road chest), road chest;
- * places page: entry, boss room trigger, boss room, reward room, reward chest, exit.
- * Done: click = back to building, sneak-click = save and go back.
+ * Tools (slots 1-5, 8 = done; slot 9 keeps the menu item): place a mob (pick from a list, optionally as the boss;
+ * sneak = the last mob again), an entrance (the dungeon's entry, the boss room trigger, the boss room, the reward room:
+ * chosen from a small list; sneak = the last kind again), a chest (road chest or clear chest, the same way), the exit,
+ * and delete (a placed mob or a road chest). Done: click = back to building, sneak-click = save and go back.
  */
 public final class DungeonEditor implements Listener {
 
     private enum Tool {
         MOB(Material.ZOMBIE_SPAWN_EGG, "モブを置く", NamedTextColor.GREEN,
-                "ブロックをクリック → 一覧から選んで、その上に置く", "しゃがんでクリック: 前と同じモブをもう一度"),
-        BOSS(Material.WITHER_SKELETON_SKULL, "ボスにする", NamedTextColor.RED,
-                "置いたモブ (名札の下) をクリック → そのモブをボスにする", "このモブが倒れたらクリア"),
+                "ブロックをクリック → 一覧から選んで、その上に置く", "一覧の「ボスとして置く」でボスに", "しゃがんでクリック: 前と同じモブをもう一度"),
+        ENTRANCE(Material.OAK_DOOR, "入口を置く", NamedTextColor.GREEN,
+                "ブロックをクリック → 種類を選ぶ (その上、向きは今の向き)",
+                "ダンジョンの入口 / ボス部屋への入口 / ボス部屋 / 報酬部屋", "しゃがんでクリック: 前と同じ種類をもう一度"),
+        CHEST(Material.CHEST, "宝箱を置く", NamedTextColor.GOLD,
+                "ブロックをクリック → 種類を選ぶ (宝箱をクリックならその宝箱)",
+                "道中の宝箱 (いくつでも) / クリアの宝箱 (報酬部屋)", "しゃがんでクリック: 前と同じ種類をもう一度"),
+        EXIT(Material.ENDER_EYE, "出口を置く", NamedTextColor.AQUA,
+                "ブロックをクリック → その上を脱出口にする", "ボスを倒すと通れる"),
         DELETE(Material.BARRIER, "置いたものを消す", NamedTextColor.DARK_RED,
                 "置いたモブ (名札の下) をクリック → 消す", "道中の宝箱をクリック → 消す / ブロックをクリック: その近くのモブを消す"),
-        ENTRY(Material.OAK_DOOR, "入口にする", NamedTextColor.GREEN,
-                "ブロックをクリック → その上を入口にする", "向きは、いま向いている方向"),
-        EXIT(Material.ENDER_EYE, "脱出口にする", NamedTextColor.AQUA,
-                "ブロックをクリック → その上を脱出口にする", "ボスを倒すと通れる"),
-        ROOM(Material.GOLD_BLOCK, "報酬部屋にする", NamedTextColor.GOLD,
-                "ブロックをクリック → その上を報酬部屋にする", "クリアの5秒後に全員がここへ"),
-        CHEST(Material.ENDER_CHEST, "報酬の宝箱を置く", NamedTextColor.GOLD,
-                "ブロックをクリック → そこに報酬の宝箱を置く", "宝箱をクリック: その宝箱を使う"),
-        ROAD_CHEST(Material.CHEST, "道中の宝箱を置く", NamedTextColor.YELLOW,
-                "ブロックをクリック → そこに道中の宝箱を置く (いくつでも)", "消すときは「置いたものを消す」で宝箱をクリック"),
-        BOSS_TRIGGER(Material.TRIPWIRE_HOOK, "ボス部屋への入口にする", NamedTextColor.RED,
-                "ブロックをクリック → その上がボス部屋への入口", "パーティー人数-1 (最低1) 人が集まると全員でボス部屋へ"),
-        BOSS_ROOM(Material.CRIMSON_DOOR, "ボス部屋 (移動先) にする", NamedTextColor.RED,
-                "ブロックをクリック → その上がボス部屋の移動先", "向きは、いま向いている方向"),
-        PAGE(Material.COMPASS, "道具を切り替える", NamedTextColor.AQUA,
-                "クリック: 「モブ」と「場所」の道具を切り替える"),
         DONE(Material.LIME_DYE, "エディターを終える", NamedTextColor.WHITE,
                 "クリック: 建築モードに戻る (このワールドのまま)", "しゃがんでクリック: 保存して元の場所へ戻る");
 
@@ -107,11 +96,31 @@ public final class DungeonEditor implements Listener {
     }
 
     private static final int TOOL_SLOTS = 8; // slots 0-7; slot 8 is the menu item
-    private static final String[] PAGE_NAMES = {"モブ", "場所"};
-    private static final Tool[][] PAGES = {
-            {Tool.MOB, Tool.BOSS, Tool.DELETE, Tool.ROAD_CHEST, null, null},
-            {Tool.ENTRY, Tool.BOSS_TRIGGER, Tool.BOSS_ROOM, Tool.ROOM, Tool.CHEST, Tool.EXIT},
-    };
+    /** Hotbar slots 1-8 (index 0-7); empty slots stay empty. */
+    private static final Tool[] HOTBAR = {Tool.MOB, Tool.ENTRANCE, Tool.CHEST, Tool.EXIT, Tool.DELETE, null, null, Tool.DONE};
+
+    /** The kinds the entrance and chest tools ask for. */
+    private enum Kind {
+        ENTRY("ダンジョンの入口", Material.OAK_DOOR, NamedTextColor.GREEN),
+        BOSS_TRIGGER("ボス部屋への入口", Material.TRIPWIRE_HOOK, NamedTextColor.RED),
+        BOSS_ROOM("ボス部屋 (移動先)", Material.CRIMSON_DOOR, NamedTextColor.RED),
+        REWARD_ROOM("報酬部屋", Material.GOLD_BLOCK, NamedTextColor.GOLD),
+        ROAD_CHEST("道中の宝箱", Material.CHEST, NamedTextColor.YELLOW),
+        CLEAR_CHEST("クリアの宝箱 (報酬部屋)", Material.ENDER_CHEST, NamedTextColor.GOLD);
+
+        private final String label;
+        private final Material icon;
+        private final NamedTextColor color;
+
+        Kind(String label, Material icon, NamedTextColor color) {
+            this.label = label;
+            this.icon = icon;
+            this.color = color;
+        }
+    }
+
+    private static final Kind[] ENTRANCE_KINDS = {Kind.ENTRY, Kind.BOSS_TRIGGER, Kind.BOSS_ROOM, Kind.REWARD_ROOM};
+    private static final Kind[] CHEST_KINDS = {Kind.ROAD_CHEST, Kind.CLEAR_CHEST};
 
     private static final class Session {
         private final String dungeonId;
@@ -119,7 +128,10 @@ public final class DungeonEditor implements Listener {
         private String lastMob;
         private Location pending;
         private boolean asBoss;
-        private int page;
+        private float pendingYaw;
+        private Block pendingBlock;
+        private Kind lastEntrance;
+        private Kind lastChest;
 
         private Session(String dungeonId, ItemStack[] savedHotbar) {
             this.dungeonId = dungeonId;
@@ -185,7 +197,7 @@ public final class DungeonEditor implements Listener {
         Session session = new Session(definition.id(), saved);
         sessions.put(player.getUniqueId(), session);
         writeBackup(player.getUniqueId(), saved);
-        renderHotbar(player, session);
+        renderHotbar(player);
         player.getInventory().setHeldItemSlot(0);
         service.refreshMarkers(definition.id());
         player.sendMessage(Component.text("[エディター] 「" + definition.name() + "」のエディターモード。ホットバーの道具で設定する。"
@@ -193,14 +205,10 @@ public final class DungeonEditor implements Listener {
         player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 1.6f);
     }
 
-    /** Slots 1-6: the tools of the current page; 7: switch the page; 8: done. */
-    private void renderHotbar(Player player, Session session) {
-        Tool[] page = PAGES[session.page];
-        for (int slot = 0; slot < page.length; slot++) {
-            player.getInventory().setItem(slot, page[slot] == null ? null : toolItem(page[slot]));
+    private void renderHotbar(Player player) {
+        for (int slot = 0; slot < HOTBAR.length; slot++) {
+            player.getInventory().setItem(slot, HOTBAR[slot] == null ? null : toolItem(HOTBAR[slot]));
         }
-        player.getInventory().setItem(6, toolItem(Tool.PAGE));
-        player.getInventory().setItem(7, toolItem(Tool.DONE));
     }
 
     /** Leaves the editor and gives the hotbar back. */
@@ -296,6 +304,7 @@ public final class DungeonEditor implements Listener {
         if (event.getWhoClicked() instanceof Player player && editing(player)) {
             event.setCancelled(true);
             if (event.getView().getTopInventory().getHolder() instanceof Picker picker) onPick(player, picker, event.getRawSlot());
+            if (event.getView().getTopInventory().getHolder() instanceof Choice choice) onChoice(player, choice, event.getRawSlot());
         }
     }
 
@@ -360,13 +369,6 @@ public final class DungeonEditor implements Listener {
 
         DungeonDefinition definition = registry.find(session.dungeonId).orElse(null);
         if (definition == null) return;
-        if (tool == Tool.PAGE) {
-            session.page = (session.page + 1) % PAGES.length;
-            renderHotbar(player, session);
-            player.sendActionBar(Component.text("道具: " + PAGE_NAMES[session.page], NamedTextColor.AQUA));
-            player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.6f, 1.2f);
-            return;
-        }
         if (tool == Tool.DONE) {
             if (player.isSneaking()) {
                 stop(player, false);
@@ -379,21 +381,40 @@ public final class DungeonEditor implements Listener {
         Block clicked = event.getClickedBlock();
         if (clicked == null) {
             // (clicking a marker also sends a click into the air; the marker click handles it)
-            if (tool != Tool.BOSS && tool != Tool.DELETE) hint(player, "ブロックをクリックしてください。");
+            if (tool != Tool.DELETE) hint(player, "ブロックをクリックしてください。");
             return;
         }
         BlockFace face = event.getBlockFace();
         Location above = clicked.getRelative(face).getLocation().add(0.5, 0.0, 0.5);
+        session.pending = above;
+        session.pendingYaw = player.getLocation().getYaw();
+        session.pendingBlock = clicked.getType() == Material.CHEST ? clicked : clicked.getRelative(face);
         switch (tool) {
             case MOB -> {
-                session.pending = above;
                 if (player.isSneaking() && session.lastMob != null) {
                     place(player, session, session.lastMob);
                 } else {
                     openPicker(player, session);
                 }
             }
-            case BOSS -> hint(player, "置いたモブ (名札の下) をクリックしてください。");
+            case ENTRANCE -> {
+                if (player.isSneaking() && session.lastEntrance != null) {
+                    apply(player, session, session.lastEntrance);
+                } else {
+                    openChoice(player, "どの入口にする?", ENTRANCE_KINDS);
+                }
+            }
+            case CHEST -> {
+                if (player.isSneaking() && session.lastChest != null) {
+                    apply(player, session, session.lastChest);
+                } else {
+                    openChoice(player, "どの宝箱にする?", CHEST_KINDS);
+                }
+            }
+            case EXIT -> {
+                registry.setExit(definition, above);
+                done(player, definition, "ここを脱出口にした。");
+            }
             case DELETE -> {
                 int road = definition.roadChestAt(clicked.getX(), clicked.getY(), clicked.getZ());
                 if (road >= 0) {
@@ -404,45 +425,90 @@ public final class DungeonEditor implements Listener {
                     deleteNear(player, definition, clicked.getLocation().add(0.5, 1.0, 0.5));
                 }
             }
-            case ROAD_CHEST -> {
-                Block chest = clicked.getType() == Material.CHEST ? clicked : clicked.getRelative(face);
-                chest.setType(Material.CHEST);
-                registry.addRoadChest(definition, chest.getLocation());
-                DungeonDefinition updated = registry.find(definition.id()).orElse(definition);
-                done(player, updated, "道中の宝箱 #" + updated.roadChests().size() + " を置いた。");
-            }
-            case BOSS_TRIGGER -> {
-                registry.setBossTrigger(definition, above);
-                done(player, definition, "ここをボス部屋への入口にした。(パーティー人数-1 人が集まると移動)");
-            }
-            case BOSS_ROOM -> {
-                above.setYaw(player.getLocation().getYaw());
-                registry.setBossRoom(definition, above);
-                done(player, definition, "ここをボス部屋の移動先にした。");
-            }
-            case ENTRY -> {
-                above.setYaw(player.getLocation().getYaw());
-                registry.setEntry(definition, above);
-                done(player, definition, "ここを入口にした。");
-            }
-            case EXIT -> {
-                registry.setExit(definition, above);
-                done(player, definition, "ここを脱出口にした。");
-            }
-            case ROOM -> {
-                above.setYaw(player.getLocation().getYaw());
-                registry.setRewardRoom(definition, above);
-                done(player, definition, "ここを報酬部屋にした。");
-            }
-            case CHEST -> {
-                Block chest = clicked.getType() == Material.CHEST ? clicked : clicked.getRelative(face);
-                chest.setType(Material.CHEST);
-                registry.setChest(definition, chest.getLocation());
-                done(player, definition, "ここに報酬の宝箱を置いた。");
-            }
             default -> {
             }
         }
+    }
+
+    /** Sets the chosen kind of entrance or chest at the clicked spot. */
+    private void apply(Player player, Session session, Kind kind) {
+        DungeonDefinition definition = registry.find(session.dungeonId).orElse(null);
+        if (definition == null || session.pending == null) return;
+        Location at = session.pending.clone();
+        at.setYaw(session.pendingYaw);
+        switch (kind) {
+            case ENTRY -> {
+                registry.setEntry(definition, at);
+                session.lastEntrance = kind;
+                done(player, definition, "ここをダンジョンの入口にした。");
+            }
+            case BOSS_TRIGGER -> {
+                registry.setBossTrigger(definition, at);
+                session.lastEntrance = kind;
+                done(player, definition, "ここをボス部屋への入口にした。(パーティー人数-1 人が集まると移動)");
+            }
+            case BOSS_ROOM -> {
+                registry.setBossRoom(definition, at);
+                session.lastEntrance = kind;
+                done(player, definition, "ここをボス部屋 (移動先) にした。");
+            }
+            case REWARD_ROOM -> {
+                registry.setRewardRoom(definition, at);
+                session.lastEntrance = kind;
+                done(player, definition, "ここを報酬部屋にした。");
+            }
+            case ROAD_CHEST -> {
+                session.pendingBlock.setType(Material.CHEST);
+                registry.addRoadChest(definition, session.pendingBlock.getLocation());
+                session.lastChest = kind;
+                DungeonDefinition updated = registry.find(definition.id()).orElse(definition);
+                done(player, updated, "道中の宝箱 #" + updated.roadChests().size() + " を置いた。");
+            }
+            case CLEAR_CHEST -> {
+                session.pendingBlock.setType(Material.CHEST);
+                registry.setChest(definition, session.pendingBlock.getLocation());
+                session.lastChest = kind;
+                done(player, definition, "ここにクリアの宝箱を置いた。");
+            }
+        }
+    }
+
+    // ---- choosing a kind (entrance / chest) --------------------------------------------------------------------------
+
+    private static final class Choice implements MenuHolder {
+        private final Map<Integer, Kind> kinds = new HashMap<>();
+        private Inventory inventory;
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private void openChoice(Player player, String title, Kind[] kinds) {
+        Choice choice = new Choice();
+        choice.inventory = Bukkit.createInventory(choice, 27, Component.text(title));
+        int[] slots = kinds.length == 2 ? new int[]{11, 15} : new int[]{10, 12, 14, 16};
+        for (int index = 0; index < kinds.length && index < slots.length; index++) {
+            Kind kind = kinds[index];
+            choice.inventory.setItem(slots[index], button(kind.icon, kind.label, kind.color, List.of(text("クリックで、ここに置く", NamedTextColor.GRAY))));
+            choice.kinds.put(slots[index], kind);
+        }
+        choice.inventory.setItem(22, button(Material.ARROW, "やめる", NamedTextColor.GRAY, List.of()));
+        player.openInventory(choice.inventory);
+    }
+
+    private void onChoice(Player player, Choice choice, int slot) {
+        Session session = sessions.get(player.getUniqueId());
+        if (session == null) return;
+        if (slot == 22) {
+            player.closeInventory();
+            return;
+        }
+        Kind kind = choice.kinds.get(slot);
+        if (kind == null) return;
+        player.closeInventory();
+        apply(player, session, kind);
     }
 
     /** Clicking a placed mob's marker (right click). */
@@ -468,9 +534,6 @@ public final class DungeonEditor implements Listener {
         if (tool == Tool.DELETE) {
             registry.removeSpawn(definition, ref.index());
             done(player, definition, "#" + (ref.index() + 1) + " " + spawn.mobId() + " を消した。");
-        } else if (tool == Tool.BOSS) {
-            registry.setBoss(definition, spawn.mobId());
-            done(player, definition, spawn.mobId() + " をボスにした。");
         } else {
             player.sendActionBar(Component.text("#" + (ref.index() + 1) + " " + spawn.mobId()
                     + (spawn.mobId().equals(definition.boss()) ? " (ボス)" : ""), NamedTextColor.YELLOW));
