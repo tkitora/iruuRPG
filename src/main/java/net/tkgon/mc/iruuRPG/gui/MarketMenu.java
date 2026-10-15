@@ -67,7 +67,8 @@ public final class MarketMenu implements Listener {
     private final JavaPlugin plugin;
     private final MarketService service;
     private final Predicate<ItemStack> sellable;
-    private final Map<UUID, PendingInput> pendingInputs = new HashMap<>();
+    /** Read from the async chat thread (onChat), written on the main thread: must be thread-safe. */
+    private final Map<UUID, PendingInput> pendingInputs = new java.util.concurrent.ConcurrentHashMap<>();
     private MainMenu mainMenu;
 
     public MarketMenu(JavaPlugin plugin, MarketService service, Predicate<ItemStack> sellable) {
