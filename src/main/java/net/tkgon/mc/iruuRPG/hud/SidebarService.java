@@ -174,9 +174,9 @@ public final class SidebarService implements Listener {
         syncNoCollision(board);
     }
 
-    /** Japan time by default (sidebar.clock: real); "game" shows the time of day in the player's world. */
+    /** The time of day in the player's world by default (sidebar.clock: game); "real" shows real time (time-zone). */
     private String clock(Player player) {
-        if ("game".equalsIgnoreCase(plugin.getConfig().getString("sidebar.clock", "real"))) {
+        if (!"real".equalsIgnoreCase(plugin.getConfig().getString("sidebar.clock", "game"))) {
             long ticks = (player.getWorld().getTime() + 6000) % 24000; // tick 0 is 6:00
             long hour = ticks / 1000;
             long minute = (ticks % 1000) * 60 / 1000;
