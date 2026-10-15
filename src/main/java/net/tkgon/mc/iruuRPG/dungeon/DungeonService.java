@@ -842,6 +842,9 @@ public final class DungeonService implements Listener {
         if (block.getX() != (int) Math.floor(chest.x()) || block.getY() != (int) Math.floor(chest.y()) || block.getZ() != (int) Math.floor(chest.z())) return;
 
         event.setCancelled(true);
+        // one right click also sends an off-hand event: handle the main hand only (the off-hand one stays cancelled,
+        // so the vanilla chest never opens)
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
         if (instance.state != State.CLEARED) {
             player.sendMessage(Component.text("[ダンジョン] ボスを倒すまで開かない。", NamedTextColor.RED));
             return;
