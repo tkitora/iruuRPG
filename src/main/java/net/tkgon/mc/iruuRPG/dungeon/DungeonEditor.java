@@ -462,13 +462,24 @@ public final class DungeonEditor implements Listener {
         player.sendActionBar(Component.text(message, NamedTextColor.GRAY));
     }
 
-    // ---- the mob list -------------------------------------------------------------------------------------------------
+    // ---- the mob list ---------------------------------------------------------------------------------------------------
 
-    private static final int BOSS_TOGGLE = 49;
+    // top row: tag buttons; rows 2-5: mobs; bottom row: cancel, pages, the boss toggle
     private static final int CANCEL = 45;
+    private static final int PREV = 47;
+    private static final int BOSS_TOGGLE = 49;
+    private static final int NEXT = 51;
+    private static final int FIRST_MOB_SLOT = 9;
+    private static final int MOBS_PER_PAGE = 36;
+    private static final String TAG_HERE = "@here";
+    private static final String TAG_ALL = "@all";
+    private static final String TAG_NONE = "@none";
 
     private static final class Picker implements MenuHolder {
-        private final List<String> ids = new ArrayList<>();
+        private final Map<Integer, String> mobs = new HashMap<>();   // slot -> mob id
+        private final Map<Integer, String> tags = new HashMap<>();   // slot -> tag key
+        private String tag;
+        private int page;
         private Inventory inventory;
 
         @Override
@@ -479,23 +490,105 @@ public final class DungeonEditor implements Listener {
 
     private void openPicker(Player player, Session session) {
         Picker picker = new Picker();
-        Inventory inventory = Bukkit.createInventory(picker, 54, Component.text("置くモブを選ぶ"));
-        picker.inventory = inventory;
-        List<RpgMobDefinition> mobs = new ArrayList<>(mobRegistry.all().values());
-        mobs.sort((left, right) -> left.level() != right.level() ? Integer.compare(left.level(), right.level()) : left.id().compareTo(right.id()));
-        for (RpgMobDefinition mob : mobs) {
-            if (picker.ids.size() >= 45) break;
+        picker.inventory = Bukkit.createInventory(picker, 54, Component.text("置くモブを選ぶ"));
+        boolean anyHere = mobRegistry.all().values().stream().anyMatch(mob -> mob.inArea(session.dungeonId));
+        picker.tag = anyHere ? TAG_HERE : TAG_ALL;
+        renderPicker(picker, session);
+        player.openInventory(picker.inventory);
+    }
+
+    /** Every area tag used by some mob, sorted. */
+    private List<String> areaTags() {
+        java.util.TreeSet<String> tags = new java.util.TreeSet<>();
+        for (RpgMobDefinition mob : mobRegistry.all().values()) tags.addAll(mob.areas());
+        return new ArrayList<>(tags);
+    }
+
+    private boolean matches(RpgMobDefinition mob, String tag, Session session) {
+        return switch (tag) {
+            case TAG_ALL -> true;
+            case TAG_HERE -> mob.inArea(session.dungeonId);
+            case TAG_NONE -> mob.areas().isEmpty();
+            default -> mob.inArea(tag);
+        };
+    }
+
+    private void renderPicker(Picker picker, Session session) {
+        Inventory inventory = picker.inventory;
+        inventory.clear();
+        picker.mobs.clear();
+        picker.tags.clear();
+
+        // top row: この ダンジョン / すべて / each area / タグなし (as many as fit)
+        List<String> keys = new ArrayList<>(List.of(TAG_HERE, TAG_ALL));
+        List<String> areas = areaTags();
+        areas.remove(session.dungeonId); // already "このダンジョン"
+        int room = 9 - keys.size() - 1;
+        for (int index = 0; index < areas.size() && index < room; index++) keys.add(areas.get(index));
+        keys.add(TAG_NONE);
+        for (int slot = 0; slot < keys.size(); slot++) {
+            String key = keys.get(slot);
+            boolean selected = key.equals(picker.tag);
+            long count = mobRegistry.all().values().stream().filter(mob -> matches(mob, key, session)).count();
+            Material icon = switch (key) {
+                case TAG_HERE -> Material.SPAWNER;
+                case TAG_ALL -> Material.BOOKSHELF;
+                case TAG_NONE -> Material.PAPER;
+                default -> Material.NAME_TAG;
+            };
+            String label = switch (key) {
+                case TAG_HERE -> "このダンジョン (" + session.dungeonId + ")";
+                case TAG_ALL -> "すべて";
+                case TAG_NONE -> "タグなし";
+                default -> "エリア: " + key;
+            };
+            ItemStack button = button(icon, label, selected ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                    text(count + " 体", NamedTextColor.WHITE),
+                    text(selected ? "表示中" : "クリックで、このモブだけ表示", selected ? NamedTextColor.GREEN : NamedTextColor.GRAY)));
+            if (selected) {
+                ItemMeta meta = button.getItemMeta();
+                meta.addEnchant(org.bukkit.enchantments.Enchantment.LUCK, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+                button.setItemMeta(meta);
+            }
+            inventory.setItem(slot, button);
+            picker.tags.put(slot, key);
+        }
+        // (areas beyond the top row's room still show under "すべて")
+
+        // the mobs of the chosen tag, by level
+        List<RpgMobDefinition> shown = new ArrayList<>();
+        for (RpgMobDefinition mob : mobRegistry.all().values()) {
+            if (matches(mob, picker.tag, session)) shown.add(mob);
+        }
+        shown.sort((left, right) -> left.level() != right.level() ? Integer.compare(left.level(), right.level()) : left.id().compareTo(right.id()));
+        int pages = Math.max(1, (shown.size() + MOBS_PER_PAGE - 1) / MOBS_PER_PAGE);
+        picker.page = Math.max(0, Math.min(picker.page, pages - 1));
+        for (int index = 0; index < MOBS_PER_PAGE; index++) {
+            int at = picker.page * MOBS_PER_PAGE + index;
+            if (at >= shown.size()) break;
+            RpgMobDefinition mob = shown.get(at);
             Material egg = Material.matchMaterial(mob.entityType().name() + "_SPAWN_EGG");
             List<Component> lore = new ArrayList<>();
             lore.add(text("id: " + mob.id(), NamedTextColor.GRAY));
             lore.add(text("Lv " + mob.level() + " / HP " + Math.round(mob.stats().get(StatType.MAX_HP)), NamedTextColor.WHITE));
+            lore.add(text("エリア: " + (mob.areas().isEmpty() ? "タグなし" : String.join(", ", mob.areas())), NamedTextColor.AQUA));
             if (mob.id().equals(session.lastMob)) lore.add(text("(前に置いたモブ)", NamedTextColor.YELLOW));
-            inventory.setItem(picker.ids.size(), button(egg == null ? Material.PAPER : egg, mob.name(), NamedTextColor.GREEN, lore));
-            picker.ids.add(mob.id());
+            inventory.setItem(FIRST_MOB_SLOT + index, button(egg == null ? Material.PAPER : egg, mob.name(), NamedTextColor.GREEN, lore));
+            picker.mobs.put(FIRST_MOB_SLOT + index, mob.id());
         }
-        renderBossToggle(inventory, session);
+        if (shown.isEmpty()) {
+            inventory.setItem(22, button(Material.GRAY_DYE, "この分類のモブはいない", NamedTextColor.GRAY, List.of()));
+        }
+
+        // bottom row
+        ItemStack frame = button(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
+        for (int slot = 45; slot < 54; slot++) inventory.setItem(slot, frame);
         inventory.setItem(CANCEL, button(Material.ARROW, "やめる", NamedTextColor.GRAY, List.of()));
-        player.openInventory(inventory);
+        if (picker.page > 0) inventory.setItem(PREV, button(Material.SPECTRAL_ARROW, "前のページ", NamedTextColor.YELLOW, List.of()));
+        if (picker.page < pages - 1) inventory.setItem(NEXT, button(Material.SPECTRAL_ARROW, "次のページ", NamedTextColor.YELLOW,
+                List.of(text("ページ " + (picker.page + 1) + " / " + pages, NamedTextColor.GRAY))));
+        renderBossToggle(inventory, session);
     }
 
     private void renderBossToggle(Inventory inventory, Session session) {
@@ -512,9 +605,16 @@ public final class DungeonEditor implements Listener {
         } else if (slot == BOSS_TOGGLE) {
             session.asBoss = !session.asBoss;
             renderBossToggle(picker.inventory, session);
-        } else if (slot >= 0 && slot < picker.ids.size()) {
+        } else if (slot == PREV || slot == NEXT) {
+            picker.page += slot == NEXT ? 1 : -1;
+            renderPicker(picker, session);
+        } else if (picker.tags.containsKey(slot)) {
+            picker.tag = picker.tags.get(slot);
+            picker.page = 0;
+            renderPicker(picker, session);
+        } else if (picker.mobs.containsKey(slot)) {
             player.closeInventory();
-            place(player, session, picker.ids.get(slot));
+            place(player, session, picker.mobs.get(slot));
         }
     }
 
