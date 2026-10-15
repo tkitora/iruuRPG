@@ -34,6 +34,8 @@ import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
 import net.tkgon.mc.iruuRPG.hud.SidebarService;
+import net.tkgon.mc.iruuRPG.sync.ReloadReport;
+import net.tkgon.mc.iruuRPG.sync.YmlSyncService;
 import net.tkgon.mc.iruuRPG.gui.MarketMenu;
 import net.tkgon.mc.iruuRPG.item.ResourceSync;
 import net.tkgon.mc.iruuRPG.market.MarketCommand;
@@ -116,6 +118,7 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonService dungeonService;
     private DungeonMenu dungeonMenu;
     private SidebarService sidebarService;
+    private YmlSyncService ymlSyncService;
 
     @Override
     public void onEnable() {
@@ -220,6 +223,8 @@ public final class IruuRPG extends JavaPlugin {
         this.marketService.startTask();
         this.dungeonService.start();
         this.sidebarService.start();
+        this.ymlSyncService = new YmlSyncService(this, this::reloadWithReport);
+        this.ymlSyncService.start();
         this.classService.startConditionTask(equipmentService, playerBars);
 
         registerCommands();
@@ -300,7 +305,11 @@ public final class IruuRPG extends JavaPlugin {
             return;
         }
 
-        IruuRPGCommand executor = new IruuRPGCommand(this::reloadPluginData, itemRegistry, itemFactory, debugTargetService, mobRegistry, mobService, statsMenu, skillTreeMenu, levelService);
+        IruuRPGCommand executor = new IruuRPGCommand(() -> {
+            ReloadReport report = reloadWithReport(null, null, "/iruurpg reload");
+            return "警告 " + report.warningCount() + " 件 (plugins/iruuRPG/reload-report.txt)";
+        }, itemRegistry, itemFactory, debugTargetService, mobRegistry, mobService, statsMenu, skillTreeMenu, levelService);
+        executor.setSyncAction(ymlSyncService::sync);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
@@ -391,6 +400,24 @@ public final class IruuRPG extends JavaPlugin {
             levelService.syncBar(player, profile);
             mainMenuItemService.ensure(player);
         }
+    }
+
+    /**
+     * Reloads the data (items, mobs, recipes, item skills, ...) and writes plugins/iruuRPG/reload-report.txt with the
+     * counts and every problem found. A failure while loading never leaves things half empty (see the registries).
+     */
+    private ReloadReport reloadWithReport(String before, String after, String trigger) {
+        ReloadReport report = new ReloadReport();
+        report.capture(getLogger(), this::reloadPluginData);
+        report.check(getDataFolder(), itemRegistry);
+        report.header(before, after, trigger, itemRegistry.all().size(), mobRegistry.all().size(),
+                craftRegistry.all().size(), itemSkillRegistry.size());
+        try {
+            report.write(new java.io.File(getDataFolder(), "reload-report.txt"));
+        } catch (java.io.IOException e) {
+            getLogger().warning("could not write reload-report.txt: " + e.getMessage());
+        }
+        return report;
     }
 
     private void reloadPluginData() {

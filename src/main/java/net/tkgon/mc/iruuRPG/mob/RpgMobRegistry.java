@@ -32,7 +32,19 @@ public final class RpgMobRegistry {
         this.plugin = plugin;
     }
 
+    /** Reloads every mob; if loading throws, the previous definitions stay (never half empty). */
     public void reload() {
+        Map<String, RpgMobDefinition> previous = new HashMap<>(definitions);
+        try {
+            load();
+        } catch (RuntimeException e) {
+            definitions.clear();
+            definitions.putAll(previous);
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "mobs: reload failed, keeping the previous mobs", e);
+        }
+    }
+
+    private void load() {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), "mobs");

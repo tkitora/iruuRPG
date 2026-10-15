@@ -23,7 +23,23 @@ public final class ItemSkillRegistry {
         this.plugin = plugin;
     }
 
+    /** Reloads every item skill; if loading throws, the previous ones stay (never half empty). */
     public void reload() {
+        Map<ItemSkillType, ItemSkillDefinition> previous = new EnumMap<>(definitions);
+        try {
+            load();
+        } catch (RuntimeException e) {
+            definitions.clear();
+            definitions.putAll(previous);
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "iskill: reload failed, keeping the previous item skills", e);
+        }
+    }
+
+    public int size() {
+        return definitions.size();
+    }
+
+    private void load() {
         definitions.clear();
 
         File folder = new File(plugin.getDataFolder(), FOLDER_NAME);

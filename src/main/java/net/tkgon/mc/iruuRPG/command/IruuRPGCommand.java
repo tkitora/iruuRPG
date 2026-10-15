@@ -36,6 +36,12 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     private final StatsMenu statsMenu;
     private final SkillTreeMenu skillTreeMenu;
     private final LevelService levelService;
+    private java.util.function.Consumer<CommandSender> syncAction;
+
+    /** /iruurpg sync: pull the yml repository now and reload when it changed. */
+    public void setSyncAction(java.util.function.Consumer<CommandSender> syncAction) {
+        this.syncAction = syncAction;
+    }
 
     public IruuRPGCommand(
             ReloadAction reloadAction,
@@ -69,6 +75,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
         String subCommand = args[0].toLowerCase(Locale.ROOT);
         return switch (subCommand) {
             case "reload" -> reload(sender);
+            case "sync" -> sync(sender);
             case "stats", "stat", "profile" -> openStats(sender);
             case "class", "classes", "skilltree", "tree" -> openClass(sender);
             case "level", "lv", "xp" -> level(sender, args);
@@ -80,7 +87,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             case "mob", "enemy" -> spawnMob(sender, args);
             case "dummy", "target" -> spawnDummy(sender);
             default -> {
-                sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|item|mob|dummy>");
+                sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy>");
                 yield true;
             }
         };
@@ -89,7 +96,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 1) {
-            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "item", "mob", "enemy", "dummy", "target"), args[0]);
+            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target"), args[0]);
         }
 
         if (args[0].equalsIgnoreCase("level") || args[0].equalsIgnoreCase("lv") || args[0].equalsIgnoreCase("xp")) {
@@ -138,14 +145,27 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
         }
     }
 
+    private boolean sync(CommandSender sender) {
+        if (!sender.hasPermission("iruurpg.admin")) {
+            sender.sendMessage("No permission.");
+            return true;
+        }
+        if (syncAction != null) {
+            sender.sendMessage("[同期] yml のリポジトリから取り込んでいます…");
+            syncAction.accept(sender);
+        }
+        return true;
+    }
+
     private boolean reload(CommandSender sender) {
         if (!sender.hasPermission("iruurpg.admin")) {
             sender.sendMessage("No permission.");
             return true;
         }
 
-        reloadAction.reload();
+        String summary = reloadAction.reload();
         sender.sendMessage("iruuRPG config, skills, classes, items, and mobs were reloaded.");
+        if (summary != null) sender.sendMessage(summary);
         return true;
     }
 
@@ -454,6 +474,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
 
     @FunctionalInterface
     public interface ReloadAction {
-        void reload();
+        /** Reloads; returns a one-line summary for the sender (or null). */
+        String reload();
     }
 }

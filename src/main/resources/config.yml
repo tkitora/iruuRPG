@@ -271,3 +271,11 @@ sidebar:
       x: 60
       z: 170
       radius: 60
+
+# yml の自動取り込み: plugins/iruuRPG (yml リポジトリの作業コピー) で interval-seconds ごとに
+# git pull --ff-only origin <branch> を実行し、コミットが変わったら再起動なしで読み直す。
+# 結果は plugins/iruuRPG/reload-report.txt。手動は /iruurpg sync
+yml-sync:
+  enabled: true
+  interval-seconds: 60
+  branch: main
