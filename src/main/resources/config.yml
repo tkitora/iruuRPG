@@ -226,6 +226,12 @@ craft-caps:
     element-damage-percent: 15
     element-resist: 20
 
+# 物理: 全てのエンティティ (プレイヤー・モブ) の直接攻撃のノックバックと、エンティティ同士の衝突
+# (スキルが意図的に飛ばす・引き寄せる動きは、これに関係なく動く)
+physics:
+  no-knockback: true   # ノックバック耐性を最大にする
+  no-collision: true   # 押し合わない (チームの衝突ルールも NEVER)
+
 # フリーマーケット (/market)。ゴールドの名前は quest.currency-name
 market:
   max-price: 1000000          # 単価の上限

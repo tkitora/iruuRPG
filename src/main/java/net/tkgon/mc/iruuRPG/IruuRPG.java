@@ -41,6 +41,7 @@ import net.tkgon.mc.iruuRPG.trade.TradeCommand;
 import net.tkgon.mc.iruuRPG.trade.TradeService;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
 import net.tkgon.mc.iruuRPG.listener.CombatListener;
+import net.tkgon.mc.iruuRPG.listener.EntityPhysicsListener;
 import net.tkgon.mc.iruuRPG.listener.DebugTargetListener;
 import net.tkgon.mc.iruuRPG.listener.EquipmentChangeListener;
 import net.tkgon.mc.iruuRPG.listener.ExperienceListener;
@@ -313,6 +314,9 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     private void registerListeners() {
+        EntityPhysicsListener entityPhysics = new EntityPhysicsListener(this);
+        getServer().getPluginManager().registerEvents(entityPhysics, this);
+        entityPhysics.applyToLoaded();
         // registered first so the tutorial locks cancel events before the combat listeners act on them
         getServer().getPluginManager().registerEvents(new TutorialListener(tutorialService), this);
         getServer().getPluginManager().registerEvents(questBoardMenu, this);
