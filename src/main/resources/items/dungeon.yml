@@ -1,0 +1,46 @@
+# ダンジョン「アトラスの洞窟」の素材 (架空)。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
+items:
+  crawler_shell:
+    material: FLINT
+    name: "岩ムシの殻"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    description:
+      - "岩ムシの、硬い殻のかけら。"
+  old_bone:
+    material: BONE_MEAL
+    name: "古い骨"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    description:
+      - "洞窟のガイコツから崩れ落ちた、古い骨。"
+  cave_silk:
+    material: STRING
+    name: "洞窟グモの糸"
+    required-level: 1
+    rarity: 1
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    description:
+      - "暗がりで光を返す、丈夫な糸。"
+  boss_crystal:
+    material: AMETHYST_SHARD
+    name: "岩窟の結晶"
+    required-level: 1
+    rarity: 2
+    element: ORANGE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    glint: true
+    description:
+      - "岩窟の主の体から取れた、橙色に光る結晶。"

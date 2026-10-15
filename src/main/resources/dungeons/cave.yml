@@ -5,18 +5,26 @@
 # 作り方 (op):
 #   /dungeon build cave             テンプレートワールドへ移動 (無ければ空のワールドを作る)
 #   建築する → /dungeon entry cave  今の位置を入口にする
-#   /dungeon spawn cave goblin      今の位置にモブを置く (何体でも)
+#   /dungeon spawn cave cave_crawler 今の位置にモブを置く (何体でも。cave_crawler / cave_bones / cave_spider / cave_boss)
+#   /dungeon exit cave              今の位置を脱出口にする (最初から見えるが、ボスを倒すまで出られない)
+#   /dungeon boss cave cave_boss    このモブが倒れたらクリア (置いたモブの中に必要)
 #   /dungeon save cave              テンプレートを保存して元の場所へ戻る
-# モブが1体以上置かれると「入れる」状態になる。
+# モブが1体以上 (ボスを決めたらボスも) 置かれると「入れる」状態になる。
 
 id: cave
 name: "アトラスの洞窟"
 description:
   - "アトラスの近くにある、小さな洞窟。"
-  - "奥の魔物を、すべて倒そう。"
+  - "奥にいる「岩窟の主」を倒して、脱出口から帰ろう。"
 min-level: 1
 time-limit-seconds: 900
-lives: 3
+lives: 3              # death: lives のときだけ使う
+# revive: 倒れたら観戦になり、仲間が体の横に5秒立つと復活。立っている人がいなくなったら失敗
+# lives:  残機の分だけ入口で復活
+death: revive
+max-players: 4        # 1回に入れる人数 (最初の人が /dungeon invite で招く)
+close-delay-seconds: 30  # クリア後、この秒数で全員を強制送還
+boss: cave_boss
 reward:
   gold: 100
   xp: 200

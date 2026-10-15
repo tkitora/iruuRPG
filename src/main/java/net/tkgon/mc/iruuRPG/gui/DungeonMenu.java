@@ -77,7 +77,13 @@ public final class DungeonMenu implements Listener {
         lore.add(Component.empty());
         lore.add(text("推奨 Lv" + definition.minLevel() + " 以上", NamedTextColor.YELLOW));
         lore.add(text("制限時間 " + (definition.timeLimitSeconds() / 60) + "分" + (definition.timeLimitSeconds() % 60 == 0 ? "" : (definition.timeLimitSeconds() % 60) + "秒"), NamedTextColor.WHITE));
-        lore.add(text("残機 " + definition.lives(), NamedTextColor.AQUA));
+        if (definition.deathMode() == DungeonDefinition.DeathMode.LIVES) {
+            lore.add(text("残機 " + definition.lives(), NamedTextColor.AQUA));
+        } else {
+            lore.add(text("倒れたら、仲間が体の横に5秒立つと復活 (全員倒れたら失敗)", NamedTextColor.AQUA));
+        }
+        lore.add(text("最大 " + definition.maxPlayers() + " 人 (中から /dungeon invite <名前> で招待)", NamedTextColor.WHITE));
+        if (definition.boss() != null) lore.add(text("ボスを倒すとクリア。脱出口から帰還", NamedTextColor.RED));
         lore.add(text("報酬 " + definition.rewardGold() + " ゴールド / 経験値 " + definition.rewardXp(), NamedTextColor.GOLD));
         lore.add(Component.empty());
         if (!definition.ready()) {

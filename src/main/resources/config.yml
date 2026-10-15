@@ -250,7 +250,6 @@ market:
 # インスタンスダンジョン (/dungeon)。ダンジョンの中身は dungeons/*.yml
 dungeon:
   max-instances: 5          # 同時に開けるダンジョンの数
-  close-delay-seconds: 20   # クリア後、元の場所へ戻すまでの秒数
   empty-close-seconds: 60   # 誰もいない状態がこの秒数続いたら閉じる
   blocked-commands:         # ダンジョンの中で使えないコマンド (op は使える)
     - trade

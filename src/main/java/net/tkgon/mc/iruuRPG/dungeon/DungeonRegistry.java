@@ -80,6 +80,11 @@ public final class DungeonRegistry {
             if (mob == null) continue;
             spawns.add(new DungeonDefinition.MobSpawn(String.valueOf(mob), number(raw.get("x")), number(raw.get("y")), number(raw.get("z"))));
         }
+        ConfigurationSection exitSection = yaml.getConfigurationSection("exit");
+        DungeonDefinition.Point exit = exitSection == null ? null
+                : new DungeonDefinition.Point(exitSection.getDouble("x"), exitSection.getDouble("y"), exitSection.getDouble("z"), 0.0f, 0.0f);
+        DungeonDefinition.DeathMode deathMode = "lives".equalsIgnoreCase(yaml.getString("death", "revive"))
+                ? DungeonDefinition.DeathMode.LIVES : DungeonDefinition.DeathMode.REVIVE;
         return new DungeonDefinition(
                 id,
                 yaml.getString("name", id),
@@ -90,7 +95,12 @@ public final class DungeonRegistry {
                 yaml.getLong("reward.gold", 0L),
                 yaml.getLong("reward.xp", 0L),
                 point,
-                spawns
+                spawns,
+                yaml.getString("boss"),
+                exit,
+                yaml.getInt("close-delay-seconds", 30),
+                deathMode,
+                yaml.getInt("max-players", 4)
         );
     }
 
@@ -110,31 +120,32 @@ public final class DungeonRegistry {
 
     public DungeonDefinition create(String id, String name) {
         DungeonDefinition definition = new DungeonDefinition(id, name, List.of(), 1, 900, 3, 0L, 0L,
-                new DungeonDefinition.Point(0.5, 65.0, 0.5, 0.0f, 0.0f), List.of());
+                new DungeonDefinition.Point(0.5, 65.0, 0.5, 0.0f, 0.0f), List.of(), null, null, 30,
+                DungeonDefinition.DeathMode.REVIVE, 4);
         put(definition);
         return definition;
     }
 
     public void setEntry(DungeonDefinition definition, Location location) {
-        put(new DungeonDefinition(definition.id(), definition.name(), definition.description(), definition.minLevel(),
-                definition.timeLimitSeconds(), definition.lives(), definition.rewardGold(), definition.rewardXp(),
-                new DungeonDefinition.Point(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch()),
-                definition.spawns()));
+        put(definition.withEntry(DungeonDefinition.Point.of(location)));
     }
 
     public void addSpawn(DungeonDefinition definition, String mobId, Location location) {
         List<DungeonDefinition.MobSpawn> spawns = new ArrayList<>(definition.spawns());
         spawns.add(new DungeonDefinition.MobSpawn(mobId, location.getX(), location.getY(), location.getZ()));
-        put(withSpawns(definition, spawns));
+        put(definition.withSpawns(spawns));
     }
 
     public void clearSpawns(DungeonDefinition definition) {
-        put(withSpawns(definition, List.of()));
+        put(definition.withSpawns(List.of()));
     }
 
-    private DungeonDefinition withSpawns(DungeonDefinition d, List<DungeonDefinition.MobSpawn> spawns) {
-        return new DungeonDefinition(d.id(), d.name(), d.description(), d.minLevel(), d.timeLimitSeconds(), d.lives(),
-                d.rewardGold(), d.rewardXp(), d.entry(), spawns);
+    public void setBoss(DungeonDefinition definition, String mobId) {
+        put(definition.withBoss(mobId));
+    }
+
+    public void setExit(DungeonDefinition definition, Location location) {
+        put(definition.withExit(DungeonDefinition.Point.of(location)));
     }
 
     private void put(DungeonDefinition definition) {
@@ -169,6 +180,17 @@ public final class DungeonRegistry {
             spawns.add(map);
         }
         yaml.set("spawns", spawns);
+        yaml.set("boss", d.boss());
+        if (d.exit() != null) {
+            Map<String, Object> exit = new LinkedHashMap<>();
+            exit.put("x", d.exit().x());
+            exit.put("y", d.exit().y());
+            exit.put("z", d.exit().z());
+            yaml.set("exit", exit);
+        }
+        yaml.set("close-delay-seconds", d.closeDelaySeconds());
+        yaml.set("death", d.deathMode() == DungeonDefinition.DeathMode.LIVES ? "lives" : "revive");
+        yaml.set("max-players", d.maxPlayers());
         File file = new File(folder(), d.id() + ".yml");
         try {
             yaml.save(file);

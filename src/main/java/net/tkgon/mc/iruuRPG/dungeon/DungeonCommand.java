@@ -20,8 +20,8 @@ import java.util.Locale;
  */
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> PLAYER = List.of("enter", "leave");
-    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "clearspawns", "save", "new", "reload");
+    private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
+    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "clearspawns", "exit", "boss", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -58,12 +58,25 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 service.leave(player);
                 return true;
             }
+            case "invite" -> {
+                Player target = args.length >= 2 ? org.bukkit.Bukkit.getPlayerExact(args[1]) : null;
+                if (target == null) {
+                    player.sendMessage("[ダンジョン] /dungeon invite <オンラインのプレイヤー名>");
+                } else {
+                    service.invite(player, target);
+                }
+                return true;
+            }
+            case "join" -> {
+                service.join(player);
+                return true;
+            }
             default -> {
             }
         }
 
         if (!ADMIN.contains(sub)) {
-            player.sendMessage("[ダンジョン] /dungeon [enter <id> | leave]");
+            player.sendMessage("[ダンジョン] /dungeon [enter <id> | leave | invite <名前> | join]");
             return true;
         }
         if (!player.hasPermission(DungeonService.ADMIN_PERMISSION)) {
@@ -122,7 +135,26 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 registry.addSpawn(definition, args[2], player.getLocation());
                 player.sendMessage("[ダンジョン] " + args[2] + " を置いた。(全部で " + (definition.spawns().size() + 1) + " 体)");
             }
+            case "exit" -> {
+                if (!player.getWorld().getName().equals(definition.templateWorldName())) {
+                    player.sendMessage("[ダンジョン] ひな形のワールド (" + definition.templateWorldName() + ") の中で使ってください。");
+                    return true;
+                }
+                registry.setExit(definition, player.getLocation());
+                player.sendMessage("[ダンジョン] 今の位置を脱出口にした。(ボスを倒すと通れる)");
+            }
+            case "boss" -> {
+                if (args.length < 3 || mobRegistry.find(args[2]).isEmpty()) {
+                    player.sendMessage("[ダンジョン] /dungeon boss " + id + " <mobId> (このモブが倒れたらクリア)");
+                    return true;
+                }
+                registry.setBoss(definition, args[2]);
+                boolean placed = definition.spawns().stream().anyMatch(spawn -> spawn.mobId().equals(args[2]));
+                player.sendMessage("[ダンジョン] ボスを " + args[2] + " にした。" + (placed ? "" : " (まだ置かれていない: /dungeon spawn " + id + " " + args[2] + ")"));
+            }
             case "spawns" -> {
+                player.sendMessage("[ダンジョン] ボス: " + (definition.boss() == null ? "なし (全滅でクリア)" : definition.boss())
+                        + " / 脱出口: " + (definition.exit() == null ? "なし" : String.format(Locale.ROOT, "(%.1f, %.1f, %.1f)", definition.exit().x(), definition.exit().y(), definition.exit().z())));
                 player.sendMessage("[ダンジョン] " + definition.name() + " のモブ: " + definition.spawns().size() + " 体");
                 for (DungeonDefinition.MobSpawn spawn : definition.spawns()) {
                     player.sendMessage(String.format(Locale.ROOT, "  %s  (%.1f, %.1f, %.1f)", spawn.mobId(), spawn.x(), spawn.y(), spawn.z()));
@@ -145,9 +177,11 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             options.addAll(PLAYER);
             if (admin) options.addAll(ADMIN);
-        } else if (args.length == 2 && !args[0].equalsIgnoreCase("leave") && !args[0].equalsIgnoreCase("reload") && !args[0].equalsIgnoreCase("new")) {
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("invite")) {
+            for (Player online : org.bukkit.Bukkit.getOnlinePlayers()) if (!online.equals(sender)) options.add(online.getName());
+        } else if (args.length == 2 && !List.of("leave", "reload", "new", "join").contains(args[0].toLowerCase(Locale.ROOT))) {
             for (DungeonDefinition definition : service.registry().all()) options.add(definition.id());
-        } else if (args.length == 3 && args[0].equalsIgnoreCase("spawn") && admin) {
+        } else if (args.length == 3 && (args[0].equalsIgnoreCase("spawn") || args[0].equalsIgnoreCase("boss")) && admin) {
             options.addAll(mobRegistry.all().keySet());
         }
         String prefix = args.length == 0 ? "" : args[args.length - 1].toLowerCase(Locale.ROOT);

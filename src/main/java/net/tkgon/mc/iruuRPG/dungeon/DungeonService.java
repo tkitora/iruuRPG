@@ -9,7 +9,9 @@ import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.GameRule;
+import org.bukkit.Particle;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -21,6 +23,9 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.TextDisplay;
+import net.kyori.adventure.text.event.ClickEvent;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -33,6 +38,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -82,6 +88,10 @@ public final class DungeonService implements Listener {
         private final Set<UUID> players = new HashSet<>();
         private final Map<UUID, Integer> lives = new HashMap<>();
         private final Set<UUID> mobs = new HashSet<>();
+        private final Set<UUID> bosses = new HashSet<>();
+        private final Map<UUID, Downed> downed = new HashMap<>();
+        private final Map<UUID, Long> exitNotice = new HashMap<>();
+        private TextDisplay exitLabel;
         private long deadline;
         private int emptySeconds;
         private int closeCountdown = -1;
@@ -99,7 +109,32 @@ public final class DungeonService implements Listener {
         public State state() {
             return state;
         }
+
+        public int playerCount() {
+            return players.size();
+        }
     }
+
+    /** A fallen player in a revive dungeon: a spectator near the body until a teammate stands by it for 5 seconds. */
+    private static final class Downed {
+        private final Location corpse;
+        private final GameMode before;
+        private TextDisplay label;
+        private int progress;
+
+        private Downed(Location corpse, GameMode before) {
+            this.corpse = corpse;
+            this.before = before;
+        }
+    }
+
+    private record Invite(int instance, UUID inviter, long until) {
+    }
+
+    private static final int REVIVE_SECONDS = 5;
+    private static final double REVIVE_RANGE = 2.0;
+    private static final double SPECTATE_RANGE = 24.0;
+    private static final double EXIT_RANGE = 1.6;
 
     private final JavaPlugin plugin;
     private final DungeonRegistry registry;
@@ -117,6 +152,8 @@ public final class DungeonService implements Listener {
     private final Map<UUID, Location> builders = new HashMap<>();
     /** Players who died with no lives left: sent home when they respawn. */
     private final Map<UUID, Location> sendHomeOnRespawn = new HashMap<>();
+    /** invited player -> the invite */
+    private final Map<UUID, Invite> invites = new HashMap<>();
     private int nextNumber = 1;
     private BukkitTask task;
 
@@ -139,10 +176,6 @@ public final class DungeonService implements Listener {
 
     private int maxInstances() {
         return Math.max(1, plugin.getConfig().getInt("dungeon.max-instances", 5));
-    }
-
-    private int closeDelaySeconds() {
-        return Math.max(1, plugin.getConfig().getInt("dungeon.close-delay-seconds", 20));
     }
 
     private int emptyCloseSeconds() {
@@ -273,11 +306,21 @@ public final class DungeonService implements Listener {
             mobService.spawnAt(location, spawn.mobId()).ifPresentOrElse(entity -> {
                 entity.getPersistentDataContainer().set(instanceKey, PersistentDataType.INTEGER, instance.number);
                 instance.mobs.add(entity.getUniqueId());
+                if (spawn.mobId().equals(instance.definition.boss())) instance.bosses.add(entity.getUniqueId());
             }, () -> plugin.getLogger().warning("dungeon " + instance.definition.id() + ": unknown mob '" + spawn.mobId() + "'"));
         }
-        if (instance.mobs.isEmpty()) {
+        if (instance.mobs.isEmpty() || (instance.definition.boss() != null && instance.bosses.isEmpty())) {
             abort(instance, "敵を置けませんでした。(設定を確認してください)");
             return;
+        }
+        if (instance.definition.exit() != null) {
+            Location at = instance.definition.exit().in(world).add(0, 1.6, 0);
+            at.getChunk().load();
+            instance.exitLabel = world.spawn(at, TextDisplay.class, display -> {
+                display.setBillboard(Display.Billboard.CENTER);
+                display.setPersistent(false);
+                display.text(exitText(false));
+            });
         }
 
         instance.state = State.ACTIVE;
@@ -323,6 +366,7 @@ public final class DungeonService implements Listener {
     /** Takes the player out of the run and back to where they came from. */
     private void sendHome(Player player, Instance instance) {
         UUID id = player.getUniqueId();
+        if (player.isOnline()) undown(instance, player);
         instance.players.remove(id);
         instance.lives.remove(id);
         byPlayer.remove(id);
@@ -339,8 +383,10 @@ public final class DungeonService implements Listener {
     private void clear(Instance instance) {
         if (instance.state != State.ACTIVE) return;
         instance.state = State.CLEARED;
-        instance.closeCountdown = closeDelaySeconds();
+        instance.closeCountdown = instance.definition.closeDelaySeconds();
         DungeonDefinition definition = instance.definition;
+        for (UUID id : new ArrayList<>(instance.downed.keySet())) revive(instance, id, false);
+        if (instance.exitLabel != null && instance.exitLabel.isValid()) instance.exitLabel.text(exitText(true));
         for (UUID id : instance.players) {
             Player player = Bukkit.getPlayer(id);
             if (player == null) continue;
@@ -353,7 +399,8 @@ public final class DungeonService implements Listener {
             player.showTitle(Title.title(Component.text("CLEAR!", NamedTextColor.GOLD, TextDecoration.BOLD),
                     Component.text("報酬: " + definition.rewardGold() + " " + currency() + " / 経験値 " + definition.rewardXp(), NamedTextColor.YELLOW),
                     Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(800))));
-            player.sendMessage(Component.text("[ダンジョン] クリア! " + closeDelaySeconds() + " 秒後に元の場所へ戻る。(/dungeon leave ですぐ戻れる)", NamedTextColor.GREEN));
+            player.sendMessage(Component.text("[ダンジョン] クリア! " + (definition.exit() != null ? "脱出口が開いた。" : "")
+                    + definition.closeDelaySeconds() + " 秒後に全員が元の場所へ戻される。", NamedTextColor.GREEN));
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.7f, 1.0f);
         }
         plugin.getLogger().info("dungeon: cleared " + instance.worldName);
@@ -426,9 +473,12 @@ public final class DungeonService implements Listener {
                 case ACTIVE -> tickActive(instance, now);
                 case CLEARED, FAILED -> {
                     if (instance.state == State.CLEARED) {
+                        exitParticles(instance, true);
                         for (UUID id : instance.players) {
                             Player player = Bukkit.getPlayer(id);
-                            if (player != null) player.sendActionBar(Component.text("クリア! あと " + instance.closeCountdown + " 秒で戻る", NamedTextColor.GOLD));
+                            if (player != null) player.sendActionBar(Component.text("クリア! "
+                                    + (instance.definition.exit() != null ? "脱出口から帰れる / " : "")
+                                    + "あと " + Math.max(0, instance.closeCountdown) + " 秒で強制送還", NamedTextColor.GOLD));
                         }
                     }
                     // a player still on the death screen cannot be moved; wait until they respawn
@@ -447,10 +497,15 @@ public final class DungeonService implements Listener {
             Entity entity = Bukkit.getEntity(id);
             return entity == null || entity.isDead() || !entity.isValid();
         });
-        if (instance.mobs.isEmpty()) {
+        instance.bosses.removeIf(id -> !instance.mobs.contains(id));
+        boolean done = instance.definition.boss() != null ? instance.bosses.isEmpty() : instance.mobs.isEmpty();
+        if (done) {
             clear(instance);
             return;
         }
+        exitParticles(instance, false);
+        tickDowned(instance);
+        if (instance.state != State.ACTIVE) return;
         long left = instance.deadline - now;
         if (left <= 0) {
             fail(instance, "時間切れ");
@@ -462,10 +517,16 @@ public final class DungeonService implements Listener {
             Player player = Bukkit.getPlayer(id);
             if (player == null || !player.getWorld().equals(instance.world)) continue;
             present++;
-            int lives = instance.lives.getOrDefault(id, 0);
-            player.sendActionBar(Component.text("残り " + clock((int) (left / 1000)), left < 60_000 ? NamedTextColor.RED : NamedTextColor.WHITE)
-                    .append(Component.text("  敵 " + instance.mobs.size(), NamedTextColor.GOLD))
-                    .append(Component.text("  残機 " + lives, NamedTextColor.AQUA)));
+            if (instance.downed.containsKey(id)) continue; // the downed see their own revive progress
+            Component bar = Component.text("残り " + clock((int) (left / 1000)), left < 60_000 ? NamedTextColor.RED : NamedTextColor.WHITE)
+                    .append(Component.text("  敵 " + instance.mobs.size(), NamedTextColor.GOLD));
+            if (instance.definition.boss() != null) bar = bar.append(Component.text("  ボス 生存", NamedTextColor.RED));
+            if (instance.definition.deathMode() == DungeonDefinition.DeathMode.LIVES) {
+                bar = bar.append(Component.text("  残機 " + instance.lives.getOrDefault(id, 0), NamedTextColor.AQUA));
+            } else if (!instance.downed.isEmpty()) {
+                bar = bar.append(Component.text("  倒れた仲間 " + instance.downed.size(), NamedTextColor.LIGHT_PURPLE));
+            }
+            player.sendActionBar(bar);
         }
         if (present == 0) {
             if (++instance.emptySeconds >= emptyCloseSeconds()) {
@@ -486,8 +547,14 @@ public final class DungeonService implements Listener {
         if (number == null) return;
         Instance instance = instances.get(number);
         if (instance == null) return;
-        instance.mobs.remove(event.getEntity().getUniqueId());
-        if (instance.mobs.isEmpty()) clear(instance);
+        UUID dead = event.getEntity().getUniqueId();
+        instance.mobs.remove(dead);
+        boolean wasBoss = instance.bosses.remove(dead);
+        if (instance.definition.boss() != null) {
+            if (wasBoss && instance.bosses.isEmpty()) clear(instance);
+        } else if (instance.mobs.isEmpty()) {
+            clear(instance);
+        }
     }
 
     @EventHandler(priority = EventPriority.HIGH)
@@ -503,8 +570,12 @@ public final class DungeonService implements Listener {
         event.setDroppedExp(0);
         if (instance.state != State.ACTIVE) return;
 
-        // lives: each death uses one and the player comes back at the entry; with none left they are out
         UUID id = player.getUniqueId();
+        if (instance.definition.deathMode() == DungeonDefinition.DeathMode.REVIVE) {
+            onDownedDeath(instance, player);
+            return;
+        }
+        // lives: each death uses one and the player comes back at the entry; with none left they are out
         int left = instance.lives.getOrDefault(id, 0);
         if (left > 0) {
             instance.lives.put(id, left - 1);
@@ -534,8 +605,226 @@ public final class DungeonService implements Listener {
             return;
         }
         Instance instance = byPlayer.get(player.getUniqueId());
-        if (instance != null && instance.world != null && instance.state == State.ACTIVE) {
-            event.setRespawnLocation(instance.definition.entry().in(instance.world));
+        if (instance == null || instance.world == null || instance.state != State.ACTIVE) return;
+        Downed down = instance.downed.get(player.getUniqueId());
+        if (down != null) {
+            // back at the body, watching as a spectator until someone revives them
+            event.setRespawnLocation(down.corpse.clone().add(0, 1.0, 0));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline() && instance.downed.containsKey(player.getUniqueId())) {
+                    player.setGameMode(GameMode.SPECTATOR);
+                    player.showTitle(Title.title(Component.text("倒れた", NamedTextColor.RED),
+                            Component.text("仲間が体の横に " + REVIVE_SECONDS + " 秒立つと復活する", NamedTextColor.GRAY),
+                            Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(3), Duration.ofMillis(600))));
+                }
+            });
+            return;
+        }
+        event.setRespawnLocation(instance.definition.entry().in(instance.world));
+    }
+
+    // ---- revive -------------------------------------------------------------------------------------------------------------
+
+    private void onDownedDeath(Instance instance, Player player) {
+        UUID id = player.getUniqueId();
+        Location corpse = player.getLocation().clone();
+        Downed down = new Downed(corpse, player.getGameMode() == GameMode.SPECTATOR ? GameMode.SURVIVAL : player.getGameMode());
+        instance.downed.put(id, down);
+        saveGameMode(id, down.before);
+        down.label = corpse.getWorld().spawn(corpse.clone().add(0, 0.6, 0), TextDisplay.class, display -> {
+            display.setBillboard(Display.Billboard.CENTER);
+            display.setPersistent(false);
+            display.text(downedText(player.getName(), 0));
+        });
+        for (UUID other : instance.players) {
+            Player teammate = Bukkit.getPlayer(other);
+            if (teammate != null && !other.equals(id)) {
+                teammate.sendMessage(Component.text("[ダンジョン] " + player.getName() + " が倒れた! 体の横に " + REVIVE_SECONDS + " 秒立つと蘇生できる。", NamedTextColor.LIGHT_PURPLE));
+            }
+        }
+        // straight back as a spectator (no death screen)
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && player.isDead()) player.spigot().respawn();
+        });
+        checkWipe(instance);
+    }
+
+    /** Nobody left standing: the run fails. */
+    private void checkWipe(Instance instance) {
+        if (instance.state != State.ACTIVE || instance.definition.deathMode() != DungeonDefinition.DeathMode.REVIVE) return;
+        for (UUID id : instance.players) {
+            Player player = Bukkit.getPlayer(id);
+            if (player != null && !instance.downed.containsKey(id) && player.getWorld().equals(instance.world)) return;
+        }
+        if (!instance.players.isEmpty()) fail(instance, "全員が倒れた");
+    }
+
+    private void tickDowned(Instance instance) {
+        for (UUID id : new ArrayList<>(instance.downed.keySet())) {
+            Downed down = instance.downed.get(id);
+            Player player = Bukkit.getPlayer(id);
+            if (player != null && player.getGameMode() == GameMode.SPECTATOR && player.getWorld().equals(instance.world)
+                    && player.getLocation().distanceSquared(down.corpse) > SPECTATE_RANGE * SPECTATE_RANGE) {
+                player.teleport(down.corpse.clone().add(0, 1.0, 0)); // watch around, but stay near the body
+            }
+            down.corpse.getWorld().spawnParticle(Particle.SOUL, down.corpse.clone().add(0, 0.3, 0), 3, 0.3, 0.1, 0.3, 0.01);
+
+            List<Player> helpers = new ArrayList<>();
+            for (UUID other : instance.players) {
+                if (other.equals(id) || instance.downed.containsKey(other)) continue;
+                Player teammate = Bukkit.getPlayer(other);
+                if (teammate == null || teammate.getGameMode() == GameMode.SPECTATOR || teammate.isDead()) continue;
+                if (!teammate.getWorld().equals(instance.world)) continue;
+                if (teammate.getLocation().distanceSquared(down.corpse) <= REVIVE_RANGE * REVIVE_RANGE) helpers.add(teammate);
+            }
+            down.progress = helpers.isEmpty() ? 0 : down.progress + 1;
+            String name = player == null ? "?" : player.getName();
+            if (down.label != null && down.label.isValid()) down.label.text(downedText(name, down.progress));
+            for (Player helper : helpers) {
+                helper.sendActionBar(Component.text("蘇生中… " + down.progress + " / " + REVIVE_SECONDS, NamedTextColor.LIGHT_PURPLE));
+            }
+            if (player != null) {
+                player.sendActionBar(down.progress > 0
+                        ? Component.text("蘇生されている… " + down.progress + " / " + REVIVE_SECONDS, NamedTextColor.LIGHT_PURPLE)
+                        : Component.text("倒れている (仲間が体の横に " + REVIVE_SECONDS + " 秒立つと復活)", NamedTextColor.GRAY));
+            }
+            if (down.progress >= REVIVE_SECONDS) revive(instance, id, true);
+        }
+    }
+
+    /** Brings a fallen player back at their body. */
+    private void revive(Instance instance, UUID id, boolean announce) {
+        Downed down = instance.downed.remove(id);
+        if (down == null) return;
+        if (down.label != null && down.label.isValid()) down.label.remove();
+        saveGameMode(id, null);
+        Player player = Bukkit.getPlayer(id);
+        if (player == null) return;
+        player.setGameMode(down.before);
+        player.teleport(down.corpse);
+        player.playSound(player.getLocation(), Sound.ITEM_TOTEM_USE, 0.5f, 1.4f);
+        if (announce) {
+            for (UUID other : instance.players) {
+                Player p = Bukkit.getPlayer(other);
+                if (p != null) p.sendMessage(Component.text("[ダンジョン] " + player.getName() + " が復活した!", NamedTextColor.GREEN));
+            }
+        }
+    }
+
+    /** Takes a player out of the downed state without reviving (leaving, failing): normal game mode again. */
+    private void undown(Instance instance, Player player) {
+        Downed down = instance.downed.remove(player.getUniqueId());
+        if (down == null) return;
+        if (down.label != null && down.label.isValid()) down.label.remove();
+        saveGameMode(player.getUniqueId(), null);
+        player.setGameMode(down.before);
+    }
+
+    private Component downedText(String name, int progress) {
+        Component head = Component.text("☠ " + name, NamedTextColor.RED, TextDecoration.BOLD);
+        Component line = progress > 0
+                ? Component.text("蘇生中 " + progress + " / " + REVIVE_SECONDS, NamedTextColor.LIGHT_PURPLE)
+                : Component.text("横に " + REVIVE_SECONDS + " 秒立つと蘇生", NamedTextColor.GRAY);
+        return head.append(Component.newline()).append(line);
+    }
+
+    // ---- exit ---------------------------------------------------------------------------------------------------------------
+
+    private Component exitText(boolean open) {
+        return open
+                ? Component.text("脱出口", NamedTextColor.GREEN, TextDecoration.BOLD).append(Component.newline())
+                .append(Component.text("触れると帰還", NamedTextColor.WHITE))
+                : Component.text("脱出口", NamedTextColor.GRAY, TextDecoration.BOLD).append(Component.newline())
+                .append(Component.text("ボスを倒すと開く", NamedTextColor.RED));
+    }
+
+    private void exitParticles(Instance instance, boolean open) {
+        if (instance.definition.exit() == null || instance.world == null) return;
+        Location at = instance.definition.exit().in(instance.world).add(0, 1.0, 0);
+        instance.world.spawnParticle(open ? Particle.END_ROD : Particle.SMOKE_NORMAL, at, open ? 12 : 6, 0.4, 0.6, 0.4, 0.01);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onMove(PlayerMoveEvent event) {
+        if (!isInstanceWorld(event.getTo().getWorld())) return;
+        if (event.getFrom().getBlockX() == event.getTo().getBlockX() && event.getFrom().getBlockY() == event.getTo().getBlockY()
+                && event.getFrom().getBlockZ() == event.getTo().getBlockZ()) return;
+        Player player = event.getPlayer();
+        Instance instance = byPlayer.get(player.getUniqueId());
+        if (instance == null || instance.world == null || instance.definition.exit() == null) return;
+        if (player.getGameMode() == GameMode.SPECTATOR || instance.downed.containsKey(player.getUniqueId())) return;
+        Location exit = instance.definition.exit().in(instance.world);
+        if (event.getTo().distanceSquared(exit) > EXIT_RANGE * EXIT_RANGE) return;
+
+        if (instance.state == State.CLEARED) {
+            player.sendMessage(Component.text("[ダンジョン] 脱出口から帰還した。", NamedTextColor.GREEN));
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (byPlayer.get(player.getUniqueId()) == instance) sendHome(player, instance);
+            });
+        } else if (instance.state == State.ACTIVE) {
+            long now = System.currentTimeMillis();
+            Long last = instance.exitNotice.get(player.getUniqueId());
+            if (last == null || now - last > 3000) {
+                instance.exitNotice.put(player.getUniqueId(), now);
+                player.sendActionBar(Component.text("脱出口は、ボスを倒すまで開かない", NamedTextColor.RED));
+                player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, 0.4f, 0.8f);
+            }
+        }
+    }
+
+    // ---- team -----------------------------------------------------------------------------------------------------------------
+
+    /** A player inside a run invites someone to join it. */
+    public void invite(Player inviter, Player target) {
+        Instance instance = byPlayer.get(inviter.getUniqueId());
+        if (instance == null || instance.state != State.ACTIVE) {
+            inviter.sendMessage(Component.text("[ダンジョン] 挑戦中のダンジョンの中から招待してください。", NamedTextColor.RED));
+            return;
+        }
+        if (target.equals(inviter) || byPlayer.containsKey(target.getUniqueId())) {
+            inviter.sendMessage(Component.text("[ダンジョン] その人は招待できません。(すでにダンジョンの中)", NamedTextColor.RED));
+            return;
+        }
+        if (instance.players.size() >= instance.definition.maxPlayers()) {
+            inviter.sendMessage(Component.text("[ダンジョン] これ以上は入れません。(最大 " + instance.definition.maxPlayers() + " 人)", NamedTextColor.RED));
+            return;
+        }
+        invites.put(target.getUniqueId(), new Invite(instance.number, inviter.getUniqueId(), System.currentTimeMillis() + 60_000L));
+        inviter.sendMessage(Component.text("[ダンジョン] " + target.getName() + " を招待した。(60秒)", NamedTextColor.YELLOW));
+        target.sendMessage(Component.text("[ダンジョン] " + inviter.getName() + " から「" + instance.definition.name() + "」への招待 ", NamedTextColor.YELLOW)
+                .append(Component.text("[参加する]", NamedTextColor.GREEN, TextDecoration.BOLD)
+                        .clickEvent(ClickEvent.runCommand("/dungeon join " + inviter.getName()))));
+    }
+
+    /** Accepts an invite and goes into the inviter's run. */
+    public void join(Player player) {
+        Invite invite = invites.remove(player.getUniqueId());
+        Instance instance = invite == null ? null : instances.get(invite.instance());
+        if (invite == null || invite.until() < System.currentTimeMillis() || instance == null || instance.state != State.ACTIVE) {
+            player.sendMessage(Component.text("[ダンジョン] 参加できる招待がありません。(期限切れか、もう終わっています)", NamedTextColor.RED));
+            return;
+        }
+        if (byPlayer.containsKey(player.getUniqueId())) {
+            player.sendMessage(Component.text("[ダンジョン] すでにダンジョンの中にいます。", NamedTextColor.RED));
+            return;
+        }
+        if (profileManager.getOrCreate(player).level() < instance.definition.minLevel()) {
+            player.sendMessage(Component.text("[ダンジョン] レベルが足りません。(必要: Lv" + instance.definition.minLevel() + ")", NamedTextColor.RED));
+            return;
+        }
+        if (instance.players.size() >= instance.definition.maxPlayers()) {
+            player.sendMessage(Component.text("[ダンジョン] もう満員です。", NamedTextColor.RED));
+            return;
+        }
+        instance.players.add(player.getUniqueId());
+        instance.lives.put(player.getUniqueId(), instance.definition.lives());
+        byPlayer.put(player.getUniqueId(), instance);
+        remember(player, player.getLocation());
+        player.closeInventory();
+        player.teleport(instance.definition.entry().in(instance.world));
+        for (UUID id : instance.players) {
+            Player p = Bukkit.getPlayer(id);
+            if (p != null) p.sendMessage(Component.text("[ダンジョン] " + player.getName() + " が参加した。(" + instance.players.size() + " 人)", NamedTextColor.GREEN));
         }
     }
 
@@ -564,6 +853,11 @@ public final class DungeonService implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        GameMode savedMode = savedGameMode(player.getUniqueId());
+        if (savedMode != null && byPlayer.get(player.getUniqueId()) == null) {
+            player.setGameMode(savedMode); // the server stopped while they were down as a spectator
+            saveGameMode(player.getUniqueId(), null);
+        }
         Location saved = savedReturn(player.getUniqueId());
         if (saved == null) return;
         Instance instance = byPlayer.get(player.getUniqueId());
@@ -587,7 +881,19 @@ public final class DungeonService implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         // the run keeps going for a while (it closes when nobody is inside); the saved place stays in the file
-        builders.remove(event.getPlayer().getUniqueId());
+        Player player = event.getPlayer();
+        builders.remove(player.getUniqueId());
+        invites.remove(player.getUniqueId());
+        Instance instance = byPlayer.get(player.getUniqueId());
+        if (instance != null && instance.downed.containsKey(player.getUniqueId())) {
+            // a fallen player who leaves is out of the run (game mode restored now; sent home at the next login)
+            undown(instance, player);
+            instance.players.remove(player.getUniqueId());
+            byPlayer.remove(player.getUniqueId());
+            checkWipe(instance);
+        } else if (instance != null) {
+            Bukkit.getScheduler().runTask(plugin, () -> checkWipe(instance));
+        }
     }
 
     // ---- rules inside an instance ---------------------------------------------------------------------------------------------
@@ -617,6 +923,11 @@ public final class DungeonService implements Listener {
         if (!isInstanceWorld(event.getFrom().getWorld())) return;
         if (event.getCause() == PlayerTeleportEvent.TeleportCause.ENDER_PEARL
                 || event.getCause() == PlayerTeleportEvent.TeleportCause.CHORUS_FRUIT) {
+            event.setCancelled(true);
+        }
+        // a fallen player watching as a spectator stays in the dungeon
+        if (event.getCause() == PlayerTeleportEvent.TeleportCause.SPECTATE
+                && (event.getTo() == null || !event.getFrom().getWorld().equals(event.getTo().getWorld()))) {
             event.setCancelled(true);
         }
     }
@@ -707,6 +1018,23 @@ public final class DungeonService implements Listener {
         if (world == null) return fallback();
         return new Location(world, section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
                 (float) section.getDouble("yaw"), (float) section.getDouble("pitch"));
+    }
+
+    private void saveGameMode(UUID id, GameMode mode) {
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(stateFile);
+        yaml.set("gamemode." + id, mode == null ? null : mode.name());
+        saveState(yaml);
+    }
+
+    private GameMode savedGameMode(UUID id) {
+        if (!stateFile.exists()) return null;
+        String raw = YamlConfiguration.loadConfiguration(stateFile).getString("gamemode." + id);
+        if (raw == null) return null;
+        try {
+            return GameMode.valueOf(raw);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private void saveState(YamlConfiguration yaml) {
