@@ -16,6 +16,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.Cancellable;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -33,6 +36,7 @@ public final class ClassSkillListener implements Listener {
     private final AttackService attackService;
     private final MainMenuItemService mainMenuItemService;
     private final ClassSkillService classSkillService;
+    private final RightClickGuard rightClickGuard;
     private final Map<UUID, Map<String, Long>> cooldownUntilMillis = new HashMap<>();
 
     public ClassSkillListener(
@@ -41,8 +45,10 @@ public final class ClassSkillListener implements Listener {
             PlayerProfileManager profileManager,
             AttackService attackService,
             MainMenuItemService mainMenuItemService,
-            ClassSkillService classSkillService
+            ClassSkillService classSkillService,
+            RightClickGuard rightClickGuard
     ) {
+        this.rightClickGuard = rightClickGuard;
         this.classService = classService;
         this.skillRegistry = skillRegistry;
         this.profileManager = profileManager;
@@ -58,9 +64,57 @@ public final class ClassSkillListener implements Listener {
 
         ClassHotKey hotKey = hotKey(event);
         if (hotKey == null) return;
+        boolean rightClick = hotKey == ClassHotKey.R || hotKey == ClassHotKey.SR;
+        if (rightClick && rightClickGuard.classRecent(event.getPlayer())) {
+            // the same click already fired the skill through the entity-interact event
+            event.setCancelled(true);
+            return;
+        }
         if (!tryTrigger(event.getPlayer(), hotKey)) return;
 
+        if (rightClick) rightClickGuard.markClass(event.getPlayer());
         event.setCancelled(true);
+    }
+
+    /**
+     * A right click that lands on an entity may never reach the use-item event (the entity takes it), so the
+     * right-click skill key is handled here too. The click is marked: the use-item event that may follow is skipped.
+     */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onInteractEntity(PlayerInteractEntityEvent event) {
+        onEntityRightClick(event.getPlayer(), event.getHand());
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onInteractAtEntity(PlayerInteractAtEntityEvent event) {
+        onEntityRightClick(event.getPlayer(), event.getHand());
+    }
+
+    private void onEntityRightClick(Player player, EquipmentSlot hand) {
+        if (hand != EquipmentSlot.HAND) return;
+        if (mainMenuItemService.isMenuItem(player.getInventory().getItemInMainHand())) return;
+        if (rightClickGuard.classRecent(player)) return;
+        if (!tryTrigger(player, player.isSneaking() ? ClassHotKey.SR : ClassHotKey.R)) return;
+
+        rightClickGuard.markClass(player);
+    }
+
+    /**
+     * The click that fired a skill is cancelled late (not at LOWEST), so the weapon's own right-click handler,
+     * which skips cancelled events, still sees the click, like it does for a click in the air.
+     */
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInteractEntityCancel(PlayerInteractEntityEvent event) {
+        cancelIfSkillFired(event.getPlayer(), event.getHand(), event);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onInteractAtEntityCancel(PlayerInteractAtEntityEvent event) {
+        cancelIfSkillFired(event.getPlayer(), event.getHand(), event);
+    }
+
+    private void cancelIfSkillFired(Player player, EquipmentSlot hand, Cancellable event) {
+        if (hand == EquipmentSlot.HAND && rightClickGuard.classRecent(player)) event.setCancelled(true);
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
