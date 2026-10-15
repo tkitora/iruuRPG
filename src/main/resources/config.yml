@@ -256,3 +256,16 @@ dungeon:
     - market
     - fm
     - tutorialstart
+
+# 画面右のサイドバー (上に点滅する iruuRPG、下にサーバーのアドレス。間に名前・レベル・所持金・現在地)
+sidebar:
+  enabled: true
+  title: "iruuRPG"
+  address: "mc.tkgon.net"
+  default-area: "Iruu大陸"   # どのエリアにも入っていないときの現在地
+  # 現在地のエリア: 中心 (x, z) から半径 radius ブロックの円。重なったら中心に近い方。world を省くとどのワールドでも
+  areas:
+    - name: "アトラス港"
+      x: 60
+      z: 170
+      radius: 60

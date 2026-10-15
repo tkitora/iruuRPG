@@ -33,6 +33,7 @@ import net.tkgon.mc.iruuRPG.dungeon.DungeonCommand;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
+import net.tkgon.mc.iruuRPG.hud.SidebarService;
 import net.tkgon.mc.iruuRPG.gui.MarketMenu;
 import net.tkgon.mc.iruuRPG.item.ResourceSync;
 import net.tkgon.mc.iruuRPG.market.MarketCommand;
@@ -113,6 +114,7 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonRegistry dungeonRegistry;
     private DungeonService dungeonService;
     private DungeonMenu dungeonMenu;
+    private SidebarService sidebarService;
 
     @Override
     public void onEnable() {
@@ -203,6 +205,8 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonRegistry.reload();
         this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, levelService, profileManager);
         this.dungeonMenu = new DungeonMenu(dungeonService);
+        this.sidebarService = new SidebarService(this, profileManager);
+        this.sidebarService.setDungeonService(dungeonService);
         this.dungeonMenu.setMainMenu(mainMenu);
         this.mainMenu.setDungeonMenu(dungeonMenu);
         this.tradeService = new TradeService(this, profileManager, item -> !mainMenuItemService.isMenuItem(item));
@@ -213,6 +217,7 @@ public final class IruuRPG extends JavaPlugin {
         this.mainMenuItemService.startTask();
         this.marketService.startTask();
         this.dungeonService.start();
+        this.sidebarService.start();
         this.classService.startConditionTask(equipmentService, playerBars);
 
         registerCommands();
@@ -228,6 +233,9 @@ public final class IruuRPG extends JavaPlugin {
     public void onDisable() {
         if (dungeonService != null) {
             dungeonService.shutdown();
+        }
+        if (sidebarService != null) {
+            sidebarService.shutdown();
         }
         if (tutorialService != null) {
             tutorialService.shutdown();
@@ -328,6 +336,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(tradeService, this);
         getServer().getPluginManager().registerEvents(dungeonService, this);
         getServer().getPluginManager().registerEvents(dungeonMenu, this);
+        getServer().getPluginManager().registerEvents(sidebarService, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
