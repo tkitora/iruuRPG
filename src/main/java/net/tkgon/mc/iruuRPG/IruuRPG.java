@@ -33,6 +33,8 @@ import net.tkgon.mc.iruuRPG.gui.MarketMenu;
 import net.tkgon.mc.iruuRPG.item.ResourceSync;
 import net.tkgon.mc.iruuRPG.market.MarketCommand;
 import net.tkgon.mc.iruuRPG.market.MarketService;
+import net.tkgon.mc.iruuRPG.trade.TradeCommand;
+import net.tkgon.mc.iruuRPG.trade.TradeService;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
 import net.tkgon.mc.iruuRPG.listener.CombatListener;
 import net.tkgon.mc.iruuRPG.listener.DebugTargetListener;
@@ -102,6 +104,7 @@ public final class IruuRPG extends JavaPlugin {
     private MainMenuItemService mainMenuItemService;
     private MarketService marketService;
     private MarketMenu marketMenu;
+    private TradeService tradeService;
 
     @Override
     public void onEnable() {
@@ -186,6 +189,7 @@ public final class IruuRPG extends JavaPlugin {
         this.marketService.load();
         this.marketMenu = new MarketMenu(marketService, item -> !mainMenuItemService.isMenuItem(item));
         this.marketMenu.setMainMenu(mainMenu);
+        this.tradeService = new TradeService(this, profileManager, item -> !mainMenuItemService.isMenuItem(item));
         this.mainMenu.setMarketMenu(marketMenu);
         this.mobService.startTargetTask();
         this.levelService.startOrbTask();
@@ -226,6 +230,13 @@ public final class IruuRPG extends JavaPlugin {
             CraftCommand craft = new CraftCommand(craftService, craftMenu);
             craftCommand.setExecutor(craft);
             craftCommand.setTabCompleter(craft);
+        }
+
+        PluginCommand tradeCommand = getCommand("trade");
+        if (tradeCommand != null) {
+            TradeCommand trade = new TradeCommand(tradeService);
+            tradeCommand.setExecutor(trade);
+            tradeCommand.setTabCompleter(trade);
         }
 
         PluginCommand marketCommand = getCommand("market");
@@ -284,6 +295,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(craftMenu, this);
         getServer().getPluginManager().registerEvents(marketMenu, this);
         getServer().getPluginManager().registerEvents(marketService, this);
+        getServer().getPluginManager().registerEvents(tradeService, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),

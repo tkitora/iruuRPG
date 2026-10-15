@@ -24,6 +24,9 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  trade:
+    description: Trade items and gold with another player
+    usage: /trade <player> | accept [player] | deny [player]
   market:
     description: Opens the free market (buy / sell items for gold)
     usage: /market
