@@ -15,8 +15,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Keeps plugins/iruuRPG up to date with the yml repository: every minute (off the main thread) it runs
- * {@code git pull --ff-only origin <branch>} in the data folder, and when the commit changed it reloads the data on
- * the main thread and writes reload-report.txt. /iruurpg sync does the same at once and answers with the report.
+ * {@code git pull --ff-only origin <branch>} in the data folder, and when HEAD is not the commit that was last loaded
+ * it reloads the data on the main thread and writes reload-report.txt. Comparing with the last loaded commit (not just
+ * before/after the pull) also catches files updated from outside the plugin (a script that pulled first), and a HEAD
+ * that moved even when this pull failed. /iruurpg sync does the same at once and answers with the report.
  * A failing pull (local changes, no network, no git) is logged once, not every minute, and never stops the plugin.
  */
 public final class YmlSyncService {
@@ -33,6 +35,8 @@ public final class YmlSyncService {
     private final Reloader reloader;
     private final AtomicBoolean running = new AtomicBoolean();
     private volatile String lastWarning;
+    /** The commit the loaded data comes from (set after the start-up load and after every reload). */
+    private volatile String lastLoaded;
 
     public YmlSyncService(JavaPlugin plugin, Reloader reloader) {
         this.plugin = plugin;
@@ -48,6 +52,11 @@ public final class YmlSyncService {
     }
 
     public void start() {
+        // the data was just loaded by onEnable: remember which commit that was
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            File folder = plugin.getDataFolder();
+            if (new File(folder, ".git").exists()) lastLoaded = revParse(folder);
+        });
         long interval = Math.max(10, plugin.getConfig().getLong("yml-sync.interval-seconds", 60)) * 20L;
         Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
             if (enabled()) sync(null);
@@ -79,20 +88,26 @@ public final class YmlSyncService {
                     lastWarning = null; // the next failure is worth a log line again
                 }
                 String after = revParse(folder);
-                boolean changed = before != null && after != null && !before.equals(after);
+                String loaded = lastLoaded;
+                // reload whenever HEAD is not what was loaded (pulled now, pulled from outside, or moved anyway)
+                boolean changed = after != null && !after.equals(loaded);
                 if (!changed) {
                     if (pull.code() == 0) reply(requester, "[同期] 変化なし (" + shortSha(after) + ")", NamedTextColor.GRAY);
                     return;
                 }
+                boolean pulledNow = before != null && !before.equals(after);
+                String how = pulledNow ? "pull で更新" : "外部で更新 (プラグインの pull より前に、ファイルが更新されていた)";
 
                 handedOver = true;
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     try {
-                        ReloadReport report = reloader.reload(before, after, requester == null ? "自動の同期" : "/iruurpg sync (" + requester.getName() + ")");
-                        if (requester == null) {
-                            plugin.getLogger().info("yml-sync: " + shortSha(before) + " -> " + shortSha(after) + ", reloaded ("
-                                    + report.lines().get(4).replace("件数: ", "") + "), warnings " + report.warningCount());
-                        } else {
+                        String trigger = (requester == null ? "自動の同期" : "/iruurpg sync (" + requester.getName() + ")") + " / " + how;
+                        ReloadReport report = reloader.reload(loaded, after, trigger);
+                        lastLoaded = after;
+                        plugin.getLogger().info("yml-sync: " + shortSha(loaded) + " -> " + shortSha(after) + " (" + (pulledNow ? "pulled" : "updated outside")
+                                + (requester == null ? "" : ", by " + requester.getName()) + "), reloaded ("
+                                + report.lines().get(4).replace("件数: ", "") + "), warnings " + report.warningCount());
+                        if (requester != null) {
                             List<String> lines = report.lines();
                             for (String line : lines.subList(0, Math.min(REPLY_LINES, lines.size()))) {
                                 requester.sendMessage(Component.text(line, NamedTextColor.WHITE));
