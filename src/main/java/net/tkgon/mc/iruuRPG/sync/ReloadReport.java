@@ -131,6 +131,7 @@ public final class ReloadReport {
                     }
                 }
                 checkStats(file, id, section.getConfigurationSection("stats"));
+                checkArea(file, id, section.get("area"));
 
                 ConfigurationSection equipment = section.getConfigurationSection("equipment");
                 if (equipment != null) {
@@ -205,6 +206,18 @@ public final class ReloadReport {
             }
         }
         duplicates("crafting", seen);
+    }
+
+    /** area: a name or a list of names. Names that are not dungeon ids are fine (they are field names). */
+    private void checkArea(File file, String id, Object area) {
+        if (area == null || area instanceof String) return;
+        if (area instanceof List<?> list) {
+            for (Object entry : list) {
+                if (!(entry instanceof String)) add(file, id, "area のリストに文字でないもの '" + entry + "' がある (無視する)");
+            }
+            return;
+        }
+        add(file, id, "area は文字か文字のリストで書く ('" + area + "' は無視する)");
     }
 
     private void checkStats(File file, String id, ConfigurationSection stats) {

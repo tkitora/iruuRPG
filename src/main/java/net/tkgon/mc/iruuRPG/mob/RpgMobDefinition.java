@@ -29,7 +29,8 @@ public record RpgMobDefinition(
         ElementStatSet elementStats,
         Map<EquipmentSlot, MobEquipmentItem> equipment,
         List<MobDropItem> drops,
-        List<String> description
+        List<String> description,
+        List<String> areas
 ) {
     public RpgMobDefinition {
         if (id == null || id.isBlank()) {
@@ -45,5 +46,11 @@ public record RpgMobDefinition(
         equipment = equipment == null ? Map.of() : Map.copyOf(equipment);
         drops = drops == null ? List.of() : List.copyOf(drops);
         description = description == null ? List.of() : List.copyOf(description);
+        areas = areas == null ? List.of() : List.copyOf(areas);
+    }
+
+    /** Where the mob appears: dungeon ids or field names (lower case). Empty: no tag. */
+    public boolean inArea(String area) {
+        return area != null && areas.contains(area.toLowerCase(java.util.Locale.ROOT));
     }
 }

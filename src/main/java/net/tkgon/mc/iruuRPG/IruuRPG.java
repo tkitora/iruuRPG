@@ -136,6 +136,7 @@ public final class IruuRPG extends JavaPlugin {
         ResourceSync.sync(this, "crafting/recipes.yml");
         ResourceSync.sync(this, "items/dungeon.yml");
         ResourceSync.sync(this, "mobs/dungeon.yml");
+        ResourceSync.sync(this, "mobs/quest.yml");
         ResourceSync.sync(this, "loot/cave.yml");
         this.itemRegistry = new RpgItemRegistry(this);
         this.itemSkillRegistry = new ItemSkillRegistry(this);

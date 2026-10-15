@@ -131,8 +131,30 @@ public final class RpgMobRegistry {
                 elementStats,
                 loadEquipment(section.getConfigurationSection("equipment")),
                 loadDrops(id, section),
-                section.getStringList("description")
+                section.getStringList("description"),
+                areas(section.get("area"))
         ));
+    }
+
+    /**
+     * area: one name or a list of names (dungeon ids or field names), lower-cased; blanks are skipped. Anything else
+     * (a number, a section) is reported by the reload report and read as no tag.
+     */
+    public static List<String> areas(Object raw) {
+        List<String> areas = new ArrayList<>();
+        if (raw instanceof String text) {
+            addArea(areas, text);
+        } else if (raw instanceof List<?> list) {
+            for (Object entry : list) {
+                if (entry instanceof String text) addArea(areas, text);
+            }
+        }
+        return areas;
+    }
+
+    private static void addArea(List<String> areas, String raw) {
+        String area = raw.trim().toLowerCase(Locale.ROOT);
+        if (!area.isEmpty() && !areas.contains(area)) areas.add(area);
     }
 
     private EntityType entityType(String id, ConfigurationSection section) {
