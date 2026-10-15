@@ -4,6 +4,10 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.title.Title;
+import net.tkgon.mc.iruuRPG.gui.RewardChestMenu;
+import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
+import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
+import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
 import net.tkgon.mc.iruuRPG.mob.RpgMobDefinition;
 import net.tkgon.mc.iruuRPG.mob.RpgMobRegistry;
 import net.tkgon.mc.iruuRPG.mob.RpgMobService;
@@ -39,7 +43,11 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerCommandPreprocessEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.block.Action;
+import org.bukkit.block.Block;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
@@ -93,6 +101,7 @@ public final class DungeonService implements Listener {
         private final Set<UUID> bosses = new HashSet<>();
         private final Map<UUID, Downed> downed = new HashMap<>();
         private final Map<UUID, Long> exitNotice = new HashMap<>();
+        private final Set<UUID> chestOpened = new HashSet<>();
         private TextDisplay exitLabel;
         private long deadline;
         private int emptySeconds;
@@ -144,6 +153,9 @@ public final class DungeonService implements Listener {
     private final RpgMobRegistry mobRegistry;
     /** template world name -> the marker labels shown while building it */
     private final Map<String, List<Entity>> markers = new HashMap<>();
+    private RpgItemRegistry itemRegistry;
+    private RpgItemFactory itemFactory;
+    private RewardChestMenu rewardChestMenu;
     private final LevelService levelService;
     private final PlayerProfileManager profileManager;
     private final NamespacedKey instanceKey;
@@ -172,6 +184,13 @@ public final class DungeonService implements Listener {
         this.profileManager = profileManager;
         this.instanceKey = new NamespacedKey(plugin, "dungeon_instance");
         this.stateFile = new File(plugin.getDataFolder(), "dungeon-state.yml");
+    }
+
+    /** What the reward chest needs to hand out items. */
+    public void setRewardTools(RpgItemRegistry itemRegistry, RpgItemFactory itemFactory, RewardChestMenu rewardChestMenu) {
+        this.itemRegistry = itemRegistry;
+        this.itemFactory = itemFactory;
+        this.rewardChestMenu = rewardChestMenu;
     }
 
     public DungeonRegistry registry() {
@@ -320,6 +339,11 @@ public final class DungeonService implements Listener {
             abort(instance, "敵を置けませんでした。(設定を確認してください)");
             return;
         }
+        if (instance.definition.chest() != null) {
+            Block block = instance.definition.chest().in(world).getBlock();
+            block.getChunk().load();
+            if (block.getType() != Material.CHEST) block.setType(Material.CHEST);
+        }
         if (instance.definition.exit() != null) {
             Location at = instance.definition.exit().in(world).add(0, 1.6, 0);
             at.getChunk().load();
@@ -394,21 +418,44 @@ public final class DungeonService implements Listener {
         DungeonDefinition definition = instance.definition;
         for (UUID id : new ArrayList<>(instance.downed.keySet())) revive(instance, id, false);
         if (instance.exitLabel != null && instance.exitLabel.isValid()) instance.exitLabel.text(exitText(true));
+        boolean chest = definition.chest() != null;
+        boolean room = definition.rewardRoom() != null;
         for (UUID id : instance.players) {
             Player player = Bukkit.getPlayer(id);
             if (player == null) continue;
-            if (definition.rewardGold() > 0) {
-                PlayerProfile profile = profileManager.getOrCreate(player);
-                profile.setCurrency(profile.currency() + definition.rewardGold());
-                profileManager.save(player);
+            if (!chest) {
+                // no reward chest: the rewards are given right away
+                if (definition.rewardGold() > 0) {
+                    PlayerProfile profile = profileManager.getOrCreate(player);
+                    profile.setCurrency(profile.currency() + definition.rewardGold());
+                    profileManager.save(player);
+                }
+                if (definition.rewardXp() > 0) levelService.addXp(player, definition.rewardXp());
             }
-            if (definition.rewardXp() > 0) levelService.addXp(player, definition.rewardXp());
+            String sub = room ? "5秒後に報酬部屋へ移動する" : chest ? "報酬の宝箱を開けよう"
+                    : "報酬: " + definition.rewardGold() + " " + currency() + " / 経験値 " + definition.rewardXp();
             player.showTitle(Title.title(Component.text("CLEAR!", NamedTextColor.GOLD, TextDecoration.BOLD),
-                    Component.text("報酬: " + definition.rewardGold() + " " + currency() + " / 経験値 " + definition.rewardXp(), NamedTextColor.YELLOW),
+                    Component.text(sub, NamedTextColor.YELLOW),
                     Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(800))));
-            player.sendMessage(Component.text("[ダンジョン] クリア! " + (definition.exit() != null ? "脱出口が開いた。" : "")
-                    + definition.closeDelaySeconds() + " 秒後に全員が元の場所へ戻される。", NamedTextColor.GREEN));
+            player.sendMessage(Component.text("[ダンジョン] クリア! " + (room ? "まもなく報酬部屋へ移動する。" : "")
+                    + (chest ? "宝箱を開けると報酬が手に入る。" : "")
+                    + (definition.exit() != null ? "脱出口からも帰れる。" : "")
+                    + clock(definition.closeDelaySeconds()) + " 後に全員が元の場所へ戻される。", NamedTextColor.GREEN));
             player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.7f, 1.0f);
+        }
+        if (room) {
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (instance.state != State.CLEARED || instance.world == null) return;
+                Location target = definition.rewardRoom().in(instance.world);
+                target.getChunk().load();
+                for (UUID id : new ArrayList<>(instance.players)) {
+                    Player player = Bukkit.getPlayer(id);
+                    if (player == null || player.isDead() || !player.getWorld().equals(instance.world)) continue;
+                    player.teleport(target);
+                    player.playSound(target, Sound.BLOCK_PORTAL_TRAVEL, 0.3f, 1.6f);
+                    player.sendMessage(Component.text("[ダンジョン] 報酬部屋に着いた。" + (chest ? "宝箱を開けよう!" : ""), NamedTextColor.GOLD));
+                }
+            }, 100L);
         }
         plugin.getLogger().info("dungeon: cleared " + instance.worldName);
     }
@@ -485,8 +532,9 @@ public final class DungeonService implements Listener {
                         for (UUID id : instance.players) {
                             Player player = Bukkit.getPlayer(id);
                             if (player != null) player.sendActionBar(Component.text("クリア! "
+                                    + (instance.definition.chest() != null && !instance.chestOpened.contains(id) ? "宝箱を開けよう / " : "")
                                     + (instance.definition.exit() != null ? "脱出口から帰れる / " : "")
-                                    + "あと " + Math.max(0, instance.closeCountdown) + " 秒で強制送還", NamedTextColor.GOLD));
+                                    + "あと " + clock(Math.max(0, instance.closeCountdown)) + " で強制送還", NamedTextColor.GOLD));
                         }
                     }
                     // a player still on the death screen cannot be moved; wait until they respawn
@@ -780,6 +828,76 @@ public final class DungeonService implements Listener {
         }
     }
 
+    // ---- reward chest -------------------------------------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onChest(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+        Block block = event.getClickedBlock();
+        if (!isInstanceWorld(block.getWorld())) return;
+        Player player = event.getPlayer();
+        Instance instance = byPlayer.get(player.getUniqueId());
+        if (instance == null || instance.definition.chest() == null) return;
+        DungeonDefinition.Point chest = instance.definition.chest();
+        if (block.getX() != (int) Math.floor(chest.x()) || block.getY() != (int) Math.floor(chest.y()) || block.getZ() != (int) Math.floor(chest.z())) return;
+
+        event.setCancelled(true);
+        if (instance.state != State.CLEARED) {
+            player.sendMessage(Component.text("[ダンジョン] ボスを倒すまで開かない。", NamedTextColor.RED));
+            return;
+        }
+        if (!instance.chestOpened.add(player.getUniqueId())) {
+            player.sendMessage(Component.text("[ダンジョン] 宝箱はもう開けた。(1人1回)", NamedTextColor.GRAY));
+            return;
+        }
+        openChest(player, instance);
+    }
+
+    /** Rolls the chest, gives everything right away, then shows it with the flicker. */
+    private void openChest(Player player, Instance instance) {
+        DungeonLoot.Roll roll = DungeonLoot.load(plugin, instance.definition).roll();
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        profile.setCurrency(profile.currency() + roll.gold());
+        profileManager.save(player);
+        if (roll.xp() > 0) levelService.addXp(player, roll.xp());
+
+        ItemStack shownItem = null;
+        boolean rare = false;
+        if (roll.item() != null && itemRegistry != null && itemFactory != null) {
+            RpgItemDefinition definition = itemRegistry.find(roll.item().itemId()).orElse(null);
+            if (definition == null) {
+                plugin.getLogger().warning("dungeon loot: unknown item '" + roll.item().itemId() + "' in loot/" + instance.definition.id() + ".yml");
+            } else {
+                ItemStack item = itemFactory.create(definition);
+                int left = roll.amount();
+                while (left > 0) {
+                    ItemStack stack = item.clone();
+                    stack.setAmount(Math.min(left, stack.getMaxStackSize()));
+                    left -= stack.getAmount();
+                    for (ItemStack rest : player.getInventory().addItem(stack).values()) {
+                        player.getWorld().dropItemNaturally(player.getLocation(), rest);
+                    }
+                }
+                shownItem = item.clone();
+                shownItem.setAmount(Math.max(1, Math.min(roll.amount(), shownItem.getMaxStackSize())));
+                rare = roll.item().announce() || definition.rarity().tier() >= 3;
+                if (rare) {
+                    Bukkit.broadcast(Component.text("✦ " + player.getName() + " が「" + instance.definition.name() + "」の宝箱から ", NamedTextColor.GOLD)
+                            .append(Component.text(definition.name(), NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                            .append(Component.text(" を手に入れた! ✦", NamedTextColor.GOLD)));
+                }
+            }
+        }
+        player.sendMessage(Component.text("[ダンジョン] 宝箱: +" + roll.gold() + " " + currency() + " / 経験値 +" + roll.xp()
+                + (shownItem != null ? " / アイテム ×" + roll.amount() : ""), NamedTextColor.GOLD));
+        if (rewardChestMenu != null) {
+            rewardChestMenu.open(player, Component.text("報酬の宝箱"),
+                    RewardChestMenu.display(Material.GOLD_INGOT, "+" + roll.gold() + " " + currency(), NamedTextColor.GOLD, List.of()),
+                    RewardChestMenu.display(Material.EXPERIENCE_BOTTLE, "経験値 +" + roll.xp(), NamedTextColor.GREEN, List.of()),
+                    shownItem, rare);
+        }
+    }
+
     // ---- team -----------------------------------------------------------------------------------------------------------------
 
     /** A player inside a run invites someone to join it. */
@@ -1022,6 +1140,12 @@ public final class DungeonService implements Listener {
         labels.add(label(definition.entry().in(world).add(0, 2.2, 0), Component.text("入口", NamedTextColor.GREEN, TextDecoration.BOLD)));
         if (definition.exit() != null) {
             labels.add(label(definition.exit().in(world).add(0, 2.2, 0), Component.text("脱出口", NamedTextColor.AQUA, TextDecoration.BOLD)));
+        }
+        if (definition.rewardRoom() != null) {
+            labels.add(label(definition.rewardRoom().in(world).add(0, 2.2, 0), Component.text("報酬部屋 (クリア後ここへ)", NamedTextColor.GOLD, TextDecoration.BOLD)));
+        }
+        if (definition.chest() != null) {
+            labels.add(label(definition.chest().in(world).add(0.5, 1.5, 0.5), Component.text("報酬の宝箱", NamedTextColor.GOLD, TextDecoration.BOLD)));
         }
         markers.put(definition.templateWorldName(), labels);
     }

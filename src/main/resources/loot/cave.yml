@@ -1,0 +1,28 @@
+# ダンジョン「アトラスの洞窟」の報酬の宝箱 (1人1回)。開けると、ゴールド・経験値・アイテムが1つずつ手に入る。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
+gold: [80, 160]      # ゴールド: この範囲でランダム
+xp: [150, 300]       # 経験値: この範囲でランダム
+# アイテム: weight の比で1つ選ぶ (合計 100 なら weight = %)。amount は [最小, 最大] か数
+# announce: true か、レア度3以上のアイテムが出たら、サーバー全体にお知らせ
+items:
+  - item: cave_silk
+    weight: 34
+    amount: [2, 4]
+  - item: old_bone
+    weight: 25
+    amount: [3, 5]
+  - item: crawler_shell
+    weight: 15
+    amount: [3, 6]
+  - item: boss_crystal
+    weight: 15
+    amount: 1
+  - item: cave_silk_hood
+    weight: 9
+    amount: 1
+  - item: cave_king_axe      # 激レア
+    weight: 2
+    amount: 1
+    announce: true

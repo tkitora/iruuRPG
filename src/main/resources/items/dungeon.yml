@@ -1,6 +1,6 @@
 # ダンジョン「アトラスの洞窟」の素材 (架空)。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 1
+version: 2
 
 items:
   crawler_shell:
@@ -44,3 +44,40 @@ items:
     glint: true
     description:
       - "岩窟の主の体から取れた、橙色に光る結晶。"
+  # 報酬の宝箱から出る装備
+  cave_silk_hood:
+    material: LEATHER_HELMET
+    name: "洞窟糸のフード"
+    required-level: 3
+    rarity: 2
+    element: WHITE
+    damage-kind: NONE
+    attack-type: SPECIAL
+    color: "#5B5B6E"
+    stats:
+      max-hp: 40
+      defense: 14
+      move-speed: 3
+    description:
+      - "洞窟グモの糸で編んだ、軽くて丈夫なフード。"
+  cave_king_axe:
+    material: IRON_AXE
+    name: "岩窟王の大斧"
+    required-level: 5
+    rarity: 3
+    element: ORANGE
+    damage-kind: PHYSICAL
+    attack-type: MELEE
+    glint: true
+    stats:
+      weapon-damage: 42
+      strength: 14
+      melee-damage: 18
+      crit-chance: 8
+      crit-damage: 25
+    element-stats:
+      damage:
+        orange: 20
+    description:
+      - "岩窟の主が振るっていた、橙に光る大斧。"
+      - "宝箱から、ごくまれに見つかる。"

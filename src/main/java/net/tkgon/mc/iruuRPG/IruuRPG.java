@@ -33,6 +33,7 @@ import net.tkgon.mc.iruuRPG.dungeon.DungeonCommand;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
+import net.tkgon.mc.iruuRPG.gui.RewardChestMenu;
 import net.tkgon.mc.iruuRPG.hud.SidebarService;
 import net.tkgon.mc.iruuRPG.sync.ReloadReport;
 import net.tkgon.mc.iruuRPG.sync.YmlSyncService;
@@ -117,6 +118,7 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonRegistry dungeonRegistry;
     private DungeonService dungeonService;
     private DungeonMenu dungeonMenu;
+    private RewardChestMenu rewardChestMenu;
     private SidebarService sidebarService;
     private YmlSyncService ymlSyncService;
 
@@ -132,6 +134,7 @@ public final class IruuRPG extends JavaPlugin {
         ResourceSync.sync(this, "crafting/recipes.yml");
         ResourceSync.sync(this, "items/dungeon.yml");
         ResourceSync.sync(this, "mobs/dungeon.yml");
+        ResourceSync.sync(this, "loot/cave.yml");
         this.itemRegistry = new RpgItemRegistry(this);
         this.itemSkillRegistry = new ItemSkillRegistry(this);
         this.itemSkillRegistry.reload();
@@ -209,6 +212,8 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonRegistry.reload();
         this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, mobRegistry, levelService, profileManager);
         this.dungeonMenu = new DungeonMenu(dungeonService);
+        this.rewardChestMenu = new RewardChestMenu(this);
+        this.dungeonService.setRewardTools(itemRegistry, itemFactory, rewardChestMenu);
         this.sidebarService = new SidebarService(this, profileManager);
         this.sidebarService.setDungeonService(dungeonService);
         this.sidebarService.setClassService(classService);
@@ -348,6 +353,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(tradeService, this);
         getServer().getPluginManager().registerEvents(dungeonService, this);
         getServer().getPluginManager().registerEvents(dungeonMenu, this);
+        getServer().getPluginManager().registerEvents(rewardChestMenu, this);
         getServer().getPluginManager().registerEvents(sidebarService, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
