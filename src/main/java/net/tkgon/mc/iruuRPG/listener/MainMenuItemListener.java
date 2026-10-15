@@ -96,7 +96,12 @@ public final class MainMenuItemListener implements Listener {
     /** An item held on the cursor would be lost when the menu replaces the inventory screen: put it back in the inventory first. */
     private void returnCursorItem(Player player, ItemStack heldAtClick) {
         ItemStack onCursor = player.getItemOnCursor();
-        ItemStack back = onCursor == null || onCursor.getType().isAir() ? heldAtClick : onCursor.clone();
+        boolean serverCursorEmpty = onCursor == null || onCursor.getType().isAir();
+        // The click-time copy is only for creative mode (the client holds the item itself there). In survival an empty
+        // server cursor means the item is already back in the inventory (e.g. the screen was closed in the same tick),
+        // and giving the copy as well would duplicate it.
+        ItemStack back = !serverCursorEmpty ? onCursor.clone()
+                : player.getGameMode() == org.bukkit.GameMode.CREATIVE ? heldAtClick : null;
         player.setItemOnCursor(null);
         if (back == null || back.getType().isAir() || menuItemService.isMenuItem(back)) return;
 
