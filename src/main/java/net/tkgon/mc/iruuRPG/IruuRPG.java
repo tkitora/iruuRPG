@@ -207,6 +207,7 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonMenu = new DungeonMenu(dungeonService);
         this.sidebarService = new SidebarService(this, profileManager);
         this.sidebarService.setDungeonService(dungeonService);
+        this.sidebarService.setClassService(classService);
         this.dungeonMenu.setMainMenu(mainMenu);
         this.mainMenu.setDungeonMenu(dungeonMenu);
         this.tradeService = new TradeService(this, profileManager, item -> !mainMenuItemService.isMenuItem(item));
