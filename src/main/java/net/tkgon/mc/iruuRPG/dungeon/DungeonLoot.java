@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.dungeon;
 
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -43,16 +44,25 @@ public record DungeonLoot(long goldMin, long goldMax, long xpMin, long xpMax, Li
     /** loot/&lt;id&gt;.yml, or a table built from the dungeon's own gold/XP (no item) when there is no file. */
     public static DungeonLoot load(JavaPlugin plugin, DungeonDefinition definition) {
         File file = new File(plugin.getDataFolder(), "loot/" + definition.id() + ".yml");
-        if (!file.exists()) {
-            long gold = definition.rewardGold();
-            long xp = definition.rewardXp();
-            return new DungeonLoot(gold, gold + gold / 2, xp, xp + xp / 2, List.of());
-        }
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
-        long[] gold = range(yaml.get("gold"), definition.rewardGold());
-        long[] xp = range(yaml.get("xp"), definition.rewardXp());
+        long gold = definition.rewardGold();
+        long xp = definition.rewardXp();
+        if (!file.exists()) return new DungeonLoot(gold, gold + gold / 2, xp, xp + xp / 2, List.of());
+        return fromSection(YamlConfiguration.loadConfiguration(file), gold, xp);
+    }
+
+    /** The "road:" table of loot/&lt;id&gt;.yml (chests along the way); small gold and XP only when missing. */
+    public static DungeonLoot loadRoad(JavaPlugin plugin, DungeonDefinition definition) {
+        File file = new File(plugin.getDataFolder(), "loot/" + definition.id() + ".yml");
+        ConfigurationSection road = file.exists() ? YamlConfiguration.loadConfiguration(file).getConfigurationSection("road") : null;
+        if (road == null) return new DungeonLoot(10, 30, 20, 60, List.of());
+        return fromSection(road, 10, 20);
+    }
+
+    private static DungeonLoot fromSection(ConfigurationSection section, long fallbackGold, long fallbackXp) {
+        long[] gold = range(section.get("gold"), fallbackGold);
+        long[] xp = range(section.get("xp"), fallbackXp);
         List<Entry> entries = new ArrayList<>();
-        for (Map<?, ?> raw : yaml.getMapList("items")) {
+        for (Map<?, ?> raw : section.getMapList("items")) {
             Object item = raw.get("item");
             if (item == null) continue;
             long[] amount = range(raw.get("amount"), 1);

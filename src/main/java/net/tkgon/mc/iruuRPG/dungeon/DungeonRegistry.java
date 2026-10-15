@@ -102,7 +102,10 @@ public final class DungeonRegistry {
                 deathMode,
                 yaml.getInt("max-players", 4),
                 point(yaml.getConfigurationSection("reward-room")),
-                point(yaml.getConfigurationSection("chest"))
+                point(yaml.getConfigurationSection("chest")),
+                point(yaml.getConfigurationSection("boss-trigger")),
+                point(yaml.getConfigurationSection("boss-room")),
+                roadChests(yaml.getMapList("road-chests"))
         );
     }
 
@@ -110,6 +113,14 @@ public final class DungeonRegistry {
         if (section == null) return null;
         return new DungeonDefinition.Point(section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
                 (float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
+    }
+
+    private static List<DungeonDefinition.Point> roadChests(List<Map<?, ?>> raw) {
+        List<DungeonDefinition.Point> chests = new ArrayList<>();
+        for (Map<?, ?> entry : raw) {
+            chests.add(new DungeonDefinition.Point(number(entry.get("x")), number(entry.get("y")), number(entry.get("z")), 0.0f, 0.0f));
+        }
+        return chests;
     }
 
     private static Map<String, Object> pointMap(DungeonDefinition.Point point) {
@@ -139,7 +150,7 @@ public final class DungeonRegistry {
     public DungeonDefinition create(String id, String name) {
         DungeonDefinition definition = new DungeonDefinition(id, name, List.of(), 1, 900, 3, 0L, 0L,
                 new DungeonDefinition.Point(0.5, 65.0, 0.5, 0.0f, 0.0f), List.of(), null, null, 300,
-                DungeonDefinition.DeathMode.REVIVE, 4, null, null);
+                DungeonDefinition.DeathMode.REVIVE, 4, null, null, null, null, List.of());
         put(definition);
         return definition;
     }
@@ -170,6 +181,30 @@ public final class DungeonRegistry {
     /** The chest is a block: its position is stored as the block corner. */
     public void setChest(DungeonDefinition definition, Location block) {
         put(definition.withChest(new DungeonDefinition.Point(block.getBlockX(), block.getBlockY(), block.getBlockZ(), 0.0f, 0.0f)));
+    }
+
+    public void setBossTrigger(DungeonDefinition definition, Location location) {
+        put(definition.withBossTrigger(DungeonDefinition.Point.of(location)));
+    }
+
+    public void setBossRoom(DungeonDefinition definition, Location location) {
+        put(definition.withBossRoom(DungeonDefinition.Point.of(location)));
+    }
+
+    /** Adds a road chest at this block (no-op if one is already there). */
+    public void addRoadChest(DungeonDefinition definition, Location block) {
+        if (definition.roadChestAt(block.getBlockX(), block.getBlockY(), block.getBlockZ()) >= 0) return;
+        List<DungeonDefinition.Point> chests = new ArrayList<>(definition.roadChests());
+        chests.add(new DungeonDefinition.Point(block.getBlockX(), block.getBlockY(), block.getBlockZ(), 0.0f, 0.0f));
+        put(definition.withRoadChests(chests));
+    }
+
+    public boolean removeRoadChest(DungeonDefinition definition, int index) {
+        if (index < 0 || index >= definition.roadChests().size()) return false;
+        List<DungeonDefinition.Point> chests = new ArrayList<>(definition.roadChests());
+        chests.remove(index);
+        put(definition.withRoadChests(chests));
+        return true;
     }
 
     public void clearSpawns(DungeonDefinition definition) {
@@ -229,6 +264,11 @@ public final class DungeonRegistry {
         yaml.set("max-players", d.maxPlayers());
         if (d.rewardRoom() != null) yaml.set("reward-room", pointMap(d.rewardRoom()));
         if (d.chest() != null) yaml.set("chest", pointMap(d.chest()));
+        if (d.bossTrigger() != null) yaml.set("boss-trigger", pointMap(d.bossTrigger()));
+        if (d.bossRoom() != null) yaml.set("boss-room", pointMap(d.bossRoom()));
+        List<Map<String, Object>> road = new ArrayList<>();
+        for (DungeonDefinition.Point point : d.roadChests()) road.add(pointMap(point));
+        if (!road.isEmpty()) yaml.set("road-chests", road);
         File file = new File(folder(), d.id() + ".yml");
         try {
             yaml.save(file);
