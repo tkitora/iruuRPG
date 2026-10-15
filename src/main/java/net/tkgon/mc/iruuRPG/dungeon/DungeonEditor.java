@@ -24,6 +24,8 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerRespawnEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
@@ -236,6 +238,22 @@ public final class DungeonEditor implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         stop(event.getPlayer(), false);
+    }
+
+    /** Dying while editing: the tools are not dropped; the real hotbar comes back after the respawn. */
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onDeath(PlayerDeathEvent event) {
+        if (!editing(event.getEntity())) return;
+        event.getDrops().removeIf(item -> toolOf(item) != null);
+    }
+
+    @EventHandler
+    public void onRespawn(PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        if (!editing(player)) return;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) stop(player, true);
+        });
     }
 
     @EventHandler
