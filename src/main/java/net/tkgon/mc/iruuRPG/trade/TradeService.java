@@ -1,10 +1,13 @@
 package net.tkgon.mc.iruuRPG.trade;
 
+import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
+import net.kyori.adventure.title.Title;
 import net.tkgon.mc.iruuRPG.gui.MenuHolder;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
@@ -28,11 +31,14 @@ import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.Normalizer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 /**
@@ -48,12 +54,12 @@ public final class TradeService implements Listener {
     private static final int SIZE = 54;
     private static final int OFFER_SLOTS = 16;
     private static final long REQUEST_MILLIS = 60_000L;
+    /** How long a typed gold amount is waited for. */
+    private static final long INPUT_MILLIS = 60_000L;
 
     // own side (left), seen by each player
-    private static final int GOLD_MINUS = 36;
-    private static final int GOLD_SHOW = 37;
-    private static final int GOLD_PLUS = 38;
-    private static final int GOLD_ZERO = 39;
+    private static final int GOLD_SHOW = 37;  // click: type the amount in the chat
+    private static final int GOLD_ZERO = 38;
     private static final int MY_HEAD = 45;
     private static final int MY_LIGHT = 46;
     private static final int MY_CONFIRM = 47;
@@ -78,6 +84,8 @@ public final class TradeService implements Listener {
         private boolean ready;
         private boolean confirmed;
         private Inventory view;
+        /** Set while the player is typing a gold amount: the screen is closed on purpose and the trade goes on. */
+        private volatile GoldInput input;
 
         private Side(UUID playerId) {
             this.playerId = playerId;
@@ -107,6 +115,9 @@ public final class TradeService implements Listener {
         }
     }
 
+    private record GoldInput(long expiresAt) {
+    }
+
     private record Holder(Session session, Side side) implements MenuHolder {
         @Override
         public @NotNull Inventory getInventory() {
@@ -119,7 +130,8 @@ public final class TradeService implements Listener {
     private final Predicate<ItemStack> tradable;
     /** target -> (requester -> time the request ends) */
     private final Map<UUID, Map<UUID, Long>> requests = new HashMap<>();
-    private final Map<UUID, Session> sessions = new HashMap<>();
+    /** Read from the async chat thread too (typed gold amounts), so it must be thread-safe. */
+    private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
 
     public TradeService(JavaPlugin plugin, PlayerProfileManager profileManager, Predicate<ItemStack> tradable) {
         this.plugin = plugin;
@@ -235,7 +247,7 @@ public final class TradeService implements Listener {
 
         // divider down the middle and under the offers
         for (int row = 0; row < 6; row++) view.setItem(row * 9 + 4, pane(Material.GRAY_STAINED_GLASS_PANE));
-        for (int slot : new int[]{40, 41, 43, 44, 50}) view.setItem(slot, pane(Material.GRAY_STAINED_GLASS_PANE));
+        for (int slot : new int[]{36, 39, 40, 41, 43, 44, 50}) view.setItem(slot, pane(Material.GRAY_STAINED_GLASS_PANE));
 
         for (int index = 0; index < side.entries.size(); index++) {
             view.setItem(offerSlot(index, false), offered(side.entries.get(index), true));
@@ -245,10 +257,9 @@ public final class TradeService implements Listener {
         }
 
         long myGold = me == null ? 0 : profileManager.getOrCreate(me).currency();
-        view.setItem(GOLD_MINUS, button(Material.RED_STAINED_GLASS_PANE, "- " + currency(), NamedTextColor.RED, goldHelp()));
         view.setItem(GOLD_SHOW, button(Material.GOLD_INGOT, "出す" + currency() + ": " + side.gold, NamedTextColor.GOLD, List.of(
-                text("所持: " + myGold + " " + currency(), NamedTextColor.GRAY))));
-        view.setItem(GOLD_PLUS, button(Material.LIME_STAINED_GLASS_PANE, "+ " + currency(), NamedTextColor.GREEN, goldHelp()));
+                text("所持: " + myGold + " " + currency(), NamedTextColor.GRAY),
+                text("クリックして、チャットに数字を入力", NamedTextColor.YELLOW))));
         view.setItem(GOLD_ZERO, button(Material.BUCKET, currency() + "を0に", NamedTextColor.GRAY, List.of()));
         view.setItem(PARTNER_GOLD, button(Material.GOLD_INGOT, "相手が出す" + currency() + ": " + partner.gold, NamedTextColor.GOLD, List.of()));
 
@@ -285,10 +296,6 @@ public final class TradeService implements Listener {
             }
         }
         return stack;
-    }
-
-    private List<Component> goldHelp() {
-        return List.of(text("左 ±1 / 右 ±10 / Shift+左 ±100 / Shift+右 ±1000", NamedTextColor.GRAY));
     }
 
     /** The ready light: a lamp that lights up when its owner is ready. */
@@ -346,15 +353,7 @@ public final class TradeService implements Listener {
             return;
         }
         switch (slot) {
-            case GOLD_MINUS, GOLD_PLUS -> {
-                long step = click.isShiftClick() ? (click.isRightClick() ? 1000 : 100) : (click.isRightClick() ? 10 : 1);
-                long gold = profileManager.getOrCreate(player).currency();
-                long next = Math.max(0, Math.min(gold, side.gold + (slot == GOLD_PLUS ? step : -step)));
-                if (next != side.gold) {
-                    side.gold = next;
-                    changed(session);
-                }
-            }
+            case GOLD_SHOW -> askForGold(session, side, player);
             case GOLD_ZERO -> {
                 if (side.gold != 0) {
                     side.gold = 0;
@@ -367,6 +366,79 @@ public final class TradeService implements Listener {
             default -> {
             }
         }
+    }
+
+    // ---- typed gold amount (chat) -----------------------------------------------------------------------------------------
+
+    /** Closes the screen (the trade stays open) and waits for the player to type the amount in the chat. */
+    private void askForGold(Session session, Side side, Player player) {
+        GoldInput input = new GoldInput(System.currentTimeMillis() + INPUT_MILLIS);
+        side.input = input;
+        long max = profileManager.getOrCreate(player).currency();
+        player.closeInventory();
+        player.sendMessage(Component.text("[トレード] 出す" + currency() + "をチャットに入力してください (0〜" + max + ")。やめるときは「キャンセル」", NamedTextColor.YELLOW));
+        player.showTitle(Title.title(Component.empty(), Component.text("出す" + currency() + "をチャットに入力 (0〜" + max + ")", NamedTextColor.YELLOW),
+                Title.Times.times(Duration.ZERO, Duration.ofSeconds(10), Duration.ofMillis(500))));
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (side.input == input) finishInput(session, side, player, "入力の時間が切れた。");
+        }, INPUT_MILLIS / 50L + 5L);
+    }
+
+    @EventHandler
+    public void onChat(AsyncChatEvent event) {
+        Player player = event.getPlayer();
+        Session session = sessions.get(player.getUniqueId());
+        if (session == null) return;
+
+        Side side = session.side(player.getUniqueId());
+        GoldInput input = side.input;
+        if (input == null) return;
+
+        event.setCancelled(true);
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message()).trim();
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (side.input != input || session.phase == Phase.DONE) return;
+            answerGold(session, side, player, input, message);
+        });
+    }
+
+    private void answerGold(Session session, Side side, Player player, GoldInput input, String message) {
+        if (System.currentTimeMillis() > input.expiresAt()) {
+            finishInput(session, side, player, "入力の時間が切れた。");
+        } else if (message.equalsIgnoreCase("キャンセル") || message.equalsIgnoreCase("cancel")) {
+            finishInput(session, side, player, "入力をやめた。");
+        } else {
+            long max = profileManager.getOrCreate(player).currency();
+            String normalized = Normalizer.normalize(message, Normalizer.Form.NFKC).replace(",", "").replace(" ", "");
+            long value;
+            try {
+                value = Long.parseLong(normalized);
+            } catch (NumberFormatException exception) {
+                finishInput(session, side, player, "数字で入力してください。(入力: " + message + ")");
+                return;
+            }
+            if (value < 0 || value > max) {
+                finishInput(session, side, player, currency() + "は 0〜" + max + " の範囲です。");
+                return;
+            }
+            side.input = null;
+            player.clearTitle();
+            if (value != side.gold) {
+                side.gold = value;
+                changed(session);
+            }
+            open(session, side);
+        }
+    }
+
+    /** Ends the typing without a new amount and opens the screen again. */
+    private void finishInput(Session session, Side side, Player player, String reason) {
+        side.input = null;
+        if (!player.isOnline() || session.phase == Phase.DONE) return;
+
+        player.clearTitle();
+        player.sendMessage(Component.text("[トレード] " + reason, NamedTextColor.RED));
+        open(session, side);
     }
 
     private void offer(Session session, Side side, Player player, int inventorySlot, boolean one) {
@@ -567,6 +639,7 @@ public final class TradeService implements Listener {
         if (!(event.getInventory().getHolder() instanceof Holder holder)) return;
         Session session = holder.session();
         if (session.phase == Phase.DONE) return;
+        if (holder.side().input != null) return; // closed on purpose to type an amount
         end(session, "(" + event.getPlayer().getName() + " が画面を閉じた)");
     }
 
