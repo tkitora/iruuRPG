@@ -42,6 +42,15 @@ def col(row, *names):
     return ""
 
 
+def colp(row, *prefixes):
+    """The value of the first column whose header starts with one of the prefixes."""
+    for prefix in prefixes:
+        for key, value in row.items():
+            if key and key.strip().startswith(prefix):
+                return (value or "").strip()
+    return ""
+
+
 def split_top(text):
     """Top-level 'key:' blocks of a file: (header_lines, {id: (start, end)}) with ids at 2-space indent."""
     lines = text.split("\n")
@@ -70,20 +79,30 @@ def render_block(entry_id, body):
     return ["  %s:" % entry_id] + ["    " + line if line else "" for line in dumped.split("\n")]
 
 
-def parse_entry(text, entry_id):
-    """The pasted yml is either 'id:\\n  fields' / 'items:\\n  id:\\n    fields' or just the fields."""
+def parse_entries(text, entry_id, kind):
+    """The pasted yml normally starts with the category ('items:' / 'mobs:' / 'recipes:') and holds one or more ids.
+    Without a category, the kind comes from the form's kind column and the text is 'id:\\n  fields' or just the fields.
+    Returns (kind, [(id, body), ...])."""
     data = yaml.safe_load(text)
     if not isinstance(data, dict) or not data:
         raise ValueError("yml がマップ(キー: 値)になっていません")
     for top in ("items", "mobs", "recipes"):
-        if list(data.keys()) == [top] and isinstance(data[top], dict):
-            data = data[top]
-            break
+        if top in data:
+            if len(data) != 1 or not isinstance(data[top], dict) or not data[top]:
+                raise ValueError("%s: の下に、id ごとの中身を書いてください(カテゴリは1つだけ)" % top)
+            entries = []
+            for key, value in data[top].items():
+                if not isinstance(value, dict):
+                    raise ValueError("%s の中身がマップ(キー: 値)になっていません" % key)
+                entries.append((str(key), value))
+            return top, entries
+    if not kind:
+        raise ValueError("カテゴリ(items: / mobs: / recipes:)から書いてください")
     if len(data) == 1:
         (only_key, only_value), = data.items()
         if isinstance(only_value, dict) and (only_key == entry_id or not entry_id):
-            return str(only_key), only_value
-    return entry_id, data
+            return kind, [(str(only_key), only_value)]
+    return kind, [(entry_id, data)]
 
 
 class Repo:
@@ -204,41 +223,41 @@ def main():
         label = "行%d (%s)" % (number, who)
         kind_text = col(row, "種類")
         kind = KINDS.get(kind_text) or KINDS.get(kind_text.lower())
-        entry_id = col(row, "id", "ID", "Id")
-        mode = col(row, "操作")
-        text = col(row, "yml", "YML")
-        memo = col(row, "メモ", "備考")
-        if not kind:
-            failed.append((label, entry_id, "種類 (アイテム / モブ / レシピ) が読めません: %r" % kind_text))
-            done.add(key)
-            continue
+        given_id = col(row, "id", "ID", "Id") or colp(row, "ID")
+        mode_text = col(row, "操作") or colp(row, "新規ですか")
+        mode = "edit" if "編集" in mode_text or "edit" in mode_text.lower() else "new" if "新規" in mode_text else ""
+        text = col(row, "yml", "YML") or colp(row, "カテゴリを含んだyml", "yml", "YML")
+        memo = col(row, "メモ", "備考") or colp(row, "メモ")
         if len(text) > MAX_YML:
-            failed.append((label, entry_id, "yml が長すぎます (%d 文字まで)" % MAX_YML))
+            failed.append((label, given_id, "yml が長すぎます (%d 文字まで)" % MAX_YML))
             done.add(key)
             continue
         try:
-            entry_id, body = parse_entry(text, entry_id)
+            kind, entries = parse_entries(text, given_id, kind)
         except Exception as exc:  # yaml.YAMLError and ValueError
-            failed.append((label, entry_id, "yml を読めません: %s" % str(exc).replace("\n", " ")))
+            failed.append((label, given_id, "yml を読めません: %s" % str(exc).replace("\n", " ")))
             done.add(key)
             continue
-        problems, warnings = validate(kind, entry_id, body, repo)
-        if problems:
-            failed.append((label, entry_id, " / ".join(problems)))
-            done.add(key)
-            continue
-        path, existed = apply(repo, kind, entry_id, mode, body)
-        where = str(path.relative_to(repo.root))
-        ok.append((label, kind, entry_id, where, warnings))
-        notes = []
-        if memo:
-            notes.append("メモ「%s」" % memo)
-        if mode in ("新規", "new") and existed:
-            notes.append("操作は『新規』ですが、id が既にあったので上書きしました")
-        if mode in ("編集", "edit") and not existed:
-            notes.append("操作は『編集』ですが、id が無かったので新規に追加しました")
-        if notes:
-            review.append((label, kind, entry_id, where, notes))
+        extra = []
+        if given_id and given_id not in [i for i, _ in entries]:
+            extra.append("フォームの id『%s』が、yml の中の id (%s) にありません" % (given_id, ", ".join(i for i, _ in entries)))
+        for entry_id, body in entries:
+            problems, warnings = validate(kind, entry_id, body, repo)
+            if problems:
+                failed.append((label, entry_id, " / ".join(problems)))
+                continue
+            path, existed = apply(repo, kind, entry_id, mode, body)
+            where = str(path.relative_to(repo.root))
+            ok.append((label, kind, entry_id, where, warnings))
+            notes = list(extra)
+            if memo:
+                notes.append("メモ「%s」" % memo)
+            if mode == "new" and existed:
+                notes.append("『新規』でしたが、id が既にあったので上書きしました")
+            if mode == "edit" and not existed:
+                notes.append("『編集』でしたが、id が無かったので新規に追加しました")
+            if notes:
+                review.append((label, kind, entry_id, where, notes))
         done.add(key)
 
     out = ["# yml 取り込みの結果", ""]
