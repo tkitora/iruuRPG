@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * The sidebar on the right of the screen: a blinking "iruuRPG" on top and the server address at the bottom, with
+ * The sidebar on the right of the screen: an "iruuRPG" on top that flashes in quick bursts (then holds one color) and the server address at the bottom, with
  * the player's name, level, class, gold, where they are and the time in between. Each player has their own scoreboard; lines are team
  * prefixes so they update without flicker, and the score numbers are hidden.
  */
@@ -40,9 +40,14 @@ public final class SidebarService implements Listener {
 
     private static final String[] ENTRIES = {"§0", "§1", "§2", "§3", "§4", "§5", "§6", "§7", "§8", "§9"};
     private static final String NO_COLLISION_TEAM = "iruurpg_nocollide";
-    private static final TextColor[] BLINK = {
-            NamedTextColor.GOLD, NamedTextColor.YELLOW, NamedTextColor.WHITE, NamedTextColor.YELLOW
-    };
+    /** The two colors that flash against each other during a burst. */
+    private static final TextColor FLASH_A = NamedTextColor.WHITE;
+    private static final TextColor FLASH_B = NamedTextColor.GOLD;
+    /** The color held between bursts. */
+    private static final TextColor STEADY = NamedTextColor.GOLD;
+    private static final TextColor STEADY_DECORATION = NamedTextColor.YELLOW;
+    /** The blink runs every 2 ticks, but only the title and the address are touched (and only when they change). */
+    private static final long BLINK_STEP_TICKS = 2L;
 
     private record Area(String name, String world, double x, double z, double radius) {
     }
@@ -65,7 +70,7 @@ public final class SidebarService implements Listener {
     private final Map<UUID, Board> boards = new HashMap<>();
     private DungeonService dungeonService;
     private ClassService classService;
-    private int frame;
+    private long blinkTicks;
 
     public SidebarService(JavaPlugin plugin, PlayerProfileManager profileManager) {
         this.plugin = plugin;
@@ -86,6 +91,7 @@ public final class SidebarService implements Listener {
 
     public void start() {
         Bukkit.getScheduler().runTaskTimer(plugin, this::update, 20L, 10L);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::blink, 20L, BLINK_STEP_TICKS);
     }
 
     public void shutdown() {
@@ -109,8 +115,66 @@ public final class SidebarService implements Listener {
     }
 
     private void update() {
-        frame++;
         for (Player player : Bukkit.getOnlinePlayers()) render(player);
+    }
+
+    /** Fast tick for the title and the address only: a burst of quick flashes, then the same color for a while. */
+    private void blink() {
+        blinkTicks += BLINK_STEP_TICKS;
+        if (!enabled()) return;
+
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            Board board = boards.get(player.getUniqueId());
+            if (board == null || board.lines.isEmpty()) continue;
+
+            showTitle(board);
+            int last = board.lines.size() - 1;
+            Component address = addressLine();
+            if (!address.equals(board.shown.get(last))) {
+                board.lines.get(last).prefix(address);
+                board.shown.set(last, address);
+            }
+        }
+    }
+
+    /** True while the burst of flashes is running. One cycle = {@code sidebar.blink.steady-seconds} of calm + {@code burst-seconds} of flashing. */
+    private boolean flashing() {
+        long burst = Math.max(0L, Math.round(plugin.getConfig().getDouble("sidebar.blink.burst-seconds", 1.5) * 20.0));
+        long steady = Math.max(1L, Math.round(plugin.getConfig().getDouble("sidebar.blink.steady-seconds", 6.0) * 20.0));
+        return blinkTicks % (burst + steady) < burst;
+    }
+
+    /** During the burst the two colors swap every step; otherwise the colors stay put. */
+    private boolean flashSwap() {
+        return (blinkTicks / BLINK_STEP_TICKS) % 2 == 0;
+    }
+
+    private Component titleComponent() {
+        String title = plugin.getConfig().getString("sidebar.title", "iruuRPG");
+        TextColor main = STEADY;
+        TextColor decoration = STEADY_DECORATION;
+        if (flashing()) {
+            main = flashSwap() ? FLASH_A : FLASH_B;
+            decoration = flashSwap() ? FLASH_B : FLASH_A;
+        }
+        return Component.text("✦ ", decoration)
+                .append(Component.text(title, main, TextDecoration.BOLD))
+                .append(Component.text(" ✦", decoration));
+    }
+
+    private Component addressLine() {
+        String address = plugin.getConfig().getString("sidebar.address", "mc.tkgon.net");
+        TextColor color = STEADY_DECORATION;
+        if (flashing()) color = flashSwap() ? FLASH_B : FLASH_A;
+        return Component.text(address, color);
+    }
+
+    private void showTitle(Board board) {
+        Component titleText = titleComponent();
+        if (!titleText.equals(board.shownTitle)) {
+            board.objective.displayName(titleText);
+            board.shownTitle = titleText;
+        }
     }
 
     private void render(Player player) {
@@ -121,17 +185,7 @@ public final class SidebarService implements Listener {
         Board board = boards.computeIfAbsent(player.getUniqueId(), id -> create(player));
         if (player.getScoreboard() != board.scoreboard) player.setScoreboard(board.scoreboard);
 
-        String title = plugin.getConfig().getString("sidebar.title", "iruuRPG");
-        String address = plugin.getConfig().getString("sidebar.address", "mc.tkgon.net");
-        TextColor blink = BLINK[frame % BLINK.length];
-        TextColor blinkOther = BLINK[(frame + 2) % BLINK.length];
-        Component titleText = Component.text("✦ ", blinkOther)
-                .append(Component.text(title, blink, TextDecoration.BOLD))
-                .append(Component.text(" ✦", blinkOther));
-        if (!titleText.equals(board.shownTitle)) {
-            board.objective.displayName(titleText);
-            board.shownTitle = titleText;
-        }
+        showTitle(board);
 
         var profile = profileManager.get(player).orElse(null);
         String currency = plugin.getConfig().getString("quest.currency-name", "ゴールド");
@@ -146,7 +200,7 @@ public final class SidebarService implements Listener {
         lines.add(label("現在地", Component.text(placeOf(player), NamedTextColor.AQUA)));
         lines.add(label("時刻", Component.text(clock(player), NamedTextColor.WHITE)));
         lines.add(Component.text(" "));
-        lines.add(Component.text(address, blinkOther));
+        lines.add(addressLine());
 
         // one team per line; the score orders the lines from the top
         // (only what changed is sent again)

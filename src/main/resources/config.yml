@@ -262,6 +262,9 @@ sidebar:
   enabled: true
   title: "iruuRPG"
   address: "mc.tkgon.net"
+  blink:                    # 上のタイトルと下のアドレス: ちかちか〜っと一気に点滅し、しばらく同じ色、をくり返す
+    burst-seconds: 1.5      # 点滅する時間
+    steady-seconds: 6.0     # 同じ色のままの時間
   default-area: "Iruu大陸"   # どのエリアにも入っていないときの現在地
   clock: game               # 時刻: game = そのワールドのゲーム内の時刻 / real = 現実の時刻 (time-zone)
   time-zone: "Asia/Tokyo"
