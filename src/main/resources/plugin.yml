@@ -24,6 +24,9 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  dungeon:
+    description: Instance dungeons (menu, enter, leave; admins build them)
+    usage: /dungeon [enter <id> | leave | build|entry|spawn|spawns|clearspawns|save|new|reload ...]
   trade:
     description: Trade items and gold with another player
     usage: /trade <player> | accept [player] | deny [player]
