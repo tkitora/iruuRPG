@@ -136,7 +136,16 @@ public final class DungeonRegistry {
         put(definition.withSpawns(spawns));
     }
 
-    public void clearSpawns(DungeonDefinition definition) {
+    /** Removes the spawn at {@code index} (0-based); false if there is none. */
+    public boolean removeSpawn(DungeonDefinition definition, int index) {
+        if (index < 0 || index >= definition.spawns().size()) return false;
+        List<DungeonDefinition.MobSpawn> spawns = new ArrayList<>(definition.spawns());
+        spawns.remove(index);
+        put(definition.withSpawns(spawns));
+        return true;
+    }
+
+        public void clearSpawns(DungeonDefinition definition) {
         put(definition.withSpawns(List.of()));
     }
 

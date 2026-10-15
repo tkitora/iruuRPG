@@ -203,7 +203,7 @@ public final class IruuRPG extends JavaPlugin {
         this.marketMenu.setMainMenu(mainMenu);
         this.dungeonRegistry = new DungeonRegistry(this);
         this.dungeonRegistry.reload();
-        this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, levelService, profileManager);
+        this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, mobRegistry, levelService, profileManager);
         this.dungeonMenu = new DungeonMenu(dungeonService);
         this.sidebarService = new SidebarService(this, profileManager);
         this.sidebarService.setDungeonService(dungeonService);
