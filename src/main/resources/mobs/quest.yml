@@ -1,9 +1,13 @@
 # 依頼用のモブ (架空)。/iruurpg mob <id> で出せる。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
 mobs:
   wild_boar:
     type: PIG
     name: "イノシシ"
     level: 1
+    area: [field1]
     experience: 12
     ai: true
     gravity: true
@@ -27,6 +31,7 @@ mobs:
     type: ZOMBIE
     name: "ゴブリン"
     level: 2
+    area: [field1]
     experience: 24
     ai: true
     gravity: true

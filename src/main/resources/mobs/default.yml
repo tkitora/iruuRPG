@@ -3,6 +3,7 @@ mobs:
     type: ZOMBIE
     name: Red Training Zombie
     level: 1
+    area: [training]
     experience: 35
     ai: true
     gravity: true
@@ -42,6 +43,7 @@ mobs:
     type: SKELETON
     name: Blue Guard Skeleton
     level: 3
+    area: [training]
     experience: 90
     ai: true
     gravity: true

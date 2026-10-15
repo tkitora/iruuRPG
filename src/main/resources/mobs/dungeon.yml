@@ -1,12 +1,13 @@
 # ダンジョン「アトラスの洞窟」の敵 (Lv1〜7)。/iruurpg mob <id> でも出せる。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 1
+version: 2
 
 mobs:
   cave_crawler:
     type: SILVERFISH
     name: "岩ムシ"
     level: 1
+    area: [cave]
     experience: 10
     ai: true
     gravity: true
@@ -27,6 +28,7 @@ mobs:
     type: SKELETON
     name: "洞窟のガイコツ"
     level: 3
+    area: [cave]
     experience: 30
     ai: true
     gravity: true
@@ -55,6 +57,7 @@ mobs:
     type: CAVE_SPIDER
     name: "洞窟グモ"
     level: 5
+    area: [cave]
     experience: 50
     ai: true
     gravity: true
@@ -79,6 +82,7 @@ mobs:
     type: VINDICATOR
     name: "岩窟の主"
     level: 7
+    area: [cave]
     experience: 400
     ai: true
     gravity: true
