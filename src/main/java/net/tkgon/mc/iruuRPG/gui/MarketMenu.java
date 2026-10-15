@@ -3,9 +3,12 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.title.Title;
 import net.tkgon.mc.iruuRPG.market.MarketBuyOffer;
 import net.tkgon.mc.iruuRPG.market.MarketListing;
 import net.tkgon.mc.iruuRPG.market.MarketService;
+import io.papermc.paper.event.player.AsyncChatEvent;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
@@ -15,13 +18,17 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
 
+import java.text.Normalizer;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -52,11 +59,19 @@ public final class MarketMenu implements Listener {
         }
     }
 
+    /** The periods offered for the delay and the duration, in minutes: 30m, 1h, 2h, 4h, 10h, 1d, 3d, 7d. */
+    private static final int[] PERIODS = {30, 60, 120, 240, 600, 1440, 4320, 10080};
+    /** How long a typed answer is waited for before the chat goes back to normal. */
+    private static final long INPUT_TIMEOUT_MILLIS = 60_000L;
+
+    private final JavaPlugin plugin;
     private final MarketService service;
     private final Predicate<ItemStack> sellable;
+    private final Map<UUID, PendingInput> pendingInputs = new HashMap<>();
     private MainMenu mainMenu;
 
-    public MarketMenu(MarketService service, Predicate<ItemStack> sellable) {
+    public MarketMenu(JavaPlugin plugin, MarketService service, Predicate<ItemStack> sellable) {
+        this.plugin = plugin;
         this.service = service;
         this.sellable = sellable;
     }
@@ -68,6 +83,7 @@ public final class MarketMenu implements Listener {
     // ---- entry -----------------------------------------------------------------------------------------------------
 
     public void open(Player player) {
+        pendingInputs.remove(player.getUniqueId());
         service.expire();
         service.claim(player); // waiting sale money and returned items that fit are handed over
         Holder holder = new Holder(player.getUniqueId());
@@ -221,8 +237,8 @@ public final class MarketMenu implements Listener {
         if (holder.template != null && owned <= 0 && !house) holder.template = null;
         holder.qty = Math.max(1, Math.min(holder.qty, house ? service.maxQuantity() : Math.max(1, Math.min(owned, service.maxQuantity()))));
         holder.price = Math.max(1, Math.min(holder.price, service.maxPrice()));
-        holder.delay = Math.max(0, Math.min(holder.delay, service.maxDelayHours()));
-        holder.duration = Math.max(1, Math.min(holder.duration, service.maxDurationHours()));
+        holder.delay = Math.max(0, Math.min(holder.delay, service.maxDelayMinutes()));
+        holder.duration = Math.max(1, Math.min(holder.duration, service.maxDurationMinutes()));
 
         if (holder.template == null) {
             inventory.setItem(4, item(Material.PAPER, "売るアイテムを選ぶ", NamedTextColor.YELLOW, List.of(
@@ -241,15 +257,20 @@ public final class MarketMenu implements Listener {
             inventory.setItem(4, shown);
         }
 
-        // four setting rows: [-big][-mid][-small] value [+small][+mid][+big]
-        settingRow(player, inventory, holder, 1, "price", Material.GOLD_INGOT, "単価 " + holder.price + " " + service.currencyName(),
-                List.of(text("1個あたりの値段", NamedTextColor.GRAY), text("最大 " + service.maxPrice(), NamedTextColor.GRAY)), new int[]{1, 10, 100});
-        settingRow(player, inventory, holder, 2, "qty", holder.template == null ? Material.CHEST : holder.template.getType(), "個数 " + holder.qty + " 個",
-                List.of(text("売る数 (持っている数まで)", NamedTextColor.GRAY), text("持っている数: " + owned, NamedTextColor.GRAY)), new int[]{1, 5, 10});
-        settingRow(player, inventory, holder, 3, "delay", Material.CLOCK, "購入可能までの期間 " + (holder.delay == 0 ? "なし (すぐ)" : hours(holder.delay)),
-                List.of(text("出品してから、買えるようになるまでの待ち時間", NamedTextColor.GRAY), text("最大 " + hours(service.maxDelayHours()), NamedTextColor.GRAY)), new int[]{1, 6, 24});
-        settingRow(player, inventory, holder, 4, "duration", Material.REPEATER, "購入可能期間 " + hours(holder.duration),
-                List.of(text("買えるようになってから、売れ残りが返ってくるまで", NamedTextColor.GRAY), text("最大 " + hours(service.maxDurationHours()), NamedTextColor.GRAY)), new int[]{1, 6, 24});
+        // price and amount are typed in the chat; the delay and the duration are picked from fixed periods
+        inventory.setItem(11, item(Material.GOLD_INGOT, "単価 " + holder.price + " " + service.currencyName(), NamedTextColor.WHITE, List.of(
+                text("1個あたりの値段 (最大 " + service.maxPrice() + ")", NamedTextColor.GRAY),
+                text("クリックして、チャットに数字を入力", NamedTextColor.YELLOW))));
+        inventory.setItem(15, item(holder.template == null ? Material.CHEST : holder.template.getType(), "個数 " + holder.qty + " 個", NamedTextColor.WHITE, List.of(
+                text("売る数 (持っている数まで)", NamedTextColor.GRAY),
+                text("持っている数: " + owned, NamedTextColor.GRAY),
+                text("クリックして、チャットに数字を入力", NamedTextColor.YELLOW))));
+        holder.actions.put(11, "in:price");
+        holder.actions.put(15, "in:qty");
+        periodRow(inventory, holder, 2, "delay", Material.CLOCK, "購入可能までの期間", holder.delay == 0 ? "なし (すぐ)" : period(holder.delay),
+                "出品してから、買えるようになるまでの待ち時間", "クリックで「なし (すぐ)」にする", service.maxDelayMinutes(), holder.delay);
+        periodRow(inventory, holder, 3, "duration", Material.REPEATER, "購入可能期間", period(holder.duration),
+                "買えるようになってから、売れ残りが返ってくるまで", null, service.maxDurationMinutes(), holder.duration);
 
         MarketService.Fee fee = holder.admin ? new MarketService.Fee(0, 0, 0, 0, 0) : service.fee(holder.price, holder.qty, holder.delay, holder.duration);
         long value = holder.price * holder.qty;
@@ -277,6 +298,32 @@ public final class MarketMenu implements Listener {
         }
         holder.actions.put(45, holder.admin ? "admin" : "home");
         holder.actions.put(51, "list");
+    }
+
+    /** One row of period choices: [header] then 30m, 1h, 2h, 4h, 10h, 1d, 3d, 7d. The chosen one is lit. */
+    private void periodRow(Inventory inventory, Holder holder, int row, String key, Material icon, String title, String value,
+                           String help, String resetHelp, int maxMinutes, int current) {
+        int base = row * 9;
+        List<Component> lore = new ArrayList<>();
+        lore.add(text(help, NamedTextColor.GRAY));
+        lore.add(text("今の設定: " + value, NamedTextColor.WHITE));
+        if (resetHelp != null) {
+            lore.add(text(resetHelp, NamedTextColor.YELLOW));
+            holder.actions.put(base, "per:" + key + ":0");
+        }
+        inventory.setItem(base, item(icon, title, NamedTextColor.GOLD, lore));
+        for (int i = 0; i < PERIODS.length; i++) {
+            int minutes = PERIODS[i];
+            int slot = base + 1 + i;
+            if (minutes > maxMinutes) {
+                inventory.setItem(slot, item(Material.BARRIER, period(minutes), NamedTextColor.DARK_GRAY, List.of(text("これ以上は選べません", NamedTextColor.RED))));
+            } else if (minutes == current) {
+                inventory.setItem(slot, item(Material.LIME_DYE, "✔ " + period(minutes), NamedTextColor.GREEN, List.of(text("選んでいます", NamedTextColor.GREEN))));
+            } else {
+                inventory.setItem(slot, item(Material.PAPER, period(minutes), NamedTextColor.WHITE, List.of(text("クリックで選ぶ", NamedTextColor.GRAY))));
+                holder.actions.put(slot, "per:" + key + ":" + minutes);
+            }
+        }
     }
 
     private void settingRow(Player player, Inventory inventory, Holder holder, int row, String key, Material icon, String title, List<Component> lore, int[] steps) {
@@ -740,19 +787,97 @@ public final class MarketMenu implements Listener {
                 holder.template = null;
                 if (holder.admin) renderAdmin(player, holder); else renderMine(player, holder);
             }
-        } else if (action.startsWith("adj:")) {
+        } else if (action.startsWith("in:")) {
+            askForNumber(player, holder, action.substring(3));
+        } else if (action.startsWith("per:")) {
             String[] parts = action.split(":");
-            long delta = allowedDelta(player, holder, parts[1], Long.parseLong(parts[2]), click);
-            switch (parts[1]) {
-                case "price" -> holder.price += delta;
-                case "qty" -> holder.qty += (int) delta;
-                case "delay" -> holder.delay += (int) delta;
-                case "duration" -> holder.duration += (int) delta;
-                default -> {
-                }
-            }
+            int minutes = Integer.parseInt(parts[2]);
+            if (parts[1].equals("delay")) holder.delay = minutes; else holder.duration = minutes;
             renderSell(player, holder);
         }
+    }
+
+    // ---- typed answers (chat) --------------------------------------------------------------------------------------------
+
+    private record PendingInput(Holder holder, String key, long expiresAt) {
+    }
+
+    /** Closes the menu and waits for the player to type a number in the chat. */
+    private void askForNumber(Player player, Holder holder, String key) {
+        boolean price = key.equals("price");
+        long max = price ? service.maxPrice() : maxQuantityFor(player, holder);
+        pendingInputs.put(player.getUniqueId(), new PendingInput(holder, key, System.currentTimeMillis() + INPUT_TIMEOUT_MILLIS));
+        player.closeInventory();
+        String what = price ? "単価" : "個数";
+        player.sendMessage(Component.text("[フリマ] " + what + "をチャットに入力してください (1〜" + max + ")。やめるときは「キャンセル」", NamedTextColor.YELLOW));
+        player.showTitle(Title.title(Component.empty(), Component.text(what + "をチャットに入力 (1〜" + max + ")", NamedTextColor.YELLOW),
+                Title.Times.times(Duration.ZERO, Duration.ofSeconds(10), Duration.ofMillis(500))));
+    }
+
+    private long maxQuantityFor(Player player, Holder holder) {
+        if (holder.admin && holder.infinite) return service.maxQuantity();
+        int owned = holder.template == null ? 1 : service.count(player, holder.template);
+        return Math.max(1, Math.min(owned, service.maxQuantity()));
+    }
+
+    @EventHandler
+    public void onChat(AsyncChatEvent event) {
+        Player player = event.getPlayer();
+        PendingInput pending = pendingInputs.get(player.getUniqueId());
+        if (pending == null) return;
+
+        event.setCancelled(true);
+        String message = PlainTextComponentSerializer.plainText().serialize(event.message());
+        Bukkit.getScheduler().runTask(plugin, () -> answer(player, pending, message));
+    }
+
+    private void answer(Player player, PendingInput pending, String message) {
+        if (pendingInputs.get(player.getUniqueId()) != pending) return;
+
+        pendingInputs.remove(player.getUniqueId());
+        player.clearTitle();
+        if (!player.isOnline()) return;
+
+        String trimmed = message.trim();
+        if (System.currentTimeMillis() > pending.expiresAt()) {
+            player.sendMessage(Component.text("[フリマ] 入力の時間が切れました。", NamedTextColor.RED));
+        } else if (trimmed.equalsIgnoreCase("キャンセル") || trimmed.equalsIgnoreCase("cancel")) {
+            player.sendMessage(Component.text("[フリマ] 入力をやめました。", NamedTextColor.GRAY));
+        } else {
+            applyNumber(player, pending.holder(), pending.key(), trimmed);
+        }
+        reopenSell(player, pending.holder());
+    }
+
+    private void applyNumber(Player player, Holder holder, String key, String typed) {
+        String normalized = Normalizer.normalize(typed, Normalizer.Form.NFKC).replace(",", "").replace(" ", "");
+        long value;
+        try {
+            value = Long.parseLong(normalized);
+        } catch (NumberFormatException exception) {
+            player.sendMessage(Component.text("[フリマ] 数字で入力してください。(入力: " + typed + ")", NamedTextColor.RED));
+            return;
+        }
+        boolean price = key.equals("price");
+        long max = price ? service.maxPrice() : maxQuantityFor(player, holder);
+        if (value < 1 || value > max) {
+            player.sendMessage(Component.text("[フリマ] " + (price ? "単価" : "個数") + "は 1〜" + max + " の範囲です。", NamedTextColor.RED));
+            return;
+        }
+        if (price) holder.price = value; else holder.qty = (int) value;
+    }
+
+    /** Opens a fresh window for the same sell screen (the typed answer is already stored in the holder). */
+    private void reopenSell(Player player, Holder holder) {
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("フリーマーケット"));
+        holder.inventory = inventory;
+        renderSell(player, holder);
+        player.openInventory(inventory);
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        pendingInputs.remove(event.getPlayer().getUniqueId());
     }
 
     /** The change for a click: the click's multiplier (x1 / x10 / x100) if allowed, else the largest smaller one that is; 0 if none. */
@@ -831,35 +956,11 @@ public final class MarketMenu implements Listener {
      * number of items the player has and (when it raises the fee) within the gold the player has.
      */
     private boolean adjustAllowed(Player player, Holder holder, String key, long delta) {
-        long price = holder.price;
-        int qty = holder.qty;
-        int delay = holder.delay;
-        int duration = holder.duration;
-        switch (key) {
-            case "price" -> price += delta;
-            case "qty" -> qty += (int) delta;
-            case "delay" -> delay += (int) delta;
-            case "duration" -> duration += (int) delta;
-            case "limit" -> {
-                return holder.limit + delta >= 0;
-            }
-            default -> {
-                return false;
-            }
-        }
-        if (price < 1 || price > service.maxPrice()) return false;
-        if (holder.screen == Screen.OFFER_EDIT) return true;
-
-        boolean house = holder.admin && holder.infinite;
-        int owned = holder.template == null ? 0 : service.count(player, holder.template);
-        int maxQty = house ? service.maxQuantity() : Math.min(owned, service.maxQuantity());
-        if (qty < 1 || qty > Math.max(1, maxQty)) return false;
-        if (delay < 0 || delay > service.maxDelayHours()) return false;
-        if (duration < 1 || duration > service.maxDurationHours()) return false;
-        if (delta > 0 && !holder.admin) {
-            return service.fee(price, qty, delay, duration).total() <= service.gold(player);
-        }
-        return true;
+        return switch (key) {
+            case "price" -> holder.price + delta >= 1 && holder.price + delta <= service.maxPrice();
+            case "limit" -> holder.limit + delta >= 0;
+            default -> false;
+        };
     }
 
     /** +/- button: green / red while it can be used, grey (and dead) when it would go past what is possible. */
@@ -888,9 +989,10 @@ public final class MarketMenu implements Listener {
         return stack;
     }
 
-    private static String hours(int hours) {
-        if (hours >= 24) return (hours / 24) + "日" + (hours % 24 == 0 ? "" : (hours % 24) + "時間");
-        return hours + "時間";
+    private static String period(int minutes) {
+        if (minutes >= 1440) return (minutes / 1440) + "日" + (minutes % 1440 == 0 ? "" : period(minutes % 1440));
+        if (minutes >= 60) return (minutes / 60) + "時間" + (minutes % 60 == 0 ? "" : (minutes % 60) + "分");
+        return minutes + "分";
     }
 
     private static String remaining(long millis) {
@@ -928,8 +1030,8 @@ public final class MarketMenu implements Listener {
         private ItemStack template;
         private int qty = 1;
         private long price = 100;
-        private int delay;
-        private int duration = 24;
+        private int delay;        // minutes
+        private int duration = 1440; // minutes
         private boolean admin;     // selling as "iruuRPG"
         private boolean infinite;  // operator listing that never runs out
         private boolean manage;    // operator manage mode in the list screens
