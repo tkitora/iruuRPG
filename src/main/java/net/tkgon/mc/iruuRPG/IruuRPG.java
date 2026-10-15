@@ -48,6 +48,7 @@ import net.tkgon.mc.iruuRPG.listener.EquipmentChangeListener;
 import net.tkgon.mc.iruuRPG.listener.ExperienceListener;
 import net.tkgon.mc.iruuRPG.listener.MainMenuItemListener;
 import net.tkgon.mc.iruuRPG.listener.PlayerLifecycleListener;
+import net.tkgon.mc.iruuRPG.listener.RightClickGuard;
 import net.tkgon.mc.iruuRPG.listener.PlayerResourceListener;
 import net.tkgon.mc.iruuRPG.listener.RpgMobListener;
 import net.tkgon.mc.iruuRPG.mob.DebugTargetService;
@@ -325,6 +326,7 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     private void registerListeners() {
+        RightClickGuard rightClickGuard = new RightClickGuard();
         EntityPhysicsListener entityPhysics = new EntityPhysicsListener(this);
         getServer().getPluginManager().registerEvents(entityPhysics, this);
         entityPhysics.applyToLoaded();
@@ -348,7 +350,7 @@ public final class IruuRPG extends JavaPlugin {
                 this
         );
         getServer().getPluginManager().registerEvents(
-                new CombatListener(attackService, deployService, itemSkillService),
+                new CombatListener(attackService, deployService, itemSkillService, rightClickGuard),
                 this
         );
         getServer().getPluginManager().registerEvents(
@@ -376,7 +378,7 @@ public final class IruuRPG extends JavaPlugin {
                 this
         );
         getServer().getPluginManager().registerEvents(
-                new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService),
+                new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard),
                 this
         );
     }

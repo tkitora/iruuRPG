@@ -17,6 +17,8 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
+import org.bukkit.event.Cancellable;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemDamageEvent;
@@ -30,8 +32,10 @@ public final class CombatListener implements Listener {
     private final AttackService attackService;
     private final DeployService deployService;
     private final ItemSkillService itemSkillService;
+    private final RightClickGuard rightClickGuard;
 
-    public CombatListener(AttackService attackService, DeployService deployService, ItemSkillService itemSkillService) {
+    public CombatListener(AttackService attackService, DeployService deployService, ItemSkillService itemSkillService, RightClickGuard rightClickGuard) {
+        this.rightClickGuard = rightClickGuard;
         this.attackService = attackService;
         this.deployService = deployService;
         this.itemSkillService = itemSkillService;
@@ -150,22 +154,45 @@ public final class CombatListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
     public void onRightClickEntity(PlayerInteractEntityEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND) return;
+        onEntityRightClick(event.getPlayer(), event.getHand(), event);
+    }
 
-        Player player = event.getPlayer();
+    /** Armor stands and other "interact at" entities take the click through this event first. */
+    @EventHandler(priority = EventPriority.LOWEST, ignoreCancelled = true)
+    public void onRightClickEntityAt(PlayerInteractAtEntityEvent event) {
+        onEntityRightClick(event.getPlayer(), event.getHand(), event);
+    }
+
+    /**
+     * A right click that lands on an entity: the weapon's right-click (manual skill, ranged attack, deploy) is used
+     * here, because the entity can take the click before the use-item event ever fires. The click is marked, so the
+     * use-item event that may follow does not use the weapon a second time.
+     */
+    private void onEntityRightClick(Player player, EquipmentSlot hand, Cancellable event) {
+        if (hand != EquipmentSlot.HAND) return;
+
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
-        if (itemSkillService.handleManualUse(player, weapon)) {
+        if (rightClickGuard.weaponRecent(player)) {
             event.setCancelled(true);
             return;
         }
-        if (isRangedRightClickWeapon(weapon)) {
+        if (useWeaponRightClick(player, weapon)) {
+            rightClickGuard.markWeapon(player);
             event.setCancelled(true);
-            handleRpgRightClick(player, weapon);
             return;
         }
 
         if (player.getGameMode() != GameMode.ADVENTURE) return;
         event.setCancelled(true);
+    }
+
+    /** Uses the right-click of the weapon in hand (manual skill, or ranged / deploy attack). False when it has none. */
+    private boolean useWeaponRightClick(Player player, RpgItemDefinition weapon) {
+        if (itemSkillService.handleManualUse(player, weapon)) return true;
+        if (!isRangedRightClickWeapon(weapon)) return false;
+
+        handleRpgRightClick(player, weapon);
+        return true;
     }
 
     @EventHandler(priority = EventPriority.HIGHEST)
@@ -222,14 +249,15 @@ public final class CombatListener implements Listener {
 
         Player attacker = event.getPlayer();
         RpgItemDefinition weapon = attackService.weaponInMainHand(attacker);
-        if (itemSkillService.handleManualUse(attacker, weapon)) {
+        if (rightClickGuard.weaponRecent(attacker)) {
+            // the same click was already used through the entity-interact event
             event.setCancelled(true);
             return;
         }
-        if (!isRangedRightClickWeapon(weapon)) return;
-
-        event.setCancelled(true);
-        handleRpgRightClick(attacker, weapon);
+        if (useWeaponRightClick(attacker, weapon)) {
+            rightClickGuard.markWeapon(attacker);
+            event.setCancelled(true);
+        }
     }
 
     private boolean isRangedRightClickWeapon(RpgItemDefinition weapon) {
