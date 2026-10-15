@@ -89,8 +89,19 @@ public final class RpgMobService {
         RpgMobDefinition definition = mobRegistry.find(id).orElse(null);
         if (definition == null) return Optional.empty();
 
-        Location location = spawnLocation(player);
-        LivingEntity entity = (LivingEntity) player.getWorld().spawnEntity(location, definition.entityType());
+        return Optional.of(spawnEntity(spawnLocation(player), definition));
+    }
+
+    /** Spawns an RPG mob at an exact location (dungeons place their mobs this way). */
+    public Optional<LivingEntity> spawnAt(Location location, String id) {
+        RpgMobDefinition definition = mobRegistry.find(id).orElse(null);
+        if (definition == null || location.getWorld() == null) return Optional.empty();
+
+        return Optional.of(spawnEntity(location, definition));
+    }
+
+    private LivingEntity spawnEntity(Location location, RpgMobDefinition definition) {
+        LivingEntity entity = (LivingEntity) location.getWorld().spawnEntity(location, definition.entityType());
         configure(entity, definition);
 
         applyEquipment(entity, definition);
@@ -100,7 +111,7 @@ public final class RpgMobService {
         runtimes.put(entity.getUniqueId(), new MobRuntime(definition, profile, new HashMap<>()));
         updateName(entity);
         selectRandomTarget(entity, definition, null, System.currentTimeMillis());
-        return Optional.of(entity);
+        return entity;
     }
 
     public void startTargetTask() {

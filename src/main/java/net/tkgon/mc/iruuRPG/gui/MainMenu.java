@@ -62,6 +62,11 @@ public final class MainMenu implements Listener {
     private CraftMenu craftMenu;
     private QuestBoardMenu questBoardMenu;
     private MarketMenu marketMenu;
+    private DungeonMenu dungeonMenu;
+
+    public void setDungeonMenu(DungeonMenu dungeonMenu) {
+        this.dungeonMenu = dungeonMenu;
+    }
 
     public void setMarketMenu(MarketMenu marketMenu) {
         this.marketMenu = marketMenu;
@@ -100,6 +105,10 @@ public final class MainMenu implements Listener {
                 Component.text("依頼を受けて、報酬をもらいます", NamedTextColor.GRAY),
                 Component.text("サブ依頼は24時間で入れ替わります", NamedTextColor.GRAY)
         )));
+        inventory.setItem(38, button(Material.SPAWNER, "ダンジョン", NamedTextColor.RED, List.of(
+                Component.text("専用のダンジョンに入って、敵をすべて倒します", NamedTextColor.GRAY),
+                Component.text("クリアで報酬", NamedTextColor.GRAY)
+        )));
         inventory.setItem(40, button(Material.EMERALD, "フリーマーケット", NamedTextColor.GREEN, List.of(
                 Component.text("ゴールドで、プレイヤー同士で売り買いします", NamedTextColor.GRAY),
                 Component.text("出品時に手数料がかかります", NamedTextColor.GRAY)
@@ -137,6 +146,9 @@ public final class MainMenu implements Listener {
                 if (questBoardMenu != null) questBoardMenu.open(player, "atlas");
             }
             case 31 -> classSelectMenu.open(player);
+            case 38 -> {
+                if (dungeonMenu != null) dungeonMenu.open(player);
+            }
             case 40 -> {
                 if (marketMenu != null) marketMenu.open(player);
             }

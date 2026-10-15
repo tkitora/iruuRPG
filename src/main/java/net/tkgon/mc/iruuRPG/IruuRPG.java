@@ -29,6 +29,10 @@ import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
 import net.tkgon.mc.iruuRPG.item.ItemKeys;
 import net.tkgon.mc.iruuRPG.item.ItemSkillRegistry;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
+import net.tkgon.mc.iruuRPG.dungeon.DungeonCommand;
+import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
+import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
+import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
 import net.tkgon.mc.iruuRPG.gui.MarketMenu;
 import net.tkgon.mc.iruuRPG.item.ResourceSync;
 import net.tkgon.mc.iruuRPG.market.MarketCommand;
@@ -105,6 +109,9 @@ public final class IruuRPG extends JavaPlugin {
     private MarketService marketService;
     private MarketMenu marketMenu;
     private TradeService tradeService;
+    private DungeonRegistry dungeonRegistry;
+    private DungeonService dungeonService;
+    private DungeonMenu dungeonMenu;
 
     @Override
     public void onEnable() {
@@ -189,6 +196,12 @@ public final class IruuRPG extends JavaPlugin {
         this.marketService.load();
         this.marketMenu = new MarketMenu(marketService, item -> !mainMenuItemService.isMenuItem(item));
         this.marketMenu.setMainMenu(mainMenu);
+        this.dungeonRegistry = new DungeonRegistry(this);
+        this.dungeonRegistry.reload();
+        this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, levelService, profileManager);
+        this.dungeonMenu = new DungeonMenu(dungeonService);
+        this.dungeonMenu.setMainMenu(mainMenu);
+        this.mainMenu.setDungeonMenu(dungeonMenu);
         this.tradeService = new TradeService(this, profileManager, item -> !mainMenuItemService.isMenuItem(item));
         this.mainMenu.setMarketMenu(marketMenu);
         this.mobService.startTargetTask();
@@ -196,6 +209,7 @@ public final class IruuRPG extends JavaPlugin {
         this.statusEffectService.startTask();
         this.mainMenuItemService.startTask();
         this.marketService.startTask();
+        this.dungeonService.start();
         this.classService.startConditionTask(equipmentService, playerBars);
 
         registerCommands();
@@ -209,6 +223,9 @@ public final class IruuRPG extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        if (dungeonService != null) {
+            dungeonService.shutdown();
+        }
         if (tutorialService != null) {
             tutorialService.shutdown();
         }
@@ -230,6 +247,13 @@ public final class IruuRPG extends JavaPlugin {
             CraftCommand craft = new CraftCommand(craftService, craftMenu);
             craftCommand.setExecutor(craft);
             craftCommand.setTabCompleter(craft);
+        }
+
+        PluginCommand dungeonCommand = getCommand("dungeon");
+        if (dungeonCommand != null) {
+            DungeonCommand dungeon = new DungeonCommand(dungeonService, dungeonMenu, mobRegistry);
+            dungeonCommand.setExecutor(dungeon);
+            dungeonCommand.setTabCompleter(dungeon);
         }
 
         PluginCommand tradeCommand = getCommand("trade");
@@ -296,6 +320,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(marketMenu, this);
         getServer().getPluginManager().registerEvents(marketService, this);
         getServer().getPluginManager().registerEvents(tradeService, this);
+        getServer().getPluginManager().registerEvents(dungeonService, this);
+        getServer().getPluginManager().registerEvents(dungeonMenu, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),

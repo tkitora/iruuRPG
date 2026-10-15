@@ -1,0 +1,29 @@
+# インスタンスダンジョンの定義 (1ファイル = 1ダンジョン)。
+#
+# 入るたびに、テンプレートワールド dungeon_template_<id> を丸ごとコピーして、
+# そのプレイヤー専用のワールドを作る。座標は、テンプレートとコピーで同じ。
+# 作り方 (op):
+#   /dungeon build cave             テンプレートワールドへ移動 (無ければ空のワールドを作る)
+#   建築する → /dungeon entry cave  今の位置を入口にする
+#   /dungeon spawn cave goblin      今の位置にモブを置く (何体でも)
+#   /dungeon save cave              テンプレートを保存して元の場所へ戻る
+# モブが1体以上置かれると「入れる」状態になる。
+
+id: cave
+name: "アトラスの洞窟"
+description:
+  - "アトラスの近くにある、小さな洞窟。"
+  - "奥の魔物を、すべて倒そう。"
+min-level: 1
+time-limit-seconds: 900
+lives: 3
+reward:
+  gold: 100
+  xp: 200
+entry:
+  x: 0.5
+  y: 65.0
+  z: 0.5
+  yaw: 0.0
+  pitch: 0.0
+spawns: []

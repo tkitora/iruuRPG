@@ -240,3 +240,14 @@ market:
     delay-percent-per-hour: 0.1       # 購入可能までの待ち時間 1時間あたり、総額の何%
     duration-percent-per-day: 0.5     # 購入可能期間 1日あたり、総額の何%
     minimum: 1
+
+# インスタンスダンジョン (/dungeon)。ダンジョンの中身は dungeons/*.yml
+dungeon:
+  max-instances: 5          # 同時に開けるダンジョンの数
+  close-delay-seconds: 20   # クリア後、元の場所へ戻すまでの秒数
+  empty-close-seconds: 60   # 誰もいない状態がこの秒数続いたら閉じる
+  blocked-commands:         # ダンジョンの中で使えないコマンド (op は使える)
+    - trade
+    - market
+    - fm
+    - tutorialstart
