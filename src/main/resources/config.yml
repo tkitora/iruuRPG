@@ -251,6 +251,7 @@ market:
 dungeon:
   max-instances: 5          # 同時に開けるダンジョンの数
   empty-close-seconds: 60   # 誰もいない状態がこの秒数続いたら閉じる
+  boss-kill-percent: 80     # ボス部屋への入口が開くのに必要な、ボス以外の敵を倒した割合 (%、切り上げ)
   blocked-commands:         # ダンジョンの中で使えないコマンド (op は使える)
     - trade
     - market
