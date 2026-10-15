@@ -5,6 +5,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.classsystem.ClassDefinition;
+import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import org.bukkit.Bukkit;
@@ -21,6 +23,8 @@ import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Scoreboard;
 import org.bukkit.scoreboard.Team;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -29,7 +33,7 @@ import java.util.UUID;
 
 /**
  * The sidebar on the right of the screen: a blinking "iruuRPG" on top and the server address at the bottom, with
- * the player's name, level, gold and where they are in between. Each player has their own scoreboard; lines are team
+ * the player's name, level, class, gold, where they are and the time in between. Each player has their own scoreboard; lines are team
  * prefixes so they update without flicker, and the score numbers are hidden.
  */
 public final class SidebarService implements Listener {
@@ -47,6 +51,8 @@ public final class SidebarService implements Listener {
         private final Scoreboard scoreboard;
         private final Objective objective;
         private final List<Team> lines = new ArrayList<>();
+        private final List<Component> shown = new ArrayList<>();
+        private Component shownTitle;
 
         private Board(Scoreboard scoreboard, Objective objective) {
             this.scoreboard = scoreboard;
@@ -58,6 +64,7 @@ public final class SidebarService implements Listener {
     private final PlayerProfileManager profileManager;
     private final Map<UUID, Board> boards = new HashMap<>();
     private DungeonService dungeonService;
+    private ClassService classService;
     private int frame;
 
     public SidebarService(JavaPlugin plugin, PlayerProfileManager profileManager) {
@@ -67,6 +74,10 @@ public final class SidebarService implements Listener {
 
     public void setDungeonService(DungeonService dungeonService) {
         this.dungeonService = dungeonService;
+    }
+
+    public void setClassService(ClassService classService) {
+        this.classService = classService;
     }
 
     private boolean enabled() {
@@ -114,9 +125,13 @@ public final class SidebarService implements Listener {
         String address = plugin.getConfig().getString("sidebar.address", "mc.tkgon.net");
         TextColor blink = BLINK[frame % BLINK.length];
         TextColor blinkOther = BLINK[(frame + 2) % BLINK.length];
-        board.objective.displayName(Component.text("✦ ", blinkOther)
+        Component titleText = Component.text("✦ ", blinkOther)
                 .append(Component.text(title, blink, TextDecoration.BOLD))
-                .append(Component.text(" ✦", blinkOther)));
+                .append(Component.text(" ✦", blinkOther));
+        if (!titleText.equals(board.shownTitle)) {
+            board.objective.displayName(titleText);
+            board.shownTitle = titleText;
+        }
 
         var profile = profileManager.get(player).orElse(null);
         String currency = plugin.getConfig().getString("quest.currency-name", "ゴールド");
@@ -124,24 +139,51 @@ public final class SidebarService implements Listener {
         lines.add(Component.empty());
         lines.add(label("名前", Component.text(player.getName(), NamedTextColor.WHITE)));
         lines.add(label("レベル", Component.text(profile == null ? "-" : "Lv " + profile.level(), NamedTextColor.GREEN)));
+        String className = profile == null || classService == null ? "-"
+                : classService.currentClass(profile).map(ClassDefinition::name).orElse("未設定");
+        lines.add(label("クラス", Component.text(className, NamedTextColor.LIGHT_PURPLE)));
         lines.add(label("所持金", Component.text(profile == null ? "-" : String.format("%,d", profile.currency()) + " " + currency, NamedTextColor.GOLD)));
         lines.add(label("現在地", Component.text(placeOf(player), NamedTextColor.AQUA)));
+        lines.add(label("時刻", Component.text(clock(player), NamedTextColor.WHITE)));
         lines.add(Component.text(" "));
         lines.add(Component.text(address, blinkOther));
 
         // one team per line; the score orders the lines from the top
-        while (board.lines.size() < lines.size()) {
-            int index = board.lines.size();
-            Team team = board.scoreboard.registerNewTeam("iruurpg_line_" + index);
-            team.addEntry(ENTRIES[index]);
-            board.lines.add(team);
+        // (only what changed is sent again)
+        if (board.lines.size() != lines.size()) {
+            for (Team team : board.lines) {
+                team.unregister();
+            }
+            for (String entry : ENTRIES) board.scoreboard.resetScores(entry);
+            board.lines.clear();
+            board.shown.clear();
+            for (int index = 0; index < lines.size(); index++) {
+                Team team = board.scoreboard.registerNewTeam("iruurpg_line_" + index);
+                team.addEntry(ENTRIES[index]);
+                board.lines.add(team);
+                board.shown.add(null);
+                board.objective.getScore(ENTRIES[index]).setScore(lines.size() - index);
+            }
         }
         for (int index = 0; index < lines.size(); index++) {
+            if (lines.get(index).equals(board.shown.get(index))) continue;
             board.lines.get(index).prefix(lines.get(index));
-            board.objective.getScore(ENTRIES[index]).setScore(lines.size() - index);
+            board.shown.set(index, lines.get(index));
         }
 
         syncNoCollision(board);
+    }
+
+    /** Japan time by default (sidebar.clock: real); "game" shows the time of day in the player's world. */
+    private String clock(Player player) {
+        if ("game".equalsIgnoreCase(plugin.getConfig().getString("sidebar.clock", "real"))) {
+            long ticks = (player.getWorld().getTime() + 6000) % 24000; // tick 0 is 6:00
+            long hour = ticks / 1000;
+            long minute = (ticks % 1000) * 60 / 1000;
+            return String.format("%02d:%02d", hour, minute);
+        }
+        ZonedDateTime now = ZonedDateTime.now(ZoneId.of(plugin.getConfig().getString("sidebar.time-zone", "Asia/Tokyo")));
+        return String.format("%02d:%02d", now.getHour(), now.getMinute());
     }
 
     private Component label(String name, Component value) {
@@ -201,7 +243,13 @@ public final class SidebarService implements Listener {
         return plugin.getConfig().getString("sidebar.default-area", "Iruu大陸");
     }
 
+    private Object areasSource;
+    private List<Area> areasCache = List.of();
+
+    /** The configured areas, read again only when the config was reloaded. */
     private List<Area> areas() {
+        if (areasSource == plugin.getConfig()) return areasCache;
+        areasSource = plugin.getConfig();
         List<Area> areas = new ArrayList<>();
         for (Map<?, ?> raw : plugin.getConfig().getMapList("sidebar.areas")) {
             Object name = raw.get("name");
@@ -212,6 +260,7 @@ public final class SidebarService implements Listener {
         if (areas.isEmpty() && !plugin.getConfig().isSet("sidebar.areas")) {
             areas.add(new Area("アトラス港", "", 60, 170, 60));
         }
+        areasCache = areas;
         return areas;
     }
 
