@@ -21,7 +21,7 @@ import java.util.Locale;
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -147,6 +147,29 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 service.refreshMarkers(id);
                 player.sendMessage("[ダンジョン] 今の位置を脱出口にした。(ボスを倒すと通れる)");
             }
+            case "rewardroom" -> {
+                if (!player.getWorld().getName().equals(definition.templateWorldName())) {
+                    player.sendMessage("[ダンジョン] ひな形のワールド (" + definition.templateWorldName() + ") の中で使ってください。");
+                    return true;
+                }
+                registry.setRewardRoom(definition, player.getLocation());
+                service.refreshMarkers(id);
+                player.sendMessage("[ダンジョン] 今の位置を報酬部屋にした。(クリアの5秒後に全員ここへ)");
+            }
+            case "chest" -> {
+                if (!player.getWorld().getName().equals(definition.templateWorldName())) {
+                    player.sendMessage("[ダンジョン] ひな形のワールド (" + definition.templateWorldName() + ") の中で使ってください。");
+                    return true;
+                }
+                // the block being looked at (within 5 blocks), else the block at the feet
+                org.bukkit.block.Block target = player.getTargetBlockExact(5);
+                org.bukkit.Location at = target != null && !target.getType().isAir() && target.getType() == org.bukkit.Material.CHEST
+                        ? target.getLocation() : player.getLocation().getBlock().getLocation();
+                registry.setChest(definition, at);
+                at.getBlock().setType(org.bukkit.Material.CHEST);
+                service.refreshMarkers(id);
+                player.sendMessage(String.format(Locale.ROOT, "[ダンジョン] 報酬の宝箱を (%d, %d, %d) にした。(中身は loot/%s.yml)", at.getBlockX(), at.getBlockY(), at.getBlockZ(), id));
+            }
             case "boss" -> {
                 if (args.length < 3 || mobRegistry.find(args[2]).isEmpty()) {
                     player.sendMessage("[ダンジョン] /dungeon boss " + id + " <mobId> (このモブが倒れたらクリア)");
@@ -159,7 +182,9 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
             }
             case "spawns" -> {
                 player.sendMessage("[ダンジョン] ボス: " + (definition.boss() == null ? "なし (全滅でクリア)" : definition.boss())
-                        + " / 脱出口: " + (definition.exit() == null ? "なし" : String.format(Locale.ROOT, "(%.1f, %.1f, %.1f)", definition.exit().x(), definition.exit().y(), definition.exit().z())));
+                        + " / 脱出口: " + (definition.exit() == null ? "なし" : String.format(Locale.ROOT, "(%.1f, %.1f, %.1f)", definition.exit().x(), definition.exit().y(), definition.exit().z()))
+                        + " / 報酬部屋: " + (definition.rewardRoom() == null ? "なし" : "あり")
+                        + " / 宝箱: " + (definition.chest() == null ? "なし" : "あり"));
                 player.sendMessage("[ダンジョン] " + definition.name() + " のモブ: " + definition.spawns().size() + " 体");
                 for (int index = 0; index < definition.spawns().size(); index++) {
                     DungeonDefinition.MobSpawn spawn = definition.spawns().get(index);

@@ -84,7 +84,8 @@ public final class DungeonMenu implements Listener {
         }
         lore.add(text("最大 " + definition.maxPlayers() + " 人 (中から /dungeon invite <名前> で招待)", NamedTextColor.WHITE));
         if (definition.boss() != null) lore.add(text("ボスを倒すとクリア。脱出口から帰還", NamedTextColor.RED));
-        lore.add(text("報酬 " + definition.rewardGold() + " ゴールド / 経験値 " + definition.rewardXp(), NamedTextColor.GOLD));
+        if (definition.chest() != null) lore.add(text("クリア後、報酬部屋の宝箱からゴールド・経験値・アイテム (激レアも)", NamedTextColor.GOLD));
+        if (definition.chest() == null) lore.add(text("報酬 " + definition.rewardGold() + " ゴールド / 経験値 " + definition.rewardXp(), NamedTextColor.GOLD));
         lore.add(Component.empty());
         if (!definition.ready()) {
             lore.add(text("準備中", NamedTextColor.DARK_GRAY));

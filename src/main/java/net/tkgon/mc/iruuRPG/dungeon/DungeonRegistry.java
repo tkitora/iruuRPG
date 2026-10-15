@@ -98,10 +98,28 @@ public final class DungeonRegistry {
                 spawns,
                 yaml.getString("boss"),
                 exit,
-                yaml.getInt("close-delay-seconds", 30),
+                yaml.getInt("close-delay-seconds", 300),
                 deathMode,
-                yaml.getInt("max-players", 4)
+                yaml.getInt("max-players", 4),
+                point(yaml.getConfigurationSection("reward-room")),
+                point(yaml.getConfigurationSection("chest"))
         );
+    }
+
+    private static DungeonDefinition.Point point(ConfigurationSection section) {
+        if (section == null) return null;
+        return new DungeonDefinition.Point(section.getDouble("x"), section.getDouble("y"), section.getDouble("z"),
+                (float) section.getDouble("yaw", 0.0), (float) section.getDouble("pitch", 0.0));
+    }
+
+    private static Map<String, Object> pointMap(DungeonDefinition.Point point) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("x", point.x());
+        map.put("y", point.y());
+        map.put("z", point.z());
+        map.put("yaw", (double) point.yaw());
+        map.put("pitch", (double) point.pitch());
+        return map;
     }
 
     private static double number(Object value) {
@@ -120,8 +138,8 @@ public final class DungeonRegistry {
 
     public DungeonDefinition create(String id, String name) {
         DungeonDefinition definition = new DungeonDefinition(id, name, List.of(), 1, 900, 3, 0L, 0L,
-                new DungeonDefinition.Point(0.5, 65.0, 0.5, 0.0f, 0.0f), List.of(), null, null, 30,
-                DungeonDefinition.DeathMode.REVIVE, 4);
+                new DungeonDefinition.Point(0.5, 65.0, 0.5, 0.0f, 0.0f), List.of(), null, null, 300,
+                DungeonDefinition.DeathMode.REVIVE, 4, null, null);
         put(definition);
         return definition;
     }
@@ -145,7 +163,16 @@ public final class DungeonRegistry {
         return true;
     }
 
-        public void clearSpawns(DungeonDefinition definition) {
+        public void setRewardRoom(DungeonDefinition definition, Location location) {
+        put(definition.withRewardRoom(DungeonDefinition.Point.of(location)));
+    }
+
+    /** The chest is a block: its position is stored as the block corner. */
+    public void setChest(DungeonDefinition definition, Location block) {
+        put(definition.withChest(new DungeonDefinition.Point(block.getBlockX(), block.getBlockY(), block.getBlockZ(), 0.0f, 0.0f)));
+    }
+
+    public void clearSpawns(DungeonDefinition definition) {
         put(definition.withSpawns(List.of()));
     }
 
@@ -200,6 +227,8 @@ public final class DungeonRegistry {
         yaml.set("close-delay-seconds", d.closeDelaySeconds());
         yaml.set("death", d.deathMode() == DungeonDefinition.DeathMode.LIVES ? "lives" : "revive");
         yaml.set("max-players", d.maxPlayers());
+        if (d.rewardRoom() != null) yaml.set("reward-room", pointMap(d.rewardRoom()));
+        if (d.chest() != null) yaml.set("chest", pointMap(d.chest()));
         File file = new File(folder(), d.id() + ".yml");
         try {
             yaml.save(file);

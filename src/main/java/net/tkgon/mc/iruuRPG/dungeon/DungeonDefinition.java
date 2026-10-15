@@ -11,10 +11,12 @@ import java.util.List;
  *
  * @param boss              mob id whose death clears the dungeon (null: every placed mob must die)
  * @param exit              the way out; it can be seen and touched from the start but only works after the clear
- * @param closeDelaySeconds after the clear, everyone still inside is sent home after this many seconds
+ * @param closeDelaySeconds after the clear, everyone still inside is sent home after this many seconds (default 5 min)
  * @param deathMode         REVIVE: a fallen player waits as a spectator until a teammate stands by the body for
  *                          5 seconds (nobody left standing = failed); LIVES: come back at the entry while lives last
  * @param maxPlayers        how many players one run can hold (the first one invites the others)
+ * @param rewardRoom        where everyone is taken a few seconds after the clear (null: they stay where they are)
+ * @param chest             the reward chest; each player opens it once for gold, XP and an item (loot/&lt;id&gt;.yml)
  */
 public record DungeonDefinition(
         String id,
@@ -31,7 +33,9 @@ public record DungeonDefinition(
         Point exit,
         int closeDelaySeconds,
         DeathMode deathMode,
-        int maxPlayers
+        int maxPlayers,
+        Point rewardRoom,
+        Point chest
 ) {
 
     public enum DeathMode { REVIVE, LIVES }
@@ -87,21 +91,31 @@ public record DungeonDefinition(
 
     public DungeonDefinition withEntry(Point point) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                point, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers);
+                point, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
     }
 
     public DungeonDefinition withSpawns(List<MobSpawn> newSpawns) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, newSpawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers);
+                entry, newSpawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
     }
 
     public DungeonDefinition withBoss(String newBoss) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, newBoss, exit, closeDelaySeconds, deathMode, maxPlayers);
+                entry, spawns, newBoss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
     }
 
     public DungeonDefinition withExit(Point newExit) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, newExit, closeDelaySeconds, deathMode, maxPlayers);
+                entry, spawns, boss, newExit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest);
+    }
+
+    public DungeonDefinition withRewardRoom(Point newRoom) {
+        return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, newRoom, chest);
+    }
+
+    public DungeonDefinition withChest(Point newChest) {
+        return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, newChest);
     }
 }
