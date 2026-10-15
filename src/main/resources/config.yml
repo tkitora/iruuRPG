@@ -263,7 +263,7 @@ sidebar:
   title: "iruuRPG"
   address: "mc.tkgon.net"
   default-area: "Iruu大陸"   # どのエリアにも入っていないときの現在地
-  clock: real               # 時刻: real = 現実の時刻 (time-zone) / game = そのワールドのゲーム内の時刻
+  clock: game               # 時刻: game = そのワールドのゲーム内の時刻 / real = 現実の時刻 (time-zone)
   time-zone: "Asia/Tokyo"
   # 現在地のエリア: 中心 (x, z) から半径 radius ブロックの円。重なったら中心に近い方。world を省くとどのワールドでも
   areas:
