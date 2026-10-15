@@ -174,6 +174,24 @@ public final class SidebarService implements Listener {
         syncNoCollision(board);
     }
 
+    private String zoneSource = "";
+    private ZoneId zoneCache = ZoneId.of("Asia/Tokyo");
+
+    /** The configured time zone; a wrong value falls back to Japan time (and is only parsed when it changes). */
+    private ZoneId zone() {
+        String configured = plugin.getConfig().getString("sidebar.time-zone", "Asia/Tokyo");
+        if (!configured.equals(zoneSource)) {
+            zoneSource = configured;
+            try {
+                zoneCache = ZoneId.of(configured);
+            } catch (java.time.DateTimeException exception) {
+                plugin.getLogger().warning("sidebar.time-zone '" + configured + "' is not a valid time zone; using Asia/Tokyo");
+                zoneCache = ZoneId.of("Asia/Tokyo");
+            }
+        }
+        return zoneCache;
+    }
+
     /** Japan time by default (sidebar.clock: real); "game" shows the time of day in the player's world. */
     private String clock(Player player) {
         if ("game".equalsIgnoreCase(plugin.getConfig().getString("sidebar.clock", "real"))) {
@@ -182,7 +200,7 @@ public final class SidebarService implements Listener {
             long minute = (ticks % 1000) * 60 / 1000;
             return String.format("%02d:%02d", hour, minute);
         }
-        ZonedDateTime now = ZonedDateTime.now(ZoneId.of(plugin.getConfig().getString("sidebar.time-zone", "Asia/Tokyo")));
+        ZonedDateTime now = ZonedDateTime.now(zone());
         return String.format("%02d:%02d", now.getHour(), now.getMinute());
     }
 
