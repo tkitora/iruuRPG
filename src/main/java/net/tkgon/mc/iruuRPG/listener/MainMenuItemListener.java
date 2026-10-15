@@ -65,50 +65,35 @@ public final class MainMenuItemListener implements Listener {
         }
     }
 
-    /** Clicking the menu item inside the inventory screen opens the menu too (like using it from the hotbar). */
+    /**
+     * Clicking the menu item inside the inventory screen opens the menu too (like using it from the hotbar), but only
+     * with an empty cursor: swapping the inventory screen for the menu while an item is held is what lost and
+     * duplicated items, so a held item just stays where it is and the click does nothing.
+     */
     private void openFromInventory(InventoryClickEvent event, Player player) {
         if (!menuItemService.isMenuItem(event.getCurrentItem())) return;
         if (event.getView().getTopInventory().getHolder() instanceof MenuHolder) return;
+        if (holdsItem(event.getCursor())) return;
         switch (event.getClick()) {
-            case LEFT, RIGHT, SHIFT_LEFT, SHIFT_RIGHT, MIDDLE, CREATIVE -> openNextTick(player, event.getCursor());
+            case LEFT, RIGHT, SHIFT_LEFT, SHIFT_RIGHT, MIDDLE, CREATIVE -> openNextTick(player);
             default -> {
             }
         }
     }
 
-    /**
-     * @param cursorAtClick the item that was held when the menu item was clicked. Normally the server still has it on
-     *                      the cursor next tick; if it does not (creative mode: the client holds the item by itself),
-     *                      this copy is what gets given back.
-     */
-    private void openNextTick(Player player, ItemStack cursorAtClick) {
-        ItemStack held = cursorAtClick == null || cursorAtClick.getType().isAir() || menuItemService.isMenuItem(cursorAtClick)
-                ? null : cursorAtClick.clone();
+    /** True for a real item on the cursor (the menu item itself and an empty cursor do not count). */
+    private boolean holdsItem(ItemStack cursor) {
+        return cursor != null && !cursor.getType().isAir() && !menuItemService.isMenuItem(cursor);
+    }
+
+    private void openNextTick(Player player) {
         // opening on the next tick: the click event itself is still being processed
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (!player.isOnline()) return;
+            if (holdsItem(player.getItemOnCursor())) return;
 
-            returnCursorItem(player, held);
             mainMenu.open(player);
         });
-    }
-
-    /** An item held on the cursor would be lost when the menu replaces the inventory screen: put it back in the inventory first. */
-    private void returnCursorItem(Player player, ItemStack heldAtClick) {
-        ItemStack onCursor = player.getItemOnCursor();
-        boolean serverCursorEmpty = onCursor == null || onCursor.getType().isAir();
-        // The click-time copy is only for creative mode (the client holds the item itself there). In survival an empty
-        // server cursor means the item is already back in the inventory (e.g. the screen was closed in the same tick),
-        // and giving the copy as well would duplicate it.
-        ItemStack back = !serverCursorEmpty ? onCursor.clone()
-                : player.getGameMode() == org.bukkit.GameMode.CREATIVE ? heldAtClick : null;
-        player.setItemOnCursor(null);
-        if (back == null || back.getType().isAir() || menuItemService.isMenuItem(back)) return;
-
-        for (ItemStack leftover : player.getInventory().addItem(back).values()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), leftover);
-        }
-        player.updateInventory();
     }
 
     /**
@@ -127,7 +112,7 @@ public final class MainMenuItemListener implements Listener {
             event.setCancelled(true);
             scheduleEnsure(player);
             // creative inventories send this event instead of a normal click: clicking the menu item opens the menu
-            if (!inOurMenu && menuItemService.isMenuItem(event.getCurrentItem())) openNextTick(player, event.getCursor());
+            if (!inOurMenu && menuItemService.isMenuItem(event.getCurrentItem()) && !holdsItem(event.getCursor())) openNextTick(player);
         }
     }
 
