@@ -39,6 +39,8 @@ import net.tkgon.mc.iruuRPG.hud.SidebarService;
 import net.tkgon.mc.iruuRPG.gui.PartyMenu;
 import net.tkgon.mc.iruuRPG.party.PartyCommand;
 import net.tkgon.mc.iruuRPG.party.PartyService;
+import net.tkgon.mc.iruuRPG.gui.StorageMenu;
+import net.tkgon.mc.iruuRPG.storage.StorageService;
 import net.tkgon.mc.iruuRPG.gui.TravelMenu;
 import net.tkgon.mc.iruuRPG.travel.TravelCommand;
 import net.tkgon.mc.iruuRPG.travel.TravelService;
@@ -132,6 +134,8 @@ public final class IruuRPG extends JavaPlugin {
     private PartyMenu partyMenu;
     private TravelService travelService;
     private TravelMenu travelMenu;
+    private StorageService storageService;
+    private StorageMenu storageMenu;
     private YmlSyncService ymlSyncService;
 
     @Override
@@ -246,6 +250,9 @@ public final class IruuRPG extends JavaPlugin {
         this.travelMenu.setMainMenu(mainMenu);
         this.mainMenu.setTravelMenu(travelMenu);
         this.travelService.start();
+        this.storageService = new StorageService(this, profileManager);
+        this.storageMenu = new StorageMenu(this, storageService, item -> !mainMenuItemService.isMenuItem(item));
+        this.storageMenu.start();
         this.dungeonMenu.setMainMenu(mainMenu);
         this.dungeonService.setGateHandler(dungeonMenu::openConfirm);
         this.mainMenu.setDungeonMenu(dungeonMenu);
@@ -279,6 +286,9 @@ public final class IruuRPG extends JavaPlugin {
         if (travelService != null) {
             travelService.shutdown();
         }
+        if (storageMenu != null) {
+            storageMenu.shutdown();
+        }
         if (dungeonService != null) {
             dungeonService.shutdown();
         }
@@ -306,6 +316,19 @@ public final class IruuRPG extends JavaPlugin {
             CraftCommand craft = new CraftCommand(craftService, craftMenu);
             craftCommand.setExecutor(craft);
             craftCommand.setTabCompleter(craft);
+        }
+
+        PluginCommand storageCommand = getCommand("storage");
+        if (storageCommand != null) {
+            storageCommand.setExecutor((sender, command, label, args) -> {
+                if (!(sender instanceof Player player)) return true;
+                if (!player.hasPermission("iruurpg.admin")) {
+                    player.sendMessage("[ストレージ] 各地のエンダーチェストから開けます。");
+                    return true;
+                }
+                storageMenu.open(player, 0); // admins: anywhere, for testing
+                return true;
+            });
         }
 
         PluginCommand travelCommand = getCommand("travel");
@@ -418,6 +441,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(partyMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
         getServer().getPluginManager().registerEvents(travelMenu, this);
+        getServer().getPluginManager().registerEvents(storageMenu, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
