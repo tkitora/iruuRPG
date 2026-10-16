@@ -24,6 +24,9 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  storage:
+    description: Opens your storage (admins; players use the ender chests around the world)
+    usage: /storage
   travel:
     description: Fast travel to points you have found (admins place them)
     usage: /travel [id] | set <id> [name] | remove <id> | list
