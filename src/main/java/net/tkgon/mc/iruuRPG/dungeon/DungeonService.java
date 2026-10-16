@@ -1006,7 +1006,12 @@ public final class DungeonService implements Listener {
         ItemStack reward = item;
         java.util.concurrent.atomic.AtomicBoolean granted = new java.util.concurrent.atomic.AtomicBoolean();
         Runnable grant = () -> {
-            if (!granted.compareAndSet(false, true) || !player.isOnline()) return;
+            if (!player.isOnline()) {
+                // gone before the rewards appeared: nothing is handed over and the chest can be opened again
+                if (!granted.get()) instance.chestOpened.remove(player.getUniqueId());
+                return;
+            }
+            if (!granted.compareAndSet(false, true)) return;
             PlayerProfile profile = profileManager.getOrCreate(player);
             profile.setCurrency(profile.currency() + roll.gold());
             profileManager.save(player);
