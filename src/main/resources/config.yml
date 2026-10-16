@@ -252,6 +252,10 @@ dungeon:
   max-instances: 5          # 同時に開けるダンジョンの数
   empty-close-seconds: 60   # 誰もいない状態がこの秒数続いたら閉じる
   boss-kill-percent: 80     # ボス部屋への入口が開くのに必要な、ボス以外の敵を倒した割合 (%、切り上げ)
+  # 本番用: true にすると、ダンジョンは世界に置いた入口 (/dungeon gate <id>) からしか入れない。
+  # false の間は、メニューやコマンドからも入れる (入口の右クリックはいつでも使える)
+  require-gate: false
+  gate-range: 6             # 入口から何ブロック以内なら「入口にいる」とみなすか
   blocked-commands:         # ダンジョンの中で使えないコマンド (op は使える)
     - trade
     - market

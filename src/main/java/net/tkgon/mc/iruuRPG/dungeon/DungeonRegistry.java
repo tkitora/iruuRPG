@@ -21,6 +21,12 @@ public final class DungeonRegistry {
 
     private final JavaPlugin plugin;
     private final Map<String, DungeonDefinition> definitions = new LinkedHashMap<>();
+    /** dungeon id -> its entrances out in the world (gates: in the file) */
+    private final Map<String, List<Gate>> gates = new LinkedHashMap<>();
+
+    /** An entrance to a dungeon out in the world: a block; right-clicking it (or standing by it) lets you in. */
+    public record Gate(String world, int x, int y, int z) {
+    }
 
     public DungeonRegistry(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -36,6 +42,7 @@ public final class DungeonRegistry {
 
     public void reload() {
         definitions.clear();
+        gates.clear();
         File folder = folder();
         if (!folder.exists() && !folder.mkdirs()) {
             plugin.getLogger().warning("Could not create dungeons folder: " + folder.getAbsolutePath());
@@ -54,8 +61,18 @@ public final class DungeonRegistry {
 
         for (File file : files) {
             try {
-                DungeonDefinition definition = read(YamlConfiguration.loadConfiguration(file), file.getName());
-                if (definition != null) definitions.put(definition.id(), definition);
+                YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+                DungeonDefinition definition = read(yaml, file.getName());
+                if (definition != null) {
+                    definitions.put(definition.id(), definition);
+                    List<Gate> list = new ArrayList<>();
+                    for (Map<?, ?> raw : yaml.getMapList("gates")) {
+                        Object world = raw.get("world");
+                        if (world == null) continue;
+                        list.add(new Gate(String.valueOf(world), (int) number(raw.get("x")), (int) number(raw.get("y")), (int) number(raw.get("z"))));
+                    }
+                    gates.put(definition.id(), list);
+                }
             } catch (RuntimeException e) {
                 plugin.getLogger().warning("dungeon: could not read " + file.getName() + ": " + e.getMessage());
             }
@@ -249,6 +266,35 @@ public final class DungeonRegistry {
         put(definition.withExit(DungeonDefinition.Point.of(location)));
     }
 
+    public List<Gate> gates(String id) {
+        return List.copyOf(gates.getOrDefault(id, List.of()));
+    }
+
+    /** Every gate of every dungeon: gate -> dungeon id. */
+    public Map<Gate, String> allGates() {
+        Map<Gate, String> all = new LinkedHashMap<>();
+        for (Map.Entry<String, List<Gate>> entry : gates.entrySet()) {
+            for (Gate gate : entry.getValue()) all.put(gate, entry.getKey());
+        }
+        return all;
+    }
+
+    public void addGate(DungeonDefinition definition, Location block) {
+        List<Gate> list = new ArrayList<>(gates.getOrDefault(definition.id(), List.of()));
+        Gate gate = new Gate(block.getWorld().getName(), block.getBlockX(), block.getBlockY(), block.getBlockZ());
+        if (!list.contains(gate)) list.add(gate);
+        gates.put(definition.id(), list);
+        save(definition);
+    }
+
+    public boolean removeGate(DungeonDefinition definition, Gate gate) {
+        List<Gate> list = new ArrayList<>(gates.getOrDefault(definition.id(), List.of()));
+        if (!list.remove(gate)) return false;
+        gates.put(definition.id(), list);
+        save(definition);
+        return true;
+    }
+
     private void put(DungeonDefinition definition) {
         definitions.put(definition.id(), definition);
         save(definition);
@@ -292,6 +338,16 @@ public final class DungeonRegistry {
         yaml.set("close-delay-seconds", d.closeDelaySeconds());
         yaml.set("death", d.deathMode() == DungeonDefinition.DeathMode.LIVES ? "lives" : "revive");
         yaml.set("max-players", d.maxPlayers());
+        List<Map<String, Object>> gateList = new ArrayList<>();
+        for (Gate gate : gates.getOrDefault(d.id(), List.of())) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("world", gate.world());
+            map.put("x", gate.x());
+            map.put("y", gate.y());
+            map.put("z", gate.z());
+            gateList.add(map);
+        }
+        if (!gateList.isEmpty()) yaml.set("gates", gateList);
         if (d.rewardRoom() != null) yaml.set("reward-room", pointMap(d.rewardRoom()));
         if (d.chest() != null) yaml.set("chest", pointMap(d.chest()));
         if (d.bossTrigger() != null) yaml.set("boss-trigger", pointMap(d.bossTrigger()));

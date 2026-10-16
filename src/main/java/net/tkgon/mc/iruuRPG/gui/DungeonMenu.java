@@ -42,6 +42,24 @@ public final class DungeonMenu implements Listener {
         this.mainMenu = mainMenu;
     }
 
+    /** Clicking a dungeon's gate: a small screen to enter it (or not). */
+    public void openConfirm(Player player, String id) {
+        DungeonDefinition definition = service.registry().find(id).orElse(null);
+        if (definition == null) return;
+        Holder holder = new Holder(player.getUniqueId());
+        holder.confirm = true;
+        Inventory inventory = Bukkit.createInventory(holder, 27, Component.text("ダンジョン: " + definition.name()));
+        holder.inventory = inventory;
+        ItemStack frame = pane();
+        for (int slot = 0; slot < 27; slot++) inventory.setItem(slot, frame);
+        inventory.setItem(13, dungeonItem(player, definition));
+        inventory.setItem(11, item(Material.LIME_CONCRETE, "入る", NamedTextColor.GREEN, List.of(
+                text("パーティーなら、リーダーが入ると仲間も一緒に", NamedTextColor.GRAY))));
+        inventory.setItem(15, item(Material.RED_CONCRETE, "やめる", NamedTextColor.RED, List.of()));
+        holder.actions.put(11, definition.id());
+        player.openInventory(inventory);
+    }
+
     public void open(Player player) {
         Holder holder = new Holder(player.getUniqueId());
         Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("ダンジョン"));
@@ -93,6 +111,8 @@ public final class DungeonMenu implements Listener {
             lore.add(text("準備中", NamedTextColor.DARK_GRAY));
         } else if (problem == null) {
             lore.add(text("クリックで入る", NamedTextColor.GREEN));
+        } else if (service.requireGate() && !service.atGate(player, definition) && !inside) {
+            lore.add(text("このダンジョンの入口 (世界のどこか) から入る", NamedTextColor.GOLD));
         } else {
             lore.add(text(inside ? "ダンジョンの中にいる" : problem, NamedTextColor.RED));
         }
@@ -106,6 +126,12 @@ public final class DungeonMenu implements Listener {
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player) || !holder.ownerId.equals(player.getUniqueId())) return;
         int slot = event.getRawSlot();
+        if (holder.confirm) {
+            if (slot == 15) player.closeInventory();
+            String target = holder.actions.get(slot);
+            if (target != null) service.enter(player, target);
+            return;
+        }
         if (slot == BACK_SLOT) {
             if (mainMenu != null) mainMenu.open(player);
             return;
@@ -154,6 +180,7 @@ public final class DungeonMenu implements Listener {
         private final UUID ownerId;
         private final Map<Integer, String> actions = new HashMap<>();
         private Inventory inventory;
+        private boolean confirm;
 
         private Holder(UUID ownerId) {
             this.ownerId = ownerId;

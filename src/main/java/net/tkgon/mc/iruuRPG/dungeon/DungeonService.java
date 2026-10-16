@@ -262,6 +262,7 @@ public final class DungeonService implements Listener {
             }
         }
         task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 20L, 20L);
+        Bukkit.getScheduler().runTaskLater(plugin, this::refreshGates, 40L);
     }
 
     /** Shutdown: everyone out, every copy unloaded and deleted (synchronously). */
@@ -276,6 +277,10 @@ public final class DungeonService implements Listener {
         }
         builders.clear();
         for (String world : new ArrayList<>(markers.keySet())) clearMarkers(world);
+        for (Entity label : gateLabels) {
+            if (label.isValid()) label.remove();
+        }
+        gateLabels.clear();
     }
 
     public Instance instanceOf(Player player) {
@@ -289,8 +294,25 @@ public final class DungeonService implements Listener {
     // ---- entering ---------------------------------------------------------------------------------------------------
 
     /** Why the player cannot enter now, or null. */
+    /** Production rule (dungeon.require-gate): a dungeon is entered only at one of its gates out in the world. */
+    public boolean requireGate() {
+        return plugin.getConfig().getBoolean("dungeon.require-gate", false);
+    }
+
+    /** The player stands by one of this dungeon's gates (dungeon.gate-range blocks, same world). */
+    public boolean atGate(Player player, DungeonDefinition definition) {
+        double range = plugin.getConfig().getDouble("dungeon.gate-range", 6.0);
+        for (DungeonRegistry.Gate gate : registry.gates(definition.id())) {
+            if (!player.getWorld().getName().equals(gate.world())) continue;
+            Location at = new Location(player.getWorld(), gate.x() + 0.5, gate.y() + 0.5, gate.z() + 0.5);
+            if (player.getLocation().distanceSquared(at) <= range * range) return true;
+        }
+        return false;
+    }
+
     public String whyNot(Player player, DungeonDefinition definition) {
         if (byPlayer.containsKey(player.getUniqueId())) return "すでにダンジョンの中にいます。";
+        if (requireGate() && !atGate(player, definition)) return "このダンジョンの入口から入ってください。";
         if (!definition.ready()) return "このダンジョンは準備中です。";
         if (profileManager.getOrCreate(player).level() < definition.minLevel()) return "レベルが足りません。(必要: Lv" + definition.minLevel() + ")";
         if (instances.size() >= maxInstances()) return "いまは混み合っています。少し待ってください。";
@@ -598,6 +620,7 @@ public final class DungeonService implements Listener {
 
     private void tick() {
         tickMarkers();
+        tickGates();
         long now = System.currentTimeMillis();
         for (Instance instance : new ArrayList<>(instances.values())) {
             switch (instance.state) {
@@ -1375,6 +1398,53 @@ public final class DungeonService implements Listener {
         if (admin.getWorld().equals(world)) admin.teleport(back == null ? fallback() : back);
         if (world.getPlayers().isEmpty()) Bukkit.unloadWorld(world, true);
         admin.sendMessage(Component.text("[ダンジョン] ひな形を保存した。", NamedTextColor.GREEN));
+    }
+
+    // ---- gates out in the world ----------------------------------------------------------------------------------------
+
+    private final List<Entity> gateLabels = new ArrayList<>();
+
+    /** Labels over every gate ("ダンジョン: name / 右クリックで入る"); not saved with the world. */
+    public void refreshGates() {
+        for (Entity label : gateLabels) {
+            if (label.isValid()) label.remove();
+        }
+        gateLabels.clear();
+        for (Map.Entry<DungeonRegistry.Gate, String> entry : registry.allGates().entrySet()) {
+            DungeonRegistry.Gate gate = entry.getKey();
+            World world = Bukkit.getWorld(gate.world());
+            DungeonDefinition definition = registry.find(entry.getValue()).orElse(null);
+            if (world == null || definition == null) continue;
+            Location at = new Location(world, gate.x() + 0.5, gate.y() + 2.2, gate.z() + 0.5);
+            gateLabels.add(label(at, Component.text("ダンジョン: " + definition.name(), NamedTextColor.GOLD, TextDecoration.BOLD)
+                    .append(Component.newline()).append(Component.text("右クリックで入る (推奨Lv" + definition.minLevel() + ")", NamedTextColor.WHITE))));
+        }
+    }
+
+    private void tickGates() {
+        for (DungeonRegistry.Gate gate : registry.allGates().keySet()) {
+            World world = Bukkit.getWorld(gate.world());
+            if (world == null || !world.isChunkLoaded(gate.x() >> 4, gate.z() >> 4)) continue;
+            world.spawnParticle(Particle.PORTAL, gate.x() + 0.5, gate.y() + 1.0, gate.z() + 0.5, 12, 0.3, 0.6, 0.3, 0.2);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGH)
+    public void onGate(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getClickedBlock() == null) return;
+        Block block = event.getClickedBlock();
+        String id = registry.allGates().get(new DungeonRegistry.Gate(block.getWorld().getName(), block.getX(), block.getY(), block.getZ()));
+        if (id == null) return;
+        event.setCancelled(true);
+        if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
+        if (gateHandler != null) gateHandler.accept(event.getPlayer(), id);
+    }
+
+    private java.util.function.BiConsumer<Player, String> gateHandler;
+
+    /** What a click on a gate does (the dungeon menu shows the confirm screen). */
+    public void setGateHandler(java.util.function.BiConsumer<Player, String> gateHandler) {
+        this.gateHandler = gateHandler;
     }
 
     // ---- markers while building ------------------------------------------------------------------------------------------
