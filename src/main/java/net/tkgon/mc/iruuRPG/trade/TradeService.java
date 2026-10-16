@@ -545,6 +545,11 @@ public final class TradeService implements Listener {
 
         List<ItemStack> fromA = take(session.a, a);
         List<ItemStack> fromB = take(session.b, b);
+        // written down before giving: adding to an inventory can change the amounts of the stacks passed in
+        Component gaveA = summary(fromA, session.a.gold);
+        Component gaveB = summary(fromB, session.b.gold);
+        String logA = describe(fromA);
+        String logB = describe(fromB);
         give(b, fromA);
         give(a, fromB);
         PlayerProfile profileA = profileManager.getOrCreate(a);
@@ -554,11 +559,15 @@ public final class TradeService implements Listener {
         profileManager.save(a);
         profileManager.save(b);
 
-        plugin.getLogger().info("trade: " + a.getName() + " gave " + describe(fromA) + " + " + session.a.gold + "G to "
-                + b.getName() + ", got " + describe(fromB) + " + " + session.b.gold + "G");
+        plugin.getLogger().info("trade: " + a.getName() + " gave " + logA + " + " + session.a.gold + "G to "
+                + b.getName() + ", got " + logB + " + " + session.b.gold + "G");
         session.phase = Phase.DONE;
         for (Player p : new Player[]{a, b}) {
-            p.sendMessage(Component.text("[トレード] トレード成立!", NamedTextColor.GREEN, TextDecoration.BOLD));
+            boolean isA = p == a;
+            Player partner = isA ? b : a;
+            p.sendMessage(Component.text("[トレード] トレード成立! (相手: " + partner.getName() + ")", NamedTextColor.GREEN, TextDecoration.BOLD));
+            p.sendMessage(Component.text("  渡した: ", NamedTextColor.GRAY).append(isA ? gaveA : gaveB));
+            p.sendMessage(Component.text("  受け取った: ", NamedTextColor.GRAY).append(isA ? gaveB : gaveA));
             p.playSound(p.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.3f);
         }
         sessions.remove(a.getUniqueId());
@@ -603,6 +612,29 @@ public final class TradeService implements Listener {
                 player.sendMessage(Component.text("[トレード] 持ち物がいっぱいで、足元に落ちた。", NamedTextColor.YELLOW));
             }
         }
+    }
+
+    /** "Item ×3, Item ×1, 100 ゴールド" (the same item is added up; hover an item name to see it), or "なし". */
+    private Component summary(List<ItemStack> items, long gold) {
+        List<ItemStack> merged = new ArrayList<>();
+        for (ItemStack item : items) {
+            boolean added = false;
+            for (ItemStack existing : merged) {
+                if (existing.isSimilar(item)) {
+                    existing.setAmount(existing.getAmount() + item.getAmount());
+                    added = true;
+                    break;
+                }
+            }
+            if (!added) merged.add(item.clone());
+        }
+        List<Component> parts = new ArrayList<>();
+        for (ItemStack item : merged) {
+            parts.add(item.displayName().append(Component.text(" ×" + item.getAmount(), NamedTextColor.WHITE)));
+        }
+        if (gold > 0) parts.add(Component.text(String.format("%,d", gold) + " " + currency(), NamedTextColor.GOLD));
+        if (parts.isEmpty()) return Component.text("なし", NamedTextColor.DARK_GRAY);
+        return Component.join(net.kyori.adventure.text.JoinConfiguration.separator(Component.text(", ", NamedTextColor.GRAY)), parts);
     }
 
     private static String describe(List<ItemStack> items) {
