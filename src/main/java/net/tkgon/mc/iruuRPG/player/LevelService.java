@@ -86,12 +86,17 @@ public final class LevelService {
             return;
         }
 
-        boolean wasReady = canLevelUp(profile);
         profile.setXp(safeAdd(profile.xp(), amount));
 
         syncAfterLevelChange(player, profile, false);
-        if (!wasReady && canLevelUp(profile)) {
-            player.sendMessage("[iruuRPG] レベルアップ可能です。メニューの「ステータス」で、上の頭をクリックするとレベルアップできます。");
+        levelUpWhileReady(player);
+    }
+
+    /** Levels up automatically as long as there is enough XP (several levels at once if needed). */
+    public void levelUpWhileReady(Player player) {
+        int guard = 0;
+        while (guard++ < 300 && tryLevelUp(player)) {
+            // tryLevelUp does one level at a time
         }
     }
 

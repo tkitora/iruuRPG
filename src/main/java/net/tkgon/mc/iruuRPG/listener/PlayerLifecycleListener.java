@@ -42,6 +42,10 @@ public final class PlayerLifecycleListener implements Listener {
         PlayerProfile profile = equipmentService.recalculate(event.getPlayer());
         playerBars.sync(event.getPlayer(), profile);
         levelService.syncBar(event.getPlayer(), profile);
+        // XP saved while levelling up was still manual: level up now
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (event.getPlayer().isOnline()) levelService.levelUpWhileReady(event.getPlayer());
+        });
         openClassSelectionIfNeeded(event.getPlayer(), profile);
     }
 
