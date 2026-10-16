@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonDefinition;
+import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -43,11 +44,12 @@ public final class DungeonMenu implements Listener {
     }
 
     /** Clicking a dungeon's gate: a small screen to enter it (or not). */
-    public void openConfirm(Player player, String id) {
+    public void openConfirm(Player player, String id, DungeonRegistry.Gate gate) {
         DungeonDefinition definition = service.registry().find(id).orElse(null);
         if (definition == null) return;
         Holder holder = new Holder(player.getUniqueId());
         holder.confirm = true;
+        holder.gate = gate;
         Inventory inventory = Bukkit.createInventory(holder, 27, Component.text("ダンジョン: " + definition.name()));
         holder.inventory = inventory;
         ItemStack frame = pane();
@@ -57,6 +59,11 @@ public final class DungeonMenu implements Listener {
                 text("パーティーなら、リーダーが入ると仲間も一緒に", NamedTextColor.GRAY))));
         inventory.setItem(15, item(Material.RED_CONCRETE, "やめる", NamedTextColor.RED, List.of()));
         holder.actions.put(11, definition.id());
+        if (player.hasPermission(DungeonService.ADMIN_PERMISSION)) {
+            inventory.setItem(22, item(Material.BARRIER, "この入口を消す (管理者)", NamedTextColor.DARK_RED, List.of(
+                    text("しゃがんでクリックで消す", NamedTextColor.GRAY),
+                    text("入口の登録だけが消える (ブロックはそのまま)", NamedTextColor.GRAY))));
+        }
         player.openInventory(inventory);
     }
 
@@ -127,6 +134,17 @@ public final class DungeonMenu implements Listener {
         if (!(event.getWhoClicked() instanceof Player player) || !holder.ownerId.equals(player.getUniqueId())) return;
         int slot = event.getRawSlot();
         if (holder.confirm) {
+            if (slot == 22 && holder.gate != null && player.hasPermission(DungeonService.ADMIN_PERMISSION)) {
+                if (!event.isShiftClick()) {
+                    player.sendMessage(Component.text("[ダンジョン] 入口を消すには、しゃがんで(Shift を押して)クリックしてください。", NamedTextColor.YELLOW));
+                    return;
+                }
+                player.closeInventory();
+                String error = service.removeGate(player, holder.gate);
+                player.sendMessage(error != null ? Component.text("[ダンジョン] " + error, NamedTextColor.RED)
+                        : Component.text("[ダンジョン] 入口を消した。", NamedTextColor.GREEN));
+                return;
+            }
             if (slot == 15) player.closeInventory();
             String target = holder.actions.get(slot);
             if (target != null) service.enter(player, target);
@@ -181,6 +199,7 @@ public final class DungeonMenu implements Listener {
         private final Map<Integer, String> actions = new HashMap<>();
         private Inventory inventory;
         private boolean confirm;
+        private DungeonRegistry.Gate gate; // the gate whose confirm screen this is
 
         private Holder(UUID ownerId) {
             this.ownerId = ownerId;

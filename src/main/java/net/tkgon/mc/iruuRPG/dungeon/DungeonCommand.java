@@ -39,6 +39,36 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
         this.mobRegistry = mobRegistry;
     }
 
+    /** /dungeon removegate (no id): the gate looked at, else the nearest one within 5 blocks, of any dungeon. */
+    private void removeGateHere(Player player, DungeonRegistry registry) {
+        java.util.Map<DungeonRegistry.Gate, String> all = registry.allGates();
+        DungeonRegistry.Gate found = null;
+        org.bukkit.block.Block target = player.getTargetBlockExact(5);
+        if (target != null) {
+            DungeonRegistry.Gate looked = new DungeonRegistry.Gate(target.getWorld().getName(), target.getX(), target.getY(), target.getZ());
+            if (all.containsKey(looked)) found = looked;
+        }
+        if (found == null) {
+            double best = 25.0;
+            for (DungeonRegistry.Gate gate : all.keySet()) {
+                if (!gate.world().equals(player.getWorld().getName())) continue;
+                double distance = new org.bukkit.Location(player.getWorld(), gate.x() + 0.5, gate.y() + 0.5, gate.z() + 0.5).distanceSquared(player.getLocation());
+                if (distance <= best) {
+                    best = distance;
+                    found = gate;
+                }
+            }
+        }
+        if (found == null) {
+            player.sendMessage("[ダンジョン] 見ているブロック、または近く (5ブロック以内) に入口がありません。(入口を右クリックして「この入口を消す」でも消せます)");
+            return;
+        }
+        String id = all.get(found);
+        String error = service.removeGate(player, found);
+        player.sendMessage(error != null ? "[ダンジョン] " + error
+                : String.format(Locale.ROOT, "[ダンジョン] 入口を消した。(%s の %s %d, %d, %d)", id, found.world(), found.x(), found.y(), found.z()));
+    }
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (!(sender instanceof Player player)) {
@@ -97,6 +127,10 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
         if (sub.equals("reload")) {
             registry.reload();
             player.sendMessage("[ダンジョン] 定義を読み直した。(" + registry.all().size() + " 件)");
+            return true;
+        }
+        if (sub.equals("removegate") && args.length < 2) {
+            removeGateHere(player, registry);
             return true;
         }
         if (args.length < 2) {

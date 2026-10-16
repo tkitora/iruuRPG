@@ -1437,14 +1437,35 @@ public final class DungeonService implements Listener {
         if (id == null) return;
         event.setCancelled(true);
         if (event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
-        if (gateHandler != null) gateHandler.accept(event.getPlayer(), id);
+        if (gateHandler != null) gateHandler.onGate(event.getPlayer(), id, new DungeonRegistry.Gate(block.getWorld().getName(), block.getX(), block.getY(), block.getZ()));
     }
 
-    private java.util.function.BiConsumer<Player, String> gateHandler;
+    /** A click on a gate: the player, the dungeon id and the gate that was clicked. */
+    @FunctionalInterface
+    public interface GateHandler {
+        void onGate(Player player, String id, DungeonRegistry.Gate gate);
+    }
+
+    private GateHandler gateHandler;
 
     /** What a click on a gate does (the dungeon menu shows the confirm screen). */
-    public void setGateHandler(java.util.function.BiConsumer<Player, String> gateHandler) {
+    public void setGateHandler(GateHandler gateHandler) {
         this.gateHandler = gateHandler;
+    }
+
+    /**
+     * Removes a gate from its dungeon (the block itself stays; only the entrance is gone). Admin only.
+     * Returns an error text, or null when removed.
+     */
+    public String removeGate(Player admin, DungeonRegistry.Gate gate) {
+        if (!admin.hasPermission(ADMIN_PERMISSION)) return "この操作は管理者のみです。";
+
+        String id = registry.allGates().get(gate);
+        DungeonDefinition definition = id == null ? null : registry.find(id).orElse(null);
+        if (definition == null || !registry.removeGate(definition, gate)) return "その入口はもうありません。";
+
+        refreshGates();
+        return null;
     }
 
     // ---- markers while building ------------------------------------------------------------------------------------------
