@@ -220,6 +220,13 @@ public final class DungeonService implements Listener {
         return DungeonLoot.tableNames(plugin);
     }
 
+    private net.tkgon.mc.iruuRPG.party.PartyService partyService;
+
+    /** Parties enter together; a member can join their party's run with /dungeon join. */
+    public void setPartyService(net.tkgon.mc.iruuRPG.party.PartyService partyService) {
+        this.partyService = partyService;
+    }
+
     public DungeonRegistry registry() {
         return registry;
     }
@@ -302,6 +309,10 @@ public final class DungeonService implements Listener {
             player.sendMessage(Component.text("[ダンジョン] " + problem, NamedTextColor.RED));
             return;
         }
+        if (partyService != null && partyService.partyOf(player.getUniqueId()) != null && !partyService.isLeader(player.getUniqueId())) {
+            player.sendMessage(Component.text("[ダンジョン] パーティーでは、リーダーが入ってください。(仲間も一緒に入る)", NamedTextColor.RED));
+            return;
+        }
 
         Instance instance = new Instance(nextFreeNumber(definition), definition);
         instances.put(instance.number, instance);
@@ -311,6 +322,26 @@ public final class DungeonService implements Listener {
         remember(player, player.getLocation());
         player.sendMessage(Component.text("[ダンジョン] 「" + definition.name() + "」を準備しています…", NamedTextColor.YELLOW));
         player.closeInventory();
+        if (partyService != null) {
+            // the rest of the party (online) comes along, as far as the dungeon has room and their level allows
+            for (Player member : partyService.withParty(player)) {
+                if (member.equals(player)) continue;
+                String why = byPlayer.containsKey(member.getUniqueId()) ? "すでに別のダンジョンにいる"
+                        : profileManager.getOrCreate(member).level() < definition.minLevel() ? "レベルが足りない (必要: Lv" + definition.minLevel() + ")"
+                        : instance.players.size() >= definition.maxPlayers() ? "人数がいっぱい (最大 " + definition.maxPlayers() + " 人)" : null;
+                if (why != null) {
+                    member.sendMessage(Component.text("[ダンジョン] パーティーの「" + definition.name() + "」に入れなかった: " + why, NamedTextColor.RED));
+                    player.sendMessage(Component.text("[ダンジョン] " + member.getName() + " は入れなかった: " + why, NamedTextColor.GRAY));
+                    continue;
+                }
+                instance.players.add(member.getUniqueId());
+                instance.lives.put(member.getUniqueId(), definition.lives());
+                byPlayer.put(member.getUniqueId(), instance);
+                remember(member, member.getLocation());
+                member.closeInventory();
+                member.sendMessage(Component.text("[ダンジョン] パーティーで「" + definition.name() + "」に入る。準備しています…", NamedTextColor.YELLOW));
+            }
+        }
 
         // the template is saved first (it may be loaded while someone builds it), then copied off the main thread
         World template = Bukkit.getWorld(definition.templateWorldName());
@@ -1143,6 +1174,17 @@ public final class DungeonService implements Listener {
     public void join(Player player) {
         Invite invite = invites.remove(player.getUniqueId());
         Instance instance = invite == null ? null : instances.get(invite.instance());
+        if (invite == null && partyService != null) {
+            // no invite: a run of the player's party
+            for (java.util.UUID member : partyService.memberIds(player.getUniqueId())) {
+                Instance party = byPlayer.get(member);
+                if (party != null && party.state == State.ACTIVE) {
+                    instance = party;
+                    invite = new Invite(party.number, member, System.currentTimeMillis() + 1000L);
+                    break;
+                }
+            }
+        }
         if (invite == null || invite.until() < System.currentTimeMillis() || instance == null || instance.state != State.ACTIVE) {
             player.sendMessage(Component.text("[ダンジョン] 参加できる招待がありません。(期限切れか、もう終わっています)", NamedTextColor.RED));
             return;

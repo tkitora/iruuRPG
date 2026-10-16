@@ -70,6 +70,11 @@ public final class SidebarService implements Listener {
     private final Map<UUID, Board> boards = new HashMap<>();
     private DungeonService dungeonService;
     private ClassService classService;
+    private net.tkgon.mc.iruuRPG.party.PartyService partyService;
+
+    public void setPartyService(net.tkgon.mc.iruuRPG.party.PartyService partyService) {
+        this.partyService = partyService;
+    }
     private long blinkTicks;
 
     public SidebarService(JavaPlugin plugin, PlayerProfileManager profileManager) {
@@ -215,6 +220,10 @@ public final class SidebarService implements Listener {
         lines.add(label("所持金", Component.text(profile == null ? "-" : String.format("%,d", profile.currency()) + " " + currency, NamedTextColor.GOLD)));
         lines.add(label("現在地", Component.text(placeOf(player), NamedTextColor.AQUA)));
         lines.add(label("時刻", Component.text(clock(player), NamedTextColor.WHITE)));
+        var party = partyService == null ? null : partyService.partyOf(player.getUniqueId());
+        if (party != null) {
+            lines.add(label("パーティー", Component.text(party.online().size() + " / " + party.size() + " 人", NamedTextColor.AQUA)));
+        }
         lines.add(Component.text(" "));
         lines.add(addressLine());
 

@@ -63,6 +63,11 @@ public final class MainMenu implements Listener {
     private QuestBoardMenu questBoardMenu;
     private MarketMenu marketMenu;
     private DungeonMenu dungeonMenu;
+    private PartyMenu partyMenu;
+
+    public void setPartyMenu(PartyMenu partyMenu) {
+        this.partyMenu = partyMenu;
+    }
 
     public void setDungeonMenu(DungeonMenu dungeonMenu) {
         this.dungeonMenu = dungeonMenu;
@@ -109,6 +114,10 @@ public final class MainMenu implements Listener {
                 Component.text("専用のダンジョンに入って、敵をすべて倒します", NamedTextColor.GRAY),
                 Component.text("クリアで報酬", NamedTextColor.GRAY)
         )));
+        inventory.setItem(42, button(Material.CAKE, "パーティー", NamedTextColor.AQUA, List.of(
+                Component.text("仲間とパーティーを組みます (/party)", NamedTextColor.GRAY),
+                Component.text("ダンジョンに一緒に入り、経験値を分け合う", NamedTextColor.GRAY)
+        )));
         inventory.setItem(40, button(Material.EMERALD, "フリーマーケット", NamedTextColor.GREEN, List.of(
                 Component.text("ゴールドで、プレイヤー同士で売り買いします", NamedTextColor.GRAY),
                 Component.text("出品時に手数料がかかります", NamedTextColor.GRAY)
@@ -148,6 +157,9 @@ public final class MainMenu implements Listener {
             case 31 -> classSelectMenu.open(player);
             case 38 -> {
                 if (dungeonMenu != null) dungeonMenu.open(player);
+            }
+            case 42 -> {
+                if (partyMenu != null) partyMenu.open(player);
             }
             case 40 -> {
                 if (marketMenu != null) marketMenu.open(player);
