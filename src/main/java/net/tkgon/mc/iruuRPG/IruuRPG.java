@@ -184,6 +184,7 @@ public final class IruuRPG extends JavaPlugin {
                 statusEffectService
         );
         this.mobService = new RpgMobService(this, mobRegistry, itemRegistry, itemFactory, levelService, statusEffectService);
+        this.mobService.setAttackEffects(attackEffects);
         this.statusEffectService.setMobService(mobService);
         this.attackService.setMobService(mobService);
         this.attackService.setDebugTargetService(debugTargetService);
