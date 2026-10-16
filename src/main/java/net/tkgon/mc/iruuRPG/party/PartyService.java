@@ -363,6 +363,25 @@ public final class PartyService implements Listener {
         return nameOf(invite.inviter());
     }
 
+    /**
+     * /p as party chat even when another plugin owns /p (FastAsyncVoxelSniper's performer command): for a player in a
+     * party who is not a voxel sniper user, "/p ..." is taken here. Snipers keep their /p and use /pc.
+     */
+    @EventHandler(priority = org.bukkit.event.EventPriority.LOWEST, ignoreCancelled = true)
+    public void onSlashP(org.bukkit.event.player.PlayerCommandPreprocessEvent event) {
+        String message = event.getMessage();
+        if (!message.equals("/p") && !message.startsWith("/p ")) return;
+        Player player = event.getPlayer();
+        if (!byMember.containsKey(player.getUniqueId()) || player.hasPermission("voxelsniper.sniper")) return;
+        event.setCancelled(true);
+        String text = message.length() > 3 ? message.substring(3) : "";
+        if (text.isBlank()) {
+            player.sendMessage(Component.text("[パーティー] /p <メッセージ> でパーティーの仲間だけに話す。", NamedTextColor.GRAY));
+            return;
+        }
+        chat(player, text);
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Party party = byMember.get(event.getPlayer().getUniqueId());

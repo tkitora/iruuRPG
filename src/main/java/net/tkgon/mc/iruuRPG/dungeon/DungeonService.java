@@ -293,7 +293,6 @@ public final class DungeonService implements Listener {
 
     // ---- entering ---------------------------------------------------------------------------------------------------
 
-    /** Why the player cannot enter now, or null. */
     /** Production rule (dungeon.require-gate): a dungeon is entered only at one of its gates out in the world. */
     public boolean requireGate() {
         return plugin.getConfig().getBoolean("dungeon.require-gate", false);
@@ -310,6 +309,7 @@ public final class DungeonService implements Listener {
         return false;
     }
 
+    /** Why the player cannot enter now, or null. */
     public String whyNot(Player player, DungeonDefinition definition) {
         if (byPlayer.containsKey(player.getUniqueId())) return "すでにダンジョンの中にいます。";
         if (requireGate() && !atGate(player, definition)) return "このダンジョンの入口から入ってください。";
