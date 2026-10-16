@@ -39,6 +39,9 @@ import net.tkgon.mc.iruuRPG.hud.SidebarService;
 import net.tkgon.mc.iruuRPG.gui.PartyMenu;
 import net.tkgon.mc.iruuRPG.party.PartyCommand;
 import net.tkgon.mc.iruuRPG.party.PartyService;
+import net.tkgon.mc.iruuRPG.gui.TravelMenu;
+import net.tkgon.mc.iruuRPG.travel.TravelCommand;
+import net.tkgon.mc.iruuRPG.travel.TravelService;
 import net.tkgon.mc.iruuRPG.sync.ReloadReport;
 import net.tkgon.mc.iruuRPG.sync.YmlSyncService;
 import net.tkgon.mc.iruuRPG.gui.MarketMenu;
@@ -127,6 +130,8 @@ public final class IruuRPG extends JavaPlugin {
     private SidebarService sidebarService;
     private PartyService partyService;
     private PartyMenu partyMenu;
+    private TravelService travelService;
+    private TravelMenu travelMenu;
     private YmlSyncService ymlSyncService;
 
     @Override
@@ -235,6 +240,11 @@ public final class IruuRPG extends JavaPlugin {
         this.sidebarService.setPartyService(partyService);
         this.dungeonService.setPartyService(partyService);
         this.mobService.setPartyService(partyService);
+        this.travelService = new TravelService(this, profileManager);
+        this.travelMenu = new TravelMenu(travelService);
+        this.travelMenu.setMainMenu(mainMenu);
+        this.mainMenu.setTravelMenu(travelMenu);
+        this.travelService.start();
         this.dungeonMenu.setMainMenu(mainMenu);
         this.dungeonService.setGateHandler(dungeonMenu::openConfirm);
         this.mainMenu.setDungeonMenu(dungeonMenu);
@@ -265,6 +275,9 @@ public final class IruuRPG extends JavaPlugin {
         if (dungeonEditor != null) {
             dungeonEditor.shutdown();
         }
+        if (travelService != null) {
+            travelService.shutdown();
+        }
         if (dungeonService != null) {
             dungeonService.shutdown();
         }
@@ -292,6 +305,13 @@ public final class IruuRPG extends JavaPlugin {
             CraftCommand craft = new CraftCommand(craftService, craftMenu);
             craftCommand.setExecutor(craft);
             craftCommand.setTabCompleter(craft);
+        }
+
+        PluginCommand travelCommand = getCommand("travel");
+        if (travelCommand != null) {
+            TravelCommand travel = new TravelCommand(travelService, travelMenu);
+            travelCommand.setExecutor(travel);
+            travelCommand.setTabCompleter(travel);
         }
 
         PartyCommand party = new PartyCommand(partyService, partyMenu);
@@ -395,6 +415,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(sidebarService, this);
         getServer().getPluginManager().registerEvents(partyService, this);
         getServer().getPluginManager().registerEvents(partyMenu, this);
+        getServer().getPluginManager().registerEvents(travelService, this);
+        getServer().getPluginManager().registerEvents(travelMenu, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
