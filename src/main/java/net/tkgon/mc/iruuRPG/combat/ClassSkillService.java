@@ -187,7 +187,7 @@ public final class ClassSkillService {
     private boolean isValidTarget(Player player, Entity entity) {
         if (!(entity instanceof LivingEntity living)) return false;
         if (entity.equals(player) || entity instanceof Player || entity instanceof ArmorStand) return false;
-        return !DeployService.isDeployEntity(living) && !living.isDead();
+        return !DeployService.isDeployEntity(living) && !living.isDead() && attackService.isAttackTarget(living, player);
     }
 
     private void warriorStrike(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon) {

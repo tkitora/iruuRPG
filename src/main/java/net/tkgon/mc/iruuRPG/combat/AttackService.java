@@ -23,6 +23,7 @@ import org.bukkit.FluidCollisionMode;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
@@ -640,11 +641,18 @@ public final class AttackService {
         return attacker.getLocation().getDirection().dot(toTarget.normalize()) >= 0.0;
     }
 
-    private boolean isAttackTarget(Entity entity, Entity attacker) {
-        return entity instanceof LivingEntity
+    /**
+     * What a ranged shot can hit. Players (a shot can never hurt one), armor stands and the tutorial's NPC / rat of
+     * someone else are left out of the trace, so they do not block a shot at a mob behind them.
+     */
+    public boolean isAttackTarget(Entity entity, Player attacker) {
+        return entity instanceof LivingEntity living
                 && !entity.equals(attacker)
                 && !entity.isDead()
-                && !DeployService.isDeployEntity(entity);
+                && !(entity instanceof Player)
+                && !(entity instanceof ArmorStand)
+                && !DeployService.isDeployEntity(entity)
+                && !(isTutorialProtected(living) && !tutorialHook.isOwnTarget(attacker, living));
     }
 
     private double maxHealth(LivingEntity entity) {
