@@ -1,7 +1,7 @@
 # クラス定義: 戦士 (赤 / 筋力特化)
 #
 # growth      : レベル1ごとに自動で加算される固有成長 (全クラス共通の成長は config.yml の level-growth)
-# spend       : SP(1レベル=1SP)で上限なくレベルを上げられるノード。per-level が1レベルあたり
+# spend       : SPを1使うごとにノードのレベルを1上げられる (上限なし)。per-level がノード1レベルあたり
 #               値が負のステータスは同じノードで下がる (トレードオフ)
 # milestones  : SPを5使うごとに上から順に無料で解放される。順番は固定 (8個 = 40SP)
 #   node_type: passive / active

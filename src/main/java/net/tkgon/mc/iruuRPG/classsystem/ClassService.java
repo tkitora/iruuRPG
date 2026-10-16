@@ -94,6 +94,16 @@ public final class ClassService {
         return Math.max(0, earnedPoints(profile) - spentPoints(profile));
     }
 
+    /** How many player levels give 1 SP (config: class-skill-points.levels-per-point). */
+    public int levelsPerPoint() {
+        return Math.max(1, config().getInt("class-skill-points.levels-per-point", DEFAULT_LEVELS_PER_POINT));
+    }
+
+    /** The most SP a player can earn (config: class-skill-points.max-points). */
+    public int maxPoints() {
+        return Math.max(0, config().getInt("class-skill-points.max-points", DEFAULT_MAX_POINTS));
+    }
+
     public int milestoneInterval() {
         return Math.max(1, config().getInt("class-skill-points.milestone-interval", DEFAULT_MILESTONE_INTERVAL));
     }
