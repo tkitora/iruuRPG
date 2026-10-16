@@ -187,6 +187,22 @@ public final class SidebarService implements Listener {
 
         showTitle(board);
 
+        List<Component> dungeon = dungeonService == null ? null : dungeonService.sidebarLines(player);
+        if (dungeon != null) {
+            // in a dungeon: the dungeon's own status (time, enemies, boss room, revive...) instead of the usual lines
+            List<Component> lines = new ArrayList<>();
+            lines.add(Component.empty());
+            for (Component line : dungeon) {
+                if (lines.size() >= ENTRIES.length - 2) break;
+                lines.add(line);
+            }
+            lines.add(Component.text(" "));
+            lines.add(addressLine());
+            show(board, lines);
+            syncNoCollision(board);
+            return;
+        }
+
         var profile = profileManager.get(player).orElse(null);
         String currency = plugin.getConfig().getString("quest.currency-name", "ゴールド");
         List<Component> lines = new ArrayList<>();
@@ -202,29 +218,7 @@ public final class SidebarService implements Listener {
         lines.add(Component.text(" "));
         lines.add(addressLine());
 
-        // one team per line; the score orders the lines from the top
-        // (only what changed is sent again)
-        if (board.lines.size() != lines.size()) {
-            for (Team team : board.lines) {
-                team.unregister();
-            }
-            for (String entry : ENTRIES) board.scoreboard.resetScores(entry);
-            board.lines.clear();
-            board.shown.clear();
-            for (int index = 0; index < lines.size(); index++) {
-                Team team = board.scoreboard.registerNewTeam("iruurpg_line_" + index);
-                team.addEntry(ENTRIES[index]);
-                board.lines.add(team);
-                board.shown.add(null);
-                board.objective.getScore(ENTRIES[index]).setScore(lines.size() - index);
-            }
-        }
-        for (int index = 0; index < lines.size(); index++) {
-            if (lines.get(index).equals(board.shown.get(index))) continue;
-            board.lines.get(index).prefix(lines.get(index));
-            board.shown.set(index, lines.get(index));
-        }
-
+        show(board, lines);
         syncNoCollision(board);
     }
 
@@ -256,6 +250,33 @@ public final class SidebarService implements Listener {
         }
         ZonedDateTime now = ZonedDateTime.now(zone());
         return String.format("%02d:%02d", now.getHour(), now.getMinute());
+    }
+
+    /** Puts these lines on the board (only what changed is sent again). */
+    private void show(Board board, List<Component> lines) {
+        // one team per line; the score orders the lines from the top
+        // (only what changed is sent again)
+        if (board.lines.size() != lines.size()) {
+            for (Team team : board.lines) {
+                team.unregister();
+            }
+            for (String entry : ENTRIES) board.scoreboard.resetScores(entry);
+            board.lines.clear();
+            board.shown.clear();
+            for (int index = 0; index < lines.size(); index++) {
+                Team team = board.scoreboard.registerNewTeam("iruurpg_line_" + index);
+                team.addEntry(ENTRIES[index]);
+                board.lines.add(team);
+                board.shown.add(null);
+                board.objective.getScore(ENTRIES[index]).setScore(lines.size() - index);
+            }
+        }
+        for (int index = 0; index < lines.size(); index++) {
+            if (lines.get(index).equals(board.shown.get(index))) continue;
+            board.lines.get(index).prefix(lines.get(index));
+            board.shown.set(index, lines.get(index));
+        }
+
     }
 
     private Component label(String name, Component value) {
