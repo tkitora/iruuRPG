@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 /**
  * The reward chest screen: rainbow glass flickers for a moment, then the three rewards (gold, XP, an item) appear.
  * The rewards are already given when the screen opens; this only shows them (closing early loses nothing).
+ * {@code onClose} runs once when the screen is closed (the contents are written in chat then, not at the opening).
  */
 public final class RewardChestMenu implements Listener {
 
@@ -50,8 +51,9 @@ public final class RewardChestMenu implements Listener {
      * @param item     the item that was given (a copy), or null
      * @param rare     a rare item: a longer, golden finish
      */
-    public void open(Player player, Component title, ItemStack gold, ItemStack xp, ItemStack item, boolean rare) {
+    public void open(Player player, Component title, ItemStack gold, ItemStack xp, ItemStack item, boolean rare, Runnable onClose) {
         Holder holder = new Holder();
+        holder.onClose = onClose;
         Inventory inventory = Bukkit.createInventory(holder, SIZE, title);
         holder.inventory = inventory;
         player.openInventory(inventory);
@@ -120,12 +122,22 @@ public final class RewardChestMenu implements Listener {
     }
 
     @EventHandler
+    public void onClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        if (event.getInventory().getHolder() instanceof Holder holder && holder.onClose != null) {
+            Runnable run = holder.onClose;
+            holder.onClose = null;
+            run.run();
+        }
+    }
+
+    @EventHandler
     public void onDrag(InventoryDragEvent event) {
         if (event.getView().getTopInventory().getHolder() instanceof Holder) event.setCancelled(true);
     }
 
     private static final class Holder implements MenuHolder {
         private Inventory inventory;
+        private Runnable onClose;
 
         @Override
         public @NotNull Inventory getInventory() {

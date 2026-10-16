@@ -108,6 +108,9 @@ public final class DungeonService implements Listener {
         /** road chest index -> players who opened it */
         private final Map<Integer, Set<UUID>> roadOpened = new HashMap<>();
         private boolean bossRoomOpened;
+        private int secondsLeft;
+        /** player -> revive progress of the teammate they are standing by (for the sidebar) */
+        private final Map<UUID, Integer> reviving = new HashMap<>();
         /** How many non-boss mobs were placed when the run opened. */
         private int trashTotal;
         private TextDisplay triggerLabel;
@@ -474,8 +477,7 @@ public final class DungeonService implements Listener {
                 }
                 if (definition.rewardXp() > 0) levelService.addXp(player, definition.rewardXp());
             }
-            String sub = room ? "5秒後に報酬部屋へ移動する" : chest ? "報酬の宝箱を開けよう"
-                    : "報酬: " + definition.rewardGold() + " " + currency() + " / 経験値 " + definition.rewardXp();
+            String sub = room ? "5秒後に移動" : "";
             player.showTitle(Title.title(Component.text("CLEAR!", NamedTextColor.GOLD, TextDecoration.BOLD),
                     Component.text(sub, NamedTextColor.YELLOW),
                     Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(4), Duration.ofMillis(800))));
@@ -570,14 +572,7 @@ public final class DungeonService implements Listener {
                 case ACTIVE -> tickActive(instance, now);
                 case CLEARED, FAILED -> {
                     if (instance.state == State.CLEARED) {
-                        exitParticles(instance, true);
-                        for (UUID id : instance.players) {
-                            Player player = Bukkit.getPlayer(id);
-                            if (player != null) player.sendActionBar(Component.text("クリア! "
-                                    + (instance.definition.chest() != null && !instance.chestOpened.contains(id) ? "宝箱を開けよう / " : "")
-                                    + (instance.definition.exit() != null ? "脱出口から帰れる / " : "")
-                                    + "あと " + clock(Math.max(0, instance.closeCountdown)) + " で強制送還", NamedTextColor.GOLD));
-                        }
+                        exitParticles(instance, true); // (the status is in the sidebar: see sidebarLines)
                     }
                     // a player still on the death screen cannot be moved; wait until they respawn
                     boolean someoneDead = instance.world != null && instance.world.getPlayers().stream().anyMatch(Player::isDead);
@@ -606,6 +601,7 @@ public final class DungeonService implements Listener {
         tickDowned(instance);
         if (instance.state != State.ACTIVE) return;
         long left = instance.deadline - now;
+        instance.secondsLeft = (int) Math.max(0, left / 1000);
         if (left <= 0) {
             fail(instance, "時間切れ");
             return;
@@ -616,22 +612,6 @@ public final class DungeonService implements Listener {
             Player player = Bukkit.getPlayer(id);
             if (player == null || !player.getWorld().equals(instance.world)) continue;
             present++;
-            if (instance.downed.containsKey(id)) continue; // the downed see their own revive progress
-            Component bar = Component.text("残り " + clock((int) (left / 1000)), left < 60_000 ? NamedTextColor.RED : NamedTextColor.WHITE)
-                    .append(Component.text("  敵 " + instance.mobs.size(), NamedTextColor.GOLD));
-            if (instance.definition.boss() != null) bar = bar.append(Component.text("  ボス 生存", NamedTextColor.RED));
-            if (instance.definition.bossTrigger() != null && !instance.bossRoomOpened) {
-                int[] progress = trashProgress(instance);
-                if (progress[0] < progress[1]) {
-                    bar = bar.append(Component.text("  ボス部屋まで あと" + (progress[1] - progress[0]) + "体", NamedTextColor.GRAY));
-                }
-            }
-            if (instance.definition.deathMode() == DungeonDefinition.DeathMode.LIVES) {
-                bar = bar.append(Component.text("  残機 " + instance.lives.getOrDefault(id, 0), NamedTextColor.AQUA));
-            } else if (!instance.downed.isEmpty()) {
-                bar = bar.append(Component.text("  倒れた仲間 " + instance.downed.size(), NamedTextColor.LIGHT_PURPLE));
-            }
-            player.sendActionBar(bar);
         }
         if (present == 0) {
             if (++instance.emptySeconds >= emptyCloseSeconds()) {
@@ -728,6 +708,58 @@ public final class DungeonService implements Listener {
         event.setRespawnLocation(instance.definition.entry().in(instance.world));
     }
 
+    // ---- the sidebar while in a dungeon (instead of the action bar, which other things also use) -------------------
+
+    /** The dungeon's own sidebar lines for this player, or null when not in a run. */
+    public List<Component> sidebarLines(Player player) {
+        Instance instance = byPlayer.get(player.getUniqueId());
+        if (instance == null) return null;
+        UUID id = player.getUniqueId();
+        DungeonDefinition definition = instance.definition;
+        List<Component> lines = new ArrayList<>();
+        lines.add(Component.text(definition.name(), NamedTextColor.GOLD, TextDecoration.BOLD));
+        switch (instance.state) {
+            case CREATING -> lines.add(line("状態", "準備中…", NamedTextColor.YELLOW));
+            case ACTIVE -> {
+                lines.add(line("残り時間", clock(instance.secondsLeft), instance.secondsLeft < 60 ? NamedTextColor.RED : NamedTextColor.WHITE));
+                lines.add(line("敵", instance.mobs.size() - instance.bosses.size() + " 体", NamedTextColor.GOLD));
+                if (definition.bossTrigger() != null && !instance.bossRoomOpened) {
+                    int[] progress = trashProgress(instance);
+                    lines.add(progress[0] < progress[1]
+                            ? line("ボス部屋", "あと " + (progress[1] - progress[0]) + " 体", NamedTextColor.GRAY)
+                            : line("ボス部屋", "開いた (入口に集まる)", NamedTextColor.RED));
+                } else if (definition.boss() != null) {
+                    lines.add(line("ボス", instance.bosses.isEmpty() ? "撃破" : "生存", NamedTextColor.RED));
+                }
+                if (definition.deathMode() == DungeonDefinition.DeathMode.LIVES) {
+                    lines.add(line("残機", String.valueOf(instance.lives.getOrDefault(id, 0)), NamedTextColor.AQUA));
+                } else if (!instance.downed.isEmpty()) {
+                    lines.add(line("倒れた仲間", instance.downed.size() + " 人", NamedTextColor.LIGHT_PURPLE));
+                }
+                Downed down = instance.downed.get(id);
+                if (down != null) {
+                    lines.add(line("あなた", down.progress > 0 ? "蘇生中 " + down.progress + "/" + REVIVE_SECONDS : "倒れている", NamedTextColor.LIGHT_PURPLE));
+                } else if (instance.reviving.containsKey(id)) {
+                    lines.add(line("蘇生", instance.reviving.get(id) + "/" + REVIVE_SECONDS, NamedTextColor.LIGHT_PURPLE));
+                }
+            }
+            case CLEARED -> {
+                lines.add(Component.text("クリア!", NamedTextColor.GOLD, TextDecoration.BOLD));
+                lines.add(line("強制送還まで", clock(Math.max(0, instance.closeCountdown)), NamedTextColor.WHITE));
+                if (definition.chest() != null) {
+                    lines.add(line("宝箱", instance.chestOpened.contains(id) ? "開けた" : "まだ", NamedTextColor.YELLOW));
+                }
+                if (definition.exit() != null) lines.add(Component.text("脱出口から帰れる", NamedTextColor.AQUA));
+            }
+            default -> lines.add(line("状態", "終了", NamedTextColor.GRAY));
+        }
+        return lines;
+    }
+
+    private static Component line(String label, String value, NamedTextColor color) {
+        return Component.text(label + ": ", NamedTextColor.GRAY).append(Component.text(value, color));
+    }
+
     // ---- revive -------------------------------------------------------------------------------------------------------------
 
     private void onDownedDeath(Instance instance, Player player) {
@@ -765,6 +797,7 @@ public final class DungeonService implements Listener {
     }
 
     private void tickDowned(Instance instance) {
+        instance.reviving.clear();
         for (UUID id : new ArrayList<>(instance.downed.keySet())) {
             Downed down = instance.downed.get(id);
             Player player = Bukkit.getPlayer(id);
@@ -785,14 +818,7 @@ public final class DungeonService implements Listener {
             down.progress = helpers.isEmpty() ? 0 : down.progress + 1;
             String name = player == null ? "?" : player.getName();
             if (down.label != null && down.label.isValid()) down.label.text(downedText(name, down.progress));
-            for (Player helper : helpers) {
-                helper.sendActionBar(Component.text("蘇生中… " + down.progress + " / " + REVIVE_SECONDS, NamedTextColor.LIGHT_PURPLE));
-            }
-            if (player != null) {
-                player.sendActionBar(down.progress > 0
-                        ? Component.text("蘇生されている… " + down.progress + " / " + REVIVE_SECONDS, NamedTextColor.LIGHT_PURPLE)
-                        : Component.text("倒れている (仲間が体の横に " + REVIVE_SECONDS + " 秒立つと復活)", NamedTextColor.GRAY));
-            }
+            for (Player helper : helpers) instance.reviving.put(helper.getUniqueId(), down.progress); // shown in the sidebar
             if (down.progress >= REVIVE_SECONDS) revive(instance, id, true);
         }
     }
@@ -871,7 +897,7 @@ public final class DungeonService implements Listener {
             Long last = instance.exitNotice.get(player.getUniqueId());
             if (last == null || now - last > 3000) {
                 instance.exitNotice.put(player.getUniqueId(), now);
-                player.sendActionBar(Component.text("脱出口は、ボスを倒すまで開かない", NamedTextColor.RED));
+                player.sendMessage(Component.text("[ダンジョン] 脱出口は、ボスを倒すまで開かない。", NamedTextColor.RED));
                 player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_CLOSE, 0.4f, 0.8f);
             }
         }
@@ -901,7 +927,7 @@ public final class DungeonService implements Listener {
                 player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.6f, 0.6f);
                 return;
             }
-            openChest(player, instance, loot, "宝箱");
+            openChest(player, instance, loot, "宝箱", false);
             return;
         }
         DungeonDefinition.Point chest = instance.definition.chest();
@@ -920,11 +946,14 @@ public final class DungeonService implements Listener {
             player.sendMessage(Component.text("[ダンジョン] 宝箱はもう開けた。(1人1回)", NamedTextColor.GRAY));
             return;
         }
-        openChest(player, instance, DungeonLoot.load(plugin, instance.definition), "報酬の宝箱");
+        openChest(player, instance, DungeonLoot.load(plugin, instance.definition), "報酬の宝箱", true);
     }
 
-    /** Rolls a chest, gives everything right away, then shows it with the flicker. */
-    private void openChest(Player player, Instance instance, DungeonLoot loot, String title) {
+    /**
+     * Rolls a chest and gives everything right away. The reward chest shows it with the rainbow flicker and writes the
+     * contents in chat when its screen is closed; other chests just write the contents in chat.
+     */
+    private void openChest(Player player, Instance instance, DungeonLoot loot, String title, boolean flicker) {
         DungeonLoot.Roll roll = loot.roll();
         PlayerProfile profile = profileManager.getOrCreate(player);
         profile.setCurrency(profile.currency() + roll.gold());
@@ -932,11 +961,12 @@ public final class DungeonService implements Listener {
         if (roll.xp() > 0) levelService.addXp(player, roll.xp());
 
         ItemStack shownItem = null;
+        String itemName = null;
         boolean rare = false;
         if (roll.item() != null && itemRegistry != null && itemFactory != null) {
             RpgItemDefinition definition = itemRegistry.find(roll.item().itemId()).orElse(null);
             if (definition == null) {
-                plugin.getLogger().warning("dungeon loot: unknown item '" + roll.item().itemId() + "' in loot/" + instance.definition.id() + ".yml");
+                plugin.getLogger().warning("dungeon loot: unknown item '" + roll.item().itemId() + "' in a loot table of " + instance.definition.id());
             } else {
                 ItemStack item = itemFactory.create(definition);
                 int left = roll.amount();
@@ -950,21 +980,33 @@ public final class DungeonService implements Listener {
                 }
                 shownItem = item.clone();
                 shownItem.setAmount(Math.max(1, Math.min(roll.amount(), shownItem.getMaxStackSize())));
+                itemName = definition.name();
                 rare = roll.item().announce() || definition.rarity().tier() >= 3;
-                if (rare) {
-                    Bukkit.broadcast(Component.text("✦ " + player.getName() + " が「" + instance.definition.name() + "」の宝箱から ", NamedTextColor.GOLD)
-                            .append(Component.text(definition.name(), NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
-                            .append(Component.text(" を手に入れた! ✦", NamedTextColor.GOLD)));
-                }
             }
         }
-        player.sendMessage(Component.text("[ダンジョン] 宝箱: +" + roll.gold() + " " + currency() + " / 経験値 +" + roll.xp()
-                + (shownItem != null ? " / アイテム ×" + roll.amount() : ""), NamedTextColor.GOLD));
-        if (rewardChestMenu != null) {
+
+        // what was in it: name and amount of each, written in chat (for the reward chest, after its screen closes)
+        String dungeonName = instance.definition.name();
+        String rareName = rare ? itemName : null;
+        String contents = "+" + roll.gold() + " " + currency() + " / 経験値 +" + roll.xp()
+                + (itemName != null ? " / " + itemName + " ×" + roll.amount() : "");
+        Runnable tell = () -> {
+            player.sendMessage(Component.text("[ダンジョン] " + title + "の中身: " + contents, NamedTextColor.GOLD));
+            if (rareName != null) {
+                Bukkit.broadcast(Component.text("✦ " + player.getName() + " が「" + dungeonName + "」の宝箱から ", NamedTextColor.GOLD)
+                        .append(Component.text(rareName, NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD))
+                        .append(Component.text(" を手に入れた! ✦", NamedTextColor.GOLD)));
+            }
+        };
+        if (flicker && rewardChestMenu != null) {
             rewardChestMenu.open(player, Component.text(title),
                     RewardChestMenu.display(Material.GOLD_INGOT, "+" + roll.gold() + " " + currency(), NamedTextColor.GOLD, List.of()),
                     RewardChestMenu.display(Material.EXPERIENCE_BOTTLE, "経験値 +" + roll.xp(), NamedTextColor.GREEN, List.of()),
-                    shownItem, rare);
+                    shownItem, rare, tell);
+        } else {
+            player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.6f, 1.1f);
+            player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.2f);
+            tell.run();
         }
     }
 
@@ -1010,14 +1052,7 @@ public final class DungeonService implements Listener {
         if (progress[0] < progress[1]) {
             instance.world.spawnParticle(Particle.SMOKE_NORMAL, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
             if (instance.triggerLabel != null && instance.triggerLabel.isValid()) instance.triggerLabel.text(lockedText(progress[0], progress[1]));
-            for (UUID id : instance.players) {
-                Player player = Bukkit.getPlayer(id);
-                if (player == null || !player.getWorld().equals(instance.world)) continue;
-                if (player.getLocation().distanceSquared(trigger) <= BOSS_TRIGGER_RANGE * BOSS_TRIGGER_RANGE) {
-                    player.sendActionBar(Component.text("ボス部屋は、敵をあと " + (progress[1] - progress[0]) + " 体倒すと開く", NamedTextColor.RED));
-                }
-            }
-            return;
+            return; // (how many are left is in the sidebar and on the label)
         }
         instance.world.spawnParticle(Particle.FLAME, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
 
@@ -1037,7 +1072,7 @@ public final class DungeonService implements Listener {
             Player player = Bukkit.getPlayer(id);
             if (player == null) continue;
             player.showTitle(Title.title(Component.text("ボス部屋へ", NamedTextColor.RED, TextDecoration.BOLD),
-                    Component.text("3秒後に全員で移動する", NamedTextColor.GRAY),
+                    Component.text("3秒後に移動", NamedTextColor.GRAY),
                     Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(3), Duration.ofMillis(500))));
             player.playSound(player.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.4f, 1.2f);
         }
