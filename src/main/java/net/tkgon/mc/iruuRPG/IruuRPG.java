@@ -36,6 +36,9 @@ import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
 import net.tkgon.mc.iruuRPG.gui.RewardChestMenu;
 import net.tkgon.mc.iruuRPG.hud.SidebarService;
+import net.tkgon.mc.iruuRPG.gui.PartyMenu;
+import net.tkgon.mc.iruuRPG.party.PartyCommand;
+import net.tkgon.mc.iruuRPG.party.PartyService;
 import net.tkgon.mc.iruuRPG.sync.ReloadReport;
 import net.tkgon.mc.iruuRPG.sync.YmlSyncService;
 import net.tkgon.mc.iruuRPG.gui.MarketMenu;
@@ -122,6 +125,8 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonEditor dungeonEditor;
     private RewardChestMenu rewardChestMenu;
     private SidebarService sidebarService;
+    private PartyService partyService;
+    private PartyMenu partyMenu;
     private YmlSyncService ymlSyncService;
 
     @Override
@@ -222,6 +227,13 @@ public final class IruuRPG extends JavaPlugin {
         this.sidebarService = new SidebarService(this, profileManager);
         this.sidebarService.setDungeonService(dungeonService);
         this.sidebarService.setClassService(classService);
+        this.partyService = new PartyService(this);
+        this.partyMenu = new PartyMenu(partyService);
+        this.partyMenu.setMainMenu(mainMenu);
+        this.mainMenu.setPartyMenu(partyMenu);
+        this.sidebarService.setPartyService(partyService);
+        this.dungeonService.setPartyService(partyService);
+        this.mobService.setPartyService(partyService);
         this.dungeonMenu.setMainMenu(mainMenu);
         this.mainMenu.setDungeonMenu(dungeonMenu);
         this.tradeService = new TradeService(this, profileManager, item -> !mainMenuItemService.isMenuItem(item));
@@ -278,6 +290,15 @@ public final class IruuRPG extends JavaPlugin {
             CraftCommand craft = new CraftCommand(craftService, craftMenu);
             craftCommand.setExecutor(craft);
             craftCommand.setTabCompleter(craft);
+        }
+
+        PartyCommand party = new PartyCommand(partyService, partyMenu);
+        for (String name : new String[]{"party", "pc"}) {
+            PluginCommand partyCommand = getCommand(name);
+            if (partyCommand != null) {
+                partyCommand.setExecutor(party);
+                partyCommand.setTabCompleter(party);
+            }
         }
 
         PluginCommand dungeonCommand = getCommand("dungeon");
@@ -365,6 +386,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(dungeonEditor, this);
         getServer().getPluginManager().registerEvents(rewardChestMenu, this);
         getServer().getPluginManager().registerEvents(sidebarService, this);
+        getServer().getPluginManager().registerEvents(partyService, this);
+        getServer().getPluginManager().registerEvents(partyMenu, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),

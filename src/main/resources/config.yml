@@ -283,3 +283,8 @@ yml-sync:
   enabled: true
   interval-seconds: 60
   branch: main
+
+# パーティー (/party)。サーバーの再起動で解散する
+party:
+  max-size: 4            # 1つのパーティーの最大人数
+  xp-share-range: 40     # 仲間が倒した敵の経験値を、この距離 (ブロック) 以内の仲間ももらえる

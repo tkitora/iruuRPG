@@ -187,6 +187,13 @@ public final class RpgMobService {
         }
     }
 
+    private net.tkgon.mc.iruuRPG.party.PartyService partyService;
+
+    /** Party members near a player who earned a kill's XP get the same XP. */
+    public void setPartyService(net.tkgon.mc.iruuRPG.party.PartyService partyService) {
+        this.partyService = partyService;
+    }
+
     public void dropRewards(LivingEntity entity) {
         MobRuntime runtime = runtime(entity);
         if (runtime == null) return;
@@ -207,6 +214,32 @@ public final class RpgMobService {
                 if (!drop.rolls(random)) continue;
 
                 dropReward(entity, entry.getKey(), drop, random);
+            }
+        }
+        shareExperience(entity, runtime, minimumDamage);
+    }
+
+    /**
+     * Party XP: members (online, same world, within party.xp-share-range of the mob) of anyone who earned this kill's
+     * XP, and who did not earn it themselves, get the same XP directly. Items are not shared.
+     */
+    private void shareExperience(LivingEntity entity, MobRuntime runtime, double minimumDamage) {
+        long experience = runtime.definition().experience();
+        if (partyService == null || experience <= 0L) return;
+        double range = plugin.getConfig().getDouble("party.xp-share-range", 40.0);
+        java.util.Set<UUID> earned = new java.util.HashSet<>();
+        for (Map.Entry<UUID, Double> entry : runtime.damageByPlayer().entrySet()) {
+            if (entry.getValue() + 1.0E-9 >= minimumDamage) earned.add(entry.getKey());
+        }
+        java.util.Set<UUID> shared = new java.util.HashSet<>();
+        for (UUID earner : earned) {
+            net.tkgon.mc.iruuRPG.party.PartyService.Party party = partyService.partyOf(earner);
+            if (party == null) continue;
+            for (org.bukkit.entity.Player member : party.online()) {
+                if (earned.contains(member.getUniqueId()) || !shared.add(member.getUniqueId())) continue;
+                if (!member.getWorld().equals(entity.getWorld())) continue;
+                if (member.getLocation().distanceSquared(entity.getLocation()) > range * range) continue;
+                levelService.addXp(member, experience);
             }
         }
     }

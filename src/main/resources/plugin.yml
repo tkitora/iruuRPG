@@ -24,6 +24,14 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  party:
+    description: Parties (menu, invite, accept, leave, kick, leader, disband, list, chat)
+    usage: /party [invite <name> | accept | deny | leave | kick <name> | leader <name> | disband | list | chat <message>]
+    aliases:
+      - pt
+  pc:
+    description: Talk to your party only
+    usage: /pc <message>
   dungeon:
     description: Instance dungeons (menu, enter, leave; admins build them)
     usage: /dungeon [enter <id> | leave | edit [id] | build|entry|spawn|spawns|clearspawns|save|new|reload ...]
