@@ -44,9 +44,10 @@ import java.util.regex.Pattern;
 
 /**
  * Fast travel: travel points placed by admins (/travel set). A point is unlocked by walking up to it once; unlocked
- * points can be reached from the travel menu. Travelling is not instant: the player channels for a few seconds
- * inside rising rings of light (moving or taking damage stops it), the screen fades, and they arrive in a burst of
- * light. Not inside dungeons.
+ * points can be reached from the travel menu. Travelling is not instant and has no hard cut: the player channels
+ * inside rising rings of light (walking away or taking damage stops it), then floats up while the view widens and
+ * slowly goes dark, and comes out of the dark floating down onto the destination inside a falling ring of light.
+ * Not inside dungeons.
  */
 public final class TravelService implements Listener {
 
@@ -210,14 +211,29 @@ public final class TravelService implements Listener {
                     return;
                 }
                 Location now = player.getLocation();
-                if (!now.getWorld().equals(origin.getWorld()) || now.distanceSquared(origin) > 0.6 * 0.6) {
+                // only walking away counts (the player floats up near the end)
+                double dx = now.getX() - origin.getX();
+                double dz = now.getZ() - origin.getZ();
+                if (!now.getWorld().equals(origin.getWorld()) || dx * dx + dz * dz > 0.6 * 0.6) {
                     player.sendMessage(Component.text("[ファストトラベル] 動いたので中断した。", NamedTextColor.GRAY));
                     player.playSound(now, Sound.BLOCK_BEACON_DEACTIVATE, 0.7f, 1.2f);
-                    stop(player);
+                    interrupt(player);
                     return;
                 }
                 t++;
                 channelEffects(player, origin, t, total, point.name());
+                if (t == total - 30) {
+                    // lift off and the world starts to dim
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.LEVITATION, 40, 0, false, false, false));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.DARKNESS, 80, 0, false, false, false));
+                    player.playSound(now, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.6f);
+                }
+                if (t == total - 12) {
+                    // the view stretches (a wider field of view) and fades to black
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 14, 6, false, false, false));
+                    player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 40, 0, false, false, false));
+                    player.playSound(now, Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 1.0f, 0.7f);
+                }
                 if (t >= total) {
                     stop(player);
                     arrive(player, origin, point, target);
@@ -233,6 +249,8 @@ public final class TravelService implements Listener {
         double progress = (double) t / total;
         double angle = t * 0.35;
         double height = (t % 20) / 20.0 * 2.4;
+        Location center = player.getLocation();
+        origin = new Location(world, origin.getX(), Math.max(origin.getY(), center.getY() - 0.2), origin.getZ());
         Particle.DustOptions cyan = new Particle.DustOptions(Color.fromRGB(90, 230, 255), 1.2f);
         Particle.DustOptions white = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 0.9f);
         for (int k = 0; k < 2; k++) {
@@ -259,48 +277,82 @@ public final class TravelService implements Listener {
         }
     }
 
-    /** Fade out, a flash where they stood, the jump, and a column of light where they land. */
+    /**
+     * The jump happens while the screen is dark: a flash where they stood, then they come out of the dark a little
+     * above the destination and float down onto it inside a falling ring of light, while the view clears.
+     */
     private void arrive(Player player, Location origin, Waypoint point, Location target) {
         if (cost() > 0) {
             PlayerProfile profile = profileManager.getOrCreate(player);
             if (profile.currency() < cost()) {
                 player.sendMessage(Component.text("[ファストトラベル] " + currency() + "が足りません。", NamedTextColor.RED));
+                interrupt(player);
                 return;
             }
             profile.setCurrency(profile.currency() - cost());
             profileManager.save(player);
         }
         World from = origin.getWorld();
-        from.spawnParticle(Particle.FLASH, origin.clone().add(0, 1, 0), 1);
-        from.spawnParticle(Particle.END_ROD, origin.clone().add(0, 1, 0), 60, 0.3, 1.2, 0.3, 0.25);
-        from.playSound(origin, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.8f);
-        player.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, 30, 0, false, false, false));
+        Location left = player.getLocation();
+        from.spawnParticle(Particle.FLASH, left.clone().add(0, 1, 0), 1);
+        from.spawnParticle(Particle.END_ROD, left.clone().add(0, 1, 0), 60, 0.3, 1.2, 0.3, 0.25);
+        from.playSound(left, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 0.8f);
 
-        player.teleport(target);
+        player.removePotionEffect(PotionEffectType.LEVITATION);
+        player.removePotionEffect(PotionEffectType.SPEED);
+        // a little above the destination when there is room, so they drift down onto it
+        Location landing = target.clone();
+        Location above = target.clone().add(0, 2.5, 0);
+        boolean room = true;
+        for (int dy = 0; dy <= 4; dy++) {
+            if (!target.clone().add(0, dy, 0).getBlock().isPassable()) room = false;
+        }
+        player.setFallDistance(0f);
+        player.teleport(room ? above : landing);
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 70, 0, false, false, false));
         World to = target.getWorld();
-        to.playSound(target, Sound.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.2f);
         to.playSound(target, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.0f);
+        to.playSound(target, Sound.BLOCK_BEACON_DEACTIVATE, 0.6f, 1.6f);
         player.showTitle(Title.title(Component.text(point.name(), NamedTextColor.WHITE, TextDecoration.BOLD),
                 Component.text("に着いた", NamedTextColor.GRAY),
-                Title.Times.times(Duration.ofMillis(600), Duration.ofSeconds(2), Duration.ofMillis(600))));
-        // a column of light falling in around them
+                Title.Times.times(Duration.ofMillis(1200), Duration.ofSeconds(2), Duration.ofMillis(800))));
+        // a ring of light falls with them; it ends in a soft burst on the ground
         new BukkitRunnable() {
             private int t;
 
             @Override
             public void run() {
-                if (t++ >= 12) {
+                if (!player.isOnline() || t++ >= 50) {
                     cancel();
                     return;
                 }
-                double y = 3.0 - t * 0.25;
+                if (t == 20) player.removePotionEffect(PotionEffectType.DARKNESS); // the dim lifts as they come down
+                Location at = player.getLocation();
                 for (int i = 0; i < 8; i++) {
-                    double a = i * Math.PI / 4 + t * 0.3;
-                    to.spawnParticle(Particle.END_ROD, target.clone().add(Math.cos(a) * 0.9, y, Math.sin(a) * 0.9), 1, 0, 0, 0, 0);
+                    double a = i * Math.PI / 4 + t * 0.25;
+                    to.spawnParticle(Particle.END_ROD, at.clone().add(Math.cos(a) * 0.9, 1.0 + Math.sin(t * 0.3) * 0.3, Math.sin(a) * 0.9), 1, 0, 0, 0, 0);
                 }
-                if (t == 12) to.spawnParticle(Particle.REVERSE_PORTAL, target.clone().add(0, 0.5, 0), 40, 0.5, 0.3, 0.5, 0.05);
+                if (player.isOnGround() && t > 6) {
+                    to.spawnParticle(Particle.REVERSE_PORTAL, at.clone().add(0, 0.3, 0), 40, 0.5, 0.2, 0.5, 0.05);
+                    to.playSound(at, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.7f, 1.4f);
+                    player.removePotionEffect(PotionEffectType.SLOW_FALLING);
+                    player.removePotionEffect(PotionEffectType.DARKNESS);
+                    cancel();
+                }
             }
-        }.runTaskTimer(plugin, 2L, 1L);
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    /** A stopped channel: undo the lift and the dimming, and let them down softly. */
+    private void interrupt(Player player) {
+        stop(player);
+        if (!player.isOnline()) return;
+        boolean lifted = player.hasPotionEffect(PotionEffectType.LEVITATION);
+        player.removePotionEffect(PotionEffectType.LEVITATION);
+        player.removePotionEffect(PotionEffectType.DARKNESS);
+        player.removePotionEffect(PotionEffectType.BLINDNESS);
+        player.removePotionEffect(PotionEffectType.SPEED);
+        if (lifted) player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW_FALLING, 40, 0, false, false, false));
     }
 
     private void stop(Player player) {
@@ -311,14 +363,14 @@ public final class TravelService implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player) || !channels.containsKey(player.getUniqueId())) return;
-        stop(player);
+        interrupt(player);
         player.sendMessage(Component.text("[ファストトラベル] 攻撃を受けたので中断した。", NamedTextColor.RED));
         player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.7f, 1.2f);
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        stop(event.getPlayer());
+        interrupt(event.getPlayer());
     }
 
     // ---- admin ------------------------------------------------------------------------------------------------------
