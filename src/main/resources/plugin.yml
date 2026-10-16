@@ -24,6 +24,11 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  showitem:
+    description: Show the item in your hand to everyone (or write [item] in chat)
+    usage: /showitem
+    aliases:
+      - si
   party:
     description: Parties (menu, invite, accept, leave, kick, leader, disband, list, chat)
     usage: /party [invite <name> | accept | deny | leave | kick <name> | leader <name> | disband | list | chat <message>]
