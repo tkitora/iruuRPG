@@ -168,7 +168,8 @@ public final class SkillTreeMenu implements Listener {
         if (definition == null) return;
 
         inventory.setItem(SPEND_LABEL_SLOT, button(Material.EXPERIENCE_BOTTLE, "SPで強化", NamedTextColor.GREEN, List.of(
-                text("1レベル = 1SP。上限なし", NamedTextColor.GRAY),
+                text("ノードの1レベルを上げるのに 1SP を使う。上限なし", NamedTextColor.GRAY),
+                text("SPは " + classService.levelsPerPoint() + "Lv ごとに 1 獲得 (最大 " + classService.maxPoints() + ")", NamedTextColor.GRAY),
                 text("左クリック: +1  シフト左: +" + BULK_LEVELS, NamedTextColor.GREEN),
                 text("右クリック: -1", NamedTextColor.RED))));
         inventory.setItem(MILESTONE_LABEL_SLOT, button(Material.NETHER_STAR, "解放ノード", NamedTextColor.GOLD, List.of(
