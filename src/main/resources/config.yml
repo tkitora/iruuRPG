@@ -33,6 +33,9 @@ mob:
 combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
+  # 近接の範囲攻撃: 全員が持つ小さな範囲 (戦士の「近接範囲攻撃化」の下位互換)。戦士は上の 0.65 / area-radius
+  melee-area-base-damage-rate: 0.40
+  melee-area-base-radius: 2.0
   range-area-damage-rate: 0.45
   area-radius: 3.0
   # 遠距離範囲攻撃はクラス関係なく標準で範囲3・割合45%。メイジの「遠距離範囲の強化」で範囲5・割合60%

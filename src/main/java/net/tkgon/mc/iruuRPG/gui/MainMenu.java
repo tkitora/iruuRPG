@@ -93,11 +93,10 @@ public final class MainMenu implements Listener {
 
         fill(inventory);
         inventory.setItem(4, playerIcon(player, profile));
-        inventory.setItem(20, levelUpButton(profile));
-        inventory.setItem(22, button(Material.COMPASS, "ステータス", NamedTextColor.AQUA, List.of(
+        inventory.setItem(21, button(Material.COMPASS, "ステータス", NamedTextColor.AQUA, List.of(
                 Component.text("現在の能力値を確認します", NamedTextColor.GRAY)
         )));
-        inventory.setItem(24, button(Material.NETHER_STAR, "スキル", NamedTextColor.LIGHT_PURPLE, List.of(
+        inventory.setItem(23, button(Material.NETHER_STAR, "スキル", NamedTextColor.LIGHT_PURPLE, List.of(
                 Component.text("スキルポイントを振り分けます", NamedTextColor.GRAY),
                 Component.text("残りSP: " + classService.availablePoints(profile), NamedTextColor.GREEN),
                 Component.text("解放ノードの確認もここから", NamedTextColor.GRAY)
@@ -140,14 +139,8 @@ public final class MainMenu implements Listener {
         if (!isOwner(event.getView(), player)) return;
 
         switch (event.getRawSlot()) {
-            case 20 -> {
-                if (!levelService.tryLevelUp(player)) {
-                    player.sendMessage("[iruuRPG] まだレベルアップに必要な経験値が足りません。");
-                }
-                open(player);
-            }
-            case 22 -> statsMenu.open(player);
-            case 24 -> skillTreeMenu.open(player);
+            case 21 -> statsMenu.open(player);
+            case 23 -> skillTreeMenu.open(player);
             case 29 -> {
                 if (craftMenu != null) craftMenu.open(player);
             }
@@ -217,19 +210,6 @@ public final class MainMenu implements Listener {
             item.setItemMeta(meta);
         }
         return item;
-    }
-
-    private ItemStack levelUpButton(PlayerProfile profile) {
-        boolean ready = levelService.canLevelUp(profile);
-        Material material = ready ? Material.EXPERIENCE_BOTTLE : Material.GRAY_DYE;
-        NamedTextColor color = ready ? NamedTextColor.GREEN : NamedTextColor.GRAY;
-        List<Component> lore = new ArrayList<>();
-        lore.add(Component.text(ready ? "クリックでレベルアップ" : "必要経験値に到達していません", ready ? NamedTextColor.GREEN : NamedTextColor.GRAY));
-        lore.add(line("XP", xpText(profile), NamedTextColor.GREEN));
-        lore.add(line("次のLv", profile.level() >= levelService.levelCap() ? "MAX" : String.valueOf(profile.level() + 1), NamedTextColor.YELLOW));
-        lore.add(Component.empty());
-        lore.add(Component.text("レベルアップ時にHP/MPを全回復し、演出を再生します", NamedTextColor.GRAY));
-        return button(material, "レベルアップ", color, lore);
     }
 
     private ItemStack button(Material material, String name, NamedTextColor color, List<Component> lore) {
