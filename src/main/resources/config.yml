@@ -307,9 +307,10 @@ travel:
 
 # ストレージ: 各地のエンダーチェストを開くと専用の画面になり、アイテムをしまえる (1ページ45マス)。
 # 最初の free-pages ページは無料、次のページから、ゴールドで解放する。
-# 価格 (仮): 最初の有料ページ = price-base、そのあとは 1ページごとに price-step ずつ上がる
+# 価格 (仮): 最初の有料ページ = price-base、そのあとは 1ページごとに price-growth 倍 (ゆるやかな指数、50ゴールド単位に丸める)
+# 既定だと 500 → 900 → 1600 → 2900 → 5250
 storage:
   max-pages: 6
   free-pages: 1
   price-base: 500
-  price-step: 500
+  price-growth: 1.8
