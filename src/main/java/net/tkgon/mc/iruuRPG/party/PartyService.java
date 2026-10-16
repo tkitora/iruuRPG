@@ -23,9 +23,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Parties: a leader invites players (up to party.max-size, default 4). Members stay in the party while offline
- * (until they leave, are removed, or the server restarts). Parties go into dungeons together, share kill XP with
- * members nearby, and have their own chat.
+ * Parties: a leader invites players (up to party.max-size, default 4). Members stay in the party while offline and
+ * across server restarts (plugins/iruuRPG/parties.yml) until they leave or are removed. Parties go into dungeons
+ * together, share kill XP, and have their own chat (/p).
  */
 public final class PartyService implements Listener {
 
@@ -121,6 +121,7 @@ public final class PartyService implements Listener {
             party.members.add(inviter.getUniqueId());
             byMember.put(inviter.getUniqueId(), party);
             byId.put(party.id, party);
+            save();
             inviter.sendMessage(Component.text("[パーティー] パーティーを作った。(リーダー: あなた)", NamedTextColor.GREEN));
         }
         invites.put(target.getUniqueId(), new Invite(party.id, inviter.getUniqueId(), System.currentTimeMillis() + INVITE_MILLIS));
@@ -152,6 +153,7 @@ public final class PartyService implements Listener {
         }
         party.members.add(player.getUniqueId());
         byMember.put(player.getUniqueId(), party);
+        save();
         tell(party, Component.text(player.getName() + " がパーティーに入った。(" + party.size() + " 人)", NamedTextColor.GREEN));
     }
 
@@ -206,6 +208,7 @@ public final class PartyService implements Listener {
             return;
         }
         party.leader = target;
+        save();
         tell(party, Component.text(nameOf(target) + " が新しいリーダーになった。", NamedTextColor.GOLD));
     }
 
@@ -219,6 +222,7 @@ public final class PartyService implements Listener {
         for (UUID id : party.members()) byMember.remove(id);
         party.members.clear();
         byId.remove(party.id);
+        save();
     }
 
     private void remove(Party party, UUID member, String message) {
@@ -240,6 +244,7 @@ public final class PartyService implements Listener {
             party.members.clear();
             byId.remove(party.id);
         }
+        save();
     }
 
     private UUID memberByName(Party party, String name) {
@@ -254,9 +259,73 @@ public final class PartyService implements Listener {
         return name == null ? "?" : name;
     }
 
+    // ---- kept across restarts ----------------------------------------------------------------------------------
+
+    private java.io.File file() {
+        return new java.io.File(plugin.getDataFolder(), "parties.yml");
+    }
+
+    /** Loads the parties saved before the last stop. */
+    public void load() {
+        byMember.clear();
+        byId.clear();
+        java.io.File file = file();
+        if (!file.exists()) return;
+        org.bukkit.configuration.file.YamlConfiguration yaml = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(file);
+        for (Map<?, ?> raw : yaml.getMapList("parties")) {
+            Party party = new Party();
+            Object members = raw.get("members");
+            if (members instanceof List<?> list) {
+                for (Object entry : list) {
+                    try {
+                        UUID id = UUID.fromString(String.valueOf(entry));
+                        if (!byMember.containsKey(id)) party.members.add(id);
+                    } catch (IllegalArgumentException ignored) {
+                        // a damaged entry is skipped
+                    }
+                }
+            }
+            if (party.members.size() < 2) continue;
+            try {
+                UUID leader = UUID.fromString(String.valueOf(raw.get("leader")));
+                party.leader = party.members.contains(leader) ? leader : party.members.iterator().next();
+            } catch (IllegalArgumentException e) {
+                party.leader = party.members.iterator().next();
+            }
+            byId.put(party.id, party);
+            for (UUID id : party.members) byMember.put(id, party);
+        }
+        plugin.getLogger().info("Loaded " + byId.size() + " parties.");
+    }
+
+    public void save() {
+        org.bukkit.configuration.file.YamlConfiguration yaml = new org.bukkit.configuration.file.YamlConfiguration();
+        List<Map<String, Object>> parties = new ArrayList<>();
+        for (Party party : byId.values()) {
+            if (party.members.size() < 2) continue;
+            Map<String, Object> entry = new java.util.LinkedHashMap<>();
+            entry.put("leader", party.leader.toString());
+            List<String> members = new ArrayList<>();
+            for (UUID id : party.members) members.add(id.toString());
+            entry.put("members", members);
+            parties.add(entry);
+        }
+        yaml.set("parties", parties);
+        try {
+            yaml.save(file());
+        } catch (java.io.IOException e) {
+            plugin.getLogger().warning("party: could not save parties.yml: " + e.getMessage());
+        }
+    }
+
     // ---- chat and info -------------------------------------------------------------------------------------------
 
     public void chat(Player player, String message) {
+        message = message.trim();
+        if (message.length() >= 2 && (message.startsWith("\"") && message.endsWith("\"") || message.startsWith("「") && message.endsWith("」"))) {
+            message = message.substring(1, message.length() - 1).trim();
+        }
+        if (message.isEmpty()) return;
         Party party = byMember.get(player.getUniqueId());
         if (party == null) {
             player.sendMessage(Component.text("[パーティー] パーティーに入っていません。", NamedTextColor.RED));
