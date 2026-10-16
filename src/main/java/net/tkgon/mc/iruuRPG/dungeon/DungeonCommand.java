@@ -21,7 +21,7 @@ import java.util.Locale;
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "addchest", "removechest", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "addchest", "removechest", "gate", "removegate", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -231,6 +231,38 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 service.refreshMarkers(id);
                 player.sendMessage("[ダンジョン] 宝箱 #" + (index + 1) + " (表: " + removed.table() + ") を消した。");
             }
+            case "gate" -> {
+                // a gate out in the world: the block looked at, or the one under the feet
+                org.bukkit.block.Block target = player.getTargetBlockExact(5);
+                org.bukkit.block.Block block = target != null ? target : player.getLocation().getBlock().getRelative(org.bukkit.block.BlockFace.DOWN);
+                if (block.getWorld().getName().startsWith("dungeon_")) {
+                    player.sendMessage("[ダンジョン] 入口は、ダンジョンの外 (普通のワールド) に置いてください。");
+                    return true;
+                }
+                registry.addGate(definition, block.getLocation());
+                service.refreshGates();
+                player.sendMessage(String.format(Locale.ROOT, "[ダンジョン] 「%s」の入口を (%s %d, %d, %d) にした。右クリックで入れる。",
+                        definition.name(), block.getWorld().getName(), block.getX(), block.getY(), block.getZ()));
+            }
+            case "removegate" -> {
+                DungeonRegistry.Gate nearest = null;
+                double best = 25.0;
+                for (DungeonRegistry.Gate gate : registry.gates(id)) {
+                    if (!gate.world().equals(player.getWorld().getName())) continue;
+                    double distance = new org.bukkit.Location(player.getWorld(), gate.x() + 0.5, gate.y() + 0.5, gate.z() + 0.5).distanceSquared(player.getLocation());
+                    if (distance <= best) {
+                        best = distance;
+                        nearest = gate;
+                    }
+                }
+                if (nearest == null) {
+                    player.sendMessage("[ダンジョン] 近く (5ブロック以内) にこのダンジョンの入口がありません。");
+                    return true;
+                }
+                registry.removeGate(definition, nearest);
+                service.refreshGates();
+                player.sendMessage("[ダンジョン] 入口を消した。");
+            }
             case "boss" -> {
                 if (args.length < 3 || mobRegistry.find(args[2]).isEmpty()) {
                     player.sendMessage("[ダンジョン] /dungeon boss " + id + " <mobId> (このモブが倒れたらクリア)");
@@ -250,6 +282,11 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 for (int index = 0; index < definition.spawns().size(); index++) {
                     DungeonDefinition.MobSpawn spawn = definition.spawns().get(index);
                     player.sendMessage(String.format(Locale.ROOT, "  #%d %s  (%.1f, %.1f, %.1f)", index + 1, spawn.mobId(), spawn.x(), spawn.y(), spawn.z()));
+                }
+                player.sendMessage("[ダンジョン] 入口 (世界): " + registry.gates(id).size() + " か所"
+                        + (service.requireGate() ? " (入口からしか入れない設定)" : " (いまはどこからでも入れる設定)"));
+                for (DungeonRegistry.Gate gate : registry.gates(id)) {
+                    player.sendMessage(String.format(Locale.ROOT, "  %s (%d, %d, %d)", gate.world(), gate.x(), gate.y(), gate.z()));
                 }
                 player.sendMessage("[ダンジョン] 道中の宝箱: " + definition.roadChests().size() + " 個");
                 for (int index = 0; index < definition.roadChests().size(); index++) {

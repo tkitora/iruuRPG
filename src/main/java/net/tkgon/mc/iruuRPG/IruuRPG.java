@@ -236,6 +236,7 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonService.setPartyService(partyService);
         this.mobService.setPartyService(partyService);
         this.dungeonMenu.setMainMenu(mainMenu);
+        this.dungeonService.setGateHandler(dungeonMenu::openConfirm);
         this.mainMenu.setDungeonMenu(dungeonMenu);
         this.tradeService = new TradeService(this, profileManager, item -> !mainMenuItemService.isMenuItem(item));
         this.mainMenu.setMarketMenu(marketMenu);
