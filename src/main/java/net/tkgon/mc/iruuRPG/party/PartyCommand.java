@@ -16,7 +16,7 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * /party (menu), /party invite|accept|deny|leave|kick|leader|disband|list|chat, and /pc &lt;message&gt; for party chat.
+ * /party (menu), /party invite|accept|deny|leave|kick|leader|disband|list|chat, and /p (or /pc) &lt;message&gt; for party chat.
  */
 public final class PartyCommand implements CommandExecutor, TabCompleter {
 
@@ -36,9 +36,9 @@ public final class PartyCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("Player only.");
             return true;
         }
-        if (command.getName().equalsIgnoreCase("pc")) {
+        if (command.getName().equalsIgnoreCase("pc") || command.getName().equalsIgnoreCase("p")) {
             if (args.length == 0) {
-                player.sendMessage("[パーティー] /pc <メッセージ> でパーティーの仲間だけに話す。");
+                player.sendMessage("[パーティー] /p <メッセージ> でパーティーの仲間だけに話す。");
             } else {
                 service.chat(player, String.join(" ", args));
             }
@@ -68,7 +68,7 @@ public final class PartyCommand implements CommandExecutor, TabCompleter {
             case "disband" -> service.disband(player);
             case "list" -> service.list(player);
             case "chat" -> {
-                if (args.length < 2) player.sendMessage("[パーティー] /party chat <メッセージ> (または /pc)");
+                if (args.length < 2) player.sendMessage("[パーティー] /party chat <メッセージ> (または /p)");
                 else service.chat(player, String.join(" ", Arrays.copyOfRange(args, 1, args.length)));
             }
             default -> player.sendMessage("[パーティー] /party [invite <名前> | accept | deny | leave | kick <名前> | leader <名前> | disband | list | chat <メッセージ>]");
@@ -79,7 +79,7 @@ public final class PartyCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         List<String> options = new ArrayList<>();
-        if (command.getName().equalsIgnoreCase("pc") || !(sender instanceof Player player)) return options;
+        if (command.getName().equalsIgnoreCase("pc") || command.getName().equalsIgnoreCase("p") || !(sender instanceof Player player)) return options;
         if (args.length == 1) {
             options.addAll(SUBS);
         } else if (args.length == 2 && args[0].equalsIgnoreCase("invite")) {

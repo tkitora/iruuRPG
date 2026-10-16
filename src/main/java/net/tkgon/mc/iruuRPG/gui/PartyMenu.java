@@ -77,7 +77,7 @@ public final class PartyMenu implements Listener {
                 inventory.setItem(HELP, item(Material.PAPER, "パーティーに入っていない", NamedTextColor.GRAY, List.of(
                         text("作る・誘う: /party invite <名前>", NamedTextColor.WHITE),
                         text("最大 " + service.maxSize() + " 人。ダンジョンに一緒に入り、", NamedTextColor.GRAY),
-                        text("近くの仲間が倒した敵の経験値ももらえる", NamedTextColor.GRAY))));
+                        text("仲間と経験値を分け合える", NamedTextColor.GRAY))));
             }
             return;
         }
@@ -110,7 +110,7 @@ public final class PartyMenu implements Listener {
         }
         inventory.setItem(HELP, item(Material.PAPER, "メンバー " + party.size() + " / " + service.maxSize(), NamedTextColor.AQUA, List.of(
                 text(leader ? "誘う: /party invite <名前>" : "誘えるのはリーダーだけ", NamedTextColor.WHITE),
-                text("パーティーだけで話す: /pc <メッセージ>", NamedTextColor.GRAY))));
+                text("パーティーだけで話す: /p <メッセージ>", NamedTextColor.GRAY))));
         inventory.setItem(LEAVE, item(Material.OAK_DOOR, "パーティーを抜ける", NamedTextColor.RED, List.of()));
         if (leader) inventory.setItem(DISBAND, item(Material.BARRIER, "パーティーを解散する", NamedTextColor.DARK_RED, List.of()));
     }

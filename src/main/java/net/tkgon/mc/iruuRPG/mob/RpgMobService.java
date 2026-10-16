@@ -41,6 +41,8 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Locale;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -206,41 +208,53 @@ public final class RpgMobService {
         for (Map.Entry<UUID, Double> entry : runtime.damageByPlayer().entrySet()) {
             if (entry.getValue() + 1.0E-9 < minimumDamage) continue;
 
-            if (runtime.definition().experience() > 0L) {
-                levelService.dropExperience(entity.getLocation(), entry.getKey(), runtime.definition().experience());
-            }
-
             for (MobDropItem drop : runtime.definition().drops()) {
                 if (!drop.rolls(random)) continue;
 
                 dropReward(entity, entry.getKey(), drop, random);
             }
         }
-        shareExperience(entity, runtime, minimumDamage);
+        giveExperience(entity, runtime, minimumDamage);
     }
 
     /**
-     * Party XP: members (online, same world, within party.xp-share-range of the mob) of anyone who earned this kill's
-     * XP, and who did not earn it themselves, get the same XP directly. Items are not shared.
+     * Kill XP. The players who did at least 5% of the mob's HP in damage earned it: in a party they split it evenly
+     * among the party's earners; a player not in a party gets all of it. Party members who did not earn it, nearby
+     * (online, same world, within party.xp-share-range of the mob), get party.xp-bystander-percent (5%) of it.
+     * Earners get it as their own XP orbs; bystanders directly. Items are not shared.
      */
-    private void shareExperience(LivingEntity entity, MobRuntime runtime, double minimumDamage) {
+    private void giveExperience(LivingEntity entity, MobRuntime runtime, double minimumDamage) {
         long experience = runtime.definition().experience();
-        if (partyService == null || experience <= 0L) return;
-        double range = plugin.getConfig().getDouble("party.xp-share-range", 40.0);
-        java.util.Set<UUID> earned = new java.util.HashSet<>();
+        if (experience <= 0L) return;
+        List<UUID> earners = new ArrayList<>();
         for (Map.Entry<UUID, Double> entry : runtime.damageByPlayer().entrySet()) {
-            if (entry.getValue() + 1.0E-9 >= minimumDamage) earned.add(entry.getKey());
+            if (entry.getValue() + 1.0E-9 >= minimumDamage) earners.add(entry.getKey());
         }
-        java.util.Set<UUID> shared = new java.util.HashSet<>();
-        for (UUID earner : earned) {
-            net.tkgon.mc.iruuRPG.party.PartyService.Party party = partyService.partyOf(earner);
-            if (party == null) continue;
-            for (org.bukkit.entity.Player member : party.online()) {
-                if (earned.contains(member.getUniqueId()) || !shared.add(member.getUniqueId())) continue;
-                if (!member.getWorld().equals(entity.getWorld())) continue;
-                if (member.getLocation().distanceSquared(entity.getLocation()) > range * range) continue;
-                levelService.addXp(member, experience);
+        // group the earners by party (someone without a party is a group of one)
+        Map<Object, List<UUID>> groups = new LinkedHashMap<>();
+        for (UUID earner : earners) {
+            Object key = partyService == null ? earner : partyService.partyOf(earner);
+            groups.computeIfAbsent(key == null ? earner : key, k -> new ArrayList<>()).add(earner);
+        }
+        java.util.Set<UUID> earned = new java.util.HashSet<>(earners);
+        java.util.Set<UUID> bystanders = new java.util.HashSet<>();
+        double range = plugin.getConfig().getDouble("party.xp-share-range", 40.0);
+        for (Map.Entry<Object, List<UUID>> group : groups.entrySet()) {
+            long share = Math.max(1L, Math.round((double) experience / group.getValue().size()));
+            for (UUID earner : group.getValue()) levelService.dropExperience(entity.getLocation(), earner, share);
+            if (group.getKey() instanceof net.tkgon.mc.iruuRPG.party.PartyService.Party party) {
+                for (org.bukkit.entity.Player member : party.online()) {
+                    if (earned.contains(member.getUniqueId()) || !member.getWorld().equals(entity.getWorld())) continue;
+                    if (member.getLocation().distanceSquared(entity.getLocation()) > range * range) continue;
+                    bystanders.add(member.getUniqueId());
+                }
             }
+        }
+        double percent = plugin.getConfig().getDouble("party.xp-bystander-percent", 5.0);
+        long bystanderXp = Math.max(1L, Math.round(experience * percent / 100.0));
+        for (UUID id : bystanders) {
+            org.bukkit.entity.Player member = org.bukkit.Bukkit.getPlayer(id);
+            if (member != null) levelService.addXp(member, bystanderXp);
         }
     }
 

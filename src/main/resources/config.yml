@@ -284,7 +284,10 @@ yml-sync:
   interval-seconds: 60
   branch: main
 
-# パーティー (/party)。サーバーの再起動で解散する
+# パーティー (/party、仲間内のチャットは /p)。ログアウトや再起動のあとも続く (plugins/iruuRPG/parties.yml)
 party:
   max-size: 4            # 1つのパーティーの最大人数
-  xp-share-range: 40     # 仲間が倒した敵の経験値を、この距離 (ブロック) 以内の仲間ももらえる
+  # 経験値: 敵に5%以上ダメージを与えた仲間で人数割り。パーティーでない人は本人が全部。
+  # 与えていない仲間は、敵からこの距離 (ブロック) 以内なら xp-bystander-percent % をもらう
+  xp-share-range: 40
+  xp-bystander-percent: 5

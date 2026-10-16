@@ -228,6 +228,7 @@ public final class IruuRPG extends JavaPlugin {
         this.sidebarService.setDungeonService(dungeonService);
         this.sidebarService.setClassService(classService);
         this.partyService = new PartyService(this);
+        this.partyService.load();
         this.partyMenu = new PartyMenu(partyService);
         this.partyMenu.setMainMenu(mainMenu);
         this.mainMenu.setPartyMenu(partyMenu);
@@ -293,7 +294,7 @@ public final class IruuRPG extends JavaPlugin {
         }
 
         PartyCommand party = new PartyCommand(partyService, partyMenu);
-        for (String name : new String[]{"party", "pc"}) {
+        for (String name : new String[]{"party", "pc", "p"}) {
             PluginCommand partyCommand = getCommand(name);
             if (partyCommand != null) {
                 partyCommand.setExecutor(party);
