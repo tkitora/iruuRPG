@@ -127,12 +127,7 @@ public final class StatsMenu implements Listener {
             mainMenu.open(player);
             return;
         }
-        if (event.getRawSlot() != 4) return;
-        if (!levelService.canLevelUp(levelService.profile(player))) return;
-
-        if (levelService.tryLevelUp(player)) {
-            open(player);
-        }
+        // (levelling up is automatic now: nothing to click)
     }
 
     @EventHandler
@@ -171,11 +166,6 @@ public final class StatsMenu implements Listener {
                     resourceLine("MP", profile.currentMp(), profile.maxMp(), NamedTextColor.AQUA)
             ));
             addFinalStats(lore, profile);
-            if (levelService.canLevelUp(profile)) {
-                lore.add(Component.empty());
-                lore.add(Component.text("クリックでレベルアップ", NamedTextColor.GREEN)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
             meta.lore(lore);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
             item.setItemMeta(meta);
