@@ -30,7 +30,8 @@ public record RpgMobDefinition(
         Map<EquipmentSlot, MobEquipmentItem> equipment,
         List<MobDropItem> drops,
         List<String> description,
-        List<String> areas
+        List<String> areas,
+        RangedSpec ranged
 ) {
     public RpgMobDefinition {
         if (id == null || id.isBlank()) {

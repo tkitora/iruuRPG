@@ -57,6 +57,17 @@ public final class RpgMobListener implements Listener {
         mobService.applyDamage(entity, damage, damageSourcePlayer(event));
     }
 
+    /** Ranged mobs shoot with the plugin's own shots: the vanilla bows, crossbows and potions are switched off. */
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onVanillaShot(org.bukkit.event.entity.ProjectileLaunchEvent event) {
+        if (event.getEntity().getShooter() instanceof LivingEntity shooter && mobService.isRangedMob(shooter)) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onVanillaBow(org.bukkit.event.entity.EntityShootBowEvent event) {
+        if (mobService.isRangedMob(event.getEntity())) event.setCancelled(true);
+    }
+
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;

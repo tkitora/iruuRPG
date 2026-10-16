@@ -1,6 +1,6 @@
 # ダンジョン「アトラスの洞窟」の敵 (Lv1〜7)。/iruurpg mob <id> でも出せる。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 
 mobs:
   cave_crawler:
@@ -111,3 +111,37 @@ mobs:
       old_bone:
         drop-chance: 100
         amount: 2
+  cave_archer:
+    type: ZOMBIE
+    name: "洞窟の弓兵"
+    level: 4
+    experience: 40
+    area: [cave]
+    ai: true
+    gravity: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    # 遠距離の敵: 探索モードで近づき、射程に入ったら立ち止まって撃つ (攻撃モード)。逃げない。
+    ranged:
+      range: 14            # この距離 (ブロック) 以内で立ち止まって撃つ
+      accuracy: 70         # 命中率 (%)。外れたときは、プレイヤーの横をかすめる
+      interval-ticks: 40   # 撃つ間隔 (20 = 1秒)
+      projectile: ARROW    # 見た目と音: ARROW / FIRE / MAGIC
+    stats:
+      max-hp: 100
+      max-mp: 1
+      defense: 6
+      weapon-damage: 6
+      strength: 4
+    equipment:
+      main-hand:
+        item: cave_shortbow
+        drop-chance: 0.0
+    drops:
+      old_bone:
+        drop-chance: 40
+        amount: 1
+      cave_silk:
+        drop-chance: 25
+        amount: 1

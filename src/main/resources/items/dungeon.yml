@@ -1,6 +1,6 @@
 # ダンジョン「アトラスの洞窟」の素材 (架空)。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 3
+version: 4
 
 items:
   crawler_shell:
@@ -94,3 +94,17 @@ items:
     description:
       - "岩窟の奥深くで脈打っていた、橙色の結晶の塊。"
       - "とても珍しい素材。いつか何かに使えるかもしれない。"
+  # 洞窟の弓兵が持つ遠距離の武器 (モブ専用の見た目。プレイヤーにはドロップしない)
+  cave_shortbow:
+    material: BOW
+    name: "洞窟の短弓"
+    required-level: 1
+    rarity: COMMON
+    element: WHITE
+    damage-kind: PHYSICAL
+    attack-type: RANGE
+    stats:
+      weapon-damage: 9
+      range-damage: 6
+    description:
+      - "洞窟の弓兵が使う、粗末な短弓。"
