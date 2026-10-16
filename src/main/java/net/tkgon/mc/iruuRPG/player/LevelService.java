@@ -91,7 +91,7 @@ public final class LevelService {
 
         syncAfterLevelChange(player, profile, false);
         if (!wasReady && canLevelUp(profile)) {
-            player.sendMessage("[iruuRPG] レベルアップ可能です。メニューからレベルアップできます。");
+            player.sendMessage("[iruuRPG] レベルアップ可能です。メニューの「ステータス」で、上の頭をクリックするとレベルアップできます。");
         }
     }
 

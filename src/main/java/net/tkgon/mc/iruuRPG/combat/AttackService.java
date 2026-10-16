@@ -426,13 +426,18 @@ public final class AttackService {
 
     public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType, RpgItemDefinition weapon) {
         if (sourceDamage <= 0.0) return;
-        if (attackType == AttackType.MELEE && !hasMeleeAreaSkill(attacker)) return;
 
+        // melee: everyone has a small area (a weaker copy of the warrior's); the warrior's milestone makes it full size
+        boolean baseMelee = attackType == AttackType.MELEE && !hasMeleeAreaSkill(attacker);
         boolean expanded = attackType == AttackType.RANGE && hasSkill(attacker, RANGE_AREA_EXPAND_SKILL);
-        double damageRate = areaDamageRate(attackType, expanded);
+        double damageRate = baseMelee
+                ? plugin.getConfig().getDouble("combat.melee-area-base-damage-rate", 0.40)
+                : areaDamageRate(attackType, expanded);
         if (damageRate <= 0.0) return;
 
-        double radius = expanded
+        double radius = baseMelee
+                ? plugin.getConfig().getDouble("combat.melee-area-base-radius", 2.0)
+                : expanded
                 ? plugin.getConfig().getDouble("combat.range-area-expanded-radius", 5.0)
                 : plugin.getConfig().getDouble("combat.area-radius", 3.0);
         double radiusSquared = radius * radius;
@@ -546,7 +551,7 @@ public final class AttackService {
         return healPlayer(target, amount * multiplier);
     }
 
-    /** Melee area attacks are a class skill (milestone "melee_area"), not a weapon trait. */
+    /** The warrior's full melee area (milestone "melee_area"); everyone else has the smaller base area. */
     private boolean hasMeleeAreaSkill(Player attacker) {
         return hasSkill(attacker, MELEE_AREA_SKILL);
     }
