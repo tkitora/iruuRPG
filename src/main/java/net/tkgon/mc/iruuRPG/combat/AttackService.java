@@ -420,6 +420,39 @@ public final class AttackService {
         attackEffects.playRangeImpact(hitLocation, weapon);
     }
 
+    /**
+     * A melee swing that hit nothing directly still splashes: every enemy within the melee area, around a point just
+     * in front of the player, takes the area share of the damage a direct hit on it would do (its own defense
+     * counts). A direct hit never comes through here (it has its own area damage), so nothing is counted twice.
+     */
+    public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon) {
+        boolean baseMelee = !hasMeleeAreaSkill(attacker);
+        double rate = baseMelee
+                ? plugin.getConfig().getDouble("combat.melee-area-base-damage-rate", 0.40)
+                : areaDamageRate(AttackType.MELEE, false);
+        double radius = baseMelee
+                ? plugin.getConfig().getDouble("combat.melee-area-base-radius", 2.0)
+                : plugin.getConfig().getDouble("combat.area-radius", 3.0);
+        if (rate <= 0.0 || radius <= 0.0) return;
+
+        double reach = plugin.getConfig().getDouble("combat.melee-swing-area-reach", 1.8);
+        Location center = attacker.getEyeLocation().add(attacker.getEyeLocation().getDirection().normalize().multiply(reach));
+        PlayerProfile attackerProfile = equipmentService.recalculate(attacker);
+        for (Entity nearby : attacker.getWorld().getNearbyEntities(center, radius, radius, radius)) {
+            if (!(nearby instanceof LivingEntity target)) continue;
+            if (DeployService.isDeployEntity(target) || target instanceof Player || target.equals(attacker) || target.isInvulnerable()) continue;
+            if (target.getLocation().add(0, target.getHeight() / 2.0, 0).distanceSquared(center) > radius * radius) continue;
+
+            AttackDamage attack = calculateDamage(attackerProfile, target, weapon);
+            double areaDamage = round(attack.result().damage() * rate);
+            if (areaDamage <= 0.0) continue;
+            if (applyDirectDamage(attacker, target, areaDamage, weapon, false)) {
+                playMeleeImpact(attacker, target);
+                sendDamageDebug(attacker, AttackType.MELEE, target, areaDamage, false, true);
+            }
+        }
+    }
+
     public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType) {
         applyAreaDamage(attacker, mainVictim, sourceDamage, attackType, null);
     }

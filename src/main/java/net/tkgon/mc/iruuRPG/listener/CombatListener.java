@@ -219,7 +219,14 @@ public final class CombatListener implements Listener {
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         attackService.playMeleeSlash(attacker, weapon);
+        // a swing that hits nothing directly still splashes the enemies around the spot in front of the player
+        // (never for the arm swing of a direct hit: that already did its own area damage)
+        Integer direct = lastDirectMelee.get(attacker.getUniqueId());
+        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) attackService.applySwingAreaDamage(attacker, weapon);
     }
+
+    /** The tick of each player's last direct melee hit: the arm swing that follows it is not a whiff. */
+    private final java.util.Map<java.util.UUID, Integer> lastDirectMelee = new java.util.HashMap<>();
 
     private void handleCustomMelee(Player attacker, LivingEntity victim, RpgItemDefinition weapon) {
         if (victim instanceof Player) return;
@@ -240,6 +247,7 @@ public final class CombatListener implements Listener {
         attackService.playMeleeSlash(attacker, weapon);
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, attack.result().damage(), attack.result().critical(), false);
         attackService.applyAreaDamage(attacker, victim, attack.result().damage(), AttackType.MELEE, weapon);
+        lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
     }
 
     @EventHandler(priority = EventPriority.NORMAL)

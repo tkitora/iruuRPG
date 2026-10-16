@@ -21,7 +21,7 @@ import java.util.Locale;
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "addchest", "removechest", "gate", "removegate", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "addchest", "removechest", "gate", "removegate", "removegates", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -126,7 +126,19 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
         }
         if (sub.equals("reload")) {
             registry.reload();
+            service.refreshGates();
             player.sendMessage("[ダンジョン] 定義を読み直した。(" + registry.all().size() + " 件)");
+            return true;
+        }
+        if (sub.equals("removegates")) {
+            // every gate (out in the world) of one dungeon, or of all dungeons when no id is given. Blocks stay.
+            int removed = 0;
+            for (DungeonDefinition each : registry.all()) {
+                if (args.length >= 2 && !each.id().equalsIgnoreCase(args[1])) continue;
+                removed += registry.clearGates(each);
+            }
+            service.refreshGates();
+            player.sendMessage("[ダンジョン] 入口を " + removed + " か所すべて消した。(登録と頭上の表示だけ。ブロックは残る)");
             return true;
         }
         if (sub.equals("removegate") && args.length < 2) {

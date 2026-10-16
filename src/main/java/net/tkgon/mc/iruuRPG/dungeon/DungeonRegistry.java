@@ -287,6 +287,16 @@ public final class DungeonRegistry {
         save(definition);
     }
 
+    /** Removes every gate of this dungeon; returns how many there were. */
+    public int clearGates(DungeonDefinition definition) {
+        List<Gate> list = gates.getOrDefault(definition.id(), List.of());
+        int count = list.size();
+        if (count == 0) return 0;
+        gates.put(definition.id(), new ArrayList<>());
+        save(definition);
+        return count;
+    }
+
     public boolean removeGate(DungeonDefinition definition, Gate gate) {
         List<Gate> list = new ArrayList<>(gates.getOrDefault(definition.id(), List.of()));
         if (!list.remove(gate)) return false;
