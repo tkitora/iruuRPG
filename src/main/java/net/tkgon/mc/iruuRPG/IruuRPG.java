@@ -303,6 +303,11 @@ public final class IruuRPG extends JavaPlugin {
             }
         }
 
+        net.tkgon.mc.iruuRPG.chat.ChatItems chatItems = new net.tkgon.mc.iruuRPG.chat.ChatItems();
+        getServer().getPluginManager().registerEvents(chatItems, this);
+        PluginCommand showItem = getCommand("showitem");
+        if (showItem != null) showItem.setExecutor(chatItems);
+
         PluginCommand dungeonCommand = getCommand("dungeon");
         if (dungeonCommand != null) {
             DungeonCommand dungeon = new DungeonCommand(dungeonService, dungeonMenu, mobRegistry);

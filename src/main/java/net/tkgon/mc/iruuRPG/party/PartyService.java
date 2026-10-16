@@ -331,9 +331,12 @@ public final class PartyService implements Listener {
             player.sendMessage(Component.text("[パーティー] パーティーに入っていません。", NamedTextColor.RED));
             return;
         }
+        Component text = Component.text(": " + message, NamedTextColor.AQUA);
+        // [item] / [i] shows the held item there, like in normal chat
+        if (net.tkgon.mc.iruuRPG.chat.ChatItems.hasPlaceholder(message)) text = net.tkgon.mc.iruuRPG.chat.ChatItems.withItem(player, text);
         Component line = Component.text("[パーティー] ", NamedTextColor.AQUA)
                 .append(Component.text(player.getName(), NamedTextColor.WHITE))
-                .append(Component.text(": " + message, NamedTextColor.AQUA));
+                .append(text);
         for (Player member : party.online()) member.sendMessage(line);
     }
 
