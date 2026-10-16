@@ -130,13 +130,44 @@ public final class AttackEffects {
         }
     }
 
+    /**
+     * A piece of a flying bolt (used by mobs' shots): the same dust line as a player's ranged trail, drawn for the
+     * stretch the bolt moved this tick, in the colors of {@code element}.
+     */
+    public void playBoltSegment(Location from, Location to, Element element) {
+        if (from == null || to == null || from.getWorld() == null) return;
+        Vector path = to.toVector().subtract(from.toVector());
+        double length = path.length();
+        if (length <= 1.0E-9) return;
+
+        World world = from.getWorld();
+        Vector direction = path.normalize();
+        ParticlePalette palette = palette(element);
+        int points = Math.max(1, (int) Math.ceil(length / 0.3));
+        for (int index = 0; index <= points; index++) {
+            Location point = from.clone().add(direction.clone().multiply(length * index / points));
+            spawnDust(world, point, palette.primary());
+            if (index % 2 == 0) spawnDust(world, point.clone().add(0.0, 0.035, 0.0), palette.secondary());
+            if (index % 4 == 0) spawnDust(world, point.clone().subtract(0.0, 0.025, 0.0), palette.accent());
+        }
+    }
+
+    public void playBoltImpact(Location hitLocation, Element element) {
+        impact(hitLocation, element);
+    }
+
     public void playRangeImpact(Location hitLocation, RpgItemDefinition weapon) {
+        if (hitLocation == null || hitLocation.getWorld() == null) return;
+        impact(hitLocation, weapon.element());
+    }
+
+    private void impact(Location hitLocation, Element element) {
         if (!plugin.getConfig().getBoolean("combat.effects.range-impact.enabled", true)) return;
         if (hitLocation == null || hitLocation.getWorld() == null) return;
 
         World world = hitLocation.getWorld();
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        ParticlePalette palette = palette(weapon.element());
+        ParticlePalette palette = palette(element);
         int particles = Math.max(1, plugin.getConfig().getInt("combat.effects.range-impact.particles", 12));
         double radius = Math.max(0.05, plugin.getConfig().getDouble("combat.effects.range-impact.radius", 0.45));
 

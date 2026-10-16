@@ -350,6 +350,10 @@ public final class RpgMobService {
      */
     private void tickRanged() {
         long now = Bukkit.getCurrentTick();
+        // a mob that is gone leaves nothing behind
+        attackMode.removeIf(id -> !runtimes.containsKey(id));
+        nextShotTick.keySet().removeIf(id -> !runtimes.containsKey(id));
+        lostSightTicks.keySet().removeIf(id -> !runtimes.containsKey(id));
         for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
             MobRuntime runtime = runtimes.get(uuid);
             RangedSpec spec = runtime == null ? null : runtime.definition().ranged();
@@ -357,6 +361,8 @@ public final class RpgMobService {
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid() || !runtime.definition().ai()) {
                 attackMode.remove(uuid);
+                nextShotTick.remove(uuid);
+                lostSightTicks.remove(uuid);
                 continue;
             }
 
@@ -420,53 +426,105 @@ public final class RpgMobService {
         mob.setBodyYaw(look.getYaw());
     }
 
-    /**
-     * One shot with the mob's own ranged weapon. It hits with the spec's accuracy: a hit shows a bolt of light to the
-     * player and deals the mob's normal RPG damage (through an ordinary damage event, so defense, resists and status
-     * effects all apply); a miss shows the bolt flying past and an impact beside the player.
-     */
-    private void shoot(Mob mob, Player target, RangedSpec spec) {
-        boolean hit = ThreadLocalRandom.current().nextDouble() * 100.0 < spec.accuracy();
-        Location from = mob.getEyeLocation().add(mob.getLocation().getDirection().multiply(0.4)).add(0, -0.2, 0);
-        Location aim = target.getLocation().add(0, target.getHeight() * 0.6, 0);
-        if (!hit) {
-            // past the player: to the side, a little high or low
-            ThreadLocalRandom random = ThreadLocalRandom.current();
-            Vector to = aim.toVector().subtract(from.toVector()).normalize();
-            Vector side = new Vector(-to.getZ(), 0, to.getX()).normalize().multiply((random.nextBoolean() ? 1 : -1) * (1.2 + random.nextDouble() * 1.4));
-            aim = aim.clone().add(side).add(0, random.nextDouble() * 1.2 - 0.4, 0);
-        }
-        drawShot(from, aim, spec.projectile(), mob.getWorld());
-        mob.swingMainHand();
-        if (hit) {
-            if (target.isOnline() && !target.isDead()) target.damage(1.0, mob);
-        } else {
-            mob.getWorld().playSound(aim, org.bukkit.Sound.ENTITY_ARROW_HIT, 0.7f, 1.4f);
-            mob.getWorld().spawnParticle(org.bukkit.Particle.CRIT, aim, 8, 0.15, 0.15, 0.15, 0.1);
-        }
+    private net.tkgon.mc.iruuRPG.combat.AttackEffects attackEffects;
+
+    public void setAttackEffects(net.tkgon.mc.iruuRPG.combat.AttackEffects attackEffects) {
+        this.attackEffects = attackEffects;
     }
 
-    private void drawShot(Location from, Location to, String projectile, World world) {
-        Vector step = to.toVector().subtract(from.toVector());
-        double length = step.length();
-        if (length < 0.1) return;
-        step.normalize().multiply(0.6);
-        org.bukkit.Particle particle = switch (projectile) {
-            case "FIRE" -> org.bukkit.Particle.FLAME;
-            case "MAGIC" -> org.bukkit.Particle.SPELL_WITCH;
-            default -> org.bukkit.Particle.CRIT;
-        };
-        Location point = from.clone();
-        for (double travelled = 0; travelled < length; travelled += 0.6) {
-            world.spawnParticle(particle, point, 1, 0.02, 0.02, 0.02, 0.0);
-            point.add(step);
+    /** The color of a mob's bolt: its strongest element damage, else its weapon's element, else white. */
+    private net.tkgon.mc.iruuRPG.stat.Element boltElement(LivingEntity mob) {
+        MobRuntime runtime = runtime(mob);
+        net.tkgon.mc.iruuRPG.stat.Element best = null;
+        double bestDamage = 0.0;
+        if (runtime != null) {
+            for (net.tkgon.mc.iruuRPG.stat.Element element : net.tkgon.mc.iruuRPG.stat.Element.values()) {
+                double damage = runtime.profile().finalElementStats().damage(element);
+                if (damage > bestDamage) {
+                    bestDamage = damage;
+                    best = element;
+                }
+            }
         }
-        org.bukkit.Sound sound = switch (projectile) {
-            case "FIRE" -> org.bukkit.Sound.ENTITY_BLAZE_SHOOT;
-            case "MAGIC" -> org.bukkit.Sound.ENTITY_EVOKER_CAST_SPELL;
-            default -> org.bukkit.Sound.ENTITY_ARROW_SHOOT;
-        };
-        world.playSound(from, sound, 0.8f, 1.0f);
+        if (best != null) return best;
+        return attackWeapon(mob).map(RpgItemDefinition::element).orElse(net.tkgon.mc.iruuRPG.stat.Element.WHITE);
+    }
+
+    /**
+     * One shot: a bolt of dust (the same look as a player's ranged beam, colored by the mob's stats) leaves the mob
+     * toward where the target is now and flies at the spec's speed. It stops at the first block, and hits the first
+     * player it reaches: the mob's normal RPG damage through an ordinary damage event (so defense, resists and status
+     * effects apply). A player who keeps moving can dodge it.
+     */
+    private void shoot(Mob mob, Player target, RangedSpec spec) {
+        World world = mob.getWorld();
+        Location from = mob.getEyeLocation().add(mob.getLocation().getDirection().multiply(0.4)).add(0, -0.2, 0);
+        Vector direction = target.getLocation().add(0, target.getHeight() * 0.6, 0).toVector().subtract(from.toVector());
+        if (direction.lengthSquared() < 1.0E-6) return;
+        direction.normalize();
+        net.tkgon.mc.iruuRPG.stat.Element element = boltElement(mob);
+        double perTick = spec.speed() / 20.0;
+        double maxDistance = spec.range() * 1.5;
+        mob.swingMainHand();
+        world.playSound(from, org.bukkit.Sound.ENTITY_ARROW_SHOOT, 0.8f, 1.1f);
+
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private Location position = from.clone();
+            private double travelled;
+
+            @Override
+            public void run() {
+                if (mob.isDead() || !mob.isValid()) {
+                    cancel(); // the shooter is gone: the bolt fades
+                    return;
+                }
+                Vector step = direction.clone().multiply(perTick);
+                Location next = position.clone().add(step);
+
+                // a wall stops it
+                org.bukkit.util.RayTraceResult wall = world.rayTraceBlocks(position, direction, perTick, org.bukkit.FluidCollisionMode.NEVER, true);
+                double wallDistance = wall == null ? Double.MAX_VALUE : wall.getHitPosition().distance(position.toVector());
+                // the first player on the way
+                Player hit = null;
+                double hitDistance = Double.MAX_VALUE;
+                for (Player player : world.getPlayers()) {
+                    if (player.isDead() || player.getGameMode() == GameMode.SPECTATOR) continue;
+                    org.bukkit.util.RayTraceResult result = player.getBoundingBox().expand(0.25)
+                            .rayTrace(position.toVector(), direction, perTick);
+                    if (result == null) continue;
+                    double distance = result.getHitPosition().distance(position.toVector());
+                    if (distance < hitDistance) {
+                        hitDistance = distance;
+                        hit = player;
+                    }
+                }
+
+                if (hit != null && hitDistance <= wallDistance) {
+                    Location at = position.clone().add(direction.clone().multiply(hitDistance));
+                    if (attackEffects != null) {
+                        attackEffects.playBoltSegment(position, at, element);
+                        attackEffects.playBoltImpact(at, element);
+                    }
+                    hit.damage(1.0, mob);
+                    cancel();
+                    return;
+                }
+                if (wall != null) {
+                    Location at = wall.getHitPosition().toLocation(world);
+                    if (attackEffects != null) {
+                        attackEffects.playBoltSegment(position, at, element);
+                        attackEffects.playBoltImpact(at, element);
+                    }
+                    world.playSound(at, org.bukkit.Sound.BLOCK_STONE_HIT, 0.6f, 1.4f);
+                    cancel();
+                    return;
+                }
+                if (attackEffects != null) attackEffects.playBoltSegment(position, next, element);
+                position = next;
+                travelled += perTick;
+                if (travelled >= maxDistance) cancel();
+            }
+        }.runTaskTimer(plugin, 1L, 1L);
     }
 
     private void tickStatusDisplays() {

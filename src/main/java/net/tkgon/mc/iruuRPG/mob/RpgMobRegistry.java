@@ -138,20 +138,16 @@ public final class RpgMobRegistry {
     }
 
     /**
-     * ranged: absent = a normal mob; "true" = a ranged mob with the defaults; or a section with range / accuracy /
-     * interval-ticks / projectile (see {@link RangedSpec}).
+     * ranged: absent = a normal mob; "true" = a ranged mob with the defaults; or a section with range /
+     * speed / interval-ticks (see {@link RangedSpec}).
      */
     private RangedSpec ranged(String id, Object raw) {
         if (raw == null || Boolean.FALSE.equals(raw)) return null;
         if (Boolean.TRUE.equals(raw)) return RangedSpec.defaults();
         if (raw instanceof ConfigurationSection section) {
-            String projectile = section.getString("projectile", "ARROW");
-            if (!RangedSpec.knownProjectile(projectile)) {
-                plugin.getLogger().warning("mobs: unknown ranged projectile '" + projectile + "' in mob " + id + " (use ARROW, FIRE or MAGIC)");
-                projectile = "ARROW";
-            }
-            return new RangedSpec(section.getDouble("range", RangedSpec.DEFAULT_RANGE), section.getDouble("accuracy", RangedSpec.DEFAULT_ACCURACY),
-                    section.getInt("interval-ticks", RangedSpec.DEFAULT_INTERVAL), projectile);
+            // accuracy and projectile are gone (the bolt flies and can be dodged; its look comes from the mob's stats)
+            return new RangedSpec(section.getDouble("range", RangedSpec.DEFAULT_RANGE), section.getDouble("speed", RangedSpec.DEFAULT_SPEED),
+                    section.getInt("interval-ticks", RangedSpec.DEFAULT_INTERVAL));
         }
         plugin.getLogger().warning("mobs: 'ranged' must be true or a section in mob " + id);
         return null;

@@ -238,13 +238,12 @@ public final class ReloadReport {
             return;
         }
         if (ranged instanceof ConfigurationSection section) {
-            double accuracy = section.getDouble("accuracy", 75.0);
-            if (accuracy < 0 || accuracy > 100) add(file, id, "ranged.accuracy は 0〜100 (いまは " + accuracy + "、範囲内に直して使う)");
             if (section.getDouble("range", 14.0) <= 0) add(file, id, "ranged.range は 0 より大きく");
             if (section.getInt("interval-ticks", 40) < 5) add(file, id, "ranged.interval-ticks は 5 以上 (5 に直して使う)");
-            if (!net.tkgon.mc.iruuRPG.mob.RangedSpec.knownProjectile(section.getString("projectile", "ARROW"))) {
-                add(file, id, "ranged.projectile '" + section.getString("projectile") + "' は ARROW / FIRE / MAGIC のどれか");
-            }
+            double speed = section.getDouble("speed", 12.0);
+            if (speed < 2 || speed > 60) add(file, id, "ranged.speed (弾の速さ、ブロック/秒) は 2〜60 (いまは " + speed + "、範囲内に直して使う)");
+            if (section.isSet("accuracy")) add(file, id, "ranged.accuracy (命中率) はなくなった。弾は飛んで、動けばよけられる (弾の速さは speed)。この項目は無視する");
+            if (section.isSet("projectile")) add(file, id, "ranged.projectile はなくなった。弾の色はその敵のステータスと武器で決まる。この項目は無視する");
         }
         String weapon = null;
         ConfigurationSection hand = equipment == null ? null : equipment.getConfigurationSection("main-hand");
