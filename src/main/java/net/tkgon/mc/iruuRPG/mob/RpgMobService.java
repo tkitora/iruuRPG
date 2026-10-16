@@ -118,6 +118,7 @@ public final class RpgMobService {
 
     public void startTargetTask() {
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickTargets, 20L, 20L);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickRanged, 5L, 5L);
         long statusPeriod = Math.max(1L, plugin.getConfig().getLong("mob.status-display.update-period-ticks", 1L));
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickStatusDisplays, 1L, statusPeriod);
     }
@@ -298,8 +299,10 @@ public final class RpgMobService {
             Entity entity = Bukkit.getEntity(uuid);
             if (entity != null) {
                 statusEffectService.clear(entity);
+                if (attackMode.contains(uuid) && entity instanceof Mob mob) mob.setAI(true);
             }
         }
+        attackMode.clear();
         runtimes.clear();
         targetLocks.clear();
         clearStatusDisplays();
@@ -325,6 +328,145 @@ public final class RpgMobService {
 
             maintainTarget(living, runtime.definition(), now);
         }
+    }
+
+    // ---- ranged mobs: explore mode and attack mode -------------------------------------------------------------------
+
+    /** Mobs that are in attack mode right now (standing still, AI off, shooting). */
+    private final java.util.Set<UUID> attackMode = new java.util.HashSet<>();
+    private final Map<UUID, Long> nextShotTick = new HashMap<>();
+    private final Map<UUID, Integer> lostSightTicks = new HashMap<>();
+
+    /** A mob with a "ranged:" section: vanilla projectile launches are replaced by the plugin's own shots. */
+    public boolean isRangedMob(Entity entity) {
+        MobRuntime runtime = runtime(entity);
+        return runtime != null && runtime.definition().ranged() != null;
+    }
+
+    /**
+     * Every 5 ticks, for each ranged mob. Explore mode: the normal AI walks it toward its target. When that target is
+     * within range with a clear line, it switches to attack mode: AI off, facing the target, shooting on a timer.
+     * When the target moves away (or out of sight for 1.5 s) it goes back to exploring. It never retreats.
+     */
+    private void tickRanged() {
+        long now = Bukkit.getCurrentTick();
+        for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
+            MobRuntime runtime = runtimes.get(uuid);
+            RangedSpec spec = runtime == null ? null : runtime.definition().ranged();
+            if (spec == null) continue;
+            Entity entity = Bukkit.getEntity(uuid);
+            if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid() || !runtime.definition().ai()) {
+                attackMode.remove(uuid);
+                continue;
+            }
+
+            Player target = mob.getTarget() instanceof Player player && canTarget(mob, player) ? player : null;
+            boolean attacking = attackMode.contains(uuid);
+            if (target == null) {
+                if (attacking) leaveAttackMode(mob);
+                continue;
+            }
+
+            double distance = target.getLocation().distance(mob.getLocation());
+            boolean sees = mob.hasLineOfSight(target);
+            if (!attacking) {
+                if (distance <= spec.range() && sees) enterAttackMode(mob);
+                continue;
+            }
+
+            // attack mode
+            if (distance > spec.range() * 1.2) {
+                leaveAttackMode(mob);
+                continue;
+            }
+            if (!sees) {
+                int lost = lostSightTicks.merge(uuid, 5, Integer::sum);
+                if (lost >= 30) {
+                    leaveAttackMode(mob);
+                    continue;
+                }
+            } else {
+                lostSightTicks.remove(uuid);
+            }
+            face(mob, target);
+            if (sees && now >= nextShotTick.getOrDefault(uuid, 0L)) {
+                nextShotTick.put(uuid, now + spec.intervalTicks());
+                shoot(mob, target, spec);
+            }
+        }
+    }
+
+    private void enterAttackMode(Mob mob) {
+        attackMode.add(mob.getUniqueId());
+        lostSightTicks.remove(mob.getUniqueId());
+        // the first shot comes a moment after it stops, not at once
+        nextShotTick.put(mob.getUniqueId(), Bukkit.getCurrentTick() + 10L);
+        mob.getPathfinder().stopPathfinding();
+        mob.setAI(false);
+    }
+
+    private void leaveAttackMode(Mob mob) {
+        attackMode.remove(mob.getUniqueId());
+        lostSightTicks.remove(mob.getUniqueId());
+        mob.setAI(true);
+    }
+
+    private void face(Mob mob, Player target) {
+        Location from = mob.getEyeLocation();
+        Vector direction = target.getEyeLocation().toVector().subtract(from.toVector());
+        Location look = mob.getLocation().clone();
+        look.setDirection(direction);
+        mob.setRotation(look.getYaw(), look.getPitch());
+        mob.setBodyYaw(look.getYaw());
+    }
+
+    /**
+     * One shot with the mob's own ranged weapon. It hits with the spec's accuracy: a hit shows a bolt of light to the
+     * player and deals the mob's normal RPG damage (through an ordinary damage event, so defense, resists and status
+     * effects all apply); a miss shows the bolt flying past and an impact beside the player.
+     */
+    private void shoot(Mob mob, Player target, RangedSpec spec) {
+        boolean hit = ThreadLocalRandom.current().nextDouble() * 100.0 < spec.accuracy();
+        Location from = mob.getEyeLocation().add(mob.getLocation().getDirection().multiply(0.4)).add(0, -0.2, 0);
+        Location aim = target.getLocation().add(0, target.getHeight() * 0.6, 0);
+        if (!hit) {
+            // past the player: to the side, a little high or low
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            Vector to = aim.toVector().subtract(from.toVector()).normalize();
+            Vector side = new Vector(-to.getZ(), 0, to.getX()).normalize().multiply((random.nextBoolean() ? 1 : -1) * (1.2 + random.nextDouble() * 1.4));
+            aim = aim.clone().add(side).add(0, random.nextDouble() * 1.2 - 0.4, 0);
+        }
+        drawShot(from, aim, spec.projectile(), mob.getWorld());
+        mob.swingMainHand();
+        if (hit) {
+            if (target.isOnline() && !target.isDead()) target.damage(1.0, mob);
+        } else {
+            mob.getWorld().playSound(aim, org.bukkit.Sound.ENTITY_ARROW_HIT, 0.7f, 1.4f);
+            mob.getWorld().spawnParticle(org.bukkit.Particle.CRIT, aim, 8, 0.15, 0.15, 0.15, 0.1);
+        }
+    }
+
+    private void drawShot(Location from, Location to, String projectile, World world) {
+        Vector step = to.toVector().subtract(from.toVector());
+        double length = step.length();
+        if (length < 0.1) return;
+        step.normalize().multiply(0.6);
+        org.bukkit.Particle particle = switch (projectile) {
+            case "FIRE" -> org.bukkit.Particle.FLAME;
+            case "MAGIC" -> org.bukkit.Particle.SPELL_WITCH;
+            default -> org.bukkit.Particle.CRIT;
+        };
+        Location point = from.clone();
+        for (double travelled = 0; travelled < length; travelled += 0.6) {
+            world.spawnParticle(particle, point, 1, 0.02, 0.02, 0.02, 0.0);
+            point.add(step);
+        }
+        org.bukkit.Sound sound = switch (projectile) {
+            case "FIRE" -> org.bukkit.Sound.ENTITY_BLAZE_SHOOT;
+            case "MAGIC" -> org.bukkit.Sound.ENTITY_EVOKER_CAST_SPELL;
+            default -> org.bukkit.Sound.ENTITY_ARROW_SHOOT;
+        };
+        world.playSound(from, sound, 0.8f, 1.0f);
     }
 
     private void tickStatusDisplays() {

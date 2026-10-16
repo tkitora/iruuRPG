@@ -153,6 +153,7 @@ public final class ReloadReport {
                 }
                 checkStats(file, id, section.getConfigurationSection("stats"));
                 checkArea(file, id, section.get("area"));
+                checkRanged(file, id, section.get("ranged"), section.getConfigurationSection("equipment"), itemRegistry);
 
                 ConfigurationSection equipment = section.getConfigurationSection("equipment");
                 if (equipment != null) {
@@ -227,6 +228,35 @@ public final class ReloadReport {
             }
         }
         duplicates("crafting", seen);
+    }
+
+    /** ranged: true or a section; the numbers must make sense, and a bow-like main hand weapon should be a ranged item. */
+    private void checkRanged(File file, String id, Object ranged, ConfigurationSection equipment, RpgItemRegistry itemRegistry) {
+        if (ranged == null || Boolean.FALSE.equals(ranged)) return;
+        if (!(ranged instanceof ConfigurationSection section) && !Boolean.TRUE.equals(ranged)) {
+            add(file, id, "ranged は true か設定のまとまりで書く (無視する)");
+            return;
+        }
+        if (ranged instanceof ConfigurationSection section) {
+            double accuracy = section.getDouble("accuracy", 75.0);
+            if (accuracy < 0 || accuracy > 100) add(file, id, "ranged.accuracy は 0〜100 (いまは " + accuracy + "、範囲内に直して使う)");
+            if (section.getDouble("range", 14.0) <= 0) add(file, id, "ranged.range は 0 より大きく");
+            if (section.getInt("interval-ticks", 40) < 5) add(file, id, "ranged.interval-ticks は 5 以上 (5 に直して使う)");
+            if (!net.tkgon.mc.iruuRPG.mob.RangedSpec.knownProjectile(section.getString("projectile", "ARROW"))) {
+                add(file, id, "ranged.projectile '" + section.getString("projectile") + "' は ARROW / FIRE / MAGIC のどれか");
+            }
+        }
+        String weapon = null;
+        ConfigurationSection hand = equipment == null ? null : equipment.getConfigurationSection("main-hand");
+        if (hand != null) weapon = hand.getString("item", hand.getString("item-id", hand.getString("rpg-item")));
+        if (weapon == null) {
+            add(file, id, "ranged の敵に、main-hand の遠距離武器 (item:) がない (ダメージが基本の値になる)");
+        } else {
+            var definition = itemRegistry.find(weapon);
+            if (definition.isPresent() && definition.get().attackType() != net.tkgon.mc.iruuRPG.combat.AttackType.RANGE) {
+                add(file, id, "ranged の敵の武器 '" + weapon + "' が遠距離 (attack-type: RANGE) ではない");
+            }
+        }
     }
 
     /** area: a name or a list of names. Names that are not dungeon ids are fine (they are field names). */
