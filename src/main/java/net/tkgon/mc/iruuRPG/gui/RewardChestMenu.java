@@ -24,8 +24,8 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * The reward chest screen: rainbow glass flickers for a moment, then the three rewards (gold, XP, an item) appear.
- * The rewards are already given when the screen opens; this only shows them (closing early loses nothing).
- * {@code onClose} runs once when the screen is closed (the contents are written in chat then, not at the opening).
+ * {@code onReveal} runs when the rewards appear (the caller hands them over then); {@code onClose} runs once when the
+ * screen is closed (the caller writes the contents in chat then, and hands the rewards over if that did not happen yet).
  */
 public final class RewardChestMenu implements Listener {
 
@@ -51,7 +51,7 @@ public final class RewardChestMenu implements Listener {
      * @param item     the item that was given (a copy), or null
      * @param rare     a rare item: a longer, golden finish
      */
-    public void open(Player player, Component title, ItemStack gold, ItemStack xp, ItemStack item, boolean rare, Runnable onClose) {
+    public void open(Player player, Component title, ItemStack gold, ItemStack xp, ItemStack item, boolean rare, Runnable onReveal, Runnable onClose) {
         Holder holder = new Holder();
         holder.onClose = onClose;
         Inventory inventory = Bukkit.createInventory(holder, SIZE, title);
@@ -76,7 +76,8 @@ public final class RewardChestMenu implements Listener {
                     tick += 2;
                     return;
                 }
-                // reveal
+                // reveal (the rewards are handed over now)
+                if (onReveal != null) onReveal.run();
                 Material frame = rare ? Material.YELLOW_STAINED_GLASS_PANE : Material.WHITE_STAINED_GLASS_PANE;
                 for (int slot = 0; slot < SIZE; slot++) inventory.setItem(slot, pane(frame));
                 inventory.setItem(REWARD_SLOTS[0], gold);

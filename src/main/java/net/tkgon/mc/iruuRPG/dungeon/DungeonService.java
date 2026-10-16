@@ -407,7 +407,8 @@ public final class DungeonService implements Listener {
             if (player == null) continue;
             player.teleport(entry);
             player.showTitle(Title.title(Component.text(instance.definition.name(), NamedTextColor.GOLD),
-                    Component.text("敵をすべて倒せ (制限 " + clock(instance.definition.timeLimitSeconds()) + ")", NamedTextColor.GRAY),
+                    Component.text((instance.definition.boss() != null ? "ボスを倒せ" : "敵をすべて倒せ")
+                            + " (制限 " + clock(instance.definition.timeLimitSeconds()) + ")", NamedTextColor.GRAY),
                     Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(3), Duration.ofMillis(700))));
             player.playSound(player.getLocation(), Sound.BLOCK_IRON_DOOR_OPEN, 0.7f, 0.8f);
         }
@@ -955,12 +956,8 @@ public final class DungeonService implements Listener {
      */
     private void openChest(Player player, Instance instance, DungeonLoot loot, String title, boolean flicker) {
         DungeonLoot.Roll roll = loot.roll();
-        PlayerProfile profile = profileManager.getOrCreate(player);
-        profile.setCurrency(profile.currency() + roll.gold());
-        profileManager.save(player);
-        if (roll.xp() > 0) levelService.addXp(player, roll.xp());
 
-        ItemStack shownItem = null;
+        ItemStack item = null;
         String itemName = null;
         boolean rare = false;
         if (roll.item() != null && itemRegistry != null && itemFactory != null) {
@@ -968,22 +965,33 @@ public final class DungeonService implements Listener {
             if (definition == null) {
                 plugin.getLogger().warning("dungeon loot: unknown item '" + roll.item().itemId() + "' in a loot table of " + instance.definition.id());
             } else {
-                ItemStack item = itemFactory.create(definition);
+                item = itemFactory.create(definition);
+                itemName = definition.name();
+                rare = roll.item().announce() || definition.rarity().tier() >= 3;
+            }
+        }
+
+        // the rewards go to the player only once the chest has shown them (or when its screen is closed early)
+        ItemStack reward = item;
+        java.util.concurrent.atomic.AtomicBoolean granted = new java.util.concurrent.atomic.AtomicBoolean();
+        Runnable grant = () -> {
+            if (!granted.compareAndSet(false, true) || !player.isOnline()) return;
+            PlayerProfile profile = profileManager.getOrCreate(player);
+            profile.setCurrency(profile.currency() + roll.gold());
+            profileManager.save(player);
+            if (roll.xp() > 0) levelService.addXp(player, roll.xp());
+            if (reward != null) {
                 int left = roll.amount();
                 while (left > 0) {
-                    ItemStack stack = item.clone();
+                    ItemStack stack = reward.clone();
                     stack.setAmount(Math.min(left, stack.getMaxStackSize()));
                     left -= stack.getAmount();
                     for (ItemStack rest : player.getInventory().addItem(stack).values()) {
                         player.getWorld().dropItemNaturally(player.getLocation(), rest);
                     }
                 }
-                shownItem = item.clone();
-                shownItem.setAmount(Math.max(1, Math.min(roll.amount(), shownItem.getMaxStackSize())));
-                itemName = definition.name();
-                rare = roll.item().announce() || definition.rarity().tier() >= 3;
             }
-        }
+        };
 
         // what was in it: name and amount of each, written in chat (for the reward chest, after its screen closes)
         String dungeonName = instance.definition.name();
@@ -999,13 +1007,22 @@ public final class DungeonService implements Listener {
             }
         };
         if (flicker && rewardChestMenu != null) {
+            ItemStack shown = null;
+            if (item != null) {
+                shown = item.clone();
+                shown.setAmount(Math.max(1, Math.min(roll.amount(), shown.getMaxStackSize())));
+            }
             rewardChestMenu.open(player, Component.text(title),
                     RewardChestMenu.display(Material.GOLD_INGOT, "+" + roll.gold() + " " + currency(), NamedTextColor.GOLD, List.of()),
                     RewardChestMenu.display(Material.EXPERIENCE_BOTTLE, "経験値 +" + roll.xp(), NamedTextColor.GREEN, List.of()),
-                    shownItem, rare, tell);
+                    shown, rare, grant, () -> {
+                        grant.run();
+                        tell.run();
+                    });
         } else {
             player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 0.6f, 1.1f);
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.5f, 1.2f);
+            grant.run();
             tell.run();
         }
     }
