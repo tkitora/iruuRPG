@@ -100,6 +100,14 @@ public final class StorageMenu implements Listener {
     }
 
     public void open(Player player, int page) {
+        // what the player already kept in the vanilla ender chest moves into the storage first
+        int[] moved = service.migrateEnderChest(player);
+        if (moved[0] > 0) {
+            player.sendMessage(Component.text("[ストレージ] エンダーチェストに入れていたアイテム " + moved[0] + " 組を、ストレージに移した。", NamedTextColor.GREEN));
+        }
+        if (moved[1] > 0) {
+            player.sendMessage(Component.text("[ストレージ] 入りきらなかった " + moved[1] + " 組は、エンダーチェストに残っている。ページを解放するか、空きを作って、もう一度開くと移せる。", NamedTextColor.YELLOW));
+        }
         StorageService.PlayerStorage storage = service.of(player);
         Holder holder = new Holder(player.getUniqueId());
         holder.page = Math.max(0, Math.min(page, storage.unlocked() - 1));
@@ -182,6 +190,13 @@ public final class StorageMenu implements Listener {
         if (event.getClick() == ClickType.NUMBER_KEY) {
             ItemStack hotbar = player.getInventory().getItem(event.getHotbarButton());
             if (hotbar != null && !storable.test(hotbar)) {
+                event.setCancelled(true);
+                return;
+            }
+        }
+        if (event.getClick() == ClickType.SWAP_OFFHAND) {
+            ItemStack offhand = player.getInventory().getItemInOffHand();
+            if (!storable.test(offhand)) {
                 event.setCancelled(true);
                 return;
             }

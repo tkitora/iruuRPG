@@ -74,12 +74,17 @@ public final class StorageService {
         return Math.max(1, Math.min(maxPages(), plugin.getConfig().getInt("storage.free-pages", 1)));
     }
 
-    /** Price of unlocking page number {@code page} (1-based): the base for the first paid page, then +step each. */
+    /**
+     * Price of unlocking page number {@code page} (1-based): storage.price-base for the first paid page, then each
+     * next page costs storage.price-growth times the one before (a gentle exponential, default x1.8), rounded to
+     * the nearest 50. With the defaults: 500, 900, 1600, 2900, 5250.
+     */
     public long priceOf(int page) {
         if (page <= freePages()) return 0L;
-        long base = Math.max(0L, plugin.getConfig().getLong("storage.price-base", 500L));
-        long step = Math.max(0L, plugin.getConfig().getLong("storage.price-step", 500L));
-        return base + (long) (page - freePages() - 1) * step;
+        double base = Math.max(0L, plugin.getConfig().getLong("storage.price-base", 500L));
+        double growth = Math.max(1.0, plugin.getConfig().getDouble("storage.price-growth", 1.8));
+        double price = base * Math.pow(growth, page - freePages() - 1);
+        return Math.max(0L, Math.round(price / 50.0) * 50L);
     }
 
     public String currency() {
@@ -157,9 +162,9 @@ public final class StorageService {
         return storage;
     }
 
-    public void save(UUID id) {
+    public boolean save(UUID id) {
         PlayerStorage storage = loaded.get(id);
-        if (storage == null) return;
+        if (storage == null) return true;
 
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("unlocked", storage.unlocked);
@@ -172,7 +177,7 @@ public final class StorageService {
         try {
             if (!folder.exists() && !folder.mkdirs()) {
                 plugin.getLogger().warning("storage: could not create " + folder.getAbsolutePath());
-                return;
+                return false;
             }
             // write to a temporary file first, so a stop in the middle never leaves a half file
             File target = new File(folder, id + ".yml");
@@ -180,9 +185,53 @@ public final class StorageService {
             yaml.save(temp);
             java.nio.file.Files.move(temp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING,
                     java.nio.file.StandardCopyOption.ATOMIC_MOVE);
+            return true;
         } catch (IOException e) {
             plugin.getLogger().warning("storage: could not save " + id + ": " + e.getMessage());
+            return false;
         }
+    }
+
+    /**
+     * Moves what the player already keeps in the vanilla ender chest into the storage pages (the first free slots of
+     * the unlocked pages, in order). The vanilla slots are emptied only after the storage file has been written; if
+     * the write fails, nothing moves. What does not fit stays in the vanilla chest and is tried again next time.
+     * Returns {moved, left}.
+     */
+    public int[] migrateEnderChest(Player player) {
+        org.bukkit.inventory.Inventory ender = player.getEnderChest();
+        PlayerStorage storage = of(player);
+        List<Integer> movedSlots = new ArrayList<>();
+        int left = 0;
+        for (int slot = 0; slot < ender.getSize(); slot++) {
+            ItemStack item = ender.getItem(slot);
+            if (item == null || item.getType().isAir()) continue;
+
+            boolean placed = false;
+            for (int page = 0; page < storage.unlocked() && !placed; page++) {
+                ItemStack[] items = storage.page(page);
+                for (int target = 0; target < PAGE_SLOTS; target++) {
+                    if (items[target] == null) {
+                        items[target] = item.clone();
+                        placed = true;
+                        break;
+                    }
+                }
+            }
+            if (placed) movedSlots.add(slot);
+            else left++;
+        }
+        if (movedSlots.isEmpty()) return new int[]{0, left};
+
+        if (!save(player.getUniqueId())) {
+            // nothing was written: forget the in-memory copy so the file (the truth) is read again
+            loaded.remove(player.getUniqueId());
+            return new int[]{0, left + movedSlots.size()};
+        }
+        for (int slot : movedSlots) ender.setItem(slot, null);
+        player.saveData();
+        plugin.getLogger().info("storage: moved " + movedSlots.size() + " ender chest stacks of " + player.getName() + " into the storage");
+        return new int[]{movedSlots.size(), left};
     }
 
     /** Frees the memory of players who are not online (their file is the truth). */
