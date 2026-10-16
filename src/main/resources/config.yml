@@ -298,3 +298,9 @@ party:
   # 与えていない仲間は、敵からこの距離 (ブロック) 以内なら xp-bystander-percent % をもらう
   xp-share-range: 40
   xp-bystander-percent: 5
+
+# ファストトラベル (/travel、メインメニュー)。地点は運営が /travel set <id> [名前] で置く。近くまで歩くと使えるようになる
+travel:
+  channel-ticks: 60       # 移動の準備 (光の演出) の長さ (1秒=20)。動く・攻撃を受けると中断
+  cost: 0                 # 1回の料金 (ゴールド)
+  discover-radius: 6      # この距離 (ブロック) まで近づくと、その地点を見つけたことになる

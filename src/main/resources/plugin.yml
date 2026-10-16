@@ -24,6 +24,11 @@ commands:
     usage: /craft [level <n>]
     aliases:
       - crafting
+  travel:
+    description: Fast travel to points you have found (admins place them)
+    usage: /travel [id] | set <id> [name] | remove <id> | list
+    aliases:
+      - ft
   showitem:
     description: Show the item in your hand to everyone (or write [item] in chat)
     usage: /showitem

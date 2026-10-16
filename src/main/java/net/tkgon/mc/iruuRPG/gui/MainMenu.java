@@ -64,6 +64,11 @@ public final class MainMenu implements Listener {
     private MarketMenu marketMenu;
     private DungeonMenu dungeonMenu;
     private PartyMenu partyMenu;
+    private TravelMenu travelMenu;
+
+    public void setTravelMenu(TravelMenu travelMenu) {
+        this.travelMenu = travelMenu;
+    }
 
     public void setPartyMenu(PartyMenu partyMenu) {
         this.partyMenu = partyMenu;
@@ -93,10 +98,14 @@ public final class MainMenu implements Listener {
 
         fill(inventory);
         inventory.setItem(4, playerIcon(player, profile));
-        inventory.setItem(21, button(Material.COMPASS, "ステータス", NamedTextColor.AQUA, List.of(
+        inventory.setItem(24, button(Material.ENDER_EYE, "ファストトラベル", NamedTextColor.AQUA, List.of(
+                Component.text("見つけた地点へ移動します", NamedTextColor.GRAY),
+                Component.text("数秒その場で待つと、光に包まれて移動", NamedTextColor.GRAY)
+        )));
+        inventory.setItem(20, button(Material.COMPASS, "ステータス", NamedTextColor.AQUA, List.of(
                 Component.text("現在の能力値を確認します", NamedTextColor.GRAY)
         )));
-        inventory.setItem(23, button(Material.NETHER_STAR, "スキル", NamedTextColor.LIGHT_PURPLE, List.of(
+        inventory.setItem(22, button(Material.NETHER_STAR, "スキル", NamedTextColor.LIGHT_PURPLE, List.of(
                 Component.text("スキルポイントを振り分けます", NamedTextColor.GRAY),
                 Component.text("残りSP: " + classService.availablePoints(profile), NamedTextColor.GREEN),
                 Component.text("解放ノードの確認もここから", NamedTextColor.GRAY)
@@ -139,8 +148,11 @@ public final class MainMenu implements Listener {
         if (!isOwner(event.getView(), player)) return;
 
         switch (event.getRawSlot()) {
-            case 21 -> statsMenu.open(player);
-            case 23 -> skillTreeMenu.open(player);
+            case 20 -> statsMenu.open(player);
+            case 22 -> skillTreeMenu.open(player);
+            case 24 -> {
+                if (travelMenu != null) travelMenu.open(player);
+            }
             case 29 -> {
                 if (craftMenu != null) craftMenu.open(player);
             }
