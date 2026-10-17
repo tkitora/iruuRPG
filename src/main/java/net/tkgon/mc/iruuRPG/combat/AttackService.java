@@ -640,6 +640,8 @@ public final class AttackService {
                 DamageKind.PHYSICAL,
                 AttackType.MELEE,
                 ItemSkillType.NONE,
+                "",
+                java.util.Map.of(),
                 new StatSet(),
                 new ElementStatSet(),
                 List.of()

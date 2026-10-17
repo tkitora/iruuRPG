@@ -192,7 +192,51 @@ public final class RpgItemFactory {
         return lore;
     }
 
+    private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
+
+    /** The skills of skills/*.yml, for the lore of a weapon whose `skill:` names one. */
+    public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills) {
+        this.generalSkills = generalSkills;
+    }
+
+    private void addGeneralSkillLore(List<Component> lore, RpgItemDefinition definition) {
+        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills == null ? null
+                : generalSkills.forItem("item " + definition.id(), definition.skillId(), definition.skillOverrides());
+        lore.add(Component.empty());
+        lore.add(Component.text("スキル: ", NamedTextColor.GOLD)
+                .append(Component.text(spec == null ? definition.skillId() : spec.name(), NamedTextColor.YELLOW))
+                .decoration(TextDecoration.ITALIC, false));
+        if (spec == null) {
+            lore.add(skillLine("発動不可", "スキルが見つかりません。"));
+            return;
+        }
+        String trigger = switch (definition.attackType()) {
+            case MELEE -> "右クリック";
+            case RANGE -> "シフト右クリック";
+            default -> "";
+        };
+        if (trigger.isEmpty()) {
+            lore.add(skillLine("発動不可", "この攻撃タイプでは発動しない。"));
+            return;
+        }
+        List<String> description = spec.description();
+        if (description.isEmpty()) {
+            lore.add(skillLine("発動", trigger));
+        } else {
+            lore.add(skillLine(trigger, description.get(0)));
+            for (int index = 1; index < description.size(); index++) lore.add(skillText(description.get(index)));
+        }
+        List<String> costParts = new ArrayList<>();
+        if (spec.cost() > 0.0) costParts.add(format(spec.cost()) + " MP");
+        costParts.add("CD " + formatTicks(spec.cooldownTicks()));
+        lore.add(skillLine("Cost", String.join(" / ", costParts)));
+    }
+
     private void addSkillLore(List<Component> lore, RpgItemDefinition definition) {
+        if (definition.hasGeneralSkill()) {
+            addGeneralSkillLore(lore, definition);
+            return;
+        }
         if (!definition.skill().enabled()) return;
 
         ItemSkillDefinition skill = skillRegistry.definition(definition.skill());

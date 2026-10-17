@@ -94,7 +94,40 @@ public final class ItemSkillService {
         this.skillRegistry = skillRegistry;
     }
 
+    private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
+    private net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner;
+
+    /** Skills made from templates (skills/*.yml) cast by a weapon whose `skill:` names one. */
+    public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills, net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner) {
+        this.generalSkills = generalSkills;
+        this.skillRunner = skillRunner;
+    }
+
+    /** A melee weapon casts it with a right click, a ranged one with shift + right click; the cooldown is the weapon-type skill cooldown. */
+    private boolean handleGeneralSkill(Player player, RpgItemDefinition weapon) {
+        if (generalSkills == null || skillRunner == null) return false;
+        if (weapon.attackType() != AttackType.MELEE && weapon.attackType() != AttackType.RANGE) return false;
+        if (!isManualSkillTrigger(player, weapon)) return false;
+        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.forItem("item " + weapon.id(), weapon.skillId(), weapon.skillOverrides());
+        if (spec == null) {
+            player.sendMessage("[iruuRPG] スキルが見つかりません: " + weapon.skillId());
+            return true;
+        }
+        if (!attackService.canUseItem(player, weapon)) {
+            attackService.sendLevelRequirement(player, weapon);
+            return true;
+        }
+        if (!canUse(player, weapon, weapon.attackType(), spec.cost())) return true;
+
+        skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon, spec), spec,
+                () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
+                });
+        startCooldown(player, weapon, weapon.attackType(), spec.cooldownTicks());
+        return true;
+    }
+
     public boolean handleManualUse(Player player, RpgItemDefinition weapon) {
+        if (weapon != null && weapon.hasGeneralSkill()) return handleGeneralSkill(player, weapon);
         if (weapon == null || !weapon.skill().enabled()) return false;
         if (!isManualSkillTrigger(player, weapon)) return false;
         if (!skill(weapon, weapon.attackType()).enabled()) return false;

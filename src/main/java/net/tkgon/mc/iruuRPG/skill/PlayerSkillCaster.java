@@ -24,18 +24,24 @@ import java.util.List;
  */
 public final class PlayerSkillCaster implements SkillCaster {
 
-    private static final double SEARCH_RADIUS = 45.0;
+    private static final double MIN_SEARCH_RADIUS = 14.0;
+    private static final double MAX_SEARCH_RADIUS = 45.0;
 
     private final JavaPlugin plugin;
     private final AttackService attackService;
     private final Player player;
     private final RpgItemDefinition weapon;
+    private final double searchRadius;
+    private int cachedTick = -1;
+    private List<LivingEntity> cached = List.of();
 
-    public PlayerSkillCaster(JavaPlugin plugin, AttackService attackService, Player player, RpgItemDefinition weapon) {
+    public PlayerSkillCaster(JavaPlugin plugin, AttackService attackService, Player player, RpgItemDefinition weapon, SkillSpec spec) {
         this.plugin = plugin;
         this.attackService = attackService;
         this.player = player;
         this.weapon = weapon;
+        // the skill never reaches farther than its range / radius (a flying wave can go on a bit): search only there
+        this.searchRadius = Math.max(MIN_SEARCH_RADIUS, Math.min(MAX_SEARCH_RADIUS, Math.max(spec.range(), spec.radius()) + 6.0));
     }
 
     /** Where the skill is aimed: straight ahead of where the player looks, {@code distance} blocks away. */
@@ -100,13 +106,18 @@ public final class PlayerSkillCaster implements SkillCaster {
 
     @Override
     public List<? extends LivingEntity> candidates() {
+        // once per tick: every flying piece of the skill asks every tick
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        if (tick == cachedTick) return cached;
         List<LivingEntity> result = new ArrayList<>();
-        for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), SEARCH_RADIUS, SEARCH_RADIUS, SEARCH_RADIUS)) {
+        for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), searchRadius, searchRadius, searchRadius)) {
             if (!(entity instanceof LivingEntity living)) continue;
             if (entity.equals(player) || entity instanceof Player || entity instanceof ArmorStand) continue;
             if (living.isDead() || !attackService.isAttackTarget(living, player)) continue;
             result.add(living);
         }
+        cachedTick = tick;
+        cached = result;
         return result;
     }
 
