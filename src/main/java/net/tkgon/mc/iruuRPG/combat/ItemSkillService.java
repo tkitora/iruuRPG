@@ -123,7 +123,66 @@ public final class ItemSkillService {
                 () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                 });
         startCooldown(player, weapon, weapon.attackType(), spec.cooldownTicks());
+        gainStacks(player, weapon);
         return true;
+    }
+
+    // ---- weapon stacks ---------------------------------------------------------------------------------------------
+
+    private static final class StackState {
+        private int count;
+        private long expiresAtMillis;
+    }
+
+    private final Map<UUID, Map<String, StackState>> weaponStacks = new HashMap<>();
+
+    /**
+     * A special weapon (`stacks:`) gains stacks of its own whenever its skill is cast; at the maximum they are spent
+     * and the weapon's `on-max` skill is cast as well (with no MP and no cooldown). They fade when the weapon is not
+     * used for `decay-seconds`. The count is shown on the action bar.
+     */
+    private void gainStacks(Player player, RpgItemDefinition weapon) {
+        net.tkgon.mc.iruuRPG.item.WeaponStackSpec stacks = weapon.stacks();
+        if (stacks == null) return;
+
+        long now = System.currentTimeMillis();
+        StackState state = weaponStacks.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
+                .computeIfAbsent(weapon.id(), ignored -> new StackState());
+        if (state.expiresAtMillis > 0L && now > state.expiresAtMillis) state.count = 0;
+        state.count += stacks.gain();
+        state.expiresAtMillis = stacks.decaySeconds() > 0.0 ? now + Math.round(stacks.decaySeconds() * 1000.0) : 0L;
+
+        if (state.count >= stacks.max()) {
+            state.count = 0;
+            state.expiresAtMillis = 0L;
+            player.sendActionBar(net.kyori.adventure.text.Component.text(stacks.name() + " " + "●".repeat(stacks.max()) + " MAX!",
+                    net.kyori.adventure.text.format.NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
+            player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, org.bukkit.SoundCategory.PLAYERS, 0.6f, 1.6f);
+            castOnMax(player, weapon, stacks);
+            return;
+        }
+        int shown = Math.min(state.count, stacks.max());
+        player.sendActionBar(net.kyori.adventure.text.Component.text(stacks.name() + " ", net.kyori.adventure.text.format.NamedTextColor.YELLOW)
+                .append(net.kyori.adventure.text.Component.text("●".repeat(shown), net.kyori.adventure.text.format.NamedTextColor.GOLD))
+                .append(net.kyori.adventure.text.Component.text("○".repeat(Math.max(0, stacks.max() - shown)), net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY))
+                .append(net.kyori.adventure.text.Component.text(" " + shown + "/" + stacks.max(), net.kyori.adventure.text.format.NamedTextColor.GRAY)));
+        player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, org.bukkit.SoundCategory.PLAYERS,
+                0.4f, (float) Math.min(2.0, 0.8 + 1.0 * shown / stacks.max()));
+    }
+
+    private void castOnMax(Player player, RpgItemDefinition weapon, net.tkgon.mc.iruuRPG.item.WeaponStackSpec stacks) {
+        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.forItem("item " + weapon.id() + " stacks", stacks.onMax(), java.util.Map.of());
+        if (spec == null) {
+            player.sendMessage("[iruuRPG] スタックのスキルが見つかりません: " + stacks.onMax());
+            return;
+        }
+        // a short beat after the normal skill, so both can be seen
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline() || player.isDead()) return;
+            skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon, spec), spec,
+                    () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
+                    });
+        }, 6L);
     }
 
     public boolean handleManualUse(Player player, RpgItemDefinition weapon) {
