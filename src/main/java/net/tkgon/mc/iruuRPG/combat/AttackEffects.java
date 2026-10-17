@@ -45,25 +45,26 @@ public final class AttackEffects {
 
         Vector forward = horizontalForward(attacker);
         boolean flip = slashSide.merge(attacker.getUniqueId(), Boolean.TRUE, (old, ignored) -> !old);
-        Location origin = attacker.getLocation().add(forward.clone().multiply(1.0)).add(0.0, 0.95, 0.0);
+        Location origin = attacker.getLocation().add(forward.clone().multiply(0.7)).add(0.0, 1.0, 0.0);
         Element element = weapon.element();
-        slash(origin, element, new SlashVfx.Shape(1.6, 120.0, 0.25, 0.4,
-                attacker.getLocation().getYaw(), 0.0, flip ? 50.0 : -50.0, vfxDensity()), 0.14, 1.0f, 0.0);
+        // a flat crescent swept across in front of the player (leaning a little up / down on alternate swings)
+        slash(origin, element, new SlashVfx.Shape(1.3, 120.0, 0.0, 0.0,
+                attacker.getLocation().getYaw(), flip ? 78.0 : 102.0, 0.0, vfxDensity()), 0.14, 1.0f, 0.0);
     }
 
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
         Vector forward = horizontalForward(attacker);
         float yaw = attacker.getLocation().getYaw();
         Element element = weapon.element();
-        Location base = attacker.getLocation().add(forward.clone().multiply(0.9)).add(0.0, 1.0, 0.0);
+        Location base = attacker.getLocation().add(forward.clone().multiply(0.8)).add(0.0, 1.0, 0.0);
 
         // a wide horizontal crescent swept from the right side to the left, then a smaller one right behind it
-        slash(base, element, new SlashVfx.Shape(3.6, 140.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.22, 1.35f, 0.0);
+        slash(base, element, new SlashVfx.Shape(2.8, 140.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.22, 1.15f, 0.0);
         slash(base.clone().add(0.0, 0.35, 0.0), element,
-                new SlashVfx.Shape(2.7, 130.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.18, 1.0f, 0.06);
+                new SlashVfx.Shape(2.0, 130.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.18, 0.9f, 0.06);
 
         World world = attacker.getWorld();
-        Location tip = base.clone().add(forward.clone().multiply(3.2));
+        Location tip = base.clone().add(forward.clone().multiply(2.6));
         burst(world, tip, element, 10, 0.5, 0.05);
     }
 
@@ -421,12 +422,12 @@ public final class AttackEffects {
         // pull the arc a little toward the attacker so it is drawn around the target instead of behind it
         center.subtract(forward.clone().multiply(0.35));
         double yaw = Math.toDegrees(Math.atan2(-forward.getX(), forward.getZ()));
-        double tilt = sequence % 2 == 0 ? 55.0 : -55.0;
+        double lean = sequence % 2 == 0 ? 78.0 : 102.0;
         Element element = weapon.element();
 
-        slash(center, element, new SlashVfx.Shape(2.1, 150.0, 0.3, 0.3, yaw, 0.0, tilt, vfxDensity()), 0.16, 1.2f, 0.0);
-        // a second, thinner cut crossing the first
-        slash(center, element, new SlashVfx.Shape(1.7, 130.0, 0.2, 0.2, yaw, 0.0, -tilt * 0.7, vfxDensity()), 0.12, 0.8f, 0.05);
+        slash(center, element, new SlashVfx.Shape(1.6, 140.0, 0.0, 0.0, yaw, lean, 0.0, vfxDensity()), 0.16, 1.0f, 0.0);
+        // a second, smaller cut right behind it, leaning the other way
+        slash(center, element, new SlashVfx.Shape(1.2, 120.0, 0.0, 0.0, yaw, 180.0 - lean, 0.0, vfxDensity()), 0.12, 0.8f, 0.05);
         if (target != null) {
             burst(attacker.getWorld(), center.clone().add(forward.clone().multiply(0.4)), element, 8, 0.3, 0.1);
         }
@@ -445,7 +446,7 @@ public final class AttackEffects {
         double elevation = Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, axis.getY()))));
 
         // a crescent that bulges the way it flies; drawn each step so the steps leave a trail
-        slash(center, weapon.element(), new SlashVfx.Shape(1.0, 150.0, 0.0, 0.0, yaw, 90.0 - elevation, 0.0, Math.max(3, vfxDensity() - 1)),
+        slash(center, weapon.element(), new SlashVfx.Shape(0.8, 150.0, 0.0, 0.0, yaw, 90.0 - elevation, 0.0, Math.max(3, vfxDensity() - 1)),
                 0.05, 1.0f, 0.0);
     }
 
@@ -556,15 +557,15 @@ public final class AttackEffects {
         Color base = baseColor(element);
         Particle spark = sparkParticle(element);
         boolean full = plugin.getConfig().getBoolean("slash-vfx.enabled", true);
-        SlashVfx.Layer core = layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.75), 0.8f * scale, 1, 0.0, 1);
+        SlashVfx.Layer core = layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.75), 0.6f * scale, 1, 0.0, 1);
         SlashVfx.Layer[] layers = full
                 ? new SlashVfx.Layer[]{
-                        layer(Particle.REDSTONE, mix(base, Color.BLACK, 0.30), 1.4f * scale, 5, 0.17, 1),
-                        layer(Particle.REDSTONE, base, 1.1f * scale, 3, 0.10, 1),
+                        layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.35), 0.7f * scale, 2, 0.16, 2),
+                        layer(Particle.REDSTONE, base, 0.8f * scale, 2, 0.09, 1),
                         core,
-                        layer(spark, null, 1f, 1, 0.0, 3)}
+                        layer(spark, null, 1f, 1, 0.0, 4)}
                 : new SlashVfx.Layer[]{core};
-        SlashVfx.Layer tip = full ? layer(spark, null, 1f, 3, 0.0, 1) : null;
+        SlashVfx.Layer tip = full ? layer(spark, null, 1f, 2, 0.0, 1) : null;
 
         if (delaySeconds > 0.0) {
             long delayTicks = Math.max(1L, Math.round(delaySeconds * 20.0));
