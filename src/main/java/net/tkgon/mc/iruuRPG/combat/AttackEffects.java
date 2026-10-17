@@ -59,6 +59,63 @@ public final class AttackEffects {
                 attacker.getLocation().getYaw(), flip ? 78.0 : 102.0, 0.0, vfxDensity()), 0.14, 1.0f, 0.0);
     }
 
+    /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
+    private final Map<UUID, long[]> comboChain = new ConcurrentHashMap<>();
+
+    /** The chain ends when the player waits longer than this between two swings. */
+    private static final long COMBO_WINDOW_MILLIS = 1400L;
+
+    /**
+     * The next stage (1, 2, 3, 1, ...) of a player's slash chain: it restarts from 1 after a pause.
+     */
+    private int nextComboStage(Player attacker) {
+        long now = System.currentTimeMillis();
+        long[] state = comboChain.computeIfAbsent(attacker.getUniqueId(), ignored -> new long[]{0L, 0L});
+        int stage = (now - state[1] > COMBO_WINDOW_MILLIS || state[0] >= 3) ? 1 : (int) state[0] + 1;
+        state[0] = stage;
+        state[1] = now;
+        return stage;
+    }
+
+    /**
+     * A melee swing drawn as a chain: stage 1 cuts from the upper right to the lower left, stage 2 the other way,
+     * stage 3 is the finisher (a wide sweep and a crossing upright cut, with sparks and a heavier sound). Each stage
+     * has its own fixed direction (with a few degrees of jitter) so a run of hits looks like a combo.
+     */
+    public void playComboSlash(Player attacker, RpgItemDefinition weapon) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+
+        int stage = nextComboStage(attacker);
+        Element element = weapon.element();
+        Vector forward = horizontalForward(attacker);
+        float yaw = attacker.getLocation().getYaw();
+        Location origin = attacker.getLocation().add(forward.clone().multiply(1.1)).add(0.0, 1.25, 0.0);
+        double jitter = ThreadLocalRandom.current().nextDouble(-8.0, 8.0);
+        switch (stage) {
+            case 1 -> {
+                sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
+                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, 0.0, 50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+            }
+            case 2 -> {
+                sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
+                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, 0.0, -50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+            }
+            default -> {
+                sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
+                Location low = attacker.getLocation().add(forward.clone().multiply(0.8)).add(0.0, 1.0, 0.0);
+                slash(low, element, new SlashVfx.Shape(2.3, 170.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.16, 1.2f, 0.0);
+                slash(origin, element, new SlashVfx.Shape(2.0, 110.0, 0.0, 0.0, yaw, 0.0, 90.0 + jitter, vfxDensity()), 0.1, 1.1f, 0.08);
+                burst(attacker.getWorld(), origin.clone().add(forward.clone().multiply(0.8)), element, 12, 0.5, 0.1);
+            }
+        }
+    }
+
+    /** The crossing slashes of the assassin's two hands (also drawn for every swing while a weapon is held in each hand). */
+    public void playDualSlash(Player attacker, RpgItemDefinition weapon) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+        playSlashMelee(attacker, weapon, null, 0);
+    }
+
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
         Vector forward = horizontalForward(attacker);
         float yaw = attacker.getLocation().getYaw();
