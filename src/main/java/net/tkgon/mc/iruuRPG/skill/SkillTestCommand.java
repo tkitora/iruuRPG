@@ -133,7 +133,9 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
 
     private static List<String> templateNames() {
         List<String> names = new ArrayList<>();
-        for (SkillTemplate template : SkillTemplate.values()) names.add(template.id());
+        for (SkillTemplate template : SkillTemplate.values()) {
+            if (template != SkillTemplate.COMBO) names.add(template.id());
+        }
         return names;
     }
 

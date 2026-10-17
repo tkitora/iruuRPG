@@ -465,13 +465,15 @@ public final class RpgMobService {
         }
     }
 
-    private boolean skillUsable(Mob mob, Player target, SkillSpec spec, double distance, boolean sees) {
+    private boolean skillUsable(Mob mob, Player target, SkillSpec whole, double distance, boolean sees) {
+        SkillSpec spec = whole.first(); // a combo can be used when its first step can
         return switch (spec.template()) {
             case STRIKE -> distance <= spec.radius() + 1.0;
             case SWEEP -> distance <= spec.range() && inFront(mob, target, Math.min(90.0, spec.angle() / 2.0));
             case BARRAGE, DASH -> sees && distance >= 4.0 && distance <= spec.range();
             case WAVE, BEAM -> sees && distance >= 3.0 && distance <= spec.range();
             case NOVA -> distance <= spec.radius();
+            case COMBO -> false;
         };
     }
 

@@ -41,7 +41,7 @@ public final class PlayerSkillCaster implements SkillCaster {
         this.player = player;
         this.weapon = weapon;
         // the skill never reaches farther than its range / radius (a flying wave can go on a bit): search only there
-        this.searchRadius = Math.max(MIN_SEARCH_RADIUS, Math.min(MAX_SEARCH_RADIUS, Math.max(spec.range(), spec.radius()) + 6.0));
+        this.searchRadius = Math.max(MIN_SEARCH_RADIUS, Math.min(MAX_SEARCH_RADIUS, spec.reach() + 6.0));
     }
 
     /** Where the skill is aimed: straight ahead of where the player looks, {@code distance} blocks away. */

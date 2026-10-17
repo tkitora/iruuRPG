@@ -17,7 +17,9 @@ public enum SkillTemplate {
     /** A ring that expands from the caster in every direction. */
     NOVA,
     /** A straight beam. */
-    BEAM;
+    BEAM,
+    /** Several skills one after another (steps). */
+    COMBO;
 
     public static SkillTemplate parse(String raw) {
         if (raw == null) return null;
