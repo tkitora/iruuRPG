@@ -32,7 +32,7 @@ public record RpgMobDefinition(
         List<String> description,
         List<String> areas,
         RangedSpec ranged,
-        List<MobSkillSpec> skills
+        List<net.tkgon.mc.iruuRPG.skill.SkillSpec> skills
 ) {
     public RpgMobDefinition {
         if (id == null || id.isBlank()) {

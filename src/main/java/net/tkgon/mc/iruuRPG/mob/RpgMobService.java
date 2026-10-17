@@ -8,6 +8,7 @@ import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
+import net.tkgon.mc.iruuRPG.skill.SkillSpec;
 import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
@@ -423,7 +424,7 @@ public final class RpgMobService {
             Player target = mob.getTarget() instanceof Player player && canTarget(mob, player) ? player : null;
             if (target == null) continue;
 
-            List<MobSkillSpec> skills = runtime.definition().skills();
+            List<SkillSpec> skills = runtime.definition().skills();
             long[] ready = skillReady.get(uuid);
             if (ready == null) {
                 // the first use comes a little after the fight starts, not at once and not in lock step
@@ -443,20 +444,20 @@ public final class RpgMobService {
             if (usable.isEmpty()) continue;
 
             int chosen = usable.get(ThreadLocalRandom.current().nextInt(usable.size()));
-            MobSkillSpec spec = skills.get(chosen);
+            SkillSpec spec = skills.get(chosen);
             ready[chosen] = now + spec.cooldownTicks();
             skillLockUntil.put(uuid, now + 40L); // a pause between two skills
             startSkill(mob, target, spec);
         }
     }
 
-    private boolean skillUsable(Mob mob, Player target, MobSkillSpec spec, double distance, boolean sees) {
-        return switch (spec.type()) {
+    private boolean skillUsable(Mob mob, Player target, SkillSpec spec, double distance, boolean sees) {
+        return switch (spec.template()) {
             case STRIKE -> distance <= spec.radius() + 1.0;
-            case SWEEP -> distance <= spec.range() && inFront(mob, target, 70.0);
-            case BARRAGE -> sees && distance >= 4.0 && distance <= spec.range();
-            case DASH -> sees && distance >= 4.0 && distance <= spec.range();
-            case WAVE -> sees && distance >= 3.0 && distance <= spec.range();
+            case SWEEP -> distance <= spec.range() && inFront(mob, target, Math.min(90.0, spec.angle() / 2.0));
+            case BARRAGE, DASH -> sees && distance >= 4.0 && distance <= spec.range();
+            case WAVE, BEAM -> sees && distance >= 3.0 && distance <= spec.range();
+            case NOVA -> distance <= spec.radius();
         };
     }
 
@@ -479,217 +480,101 @@ public final class RpgMobService {
         if (mob.isValid() && !mob.isDead() && !attackMode.contains(mob.getUniqueId())) mob.setAI(true);
     }
 
-    private void startSkill(Mob mob, Player target, MobSkillSpec spec) {
-        if (attackEffects == null) return;
-        net.tkgon.mc.iruuRPG.stat.Element element = boltElement(mob);
+    private net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner;
+
+    public void setSkillRunner(net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner) {
+        this.skillRunner = skillRunner;
+    }
+
+    private void startSkill(Mob mob, Player target, SkillSpec spec) {
+        if (skillRunner == null) return;
         beginSkill(mob);
-        face(mob, target);
-        attackEffects.sounds().mobWindup(mob.getLocation(), element);
-        switch (spec.type()) {
-            case STRIKE -> runWindup(mob, spec, element,
-                    () -> attackEffects.playMobTelegraphRing(mob.getLocation(), spec.radius(), element),
-                    () -> {
-                        Location center = mob.getLocation();
-                        attackEffects.playMobStrikeBurst(center, spec.radius(), element);
-                        for (Player player : playersNear(mob, spec.radius())) hurt(mob, player, spec.damageRate());
-                    });
-            case SWEEP -> runWindup(mob, spec, element,
-                    () -> attackEffects.playMobTelegraphArc(mob.getLocation(), mob.getLocation().getYaw(), spec.range(), 130.0, element),
-                    () -> {
-                        Location origin = mob.getLocation();
-                        attackEffects.playMobSweep(origin, origin.getYaw(), spec.range(), element);
-                        for (Player player : playersNear(mob, spec.range())) {
-                            if (inFront(mob, player, 65.0)) hurt(mob, player, spec.damageRate());
-                        }
-                    });
-            case BARRAGE -> runBarrage(mob, target, spec);
-            case DASH -> runDash(mob, target, spec, element);
-            case WAVE -> runWave(mob, target, spec, element);
+        skillRunner.start(new MobCaster(mob), spec, () -> target.isOnline() && !target.isDead()
+                        ? target.getLocation().add(0.0, target.getHeight() * 0.6, 0.0) : null,
+                () -> endSkill(mob));
+    }
+
+    /** A mob as the caster of a skill. */
+    private final class MobCaster implements net.tkgon.mc.iruuRPG.skill.SkillCaster {
+        private final Mob mob;
+
+        private MobCaster(Mob mob) {
+            this.mob = mob;
         }
-    }
 
-    /** Adventure-mode players within {@code radius} blocks (and 2.5 up or down) of the mob. */
-    private List<Player> playersNear(Mob mob, double radius) {
-        List<Player> result = new ArrayList<>();
-        for (Player player : mob.getWorld().getPlayers()) {
-            if (!canTarget(mob, player)) continue;
-            Location at = player.getLocation();
-            double dx = at.getX() - mob.getLocation().getX();
-            double dz = at.getZ() - mob.getLocation().getZ();
-            if (dx * dx + dz * dz > radius * radius) continue;
-            if (Math.abs(at.getY() - mob.getLocation().getY()) > 2.5) continue;
-            result.add(player);
+        @Override
+        public World world() {
+            return mob.getWorld();
         }
-        return result;
-    }
 
-    /** Shows the mark every 4 ticks for the windup, then runs {@code strike} once and frees the mob. */
-    private void runWindup(Mob mob, MobSkillSpec spec, net.tkgon.mc.iruuRPG.stat.Element element, Runnable mark, Runnable strike) {
-        new org.bukkit.scheduler.BukkitRunnable() {
-            private int age;
-
-            @Override
-            public void run() {
-                if (mob.isDead() || !mob.isValid()) {
-                    skillBusy.remove(mob.getUniqueId());
-                    cancel();
-                    return;
-                }
-                if (age >= spec.windupTicks()) {
-                    strike.run();
-                    endSkill(mob);
-                    cancel();
-                    return;
-                }
-                if (age % 4 == 0) mark.run();
-                age++;
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
-    }
-
-    /** A melee mob stops and fires {@code count} bolts at the player, one every {@code intervalTicks}. */
-    private void runBarrage(Mob mob, Player target, MobSkillSpec spec) {
-        RangedSpec bolt = new RangedSpec(spec.range() * 1.3, spec.speed(), 5);
-        new org.bukkit.scheduler.BukkitRunnable() {
-            private int age;
-            private int fired;
-
-            @Override
-            public void run() {
-                if (mob.isDead() || !mob.isValid()) {
-                    skillBusy.remove(mob.getUniqueId());
-                    cancel();
-                    return;
-                }
-                if (!target.isOnline() || target.isDead() || fired >= spec.count()) {
-                    endSkill(mob);
-                    cancel();
-                    return;
-                }
-                face(mob, target);
-                if (age >= spec.windupTicks() && (age - spec.windupTicks()) % spec.intervalTicks() == 0) {
-                    shoot(mob, target, bolt, spec.damageRate());
-                    fired++;
-                }
-                age++;
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
-    }
-
-    /**
-     * Marks a line toward the player, then sends a slash flying along it: a crescent that passes through, hits each
-     * player it crosses once, and stops at the first wall or after {@code range} blocks.
-     */
-    private void runWave(Mob mob, Player target, MobSkillSpec spec, net.tkgon.mc.iruuRPG.stat.Element element) {
-        new org.bukkit.scheduler.BukkitRunnable() {
-            private int age;
-            private Location position;
-            private Vector direction;
-            private double travelled;
-            private final java.util.Set<UUID> hit = new java.util.HashSet<>();
-
-            @Override
-            public void run() {
-                if (mob.isDead() || !mob.isValid()) {
-                    skillBusy.remove(mob.getUniqueId());
-                    cancel();
-                    return;
-                }
-                if (age < spec.windupTicks()) {
-                    // keeps facing the player and marks where the slash will go
-                    face(mob, target);
-                    if (age % 4 == 0) {
-                        Location from = mob.getLocation().add(0.0, 1.0, 0.0);
-                        Vector aim = mob.getLocation().getDirection().setY(0.0);
-                        if (aim.lengthSquared() > 1.0E-6) {
-                            attackEffects.playMobTelegraphLine(from, from.clone().add(aim.normalize().multiply(Math.min(spec.range(), 10.0))), element);
-                        }
-                    }
-                    age++;
-                    return;
-                }
-                if (position == null) {
-                    // fired: the direction is fixed now, so a player who moves away dodges it
-                    position = mob.getEyeLocation().add(0.0, -0.3, 0.0);
-                    Vector aim = target.getLocation().add(0.0, target.getHeight() * 0.6, 0.0).toVector().subtract(position.toVector());
-                    if (aim.lengthSquared() < 1.0E-6) {
-                        endSkill(mob);
-                        cancel();
-                        return;
-                    }
-                    direction = aim.normalize();
-                    mob.swingMainHand();
-                    attackEffects.playMobSweep(mob.getLocation(), mob.getLocation().getYaw(), 2.5, element);
-                    endSkill(mob); // the mob is free again while the slash flies
-                }
-                double step = spec.speed() / 20.0;
-                org.bukkit.util.RayTraceResult wall = position.getWorld().rayTraceBlocks(position, direction, step,
-                        org.bukkit.FluidCollisionMode.NEVER, true);
-                if (wall != null) {
-                    attackEffects.playBoltImpact(wall.getHitPosition().toLocation(position.getWorld()), element);
-                    cancel();
-                    return;
-                }
-                position.add(direction.clone().multiply(step));
-                travelled += step;
-                attackEffects.playSlashProjectile(position, direction, element, Math.max(0.8, spec.radius()));
-                for (Player player : position.getWorld().getPlayers()) {
-                    if (!canTarget(mob, player) || hit.contains(player.getUniqueId())) continue;
-                    if (!player.getBoundingBox().expand(spec.radius() * 0.6).contains(position.toVector())) continue;
-                    hit.add(player.getUniqueId());
-                    attackEffects.playBoltImpact(position, element);
-                    hurt(mob, player, spec.damageRate());
-                }
-                if (travelled >= spec.range()) cancel();
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
-    }
-
-    /** Marks a line toward the player, then lunges along it and hits whoever is reached. */
-    private void runDash(Mob mob, Player target, MobSkillSpec spec, net.tkgon.mc.iruuRPG.stat.Element element) {
-        Vector direction = target.getLocation().toVector().subtract(mob.getLocation().toVector()).setY(0.0);
-        if (direction.lengthSquared() < 1.0E-6) {
-            endSkill(mob);
-            return;
+        @Override
+        public Location location() {
+            return mob.getLocation();
         }
-        direction.normalize();
-        double length = Math.min(spec.range(), mob.getLocation().distance(target.getLocation()) + 2.0);
-        Location start = mob.getLocation().clone();
-        Location end = start.clone().add(direction.clone().multiply(length));
-        new org.bukkit.scheduler.BukkitRunnable() {
-            private int age;
-            private boolean lunged;
-            private final java.util.Set<UUID> hit = new java.util.HashSet<>();
 
-            @Override
-            public void run() {
-                if (mob.isDead() || !mob.isValid()) {
-                    skillBusy.remove(mob.getUniqueId());
-                    cancel();
-                    return;
-                }
-                if (age < spec.windupTicks()) {
-                    if (age % 4 == 0) attackEffects.playMobTelegraphLine(start, end, element);
-                    age++;
-                    return;
-                }
-                if (!lunged) {
-                    lunged = true;
-                    mob.setAI(true); // the lunge is a push: it needs the body to be free
-                    attackEffects.sounds().mobDash(mob.getLocation(), element);
-                    mob.setVelocity(direction.clone().multiply(1.5).setY(0.25));
-                }
-                for (Player player : playersNear(mob, 1.8)) {
-                    if (hit.add(player.getUniqueId())) hurt(mob, player, spec.damageRate());
-                }
-                if (age >= spec.windupTicks() + 8) {
-                    endSkill(mob);
-                    cancel();
-                    return;
-                }
-                age++;
+        @Override
+        public Location eye() {
+            return mob.getEyeLocation();
+        }
+
+        @Override
+        public boolean valid() {
+            return mob.isValid() && !mob.isDead();
+        }
+
+        @Override
+        public net.tkgon.mc.iruuRPG.stat.Element element() {
+            return boltElement(mob);
+        }
+
+        @Override
+        public void freeze() {
+            mob.getPathfinder().stopPathfinding();
+            mob.setAI(false);
+        }
+
+        @Override
+        public void release() {
+            // the mob is free again; endSkill (at the very end) clears the busy mark
+            if (mob.isValid() && !mob.isDead() && !attackMode.contains(mob.getUniqueId())) mob.setAI(true);
+        }
+
+        @Override
+        public void face(Location at) {
+            Location look = mob.getLocation().clone();
+            look.setDirection(at.toVector().subtract(mob.getEyeLocation().toVector()));
+            mob.setRotation(look.getYaw(), look.getPitch());
+            mob.setBodyYaw(look.getYaw());
+        }
+
+        @Override
+        public void swing() {
+            mob.swingMainHand();
+        }
+
+        @Override
+        public void lunge(Vector velocity) {
+            mob.setVelocity(velocity);
+        }
+
+        @Override
+        public List<Player> candidates() {
+            List<Player> result = new ArrayList<>();
+            for (Player player : mob.getWorld().getPlayers()) {
+                if (canTarget(mob, player)) result.add(player);
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+            return result;
+        }
+
+        @Override
+        public boolean applyEffects() {
+            return true;
+        }
+
+        @Override
+        public void damage(Player victim, double rate) {
+            hurt(mob, victim, rate);
+        }
     }
 
     /** The player a mob goes after: its locked target while that is valid, else the nearest player in range. */

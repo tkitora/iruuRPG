@@ -251,13 +251,68 @@ public final class AttackEffects {
                 Component.text("\u2726" + formatFloating(damage), textColor(element)));
     }
 
-    // ---- enemy skills ---------------------------------------------------------------------------------------
+    // ---- skills (made of a SkillLook: colors, particle, size, width, sound) ---------------------------------
 
-    /** The ground mark of a coming ground slam: a ring (and a fainter inner one) in the element's color. */
-    public void playMobTelegraphRing(Location center, double radius, Element element) {
+    /** A look resolved against the caster's element: the colors, the spark and the multipliers actually used. */
+    private final class Resolved {
+        private final Color body;
+        private final Color edge;
+        private final Color core;
+        /** The sparkle; null when the look asked for plain dust only. */
+        private final Particle spark;
+        private final double size;
+        private final double width;
+        private final Element element;
+        private final net.tkgon.mc.iruuRPG.skill.SoundStyle sound;
+
+        private Resolved(net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+            Color base = baseColor(element);
+            this.body = look.body(base);
+            this.edge = look.edge(mix(base, Color.WHITE, 0.35));
+            this.core = look.core(mix(base, Color.WHITE, 0.75));
+            Particle chosen = look.particle() != null ? look.particle() : sparkParticle(element);
+            this.spark = chosen == Particle.REDSTONE ? null : chosen;
+            this.size = look.size();
+            this.width = look.width();
+            this.element = element;
+            this.sound = look.sound();
+        }
+
+        private Particle.DustOptions dust(Color color, double scale) {
+            return new Particle.DustOptions(color, (float) Math.max(0.2, size * scale));
+        }
+
+        private void spark(World world, Location point) {
+            if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
+            if (spark == null) {
+                world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust(edge, 0.8));
+            } else {
+                world.spawnParticle(spark, point, 1, 0.0, 0.0, 0.0, 0.0);
+            }
+        }
+
+        private void burst(World world, Location point, int count, double spread, double speed) {
+            if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
+            if (spark == null) {
+                for (int index = 0; index < count; index++) {
+                    world.spawnParticle(Particle.REDSTONE, point, 1, spread, spread, spread, 0.0, dust(index % 2 == 0 ? edge : core, 0.8));
+                }
+            } else {
+                world.spawnParticle(spark, point, count, spread, spread, spread, speed);
+            }
+        }
+    }
+
+    private Resolved resolve(net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        return new Resolved(look == null ? net.tkgon.mc.iruuRPG.skill.SkillLook.plain() : look, element == null ? Element.WHITE : element);
+    }
+
+    /** The ground mark of a coming ground slam / nova: a ring (and a fainter inner one) in the skill's colors. */
+    public void playSkillTelegraphRing(Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (center == null || center.getWorld() == null) return;
+        Resolved r = resolve(look, element);
         World world = center.getWorld();
-        Particle.DustOptions dust = new Particle.DustOptions(mix(baseColor(element), Color.RED, 0.35), 1.1f);
+        Particle.DustOptions dust = r.dust(mix(r.body, Color.RED, 0.35), 1.1);
         int points = (int) Math.max(24, Math.min(64, Math.round(radius * 9)));
         for (int index = 0; index < points; index++) {
             double angle = Math.PI * 2.0 * index / points;
@@ -266,15 +321,17 @@ public final class AttackEffects {
             if (index % 2 == 0) {
                 spawnDust(world, center.clone().add(Math.cos(angle) * radius * 0.5, 0.12, Math.sin(angle) * radius * 0.5), dust);
             }
-            if (index % 8 == 0) spark(world, point, element);
+            if (index % 8 == 0) r.spark(world, point);
         }
     }
 
-    /** The ground mark of a coming sweep: the edge of a fan in front of the mob. */
-    public void playMobTelegraphArc(Location origin, float yaw, double radius, double sweepDegrees, Element element) {
+    /** The ground mark of a coming sweep: the edge of a fan in front of the caster. */
+    public void playSkillTelegraphArc(Location origin, float yaw, double radius, double sweepDegrees,
+                                      net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (origin == null || origin.getWorld() == null) return;
+        Resolved r = resolve(look, element);
         World world = origin.getWorld();
-        Particle.DustOptions dust = new Particle.DustOptions(mix(baseColor(element), Color.RED, 0.35), 1.1f);
+        Particle.DustOptions dust = r.dust(mix(r.body, Color.RED, 0.35), 1.1);
         double half = Math.toRadians(sweepDegrees / 2.0);
         int points = (int) Math.max(12, Math.min(40, Math.round(radius * Math.toDegrees(half * 2) / 12.0)));
         double yawRad = Math.toRadians(yaw);
@@ -291,49 +348,173 @@ public final class AttackEffects {
         }
     }
 
-    /** The mark of a coming dash: a line from the mob to where it will end up. */
-    public void playMobTelegraphLine(Location from, Location to, Element element) {
+    /** The mark of a coming dash / wave / beam: a line from the caster to where it will go. */
+    public void playSkillTelegraphLine(Location from, Location to, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (from == null || to == null || from.getWorld() == null) return;
+        Resolved r = resolve(look, element);
         World world = from.getWorld();
-        Particle.DustOptions dust = new Particle.DustOptions(mix(baseColor(element), Color.RED, 0.35), 1.1f);
+        Particle.DustOptions dust = r.dust(mix(r.body, Color.RED, 0.35), 1.1);
         Vector path = to.toVector().subtract(from.toVector());
         double length = path.length();
         if (length <= 1.0E-6) return;
         Vector step = path.normalize().multiply(0.5);
         Location point = from.clone().add(0.0, 0.15, 0.0);
-        for (double travelled = 0.0; travelled <= length; travelled += 0.5) {
+        int guard = 0;
+        for (double travelled = 0.0; travelled <= length && guard++ < 90; travelled += 0.5) {
             spawnDust(world, point, dust);
             point.add(step);
         }
     }
 
     /** The slam itself: a burst out of the ground, a shock ring and sparks. */
-    public void playMobStrikeBurst(Location center, double radius, Element element) {
+    public void playSkillStrike(Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (center == null || center.getWorld() == null) return;
+        Resolved r = resolve(look, element);
         World world = center.getWorld();
-        sounds.mobStrike(center, element);
-        ParticlePalette palette = palette(element);
         int points = (int) Math.max(24, Math.min(72, Math.round(radius * 12)));
         for (int index = 0; index < points; index++) {
             double angle = Math.PI * 2.0 * index / points;
             Location edge = center.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius);
-            spawnDust(world, edge, palette.primary());
+            spawnDust(world, edge, r.dust(r.body, 1.0));
             if (index % 3 == 0) {
                 for (int step = 1; step <= 4; step++) {
-                    spawnDust(world, edge.clone().add(0.0, step * 0.3, 0.0), step % 2 == 0 ? palette.secondary() : palette.accent());
+                    spawnDust(world, edge.clone().add(0.0, step * 0.3, 0.0), r.dust(step % 2 == 0 ? r.edge : r.core, 0.9));
                 }
             }
-            if (index % 6 == 0) spark(world, edge.clone().add(0.0, 0.4, 0.0), element);
+            if (index % 6 == 0) r.spark(world, edge.clone().add(0.0, 0.4, 0.0));
         }
-        burst(world, center.clone().add(0.0, 0.3, 0.0), element, 16, radius * 0.3, 0.15);
+        r.burst(world, center.clone().add(0.0, 0.3, 0.0), 16, radius * 0.3, 0.15);
     }
 
-    /** The cut itself: a wide flat crescent through the fan. */
-    public void playMobSweep(Location origin, float yaw, double radius, Element element) {
+    /**
+     * The cut of a sweep: a crescent through the fan. Horizontal: flat in front of the caster; vertical: standing
+     * up like a curtain; diagonal: standing up and tilted.
+     */
+    public void playSkillCrescent(Location origin, float yaw, double radius, double angle,
+                                  net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation orientation,
+                                  net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (origin == null || origin.getWorld() == null) return;
-        sounds.mobSweep(origin, element);
-        slash(origin.clone().add(0.0, 0.9, 0.0), element,
-                new SlashVfx.Shape(radius * 0.8, 130.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.2, 1.2f, 0.0);
+        Resolved r = resolve(look, element);
+        double pitch = orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL ? 90.0 : 0.0;
+        double roll = orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.DIAGONAL ? 40.0 : 0.0;
+        Location at = origin.clone().add(0.0, orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL ? 0.9 : 1.3, 0.0);
+        if (orientation != net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL) {
+            // standing arcs are drawn out in front, so they are not around the caster's feet
+            at.add(rotateAroundY(new Vector(0.0, 0.0, 1.0), Math.toRadians(yaw)).multiply(Math.max(1.0, radius * 0.45)));
+        }
+        slash(at, r, new SlashVfx.Shape(radius * 0.8, angle, 0.0, 0.0, yaw, pitch, roll, vfxDensity()), 0.2, 1.2f, 0.0);
+    }
+
+    /** One step of a flying slash of a skill: a crescent of {@code radius} that bulges the way it flies. */
+    public void playSkillWaveStep(Location center, Vector direction, double radius,
+                                  net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (center == null || center.getWorld() == null) return;
+        Vector axis = direction.clone();
+        if (axis.lengthSquared() <= 1.0E-9) axis = new Vector(0.0, 0.0, 1.0); else axis.normalize();
+        double yaw = Math.toDegrees(Math.atan2(-axis.getX(), axis.getZ()));
+        double elevation = Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, axis.getY()))));
+        slash(center, resolve(look, element),
+                new SlashVfx.Shape(Math.max(0.8, radius), 150.0, 0.0, 0.0, yaw, 90.0 - elevation, 0.0, Math.max(3, vfxDensity() - 1)), 0.05, 1.0f, 0.0);
+    }
+
+    /** One frame of an expanding ring (a nova) at {@code radius}. */
+    public void playSkillNovaRing(Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (center == null || center.getWorld() == null) return;
+        Resolved r = resolve(look, element);
+        World world = center.getWorld();
+        int points = (int) Math.max(16, Math.min(72, Math.round(radius * 10)));
+        for (int index = 0; index < points; index++) {
+            double angle = Math.PI * 2.0 * index / points;
+            Location point = center.clone().add(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius);
+            spawnDust(world, point, r.dust(r.body, 1.1));
+            if (index % 2 == 0) spawnDust(world, point.clone().add(0.0, 0.25 * r.width, 0.0), r.dust(r.edge, 0.9));
+            if (index % 4 == 0) spawnDust(world, point.clone().add(0.0, 0.5 * r.width, 0.0), r.dust(r.core, 0.7));
+            if (index % 9 == 0) r.spark(world, point.clone().add(0.0, 0.3, 0.0));
+        }
+    }
+
+    /** A beam from {@code from} to {@code to}: a bright core, the colored body and a wide faint edge. */
+    public void playSkillBeam(Location from, Location to, double halfWidth,
+                              net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (from == null || to == null || from.getWorld() == null) return;
+        Resolved r = resolve(look, element);
+        World world = from.getWorld();
+        Vector path = to.toVector().subtract(from.toVector());
+        double length = path.length();
+        if (length <= 1.0E-6) return;
+        Vector direction = path.clone().normalize();
+        // two vectors across the beam
+        Vector across1 = direction.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+        if (across1.lengthSquared() < 1.0E-6) across1 = new Vector(1.0, 0.0, 0.0);
+        across1.normalize();
+        Vector across2 = direction.clone().crossProduct(across1).normalize();
+        int points = (int) Math.max(4, Math.min(80, Math.ceil(length / 0.45)));
+        double edgeRadius = Math.max(0.15, halfWidth * r.width);
+        for (int index = 0; index <= points; index++) {
+            Location point = from.clone().add(direction.clone().multiply(length * index / points));
+            spawnDust(world, point, r.dust(r.core, 0.9));
+            for (int k = 0; k < 4; k++) {
+                double angle = Math.PI * 0.5 * k + index * 0.7;
+                Vector offset = across1.clone().multiply(Math.cos(angle) * edgeRadius * 0.55).add(across2.clone().multiply(Math.sin(angle) * edgeRadius * 0.55));
+                spawnDust(world, point.clone().add(offset), r.dust(r.body, 1.0));
+            }
+            if (index % 3 == 0) {
+                double angle = index * 1.3;
+                Vector offset = across1.clone().multiply(Math.cos(angle) * edgeRadius).add(across2.clone().multiply(Math.sin(angle) * edgeRadius));
+                spawnDust(world, point.clone().add(offset), r.dust(r.edge, 0.8));
+            }
+            if (index % 5 == 0) r.spark(world, point);
+        }
+    }
+
+    /** A flying bolt's stretch of the last tick, in the skill's colors. */
+    public void playSkillBolt(Location from, Location to, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (from == null || to == null || from.getWorld() == null) return;
+        Resolved r = resolve(look, element);
+        Vector path = to.toVector().subtract(from.toVector());
+        double length = path.length();
+        if (length <= 1.0E-9) return;
+        World world = from.getWorld();
+        Vector direction = path.normalize();
+        int points = Math.max(1, (int) Math.ceil(length / 0.3));
+        for (int index = 0; index <= points; index++) {
+            Location point = from.clone().add(direction.clone().multiply(length * index / points));
+            spawnDust(world, point, r.dust(r.body, 1.0));
+            if (index % 2 == 0) spawnDust(world, point.clone().add(0.0, 0.035, 0.0), r.dust(r.edge, 0.85));
+            if (index % 4 == 0) spawnDust(world, point.clone().subtract(0.0, 0.025, 0.0), r.dust(r.core, 0.75));
+            if (index % 3 == 0) r.spark(world, point);
+        }
+    }
+
+    /** Where a skill's hit lands: a little burst. */
+    public void playSkillImpact(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (at == null || at.getWorld() == null) return;
+        Resolved r = resolve(look, element);
+        World world = at.getWorld();
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int index = 0; index < 8; index++) {
+            Location point = at.clone().add(randomUnitVector(random).multiply(random.nextDouble(0.12, 0.45)));
+            spawnDust(world, point, r.dust(index % 3 == 0 ? r.core : r.body, 1.0));
+        }
+        r.burst(world, at, 6, 0.15, 0.08);
+    }
+
+    // ---- sounds of skills
+
+    public void playSkillWindupSound(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        sounds.skillWindup(at, styleOf(look), element);
+    }
+
+    public void playSkillCastSound(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        sounds.skillCast(at, styleOf(look), element);
+    }
+
+    public void playSkillHitSound(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        sounds.skillImpact(at, styleOf(look), element);
+    }
+
+    private net.tkgon.mc.iruuRPG.skill.SoundStyle styleOf(net.tkgon.mc.iruuRPG.skill.SkillLook look) {
+        return look == null || look.sound() == null ? net.tkgon.mc.iruuRPG.skill.SoundStyle.SHARP : look.sound();
     }
 
     private static Vector rotateAroundY(Vector vector, double radians) {
@@ -685,29 +866,45 @@ public final class AttackEffects {
      * and a spark at the leading tip. {@code delaySeconds} holds the arc back (for follow-up cuts).
      */
     private void slash(Location origin, Element element, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
+        slash(origin, resolve(null, element), shape, duration, scale, delaySeconds);
+    }
+
+    private void slash(Location origin, Resolved look, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
         if (origin == null || origin.getWorld() == null) return;
 
-        Color base = baseColor(element);
-        Particle spark = sparkParticle(element);
         boolean full = plugin.getConfig().getBoolean("slash-vfx.enabled", true);
         // the slash has depth: a band of lines across the arc (for the flat crescent that is the way it reaches
         // forward), wider for bigger arcs, with a faint wide glow, the colored body in the middle and a thin core
-        double band = Math.min(1.4, 0.35 + 0.35 * shape.radius());
-        SlashVfx.Layer core = layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.75), 0.6f * scale, 1, 0.0, 1);
+        double band = Math.min(1.4, 0.35 + 0.35 * shape.radius()) * look.width;
+        float size = scale * (float) look.size;
+        // at most about 300 particles in one tick, whatever the settings
+        double arcLength = shape.radius() * Math.toRadians(shape.sweepDegrees());
+        int ticks = Math.max(1, (int) Math.ceil(duration * 20.0));
+        int density = shape.samplesPerBlock();
+        while (density > 2 && (arcLength * density + 1) * 9 / ticks > 300) density--;
+        SlashVfx.Shape safe = density == shape.samplesPerBlock() ? shape
+                : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density);
+
+        SlashVfx.Layer core = layer(Particle.REDSTONE, look.core, 0.6f * size, 1, 0.0, 1);
         SlashVfx.Layer[] layers = full
-                ? new SlashVfx.Layer[]{
-                        layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.35), 0.7f * scale, 4, band / 3.0, 2),
-                        layer(Particle.REDSTONE, base, 0.8f * scale, 3, band * 0.3, 1),
-                        core,
-                        layer(spark, null, 1f, 1, 0.0, 4)}
+                ? (look.spark == null
+                        ? new SlashVfx.Layer[]{
+                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 4, band / 3.0, 2),
+                                layer(Particle.REDSTONE, look.body, 0.8f * size, 3, band * 0.3, 1),
+                                core}
+                        : new SlashVfx.Layer[]{
+                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 4, band / 3.0, 2),
+                                layer(Particle.REDSTONE, look.body, 0.8f * size, 3, band * 0.3, 1),
+                                core,
+                                layer(look.spark, null, 1f, 1, 0.0, 4)})
                 : new SlashVfx.Layer[]{core};
-        SlashVfx.Layer tip = full ? layer(spark, null, 1f, 2, 0.0, 1) : null;
+        SlashVfx.Layer tip = full && look.spark != null ? layer(look.spark, null, 1f, 2, 0.0, 1) : null;
 
         if (delaySeconds > 0.0) {
             long delayTicks = Math.max(1L, Math.round(delaySeconds * 20.0));
-            Bukkit.getScheduler().runTaskLater(plugin, () -> slashVfx.play(origin, layers, duration, shape, tip), delayTicks);
+            Bukkit.getScheduler().runTaskLater(plugin, () -> slashVfx.play(origin, layers, duration, safe, tip), delayTicks);
         } else {
-            slashVfx.play(origin, layers, duration, shape, tip);
+            slashVfx.play(origin, layers, duration, safe, tip);
         }
     }
 

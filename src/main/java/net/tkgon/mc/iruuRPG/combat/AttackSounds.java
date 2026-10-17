@@ -168,32 +168,54 @@ public final class AttackSounds {
         accent(owner, kind, at, element, 0.3f);
     }
 
-    // ---- enemy skills (made by enemies, so always the "enemy attacks" kind) ----------------------------------
+    // ---- skills made from templates (a sound style each; made by enemies / the test command, so the "enemy" kind) --
 
-    public void mobWindup(Location at, Element element) {
-        play(null, SoundKind.ENEMY, at, Sound.BLOCK_BEACON_POWER_SELECT, 0.5f, 0.8f);
-        play(null, SoundKind.ENEMY, at, Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 0.4f, 0.7f);
-        accent(null, SoundKind.ENEMY, at, element, 0.3f);
+    public void skillWindup(Location at, net.tkgon.mc.iruuRPG.skill.SoundStyle style, Element element) {
+        if (style == net.tkgon.mc.iruuRPG.skill.SoundStyle.NONE) return;
+        SoundKind kind = SoundKind.ENEMY;
+        play(null, kind, at, Sound.BLOCK_BEACON_POWER_SELECT, 0.5f, 0.8f);
+        play(null, kind, at, Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 0.4f, 0.7f);
+        accent(null, kind, at, element, 0.3f);
     }
 
-    public void mobStrike(Location at, Element element) {
-        play(null, SoundKind.ENEMY, at, Sound.ENTITY_GENERIC_EXPLODE, 0.45f, 1.1f);
-        play(null, SoundKind.ENEMY, at, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.7f, 0.6f);
-        play(null, SoundKind.ENEMY, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.6f, 0.6f);
-        accent(null, SoundKind.ENEMY, at, element, 0.4f);
+    public void skillCast(Location at, net.tkgon.mc.iruuRPG.skill.SoundStyle style, Element element) {
+        SoundKind kind = SoundKind.ENEMY;
+        switch (style) {
+            case HEAVY -> {
+                play(null, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.45f, 1.1f);
+                play(null, kind, at, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.7f, 0.6f);
+                play(null, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.6f, 0.6f);
+                accent(null, kind, at, element, 0.4f);
+            }
+            case SHARP -> {
+                play(null, kind, at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 0.7f);
+                play(null, kind, at, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.4f, 1.1f);
+                play(null, kind, at, Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.5f);
+                accent(null, kind, at, element, 0.3f);
+            }
+            case MAGIC -> {
+                play(null, kind, at, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.6f, 1.2f);
+                play(null, kind, at, Sound.BLOCK_BEACON_POWER_SELECT, 0.4f, 1.6f);
+                play(null, kind, at, Sound.ENTITY_BLAZE_SHOOT, 0.2f, 1.7f);
+                accent(null, kind, at, element, 0.3f);
+            }
+            case NONE -> {
+            }
+        }
     }
 
-    public void mobSweep(Location at, Element element) {
-        play(null, SoundKind.ENEMY, at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 0.7f);
-        play(null, SoundKind.ENEMY, at, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.4f, 1.1f);
-        play(null, SoundKind.ENEMY, at, Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.5f);
-        accent(null, SoundKind.ENEMY, at, element, 0.3f);
-    }
-
-    public void mobDash(Location at, Element element) {
-        play(null, SoundKind.ENEMY, at, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.55f, 1.0f);
-        play(null, SoundKind.ENEMY, at, Sound.ITEM_TRIDENT_RIPTIDE_1, 0.35f, 1.2f);
-        accent(null, SoundKind.ENEMY, at, element, 0.3f);
+    public void skillImpact(Location at, net.tkgon.mc.iruuRPG.skill.SoundStyle style, Element element) {
+        SoundKind kind = SoundKind.ENEMY;
+        switch (style) {
+            case HEAVY -> play(null, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.6f, 0.7f);
+            case SHARP -> play(null, kind, at, Sound.ITEM_TRIDENT_HIT, 0.4f, 1.2f);
+            case MAGIC -> {
+                play(null, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.4f, 1.0f);
+                play(null, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.12f, 2.0f);
+            }
+            case NONE -> {
+            }
+        }
     }
 
     // ---- deployed objects -----------------------------------------------------------------------------------

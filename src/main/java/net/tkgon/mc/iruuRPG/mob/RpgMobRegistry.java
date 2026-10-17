@@ -1,5 +1,7 @@
 package net.tkgon.mc.iruuRPG.mob;
 
+import net.tkgon.mc.iruuRPG.skill.SkillRegistry;
+import net.tkgon.mc.iruuRPG.skill.SkillSpec;
 import net.tkgon.mc.iruuRPG.stat.Element;
 import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
@@ -28,8 +30,11 @@ public final class RpgMobRegistry {
     private final JavaPlugin plugin;
     private final Map<String, RpgMobDefinition> definitions = new HashMap<>();
 
-    public RpgMobRegistry(JavaPlugin plugin) {
+    private final SkillRegistry skillRegistry;
+
+    public RpgMobRegistry(JavaPlugin plugin, SkillRegistry skillRegistry) {
         this.plugin = plugin;
+        this.skillRegistry = skillRegistry;
     }
 
     /** Reloads every mob; if loading throws, the previous definitions stay (never half empty). */
@@ -139,37 +144,19 @@ public final class RpgMobRegistry {
     }
 
     /**
-     * skills: a list of entries, each with a "type" (strike / sweep / barrage / dash / wave) and any of cooldown-ticks, range,
-     * radius, windup-ticks, damage-rate, count, interval-ticks, speed (see {@link MobSkillSpec}). Bad entries are
-     * reported and skipped.
+     * skills: a list of entries. Each is either {@code {skill: id, ...overrides}} (a skill of skills/*.yml) or the
+     * flat {@code {type: strike, radius: 3, ...}} form (see {@link SkillRegistry}). Bad entries are reported and
+     * skipped.
      */
-    private List<MobSkillSpec> skills(String id, List<java.util.Map<?, ?>> raw) {
-        List<MobSkillSpec> result = new java.util.ArrayList<>();
+    private List<SkillSpec> skills(String id, List<java.util.Map<?, ?>> raw) {
+        List<SkillSpec> result = new java.util.ArrayList<>();
         for (java.util.Map<?, ?> entry : raw) {
-            Object typeName = entry.get("type");
-            MobSkillSpec.Type type = MobSkillSpec.Type.parse(typeName == null ? null : typeName.toString());
-            if (type == null) {
-                plugin.getLogger().warning("mobs: unknown skill type '" + typeName + "' in mob " + id + " (strike / sweep / barrage / dash / wave)");
-                continue;
-            }
-            MobSkillSpec base = MobSkillSpec.defaults(type);
-            result.add(new MobSkillSpec(
-                    type,
-                    (int) number(entry.get("cooldown-ticks"), base.cooldownTicks()),
-                    number(entry.get("range"), base.range()),
-                    number(entry.get("radius"), base.radius()),
-                    (int) number(entry.get("windup-ticks"), base.windupTicks()),
-                    number(entry.get("damage-rate"), base.damageRate()),
-                    (int) number(entry.get("count"), base.count()),
-                    (int) number(entry.get("interval-ticks"), base.intervalTicks()),
-                    number(entry.get("speed"), base.speed())));
+            SkillSpec spec = skillRegistry.resolve("mob " + id, entry);
+            if (spec != null) result.add(spec);
         }
         return result;
     }
 
-    private static double number(Object value, double fallback) {
-        return value instanceof Number number ? number.doubleValue() : fallback;
-    }
 
     /**
      * ranged: absent = a normal mob; "true" = a ranged mob with the defaults; or a section with range /
