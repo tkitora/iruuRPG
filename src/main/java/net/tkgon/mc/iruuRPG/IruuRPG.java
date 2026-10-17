@@ -169,6 +169,7 @@ public final class IruuRPG extends JavaPlugin {
         ResourceSync.sync(this, "classes/assassin.yml");
         ResourceSync.sync(this, "cskill/sanctuary.yml");
         ResourceSync.sync(this, "cskill/instinct_release.yml");
+        ResourceSync.sync(this, "cskill/meteor.yml");
         this.itemRegistry = new RpgItemRegistry(this);
         this.itemSkillRegistry = new ItemSkillRegistry(this);
         this.itemSkillRegistry.reload();
