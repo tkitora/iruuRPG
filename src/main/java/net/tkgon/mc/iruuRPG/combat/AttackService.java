@@ -367,12 +367,15 @@ public final class AttackService {
     public void hitWithShot(Player attacker, RpgItemDefinition weapon, LivingEntity victim, Location hitLocation) {
         if (victim.isDead() || !victim.isValid()) return;
         AttackDamage attack = calculateDamage(attacker, victim, weapon);
-        if (!applyRangeDamage(attacker, victim, attack.result().damage(), weapon, attack.result().critical())) {
+        double scale = tripleScale(attacker);
+        double damage = round(attack.result().damage() * scale);
+        if (!applyRangeDamage(attacker, victim, damage, weapon, attack.result().critical())) {
             return;
         }
         playRangeImpact(attacker, hitLocation, weapon);
-        sendDamageDebug(attacker, AttackType.RANGE, victim, attack.result().damage(), attack.result().critical(), false);
-        applyAreaDamage(attacker, victim, attack.result().damage(), AttackType.RANGE, weapon);
+        sendDamageDebug(attacker, AttackType.RANGE, victim, damage, attack.result().critical(), false);
+        applyAreaDamage(attacker, victim, damage, AttackType.RANGE, weapon);
+        if (scale < 1.0) scheduleTripleHits(attacker, victim, weapon, AttackType.RANGE);
     }
 
     public RangeTrace traceRange(Player attacker) {
@@ -702,6 +705,47 @@ public final class AttackService {
     /** The warrior's full melee area (milestone "melee_area"); everyone else has the smaller base area. */
     private boolean hasMeleeAreaSkill(Player attacker) {
         return hasSkill(attacker, MELEE_AREA_SKILL);
+    }
+
+    /** True when this player's class has the skill flag {@code skillName} (an innate or unlocked passive). */
+    public boolean hasClassSkill(Player player, String skillName) {
+        return hasSkill(player, skillName);
+    }
+
+    // ---- the ranger's enhanced state: every normal attack is three hits of 70% ---------------------------------------
+
+    private static final double TRIPLE_RATE = 0.7;
+    private static final long TRIPLE_GAP_TICKS = 3L;
+
+    /** True while the ranger's 本能開放 is on: normal attacks (and deployed weapons) hit three times for 70%. */
+    public boolean tripleActive(Player player) {
+        return classEffectService != null && classEffectService.instinctActive(player.getUniqueId());
+    }
+
+    /** What the first hit of a normal attack is multiplied by (0.7 in the enhanced state, else 1). */
+    public double tripleScale(Player player) {
+        return tripleActive(player) ? TRIPLE_RATE : 1.0;
+    }
+
+    /** The two further 70% hits of an enhanced normal attack, a few ticks apart (the first one is the normal hit). */
+    public void scheduleTripleHits(Player attacker, LivingEntity victim, RpgItemDefinition weapon, AttackType type) {
+        for (int index = 1; index <= 2; index++) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!attacker.isOnline() || attacker.isDead() || victim.isDead() || !victim.isValid()) return;
+                AttackDamage attack = calculateDamage(attacker, victim, weapon);
+                double damage = round(attack.result().damage() * TRIPLE_RATE);
+                boolean critical = attack.result().critical();
+                boolean applied = type == AttackType.RANGE
+                        ? applyRangeDamage(attacker, victim, damage, weapon, critical)
+                        : applyDirectDamage(attacker, victim, damage, weapon, critical);
+                if (!applied) return;
+                if (type == AttackType.MELEE) {
+                    playMeleeImpact(attacker, victim);
+                    playMeleeSlash(attacker, weapon);
+                }
+                sendDamageDebug(attacker, type, victim, damage, critical, false);
+            }, TRIPLE_GAP_TICKS * index);
+        }
     }
 
     private boolean hasSkill(Player attacker, String skillName) {

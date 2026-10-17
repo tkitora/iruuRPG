@@ -30,6 +30,9 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 public final class DeployService {
+    private static final String RANGER_SELF_ZONE = "ranger_self_deploy";
+    private static final double SELF_ZONE_RADIUS = 5.0;
+
 
     public static final String DEPLOY_ENTITY_TAG = "iruurpg_deploy";
     private static final double DEPLOY_SLASH_SPEED = 0.62;
@@ -193,6 +196,9 @@ public final class DeployService {
             if (ageTicks % ringPeriodTicks == 0) {
                 attackEffects.playDeployRing(center, weapon, radius);
             }
+            if (ageTicks % 10 == 0 && selfZone()) {
+                attackEffects.playDeployRing(owner.getLocation(), weapon, SELF_ZONE_RADIUS);
+            }
 
             if (weapon.skill() == ItemSkillType.STRIKE) {
                 handleStrikeTrap();
@@ -236,9 +242,23 @@ public final class DeployService {
                 attackEffects.playDeployPulse(center, weapon, radius);
             }
 
+            // the ranger's enhanced state: three hits of 70%, a few ticks apart
+            double scale = attackService.tripleScale(owner);
+            hitTargets(sweep, scale);
+            if (scale < 1.0) {
+                for (int index = 1; index <= 2; index++) {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                        if (owner.isOnline() && stand.isValid()) hitTargets(sweep, scale);
+                    }, 3L * index);
+                }
+            }
+        }
+
+        private void hitTargets(boolean sweep, double scale) {
             for (LivingEntity target : targetsInRange()) {
                 AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                 double damage = sweep ? round(attack.result().damage() * deploySkill.value("damage-rate", 1.2)) : attack.result().damage();
+                damage = round(damage * scale);
                 if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical())) {
                     attackService.sendDamageDebug(owner, AttackType.DEPLOY, target, damage, attack.result().critical(), false);
                 }
@@ -274,7 +294,9 @@ public final class DeployService {
             if (!target.isOnline() || target.isDead() || !target.isValid()) return;
             if (!healed.add(target.getUniqueId())) return;
             if (!target.getWorld().equals(center.getWorld())) return;
-            if (target.getLocation().distanceSquared(center) > radiusSquared) return;
+            boolean inside = target.getLocation().distanceSquared(center) <= radiusSquared
+                    || (selfZone() && target.getLocation().distanceSquared(owner.getLocation()) <= SELF_ZONE_RADIUS * SELF_ZONE_RADIUS);
+            if (!inside) return;
 
             if (attackService.healPlayerBy(owner, target, amount)) {
                 attackEffects.playHealBurst(target, weapon);
@@ -398,7 +420,22 @@ public final class DeployService {
 
                 targets.add(target);
             }
+            // the ranger's innate: the 5 blocks around the owner are also part of the deployed weapon's area
+            if (selfZone()) {
+                double zone = SELF_ZONE_RADIUS;
+                for (Entity nearby : owner.getNearbyEntities(zone, zone, zone)) {
+                    if (!(nearby instanceof LivingEntity target)) continue;
+                    if (target.equals(stand) || target instanceof ArmorStand || target instanceof Player || targets.contains(target)) continue;
+                    if (DeployService.isDeployEntity(target) || target.isDead() || !target.isValid()) continue;
+                    if (target.getLocation().distanceSquared(owner.getLocation()) > zone * zone) continue;
+                    targets.add(target);
+                }
+            }
             return targets;
+        }
+
+        private boolean selfZone() {
+            return owner.isOnline() && owner.getWorld().equals(center.getWorld()) && attackService.hasClassSkill(owner, RANGER_SELF_ZONE);
         }
 
         private LivingEntity nearestTargetFrom(Location point) {

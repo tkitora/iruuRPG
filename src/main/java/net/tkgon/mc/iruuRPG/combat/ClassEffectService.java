@@ -48,6 +48,7 @@ public final class ClassEffectService {
     private final PlayerProfileManager profileManager;
     private final StatusEffectService statusEffectService;
     private final Map<UUID, Long> instinctUntilMillis = new HashMap<>();
+    private final Map<UUID, Long> instinctStartedMillis = new HashMap<>();
     private AttackService attackService;
     private final Map<UUID, UUID> lastTargets = new HashMap<>();
     private final Map<UUID, Long> lastTargetTimes = new HashMap<>();
@@ -72,7 +73,7 @@ public final class ClassEffectService {
 
         lastTargets.put(attacker.getUniqueId(), victim.getUniqueId());
         lastTargetTimes.put(attacker.getUniqueId(), System.currentTimeMillis());
-        giftedOnHit(attacker, victim, profile);
+        giftedOnHit(attacker, victim, weapon, profile);
         assassinOnHit(attacker, victim, weapon, damage, profile);
         mageOnHit(attacker, victim, damage, profile);
     }
@@ -140,33 +141,16 @@ public final class ClassEffectService {
      * corrosion/decay = level x range damage x (100% + range damage %); during
      * the instinct release every attack also bursts a laceration of deploy damage x deploy damage %.
      */
-    private void giftedOnHit(Player attacker, LivingEntity victim, PlayerProfile profile) {
+    private void giftedOnHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon, PlayerProfile profile) {
         UUID sourceId = attacker.getUniqueId();
         StatSet stats = profile.finalStats();
         int level = Math.max(1, profile.level());
 
-        if (classService.hasSkill(profile, GIFTED_BLEED)) {
+        // the ranger's 固有2: attacks with a melee weapon cause bleeding (level x melee damage x (100% + melee damage %))
+        if (classService.hasSkill(profile, GIFTED_BLEED) && weapon != null && weapon.attackType() == net.tkgon.mc.iruuRPG.combat.AttackType.MELEE) {
             double melee = Math.max(0.0, stats.get(StatType.MELEE_DAMAGE));
             double percent = Math.max(0.0, stats.get(StatType.MELEE_DAMAGE_PERCENT));
             statusEffectService.addBleed(victim, scale("gifted.bleed-scale") * level * melee * (1.0 + percent / 100.0), sourceId);
-        }
-        if (classService.hasSkill(profile, GIFTED_DECAY)) {
-            double range = Math.max(0.0, stats.get(StatType.RANGE_DAMAGE));
-            double percent = Math.max(0.0, stats.get(StatType.RANGE_DAMAGE_PERCENT));
-            double value = scaleOrDefault("gifted.decay-scale", 0.1) * level * range * (1.0 + percent / 100.0);
-            statusEffectService.addCorrosion(victim, value, sourceId);
-            statusEffectService.addDecay(victim, value, sourceId);
-        }
-        if (instinctActive(sourceId) && victim.isValid() && !victim.isDead()) {
-            double deploy = Math.max(0.0, stats.get(StatType.DEPLOY_DAMAGE));
-            double percent = Math.max(0.0, stats.get(StatType.DEPLOY_DAMAGE_PERCENT));
-            double burst = scale("gifted.laceration-scale") * deploy * percent / 100.0;
-            if (classService.hasSkill(profile, INSTINCT_UPGRADE)) {
-                burst *= 2.0;
-            }
-            if (burst > 0.0) {
-                statusEffectService.dealStatusDamage(victim, StatusEffectType.LACERATION, burst, sourceId);
-            }
         }
     }
 
@@ -247,10 +231,18 @@ public final class ClassEffectService {
 
     public void activateInstinct(Player player, double seconds) {
         instinctUntilMillis.put(player.getUniqueId(), System.currentTimeMillis() + Math.round(seconds * 1000.0));
+        instinctStartedMillis.put(player.getUniqueId(), System.currentTimeMillis());
         World world = player.getWorld();
         world.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.6f);
         world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.8f);
         playAura(player, seconds);
+    }
+
+    /** Milliseconds since the instinct release was cast, or -1 when it is not on. */
+    public long instinctElapsedMillis(UUID playerId) {
+        if (!instinctActive(playerId)) return -1L;
+        Long started = instinctStartedMillis.get(playerId);
+        return started == null ? -1L : System.currentTimeMillis() - started;
     }
 
     public boolean instinctActive(UUID playerId) {

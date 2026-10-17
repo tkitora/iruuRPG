@@ -137,6 +137,7 @@ public final class IruuRPG extends JavaPlugin {
     private PartyService partyService;
     private PartyMenu partyMenu;
     private SoundSettings soundSettings;
+    private net.tkgon.mc.iruuRPG.combat.SniperMode sniperMode;
     private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
     private AttackEffects attackEffectsRef;
     private SettingsMenu settingsMenu;
@@ -166,6 +167,8 @@ public final class IruuRPG extends JavaPlugin {
         ResourceSync.sync(this, "classes/healer.yml");
         ResourceSync.sync(this, "classes/gifted.yml");
         ResourceSync.sync(this, "classes/assassin.yml");
+        ResourceSync.sync(this, "cskill/sanctuary.yml");
+        ResourceSync.sync(this, "cskill/instinct_release.yml");
         this.itemRegistry = new RpgItemRegistry(this);
         this.itemSkillRegistry = new ItemSkillRegistry(this);
         this.itemSkillRegistry.reload();
@@ -220,6 +223,8 @@ public final class IruuRPG extends JavaPlugin {
         this.classSkillService.setGeneralSkills(skillRegistry, skillRunner);
         this.classSkillService.setStatusEffectService(statusEffectService);
         this.classEffectService = new ClassEffectService(this, classService, profileManager, statusEffectService);
+        this.sniperMode = new net.tkgon.mc.iruuRPG.combat.SniperMode(this, attackService, classEffectService);
+        this.classSkillService.setSniperMode(sniperMode);
         this.attackService.setClassEffectService(classEffectService);
         this.classSkillService.setClassEffectService(classEffectService);
         this.classEffectService.setAttackService(attackService);
@@ -323,6 +328,9 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (worldLabels != null) {
             worldLabels.shutdown();
+        }
+        if (sniperMode != null) {
+            sniperMode.shutdown();
         }
         if (dungeonService != null) {
             dungeonService.shutdown();
@@ -502,6 +510,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(partyService, this);
         getServer().getPluginManager().registerEvents(partyMenu, this);
         getServer().getPluginManager().registerEvents(soundSettings, this);
+        getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
         getServer().getPluginManager().registerEvents(worldLabels, this);
