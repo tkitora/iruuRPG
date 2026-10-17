@@ -320,3 +320,8 @@ slash-vfx:
   enabled: true
   # 弧1ブロックあたりの点の数 (大きいほど滑らかだが粒子が増える)
   samples-per-block: 5
+
+# 攻撃の音 (バニラの小さな音を重ねて作った音)。うるさければ volume を下げる
+attack-sounds:
+  enabled: true
+  volume: 1.0

@@ -28,12 +28,18 @@ public final class AttackEffects {
 
     private final JavaPlugin plugin;
     private final SlashVfx slashVfx;
+    private final AttackSounds sounds;
     /** Alternates the tilt of a player's basic slashes (left-handed / right-handed look). */
     private final Map<UUID, Boolean> slashSide = new ConcurrentHashMap<>();
 
     public AttackEffects(JavaPlugin plugin) {
         this.plugin = plugin;
         this.slashVfx = new SlashVfx(plugin);
+        this.sounds = new AttackSounds(plugin);
+    }
+
+    public AttackSounds sounds() {
+        return sounds;
     }
 
     public void close() {
@@ -43,6 +49,7 @@ public final class AttackEffects {
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
+        sounds.swing(attacker.getLocation().add(0.0, 1.0, 0.0), weapon.element());
         Vector forward = horizontalForward(attacker);
         boolean flip = slashSide.merge(attacker.getUniqueId(), Boolean.TRUE, (old, ignored) -> !old);
         Location origin = attacker.getLocation().add(forward.clone().multiply(0.7)).add(0.0, 1.0, 0.0);
@@ -56,6 +63,7 @@ public final class AttackEffects {
         Vector forward = horizontalForward(attacker);
         float yaw = attacker.getLocation().getYaw();
         Element element = weapon.element();
+        sounds.sweepMelee(attacker.getLocation().add(0.0, 1.0, 0.0), element);
         Location base = attacker.getLocation().add(forward.clone().multiply(0.8)).add(0.0, 1.0, 0.0);
 
         // a wide horizontal crescent swept from the right side to the left, then a smaller one right behind it
@@ -81,6 +89,7 @@ public final class AttackEffects {
         double length = path.length();
         if (length <= 1.0E-9) return;
 
+        sounds.rangeShot(start, weapon.element());
         World world = hitLocation.getWorld();
         Vector stepDirection = path.normalize();
         ParticlePalette palette = palette(weapon.element());
@@ -142,6 +151,7 @@ public final class AttackEffects {
         if (hitLocation == null || hitLocation.getWorld() == null) return;
 
         World world = hitLocation.getWorld();
+        sounds.impact(hitLocation, element);
         ThreadLocalRandom random = ThreadLocalRandom.current();
         ParticlePalette palette = palette(element);
         int particles = Math.max(1, plugin.getConfig().getInt("combat.effects.range-impact.particles", 12));
@@ -165,6 +175,7 @@ public final class AttackEffects {
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, 0.25, 0.0);
         ParticlePalette palette = palette(weapon.element());
+        sounds.sweepWave(center, weapon.element());
 
         int rings = 3;
         int points = 36;
@@ -219,6 +230,7 @@ public final class AttackEffects {
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
         String prefix = critical ? "✧" : "";
+        sounds.hit(target.getLocation().add(0.0, Math.max(0.5, target.getHeight() * 0.5), 0.0), element, critical);
         spawnFloatingText(target.getLocation(), target.getHeight(), Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
     }
 
@@ -227,6 +239,7 @@ public final class AttackEffects {
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
         String prefix = critical ? "✧" : "";
+        sounds.hit(targetLocation.clone().add(0.0, Math.max(0.5, targetHeight * 0.5), 0.0), element, critical);
         spawnFloatingText(targetLocation, targetHeight, Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
     }
 
@@ -304,6 +317,7 @@ public final class AttackEffects {
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
+        sounds.sweepWave(center, weapon.element());
         int particles = 46;
         double arcRadians = Math.toRadians(120.0);
         double sweepRadius = Math.max(1.0, radius * 0.55);
@@ -331,6 +345,7 @@ public final class AttackEffects {
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, Math.max(0.7, player.getHeight() * 0.55), 0.0);
         ParticlePalette palette = palette(weapon.element());
+        sounds.healBurst(center);
 
         for (int index = 0; index < 18; index++) {
             double angle = Math.PI * 2.0 * index / 18.0;
@@ -347,6 +362,7 @@ public final class AttackEffects {
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
+        sounds.healRing(center);
         int points = 64;
         for (int index = 0; index < points; index++) {
             double angle = Math.PI * 2.0 * index / points;
@@ -369,6 +385,7 @@ public final class AttackEffects {
         Location center = player.getLocation().add(0.0, 0.35, 0.0);
         Vector backward = horizontalForward(player).multiply(-1.0);
         ParticlePalette palette = palette(weapon.element());
+        sounds.dash(center, weapon.element());
 
         for (int index = 0; index < 14; index++) {
             double spread = (index - 6.5) / 6.5;
@@ -396,6 +413,7 @@ public final class AttackEffects {
 
     public void playStrikeRangeCharge(Location center, Vector direction, RpgItemDefinition weapon) {
         if (center == null || center.getWorld() == null) return;
+        sounds.strikeCharge(center);
         spawnStrikeCylinder(center.getWorld(), center, direction, weapon, 0.75, 3, 18);
     }
 
@@ -422,12 +440,12 @@ public final class AttackEffects {
         // pull the arc a little toward the attacker so it is drawn around the target instead of behind it
         center.subtract(forward.clone().multiply(0.35));
         double yaw = Math.toDegrees(Math.atan2(-forward.getX(), forward.getZ()));
-        double lean = sequence % 2 == 0 ? 78.0 : 102.0;
         Element element = weapon.element();
+        sounds.slashCut(center, element);
 
-        slash(center, element, new SlashVfx.Shape(1.6, 140.0, 0.0, 0.0, yaw, lean, 0.0, vfxDensity()), 0.16, 1.0f, 0.0);
-        // a second, smaller cut right behind it, leaning the other way
-        slash(center, element, new SlashVfx.Shape(1.2, 120.0, 0.0, 0.0, yaw, 180.0 - lean, 0.0, vfxDensity()), 0.12, 0.8f, 0.05);
+        // two diagonal cuts that cross each other like an X, the second one a moment after the first
+        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, 0.0, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
+        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, 0.0, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
         if (target != null) {
             burst(attacker.getWorld(), center.clone().add(forward.clone().multiply(0.4)), element, 8, 0.3, 0.1);
         }
@@ -457,6 +475,7 @@ public final class AttackEffects {
         World world = target.getWorld();
         Location center = target.getLocation().add(0.0, Math.max(0.75, target.getHeight() * 0.58), 0.0);
         ParticlePalette palette = palette(weapon.element());
+        sounds.slashImpact(center, weapon.element());
         for (int index = 0; index < 18; index++) {
             double angle = Math.PI * 2.0 * index / 18.0;
             Location point = center.clone().add(Math.cos(angle) * 0.45, Math.sin(angle * 2.0) * 0.18, Math.sin(angle) * 0.45);
@@ -470,6 +489,7 @@ public final class AttackEffects {
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
+        sounds.deployDashFinish(center, weapon.element());
         int spokes = 18;
         int steps = 8;
         for (int spoke = 0; spoke < spokes; spoke++) {
@@ -492,6 +512,7 @@ public final class AttackEffects {
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
+        sounds.deployCrush(center, weapon.element());
         int columns = 24;
         for (int column = 0; column < columns; column++) {
             double angle = Math.PI * 2.0 * column / columns;
@@ -586,7 +607,7 @@ public final class AttackEffects {
             case BLUE -> Particle.SOUL_FIRE_FLAME;
             case WHITE -> Particle.END_ROD;
             case GREEN -> Particle.VILLAGER_HAPPY;
-            case ORANGE -> Particle.FIREWORKS_SPARK;
+            case ORANGE -> Particle.CRIT;
         };
     }
 

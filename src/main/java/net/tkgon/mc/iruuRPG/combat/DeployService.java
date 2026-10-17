@@ -54,6 +54,7 @@ public final class DeployService {
         Location center = deployLocation(owner);
         ArmorStand stand = owner.getWorld().spawn(center, ArmorStand.class, spawned -> configureStand(spawned, weapon));
 
+        attackEffects.sounds().deployStart(center);
         int durationTicks = durationTicks(snapshot, deploySkill);
         int attackPeriodTicks = attackPeriodTicks(snapshot, deploySkill);
         double radius = deploySkill.value("radius", plugin.getConfig().getDouble("combat.deploy.radius", 6.0));
@@ -231,6 +232,7 @@ public final class DeployService {
             if (sweep) {
                 attackEffects.playDeploySweep(center, weapon, radius);
             } else {
+                attackEffects.sounds().deployPulse(center);
                 attackEffects.playDeployPulse(center, weapon, radius);
             }
 
@@ -282,6 +284,7 @@ public final class DeployService {
         private void launchDeploySlash() {
             Location start = center.clone().add(0.0, 0.75, 0.0);
             if (nearestTargetFrom(start) == null) return;
+            attackEffects.sounds().slashLaunch(start, weapon.element());
             double speed = deploySkill.value("slash-speed", DEPLOY_SLASH_SPEED);
             double hitRadius = deploySkill.value("hit-radius", DEPLOY_SLASH_HIT_RADIUS);
             int maxTicks = deploySkill.intValue("max-ticks", DEPLOY_SLASH_MAX_TICKS);
@@ -333,6 +336,7 @@ public final class DeployService {
 
                 strikeArmed = true;
                 strikeTriggerTick = ageTicks + deploySkill.intValue("trigger-delay-ticks", 20);
+                attackEffects.sounds().deployPulse(center);
                 attackEffects.playDeployPulse(center, weapon, radius);
                 return;
             }

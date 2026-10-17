@@ -269,6 +269,7 @@ public final class ItemSkillService {
         if (!canUse(player, weapon, AttackType.MELEE, skill.cost(STRIKE_MELEE_COST))) return;
 
         double radius = skill.value("radius", STRIKE_MELEE_RADIUS);
+        attackEffects.sounds().strikeMelee(player.getLocation().add(0.0, 0.8, 0.0), weapon.element());
         attackEffects.playStrikeMeleeBurst(player, weapon, radius);
         player.setVelocity(horizontalForward(player).multiply(skill.value("forward-velocity", STRIKE_MELEE_FORWARD_VELOCITY)).setY(skill.value("up-velocity", 0.28)));
 
@@ -346,6 +347,7 @@ public final class ItemSkillService {
                 }
 
                 Location point = start.clone().add(direction.clone().multiply(distance));
+                if (distance == 0.0) attackEffects.sounds().strikeBolt(point, weapon.element());
                 attackEffects.playStrikeRangeBolt(point, direction, weapon);
 
                 for (LivingEntity target : targetsAround(point, player, hitRadius)) {
@@ -416,6 +418,7 @@ public final class ItemSkillService {
         Location start = player.getEyeLocation().add(player.getEyeLocation().getDirection().normalize().multiply(1.1));
         Vector direction = player.getEyeLocation().getDirection().normalize();
         double maxDistance = slashRangeDistance(player.getWorld(), start, direction, skill.value("distance", SLASH_RANGE_DISTANCE));
+        attackEffects.sounds().slashLaunch(start, weapon.element());
         launchSlashRange(
                 player,
                 weapon,
