@@ -53,12 +53,12 @@ public final class SkillRunner {
         if (aimAt != null) caster.face(aimAt);
         effects.playSkillWindupSound(caster.owner(), caster.location(), spec.look(), caster.element());
         switch (spec.template()) {
-            case STRIKE -> strike(caster, spec, onDone);
+            case STRIKE -> strike(caster, spec, aim, onDone);
             case SWEEP -> sweep(caster, spec, aim, onDone);
             case BARRAGE -> barrage(caster, spec, aim, onDone);
             case DASH -> dash(caster, spec, aim, onDone);
             case WAVE -> wave(caster, spec, aim, onDone);
-            case NOVA -> nova(caster, spec, onDone);
+            case NOVA -> nova(caster, spec, aim, onDone);
             case BEAM -> beam(caster, spec, aim, onDone);
             case COMBO -> onDone.run();
         }
@@ -193,8 +193,10 @@ public final class SkillRunner {
 
     // ---- strike -------------------------------------------------------------------------------------------------------
 
-    private void strike(SkillCaster caster, SkillSpec spec, Runnable onDone) {
+    private void strike(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
+        Location fixed = originPoint(caster, spec, aim);
+        Supplier<Location> where = fixed == null ? caster::location : () -> fixed.clone();
         new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
@@ -206,16 +208,16 @@ public final class SkillRunner {
                     return;
                 }
                 if (age >= spec.windupTicks()) {
-                    Location center = caster.location();
+                    Location center = where.get();
                     effects.playSkillStrike(center, spec.radius(), spec.look(), element);
                     effects.playSkillCastSound(caster.owner(), center, spec.look(), element);
-                    for (LivingEntity player : within(caster, spec, spec.radius(), 2.5)) hit(caster, spec, player);
+                    for (LivingEntity player : within(center, caster, spec, spec.radius(), 2.5)) hit(caster, spec, player);
                     caster.release();
                     cancel();
                     onDone.run();
                     return;
                 }
-                if (age % 4 == 0) effects.playSkillTelegraphRing(caster.location(), spec.radius(), spec.look(), element);
+                if (age % 4 == 0) effects.playSkillTelegraphRing(where.get(), spec.radius(), spec.look(), element);
                 age++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -225,6 +227,7 @@ public final class SkillRunner {
 
     private void sweep(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
+        Location fixed = originPoint(caster, spec, aim);
         new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
@@ -236,12 +239,13 @@ public final class SkillRunner {
                     return;
                 }
                 if (age >= spec.windupTicks()) {
-                    Location origin = caster.location();
+                    Location origin = fixed == null ? caster.location() : fixed.clone();
+                    origin.setYaw(caster.location().getYaw());
                     effects.playSkillCrescent(origin, origin.getYaw(), spec.range(), spec.angle(), spec.orientation(), spec.look(), element);
                     effects.playSkillCastSound(caster.owner(), origin, spec.look(), element);
                     double tall = spec.orientation() == SkillSpec.Orientation.HORIZONTAL ? 2.5 : 3.5;
-                    for (LivingEntity player : within(caster, spec, spec.range(), tall)) {
-                        if (inFan(caster, player, spec.angle() / 2.0)) hit(caster, spec, player);
+                    for (LivingEntity player : within(origin, caster, spec, spec.range(), tall)) {
+                        if (inFan(origin, player, spec.angle() / 2.0)) hit(caster, spec, player);
                     }
                     caster.release();
                     cancel();
@@ -250,7 +254,10 @@ public final class SkillRunner {
                 }
                 Location at = aim.get();
                 if (at != null) caster.face(at);
-                if (age % 4 == 0) effects.playSkillTelegraphArc(caster.location(), caster.location().getYaw(), spec.range(), spec.angle(), spec.look(), element);
+                if (age % 4 == 0) {
+                    Location mark = fixed == null ? caster.location() : fixed.clone();
+                    effects.playSkillTelegraphArc(mark, caster.location().getYaw(), spec.range(), spec.angle(), spec.look(), element);
+                }
                 age++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -259,6 +266,7 @@ public final class SkillRunner {
     // ---- barrage ------------------------------------------------------------------------------------------------------
 
     private void barrage(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+        Location fixed = originPoint(caster, spec, aim);
         new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
             private int fired;
@@ -279,7 +287,7 @@ public final class SkillRunner {
                     return;
                 }
                 if (age >= spec.windupTicks() && (age - spec.windupTicks()) % spec.intervalTicks() == 0) {
-                    fireBolt(caster, spec, at);
+                    fireBolt(caster, spec, at, fixed);
                     fired++;
                 }
                 age++;
@@ -287,9 +295,10 @@ public final class SkillRunner {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void fireBolt(SkillCaster caster, SkillSpec spec, Location at) {
+    private void fireBolt(SkillCaster caster, SkillSpec spec, Location at, Location fixed) {
         Element element = caster.element();
-        Location from = caster.eye().add(caster.location().getDirection().multiply(0.4)).add(0.0, -0.2, 0.0);
+        Location from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0)
+                : caster.eye().add(caster.location().getDirection().multiply(0.4)).add(0.0, -0.2, 0.0);
         Vector direction = at.toVector().subtract(from.toVector());
         if (direction.lengthSquared() < 1.0E-6) return;
         direction.normalize();
@@ -384,7 +393,7 @@ public final class SkillRunner {
                     effects.playSkillCastSound(caster.owner(), caster.location(), spec.look(), element);
                     caster.lunge(direction.clone().multiply(spec.speed() / 8.0).setY(0.25));
                 }
-                for (LivingEntity player : within(caster, spec, 1.8, 2.5)) {
+                for (LivingEntity player : within(caster.location(), caster, spec, 1.8, 2.5)) {
                     if (hit.add(player.getUniqueId())) hit(caster, spec, player);
                 }
                 if (age >= spec.windupTicks() + 8) {
@@ -401,6 +410,7 @@ public final class SkillRunner {
 
     private void wave(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
+        Location fixed = originPoint(caster, spec, aim);
         new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
@@ -416,7 +426,7 @@ public final class SkillRunner {
                     // keeps facing the target and marks where the slash will go
                     if (at != null) caster.face(at);
                     if (age % 4 == 0) {
-                        Location from = caster.location().add(0.0, 1.0, 0.0);
+                        Location from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.location().add(0.0, 1.0, 0.0);
                         Vector ahead = caster.location().getDirection().setY(0.0);
                         if (ahead.lengthSquared() > 1.0E-6) {
                             effects.playSkillTelegraphLine(from, from.clone().add(ahead.normalize().multiply(Math.min(spec.range(), 10.0))), spec.look(), element);
@@ -426,16 +436,16 @@ public final class SkillRunner {
                     return;
                 }
                 cancel();
-                if (at != null) launchWaves(caster, spec, at);
+                if (at != null) launchWaves(caster, spec, at, fixed);
                 caster.release(); // the caster is free again while the slashes fly
                 onDone.run();
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void launchWaves(SkillCaster caster, SkillSpec spec, Location at) {
+    private void launchWaves(SkillCaster caster, SkillSpec spec, Location at, Location fixed) {
         Element element = caster.element();
-        Location origin = caster.eye().add(0.0, -0.3, 0.0);
+        Location origin = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye().add(0.0, -0.3, 0.0);
         Vector aimVector = at.toVector().subtract(origin.toVector());
         if (aimVector.lengthSquared() < 1.0E-6) return;
         aimVector.normalize();
@@ -485,8 +495,10 @@ public final class SkillRunner {
 
     // ---- nova ---------------------------------------------------------------------------------------------------------
 
-    private void nova(SkillCaster caster, SkillSpec spec, Runnable onDone) {
+    private void nova(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
+        Location fixed = originPoint(caster, spec, aim);
+        Supplier<Location> where = fixed == null ? caster::location : () -> fixed.clone();
         new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
@@ -501,19 +513,18 @@ public final class SkillRunner {
                     cancel();
                     caster.release(); // the ring spreads on its own
                     onDone.run();
-                    expand(caster, spec);
+                    expand(caster, spec, where.get());
                     return;
                 }
-                if (age % 4 == 0) effects.playSkillTelegraphRing(caster.location(), spec.radius(), spec.look(), element);
+                if (age % 4 == 0) effects.playSkillTelegraphRing(where.get(), spec.radius(), spec.look(), element);
                 age++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
         // (the caster stays where it started: the ring is centered there)
     }
 
-    private void expand(SkillCaster caster, SkillSpec spec) {
+    private void expand(SkillCaster caster, SkillSpec spec, Location center) {
         Element element = caster.element();
-        Location center = caster.location().clone();
         effects.playSkillCastSound(caster.owner(), center, spec.look(), element);
         double step = spec.speed() / 20.0;
         new Guarded(null) {
@@ -549,6 +560,7 @@ public final class SkillRunner {
 
     private void beam(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
+        Location fixed = originPoint(caster, spec, aim);
         new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
             private Location from;
@@ -566,7 +578,7 @@ public final class SkillRunner {
                 if (age < spec.windupTicks()) {
                     if (at != null) caster.face(at);
                     if (age % 4 == 0 && at != null) {
-                        Location start = caster.eye().add(0.0, -0.3, 0.0);
+                        Location start = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye().add(0.0, -0.3, 0.0);
                         Vector ahead = at.toVector().subtract(start.toVector());
                         if (ahead.lengthSquared() > 1.0E-6) {
                             effects.playSkillTelegraphLine(start, start.clone().add(ahead.normalize().multiply(Math.min(spec.range(), 20.0))), spec.look(), element);
@@ -577,7 +589,7 @@ public final class SkillRunner {
                 }
                 if (from == null) {
                     // fired: the line is fixed now
-                    from = caster.eye().add(0.0, -0.3, 0.0);
+                    from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye().add(0.0, -0.3, 0.0);
                     Vector direction = at == null ? caster.location().getDirection() : at.toVector().subtract(from.toVector());
                     if (direction.lengthSquared() < 1.0E-6) {
                         caster.release();
@@ -608,10 +620,43 @@ public final class SkillRunner {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
+    /** Projectile skills (barrage, wave, beam) with an origin leave from this high above the origin point (chest height). */
+    private static final double PROJECTILE_HEIGHT = 1.2;
+
+    /**
+     * The point a skill with an {@code origin} starts from, fixed at this moment: the caster's place (or the aimed
+     * target's), moved forward along where the caster faces, to the right, and up. A point inside a block moves up
+     * to find free space (at most 3 blocks), else it falls back to the caster's place. Null without an origin.
+     */
+    private Location originPoint(SkillCaster caster, SkillSpec spec, Supplier<Location> aim) {
+        SkillSpec.Origin origin = spec.origin();
+        if (origin == null || spec.template() == SkillTemplate.DASH) return null;
+        Location base;
+        if (origin.anchor() == SkillSpec.Anchor.TARGET) {
+            Location at = aim.get();
+            base = at == null ? caster.location() : at.clone().subtract(0.0, 1.0, 0.0);
+        } else {
+            base = caster.location();
+        }
+        double yaw = Math.toRadians(caster.location().getYaw());
+        Vector forward = new Vector(-Math.sin(yaw), 0.0, Math.cos(yaw));
+        Vector right = new Vector(-Math.cos(yaw), 0.0, -Math.sin(yaw));
+        Location point = base.clone().add(forward.multiply(origin.forward())).add(right.multiply(origin.side())).add(0.0, origin.up(), 0.0);
+        point.setYaw(caster.location().getYaw());
+        point.setPitch(0.0f);
+        World world = point.getWorld();
+        if (world == null) return caster.location();
+        point.setY(Math.max(world.getMinHeight(), Math.min(world.getMaxHeight() - 2, point.getY())));
+        for (int lift = 0; lift <= 3; lift++) {
+            Location probe = point.clone().add(0.0, lift, 0.0);
+            if (probe.getBlock().isPassable() && probe.clone().add(0.0, 1.0, 0.0).getBlock().isPassable()) return probe;
+        }
+        return caster.location();
+    }
+
     // ---- shared -------------------------------------------------------------------------------------------------------
 
-    private java.util.List<LivingEntity> within(SkillCaster caster, SkillSpec spec, double radius, double vertical) {
-        Location center = caster.location();
+    private java.util.List<LivingEntity> within(Location center, SkillCaster caster, SkillSpec spec, double radius, double vertical) {
         java.util.List<LivingEntity> result = new java.util.ArrayList<>();
         for (LivingEntity player : targets(caster, spec)) {
             if (!player.getWorld().equals(center.getWorld())) continue;
@@ -625,10 +670,10 @@ public final class SkillRunner {
         return result;
     }
 
-    private boolean inFan(SkillCaster caster, LivingEntity player, double halfAngleDegrees) {
-        Vector toTarget = player.getLocation().toVector().subtract(caster.location().toVector()).setY(0.0);
+    private boolean inFan(Location origin, LivingEntity player, double halfAngleDegrees) {
+        Vector toTarget = player.getLocation().toVector().subtract(origin.toVector()).setY(0.0);
         if (toTarget.lengthSquared() < 1.0E-6) return true;
-        Vector facing = caster.location().getDirection().setY(0.0);
+        Vector facing = origin.getDirection().setY(0.0);
         if (facing.lengthSquared() < 1.0E-6) return true;
         return Math.toDegrees(facing.normalize().angle(toTarget.normalize())) <= halfAngleDegrees;
     }
