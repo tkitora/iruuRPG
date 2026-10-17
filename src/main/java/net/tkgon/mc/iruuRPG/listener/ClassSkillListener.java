@@ -144,6 +144,9 @@ public final class ClassSkillListener implements Listener {
             return true;
         }
 
+        // pressing the key again while the skill is up (the upgraded sanctuary's re-cast) is not a new cast
+        if (classSkillService.tryRecast(player, skill)) return true;
+
         long remaining = remainingCooldownMillis(player, skill.id());
         if (remaining > 0L) {
             player.sendMessage("[iruuRPG] " + skill.name() + "のクールダウン中: " + formatSeconds(remaining) + "秒");

@@ -34,6 +34,7 @@ public final class ClassEffectService {
     private static final double ASSASSIN_BLAST_DIVISOR = 40.0;
     public static final String HEALER_PULSE = "healer_pulse";
     public static final String HEALER_GUARD = "healer_guard";
+    public static final String HEALER_PULSE_WIDE = "healer_pulse_wide";
     private static final double HEALER_PULSE_DIVISOR = 25.0;
     private static final double ELEMENT_SCALE = 800.0;
 
@@ -200,6 +201,11 @@ public final class ClassEffectService {
         if (!classService.hasSkill(profile, HEALER_PULSE)) return;
 
         double radius = plugin.getConfig().getDouble("class-effects.healer.pulse-radius", 7.0);
+        // the cleric's 固有2 widens the pulse and slows what it hits
+        boolean wide = classService.hasSkill(profile, HEALER_PULSE_WIDE);
+        if (wide) radius *= Math.max(1.0, plugin.getConfig().getDouble("class-effects.healer.wide-radius-multiplier", 1.5));
+        double slowPercent = plugin.getConfig().getDouble("class-effects.healer.wide-slow-percent", 40.0);
+        long slowMillis = Math.round(plugin.getConfig().getDouble("class-effects.healer.wide-slow-seconds", 3.0) * 1000.0);
         double damage = healAmount * Math.max(1, profile.level()) / HEALER_PULSE_DIVISOR * greenFactor(profile);
         if (damage <= 0.0) return;
 
@@ -210,6 +216,9 @@ public final class ClassEffectService {
             if (target.getLocation().distanceSquared(center) > radius * radius) continue;
 
             attackService.applyExtraDamage(player, target, Math.round(damage * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.GREEN);
+            if (wide && statusEffectService != null && target.isValid() && !target.isDead()) {
+                statusEffectService.applyTimedSlow(target, slowPercent, slowMillis, player.getUniqueId());
+            }
         }
         playPulse(center, radius);
     }

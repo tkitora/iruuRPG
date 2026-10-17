@@ -425,11 +425,13 @@ public final class ClassSkillService {
         PlayerProfile profile = profileManager.getOrCreate(player);
         boolean upgraded = classService.hasSkill(profile, SANCTUARY_UPGRADE);
         double radius = skill.values().getOrDefault("radius", 7.0);
-        double seconds = upgraded
+        double baseSeconds = upgraded
                 ? skill.values().getOrDefault("upgrade-duration-seconds", 10.0)
                 : skill.values().getOrDefault("duration-seconds", 5.0);
 
         PlayerProfile snapshot = attackService.snapshotAttacker(player);
+        // the duration stat lengthens it (+100% = twice as long)
+        double seconds = baseSeconds * Math.max(0.1, 1.0 + snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.DURATION) / 100.0);
         double heal = attackService.calculateNeutralDamage(snapshot, weapon).damage();
         if (heal <= 0.0) {
             heal = Math.max(snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.WEAPON_DAMAGE),
@@ -443,13 +445,17 @@ public final class ClassSkillService {
         world.playSound(center, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.4f);
         int totalTicks = (int) Math.round(seconds * 20.0);
 
+        SanctuaryState state = new SanctuaryState(center, radius, healPerSecond);
+        sanctuaries.put(player.getUniqueId(), state);
+
         new SafeTask(plugin) {
             private int tick;
             private final java.util.Set<UUID> shielded = new java.util.HashSet<>();
 
             @Override
             protected void tick() {
-                boolean finished = tick >= totalTicks || !player.isOnline();
+                state.age = tick;
+                boolean finished = tick >= totalTicks || !player.isOnline() || state.ended;
                 if (tick % 20 == 0 && !finished) {
                     for (Player ally : alliesIn(center, radius)) {
                         attackService.healPlayerBy(player, ally, healPerSecond);
@@ -459,6 +465,8 @@ public final class ClassSkillService {
                     updateKnockbackShield(finished ? java.util.List.of() : alliesIn(center, radius), shielded);
                 }
                 if (finished) {
+                    state.ended = true;
+                    sanctuaries.remove(player.getUniqueId(), state);
                     cancel();
                     return;
                 }
@@ -466,6 +474,62 @@ public final class ClassSkillService {
                 tick += 5;
             }
         }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    /** A sanctuary that is up (for the re-cast of the upgrade). */
+    private static final class SanctuaryState {
+        private final Location center;
+        private final double radius;
+        private final double healPerSecond;
+        private int age;
+        private boolean ended;
+
+        private SanctuaryState(Location center, double radius, double healPerSecond) {
+            this.center = center;
+            this.radius = radius;
+            this.healPerSecond = healPerSecond;
+        }
+    }
+
+    private final java.util.Map<UUID, SanctuaryState> sanctuaries = new java.util.HashMap<>();
+
+    /**
+     * Pressing the key of a skill again while it is up: the upgraded sanctuary can be cast once more, a few seconds
+     * after the first cast and while it lasts. The re-cast heals the allies inside as much as 4 seconds of the
+     * sanctuary at once, gives every enemy inside 100 confusion, and ends the sanctuary. True when the press was
+     * handled here (also when it is too early), so no cooldown or MP is spent.
+     */
+    public boolean tryRecast(Player player, ClassSkillDefinition skill) {
+        if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;
+        SanctuaryState state = sanctuaries.get(player.getUniqueId());
+        if (state == null || state.ended) return false;
+        if (!classService.hasSkill(profileManager.getOrCreate(player), SANCTUARY_UPGRADE)) return false;
+
+        double delay = skill.values().getOrDefault("recast-delay-seconds", 3.0);
+        if (state.age < Math.round(delay * 20.0)) {
+            player.sendMessage("[iruuRPG] 聖域の再発動まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - state.age / 20.0) + "秒");
+            return true;
+        }
+        double burstSeconds = skill.values().getOrDefault("recast-burst-seconds", 4.0);
+        double confusion = skill.values().getOrDefault("recast-confusion", 100.0);
+        World world = state.center.getWorld();
+        if (world == null) return true;
+
+        state.ended = true;
+        for (Player ally : alliesIn(state.center, state.radius)) {
+            attackService.healPlayerBy(player, ally, state.healPerSecond * burstSeconds);
+        }
+        for (org.bukkit.entity.Entity entity : world.getNearbyEntities(state.center, state.radius, state.radius, state.radius)) {
+            if (!isValidTarget(player, entity)) continue;
+            LivingEntity enemy = (LivingEntity) entity;
+            if (enemy.getLocation().distanceSquared(state.center) > state.radius * state.radius) continue;
+            if (statusEffectService != null) statusEffectService.addConfusion(enemy, confusion, player.getUniqueId());
+        }
+        world.playSound(state.center, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.9f);
+        world.playSound(state.center, Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.5f);
+        for (int ring = 1; ring <= 3; ring++) drawSanctuary(world, state.center, state.radius * ring / 3.0, ring * 12);
+        world.spawnParticle(Particle.VILLAGER_HAPPY, state.center.clone().add(0.0, 1.0, 0.0), 40, state.radius * 0.4, 0.8, state.radius * 0.4, 0.0);
+        return true;
     }
 
     private java.util.List<Player> alliesIn(Location center, double radius) {
