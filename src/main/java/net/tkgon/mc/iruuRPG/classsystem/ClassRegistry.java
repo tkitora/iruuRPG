@@ -106,7 +106,14 @@ public final class ClassRegistry {
             milestones.add(loadMilestone(normalizedId + ".milestone_" + (index + 1), node));
         }
 
-        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, section.getStringList("description"), growth, growthElements, spendNodes, milestones));
+        List<ClassNodeDefinition> innate = new ArrayList<>();
+        List<Map<?, ?>> innateList = section.getMapList("innate");
+        for (int index = 0; index < innateList.size(); index++) {
+            ConfigurationSection node = new MemoryConfiguration().createSection("m", innateList.get(index));
+            innate.add(loadMilestone(normalizedId + ".innate_" + index, node));
+        }
+
+        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, section.getStringList("description"), growth, growthElements, spendNodes, milestones, innate));
     }
 
     private ClassNodeDefinition loadMilestone(String id, ConfigurationSection section) {

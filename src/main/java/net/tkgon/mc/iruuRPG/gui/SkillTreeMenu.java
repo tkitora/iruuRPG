@@ -55,6 +55,8 @@ public final class SkillTreeMenu implements Listener {
     private static final int MILESTONE_LABEL_SLOT = 27;
     private static final int SPEND_CENTER_SLOT = 22;
     private static final int MILESTONE_ROW_START = 36;
+    /** The innate node (固有0) sits at the right end of the row above the milestones (and the next ones to its left). */
+    private static final int INNATE_SLOT = 35;
     private static final int BULK_LEVELS = 5;
     private static final int ROW = 9;
     private static final int MAX_STACK_DISPLAY = 64;
@@ -188,6 +190,11 @@ public final class SkillTreeMenu implements Listener {
                             text("シフト: -" + BULK_LEVELS, NamedTextColor.DARK_RED))));
         }
 
+        List<ClassNodeDefinition> innate = definition.innate();
+        for (int index = 0; index < innate.size() && index < 3; index++) {
+            inventory.setItem(INNATE_SLOT - (innate.size() - 1 - index), innateItem(innate.get(index), index));
+        }
+
         List<ClassNodeDefinition> milestones = definition.milestones();
         int milestoneStart = MILESTONE_ROW_START + Math.max(0, (9 - milestones.size()) / 2);
         for (int index = 0; index < milestones.size() && index < 9; index++) {
@@ -292,6 +299,22 @@ public final class SkillTreeMenu implements Listener {
             lore.add(line("操作", node.hotKey().displayName(), NamedTextColor.YELLOW));
         }
         return item(node.icon(), node.nodeName(), color, lore, unlocked);
+    }
+
+    /** An innate node: a passive that is on from the start, so it needs no SP. */
+    private ItemStack innateItem(ClassNodeDefinition node, int index) {
+        List<Component> lore = new ArrayList<>();
+        lore.add(line("状態", "最初から有効", NamedTextColor.GREEN));
+        lore.add(Component.empty());
+        lore.add(line("種別", node.effectType() == ClassPassiveEffectType.SKILL ? "固有パッシブ" : "固有ステータス", NamedTextColor.AQUA));
+        if (node.condition() != ClassConditionType.ALWAYS) {
+            lore.add(line("発動条件", conditionText(node.condition()), NamedTextColor.GOLD));
+        }
+        addEffectLines(lore, node.status(), node.elementStatus(), 1);
+        for (String description : node.description()) {
+            lore.add(text(description, NamedTextColor.GRAY));
+        }
+        return item(node.icon(), "固有" + index + ": " + node.nodeName(), NamedTextColor.GREEN, lore, true);
     }
 
     private String conditionText(ClassConditionType condition) {

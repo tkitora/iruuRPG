@@ -170,6 +170,14 @@ public final class ClassService {
                 stats.addAll(node.stats().scaled(levels));
                 elements.addAll(node.elementStats().scaled(levels));
             }
+            // innate nodes (固有0): active from the start
+            for (ClassNodeDefinition node : definition.innate()) {
+                if (node.effectType() != ClassPassiveEffectType.STATUS) continue;
+                if (!conditionActive(player, profile, node.condition())) continue;
+
+                stats.addAll(node.status());
+                elements.addAll(node.elementStatus());
+            }
             List<ClassNodeDefinition> milestones = definition.milestones();
             int unlocked = unlockedMilestoneCount(profile);
             for (int index = 0; index < unlocked; index++) {
@@ -268,6 +276,11 @@ public final class ClassService {
         ClassDefinition definition = currentClass(profile).orElse(null);
         if (definition == null || skillName == null) return false;
 
+        for (ClassNodeDefinition node : definition.innate()) {
+            if (node.effectType() == ClassPassiveEffectType.SKILL && node.skillName().equalsIgnoreCase(skillName)) {
+                return true;
+            }
+        }
         int unlocked = unlockedMilestoneCount(profile);
         for (int index = 0; index < unlocked; index++) {
             ClassNodeDefinition node = definition.milestones().get(index);

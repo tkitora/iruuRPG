@@ -8,7 +8,8 @@ import java.util.List;
 
 /**
  * A class: per-level growth, SP spend nodes, and milestone nodes that unlock for free
- * (in this fixed order) as SP is spent.
+ * (in this fixed order) as SP is spent. {@code innate} nodes ("固有0") are active from the moment the class is
+ * chosen: passives that cost no SP.
  */
 public record ClassDefinition(
         String id,
@@ -18,7 +19,8 @@ public record ClassDefinition(
         StatSet growth,
         ElementStatSet growthElements,
         List<SpendNodeDefinition> spendNodes,
-        List<ClassNodeDefinition> milestones
+        List<ClassNodeDefinition> milestones,
+        List<ClassNodeDefinition> innate
 ) {
 
     public ClassDefinition {
@@ -30,6 +32,7 @@ public record ClassDefinition(
         growthElements = growthElements == null ? new ElementStatSet() : growthElements.copy();
         spendNodes = spendNodes == null ? List.of() : List.copyOf(spendNodes);
         milestones = milestones == null ? List.of() : List.copyOf(milestones);
+        innate = innate == null ? List.of() : List.copyOf(innate);
     }
 
     public SpendNodeDefinition spendNode(String nodeId) {
