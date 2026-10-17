@@ -22,10 +22,29 @@ public final class MainMenuItemService {
 
     private final JavaPlugin plugin;
     private final NamespacedKey menuItemKey;
+    private final NamespacedKey hiddenKey;
 
     public MainMenuItemService(JavaPlugin plugin) {
         this.plugin = plugin;
         this.menuItemKey = new NamespacedKey(plugin, "main_menu_item");
+        this.hiddenKey = new NamespacedKey(plugin, "main_menu_item_hidden");
+    }
+
+    /** True when this player chose to have no menu item in the hotbar (they open the menu with /menu instead). */
+    public boolean isHidden(Player player) {
+        return player.getPersistentDataContainer().has(hiddenKey, PersistentDataType.BYTE);
+    }
+
+    /** Hides or shows the hotbar menu item, remembered across logins; returns the new hidden state. */
+    public boolean setHidden(Player player, boolean hidden) {
+        if (hidden) {
+            player.getPersistentDataContainer().set(hiddenKey, PersistentDataType.BYTE, (byte) 1);
+        } else {
+            player.getPersistentDataContainer().remove(hiddenKey);
+        }
+        ensure(player);
+        player.updateInventory();
+        return hidden;
     }
 
     public void startTask() {
@@ -38,6 +57,10 @@ public final class MainMenuItemService {
 
     public void ensure(Player player) {
         PlayerInventory inventory = player.getInventory();
+        if (isHidden(player)) {
+            removeAll(inventory);
+            return;
+        }
         removeDuplicates(inventory);
 
         ItemStack current = inventory.getItem(MENU_SLOT);
@@ -84,6 +107,14 @@ public final class MainMenuItemService {
             item.setItemMeta(meta);
         }
         return item;
+    }
+
+    private void removeAll(PlayerInventory inventory) {
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            if (isMenuItem(inventory.getItem(slot))) {
+                inventory.setItem(slot, null);
+            }
+        }
     }
 
     private void removeDuplicates(PlayerInventory inventory) {

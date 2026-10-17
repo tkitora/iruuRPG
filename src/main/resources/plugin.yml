@@ -6,6 +6,11 @@ commands:
   iruurpg:
     description: iruuRPG admin and debug command
     usage: /iruurpg <status|stats|class|level|reload|item|mob|dummy>
+  menu:
+    description: Opens the iruuRPG menu; "/menu toggle" hides or shows the menu item in the hotbar
+    usage: /menu [toggle|hide|show]
+    aliases:
+      - rpgmenu
   stats:
     description: Opens your iruuRPG status menu
     usage: /stats
