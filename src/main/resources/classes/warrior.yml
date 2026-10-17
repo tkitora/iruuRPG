@@ -10,6 +10,9 @@
 #   active の hot_key は全クラス F
 # 数値は design/class-redesign-2026-10-09.md の1SPあたり表と、ステータス解放の配分に基づく。
 
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
 id: warrior
 name: "戦士"
 icon: IRON_SWORD

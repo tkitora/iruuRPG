@@ -162,6 +162,10 @@ public final class IruuRPG extends JavaPlugin {
         ResourceSync.sync(this, "loot/cave.yml");
         ResourceSync.sync(this, "loot/cave_road.yml");
         ResourceSync.sync(this, "classes/mage.yml");
+        ResourceSync.sync(this, "classes/warrior.yml");
+        ResourceSync.sync(this, "classes/healer.yml");
+        ResourceSync.sync(this, "classes/gifted.yml");
+        ResourceSync.sync(this, "classes/assassin.yml");
         this.itemRegistry = new RpgItemRegistry(this);
         this.itemSkillRegistry = new ItemSkillRegistry(this);
         this.itemSkillRegistry.reload();

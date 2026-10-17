@@ -1,6 +1,9 @@
 # クラス定義: クレリック (緑 / 耐久力特化。旧名ヒーラー)
 # 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
 
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
 id: healer
 name: "クレリック"
 icon: GOLDEN_APPLE
