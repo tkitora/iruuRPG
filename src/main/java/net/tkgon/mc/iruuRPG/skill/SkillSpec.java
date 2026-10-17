@@ -74,8 +74,8 @@ public record SkillSpec(
             case BARRAGE -> new SkillSpec("", "", template, look, 1.0, 12.0, 130, Orientation.HORIZONTAL, 12, 200, 5, 5, 14.0, 0.5, List.of(), 0, 0, Target.ENEMIES);
             case DASH -> new SkillSpec("", "", template, look, 1.0, 10.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 12.0, 1.5, List.of(), 0, 0, Target.ENEMIES);
             case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, 0, Target.ENEMIES);
-            case NOVA -> new SkillSpec("", "", template, look, 7.0, 7.0, 130, Orientation.HORIZONTAL, 28, 220, 1, 4, 10.0, 1.4, List.of(), 0, 0, Target.ENEMIES);
-            case BEAM -> new SkillSpec("", "", template, look, 0.8, 18.0, 130, Orientation.HORIZONTAL, 24, 180, 1, 4, 12.0, 1.6, List.of(), 0, 0, Target.ENEMIES);
+            case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, 0, Target.ENEMIES);
+            case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, 0, Target.ENEMIES);
         };
     }
 }

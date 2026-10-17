@@ -209,9 +209,9 @@ public final class SkillRegistry {
         }
 
         // shape
-        double radius = number(owner, flat, "radius", start.radius(), 0.5, 12.0);
+        double radius = number(owner, flat, "radius", start.radius(), 1.0, 20.0);
         double range = number(owner, flat, "range", start.range(), 1.0, 40.0);
-        double angle = number(owner, flat, "angle", start.angle(), 5.0, 360.0);
+        double angle = number(owner, flat, "angle", start.angle(), 10.0, 360.0);
         SkillSpec.Orientation orientation = start.orientation();
         if (flat.get("orientation") != null) {
             try {
@@ -222,14 +222,14 @@ public final class SkillRegistry {
         }
 
         // timing
-        int windup = (int) Math.round(number(owner, flat, "windup-ticks", start.windupTicks(), 4, 100));
+        int windup = (int) Math.round(number(owner, flat, "windup-ticks", start.windupTicks(), 4, 200));
         int cooldown = (int) Math.round(number(owner, flat, "cooldown-ticks", start.cooldownTicks(), 20, 2400));
         int count = (int) Math.round(number(owner, flat, "count", start.count(), 1, 20));
-        int interval = (int) Math.round(number(owner, flat, "interval-ticks", start.intervalTicks(), 2, 40));
+        int interval = (int) Math.round(number(owner, flat, "interval-ticks", start.intervalTicks(), 2, 100));
         double speed = number(owner, flat, "speed", start.speed(), 2.0, 60.0);
 
         // effects
-        double damageRate = number(owner, flat, "damage-rate", start.damageRate(), 0.0, 10.0);
+        double damageRate = number(owner, flat, "damage-rate", start.damageRate(), 0.0, 20.0);
         List<SkillSpec.StatusApply> statuses = start.statuses();
         if (flat.containsKey("status")) statuses = statuses(owner, flat.get("status"));
         double heal = number(owner, flat, "heal-rate", start.healRate(), 0.0, 1.0);
@@ -299,8 +299,8 @@ public final class SkillRegistry {
                 plugin.getLogger().warning("skills: " + owner + ": status '" + type + "' is unknown (" + String.join(" / ", new java.util.TreeSet<>(STATUS_TYPES)) + ")");
                 continue;
             }
-            double percent = number(owner, entry, "percent", 30.0, 1.0, 100.0);
-            double seconds = number(owner, entry, "seconds", 3.0, 0.5, 10.0);
+            double percent = number(owner, entry, "percent", 30.0, 0.0, 100.0);
+            double seconds = number(owner, entry, "seconds", 3.0, 0.5, 30.0);
             double value = number(owner, entry, "value", 10.0, 1.0, 1000.0);
             result.add(new SkillSpec.StatusApply(type, percent, seconds, value));
         }

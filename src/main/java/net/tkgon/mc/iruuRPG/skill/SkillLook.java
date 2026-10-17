@@ -12,10 +12,10 @@ import java.util.List;
  */
 public record SkillLook(List<Color> colors, Particle particle, double size, double width, SoundStyle sound) {
 
-    public static final double MIN_SIZE = 0.3;
-    public static final double MAX_SIZE = 2.0;
-    public static final double MIN_WIDTH = 0.3;
-    public static final double MAX_WIDTH = 2.5;
+    public static final double MIN_SIZE = 0.2;
+    public static final double MAX_SIZE = 3.0;
+    public static final double MIN_WIDTH = 0.2;
+    public static final double MAX_WIDTH = 3.0;
 
     public SkillLook {
         colors = colors == null ? null : List.copyOf(colors);
