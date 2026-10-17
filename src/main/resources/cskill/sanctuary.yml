@@ -3,7 +3,10 @@
 # 発動した場所に、範囲7の緑のエリアを作る。エリア内の味方全員を、
 # 持っている武器が与えるダメージ分(敵の防具なし・設置武器は安定性込み)、毎秒回復する。
 # 回復はヒーラーの「保護%」の倍率が乗る(解放ノード6)。
+# 効果時間には、装備などの「効果時間」ステータスが乗る (+100% で2倍)。
 # 強化(解放ノード8)を解放済みなら、効果時間が10秒になり、エリア内はノックバックを受けない。
+# さらに、発動して recast-delay-seconds 秒後から効果が続く間、もう一度キーを押すと再発動できる(1回だけ):
+# 範囲内の味方に recast-burst-seconds 秒分の回復が一気に入り、範囲内の敵全員に混乱 recast-confusion が付く(聖域はそこで終わる)。
 
 id: sanctuary
 name: "聖域"
@@ -24,3 +27,7 @@ values:
   # duration-seconds: 効果時間(秒)。強化後は upgrade-duration-seconds
   duration-seconds: 5
   upgrade-duration-seconds: 10
+  # 強化の再発動: 発動から何秒後に使えるか / 何秒分の回復を一気に入れるか / 敵に付ける混乱
+  recast-delay-seconds: 3
+  recast-burst-seconds: 4
+  recast-confusion: 100
