@@ -388,23 +388,24 @@ public final class TravelService implements Listener {
         return true;
     }
 
-    /** Labels over each point; not saved with the world. */
+    private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
+
+    public void setWorldLabels(net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels) {
+        this.worldLabels = worldLabels;
+    }
+
+    /** Labels over each point; kept in place by {@link net.tkgon.mc.iruuRPG.hud.WorldLabels} (they are not saved with the world). */
     public void refreshLabels() {
-        for (Entity label : labels) {
-            if (label.isValid()) label.remove();
-        }
-        labels.clear();
+        if (worldLabels == null) return;
+        List<net.tkgon.mc.iruuRPG.hud.WorldLabels.Spec> specs = new ArrayList<>();
         for (Waypoint point : waypoints.values()) {
             Location at = point.location();
             if (at == null) continue;
-            at.add(0, 2.4, 0).getChunk().load();
-            labels.add(at.getWorld().spawn(at, TextDisplay.class, display -> {
-                display.setBillboard(Display.Billboard.CENTER);
-                display.setPersistent(false);
-                display.text(Component.text("◆ " + point.name(), NamedTextColor.AQUA, TextDecoration.BOLD)
-                        .append(Component.newline()).append(Component.text("ファストトラベル地点", NamedTextColor.GRAY)));
-            }));
+            specs.add(new net.tkgon.mc.iruuRPG.hud.WorldLabels.Spec(at.getWorld().getName(), at.getX(), at.getY() + 2.4, at.getZ(),
+                    Component.text("◆ " + point.name(), NamedTextColor.AQUA, TextDecoration.BOLD)
+                            .append(Component.newline()).append(Component.text("ファストトラベル地点", NamedTextColor.GRAY)), false));
         }
+        worldLabels.set("travel", specs);
     }
 
     // ---- storage ----------------------------------------------------------------------------------------------------

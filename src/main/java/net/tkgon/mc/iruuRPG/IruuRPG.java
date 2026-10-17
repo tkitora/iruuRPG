@@ -135,6 +135,7 @@ public final class IruuRPG extends JavaPlugin {
     private PartyService partyService;
     private PartyMenu partyMenu;
     private SoundSettings soundSettings;
+    private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
     private AttackEffects attackEffectsRef;
     private SettingsMenu settingsMenu;
     private TravelService travelService;
@@ -239,7 +240,10 @@ public final class IruuRPG extends JavaPlugin {
         this.marketMenu.setMainMenu(mainMenu);
         this.dungeonRegistry = new DungeonRegistry(this);
         this.dungeonRegistry.reload();
+        this.worldLabels = new net.tkgon.mc.iruuRPG.hud.WorldLabels(this);
+        this.worldLabels.start();
         this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, mobRegistry, levelService, profileManager);
+        this.dungeonService.setWorldLabels(worldLabels);
         this.dungeonMenu = new DungeonMenu(dungeonService);
         this.dungeonEditor = new DungeonEditor(this, dungeonService, mobRegistry);
         this.rewardChestMenu = new RewardChestMenu(this);
@@ -256,6 +260,7 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonService.setPartyService(partyService);
         this.mobService.setPartyService(partyService);
         this.travelService = new TravelService(this, profileManager);
+        this.travelService.setWorldLabels(worldLabels);
         this.travelMenu = new TravelMenu(travelService);
         this.travelMenu.setMainMenu(mainMenu);
         this.mainMenu.setTravelMenu(travelMenu);
@@ -298,6 +303,9 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (storageMenu != null) {
             storageMenu.shutdown();
+        }
+        if (worldLabels != null) {
+            worldLabels.shutdown();
         }
         if (dungeonService != null) {
             dungeonService.shutdown();
@@ -471,6 +479,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(soundSettings, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
+        getServer().getPluginManager().registerEvents(worldLabels, this);
         getServer().getPluginManager().registerEvents(travelMenu, this);
         getServer().getPluginManager().registerEvents(storageMenu, this);
         getServer().getPluginManager().registerEvents(craftService, this);
