@@ -27,6 +27,7 @@ import java.util.List;
  * @param cost           MP a player pays to cast it (enemies do not pay)
  * @param description    lines for item / skill tree text
  * @param steps          combo: the steps in order (empty for any other template)
+ * @param origin         where it appears (null = at the caster, as always)
  */
 public record SkillSpec(
         String id,
@@ -49,13 +50,20 @@ public record SkillSpec(
         Target target,
         double cost,
         List<String> description,
-        List<ComboStep> steps
+        List<ComboStep> steps,
+        Origin origin
 ) {
 
     public enum Orientation { HORIZONTAL, VERTICAL, DIAGONAL }
 
     /** One step of a combo: a skill, how long to wait before it, and whether it starts together with the step before. */
     public record ComboStep(SkillSpec spec, int delayTicks, boolean withPrevious) {
+    }
+
+    public enum Anchor { CASTER, TARGET }
+
+    /** A point to start from: from the caster (or the one aimed at), this far ahead / to the right / up. */
+    public record Origin(Anchor anchor, double forward, double side, double up) {
     }
 
     public static final int MAX_COMBO_STEPS = 8;
@@ -86,14 +94,14 @@ public record SkillSpec(
         };
         SkillLook look = new SkillLook(null, null, 1.0, 1.0, sound);
         return switch (template) {
-            case STRIKE -> new SkillSpec("", "", template, look, 3.5, 4.5, 130, Orientation.HORIZONTAL, 24, 160, 1, 4, 12.0, 1.8, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case SWEEP -> new SkillSpec("", "", template, look, 4.5, 4.5, 130, Orientation.HORIZONTAL, 14, 120, 1, 4, 12.0, 1.3, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case BARRAGE -> new SkillSpec("", "", template, look, 1.0, 12.0, 130, Orientation.HORIZONTAL, 12, 200, 5, 5, 14.0, 0.5, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case DASH -> new SkillSpec("", "", template, look, 1.0, 10.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 12.0, 1.5, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case COMBO -> new SkillSpec("", "", template, look, 1.0, 1.0, 130, Orientation.HORIZONTAL, 4, 240, 1, 4, 12.0, 0.0, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
-            case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of());
+            case STRIKE -> new SkillSpec("", "", template, look, 3.5, 4.5, 130, Orientation.HORIZONTAL, 24, 160, 1, 4, 12.0, 1.8, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case SWEEP -> new SkillSpec("", "", template, look, 4.5, 4.5, 130, Orientation.HORIZONTAL, 14, 120, 1, 4, 12.0, 1.3, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case BARRAGE -> new SkillSpec("", "", template, look, 1.0, 12.0, 130, Orientation.HORIZONTAL, 12, 200, 5, 5, 14.0, 0.5, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case DASH -> new SkillSpec("", "", template, look, 1.0, 10.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 12.0, 1.5, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case COMBO -> new SkillSpec("", "", template, look, 1.0, 1.0, 130, Orientation.HORIZONTAL, 4, 240, 1, 4, 12.0, 0.0, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
+            case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, 0, Target.ENEMIES, 0.0, List.of(), List.of(), null);
         };
     }
 

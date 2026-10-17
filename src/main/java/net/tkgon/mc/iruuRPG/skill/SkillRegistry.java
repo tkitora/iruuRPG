@@ -279,6 +279,11 @@ public final class SkillRegistry {
             }
         }
 
+        SkillSpec.Origin origin = flat.containsKey("origin") ? origin(owner, flat.get("origin")) : start.origin();
+        if (origin != null && start.template() == SkillTemplate.DASH) {
+            plugin.getLogger().warning("skills: " + owner + ": a dash moves the caster, so its origin is ignored");
+            origin = null;
+        }
         double cost = number(owner, flat, "cost", start.cost(), 0.0, 500.0);
         List<String> description = start.description();
         if (flat.get("description") != null) {
@@ -299,7 +304,7 @@ public final class SkillRegistry {
         return new SkillSpec(id.isEmpty() ? start.id() : id, name, template,
                 new SkillLook(colors, particle, size, width, sound),
                 radius, range, angle, orientation, windup, cooldown, count, interval, speed,
-                damageRate, statuses, heal, knockback, target, cost, description, start.steps());
+                damageRate, statuses, heal, knockback, target, cost, description, start.steps(), origin);
     }
 
     /**
@@ -371,7 +376,7 @@ public final class SkillRegistry {
         }
         return new SkillSpec(self.id(), self.name(), SkillTemplate.COMBO, self.look(), self.radius(), self.range(), self.angle(), self.orientation(),
                 self.windupTicks(), self.cooldownTicks(), self.count(), self.intervalTicks(), self.speed(), self.damageRate(),
-                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps);
+                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps, null);
     }
 
     private final Set<String> pendingComboIds = new java.util.HashSet<>();
@@ -396,6 +401,27 @@ public final class SkillRegistry {
             return fixed;
         }
         return v;
+    }
+
+    /** shape.origin: {anchor: caster|target, forward, side, up}; out of range values are fixed with a warning. */
+    private SkillSpec.Origin origin(String owner, Object raw) {
+        Map<String, Object> map = toMap(raw);
+        if (map == null) {
+            plugin.getLogger().warning("skills: " + owner + ": origin must be a section (anchor / forward / side / up); ignored");
+            return null;
+        }
+        SkillSpec.Anchor anchor = SkillSpec.Anchor.CASTER;
+        if (map.get("anchor") != null) {
+            try {
+                anchor = SkillSpec.Anchor.valueOf(map.get("anchor").toString().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("skills: " + owner + ": origin anchor '" + map.get("anchor") + "' is unknown (caster / target)");
+            }
+        }
+        double forward = number(owner, map, "forward", 0.0, -20.0, 40.0);
+        double side = number(owner, map, "side", 0.0, -20.0, 20.0);
+        double up = number(owner, map, "up", 0.0, -5.0, 10.0);
+        return new SkillSpec.Origin(anchor, forward, side, up);
     }
 
     private List<Color> colors(String owner, Object raw) {
