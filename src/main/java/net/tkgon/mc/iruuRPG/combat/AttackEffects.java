@@ -558,7 +558,13 @@ public final class AttackEffects {
     }
 
     public void playSlashProjectile(Location center, Vector direction, RpgItemDefinition weapon) {
-        if (center == null || center.getWorld() == null || weapon == null) return;
+        if (weapon == null) return;
+        playSlashProjectile(center, direction, weapon.element(), 0.8);
+    }
+
+    /** One step of a flying slash (also an enemy's wave): a crescent of {@code radius} that bulges the way it flies. */
+    public void playSlashProjectile(Location center, Vector direction, Element element, double radius) {
+        if (center == null || center.getWorld() == null || element == null) return;
 
         Vector axis = direction.clone();
         if (axis.lengthSquared() <= 1.0E-9) {
@@ -570,7 +576,7 @@ public final class AttackEffects {
         double elevation = Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, axis.getY()))));
 
         // a crescent that bulges the way it flies; drawn each step so the steps leave a trail
-        slash(center, weapon.element(), new SlashVfx.Shape(0.8, 150.0, 0.0, 0.0, yaw, 90.0 - elevation, 0.0, Math.max(3, vfxDensity() - 1)),
+        slash(center, element, new SlashVfx.Shape(radius, 150.0, 0.0, 0.0, yaw, 90.0 - elevation, 0.0, Math.max(3, vfxDensity() - 1)),
                 0.05, 1.0f, 0.0);
     }
 

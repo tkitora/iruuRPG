@@ -139,7 +139,7 @@ public final class RpgMobRegistry {
     }
 
     /**
-     * skills: a list of entries, each with a "type" (strike / sweep / barrage / dash) and any of cooldown-ticks, range,
+     * skills: a list of entries, each with a "type" (strike / sweep / barrage / dash / wave) and any of cooldown-ticks, range,
      * radius, windup-ticks, damage-rate, count, interval-ticks, speed (see {@link MobSkillSpec}). Bad entries are
      * reported and skipped.
      */
@@ -149,7 +149,7 @@ public final class RpgMobRegistry {
             Object typeName = entry.get("type");
             MobSkillSpec.Type type = MobSkillSpec.Type.parse(typeName == null ? null : typeName.toString());
             if (type == null) {
-                plugin.getLogger().warning("mobs: unknown skill type '" + typeName + "' in mob " + id + " (strike / sweep / barrage / dash)");
+                plugin.getLogger().warning("mobs: unknown skill type '" + typeName + "' in mob " + id + " (strike / sweep / barrage / dash / wave)");
                 continue;
             }
             MobSkillSpec base = MobSkillSpec.defaults(type);
