@@ -90,7 +90,7 @@ public final class SkillRegistry {
         SkillSpec skill = skills.get(id);
         if (skill != null) return Optional.of(skill);
         SkillTemplate template = SkillTemplate.parse(id);
-        return template == null ? Optional.empty() : Optional.of(SkillSpec.defaults(template));
+        return template == null || template == SkillTemplate.COMBO ? Optional.empty() : Optional.of(SkillSpec.defaults(template));
     }
 
     /** The skill a weapon uses: skill `id` with the item's `skill-overrides` applied; null when there is no such skill. */
@@ -121,6 +121,8 @@ public final class SkillRegistry {
         File[] files = folder.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".yml"));
         if (files == null) return;
         java.util.Arrays.sort(files);
+        List<String[]> comboOwners = new ArrayList<>();
+        List<Map<String, Object>> comboMaps = new ArrayList<>();
         for (File file : files) {
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
             ConfigurationSection section = yaml.getConfigurationSection("skills");
@@ -145,9 +147,23 @@ public final class SkillRegistry {
                     plugin.getLogger().warning("skills: " + owner + ": must be a section");
                     continue;
                 }
+                Map<String, Object> flatCheck = flatten(map);
+                Object templateName = flatCheck.containsKey("template") ? flatCheck.get("template") : flatCheck.get("type");
+                if (SkillTemplate.parse(templateName == null ? null : templateName.toString()) == SkillTemplate.COMBO) {
+                    // combos refer to other skills: read them after all the others
+                    comboOwners.add(new String[]{owner, id});
+                    comboMaps.add(map);
+                    continue;
+                }
                 SkillSpec spec = parse(owner, map, null, id);
                 if (spec != null) skills.put(id, spec);
             }
+        }
+        pendingComboIds.clear();
+        for (String[] owner : comboOwners) pendingComboIds.add(owner[1]);
+        for (int index = 0; index < comboMaps.size(); index++) {
+            SkillSpec combo = parseCombo(comboOwners.get(index)[0], comboMaps.get(index), comboOwners.get(index)[1]);
+            if (combo != null) skills.put(comboOwners.get(index)[1], combo);
         }
         if (!skills.isEmpty()) plugin.getLogger().info("Loaded " + skills.size() + " skills from " + files.length + " files.");
     }
@@ -188,6 +204,10 @@ public final class SkillRegistry {
             if (template == null) {
                 plugin.getLogger().warning("skills: " + owner + ": unknown template '" + templateName
                         + "' (strike / sweep / barrage / dash / wave / nova / beam) (skipped)");
+                return null;
+            }
+            if (template == SkillTemplate.COMBO) {
+                plugin.getLogger().warning("skills: " + owner + ": a combo must be a skill of skills/*.yml (with steps), not written inline (skipped)");
                 return null;
             }
             start = SkillSpec.defaults(template);
@@ -279,7 +299,85 @@ public final class SkillRegistry {
         return new SkillSpec(id.isEmpty() ? start.id() : id, name, template,
                 new SkillLook(colors, particle, size, width, sound),
                 radius, range, angle, orientation, windup, cooldown, count, interval, speed,
-                damageRate, statuses, heal, knockback, target, cost, description);
+                damageRate, statuses, heal, knockback, target, cost, description, start.steps());
+    }
+
+    /**
+     * A combo: {@code steps:} is a list of {@code {skill: id, delay-ticks, with-previous, ...overrides}} (or
+     * {@code {template: strike, ...}}). At most 8 steps and 12 seconds in all; a combo cannot contain a combo; a step
+     * whose skill does not exist is skipped. The combo's own cost, cooldown and description are the ones that count.
+     */
+    private SkillSpec parseCombo(String owner, Map<String, Object> raw, String id) {
+        SkillSpec self = parse(owner, raw, SkillSpec.defaults(SkillTemplate.COMBO), id);
+        if (self == null) return null;
+        Object stepsRaw = flatten(raw).get("steps");
+        if (!(stepsRaw instanceof List<?> list) || list.isEmpty()) {
+            plugin.getLogger().warning("skills: " + owner + ": a combo needs a steps list (skipped)");
+            return null;
+        }
+        List<SkillSpec.ComboStep> steps = new ArrayList<>();
+        int number = 0;
+        int ticks = 0;
+        int previousStart = 0;
+        for (Object item : list) {
+            number++;
+            String where = owner + " step " + number;
+            if (steps.size() >= SkillSpec.MAX_COMBO_STEPS) {
+                plugin.getLogger().warning("skills: " + where + ": a combo has at most " + SkillSpec.MAX_COMBO_STEPS + " steps (the rest are skipped)");
+                break;
+            }
+            Map<String, Object> entry = toMap(item);
+            if (entry == null) {
+                plugin.getLogger().warning("skills: " + where + ": must be a section (skipped)");
+                continue;
+            }
+            SkillSpec stepSpec;
+            if (entry.get("skill") != null) {
+                String ref = entry.get("skill").toString().trim();
+                SkillSpec base = skills.get(ref);
+                if (base == null) {
+                    plugin.getLogger().warning("skills: " + where + ": unknown skill '" + ref + "'"
+                            + (rawIsCombo(ref) ? " (a combo cannot contain a combo)" : "") + " (skipped)");
+                    continue;
+                }
+                if (base.template() == SkillTemplate.COMBO) {
+                    plugin.getLogger().warning("skills: " + where + ": '" + ref + "' is a combo; a combo cannot contain a combo (skipped)");
+                    continue;
+                }
+                stepSpec = parse(where, entry, base, ref);
+            } else {
+                stepSpec = parse(where, entry, null, "");
+            }
+            if (stepSpec == null) continue;
+            int delay = (int) Math.round(number(where, flatten(entry), "delay-ticks", 0, 0, 240));
+            boolean with = Boolean.TRUE.equals(entry.get("with-previous")) && !steps.isEmpty();
+            SkillSpec.ComboStep step = new SkillSpec.ComboStep(stepSpec, delay, with);
+            int start = with ? previousStart + delay : ticks + delay;
+            if (start >= SkillSpec.MAX_COMBO_TICKS) {
+                plugin.getLogger().warning("skills: " + where + ": it would start after " + SkillSpec.MAX_COMBO_TICKS / 20 + " s; a combo is at most "
+                        + SkillSpec.MAX_COMBO_TICKS / 20 + " s long (the rest are skipped)");
+                break;
+            }
+            ticks = Math.max(ticks, start + stepSpec.estimatedTicks());
+            previousStart = start;
+            steps.add(step);
+        }
+        if (steps.isEmpty()) {
+            plugin.getLogger().warning("skills: " + owner + ": a combo with no usable step (skipped)");
+            return null;
+        }
+        if (ticks > SkillSpec.MAX_COMBO_TICKS) {
+            plugin.getLogger().warning("skills: " + owner + ": the combo lasts about " + ticks / 20.0 + " s; it is cut at " + SkillSpec.MAX_COMBO_TICKS / 20 + " s");
+        }
+        return new SkillSpec(self.id(), self.name(), SkillTemplate.COMBO, self.look(), self.radius(), self.range(), self.angle(), self.orientation(),
+                self.windupTicks(), self.cooldownTicks(), self.count(), self.intervalTicks(), self.speed(), self.damageRate(),
+                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps);
+    }
+
+    private final Set<String> pendingComboIds = new java.util.HashSet<>();
+
+    private boolean rawIsCombo(String id) {
+        return pendingComboIds.contains(id);
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------------------

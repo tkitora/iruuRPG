@@ -44,6 +44,10 @@ public final class SkillRunner {
             onDone.run();
             return;
         }
+        if (spec.template() == SkillTemplate.COMBO) {
+            combo(caster, spec, aim, onDone);
+            return;
+        }
         caster.freeze();
         Location aimAt = aim.get();
         if (aimAt != null) caster.face(aimAt);
@@ -56,6 +60,7 @@ public final class SkillRunner {
             case WAVE -> wave(caster, spec, aim, onDone);
             case NOVA -> nova(caster, spec, onDone);
             case BEAM -> beam(caster, spec, aim, onDone);
+            case COMBO -> onDone.run();
         }
     }
 
@@ -87,6 +92,101 @@ public final class SkillRunner {
                         // the caster is gone or broken: nothing more to give back
                     }
                 }
+            }
+        }
+    }
+
+    // ---- combo --------------------------------------------------------------------------------------------------------
+
+    /**
+     * Runs the steps one after another. A normal step starts when every step started before it is over (plus its
+     * delay); a step with {@code with-previous} starts its delay after the step before it started. When the caster
+     * is gone, no further step is started. {@code onDone} runs once, when nothing is running or waiting any more.
+     */
+    private void combo(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+        if (spec.steps().isEmpty()) {
+            onDone.run();
+            return;
+        }
+        new Combo(caster, spec, aim, onDone).begin();
+    }
+
+    private final class Combo {
+        private final SkillCaster caster;
+        private final SkillSpec spec;
+        private final Supplier<Location> aim;
+        private final Runnable onDone;
+        /** Steps running or waiting for their start. */
+        private int pending;
+        /** Index of the next step that has not been scheduled yet. */
+        private int next;
+        private boolean finished;
+        private final int startedAt = org.bukkit.Bukkit.getCurrentTick();
+
+        private Combo(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+            this.caster = caster;
+            this.spec = spec;
+            this.aim = aim;
+            this.onDone = onDone;
+        }
+
+        private void begin() {
+            schedule(0);
+        }
+
+        /** Schedules step {@code index}, then the steps after it that start together with it. */
+        private void schedule(int index) {
+            SkillSpec.ComboStep step = spec.steps().get(index);
+            next = index + 1;
+            pending++;
+            long delay = Math.max(0, step.delayTicks());
+            if (delay == 0L) {
+                startStep(index);
+            } else {
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> startStep(index), delay);
+            }
+        }
+
+        private void startStep(int index) {
+            if (finished) return;
+            if (!caster.valid() || org.bukkit.Bukkit.getCurrentTick() - startedAt > SkillSpec.MAX_COMBO_TICKS + 60) {
+                // the caster is gone (or the combo ran far too long): nothing more is started
+                stepOver(true);
+                return;
+            }
+            // a guard: the combo cannot be judged finished while this step is being started and its partners scheduled
+            pending++;
+            try {
+                start(caster, spec.steps().get(index).spec(), aim, () -> stepOver(false));
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("skill: a combo step failed: " + exception);
+                stepOver(false);
+            }
+            // the steps that start together with this one are scheduled from its start
+            if (next < spec.steps().size() && spec.steps().get(next).withPrevious()) schedule(next);
+            pending--;
+            settle();
+        }
+
+        private void stepOver(boolean abort) {
+            if (finished) return;
+            pending--;
+            if (abort) {
+                // stop: later steps are not started, the ones already running finish on their own
+                next = spec.steps().size();
+            }
+            settle();
+        }
+
+        /** Nothing running or waiting: start the next normal step, or end the combo. */
+        private void settle() {
+            if (finished || pending > 0) return;
+            if (next < spec.steps().size() && caster.valid()) {
+                schedule(next);
+            } else {
+                finished = true;
+                caster.release();
+                onDone.run();
             }
         }
     }
