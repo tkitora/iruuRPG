@@ -473,6 +473,7 @@ public final class RpgMobService {
             case BARRAGE, DASH -> sees && distance >= 4.0 && distance <= spec.range();
             case WAVE, BEAM -> sees && distance >= 3.0 && distance <= spec.range();
             case NOVA -> distance <= spec.radius();
+            case TELEPORT -> sees && distance >= 4.0 && distance <= spec.range();
             case COMBO -> false;
         };
     }
@@ -577,6 +578,12 @@ public final class RpgMobService {
         @Override
         public void lunge(Vector velocity) {
             mob.setVelocity(velocity);
+        }
+
+        @Override
+        public void teleport(Location to) {
+            mob.setFallDistance(0.0f);
+            mob.teleport(to);
         }
 
         @Override

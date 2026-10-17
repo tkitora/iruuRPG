@@ -105,6 +105,12 @@ public final class PlayerSkillCaster implements SkillCaster {
     }
 
     @Override
+    public void teleport(Location to) {
+        player.setFallDistance(0.0f);
+        player.teleport(to, org.bukkit.event.player.PlayerTeleportEvent.TeleportCause.PLUGIN);
+    }
+
+    @Override
     public List<? extends LivingEntity> candidates() {
         // once per tick: every flying piece of the skill asks every tick
         int tick = org.bukkit.Bukkit.getCurrentTick();

@@ -235,6 +235,16 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
         }
 
         @Override
+        public void teleport(Location to) {
+            // the stand-in is only a point: it jumps there
+            location.setX(to.getX());
+            location.setY(to.getY());
+            location.setZ(to.getZ());
+            location.setYaw(to.getYaw());
+            location.setPitch(to.getPitch());
+        }
+
+        @Override
         public List<Player> candidates() {
             return dummy ? List.of() : List.of(admin);
         }
