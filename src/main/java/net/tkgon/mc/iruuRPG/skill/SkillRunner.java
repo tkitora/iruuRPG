@@ -59,15 +59,47 @@ public final class SkillRunner {
         }
     }
 
+    /**
+     * A repeating task that stops itself when it throws (a bad value from a skill file, a bug): it logs once, cancels,
+     * and runs {@code cleanup} (give the caster its movement back, tell the owner the skill is over), so an enemy's AI
+     * can never stay switched off.
+     */
+    private abstract class Guarded extends BukkitRunnable {
+        private final Runnable cleanup;
+
+        private Guarded(Runnable cleanup) {
+            this.cleanup = cleanup;
+        }
+
+        protected abstract void tick();
+
+        @Override
+        public final void run() {
+            try {
+                tick();
+            } catch (RuntimeException exception) {
+                cancel();
+                plugin.getLogger().warning("skill: stopped after an error: " + exception);
+                if (cleanup != null) {
+                    try {
+                        cleanup.run();
+                    } catch (RuntimeException ignored) {
+                        // the caster is gone or broken: nothing more to give back
+                    }
+                }
+            }
+        }
+    }
+
     // ---- strike -------------------------------------------------------------------------------------------------------
 
     private void strike(SkillCaster caster, SkillSpec spec, Runnable onDone) {
         Element element = caster.element();
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
@@ -93,11 +125,11 @@ public final class SkillRunner {
 
     private void sweep(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
@@ -127,12 +159,12 @@ public final class SkillRunner {
     // ---- barrage ------------------------------------------------------------------------------------------------------
 
     private void barrage(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
             private int fired;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
@@ -166,12 +198,12 @@ public final class SkillRunner {
         World world = caster.world();
         double perTick = spec.speed() / 20.0;
         double maxDistance = spec.range() * 1.3;
-        new BukkitRunnable() {
+        new Guarded(null) {
             private Location position = from.clone();
             private double travelled;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     return;
@@ -229,13 +261,13 @@ public final class SkillRunner {
         direction.normalize();
         double length = Math.min(spec.range(), start.distance(at) + 2.0);
         Location end = start.clone().add(direction.clone().multiply(length));
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
             private boolean lunged;
             private final Set<UUID> hit = new HashSet<>();
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
@@ -269,11 +301,11 @@ public final class SkillRunner {
 
     private void wave(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
@@ -321,13 +353,13 @@ public final class SkillRunner {
     private void flyWave(SkillCaster caster, SkillSpec spec, Location origin, Vector direction) {
         Element element = caster.element();
         World world = origin.getWorld();
-        new BukkitRunnable() {
+        new Guarded(null) {
             private final Location position = origin;
             private double travelled;
             private final Set<UUID> hit = new HashSet<>();
 
             @Override
-            public void run() {
+            protected void tick() {
                 double step = spec.speed() / 20.0;
                 RayTraceResult wall = world.rayTraceBlocks(position, direction, step, FluidCollisionMode.NEVER, true);
                 if (wall != null) {
@@ -355,11 +387,11 @@ public final class SkillRunner {
 
     private void nova(SkillCaster caster, SkillSpec spec, Runnable onDone) {
         Element element = caster.element();
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
@@ -384,12 +416,12 @@ public final class SkillRunner {
         Location center = caster.location().clone();
         effects.playSkillCastSound(center, spec.look(), element);
         double step = spec.speed() / 20.0;
-        new BukkitRunnable() {
+        new Guarded(null) {
             private double radius = 0.5;
             private final Set<UUID> hit = new HashSet<>();
 
             @Override
-            public void run() {
+            protected void tick() {
                 effects.playSkillNovaRing(center, radius, spec.look(), element);
                 for (Player player : caster.candidates()) {
                     if (hit.contains(player.getUniqueId())) continue;
@@ -417,14 +449,14 @@ public final class SkillRunner {
 
     private void beam(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
         Element element = caster.element();
-        new BukkitRunnable() {
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
             private int age;
             private Location from;
             private Location to;
             private int shown;
 
             @Override
-            public void run() {
+            protected void tick() {
                 if (!caster.valid()) {
                     cancel();
                     onDone.run();
