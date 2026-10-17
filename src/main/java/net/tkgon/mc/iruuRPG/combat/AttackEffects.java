@@ -684,11 +684,14 @@ public final class AttackEffects {
         Color base = baseColor(element);
         Particle spark = sparkParticle(element);
         boolean full = plugin.getConfig().getBoolean("slash-vfx.enabled", true);
+        // the slash has depth: a band of lines across the arc (for the flat crescent that is the way it reaches
+        // forward), wider for bigger arcs, with a faint wide glow, the colored body in the middle and a thin core
+        double band = Math.min(1.4, 0.35 + 0.35 * shape.radius());
         SlashVfx.Layer core = layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.75), 0.6f * scale, 1, 0.0, 1);
         SlashVfx.Layer[] layers = full
                 ? new SlashVfx.Layer[]{
-                        layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.35), 0.7f * scale, 2, 0.16, 2),
-                        layer(Particle.REDSTONE, base, 0.8f * scale, 2, 0.09, 1),
+                        layer(Particle.REDSTONE, mix(base, Color.WHITE, 0.35), 0.7f * scale, 4, band / 3.0, 2),
+                        layer(Particle.REDSTONE, base, 0.8f * scale, 3, band * 0.3, 1),
                         core,
                         layer(spark, null, 1f, 1, 0.0, 4)}
                 : new SlashVfx.Layer[]{core};
