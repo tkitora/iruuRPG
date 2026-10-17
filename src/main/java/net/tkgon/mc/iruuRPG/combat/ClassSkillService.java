@@ -234,22 +234,29 @@ public final class ClassSkillService {
     private void warriorStrike(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon) {
         boolean upgraded = classService.hasSkill(profileManager.getOrCreate(player), WARRIOR_STRIKE_UPGRADE);
         if (!upgraded) {
-            strikeHit(player, skill, target, weapon, skill.values().getOrDefault("damage-rate", 3.0), false);
+            strikeHit(player, skill, target, weapon, skill.values().getOrDefault("damage-rate", 3.0), false, 0.0);
             return;
         }
+
+        // The upgrade also scales the damage with the health lost when the skill is cast (1 + missing share x
+        // class-effects.warrior.missing-hp-damage) and gives this one cast a life steal (class-effects.warrior.strike-lifesteal)
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        double missing = profile.maxHp() <= 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, 1.0 - profile.currentHp() / profile.maxHp()));
+        double scale = 1.0 + missing * Math.max(0.0, plugin.getConfig().getDouble("class-effects.warrior.missing-hp-damage", 1.0));
+        double lifesteal = Math.max(0.0, plugin.getConfig().getDouble("class-effects.warrior.strike-lifesteal", 0.005));
 
         // Upgrade: two-stage hit. The second bolt hits harder and looks bigger.
         double firstRate = skill.values().getOrDefault("upgrade-first-rate", 2.5);
         double secondRate = skill.values().getOrDefault("upgrade-second-rate", 4.0);
         long delay = Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-delay-ticks", 8.0)));
-        strikeHit(player, skill, target, weapon, firstRate, false);
+        strikeHit(player, skill, target, weapon, firstRate * scale, false, lifesteal);
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || target.isDead() || !target.isValid()) return;
-            strikeHit(player, skill, target, weapon, secondRate, true);
+            strikeHit(player, skill, target, weapon, secondRate * scale, true, lifesteal);
         }, delay);
     }
 
-    private void strikeHit(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon, double rate, boolean big) {
+    private void strikeHit(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon, double rate, boolean big, double lifesteal) {
         AttackService.AttackDamage attack = attackService.calculateDamage(player, target, weapon);
         double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
         boolean critical = attack.result().critical();
@@ -263,6 +270,7 @@ public final class ClassSkillService {
             player.sendMessage("[iruuRPG] " + skill.name() + "のダメージが0です。武器と対象を確認してください。");
         }
 
+        if (lifesteal > 0.0) attackService.healPlayer(player, damage * lifesteal);
         attackService.sendDamageDebug(player, AttackType.MELEE, target, damage, critical, false);
         // Melee area passive (if unlocked) also splashes each hit at the usual area rate.
         attackService.applyAreaDamage(player, target, damage, AttackType.MELEE, weapon);

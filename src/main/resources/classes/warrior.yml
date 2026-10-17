@@ -11,7 +11,7 @@
 # 数値は design/class-redesign-2026-10-09.md の1SPあたり表と、ステータス解放の配分に基づく。
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 1
+version: 2
 
 id: warrior
 name: "戦士"
@@ -64,6 +64,16 @@ spend:
         damage:
           red: 65
 
+# 固有0: 最初から有効なパッシブ (SP不要)
+innate:
+  - node_name: "薙ぎ払い"
+    icon: DIAMOND_AXE
+    node_type: passive
+    effect_type: skill
+    name: melee_area
+    description:
+      - "近接攻撃が周囲の敵にも当たる (範囲3・威力65%)"
+
 milestones:
   # 1: SP 5 (ステータス)
   - node_name: "剛力の鍛錬"
@@ -75,14 +85,15 @@ milestones:
     status:
       strength-percent: 21
       max-hp: 400
-  # 2: SP 10 (クラス特有: 近接範囲攻撃化 / 範囲3・周囲45%の威力はコード側)
-  - node_name: "薙ぎ払い"
-    icon: DIAMOND_AXE
+  # 2: SP 10 (クラス特有 = 固有1: 周りの敵に狙われやすい / コード側 warrior_taunt)
+  - node_name: "挑発"
+    icon: BELL
     node_type: passive
     effect_type: skill
-    name: melee_area
+    name: warrior_taunt
     description:
-      - "近接攻撃が周囲の敵にも当たる"
+      - "周りの敵に優先して狙われやすくなる。"
+      - "(近くの敵は一度だけ振り向き、そのあとは狙いを変えない)"
   # 3: SP 15 (ステータス)
   - node_name: "不屈の肉体"
     icon: GOLDEN_APPLE
@@ -135,6 +146,8 @@ milestones:
     icon: END_CRYSTAL
     description:
       - "武神の一撃が2段階の雷になり、威力と演出が増す。"
+      - "発動したときの減った体力の分だけ、武神の一撃のダメージが増える。"
+      - "この一撃だけ、与えたダメージの0.5%を吸血する。"
     node_type: passive
     effect_type: skill
     name: warrior_strike_upgrade

@@ -209,6 +209,7 @@ public final class IruuRPG extends JavaPlugin {
         this.mobService = new RpgMobService(this, mobRegistry, itemRegistry, itemFactory, levelService, statusEffectService);
         this.attackEffectsRef = attackEffects;
         this.mobService.setAttackEffects(attackEffects);
+        this.mobService.setTauntCheck(player -> classService.hasSkill(profileManager.getOrCreate(player), "warrior_taunt"));
         this.skillRunner = new net.tkgon.mc.iruuRPG.skill.SkillRunner(this, attackEffects, statusEffectService);
         this.mobService.setSkillRunner(skillRunner);
         this.statusEffectService.setMobService(mobService);

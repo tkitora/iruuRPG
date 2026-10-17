@@ -891,6 +891,33 @@ public final class RpgMobService {
         }
     }
 
+    private java.util.function.Predicate<Player> tauntCheck;
+
+    /** Who draws the mobs' attention (the warrior's innate "taunt"); set by the plugin. */
+    public void setTauntCheck(java.util.function.Predicate<Player> tauntCheck) {
+        this.tauntCheck = tauntCheck;
+    }
+
+    private boolean isTaunting(Player player) {
+        return tauntCheck != null && tauntCheck.test(player);
+    }
+
+    /** A taunting player within class-effects.warrior.taunt-radius (14) that the mob can see, the nearest one; else null. */
+    private Player nearbyTaunter(LivingEntity entity) {
+        if (tauntCheck == null) return null;
+        double radius = Math.max(1.0, plugin.getConfig().getDouble("class-effects.warrior.taunt-radius", 14.0));
+        Player best = null;
+        double bestDistance = radius * radius;
+        for (Player candidate : entity.getWorld().getPlayers()) {
+            if (!canTarget(entity, candidate) || !isTaunting(candidate)) continue;
+            double distance = candidate.getLocation().distanceSquared(entity.getLocation());
+            if (distance > bestDistance || !entity.hasLineOfSight(candidate)) continue;
+            bestDistance = distance;
+            best = candidate;
+        }
+        return best;
+    }
+
     private void maintainTarget(LivingEntity entity, RpgMobDefinition definition, long now) {
         if (!definition.ai() || !(entity instanceof Mob mob)) {
             targetLocks.remove(entity.getUniqueId());
@@ -901,6 +928,13 @@ public final class RpgMobService {
         if (lock != null && lock.expiresAtMillis() > now) {
             Player lockedTarget = Bukkit.getPlayer(lock.playerId());
             if (lockedTarget != null && canTarget(entity, lockedTarget) && inTargetRange(entity, lockedTarget)) {
+                // a taunting player (warrior) close by pulls the mob over once; it is then locked on like any target,
+                // so the mob does not flip between players
+                Player taunter = isTaunting(lockedTarget) ? null : nearbyTaunter(entity);
+                if (taunter != null) {
+                    targetLocks.put(entity.getUniqueId(), new TargetLock(taunter.getUniqueId(), now + TARGET_LOCK_MILLIS));
+                    lockedTarget = taunter;
+                }
                 if (!lockedTarget.equals(mob.getTarget())) {
                     mob.setTarget(lockedTarget);
                 }
@@ -922,11 +956,14 @@ public final class RpgMobService {
             return;
         }
 
-        // the nearest player (not a random one, which made mobs turn away from a player right next to them)
+        // the nearest player (not a random one, which made mobs turn away from a player right next to them); a taunting
+        // player counts as closer (their distance is multiplied by class-effects.warrior.taunt-distance-factor)
+        double tauntFactor = Math.max(0.05, plugin.getConfig().getDouble("class-effects.warrior.taunt-distance-factor", 0.5));
         Player target = candidates.get(0);
         double best = Double.MAX_VALUE;
         for (Player candidate : candidates) {
             double distance = candidate.getLocation().distanceSquared(entity.getLocation());
+            if (isTaunting(candidate)) distance *= tauntFactor * tauntFactor;
             if (distance < best) {
                 best = distance;
                 target = candidate;
