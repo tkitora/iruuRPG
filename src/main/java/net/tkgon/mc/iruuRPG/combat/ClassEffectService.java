@@ -98,7 +98,7 @@ public final class ClassEffectService {
         UUID sourceId = attacker.getUniqueId();
         if (classService.hasSkill(profile, ASSASSIN_ORANGE)) {
             double extra = damage * (1.0 + Math.max(1, profile.level()) / 100.0);
-            if (attackService.applyDirectDamage(attacker, victim, Math.round(extra * 10.0) / 10.0)) {
+            if (attackService.applyExtraDamage(attacker, victim, Math.round(extra * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.ORANGE)) {
                 playOrangeHit(victim);
             }
         }
@@ -209,7 +209,7 @@ public final class ClassEffectService {
             if (entity instanceof org.bukkit.entity.ArmorStand || DeployService.isDeployEntity(target)) continue;
             if (target.getLocation().distanceSquared(center) > radius * radius) continue;
 
-            attackService.applyDirectDamage(player, target, Math.round(damage * 10.0) / 10.0);
+            attackService.applyExtraDamage(player, target, Math.round(damage * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.GREEN);
         }
         playPulse(center, radius);
     }
