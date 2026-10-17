@@ -122,6 +122,29 @@ public final class PlayerSkillCaster implements SkillCaster {
     }
 
     @Override
+    public List<? extends LivingEntity> allyCandidates() {
+        List<LivingEntity> result = new ArrayList<>();
+        for (Player other : player.getWorld().getPlayers()) {
+            if (other.isDead() || !other.isValid() || other.getGameMode() == org.bukkit.GameMode.SPECTATOR) continue;
+            if (other.getLocation().distanceSquared(player.getLocation()) > searchRadius * searchRadius) continue;
+            result.add(other);
+        }
+        return result;
+    }
+
+    @Override
+    public boolean isAlly(LivingEntity entity) {
+        return entity instanceof Player;
+    }
+
+    @Override
+    public void heal(LivingEntity ally, double ratio) {
+        if (!(ally instanceof Player target)) return;
+        double maxHp = attackService.profileForVictim(target).maxHp();
+        attackService.healPlayerBy(player, target, maxHp * ratio);
+    }
+
+    @Override
     public boolean applyEffects() {
         return true;
     }

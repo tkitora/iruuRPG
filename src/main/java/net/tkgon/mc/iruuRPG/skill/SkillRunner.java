@@ -109,7 +109,7 @@ public final class SkillRunner {
                     Location center = caster.location();
                     effects.playSkillStrike(center, spec.radius(), spec.look(), element);
                     effects.playSkillCastSound(caster.owner(), center, spec.look(), element);
-                    for (LivingEntity player : within(caster, spec.radius(), 2.5)) hit(caster, spec, player);
+                    for (LivingEntity player : within(caster, spec, spec.radius(), 2.5)) hit(caster, spec, player);
                     caster.release();
                     cancel();
                     onDone.run();
@@ -140,7 +140,7 @@ public final class SkillRunner {
                     effects.playSkillCrescent(origin, origin.getYaw(), spec.range(), spec.angle(), spec.orientation(), spec.look(), element);
                     effects.playSkillCastSound(caster.owner(), origin, spec.look(), element);
                     double tall = spec.orientation() == SkillSpec.Orientation.HORIZONTAL ? 2.5 : 3.5;
-                    for (LivingEntity player : within(caster, spec.range(), tall)) {
+                    for (LivingEntity player : within(caster, spec, spec.range(), tall)) {
                         if (inFan(caster, player, spec.angle() / 2.0)) hit(caster, spec, player);
                     }
                     caster.release();
@@ -213,7 +213,7 @@ public final class SkillRunner {
                 double wallDistance = wall == null ? Double.MAX_VALUE : wall.getHitPosition().distance(position.toVector());
                 LivingEntity hitPlayer = null;
                 double hitDistance = Double.MAX_VALUE;
-                for (LivingEntity player : caster.candidates()) {
+                for (LivingEntity player : targets(caster, spec)) {
                     RayTraceResult result = player.getBoundingBox().expand(0.25).rayTrace(position.toVector(), direction, perTick);
                     if (result == null) continue;
                     double distance = result.getHitPosition().distance(position.toVector());
@@ -284,7 +284,7 @@ public final class SkillRunner {
                     effects.playSkillCastSound(caster.owner(), caster.location(), spec.look(), element);
                     caster.lunge(direction.clone().multiply(spec.speed() / 8.0).setY(0.25));
                 }
-                for (LivingEntity player : within(caster, 1.8, 2.5)) {
+                for (LivingEntity player : within(caster, spec, 1.8, 2.5)) {
                     if (hit.add(player.getUniqueId())) hit(caster, spec, player);
                 }
                 if (age >= spec.windupTicks() + 8) {
@@ -370,7 +370,7 @@ public final class SkillRunner {
                 position.add(direction.clone().multiply(step));
                 travelled += step;
                 effects.playSkillWaveStep(position, direction, spec.radius(), spec.look(), element);
-                for (LivingEntity player : caster.candidates()) {
+                for (LivingEntity player : targets(caster, spec)) {
                     if (hit.contains(player.getUniqueId())) continue;
                     if (!player.getBoundingBox().expand(spec.radius() * 0.6).contains(position.toVector())) continue;
                     hit.add(player.getUniqueId());
@@ -423,7 +423,7 @@ public final class SkillRunner {
             @Override
             protected void tick() {
                 effects.playSkillNovaRing(center, radius, spec.look(), element);
-                for (LivingEntity player : caster.candidates()) {
+                for (LivingEntity player : targets(caster, spec)) {
                     if (hit.contains(player.getUniqueId())) continue;
                     if (!player.getWorld().equals(center.getWorld())) continue;
                     Location at = player.getLocation();
@@ -492,7 +492,7 @@ public final class SkillRunner {
                     to = from.clone().add(direction.clone().multiply(length));
                     caster.swing();
                     effects.playSkillCastSound(caster.owner(), from, spec.look(), element);
-                    for (LivingEntity player : caster.candidates()) {
+                    for (LivingEntity player : targets(caster, spec)) {
                         BoundingBox box = player.getBoundingBox().expand(spec.radius());
                         RayTraceResult result = box.rayTrace(from.toVector(), direction, length);
                         if (result != null) hit(caster, spec, player);
@@ -510,10 +510,10 @@ public final class SkillRunner {
 
     // ---- shared -------------------------------------------------------------------------------------------------------
 
-    private java.util.List<LivingEntity> within(SkillCaster caster, double radius, double vertical) {
+    private java.util.List<LivingEntity> within(SkillCaster caster, SkillSpec spec, double radius, double vertical) {
         Location center = caster.location();
         java.util.List<LivingEntity> result = new java.util.ArrayList<>();
-        for (LivingEntity player : caster.candidates()) {
+        for (LivingEntity player : targets(caster, spec)) {
             if (!player.getWorld().equals(center.getWorld())) continue;
             Location at = player.getLocation();
             double dx = at.getX() - center.getX();
@@ -533,8 +533,29 @@ public final class SkillRunner {
         return Math.toDegrees(facing.normalize().angle(toTarget.normalize())) <= halfAngleDegrees;
     }
 
-    /** One hit: the damage (through the caster), then what the skill adds. */
+    /**
+     * Who this skill can touch: the caster's enemies (target enemies / both) and allies (allies / both). The caster
+     * itself is only an ally of a skill that is centered on them (strike, nova), not of a beam or a fan they stand behind.
+     */
+    private java.util.List<LivingEntity> targets(SkillCaster caster, SkillSpec spec) {
+        java.util.List<LivingEntity> result = new java.util.ArrayList<>();
+        if (spec.target() != SkillSpec.Target.ALLIES) result.addAll(caster.candidates());
+        if (spec.target() != SkillSpec.Target.ENEMIES) {
+            boolean centered = spec.template() == SkillTemplate.STRIKE || spec.template() == SkillTemplate.NOVA;
+            for (LivingEntity ally : caster.allyCandidates()) {
+                if (!centered && ally.equals(caster.owner())) continue;
+                result.add(ally);
+            }
+        }
+        return result;
+    }
+
+    /** One hit: on an enemy the damage and harmful effects, on an ally the heal and the helpful effects. */
     private void hit(SkillCaster caster, SkillSpec spec, LivingEntity victim) {
+        if (caster.isAlly(victim)) {
+            helpAlly(caster, spec, victim);
+            return;
+        }
         caster.damage(victim, spec.damageRate());
         if (!caster.applyEffects()) return;
         if (spec.knockback() > 0.0) {
@@ -552,6 +573,27 @@ public final class SkillRunner {
                 case "decay" -> statusEffects.addDecay(victim, status.value(), null);
                 case "confusion" -> statusEffects.addConfusion(victim, status.value(), null);
                 case "explosion" -> statusEffects.addExplosion(victim, status.value(), null);
+                default -> {
+                }
+            }
+        }
+    }
+
+    /** An ally in the skill: healed by heal-rate of their max HP, and given the helpful statuses (not the harmful ones). */
+    private void helpAlly(SkillCaster caster, SkillSpec spec, LivingEntity ally) {
+        effects.playSkillImpact(ally.getLocation().add(0.0, ally.getHeight() * 0.6, 0.0), spec.look(), caster.element());
+        if (!caster.applyEffects()) {
+            caster.damage(ally, 0.0); // a test counts the touch
+            return;
+        }
+        if (spec.healRate() > 0.0) caster.heal(ally, spec.healRate());
+        if (statusEffects == null) return;
+        for (SkillSpec.StatusApply status : spec.statuses()) {
+            switch (status.type()) {
+                case "magic_amplify" -> statusEffects.applyBuff(ally, net.tkgon.mc.iruuRPG.combat.StatusEffectType.MAGIC_AMPLIFY,
+                        status.percent(), Math.round(status.seconds() * 1000.0), caster.owner() == null ? null : caster.owner().getUniqueId());
+                case "protection" -> statusEffects.applyBuff(ally, net.tkgon.mc.iruuRPG.combat.StatusEffectType.PROTECTION,
+                        status.percent(), Math.round(status.seconds() * 1000.0), caster.owner() == null ? null : caster.owner().getUniqueId());
                 default -> {
                 }
             }
