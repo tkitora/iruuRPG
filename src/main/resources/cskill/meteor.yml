@@ -1,0 +1,44 @@
+# クラススキル定義: メイジの「流星」(解放ノード4 / ホットキー F)
+#
+# 前方に魔法陣を描き、少しためてから、流星を次々に飛ばす。流星は流線を描いて前へ向かい、
+# しばらくして近くに敵がいると、その敵へホーミングする。
+# 遠距離武器(RANGE)を持っているときだけ使える。
+# 強化(解放ノード8「流星・極」)を解放済みなら、流星が増え、撃ち切るまで自分もチャージを行い、
+# 撃ち切った後に長く太いビームを放つ。
+
+id: meteor
+name: "流星"
+
+# 消費MP
+cost: 40
+
+# クールダウン秒数
+cooldown: 15
+
+description:
+  - "魔法陣を描き、少しためて流星を飛ばす。"
+  - "流星は流線を描いて前へ進み、近くの敵にはホーミングする。遠距離武器が必要。"
+
+values:
+  # charge-ticks: 魔法陣を描いてためる時間 (20 = 1秒)
+  charge-ticks: 16
+  # count: 流星の数 / upgrade-count: 強化後の数
+  count: 3
+  upgrade-count: 6
+  # interval-ticks: 流星を1つ飛ばす間隔
+  interval-ticks: 5
+  # damage-rate: 流星1つの、通常の遠距離攻撃ダメージに対する倍率
+  damage-rate: 1.3
+  # speed: 流星の速さ (ブロック/秒)
+  speed: 22
+  # homing-radius: ホーミングする範囲 / homing-delay-ticks: 飛び出してからホーミングを始めるまで
+  homing-radius: 8
+  homing-delay-ticks: 7
+  # max-ticks: 流星が飛び続ける最長の時間 / hit-radius: 当たりの大きさ
+  max-ticks: 70
+  hit-radius: 0.9
+  # 強化: 撃ち切った後のビーム (beam-charge-ticks: そのためる時間)
+  beam-charge-ticks: 12
+  beam-damage-rate: 5.0
+  beam-range: 26
+  beam-radius: 1.2

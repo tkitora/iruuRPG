@@ -38,6 +38,8 @@ public final class ClassSkillService {
     public static final String SANCTUARY_UPGRADE = "sanctuary_upgrade";
     public static final String ICE_LANCE = "ice_lance";
     public static final String ICE_LANCE_UPGRADE = "ice_lance_upgrade";
+    public static final String METEOR = "meteor";
+    public static final String METEOR_UPGRADE = "meteor_upgrade";
 
     private static final Particle.DustOptions BOLT_CORE = new Particle.DustOptions(Color.fromRGB(255, 244, 150), 1.5f);
     private static final Particle.DustOptions BOLT_GLOW = new Particle.DustOptions(Color.fromRGB(255, 214, 20), 1.1f);
@@ -59,13 +61,17 @@ public final class ClassSkillService {
         this.attackService = attackService;
         this.classService = classService;
         this.profileManager = profileManager;
+        this.meteor = new MeteorSkill(plugin, attackService);
     }
 
     private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
     private net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner;
 
     /** Skills made from templates (skills/*.yml) cast by a class key. */
+    private final MeteorSkill meteor;
+
     public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills, net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner) {
+        this.meteor.setBeam(generalSkills, skillRunner);
         this.generalSkills = generalSkills;
         this.skillRunner = skillRunner;
     }
@@ -108,7 +114,7 @@ public final class ClassSkillService {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
             return precheckWarriorStrike(player, skill);
         }
-        if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
+        if (ICE_LANCE.equalsIgnoreCase(skill.id()) || METEOR.equalsIgnoreCase(skill.id())) {
             return precheckIceLance(player);
         }
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) {
@@ -143,6 +149,8 @@ public final class ClassSkillService {
             warriorStrike(player, skill, precheck.target(), precheck.weapon());
         } else if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
             iceLance(player, skill, precheck.weapon());
+        } else if (METEOR.equalsIgnoreCase(skill.id())) {
+            meteor.cast(player, skill.values(), precheck.weapon(), classService.hasSkill(profileManager.getOrCreate(player), METEOR_UPGRADE));
         } else if (SANCTUARY.equalsIgnoreCase(skill.id())) {
             sanctuary(player, skill, precheck.weapon());
         } else if (SATSUJIN.equalsIgnoreCase(skill.id()) && precheck.target() != null) {
