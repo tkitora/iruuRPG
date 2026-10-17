@@ -297,6 +297,7 @@ public final class RpgMobService {
         nextMelee.remove(entity.getUniqueId());
         lastSeen.remove(entity.getUniqueId());
         skillBusy.remove(entity.getUniqueId());
+        skillStarted.remove(entity.getUniqueId());
         removeStatusDisplay(entity.getUniqueId());
         statusEffectService.clear(entity);
     }
@@ -412,6 +413,19 @@ public final class RpgMobService {
     private void tickSkills() {
         long now = Bukkit.getCurrentTick();
         skillBusy.removeIf(id -> !runtimes.containsKey(id));
+        skillStarted.keySet().removeIf(id -> !skillBusy.contains(id));
+        // watchdog: a skill that has been going for 20 seconds is stuck (no skill is that long): free the mob
+        for (Map.Entry<UUID, Long> entry : new ArrayList<>(skillStarted.entrySet())) {
+            if (now - entry.getValue() < SKILL_WATCHDOG_TICKS) continue;
+            Entity stuck = Bukkit.getEntity(entry.getKey());
+            if (stuck instanceof Mob stuckMob) {
+                plugin.getLogger().warning("mobs: a skill of " + stuckMob.getType() + " ran for 20 s; ended it");
+                endSkill(stuckMob);
+            } else {
+                skillBusy.remove(entry.getKey());
+                skillStarted.remove(entry.getKey());
+            }
+        }
         skillReady.keySet().removeIf(id -> !runtimes.containsKey(id));
         skillLockUntil.keySet().removeIf(id -> !runtimes.containsKey(id));
         for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
@@ -469,14 +483,20 @@ public final class RpgMobService {
         return Math.toDegrees(facing.normalize().angle(toTarget.normalize())) <= halfAngleDegrees;
     }
 
+    /** When each busy mob's skill began (server tick): a skill that runs far too long is ended by force. */
+    private final Map<UUID, Long> skillStarted = new HashMap<>();
+    private static final long SKILL_WATCHDOG_TICKS = 400L; // 20 seconds
+
     private void beginSkill(Mob mob) {
         skillBusy.add(mob.getUniqueId());
+        skillStarted.put(mob.getUniqueId(), (long) Bukkit.getCurrentTick());
         mob.getPathfinder().stopPathfinding();
         mob.setAI(false);
     }
 
     private void endSkill(Mob mob) {
         skillBusy.remove(mob.getUniqueId());
+        skillStarted.remove(mob.getUniqueId());
         if (mob.isValid() && !mob.isDead() && !attackMode.contains(mob.getUniqueId())) mob.setAI(true);
     }
 
