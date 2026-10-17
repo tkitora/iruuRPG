@@ -340,7 +340,7 @@ public final class AttackService {
                 return false;
             }
             if (tutorialHook.isRat(victim)) {
-                attackEffects.playDamageNumber(victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
+                attackEffects.playDamageNumber(attacker, victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
                 tutorialHook.onRatHit(attacker, victim);
                 return true;
             }
@@ -351,7 +351,7 @@ public final class AttackService {
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
         boolean applied = applyDirectDamage(attacker, victim, finalDamage);
         if (applied && hasRemainingHealth(victim)) {
-            attackEffects.playDamageNumber(numberLocation, numberHeight, weapon, finalDamage, critical);
+            attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
             if (classEffectService != null) {
                 classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
@@ -402,7 +402,7 @@ public final class AttackService {
                 return false;
             }
             if (tutorialHook.isRat(victim)) {
-                attackEffects.playDamageNumber(victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
+                attackEffects.playDamageNumber(attacker, victim.getLocation().clone(), victim.getHeight(), weapon, TUTORIAL_DAMAGE_CAP, false);
                 tutorialHook.onRatHit(attacker, victim);
                 return true;
             }
@@ -413,7 +413,7 @@ public final class AttackService {
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
         boolean applied = applyRangeDamage(attacker, victim, finalDamage);
         if (applied && hasRemainingHealth(victim)) {
-            attackEffects.playDamageNumber(numberLocation, numberHeight, weapon, finalDamage, critical);
+            attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
             if (classEffectService != null) {
                 classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
@@ -430,8 +430,8 @@ public final class AttackService {
         attackEffects.playRangeTrail(attacker, weapon, hitLocation);
     }
 
-    public void playRangeImpact(Location hitLocation, RpgItemDefinition weapon) {
-        attackEffects.playRangeImpact(hitLocation, weapon);
+    public void playRangeImpact(Player attacker, Location hitLocation, RpgItemDefinition weapon) {
+        attackEffects.playRangeImpact(attacker, hitLocation, weapon);
     }
 
     /**

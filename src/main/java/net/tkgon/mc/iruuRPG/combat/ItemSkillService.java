@@ -226,7 +226,7 @@ public final class ItemSkillService {
         PlayerProfile snapshot = attackService.snapshotAttacker(player);
         double radius = skill.value("radius", HEAL_RANGE_RADIUS);
         double amount = round(snapshot.maxHp() * skill.value("heal-rate", HEAL_RANGE_RATE));
-        attackEffects.playHealRing(player.getLocation(), weapon, radius);
+        attackEffects.playHealRing(player, player.getLocation(), weapon, radius);
         for (Player target : playersAround(player.getLocation(), player, radius, false)) {
             if (attackService.healPlayerBy(player, target, amount)) {
                 attackEffects.playHealBurst(target, weapon);
@@ -269,7 +269,7 @@ public final class ItemSkillService {
         if (!canUse(player, weapon, AttackType.MELEE, skill.cost(STRIKE_MELEE_COST))) return;
 
         double radius = skill.value("radius", STRIKE_MELEE_RADIUS);
-        attackEffects.sounds().strikeMelee(player.getLocation().add(0.0, 0.8, 0.0), weapon.element());
+        attackEffects.sounds().strikeMelee(player, player.getLocation().add(0.0, 0.8, 0.0), weapon.element());
         attackEffects.playStrikeMeleeBurst(player, weapon, radius);
         player.setVelocity(horizontalForward(player).multiply(skill.value("forward-velocity", STRIKE_MELEE_FORWARD_VELOCITY)).setY(skill.value("up-velocity", 0.28)));
 
@@ -319,7 +319,7 @@ public final class ItemSkillService {
         double distance = skill.value("distance", STRIKE_RANGE_DISTANCE);
         double maxDistance = strikeRangeDistance(player.getWorld(), start, direction, distance);
 
-        attackEffects.playStrikeRangeCharge(start, direction, weapon);
+        attackEffects.playStrikeRangeCharge(player, start, direction, weapon);
         launchStrikeRange(
                 player,
                 weapon,
@@ -347,7 +347,7 @@ public final class ItemSkillService {
                 }
 
                 Location point = start.clone().add(direction.clone().multiply(distance));
-                if (distance == 0.0) attackEffects.sounds().strikeBolt(point, weapon.element());
+                if (distance == 0.0) attackEffects.sounds().strikeBolt(player, point, weapon.element());
                 attackEffects.playStrikeRangeBolt(point, direction, weapon);
 
                 for (LivingEntity target : targetsAround(point, player, hitRadius)) {
@@ -418,7 +418,7 @@ public final class ItemSkillService {
         Location start = player.getEyeLocation().add(player.getEyeLocation().getDirection().normalize().multiply(1.1));
         Vector direction = player.getEyeLocation().getDirection().normalize();
         double maxDistance = slashRangeDistance(player.getWorld(), start, direction, skill.value("distance", SLASH_RANGE_DISTANCE));
-        attackEffects.sounds().slashLaunch(start, weapon.element());
+        attackEffects.sounds().slashLaunch(player, start, weapon.element());
         launchSlashRange(
                 player,
                 weapon,
@@ -455,7 +455,7 @@ public final class ItemSkillService {
                     double multiplier = ThreadLocalRandom.current().nextDouble(lower, upper);
                     double damage = round(attack.result().damage() * multiplier);
                     if (attackService.applyRangeDamage(player, target, damage, weapon, attack.result().critical())) {
-                        attackEffects.playSlashImpact(target, weapon);
+                        attackEffects.playSlashImpact(player, target, weapon);
                         attackService.sendDamageDebug(player, AttackType.RANGE, target, damage, attack.result().critical(), false);
                     }
                     cancel();

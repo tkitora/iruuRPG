@@ -54,7 +54,7 @@ public final class DeployService {
         Location center = deployLocation(owner);
         ArmorStand stand = owner.getWorld().spawn(center, ArmorStand.class, spawned -> configureStand(spawned, weapon));
 
-        attackEffects.sounds().deployStart(center);
+        attackEffects.sounds().deployStart(owner, center);
         int durationTicks = durationTicks(snapshot, deploySkill);
         int attackPeriodTicks = attackPeriodTicks(snapshot, deploySkill);
         double radius = deploySkill.value("radius", plugin.getConfig().getDouble("combat.deploy.radius", 6.0));
@@ -230,9 +230,9 @@ public final class DeployService {
 
             boolean sweep = weapon.skill() == ItemSkillType.SWEEP && ThreadLocalRandom.current().nextDouble() < deploySkill.value("chance", 0.33);
             if (sweep) {
-                attackEffects.playDeploySweep(center, weapon, radius);
+                attackEffects.playDeploySweep(owner, center, weapon, radius);
             } else {
-                attackEffects.sounds().deployPulse(center);
+                attackEffects.sounds().deployPulse(owner, center);
                 attackEffects.playDeployPulse(center, weapon, radius);
             }
 
@@ -249,7 +249,7 @@ public final class DeployService {
             World world = center.getWorld();
             if (world == null) return;
 
-            attackEffects.playHealRing(center, weapon, radius);
+            attackEffects.playHealRing(owner, center, weapon, radius);
             double amount = round(healAmount());
             if (amount <= 0.0) return;
 
@@ -284,7 +284,7 @@ public final class DeployService {
         private void launchDeploySlash() {
             Location start = center.clone().add(0.0, 0.75, 0.0);
             if (nearestTargetFrom(start) == null) return;
-            attackEffects.sounds().slashLaunch(start, weapon.element());
+            attackEffects.sounds().slashLaunch(owner, start, weapon.element());
             double speed = deploySkill.value("slash-speed", DEPLOY_SLASH_SPEED);
             double hitRadius = deploySkill.value("hit-radius", DEPLOY_SLASH_HIT_RADIUS);
             int maxTicks = deploySkill.intValue("max-ticks", DEPLOY_SLASH_MAX_TICKS);
@@ -310,7 +310,7 @@ public final class DeployService {
                     Vector direction = targetCenter.toVector().subtract(point.toVector());
                     double distance = direction.length();
                     if (distance <= hitRadius) {
-                        attackEffects.playSlashImpact(target, weapon);
+                        attackEffects.playSlashImpact(owner, target, weapon);
                         AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                         double damage = attack.result().damage();
                         if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical())) {
@@ -336,7 +336,7 @@ public final class DeployService {
 
                 strikeArmed = true;
                 strikeTriggerTick = ageTicks + deploySkill.intValue("trigger-delay-ticks", 20);
-                attackEffects.sounds().deployPulse(center);
+                attackEffects.sounds().deployPulse(owner, center);
                 attackEffects.playDeployPulse(center, weapon, radius);
                 return;
             }
@@ -354,7 +354,7 @@ public final class DeployService {
 
         private void triggerStrikeTrap() {
             List<LivingEntity> targets = targetsInRange();
-            attackEffects.playDeployStrikeCrush(center, weapon, radius);
+            attackEffects.playDeployStrikeCrush(owner, center, weapon, radius);
             for (LivingEntity target : targets) {
                 AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                 double damage = round(attack.result().damage() * deploySkill.value("damage-rate", 15.0));
@@ -365,7 +365,7 @@ public final class DeployService {
         }
 
         private void finishDashDeploy() {
-            attackEffects.playDeployDashFinish(center, weapon, radius);
+            attackEffects.playDeployDashFinish(owner, center, weapon, radius);
             for (LivingEntity target : targetsInRange()) {
                 Vector direction = center.toVector().subtract(target.getLocation().toVector());
                 direction.setY(0.0);
