@@ -278,14 +278,15 @@ public final class AttackService {
 
     /**
      * How far a ranged attack of this player reaches: every class has balance.range-multiplier (0.5) of
-     * combat.range-distance; the mage's "range area" node (range_area_expand) doubles it back.
+     * combat.range-distance; the mage's innate "range_double" doubles it back.
      */
     public double rangeDistance(Player attacker) {
         return plugin.getConfig().getDouble("combat.range-distance", 16.0)
                 * Math.max(0.1, plugin.getConfig().getDouble("balance.range-multiplier", 0.5))
-                * (hasSkill(attacker, RANGE_AREA_EXPAND_SKILL) ? 2.0 : 1.0);
+                * (hasSkill(attacker, RANGE_DOUBLE_SKILL) ? 2.0 : 1.0);
     }
 
+    private static final String RANGE_DOUBLE_SKILL = "range_double";
     private static final String RANGE_INSTANT_SKILL = "range_instant";
     private static final String ATTACK_SPEED_PROJECTILE_SKILL = "attack_speed_cooldown";
 

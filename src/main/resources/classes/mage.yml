@@ -1,6 +1,6 @@
 # クラス定義: メイジ (青 / 魔力特化)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 1
+version: 2
 # 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
 
 id: mage
@@ -8,7 +8,7 @@ name: "メイジ"
 icon: BLAZE_ROD
 description:
   - "魔力を操り、遠距離から範囲魔法で敵を焼き払う後衛。"
-  - "氷槍で敵を足止めし、止まった敵をさらに蝕む。"
+  - "流星で敵を追い詰め、極めると長く太いビームを放つ。"
 
 growth:
   magic: 0.1
@@ -54,6 +54,16 @@ spend:
         damage:
           blue: 65
 
+# 固有0: 最初から有効なパッシブ (SP不要)
+innate:
+  - node_name: "魔導の射程"
+    icon: SPYGLASS
+    node_type: passive
+    effect_type: skill
+    name: range_double
+    description:
+      - "遠距離攻撃の射程が2倍になる。"
+
 milestones:
   # 1: SP 5 (ステータス)
   - node_name: "魔導の素養"
@@ -65,15 +75,14 @@ milestones:
     status:
       magic-percent: 21
       magic-overload: 3
-  # 2: SP 10 (クラス特有: 魔法武器の範囲強化 / 範囲5・60%はコード側)
+  # 2: SP 10 (クラス特有 = 固有1: 遠距離範囲攻撃の強化 / 範囲5・60%はコード側)
   - node_name: "広域魔法"
     icon: HEART_OF_THE_SEA
     node_type: passive
     effect_type: skill
     name: range_area_expand
     description:
-      - "遠距離攻撃の範囲が広がり、威力も上がる"
-      - "遠距離攻撃の射程が2倍になる。"
+      - "遠距離攻撃の範囲が広がり、威力も上がる。"
   # 3: SP 15 (ステータス)
   - node_name: "魔力の泉"
     icon: LAPIS_BLOCK
@@ -85,11 +94,11 @@ milestones:
       magic-overload: 3
       attack-speed: 20
   # 4: SP 20 (クラススキル / F)
-  - node_name: "氷槍"
-    icon: PACKED_ICE
+  - node_name: "流星"
+    icon: FIREWORK_STAR
     node_type: active
     hot_key: F
-    name: ice_lance
+    name: meteor
   # 5: SP 25 (ステータス)
   - node_name: "魔導の極意"
     icon: AMETHYST_CLUSTER
@@ -100,14 +109,15 @@ milestones:
     status:
       attack-speed: 20
       magic-percent: 21
-  # 6: SP 30 (クラス特有: 攻撃速度でスキルのクールタイムが減る / コード側 attack_speed_cooldown)
+  # 6: SP 30 (クラス特有 = 固有2: 攻撃速度でスキルのクールタイムが減り、弾も速くなる / コード側 attack_speed_cooldown)
   - node_name: "詠唱加速"
     icon: CLOCK
     node_type: passive
     effect_type: skill
     name: attack_speed_cooldown
     description:
-      - "攻撃速度の%の分だけ、スキルのクールタイムが短くなる。"
+      - "攻撃速度の%の分だけ、スキルのクールタイムが短くなり、"
+      - "遠距離攻撃の弾も速くなる。"
       - "(最大で80%短くなる)"
   # 7: SP 35 (ステータス)
   - node_name: "賢者の叡智"
@@ -120,10 +130,11 @@ milestones:
       magic-percent: 21
       magic-overload: 3
   # 8: SP 40 (クラススキル強化)
-  - node_name: "氷槍・極"
-    icon: BLUE_ICE
+  - node_name: "流星・極"
+    icon: END_CRYSTAL
     description:
-      - "氷槍に当たった敵が完全に停止し、止まった敵にはさらに腐食と腐敗が付く。"
+      - "流星の数が増え、撃ち切るまで自分もチャージを行う。"
+      - "撃ち切った後、長く太いビームを放つ。"
     node_type: passive
     effect_type: skill
-    name: ice_lance_upgrade
+    name: meteor_upgrade
