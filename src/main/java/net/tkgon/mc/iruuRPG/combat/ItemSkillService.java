@@ -606,7 +606,8 @@ public final class ItemSkillService {
         return true;
     }
 
-    private void startCooldown(Player player, RpgItemDefinition weapon, AttackType attackType, int ticks) {
+    private void startCooldown(Player player, RpgItemDefinition weapon, AttackType attackType, int baseTicks) {
+        int ticks = (int) Math.round(baseTicks * attackService.skillCooldownMultiplier(player));
         cooldownUntilMillis
                 .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
                 .put(cooldownKey(attackType), System.currentTimeMillis() + ticks * 50L);

@@ -1,4 +1,6 @@
 # クラス定義: メイジ (青 / 魔力特化)
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
 # 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
 
 id: mage
@@ -71,16 +73,17 @@ milestones:
     name: range_area_expand
     description:
       - "遠距離攻撃の範囲が広がり、威力も上がる"
+      - "遠距離攻撃の射程が2倍になる。"
   # 3: SP 15 (ステータス)
   - node_name: "魔力の泉"
     icon: LAPIS_BLOCK
     description:
-      - "魔法の威力と最大MPが伸びる。"
+      - "魔法の威力と攻撃速度が伸びる。"
     node_type: passive
     effect_type: status
     status:
       magic-overload: 3
-      max-mp: 20
+      attack-speed: 20
   # 4: SP 20 (クラススキル / F)
   - node_name: "氷槍"
     icon: PACKED_ICE
@@ -91,23 +94,21 @@ milestones:
   - node_name: "魔導の極意"
     icon: AMETHYST_CLUSTER
     description:
-      - "最大MPと魔力が伸びる。"
+      - "攻撃速度と魔力が伸びる。"
     node_type: passive
     effect_type: status
     status:
-      max-mp: 20
+      attack-speed: 20
       magic-percent: 21
-  # 6: SP 30 (クラス特有: 立ち止まっている間)
-  - node_name: "静かなる集中"
+  # 6: SP 30 (クラス特有: 攻撃速度でスキルのクールタイムが減る / コード側 attack_speed_cooldown)
+  - node_name: "詠唱加速"
     icon: CLOCK
-    description:
-      - "立ち止まっている間だけ、MP回復と魔法の威力が上がる。"
     node_type: passive
-    effect_type: status
-    condition: stationary
-    status:
-      mp-regen: 10
-      magic-overload: 5
+    effect_type: skill
+    name: attack_speed_cooldown
+    description:
+      - "攻撃速度の%の分だけ、スキルのクールタイムが短くなる。"
+      - "(最大で80%短くなる)"
   # 7: SP 35 (ステータス)
   - node_name: "賢者の叡智"
     icon: BOOK

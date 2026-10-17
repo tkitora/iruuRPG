@@ -277,7 +277,11 @@ public final class AttackService {
     }
 
     public RangeTrace traceRange(Player attacker) {
-        double range = plugin.getConfig().getDouble("combat.range-distance", 16.0);
+        // every class's ranged attack reaches balance.range-multiplier (0.5) of combat.range-distance; the mage's
+        // "range area" node (range_area_expand) doubles it back
+        double range = plugin.getConfig().getDouble("combat.range-distance", 16.0)
+                * Math.max(0.1, plugin.getConfig().getDouble("balance.range-multiplier", 0.5))
+                * (hasSkill(attacker, RANGE_AREA_EXPAND_SKILL) ? 2.0 : 1.0);
         double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6);
         Location start = attacker.getEyeLocation();
         Vector direction = start.getDirection().normalize();
@@ -654,6 +658,18 @@ public final class AttackService {
 
         double multiplier = Math.max(0.0, plugin.getConfig().getDouble("mob.player-damage-multiplier", 0.10));
         return round(damage * multiplier);
+    }
+
+    private static final String ATTACK_SPEED_COOLDOWN_SKILL = "attack_speed_cooldown";
+
+    /**
+     * What a skill's cooldown is multiplied by for this player: with the mage's "attack_speed_cooldown" node it is
+     * 1 - attack speed % (never below 0.2); for everybody else 1 (attack speed does nothing to skill cooldowns).
+     */
+    public double skillCooldownMultiplier(Player player) {
+        if (!hasSkill(player, ATTACK_SPEED_COOLDOWN_SKILL)) return 1.0;
+        double attackSpeed = equipmentService.recalculate(player).finalStats().get(StatType.ATTACK_SPEED);
+        return Math.max(0.2, Math.min(1.0, 1.0 - attackSpeed / 100.0));
     }
 
     private int effectiveCooldownTicks(Player player, AttackType attackType) {

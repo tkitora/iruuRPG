@@ -189,7 +189,7 @@ public final class ClassSkillListener implements Listener {
     private void startCooldown(Player player, ClassSkillDefinition skill) {
         cooldownUntilMillis
                 .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
-                .put(skill.id().toLowerCase(Locale.ROOT), System.currentTimeMillis() + skill.cooldownTicks() * 50L);
+                .put(skill.id().toLowerCase(Locale.ROOT), System.currentTimeMillis() + Math.round(skill.cooldownTicks() * attackService.skillCooldownMultiplier(player)) * 50L);
     }
 
     private long remainingCooldownMillis(Player player, String skillId) {

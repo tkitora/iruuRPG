@@ -341,3 +341,10 @@ mob-ai:
 skill-limits:
   # damage-rate (武器ダメージに対する倍率) の上限。これを超える値は、この値として扱う
   player-damage-rate-max: 8.0
+
+# バランス調整
+balance:
+  # レベルアップに必要な経験値の倍率 (10 = 元の10倍)
+  xp-requirement-multiplier: 10.0
+  # 全クラスの遠距離攻撃の射程の倍率 (combat.range-distance に掛ける)。メイジの「広域魔法」で2倍に戻る
+  range-multiplier: 0.5
