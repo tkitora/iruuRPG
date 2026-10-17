@@ -55,7 +55,7 @@ final class MeteorSkill {
         int chargeTicks = (int) Math.round(values.getOrDefault("charge-ticks", 16.0));
         int count = (int) Math.round(upgraded ? values.getOrDefault("upgrade-count", 6.0) : values.getOrDefault("count", 3.0));
         int interval = Math.max(1, (int) Math.round(values.getOrDefault("interval-ticks", 5.0)));
-        int beamCharge = (int) Math.round(values.getOrDefault("beam-charge-ticks", 12.0));
+        int beamCharge = (int) Math.round(values.getOrDefault("beam-charge-ticks", 30.0));
         int total = chargeTicks + count * interval;
 
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.7f, 1.7f);
@@ -80,7 +80,9 @@ final class MeteorSkill {
                         launch(player, values, weapon, (age - chargeTicks) / interval, count);
                     }
                 } else if (upgraded && age < total + beamCharge) {
-                    drawCharge(player, age, 1.0);
+                    // the light gathers faster and faster toward the beam
+                    double ramp = 1.0 + 2.0 * (age - total) / Math.max(1, beamCharge);
+                    drawCharge(player, age, ramp);
                     if ((age - total) % 3 == 0) {
                         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_POWER_SELECT, 0.6f, (float) (0.7 + 1.1 * (age - total) / Math.max(1, beamCharge)));
                     }
