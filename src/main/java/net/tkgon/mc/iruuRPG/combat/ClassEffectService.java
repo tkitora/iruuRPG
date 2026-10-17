@@ -238,6 +238,7 @@ public final class ClassEffectService {
         World world = player.getWorld();
         world.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.6f);
         world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.8f);
+        RangerVfx.activation(world, player.getLocation());
         playAura(player, seconds);
     }
 
@@ -270,16 +271,7 @@ public final class ClassEffectService {
                     cancel();
                     return;
                 }
-                Location base = player.getLocation();
-                double angle = tick * 0.35;
-                for (int index = 0; index < 3; index++) {
-                    double a = angle + index * (2.0 * Math.PI / 3.0);
-                    Location point = base.clone().add(Math.cos(a) * 0.9, 1.0 + Math.sin(tick * 0.2 + index) * 0.6, Math.sin(a) * 0.9);
-                    player.getWorld().spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, WHITE_AURA, true);
-                }
-                if (tick % 4 == 0) {
-                    player.getWorld().spawnParticle(Particle.REDSTONE, base.clone().add(0, 1.0, 0), 4, 0.5, 0.8, 0.5, 0.0, SILVER_AURA, true);
-                }
+                RangerVfx.aura(player.getWorld(), player.getLocation(), tick);
                 tick += 2;
             }
         }.runTaskTimer(plugin, 0L, 2L);
