@@ -18,6 +18,8 @@ public enum SkillTemplate {
     NOVA,
     /** A straight beam. */
     BEAM,
+    /** The caster blinks: forward along where they face, or behind the enemy aimed at; optionally a burst on arrival. */
+    TELEPORT,
     /** Several skills one after another (steps). */
     COMBO;
 

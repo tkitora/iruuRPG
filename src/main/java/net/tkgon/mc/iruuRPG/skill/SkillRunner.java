@@ -6,6 +6,7 @@ import net.tkgon.mc.iruuRPG.stat.Element;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -60,6 +61,7 @@ public final class SkillRunner {
             case WAVE -> wave(caster, spec, aim, onDone);
             case NOVA -> nova(caster, spec, aim, onDone);
             case BEAM -> beam(caster, spec, aim, onDone);
+            case TELEPORT -> teleport(caster, spec, aim, onDone);
             case COMBO -> onDone.run();
         }
     }
@@ -404,6 +406,142 @@ public final class SkillRunner {
                 age++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    // ---- teleport -----------------------------------------------------------------------------------------------------
+
+    /**
+     * The caster blinks after the warning: {@code forward} = along where they face as far as the range (a player
+     * always the full range, an enemy up to just before its target), stopping before a wall; {@code behind} = behind
+     * the enemy aimed at. It lands on a safe spot (room for the body, ground below); with none, nothing happens. If
+     * the skill has damage or statuses, a burst of {@code radius} follows on arrival.
+     */
+    private void teleport(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+        Element element = caster.element();
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
+            private int age;
+
+            @Override
+            protected void tick() {
+                if (!caster.valid()) {
+                    cancel();
+                    onDone.run();
+                    return;
+                }
+                Location at = aim.get();
+                if (age < spec.windupTicks()) {
+                    if (at != null) caster.face(at);
+                    if (age % 4 == 0) {
+                        if (spec.teleportMode() == SkillSpec.TeleportMode.BEHIND) {
+                            LivingEntity target = behindTarget(caster, spec, at);
+                            if (target != null) effects.playSkillTelegraphRing(target.getLocation(), 1.6, spec.look(), element);
+                        } else {
+                            Location from = caster.location().add(0.0, 0.2, 0.0);
+                            Location to = forwardSpot(caster, spec, at);
+                            if (to != null) effects.playSkillTelegraphLine(from, to.add(0.0, 0.2, 0.0), spec.look(), element);
+                        }
+                    }
+                    age++;
+                    return;
+                }
+                cancel();
+                LivingEntity behind = spec.teleportMode() == SkillSpec.TeleportMode.BEHIND ? behindTarget(caster, spec, at) : null;
+                Location destination = spec.teleportMode() == SkillSpec.TeleportMode.BEHIND
+                        ? (behind == null ? null : behindSpot(behind))
+                        : forwardSpot(caster, spec, at);
+                if (destination != null) {
+                    Location from = caster.location().clone();
+                    effects.playSkillImpact(from.clone().add(0.0, 1.0, 0.0), spec.look(), element);
+                    effects.playSkillBolt(from.clone().add(0.0, 1.0, 0.0), destination.clone().add(0.0, 1.0, 0.0), spec.look(), element);
+                    caster.teleport(destination);
+                    effects.playSkillCastSound(caster.owner(), destination, spec.look(), element);
+                    effects.playSkillImpact(destination.clone().add(0.0, 1.0, 0.0), spec.look(), element);
+                    if (spec.damageRate() > 0.0 || !spec.statuses().isEmpty()) {
+                        effects.playSkillStrike(destination, spec.radius(), spec.look(), element);
+                        for (LivingEntity victim : within(destination, caster, spec, spec.radius(), 2.5)) hit(caster, spec, victim, destination);
+                    }
+                }
+                caster.release();
+                onDone.run();
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** The spot a forward teleport lands on now, or null when it cannot go anywhere. */
+    private Location forwardSpot(SkillCaster caster, SkillSpec spec, Location at) {
+        Location start = caster.location();
+        World world = start.getWorld();
+        if (world == null) return null;
+        Vector direction = at == null ? start.getDirection() : at.toVector().subtract(start.toVector());
+        direction.setY(0.0);
+        if (direction.lengthSquared() < 1.0E-6) direction = start.getDirection().setY(0.0);
+        if (direction.lengthSquared() < 1.0E-6) return null;
+        direction.normalize();
+
+        double length = spec.range();
+        if (caster.owner() == null && at != null) {
+            double flat = Math.hypot(at.getX() - start.getX(), at.getZ() - start.getZ());
+            length = Math.min(length, Math.max(0.0, flat - 1.5));
+        }
+        RayTraceResult wall = world.rayTraceBlocks(start.clone().add(0.0, 1.0, 0.0), direction, length, FluidCollisionMode.NEVER, true);
+        if (wall != null) length = Math.max(0.0, wall.getHitPosition().distance(start.toVector().add(new Vector(0.0, 1.0, 0.0))) - 0.6);
+        for (double distance = length; distance >= 0.5; distance -= 0.5) {
+            Location spot = safeSpot(world, start.getX() + direction.getX() * distance, start.getY(), start.getZ() + direction.getZ() * distance,
+                    start.getYaw(), start.getPitch());
+            if (spot != null) return spot;
+        }
+        return null;
+    }
+
+    /** The enemy a "behind" teleport goes to: the one closest to the aimed point (within 3 blocks of it, and within the range). */
+    private LivingEntity behindTarget(SkillCaster caster, SkillSpec spec, Location at) {
+        if (at == null) return null;
+        Location start = caster.location();
+        LivingEntity best = null;
+        double bestDistance = 3.0 * 3.0;
+        for (LivingEntity candidate : targets(caster, spec)) {
+            if (candidate.equals(caster.owner()) || !candidate.getWorld().equals(start.getWorld())) continue;
+            if (candidate.getLocation().distanceSquared(start) > (spec.range() + 1.0) * (spec.range() + 1.0)) continue;
+            double distance = candidate.getLocation().add(0.0, candidate.getHeight() * 0.5, 0.0).distanceSquared(at);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    /** Behind the target (opposite to where it looks), else beside it; the caster looks at it. Null when no spot is free. */
+    private Location behindSpot(LivingEntity target) {
+        Location base = target.getLocation();
+        World world = base.getWorld();
+        if (world == null) return null;
+        Vector back = base.getDirection().setY(0.0);
+        if (back.lengthSquared() < 1.0E-6) back = new Vector(0.0, 0.0, 1.0);
+        back.normalize().multiply(-1.0);
+        for (double degrees : new double[]{0, 45, -45, 90, -90}) {
+            double radians = Math.toRadians(degrees);
+            double x = base.getX() + (back.getX() * Math.cos(radians) - back.getZ() * Math.sin(radians)) * 1.6;
+            double z = base.getZ() + (back.getX() * Math.sin(radians) + back.getZ() * Math.cos(radians)) * 1.6;
+            Location spot = safeSpot(world, x, base.getY(), z, 0.0f, 0.0f);
+            if (spot == null) continue;
+            spot.setDirection(base.toVector().subtract(spot.toVector()).setY(0.0));
+            return spot;
+        }
+        return null;
+    }
+
+    /** A spot to land on near (x, y, z): free for the body (feet and head, no liquid) with solid ground below; null if none (within 2 up / 2 down). */
+    private Location safeSpot(World world, double x, double y, double z, float yaw, float pitch) {
+        double baseY = Math.floor(y);
+        for (int offset : new int[]{0, 1, -1, 2, -2}) {
+            Location spot = new Location(world, x, baseY + offset, z, yaw, pitch);
+            Block feet = spot.getBlock();
+            Block head = feet.getRelative(0, 1, 0);
+            Block below = feet.getRelative(0, -1, 0);
+            if (feet.isPassable() && !feet.isLiquid() && head.isPassable() && !head.isLiquid() && below.getType().isSolid()) return spot;
+        }
+        return null;
     }
 
     // ---- wave ---------------------------------------------------------------------------------------------------------

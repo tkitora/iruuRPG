@@ -47,6 +47,9 @@ public interface SkillCaster {
     /** Pushes the caster along (the dash template); movement must be on for it to work. */
     void lunge(Vector velocity);
 
+    /** Moves the caster to {@code to} at once (the teleport template); it keeps its own yaw and pitch unless {@code to} has others. */
+    void teleport(Location to);
+
     /** What this skill can hit (alive, in the world, and fair game): players for an enemy, enemies for a player. */
     List<? extends LivingEntity> candidates();
 

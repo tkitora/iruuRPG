@@ -27,9 +27,9 @@ import java.util.regex.Pattern;
  * skills:
  *   fire_slam:                     # id: lower case letters, digits and _
  *     name: "..."
- *     template: strike             # strike | sweep | barrage | dash | wave | nova | beam
+ *     template: strike             # strike | sweep | barrage | dash | wave | nova | beam | teleport
  *     look:   { colors: ["#ff5a1e", "#ffd24a", "#ffffff"], particle: FLAME, size: 1.0, width: 1.0, sound: heavy }
- *     shape:  { radius: 3.5, range: 6, angle: 130, orientation: horizontal }
+ *     shape:  { radius: 3.5, range: 6, angle: 130, orientation: horizontal, mode: forward }   # mode: teleport only (forward | behind)
  *     timing: { windup-ticks: 24, cooldown-ticks: 160, count: 1, interval-ticks: 4, speed: 12 }
  *     effects: { damage-rate: 1.8, status: [{type: slow, percent: 40, seconds: 3}], heal-rate: 0, knockback: 0 }
  *     target: enemies
@@ -203,7 +203,7 @@ public final class SkillRegistry {
             SkillTemplate template = SkillTemplate.parse(templateName == null ? null : templateName.toString());
             if (template == null) {
                 plugin.getLogger().warning("skills: " + owner + ": unknown template '" + templateName
-                        + "' (strike / sweep / barrage / dash / wave / nova / beam) (skipped)");
+                        + "' (strike / sweep / barrage / dash / wave / nova / beam / teleport) (skipped)");
                 return null;
             }
             if (template == SkillTemplate.COMBO) {
@@ -232,6 +232,15 @@ public final class SkillRegistry {
             }
         }
 
+        SkillSpec.TeleportMode teleportMode = start.teleportMode();
+        if (flat.get("mode") != null) {
+            try {
+                teleportMode = SkillSpec.TeleportMode.valueOf(flat.get("mode").toString().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("skills: " + owner + ": mode '" + flat.get("mode") + "' is unknown (forward / behind)");
+            }
+        }
+
         // timing
         int windup = (int) Math.round(number(owner, flat, "windup-ticks", start.windupTicks(), 4, 200));
         int cooldown = (int) Math.round(number(owner, flat, "cooldown-ticks", start.cooldownTicks(), 20, 2400));
@@ -255,8 +264,8 @@ public final class SkillRegistry {
         }
 
         SkillSpec.Origin origin = flat.containsKey("origin") ? origin(owner, flat.get("origin")) : start.origin();
-        if (origin != null && start.template() == SkillTemplate.DASH) {
-            plugin.getLogger().warning("skills: " + owner + ": a dash moves the caster, so its origin is ignored");
+        if (origin != null && (start.template() == SkillTemplate.DASH || start.template() == SkillTemplate.TELEPORT)) {
+            plugin.getLogger().warning("skills: " + owner + ": a " + start.template().id() + " moves the caster, so its origin is ignored");
             origin = null;
         }
         double cost = number(owner, flat, "cost", start.cost(), 0.0, 500.0);
@@ -279,7 +288,7 @@ public final class SkillRegistry {
         return new SkillSpec(id.isEmpty() ? start.id() : id, name, template,
                 look,
                 radius, range, angle, orientation, windup, cooldown, count, interval, speed,
-                damageRate, statuses, heal, knockback, target, cost, description, start.steps(), origin);
+                damageRate, statuses, heal, knockback, target, cost, description, start.steps(), origin, teleportMode);
     }
 
     /**
@@ -363,7 +372,7 @@ public final class SkillRegistry {
         }
         return new SkillSpec(self.id(), self.name(), SkillTemplate.COMBO, self.look(), self.radius(), self.range(), self.angle(), self.orientation(),
                 self.windupTicks(), self.cooldownTicks(), self.count(), self.intervalTicks(), self.speed(), self.damageRate(),
-                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps, null);
+                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps, null, SkillSpec.TeleportMode.FORWARD);
     }
 
     private final Set<String> pendingComboIds = new java.util.HashSet<>();
