@@ -139,7 +139,7 @@ public final class ItemSkillService {
     /**
      * A special weapon (`stacks:`) gains stacks of its own whenever its skill is cast; at the maximum they are spent
      * and the weapon's `on-max` skill is cast as well (with no MP and no cooldown). They fade when the weapon is not
-     * used for `decay-seconds`. The count is shown on the action bar.
+     * used for `decay-seconds`. The count is shown as a subtitle.
      */
     private void gainStacks(Player player, RpgItemDefinition weapon) {
         net.tkgon.mc.iruuRPG.item.WeaponStackSpec stacks = weapon.stacks();
@@ -155,19 +155,25 @@ public final class ItemSkillService {
         if (state.count >= stacks.max()) {
             state.count = 0;
             state.expiresAtMillis = 0L;
-            player.sendActionBar(net.kyori.adventure.text.Component.text(stacks.name() + " " + "●".repeat(stacks.max()) + " MAX!",
+            showStacks(player, net.kyori.adventure.text.Component.text(stacks.name() + " " + "●".repeat(stacks.max()) + " MAX!",
                     net.kyori.adventure.text.format.NamedTextColor.GOLD, net.kyori.adventure.text.format.TextDecoration.BOLD));
             player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_PLAYER_LEVELUP, org.bukkit.SoundCategory.PLAYERS, 0.6f, 1.6f);
             castOnMax(player, weapon, stacks);
             return;
         }
         int shown = Math.min(state.count, stacks.max());
-        player.sendActionBar(net.kyori.adventure.text.Component.text(stacks.name() + " ", net.kyori.adventure.text.format.NamedTextColor.YELLOW)
+        showStacks(player, net.kyori.adventure.text.Component.text(stacks.name() + " ", net.kyori.adventure.text.format.NamedTextColor.YELLOW)
                 .append(net.kyori.adventure.text.Component.text("●".repeat(shown), net.kyori.adventure.text.format.NamedTextColor.GOLD))
                 .append(net.kyori.adventure.text.Component.text("○".repeat(Math.max(0, stacks.max() - shown)), net.kyori.adventure.text.format.NamedTextColor.DARK_GRAY))
                 .append(net.kyori.adventure.text.Component.text(" " + shown + "/" + stacks.max(), net.kyori.adventure.text.format.NamedTextColor.GRAY)));
         player.playSound(player.getLocation(), org.bukkit.Sound.ENTITY_EXPERIENCE_ORB_PICKUP, org.bukkit.SoundCategory.PLAYERS,
                 0.4f, (float) Math.min(2.0, 0.8 + 1.0 * shown / stacks.max()));
+    }
+
+    /** The stack count as a subtitle (no title text), short, so it can be refreshed on every cast. */
+    private void showStacks(Player player, net.kyori.adventure.text.Component text) {
+        player.showTitle(net.kyori.adventure.title.Title.title(net.kyori.adventure.text.Component.empty(), text,
+                net.kyori.adventure.title.Title.Times.times(java.time.Duration.ZERO, java.time.Duration.ofMillis(900), java.time.Duration.ofMillis(250))));
     }
 
     private void castOnMax(Player player, RpgItemDefinition weapon, net.tkgon.mc.iruuRPG.item.WeaponStackSpec stacks) {
