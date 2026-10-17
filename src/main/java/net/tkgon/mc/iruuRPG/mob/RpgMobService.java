@@ -456,6 +456,7 @@ public final class RpgMobService {
             case SWEEP -> distance <= spec.range() && inFront(mob, target, 70.0);
             case BARRAGE -> sees && distance >= 4.0 && distance <= spec.range();
             case DASH -> sees && distance >= 4.0 && distance <= spec.range();
+            case WAVE -> sees && distance >= 3.0 && distance <= spec.range();
         };
     }
 
@@ -503,6 +504,7 @@ public final class RpgMobService {
                     });
             case BARRAGE -> runBarrage(mob, target, spec);
             case DASH -> runDash(mob, target, spec, element);
+            case WAVE -> runWave(mob, target, spec, element);
         }
     }
 
@@ -570,6 +572,75 @@ public final class RpgMobService {
                     fired++;
                 }
                 age++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /**
+     * Marks a line toward the player, then sends a slash flying along it: a crescent that passes through, hits each
+     * player it crosses once, and stops at the first wall or after {@code range} blocks.
+     */
+    private void runWave(Mob mob, Player target, MobSkillSpec spec, net.tkgon.mc.iruuRPG.stat.Element element) {
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private int age;
+            private Location position;
+            private Vector direction;
+            private double travelled;
+            private final java.util.Set<UUID> hit = new java.util.HashSet<>();
+
+            @Override
+            public void run() {
+                if (mob.isDead() || !mob.isValid()) {
+                    skillBusy.remove(mob.getUniqueId());
+                    cancel();
+                    return;
+                }
+                if (age < spec.windupTicks()) {
+                    // keeps facing the player and marks where the slash will go
+                    face(mob, target);
+                    if (age % 4 == 0) {
+                        Location from = mob.getLocation().add(0.0, 1.0, 0.0);
+                        Vector aim = mob.getLocation().getDirection().setY(0.0);
+                        if (aim.lengthSquared() > 1.0E-6) {
+                            attackEffects.playMobTelegraphLine(from, from.clone().add(aim.normalize().multiply(Math.min(spec.range(), 10.0))), element);
+                        }
+                    }
+                    age++;
+                    return;
+                }
+                if (position == null) {
+                    // fired: the direction is fixed now, so a player who moves away dodges it
+                    position = mob.getEyeLocation().add(0.0, -0.3, 0.0);
+                    Vector aim = target.getLocation().add(0.0, target.getHeight() * 0.6, 0.0).toVector().subtract(position.toVector());
+                    if (aim.lengthSquared() < 1.0E-6) {
+                        endSkill(mob);
+                        cancel();
+                        return;
+                    }
+                    direction = aim.normalize();
+                    mob.swingMainHand();
+                    attackEffects.playMobSweep(mob.getLocation(), mob.getLocation().getYaw(), 2.5, element);
+                    endSkill(mob); // the mob is free again while the slash flies
+                }
+                double step = spec.speed() / 20.0;
+                org.bukkit.util.RayTraceResult wall = position.getWorld().rayTraceBlocks(position, direction, step,
+                        org.bukkit.FluidCollisionMode.NEVER, true);
+                if (wall != null) {
+                    attackEffects.playBoltImpact(wall.getHitPosition().toLocation(position.getWorld()), element);
+                    cancel();
+                    return;
+                }
+                position.add(direction.clone().multiply(step));
+                travelled += step;
+                attackEffects.playSlashProjectile(position, direction, element, Math.max(0.8, spec.radius()));
+                for (Player player : position.getWorld().getPlayers()) {
+                    if (!canTarget(mob, player) || hit.contains(player.getUniqueId())) continue;
+                    if (!player.getBoundingBox().expand(spec.radius() * 0.6).contains(position.toVector())) continue;
+                    hit.add(player.getUniqueId());
+                    attackEffects.playBoltImpact(position, element);
+                    hurt(mob, player, spec.damageRate());
+                }
+                if (travelled >= spec.range()) cancel();
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }

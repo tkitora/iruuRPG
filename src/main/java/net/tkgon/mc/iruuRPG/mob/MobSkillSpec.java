@@ -10,6 +10,8 @@ import java.util.Locale;
  *   <li>{@code barrage}: a melee mob that stops and fires {@code count} bolts one after the other, {@code intervalTicks}
  *       apart, at the player (the bolts fly at {@code speed} blocks per second and can be dodged)</li>
  *   <li>{@code dash}: marks a line toward the player, then lunges along it and hits what it reaches</li>
+ *   <li>{@code wave}: marks a line, then sends a slash flying toward the player ({@code range} blocks, {@code speed}
+ *       blocks per second, {@code radius} wide); it passes through, hits each player it crosses once, and stops at a wall</li>
  * </ul>
  * The damage of every hit is the mob's normal damage times {@code damageRate}.
  */
@@ -26,7 +28,7 @@ public record MobSkillSpec(
 ) {
 
     public enum Type {
-        STRIKE, SWEEP, BARRAGE, DASH;
+        STRIKE, SWEEP, BARRAGE, DASH, WAVE;
 
         public static Type parse(String raw) {
             if (raw == null) return null;
@@ -56,6 +58,7 @@ public record MobSkillSpec(
             case SWEEP -> new MobSkillSpec(type, 120, 4.5, 4.5, 14, 1.3, 1, 4, 12.0);
             case BARRAGE -> new MobSkillSpec(type, 200, 12.0, 1.0, 12, 0.5, 5, 5, 14.0);
             case DASH -> new MobSkillSpec(type, 180, 10.0, 1.0, 16, 1.5, 1, 4, 12.0);
+            case WAVE -> new MobSkillSpec(type, 140, 16.0, 1.3, 16, 1.2, 1, 4, 14.0);
         };
     }
 }
