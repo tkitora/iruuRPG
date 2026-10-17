@@ -32,10 +32,10 @@ public final class AttackEffects {
     /** Alternates the tilt of a player's basic slashes (left-handed / right-handed look). */
     private final Map<UUID, Boolean> slashSide = new ConcurrentHashMap<>();
 
-    public AttackEffects(JavaPlugin plugin) {
+    public AttackEffects(JavaPlugin plugin, SoundSettings soundSettings) {
         this.plugin = plugin;
         this.slashVfx = new SlashVfx(plugin);
-        this.sounds = new AttackSounds(plugin);
+        this.sounds = new AttackSounds(plugin, soundSettings);
     }
 
     public AttackSounds sounds() {
@@ -49,7 +49,7 @@ public final class AttackEffects {
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
-        sounds.swing(attacker.getLocation().add(0.0, 1.0, 0.0), weapon.element());
+        sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), weapon.element());
         Vector forward = horizontalForward(attacker);
         boolean flip = slashSide.merge(attacker.getUniqueId(), Boolean.TRUE, (old, ignored) -> !old);
         Location origin = attacker.getLocation().add(forward.clone().multiply(0.7)).add(0.0, 1.0, 0.0);
@@ -63,7 +63,7 @@ public final class AttackEffects {
         Vector forward = horizontalForward(attacker);
         float yaw = attacker.getLocation().getYaw();
         Element element = weapon.element();
-        sounds.sweepMelee(attacker.getLocation().add(0.0, 1.0, 0.0), element);
+        sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
         Location base = attacker.getLocation().add(forward.clone().multiply(0.8)).add(0.0, 1.0, 0.0);
 
         // a wide horizontal crescent swept from the right side to the left, then a smaller one right behind it
@@ -89,7 +89,7 @@ public final class AttackEffects {
         double length = path.length();
         if (length <= 1.0E-9) return;
 
-        sounds.rangeShot(start, weapon.element());
+        sounds.rangeShot(attacker, start, weapon.element());
         World world = hitLocation.getWorld();
         Vector stepDirection = path.normalize();
         ParticlePalette palette = palette(weapon.element());
@@ -138,20 +138,20 @@ public final class AttackEffects {
     }
 
     public void playBoltImpact(Location hitLocation, Element element) {
-        impact(hitLocation, element);
+        impact(null, hitLocation, element);
     }
 
-    public void playRangeImpact(Location hitLocation, RpgItemDefinition weapon) {
+    public void playRangeImpact(Player attacker, Location hitLocation, RpgItemDefinition weapon) {
         if (hitLocation == null || hitLocation.getWorld() == null) return;
-        impact(hitLocation, weapon.element());
+        impact(attacker, hitLocation, weapon.element());
     }
 
-    private void impact(Location hitLocation, Element element) {
+    private void impact(Player owner, Location hitLocation, Element element) {
         if (!plugin.getConfig().getBoolean("combat.effects.range-impact.enabled", true)) return;
         if (hitLocation == null || hitLocation.getWorld() == null) return;
 
         World world = hitLocation.getWorld();
-        sounds.impact(hitLocation, element);
+        sounds.impact(owner, hitLocation, element);
         ThreadLocalRandom random = ThreadLocalRandom.current();
         ParticlePalette palette = palette(element);
         int particles = Math.max(1, plugin.getConfig().getInt("combat.effects.range-impact.particles", 12));
@@ -175,7 +175,7 @@ public final class AttackEffects {
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, 0.25, 0.0);
         ParticlePalette palette = palette(weapon.element());
-        sounds.sweepWave(center, weapon.element());
+        sounds.sweepWave(player, center, weapon.element());
 
         int rings = 3;
         int points = 36;
@@ -225,21 +225,21 @@ public final class AttackEffects {
         }
     }
 
-    public void playDamageNumber(LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical) {
+    public void playDamageNumber(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical) {
         if (target == null || damage <= 0.0) return;
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
         String prefix = critical ? "✧" : "";
-        sounds.hit(target.getLocation().add(0.0, Math.max(0.5, target.getHeight() * 0.5), 0.0), element, critical);
+        sounds.hit(attacker, target.getLocation().add(0.0, Math.max(0.5, target.getHeight() * 0.5), 0.0), element, critical);
         spawnFloatingText(target.getLocation(), target.getHeight(), Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
     }
 
-    public void playDamageNumber(Location targetLocation, double targetHeight, RpgItemDefinition weapon, double damage, boolean critical) {
+    public void playDamageNumber(Player attacker, Location targetLocation, double targetHeight, RpgItemDefinition weapon, double damage, boolean critical) {
         if (targetLocation == null || targetLocation.getWorld() == null || damage <= 0.0) return;
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
         String prefix = critical ? "✧" : "";
-        sounds.hit(targetLocation.clone().add(0.0, Math.max(0.5, targetHeight * 0.5), 0.0), element, critical);
+        sounds.hit(attacker, targetLocation.clone().add(0.0, Math.max(0.5, targetHeight * 0.5), 0.0), element, critical);
         spawnFloatingText(targetLocation, targetHeight, Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
     }
 
@@ -326,12 +326,12 @@ public final class AttackEffects {
         }
     }
 
-    public void playDeploySweep(Location center, RpgItemDefinition weapon, double radius) {
+    public void playDeploySweep(Player owner, Location center, RpgItemDefinition weapon, double radius) {
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
-        sounds.sweepWave(center, weapon.element());
+        sounds.deploySweep(owner, center, weapon.element());
         int particles = 46;
         double arcRadians = Math.toRadians(120.0);
         double sweepRadius = Math.max(1.0, radius * 0.55);
@@ -359,7 +359,7 @@ public final class AttackEffects {
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, Math.max(0.7, player.getHeight() * 0.55), 0.0);
         ParticlePalette palette = palette(weapon.element());
-        sounds.healBurst(center);
+        sounds.healBurst(player, center);
 
         for (int index = 0; index < 18; index++) {
             double angle = Math.PI * 2.0 * index / 18.0;
@@ -371,12 +371,12 @@ public final class AttackEffects {
         world.spawnParticle(Particle.HEART, center.clone().add(0.0, 0.45, 0.0), 2, 0.25, 0.18, 0.25, 0.0);
     }
 
-    public void playHealRing(Location center, RpgItemDefinition weapon, double radius) {
+    public void playHealRing(Player owner, Location center, RpgItemDefinition weapon, double radius) {
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
-        sounds.healRing(center);
+        sounds.healRing(owner, center);
         int points = 64;
         for (int index = 0; index < points; index++) {
             double angle = Math.PI * 2.0 * index / points;
@@ -399,7 +399,7 @@ public final class AttackEffects {
         Location center = player.getLocation().add(0.0, 0.35, 0.0);
         Vector backward = horizontalForward(player).multiply(-1.0);
         ParticlePalette palette = palette(weapon.element());
-        sounds.dash(center, weapon.element());
+        sounds.dash(player, center, weapon.element());
 
         for (int index = 0; index < 14; index++) {
             double spread = (index - 6.5) / 6.5;
@@ -425,9 +425,9 @@ public final class AttackEffects {
         burst(world, center, weapon.element(), 14, radius * 0.4, 0.12);
     }
 
-    public void playStrikeRangeCharge(Location center, Vector direction, RpgItemDefinition weapon) {
+    public void playStrikeRangeCharge(Player owner, Location center, Vector direction, RpgItemDefinition weapon) {
         if (center == null || center.getWorld() == null) return;
-        sounds.strikeCharge(center);
+        sounds.strikeCharge(owner, center);
         spawnStrikeCylinder(center.getWorld(), center, direction, weapon, 0.75, 3, 18);
     }
 
@@ -455,7 +455,7 @@ public final class AttackEffects {
         center.subtract(forward.clone().multiply(0.35));
         double yaw = Math.toDegrees(Math.atan2(-forward.getX(), forward.getZ()));
         Element element = weapon.element();
-        sounds.slashCut(center, element);
+        sounds.slashCut(attacker, center, element);
 
         // two diagonal cuts that cross each other like an X, the second one a moment after the first
         slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, 0.0, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
@@ -482,14 +482,14 @@ public final class AttackEffects {
                 0.05, 1.0f, 0.0);
     }
 
-    public void playSlashImpact(LivingEntity target, RpgItemDefinition weapon) {
+    public void playSlashImpact(Player owner, LivingEntity target, RpgItemDefinition weapon) {
         if (target == null || target.isDead() || !target.isValid() || weapon == null) return;
 
         playRangeHurt(target);
         World world = target.getWorld();
         Location center = target.getLocation().add(0.0, Math.max(0.75, target.getHeight() * 0.58), 0.0);
         ParticlePalette palette = palette(weapon.element());
-        sounds.slashImpact(center, weapon.element());
+        sounds.slashImpact(owner, center, weapon.element());
         for (int index = 0; index < 18; index++) {
             double angle = Math.PI * 2.0 * index / 18.0;
             Location point = center.clone().add(Math.cos(angle) * 0.45, Math.sin(angle * 2.0) * 0.18, Math.sin(angle) * 0.45);
@@ -498,12 +498,12 @@ public final class AttackEffects {
         burst(world, center, weapon.element(), 16, 0.25, 0.14);
     }
 
-    public void playDeployDashFinish(Location center, RpgItemDefinition weapon, double radius) {
+    public void playDeployDashFinish(Player owner, Location center, RpgItemDefinition weapon, double radius) {
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
-        sounds.deployDashFinish(center, weapon.element());
+        sounds.deployDashFinish(owner, center, weapon.element());
         int spokes = 18;
         int steps = 8;
         for (int spoke = 0; spoke < spokes; spoke++) {
@@ -521,12 +521,12 @@ public final class AttackEffects {
         }
     }
 
-    public void playDeployStrikeCrush(Location center, RpgItemDefinition weapon, double radius) {
+    public void playDeployStrikeCrush(Player owner, Location center, RpgItemDefinition weapon, double radius) {
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
         ParticlePalette palette = palette(weapon.element());
-        sounds.deployCrush(center, weapon.element());
+        sounds.deployCrush(owner, center, weapon.element());
         int columns = 24;
         for (int column = 0; column < columns; column++) {
             double angle = Math.PI * 2.0 * column / columns;

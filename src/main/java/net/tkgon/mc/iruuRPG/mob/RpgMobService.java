@@ -466,7 +466,7 @@ public final class RpgMobService {
         double perTick = spec.speed() / 20.0;
         double maxDistance = spec.range() * 1.5;
         mob.swingMainHand();
-        if (attackEffects != null) attackEffects.sounds().boltLaunch(from, element);
+        if (attackEffects != null) attackEffects.sounds().boltLaunch(null, from, element);
 
         new org.bukkit.scheduler.BukkitRunnable() {
             private Location position = from.clone();

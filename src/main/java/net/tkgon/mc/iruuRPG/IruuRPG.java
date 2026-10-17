@@ -8,6 +8,8 @@ import net.tkgon.mc.iruuRPG.classsystem.ClassSkillRegistry;
 import net.tkgon.mc.iruuRPG.command.StatsCommand;
 import net.tkgon.mc.iruuRPG.combat.AttackCooldowns;
 import net.tkgon.mc.iruuRPG.combat.AttackEffects;
+import net.tkgon.mc.iruuRPG.combat.SoundSettings;
+import net.tkgon.mc.iruuRPG.gui.SettingsMenu;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.ClassEffectService;
 import net.tkgon.mc.iruuRPG.combat.ClassSkillService;
@@ -132,6 +134,9 @@ public final class IruuRPG extends JavaPlugin {
     private SidebarService sidebarService;
     private PartyService partyService;
     private PartyMenu partyMenu;
+    private SoundSettings soundSettings;
+    private AttackEffects attackEffectsRef;
+    private SettingsMenu settingsMenu;
     private TravelService travelService;
     private TravelMenu travelMenu;
     private StorageService storageService;
@@ -173,7 +178,8 @@ public final class IruuRPG extends JavaPlugin {
         this.statusEffectService = new StatusEffectService(this, equipmentService, playerBars);
         this.debugTargetService = new DebugTargetService(this);
 
-        AttackEffects attackEffects = new AttackEffects(this);
+        this.soundSettings = new SoundSettings(this);
+        AttackEffects attackEffects = new AttackEffects(this, soundSettings);
         this.statusEffectService.setAttackEffects(attackEffects);
         this.attackService = new AttackService(
                 this,
@@ -188,6 +194,7 @@ public final class IruuRPG extends JavaPlugin {
                 statusEffectService
         );
         this.mobService = new RpgMobService(this, mobRegistry, itemRegistry, itemFactory, levelService, statusEffectService);
+        this.attackEffectsRef = attackEffects;
         this.mobService.setAttackEffects(attackEffects);
         this.statusEffectService.setMobService(mobService);
         this.attackService.setMobService(mobService);
@@ -223,6 +230,9 @@ public final class IruuRPG extends JavaPlugin {
         this.skillTreeMenu.setMainMenu(mainMenu);
         this.classSelectMenu.setMainMenu(mainMenu);
         this.mainMenuItemService = new MainMenuItemService(this);
+        this.settingsMenu = new SettingsMenu(soundSettings, attackEffectsRef.sounds(), mainMenuItemService);
+        this.settingsMenu.setMainMenu(mainMenu);
+        this.mainMenu.setSettingsMenu(settingsMenu);
         this.marketService = new MarketService(this, profileManager);
         this.marketService.load();
         this.marketMenu = new MarketMenu(this, marketService, item -> !mainMenuItemService.isMenuItem(item));
@@ -458,6 +468,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(sidebarService, this);
         getServer().getPluginManager().registerEvents(partyService, this);
         getServer().getPluginManager().registerEvents(partyMenu, this);
+        getServer().getPluginManager().registerEvents(soundSettings, this);
+        getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
         getServer().getPluginManager().registerEvents(travelMenu, this);
         getServer().getPluginManager().registerEvents(storageMenu, this);

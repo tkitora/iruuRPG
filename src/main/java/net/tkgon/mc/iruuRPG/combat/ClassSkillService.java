@@ -334,7 +334,7 @@ public final class ClassSkillService {
         boolean applied;
         if (type == AttackType.RANGE) {
             applied = attackService.applyRangeDamage(player, target, damage, weapon, critical);
-            if (applied) attackService.playRangeImpact(target.getLocation().add(0, target.getHeight() * 0.5, 0), weapon);
+            if (applied) attackService.playRangeImpact(player, target.getLocation().add(0, target.getHeight() * 0.5, 0), weapon);
         } else {
             applied = attackService.applyDirectDamage(player, target, damage, weapon, critical);
             if (applied && type == AttackType.MELEE) {

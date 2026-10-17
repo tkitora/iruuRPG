@@ -65,6 +65,11 @@ public final class MainMenu implements Listener {
     private DungeonMenu dungeonMenu;
     private PartyMenu partyMenu;
     private TravelMenu travelMenu;
+    private SettingsMenu settingsMenu;
+
+    public void setSettingsMenu(SettingsMenu settingsMenu) {
+        this.settingsMenu = settingsMenu;
+    }
 
     public void setTravelMenu(TravelMenu travelMenu) {
         this.travelMenu = travelMenu;
@@ -136,6 +141,10 @@ public final class MainMenu implements Listener {
                 Component.text("変更するとSPの振り分けはリセットされます", NamedTextColor.RED)
         )));
 
+        inventory.setItem(49, button(Material.COMPARATOR, "設定", NamedTextColor.GRAY, List.of(
+                Component.text("攻撃の音の大きさ・他人の音・メニューアイテムの表示", NamedTextColor.GRAY)
+        )));
+
         player.openInventory(inventory);
     }
 
@@ -168,6 +177,9 @@ public final class MainMenu implements Listener {
             }
             case 40 -> {
                 if (marketMenu != null) marketMenu.open(player);
+            }
+            case 49 -> {
+                if (settingsMenu != null) settingsMenu.open(player);
             }
             default -> {
             }

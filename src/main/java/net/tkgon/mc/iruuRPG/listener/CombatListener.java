@@ -320,7 +320,7 @@ public final class CombatListener implements Listener {
         if (!attackService.applyRangeDamage(attacker, victim, attack.result().damage(), weapon, attack.result().critical())) {
             return;
         }
-        attackService.playRangeImpact(trace.hitLocation(), weapon);
+        attackService.playRangeImpact(attacker, trace.hitLocation(), weapon);
         attackService.sendDamageDebug(attacker, AttackType.RANGE, victim, attack.result().damage(), attack.result().critical(), false);
         attackService.applyAreaDamage(attacker, victim, attack.result().damage(), AttackType.RANGE, weapon);
     }
