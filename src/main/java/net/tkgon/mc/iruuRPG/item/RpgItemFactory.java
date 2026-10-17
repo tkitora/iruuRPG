@@ -230,6 +230,13 @@ public final class RpgItemFactory {
         if (spec.cost() > 0.0) costParts.add(format(spec.cost()) + " MP");
         costParts.add("CD " + formatTicks(spec.cooldownTicks()));
         lore.add(skillLine("Cost", String.join(" / ", costParts)));
+        WeaponStackSpec stacks = definition.stacks();
+        if (stacks != null) {
+            net.tkgon.mc.iruuRPG.skill.SkillSpec burst = generalSkills.forItem("item " + definition.id(), stacks.onMax(), java.util.Map.of());
+            lore.add(skillLine(stacks.name(), "スキルを使うたびに" + stacks.gain() + "たまり、" + stacks.max() + "で「"
+                    + (burst == null ? stacks.onMax() : burst.name()) + "」が発動する"));
+            if (stacks.decaySeconds() > 0.0) lore.add(skillText("使わないと" + format(stacks.decaySeconds()) + "秒で消える"));
+        }
     }
 
     private void addSkillLore(List<Component> lore, RpgItemDefinition definition) {

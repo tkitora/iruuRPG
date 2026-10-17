@@ -24,6 +24,7 @@ public record RpgItemDefinition(
         ItemSkillType skill,
         String skillId,
         Map<String, Object> skillOverrides,
+        WeaponStackSpec stacks,
         StatSet stats,
         ElementStatSet elementStats,
         List<String> description

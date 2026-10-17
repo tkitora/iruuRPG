@@ -124,6 +124,21 @@ public final class RpgItemRegistry {
                 ? rawSkill.toLowerCase(Locale.ROOT) : "";
         java.util.Map<String, Object> skillOverrides = section.getConfigurationSection("skill-overrides") == null
                 ? java.util.Map.of() : section.getConfigurationSection("skill-overrides").getValues(false);
+        WeaponStackSpec stacks = null;
+        org.bukkit.configuration.ConfigurationSection stackSection = section.getConfigurationSection("stacks");
+        if (stackSection != null) {
+            stacks = new WeaponStackSpec(stackSection.getString("name", "スタック"), stackSection.getInt("gain", 1),
+                    stackSection.getInt("max", 5), stackSection.getString("on-max", ""), stackSection.getDouble("decay-seconds", 0.0));
+            if (skillId.isEmpty()) {
+                plugin.getLogger().warning("items: " + id + ": stacks need a skill of skills/*.yml in `skill:` (the stacks are ignored)");
+                stacks = null;
+            } else if (stacks.onMax().isEmpty()) {
+                plugin.getLogger().warning("items: " + id + ": stacks.on-max (the skill cast at the maximum) is missing (the stacks are ignored)");
+                stacks = null;
+            } else if (generalSkills != null && !generalSkills.all().containsKey(stacks.onMax())) {
+                plugin.getLogger().warning("items: " + id + ": stacks.on-max '" + stacks.onMax() + "' is not a skill of skills/*.yml");
+            }
+        }
         if (!skillId.isEmpty() && generalSkills != null && !generalSkills.all().containsKey(skillId)) {
             plugin.getLogger().warning("items: " + id + ": skill '" + skillId + "' is neither an item skill nor a skill of skills/*.yml");
         }
@@ -145,6 +160,7 @@ public final class RpgItemRegistry {
                 skill,
                 skillId,
                 skillOverrides,
+                stacks,
                 stats,
                 elementStats,
                 description

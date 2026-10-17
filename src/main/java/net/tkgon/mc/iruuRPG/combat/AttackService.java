@@ -642,6 +642,7 @@ public final class AttackService {
                 ItemSkillType.NONE,
                 "",
                 java.util.Map.of(),
+                null,
                 new StatSet(),
                 new ElementStatSet(),
                 List.of()
