@@ -6,7 +6,7 @@ import net.tkgon.mc.iruuRPG.stat.Element;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.World;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.BoundingBox;
@@ -47,7 +47,7 @@ public final class SkillRunner {
         caster.freeze();
         Location aimAt = aim.get();
         if (aimAt != null) caster.face(aimAt);
-        effects.playSkillWindupSound(caster.location(), spec.look(), caster.element());
+        effects.playSkillWindupSound(caster.owner(), caster.location(), spec.look(), caster.element());
         switch (spec.template()) {
             case STRIKE -> strike(caster, spec, onDone);
             case SWEEP -> sweep(caster, spec, aim, onDone);
@@ -108,8 +108,8 @@ public final class SkillRunner {
                 if (age >= spec.windupTicks()) {
                     Location center = caster.location();
                     effects.playSkillStrike(center, spec.radius(), spec.look(), element);
-                    effects.playSkillCastSound(center, spec.look(), element);
-                    for (Player player : within(caster, spec.radius(), 2.5)) hit(caster, spec, player);
+                    effects.playSkillCastSound(caster.owner(), center, spec.look(), element);
+                    for (LivingEntity player : within(caster, spec.radius(), 2.5)) hit(caster, spec, player);
                     caster.release();
                     cancel();
                     onDone.run();
@@ -138,9 +138,9 @@ public final class SkillRunner {
                 if (age >= spec.windupTicks()) {
                     Location origin = caster.location();
                     effects.playSkillCrescent(origin, origin.getYaw(), spec.range(), spec.angle(), spec.orientation(), spec.look(), element);
-                    effects.playSkillCastSound(origin, spec.look(), element);
+                    effects.playSkillCastSound(caster.owner(), origin, spec.look(), element);
                     double tall = spec.orientation() == SkillSpec.Orientation.HORIZONTAL ? 2.5 : 3.5;
-                    for (Player player : within(caster, spec.range(), tall)) {
+                    for (LivingEntity player : within(caster, spec.range(), tall)) {
                         if (inFan(caster, player, spec.angle() / 2.0)) hit(caster, spec, player);
                     }
                     caster.release();
@@ -194,7 +194,7 @@ public final class SkillRunner {
         if (direction.lengthSquared() < 1.0E-6) return;
         direction.normalize();
         caster.swing();
-        effects.playSkillCastSound(from, spec.look(), element);
+        effects.playSkillCastSound(caster.owner(), from, spec.look(), element);
         World world = caster.world();
         double perTick = spec.speed() / 20.0;
         double maxDistance = spec.range() * 1.3;
@@ -211,9 +211,9 @@ public final class SkillRunner {
                 Location next = position.clone().add(direction.clone().multiply(perTick));
                 RayTraceResult wall = world.rayTraceBlocks(position, direction, perTick, FluidCollisionMode.NEVER, true);
                 double wallDistance = wall == null ? Double.MAX_VALUE : wall.getHitPosition().distance(position.toVector());
-                Player hitPlayer = null;
+                LivingEntity hitPlayer = null;
                 double hitDistance = Double.MAX_VALUE;
-                for (Player player : caster.candidates()) {
+                for (LivingEntity player : caster.candidates()) {
                     RayTraceResult result = player.getBoundingBox().expand(0.25).rayTrace(position.toVector(), direction, perTick);
                     if (result == null) continue;
                     double distance = result.getHitPosition().distance(position.toVector());
@@ -226,7 +226,7 @@ public final class SkillRunner {
                     Location end = position.clone().add(direction.clone().multiply(hitDistance));
                     effects.playSkillBolt(position, end, spec.look(), element);
                     effects.playSkillImpact(end, spec.look(), element);
-                    effects.playSkillHitSound(end, spec.look(), element);
+                    effects.playSkillHitSound(caster.owner(), end, spec.look(), element);
                     hit(caster, spec, hitPlayer);
                     cancel();
                     return;
@@ -281,10 +281,10 @@ public final class SkillRunner {
                 if (!lunged) {
                     lunged = true;
                     caster.release(); // the lunge is a push: it needs the body to be free
-                    effects.playSkillCastSound(caster.location(), spec.look(), element);
+                    effects.playSkillCastSound(caster.owner(), caster.location(), spec.look(), element);
                     caster.lunge(direction.clone().multiply(spec.speed() / 8.0).setY(0.25));
                 }
-                for (Player player : within(caster, 1.8, 2.5)) {
+                for (LivingEntity player : within(caster, 1.8, 2.5)) {
                     if (hit.add(player.getUniqueId())) hit(caster, spec, player);
                 }
                 if (age >= spec.windupTicks() + 8) {
@@ -340,7 +340,7 @@ public final class SkillRunner {
         if (aimVector.lengthSquared() < 1.0E-6) return;
         aimVector.normalize();
         caster.swing();
-        effects.playSkillCastSound(caster.location(), spec.look(), element);
+        effects.playSkillCastSound(caster.owner(), caster.location(), spec.look(), element);
         for (int index = 0; index < spec.count(); index++) {
             double offset = Math.toRadians((index - (spec.count() - 1) / 2.0) * spec.angle());
             double cos = Math.cos(offset);
@@ -370,12 +370,12 @@ public final class SkillRunner {
                 position.add(direction.clone().multiply(step));
                 travelled += step;
                 effects.playSkillWaveStep(position, direction, spec.radius(), spec.look(), element);
-                for (Player player : caster.candidates()) {
+                for (LivingEntity player : caster.candidates()) {
                     if (hit.contains(player.getUniqueId())) continue;
                     if (!player.getBoundingBox().expand(spec.radius() * 0.6).contains(position.toVector())) continue;
                     hit.add(player.getUniqueId());
                     effects.playSkillImpact(position, spec.look(), element);
-                    effects.playSkillHitSound(position, spec.look(), element);
+                    effects.playSkillHitSound(caster.owner(), position, spec.look(), element);
                     hit(caster, spec, player);
                 }
                 if (travelled >= spec.range()) cancel();
@@ -414,7 +414,7 @@ public final class SkillRunner {
     private void expand(SkillCaster caster, SkillSpec spec) {
         Element element = caster.element();
         Location center = caster.location().clone();
-        effects.playSkillCastSound(center, spec.look(), element);
+        effects.playSkillCastSound(caster.owner(), center, spec.look(), element);
         double step = spec.speed() / 20.0;
         new Guarded(null) {
             private double radius = 0.5;
@@ -423,7 +423,7 @@ public final class SkillRunner {
             @Override
             protected void tick() {
                 effects.playSkillNovaRing(center, radius, spec.look(), element);
-                for (Player player : caster.candidates()) {
+                for (LivingEntity player : caster.candidates()) {
                     if (hit.contains(player.getUniqueId())) continue;
                     if (!player.getWorld().equals(center.getWorld())) continue;
                     Location at = player.getLocation();
@@ -433,7 +433,7 @@ public final class SkillRunner {
                     if (Math.abs(at.getY() - center.getY()) > 2.5) continue;
                     if (distance > radius + 0.6 || distance < radius - step - 0.6) continue;
                     hit.add(player.getUniqueId());
-                    effects.playSkillHitSound(at.clone().add(0.0, 1.0, 0.0), spec.look(), element);
+                    effects.playSkillHitSound(caster.owner(), at.clone().add(0.0, 1.0, 0.0), spec.look(), element);
                     hit(caster, spec, player);
                 }
                 if (radius >= spec.radius()) {
@@ -491,8 +491,8 @@ public final class SkillRunner {
                     double length = wall == null ? spec.range() : wall.getHitPosition().distance(from.toVector());
                     to = from.clone().add(direction.clone().multiply(length));
                     caster.swing();
-                    effects.playSkillCastSound(from, spec.look(), element);
-                    for (Player player : caster.candidates()) {
+                    effects.playSkillCastSound(caster.owner(), from, spec.look(), element);
+                    for (LivingEntity player : caster.candidates()) {
                         BoundingBox box = player.getBoundingBox().expand(spec.radius());
                         RayTraceResult result = box.rayTrace(from.toVector(), direction, length);
                         if (result != null) hit(caster, spec, player);
@@ -510,10 +510,10 @@ public final class SkillRunner {
 
     // ---- shared -------------------------------------------------------------------------------------------------------
 
-    private java.util.List<Player> within(SkillCaster caster, double radius, double vertical) {
+    private java.util.List<LivingEntity> within(SkillCaster caster, double radius, double vertical) {
         Location center = caster.location();
-        java.util.List<Player> result = new java.util.ArrayList<>();
-        for (Player player : caster.candidates()) {
+        java.util.List<LivingEntity> result = new java.util.ArrayList<>();
+        for (LivingEntity player : caster.candidates()) {
             if (!player.getWorld().equals(center.getWorld())) continue;
             Location at = player.getLocation();
             double dx = at.getX() - center.getX();
@@ -525,7 +525,7 @@ public final class SkillRunner {
         return result;
     }
 
-    private boolean inFan(SkillCaster caster, Player player, double halfAngleDegrees) {
+    private boolean inFan(SkillCaster caster, LivingEntity player, double halfAngleDegrees) {
         Vector toTarget = player.getLocation().toVector().subtract(caster.location().toVector()).setY(0.0);
         if (toTarget.lengthSquared() < 1.0E-6) return true;
         Vector facing = caster.location().getDirection().setY(0.0);
@@ -534,7 +534,7 @@ public final class SkillRunner {
     }
 
     /** One hit: the damage (through the caster), then what the skill adds. */
-    private void hit(SkillCaster caster, SkillSpec spec, Player victim) {
+    private void hit(SkillCaster caster, SkillSpec spec, LivingEntity victim) {
         caster.damage(victim, spec.damageRate());
         if (!caster.applyEffects()) return;
         if (spec.knockback() > 0.0) {

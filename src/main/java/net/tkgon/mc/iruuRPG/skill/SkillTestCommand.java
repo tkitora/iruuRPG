@@ -30,11 +30,17 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
     private final JavaPlugin plugin;
     private final SkillRegistry registry;
     private final SkillRunner runner;
+    private net.tkgon.mc.iruuRPG.combat.AttackService attackService;
 
     public SkillTestCommand(JavaPlugin plugin, SkillRegistry registry, SkillRunner runner) {
         this.plugin = plugin;
         this.registry = registry;
         this.runner = runner;
+    }
+
+    /** Needed for {@code mine}: casting as the player with the weapon in their hand. */
+    public void setAttackService(net.tkgon.mc.iruuRPG.combat.AttackService attackService) {
+        this.attackService = attackService;
     }
 
     @Override
@@ -48,13 +54,17 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage(Component.text("[skilltest] /skilltest <id> [self|dummy] [red|blue|white|green|orange]  (id: skills/*.yml のスキル、または "
+            player.sendMessage(Component.text("[skilltest] /skilltest <id> [self|dummy|mine] [red|blue|white|green|orange]  (id: skills/*.yml のスキル、または "
                     + String.join(" / ", templateNames()) + ")", NamedTextColor.YELLOW));
             return true;
         }
         SkillSpec spec = registry.find(args[0]).orElse(null);
         if (spec == null) {
             player.sendMessage(Component.text("[skilltest] そのスキルはありません: " + args[0], NamedTextColor.RED));
+            return true;
+        }
+        if (args.length > 1 && args[1].equalsIgnoreCase("mine")) {
+            castMine(player, spec);
             return true;
         }
         boolean dummy = args.length > 1 && args[1].equalsIgnoreCase("dummy");
@@ -86,6 +96,23 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * {@code mine}: casts it as you, with the weapon in your hand, at real enemies (it hurts them like a skill of
+     * yours would; no MP and no cooldown are used). For trying a skill that is meant for players.
+     */
+    private void castMine(Player player, SkillSpec spec) {
+        net.tkgon.mc.iruuRPG.item.RpgItemDefinition weapon = attackService == null ? null : attackService.weaponInMainHand(player);
+        if (weapon == null || !weapon.isWeaponLike()) {
+            player.sendMessage(Component.text("[skilltest] mine は、武器を手に持って使います。", NamedTextColor.RED));
+            return;
+        }
+        player.sendMessage(Component.text("[skilltest] " + (spec.id().isEmpty() ? spec.template().id() : spec.id())
+                + " を、あなたの武器で撃ちます (敵に本当に当たります。MP・クールダウンは使いません)", NamedTextColor.GRAY));
+        runner.start(new PlayerSkillCaster(plugin, attackService, player, weapon), spec,
+                () -> PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
+                });
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> result = new ArrayList<>();
@@ -95,6 +122,7 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
         } else if (args.length == 2) {
             result.add("self");
             result.add("dummy");
+            result.add("mine");
         } else if (args.length == 3) {
             for (Element element : Element.values()) result.add(element.name().toLowerCase(Locale.ROOT));
         }
@@ -215,7 +243,7 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
         }
 
         @Override
-        public void damage(Player victim, double rate) {
+        public void damage(org.bukkit.entity.LivingEntity victim, double rate) {
             hits++;
         }
     }

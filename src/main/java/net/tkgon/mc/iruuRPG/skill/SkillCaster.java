@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.skill;
 import net.tkgon.mc.iruuRPG.stat.Element;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -13,6 +14,11 @@ import java.util.List;
  * works the same for all of them.
  */
 public interface SkillCaster {
+
+    /** The player who casts it (their sounds are theirs: volume settings apply); null for enemies. */
+    default Player owner() {
+        return null;
+    }
 
     World world();
 
@@ -41,12 +47,12 @@ public interface SkillCaster {
     /** Pushes the caster along (the dash template); movement must be on for it to work. */
     void lunge(Vector velocity);
 
-    /** The players this skill can hit (alive, in the world, and fair game). */
-    List<Player> candidates();
+    /** What this skill can hit (alive, in the world, and fair game): players for an enemy, enemies for a player. */
+    List<? extends LivingEntity> candidates();
 
     /** Whether status effects and knockback are really applied (false for a test). */
     boolean applyEffects();
 
-    /** Hurts a player: the caster's normal damage times {@code rate}. */
-    void damage(Player victim, double rate);
+    /** Hurts one of the candidates: the caster's normal damage times {@code rate}. */
+    void damage(LivingEntity victim, double rate);
 }

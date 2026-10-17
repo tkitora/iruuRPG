@@ -61,6 +61,40 @@ public final class ClassSkillService {
         this.profileManager = profileManager;
     }
 
+    private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
+    private net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner;
+
+    /** Skills made from templates (skills/*.yml) cast by a class key. */
+    public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills, net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner) {
+        this.generalSkills = generalSkills;
+        this.skillRunner = skillRunner;
+    }
+
+    private boolean isGeneral(ClassSkillDefinition skill) {
+        return generalSkills != null && skillRunner != null && generalSkills.all().containsKey(skill.id().toLowerCase());
+    }
+
+    private Precheck precheckGeneral(Player player) {
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null || !weapon.isWeaponLike()
+                || (weapon.attackType() != AttackType.MELEE && weapon.attackType() != AttackType.RANGE)) {
+            return Precheck.rejected("近接か遠距離の武器を持っていないと使えません。");
+        }
+        if (!attackService.canUseItem(player, weapon)) {
+            attackService.sendLevelRequirement(player, weapon);
+            return Precheck.rejected(null);
+        }
+        return Precheck.ready(null, weapon);
+    }
+
+    private void executeGeneral(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
+        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.all().get(skill.id().toLowerCase());
+        if (spec == null) return;
+        skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon), spec,
+                () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
+                });
+    }
+
     public void setClassEffectService(ClassEffectService classEffectService) {
         this.classEffectService = classEffectService;
     }
@@ -86,6 +120,9 @@ public final class ClassSkillService {
         if (SATSUJIN.equalsIgnoreCase(skill.id())) {
             return precheckSatsujin(player, skill);
         }
+        if (isGeneral(skill)) {
+            return precheckGeneral(player);
+        }
         return Precheck.noEffect();
     }
 
@@ -98,6 +135,10 @@ public final class ClassSkillService {
             return;
         }
         if (precheck.weapon() == null) return;
+        if (isGeneral(skill)) {
+            executeGeneral(player, skill, precheck.weapon());
+            return;
+        }
         if (precheck.target() != null && WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
             warriorStrike(player, skill, precheck.target(), precheck.weapon());
         } else if (ICE_LANCE.equalsIgnoreCase(skill.id())) {

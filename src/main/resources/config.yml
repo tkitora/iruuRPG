@@ -336,3 +336,8 @@ mob-ai:
   lose-range: 28.0
   # 見失ってから、この時間 (tick) は居場所を覚えて追う
   memory-ticks: 100
+
+# プレイヤーのスキル (skills/*.yml を武器・クラスで使うもの) の上限
+skill-limits:
+  # damage-rate (武器ダメージに対する倍率) の上限。これを超える値は、この値として扱う
+  player-damage-rate-max: 8.0

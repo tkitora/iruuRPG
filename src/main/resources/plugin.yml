@@ -31,7 +31,7 @@ commands:
       - crafting
   skilltest:
     description: Plays a skill from skills/*.yml (or a template) so you can look at it (admins)
-    usage: /skilltest <id> [self|dummy] [element]
+    usage: /skilltest <id> [self|dummy|mine] [element]
     permission: iruurpg.admin
   storage:
     description: Opens your storage (admins; players use the ender chests around the world)

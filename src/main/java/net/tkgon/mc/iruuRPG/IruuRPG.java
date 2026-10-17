@@ -172,6 +172,7 @@ public final class IruuRPG extends JavaPlugin {
         this.itemFactory = new RpgItemFactory(this, itemIdentifier, itemSkillRegistry);
         this.skillRegistry = new net.tkgon.mc.iruuRPG.skill.SkillRegistry(this);
         this.skillRegistry.reload();
+        this.classSkillRegistry.setGeneralSkills(skillRegistry);
         this.mobRegistry = new RpgMobRegistry(this, skillRegistry);
         this.mobRegistry.reload();
         this.profileManager = new PlayerProfileManager(new PlayerProfileStorage(this));
@@ -208,6 +209,7 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.setDebugTargetService(debugTargetService);
         this.attackService.setClassService(classService);
         this.classSkillService = new ClassSkillService(this, attackService, classService, profileManager);
+        this.classSkillService.setGeneralSkills(skillRegistry, skillRunner);
         this.classSkillService.setStatusEffectService(statusEffectService);
         this.classEffectService = new ClassEffectService(this, classService, profileManager, statusEffectService);
         this.attackService.setClassEffectService(classEffectService);
@@ -364,6 +366,7 @@ public final class IruuRPG extends JavaPlugin {
         PluginCommand skillTestCommand = getCommand("skilltest");
         if (skillTestCommand != null) {
             net.tkgon.mc.iruuRPG.skill.SkillTestCommand skillTest = new net.tkgon.mc.iruuRPG.skill.SkillTestCommand(this, skillRegistry, skillRunner);
+            skillTest.setAttackService(attackService);
             skillTestCommand.setExecutor(skillTest);
             skillTestCommand.setTabCompleter(skillTest);
         }
