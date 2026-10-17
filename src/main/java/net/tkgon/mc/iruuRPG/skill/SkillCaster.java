@@ -50,6 +50,20 @@ public interface SkillCaster {
     /** What this skill can hit (alive, in the world, and fair game): players for an enemy, enemies for a player. */
     List<? extends LivingEntity> candidates();
 
+    /** The allies this skill can help (players for a player; none for an enemy). */
+    default List<? extends LivingEntity> allyCandidates() {
+        return List.of();
+    }
+
+    /** True for one of this caster's allies (a hit on them heals instead of hurting). */
+    default boolean isAlly(LivingEntity entity) {
+        return false;
+    }
+
+    /** Heals an ally by {@code ratio} of their max HP. */
+    default void heal(LivingEntity ally, double ratio) {
+    }
+
     /** Whether status effects and knockback are really applied (false for a test). */
     boolean applyEffects();
 

@@ -152,7 +152,12 @@ public final class RpgMobRegistry {
         List<SkillSpec> result = new java.util.ArrayList<>();
         for (java.util.Map<?, ?> entry : raw) {
             SkillSpec spec = skillRegistry.resolve("mob " + id, entry);
-            if (spec != null) result.add(spec);
+            if (spec != null) {
+                if (spec.target() != SkillSpec.Target.ENEMIES) {
+                    plugin.getLogger().warning("mobs: " + id + ": a skill of an enemy always goes at the players; its target '" + spec.target().name().toLowerCase() + "' is ignored");
+                }
+                result.add(spec);
+            }
         }
         return result;
     }

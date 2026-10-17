@@ -436,6 +436,13 @@ public final class StatusEffectService {
         return confusion == null ? 0.0 : confusion.value();
     }
 
+    /** A helpful status put on an ally by a skill (magic_amplify: more magic / ranged damage; protection: less damage taken). */
+    public void applyBuff(LivingEntity target, StatusEffectType type, double percent, long durationMillis, UUID sourceId) {
+        if (type != StatusEffectType.MAGIC_AMPLIFY && type != StatusEffectType.PROTECTION) return;
+        applySingle(target, type, percent, durationMillis, sourceId, false);
+        refreshDisplay(target);
+    }
+
     public void addExplosion(LivingEntity target, double value, UUID sourceId) {
         applyExplosion(target, value, sourceId);
         refreshDisplay(target);

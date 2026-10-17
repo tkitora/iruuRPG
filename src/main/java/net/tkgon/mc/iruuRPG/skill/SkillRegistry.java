@@ -41,7 +41,7 @@ public final class SkillRegistry {
 
     private static final Pattern ID = Pattern.compile("[a-z0-9_]{1,40}");
     private static final Pattern HEX = Pattern.compile("#[0-9a-fA-F]{6}");
-    private static final Set<String> STATUS_TYPES = Set.of("slow", "bleed", "corrosion", "decay", "confusion", "explosion");
+    private static final Set<String> STATUS_TYPES = Set.of("slow", "bleed", "corrosion", "decay", "confusion", "explosion", "magic_amplify", "protection");
 
     /** The sparkle particles a skill may use (DUST means colored dust only). */
     private static final Map<String, Particle> PARTICLES = new LinkedHashMap<>();
