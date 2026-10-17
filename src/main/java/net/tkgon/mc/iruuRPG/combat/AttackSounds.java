@@ -168,6 +168,34 @@ public final class AttackSounds {
         accent(owner, kind, at, element, 0.3f);
     }
 
+    // ---- enemy skills (made by enemies, so always the "enemy attacks" kind) ----------------------------------
+
+    public void mobWindup(Location at, Element element) {
+        play(null, SoundKind.ENEMY, at, Sound.BLOCK_BEACON_POWER_SELECT, 0.5f, 0.8f);
+        play(null, SoundKind.ENEMY, at, Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 0.4f, 0.7f);
+        accent(null, SoundKind.ENEMY, at, element, 0.3f);
+    }
+
+    public void mobStrike(Location at, Element element) {
+        play(null, SoundKind.ENEMY, at, Sound.ENTITY_GENERIC_EXPLODE, 0.45f, 1.1f);
+        play(null, SoundKind.ENEMY, at, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.7f, 0.6f);
+        play(null, SoundKind.ENEMY, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.6f, 0.6f);
+        accent(null, SoundKind.ENEMY, at, element, 0.4f);
+    }
+
+    public void mobSweep(Location at, Element element) {
+        play(null, SoundKind.ENEMY, at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 0.7f);
+        play(null, SoundKind.ENEMY, at, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.4f, 1.1f);
+        play(null, SoundKind.ENEMY, at, Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.5f);
+        accent(null, SoundKind.ENEMY, at, element, 0.3f);
+    }
+
+    public void mobDash(Location at, Element element) {
+        play(null, SoundKind.ENEMY, at, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.55f, 1.0f);
+        play(null, SoundKind.ENEMY, at, Sound.ITEM_TRIDENT_RIPTIDE_1, 0.35f, 1.2f);
+        accent(null, SoundKind.ENEMY, at, element, 0.3f);
+    }
+
     // ---- deployed objects -----------------------------------------------------------------------------------
 
     public void deployStart(Player owner, Location at) {

@@ -120,6 +120,7 @@ public final class RpgMobService {
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickTargets, 20L, 20L);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickRanged, 5L, 5L);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickChase, 10L, CHASE_PERIOD_TICKS);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickSkills, 15L, 5L);
         long statusPeriod = Math.max(1L, plugin.getConfig().getLong("mob.status-display.update-period-ticks", 1L));
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickStatusDisplays, 1L, statusPeriod);
     }
@@ -291,6 +292,9 @@ public final class RpgMobService {
     public void remove(Entity entity) {
         runtimes.remove(entity.getUniqueId());
         targetLocks.remove(entity.getUniqueId());
+        drivenMelee.remove(entity.getUniqueId());
+        nextMelee.remove(entity.getUniqueId());
+        skillBusy.remove(entity.getUniqueId());
         removeStatusDisplay(entity.getUniqueId());
         statusEffectService.clear(entity);
     }
@@ -300,10 +304,12 @@ public final class RpgMobService {
             Entity entity = Bukkit.getEntity(uuid);
             if (entity != null) {
                 statusEffectService.clear(entity);
-                if (attackMode.contains(uuid) && entity instanceof Mob mob) mob.setAI(true);
+                if ((attackMode.contains(uuid) || skillBusy.contains(uuid)) && entity instanceof Mob mob) mob.setAI(true);
             }
         }
         attackMode.clear();
+        skillBusy.clear();
+        drivenMelee.clear();
         runtimes.clear();
         targetLocks.clear();
         clearStatusDisplays();
@@ -336,12 +342,282 @@ public final class RpgMobService {
             if (target == null) continue;
             if (!target.equals(mob.getTarget())) mob.setTarget(target);
 
-            if (mob.getLocation().distanceSquared(target.getLocation()) <= 2.25) continue; // already next to it
+            double distanceSquared = mob.getLocation().distanceSquared(target.getLocation());
+            if (drivenMelee.contains(uuid)) driveMelee(mob, target, distanceSquared);
+            if (distanceSquared <= 2.25) continue; // already next to it
             int phase = (uuid.hashCode() & 0x7fffffff) % 4;
             boolean due = chaseCounter % 4 == phase;
             boolean stuck = !mob.getPathfinder().hasPath() && (chaseCounter + phase) % 2 == 0;
             if (due || stuck) mob.getPathfinder().moveTo(target, 1.0);
         }
+    }
+
+    // ---- mobs that cannot attack by themselves (pigs, villagers, ...) ------------------------------------------------
+
+    /** Mobs whose vanilla goals were removed: the plugin walks them to the player and does their melee hits. */
+    private final java.util.Set<UUID> drivenMelee = new java.util.HashSet<>();
+    private final Map<UUID, Long> nextMelee = new HashMap<>();
+
+    /**
+     * A mob without an attack of its own (no attack-damage attribute: pigs, cows, villagers, ...) can still be an
+     * enemy: its vanilla goals (panic, wandering, ...) are removed and the chase loop moves it and hits for it.
+     */
+    private void configureDriven(LivingEntity entity) {
+        if (!(entity instanceof Mob mob)) return;
+        if (mob.getAttribute(Attribute.GENERIC_ATTACK_DAMAGE) != null) return;
+        Bukkit.getMobGoals().removeAllGoals(mob);
+        drivenMelee.add(mob.getUniqueId());
+    }
+
+    private void driveMelee(Mob mob, Player target, double distanceSquared) {
+        if (distanceSquared > 2.9 * 2.9 / 2.0) return; // about 2 blocks
+        long now = Bukkit.getCurrentTick();
+        if (now < nextMelee.getOrDefault(mob.getUniqueId(), 0L)) return;
+        nextMelee.put(mob.getUniqueId(), now + 20L);
+        mob.swingMainHand();
+        hurt(mob, target, 1.0);
+    }
+
+    // ---- skills ----------------------------------------------------------------------------------------------------
+
+    /** The damage rate of the skill hit that is being delivered right now (1 for a normal hit). */
+    private final Map<UUID, Double> pendingRate = new HashMap<>();
+    private final Map<UUID, long[]> skillReady = new HashMap<>();
+    private final Map<UUID, Long> skillLockUntil = new HashMap<>();
+    /** Mobs that are in the middle of a skill (AI off). */
+    private final java.util.Set<UUID> skillBusy = new java.util.HashSet<>();
+
+    /** The damage rate of the hit being delivered by this mob (1.0 when it is a normal hit). */
+    public double pendingDamageRate(Entity mob) {
+        return mob == null ? 1.0 : pendingRate.getOrDefault(mob.getUniqueId(), 1.0);
+    }
+
+    /**
+     * Hurts a player as this mob: an ordinary damage event (so the mob's RPG damage, the player's defense and the
+     * status effects all apply), with the damage multiplied by {@code rate}.
+     */
+    private void hurt(Mob mob, Player victim, double rate) {
+        if (victim.isDead() || !victim.isValid()) return;
+        pendingRate.put(mob.getUniqueId(), rate);
+        try {
+            victim.damage(1.0, mob);
+        } finally {
+            pendingRate.remove(mob.getUniqueId());
+        }
+    }
+
+    /** Every 5 ticks: a mob with skills that is ready and has its target in reach starts one. */
+    private void tickSkills() {
+        long now = Bukkit.getCurrentTick();
+        skillBusy.removeIf(id -> !runtimes.containsKey(id));
+        skillReady.keySet().removeIf(id -> !runtimes.containsKey(id));
+        skillLockUntil.keySet().removeIf(id -> !runtimes.containsKey(id));
+        for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
+            MobRuntime runtime = runtimes.get(uuid);
+            if (runtime == null || runtime.definition().skills().isEmpty() || !runtime.definition().ai()) continue;
+            if (skillBusy.contains(uuid) || attackMode.contains(uuid)) continue;
+            Entity entity = Bukkit.getEntity(uuid);
+            if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
+            if (now < skillLockUntil.getOrDefault(uuid, 0L)) continue;
+            Player target = mob.getTarget() instanceof Player player && canTarget(mob, player) ? player : null;
+            if (target == null) continue;
+
+            List<MobSkillSpec> skills = runtime.definition().skills();
+            long[] ready = skillReady.get(uuid);
+            if (ready == null) {
+                // the first use comes a little after the fight starts, not at once and not in lock step
+                ready = new long[skills.size()];
+                for (int index = 0; index < ready.length; index++) {
+                    ready[index] = now + ThreadLocalRandom.current().nextInt(40, 100);
+                }
+                skillReady.put(uuid, ready);
+            }
+
+            double distance = mob.getLocation().distance(target.getLocation());
+            boolean sees = mob.hasLineOfSight(target);
+            List<Integer> usable = new ArrayList<>();
+            for (int index = 0; index < skills.size(); index++) {
+                if (now >= ready[index] && skillUsable(mob, target, skills.get(index), distance, sees)) usable.add(index);
+            }
+            if (usable.isEmpty()) continue;
+
+            int chosen = usable.get(ThreadLocalRandom.current().nextInt(usable.size()));
+            MobSkillSpec spec = skills.get(chosen);
+            ready[chosen] = now + spec.cooldownTicks();
+            skillLockUntil.put(uuid, now + 40L); // a pause between two skills
+            startSkill(mob, target, spec);
+        }
+    }
+
+    private boolean skillUsable(Mob mob, Player target, MobSkillSpec spec, double distance, boolean sees) {
+        return switch (spec.type()) {
+            case STRIKE -> distance <= spec.radius() + 1.0;
+            case SWEEP -> distance <= spec.range() && inFront(mob, target, 70.0);
+            case BARRAGE -> sees && distance >= 4.0 && distance <= spec.range();
+            case DASH -> sees && distance >= 4.0 && distance <= spec.range();
+        };
+    }
+
+    private boolean inFront(Mob mob, Player target, double halfAngleDegrees) {
+        Vector toTarget = target.getLocation().toVector().subtract(mob.getLocation().toVector()).setY(0.0);
+        if (toTarget.lengthSquared() < 1.0E-6) return true;
+        Vector facing = mob.getLocation().getDirection().setY(0.0);
+        if (facing.lengthSquared() < 1.0E-6) return true;
+        return Math.toDegrees(facing.normalize().angle(toTarget.normalize())) <= halfAngleDegrees;
+    }
+
+    private void beginSkill(Mob mob) {
+        skillBusy.add(mob.getUniqueId());
+        mob.getPathfinder().stopPathfinding();
+        mob.setAI(false);
+    }
+
+    private void endSkill(Mob mob) {
+        skillBusy.remove(mob.getUniqueId());
+        if (mob.isValid() && !mob.isDead() && !attackMode.contains(mob.getUniqueId())) mob.setAI(true);
+    }
+
+    private void startSkill(Mob mob, Player target, MobSkillSpec spec) {
+        if (attackEffects == null) return;
+        net.tkgon.mc.iruuRPG.stat.Element element = boltElement(mob);
+        beginSkill(mob);
+        face(mob, target);
+        attackEffects.sounds().mobWindup(mob.getLocation(), element);
+        switch (spec.type()) {
+            case STRIKE -> runWindup(mob, spec, element,
+                    () -> attackEffects.playMobTelegraphRing(mob.getLocation(), spec.radius(), element),
+                    () -> {
+                        Location center = mob.getLocation();
+                        attackEffects.playMobStrikeBurst(center, spec.radius(), element);
+                        for (Player player : playersNear(mob, spec.radius())) hurt(mob, player, spec.damageRate());
+                    });
+            case SWEEP -> runWindup(mob, spec, element,
+                    () -> attackEffects.playMobTelegraphArc(mob.getLocation(), mob.getLocation().getYaw(), spec.range(), 130.0, element),
+                    () -> {
+                        Location origin = mob.getLocation();
+                        attackEffects.playMobSweep(origin, origin.getYaw(), spec.range(), element);
+                        for (Player player : playersNear(mob, spec.range())) {
+                            if (inFront(mob, player, 65.0)) hurt(mob, player, spec.damageRate());
+                        }
+                    });
+            case BARRAGE -> runBarrage(mob, target, spec);
+            case DASH -> runDash(mob, target, spec, element);
+        }
+    }
+
+    /** Adventure-mode players within {@code radius} blocks (and 2.5 up or down) of the mob. */
+    private List<Player> playersNear(Mob mob, double radius) {
+        List<Player> result = new ArrayList<>();
+        for (Player player : mob.getWorld().getPlayers()) {
+            if (!canTarget(mob, player)) continue;
+            Location at = player.getLocation();
+            double dx = at.getX() - mob.getLocation().getX();
+            double dz = at.getZ() - mob.getLocation().getZ();
+            if (dx * dx + dz * dz > radius * radius) continue;
+            if (Math.abs(at.getY() - mob.getLocation().getY()) > 2.5) continue;
+            result.add(player);
+        }
+        return result;
+    }
+
+    /** Shows the mark every 4 ticks for the windup, then runs {@code strike} once and frees the mob. */
+    private void runWindup(Mob mob, MobSkillSpec spec, net.tkgon.mc.iruuRPG.stat.Element element, Runnable mark, Runnable strike) {
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private int age;
+
+            @Override
+            public void run() {
+                if (mob.isDead() || !mob.isValid()) {
+                    skillBusy.remove(mob.getUniqueId());
+                    cancel();
+                    return;
+                }
+                if (age >= spec.windupTicks()) {
+                    strike.run();
+                    endSkill(mob);
+                    cancel();
+                    return;
+                }
+                if (age % 4 == 0) mark.run();
+                age++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** A melee mob stops and fires {@code count} bolts at the player, one every {@code intervalTicks}. */
+    private void runBarrage(Mob mob, Player target, MobSkillSpec spec) {
+        RangedSpec bolt = new RangedSpec(spec.range() * 1.3, spec.speed(), 5);
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private int age;
+            private int fired;
+
+            @Override
+            public void run() {
+                if (mob.isDead() || !mob.isValid()) {
+                    skillBusy.remove(mob.getUniqueId());
+                    cancel();
+                    return;
+                }
+                if (!target.isOnline() || target.isDead() || fired >= spec.count()) {
+                    endSkill(mob);
+                    cancel();
+                    return;
+                }
+                face(mob, target);
+                if (age >= spec.windupTicks() && (age - spec.windupTicks()) % spec.intervalTicks() == 0) {
+                    shoot(mob, target, bolt, spec.damageRate());
+                    fired++;
+                }
+                age++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** Marks a line toward the player, then lunges along it and hits whoever is reached. */
+    private void runDash(Mob mob, Player target, MobSkillSpec spec, net.tkgon.mc.iruuRPG.stat.Element element) {
+        Vector direction = target.getLocation().toVector().subtract(mob.getLocation().toVector()).setY(0.0);
+        if (direction.lengthSquared() < 1.0E-6) {
+            endSkill(mob);
+            return;
+        }
+        direction.normalize();
+        double length = Math.min(spec.range(), mob.getLocation().distance(target.getLocation()) + 2.0);
+        Location start = mob.getLocation().clone();
+        Location end = start.clone().add(direction.clone().multiply(length));
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private int age;
+            private boolean lunged;
+            private final java.util.Set<UUID> hit = new java.util.HashSet<>();
+
+            @Override
+            public void run() {
+                if (mob.isDead() || !mob.isValid()) {
+                    skillBusy.remove(mob.getUniqueId());
+                    cancel();
+                    return;
+                }
+                if (age < spec.windupTicks()) {
+                    if (age % 4 == 0) attackEffects.playMobTelegraphLine(start, end, element);
+                    age++;
+                    return;
+                }
+                if (!lunged) {
+                    lunged = true;
+                    mob.setAI(true); // the lunge is a push: it needs the body to be free
+                    attackEffects.sounds().mobDash(mob.getLocation(), element);
+                    mob.setVelocity(direction.clone().multiply(1.5).setY(0.25));
+                }
+                for (Player player : playersNear(mob, 1.8)) {
+                    if (hit.add(player.getUniqueId())) hurt(mob, player, spec.damageRate());
+                }
+                if (age >= spec.windupTicks() + 8) {
+                    endSkill(mob);
+                    cancel();
+                    return;
+                }
+                age++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 
     /** The player a mob goes after: its locked target while that is valid, else the nearest player in range. */
@@ -449,7 +725,7 @@ public final class RpgMobService {
             face(mob, target);
             if (sees && now >= nextShotTick.getOrDefault(uuid, 0L)) {
                 nextShotTick.put(uuid, now + spec.intervalTicks());
-                shoot(mob, target, spec);
+                shoot(mob, target, spec, 1.0);
             }
         }
     }
@@ -508,7 +784,7 @@ public final class RpgMobService {
      * player it reaches: the mob's normal RPG damage through an ordinary damage event (so defense, resists and status
      * effects apply). A player who keeps moving can dodge it.
      */
-    private void shoot(Mob mob, Player target, RangedSpec spec) {
+    private void shoot(Mob mob, Player target, RangedSpec spec, double damageRate) {
         World world = mob.getWorld();
         Location from = mob.getEyeLocation().add(mob.getLocation().getDirection().multiply(0.4)).add(0, -0.2, 0);
         Vector direction = target.getLocation().add(0, target.getHeight() * 0.6, 0).toVector().subtract(from.toVector());
@@ -557,7 +833,7 @@ public final class RpgMobService {
                         attackEffects.playBoltSegment(position, at, element);
                         attackEffects.playBoltImpact(at, element);
                     }
-                    hit.damage(1.0, mob);
+                    hurt(mob, hit, damageRate);
                     cancel();
                     return;
                 }
@@ -601,6 +877,7 @@ public final class RpgMobService {
         entity.setPersistent(definition.persistent());
         entity.setRemoveWhenFarAway(definition.removeWhenFarAway());
         entity.setFireTicks(0);
+        if (definition.ai()) configureDriven(entity);
 
         if (entity instanceof Ageable ageable) {
             if (definition.baby()) {

@@ -251,6 +251,98 @@ public final class AttackEffects {
                 Component.text("\u2726" + formatFloating(damage), textColor(element)));
     }
 
+    // ---- enemy skills ---------------------------------------------------------------------------------------
+
+    /** The ground mark of a coming ground slam: a ring (and a fainter inner one) in the element's color. */
+    public void playMobTelegraphRing(Location center, double radius, Element element) {
+        if (center == null || center.getWorld() == null) return;
+        World world = center.getWorld();
+        Particle.DustOptions dust = new Particle.DustOptions(mix(baseColor(element), Color.RED, 0.35), 1.1f);
+        int points = (int) Math.max(24, Math.min(64, Math.round(radius * 9)));
+        for (int index = 0; index < points; index++) {
+            double angle = Math.PI * 2.0 * index / points;
+            Location point = center.clone().add(Math.cos(angle) * radius, 0.12, Math.sin(angle) * radius);
+            spawnDust(world, point, dust);
+            if (index % 2 == 0) {
+                spawnDust(world, center.clone().add(Math.cos(angle) * radius * 0.5, 0.12, Math.sin(angle) * radius * 0.5), dust);
+            }
+            if (index % 8 == 0) spark(world, point, element);
+        }
+    }
+
+    /** The ground mark of a coming sweep: the edge of a fan in front of the mob. */
+    public void playMobTelegraphArc(Location origin, float yaw, double radius, double sweepDegrees, Element element) {
+        if (origin == null || origin.getWorld() == null) return;
+        World world = origin.getWorld();
+        Particle.DustOptions dust = new Particle.DustOptions(mix(baseColor(element), Color.RED, 0.35), 1.1f);
+        double half = Math.toRadians(sweepDegrees / 2.0);
+        int points = (int) Math.max(12, Math.min(40, Math.round(radius * Math.toDegrees(half * 2) / 12.0)));
+        double yawRad = Math.toRadians(yaw);
+        for (int index = 0; index <= points; index++) {
+            double angle = -half + 2.0 * half * index / points;
+            Vector direction = rotateAroundY(new Vector(0.0, 0.0, 1.0), yawRad + angle);
+            spawnDust(world, origin.clone().add(direction.multiply(radius)).add(0.0, 0.12, 0.0), dust);
+        }
+        for (double edge : new double[]{-half, half}) {
+            for (int step = 1; step <= 4; step++) {
+                Vector direction = rotateAroundY(new Vector(0.0, 0.0, 1.0), yawRad + edge);
+                spawnDust(world, origin.clone().add(direction.multiply(radius * step / 4.0)).add(0.0, 0.12, 0.0), dust);
+            }
+        }
+    }
+
+    /** The mark of a coming dash: a line from the mob to where it will end up. */
+    public void playMobTelegraphLine(Location from, Location to, Element element) {
+        if (from == null || to == null || from.getWorld() == null) return;
+        World world = from.getWorld();
+        Particle.DustOptions dust = new Particle.DustOptions(mix(baseColor(element), Color.RED, 0.35), 1.1f);
+        Vector path = to.toVector().subtract(from.toVector());
+        double length = path.length();
+        if (length <= 1.0E-6) return;
+        Vector step = path.normalize().multiply(0.5);
+        Location point = from.clone().add(0.0, 0.15, 0.0);
+        for (double travelled = 0.0; travelled <= length; travelled += 0.5) {
+            spawnDust(world, point, dust);
+            point.add(step);
+        }
+    }
+
+    /** The slam itself: a burst out of the ground, a shock ring and sparks. */
+    public void playMobStrikeBurst(Location center, double radius, Element element) {
+        if (center == null || center.getWorld() == null) return;
+        World world = center.getWorld();
+        sounds.mobStrike(center, element);
+        ParticlePalette palette = palette(element);
+        int points = (int) Math.max(24, Math.min(72, Math.round(radius * 12)));
+        for (int index = 0; index < points; index++) {
+            double angle = Math.PI * 2.0 * index / points;
+            Location edge = center.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius);
+            spawnDust(world, edge, palette.primary());
+            if (index % 3 == 0) {
+                for (int step = 1; step <= 4; step++) {
+                    spawnDust(world, edge.clone().add(0.0, step * 0.3, 0.0), step % 2 == 0 ? palette.secondary() : palette.accent());
+                }
+            }
+            if (index % 6 == 0) spark(world, edge.clone().add(0.0, 0.4, 0.0), element);
+        }
+        burst(world, center.clone().add(0.0, 0.3, 0.0), element, 16, radius * 0.3, 0.15);
+    }
+
+    /** The cut itself: a wide flat crescent through the fan. */
+    public void playMobSweep(Location origin, float yaw, double radius, Element element) {
+        if (origin == null || origin.getWorld() == null) return;
+        sounds.mobSweep(origin, element);
+        slash(origin.clone().add(0.0, 0.9, 0.0), element,
+                new SlashVfx.Shape(radius * 0.8, 130.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.2, 1.2f, 0.0);
+    }
+
+    private static Vector rotateAroundY(Vector vector, double radians) {
+        // same convention as a mob's yaw: 0 = +z, positive turns toward -x
+        double cos = Math.cos(radians);
+        double sin = Math.sin(radians);
+        return new Vector(vector.getX() * cos - vector.getZ() * sin, vector.getY(), vector.getX() * sin + vector.getZ() * cos);
+    }
+
     public void playHealNumber(Player target, double amount) {
         if (target == null || target.isDead() || !target.isValid() || amount <= 0.0) return;
 

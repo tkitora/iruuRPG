@@ -133,8 +133,42 @@ public final class RpgMobRegistry {
                 loadDrops(id, section),
                 section.getStringList("description"),
                 areas(section.get("area")),
-                ranged(id, section.get("ranged"))
+                ranged(id, section.get("ranged")),
+                skills(id, section.getMapList("skills"))
         ));
+    }
+
+    /**
+     * skills: a list of entries, each with a "type" (strike / sweep / barrage / dash) and any of cooldown-ticks, range,
+     * radius, windup-ticks, damage-rate, count, interval-ticks, speed (see {@link MobSkillSpec}). Bad entries are
+     * reported and skipped.
+     */
+    private List<MobSkillSpec> skills(String id, List<java.util.Map<?, ?>> raw) {
+        List<MobSkillSpec> result = new java.util.ArrayList<>();
+        for (java.util.Map<?, ?> entry : raw) {
+            Object typeName = entry.get("type");
+            MobSkillSpec.Type type = MobSkillSpec.Type.parse(typeName == null ? null : typeName.toString());
+            if (type == null) {
+                plugin.getLogger().warning("mobs: unknown skill type '" + typeName + "' in mob " + id + " (strike / sweep / barrage / dash)");
+                continue;
+            }
+            MobSkillSpec base = MobSkillSpec.defaults(type);
+            result.add(new MobSkillSpec(
+                    type,
+                    (int) number(entry.get("cooldown-ticks"), base.cooldownTicks()),
+                    number(entry.get("range"), base.range()),
+                    number(entry.get("radius"), base.radius()),
+                    (int) number(entry.get("windup-ticks"), base.windupTicks()),
+                    number(entry.get("damage-rate"), base.damageRate()),
+                    (int) number(entry.get("count"), base.count()),
+                    (int) number(entry.get("interval-ticks"), base.intervalTicks()),
+                    number(entry.get("speed"), base.speed())));
+        }
+        return result;
+    }
+
+    private static double number(Object value, double fallback) {
+        return value instanceof Number number ? number.doubleValue() : fallback;
     }
 
     /**

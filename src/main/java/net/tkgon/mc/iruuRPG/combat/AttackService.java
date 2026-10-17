@@ -218,7 +218,9 @@ public final class AttackService {
                 .filter(RpgItemDefinition::isWeaponLike)
                 .orElseGet(this::fallbackMobWeapon);
         DamageResult result = damageCalculator.calculate(new DamageInput(attackerProfile, victimProfile, weapon, corrosion));
-        return OptionalDouble.of(scaleIncomingRpgMobDamage(Math.max(0.0, result.damage()), victimProfile));
+        // a skill hit multiplies the mob's normal damage (see RpgMobService#hurt)
+        double rate = mobService.pendingDamageRate(attacker);
+        return OptionalDouble.of(scaleIncomingRpgMobDamage(Math.max(0.0, result.damage()) * rate, victimProfile));
     }
 
     public void applyRpgMobStatusEffects(EntityDamageEvent event, Player victim, double damage) {

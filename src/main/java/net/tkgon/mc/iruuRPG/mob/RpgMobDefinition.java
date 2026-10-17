@@ -31,7 +31,8 @@ public record RpgMobDefinition(
         List<MobDropItem> drops,
         List<String> description,
         List<String> areas,
-        RangedSpec ranged
+        RangedSpec ranged,
+        List<MobSkillSpec> skills
 ) {
     public RpgMobDefinition {
         if (id == null || id.isBlank()) {
@@ -48,6 +49,7 @@ public record RpgMobDefinition(
         drops = drops == null ? List.of() : List.copyOf(drops);
         description = description == null ? List.of() : List.copyOf(description);
         areas = areas == null ? List.of() : List.copyOf(areas);
+        skills = skills == null ? List.of() : List.copyOf(skills);
     }
 
     /** Where the mob appears: dungeon ids or field names (lower case). Empty: no tag. */

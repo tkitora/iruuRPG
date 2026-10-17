@@ -1,6 +1,6 @@
 # ダンジョン「アトラスの洞窟」の敵 (Lv1〜7)。/iruurpg mob <id> でも出せる。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 4
+version: 5
 
 mobs:
   cave_crawler:
@@ -36,6 +36,9 @@ mobs:
     persistent: true
     remove-when-far-away: false
     show-health: true
+    # スキル: strike=地面を叩く / sweep=前方を薙ぐ / barrage=近接だが立ち止まって連射 / dash=突進。ダメージは通常攻撃の damage-rate 倍
+    skills:
+      - {type: barrage, count: 3, interval-ticks: 6, damage-rate: 0.4, cooldown-ticks: 200}
     stats:
       max-hp: 120
       max-mp: 1
@@ -64,6 +67,9 @@ mobs:
     persistent: true
     remove-when-far-away: false
     show-health: true
+    # スキル: strike=地面を叩く / sweep=前方を薙ぐ / barrage=近接だが立ち止まって連射 / dash=突進。ダメージは通常攻撃の damage-rate 倍
+    skills:
+      - {type: dash, range: 9, damage-rate: 1.4, cooldown-ticks: 160}
     stats:
       max-hp: 170
       max-mp: 1
@@ -90,6 +96,12 @@ mobs:
     persistent: true
     remove-when-far-away: false
     show-health: true
+    # スキル: strike=地面を叩く / sweep=前方を薙ぐ / barrage=近接だが立ち止まって連射 / dash=突進。ダメージは通常攻撃の damage-rate 倍
+    skills:
+      - {type: strike, radius: 4.5, damage-rate: 1.8, cooldown-ticks: 140}
+      - {type: sweep, range: 5.5, damage-rate: 1.3, cooldown-ticks: 100}
+      - {type: barrage, count: 8, interval-ticks: 4, damage-rate: 0.45, cooldown-ticks: 220}
+      - {type: dash, range: 12, damage-rate: 1.5, cooldown-ticks: 180}
     stats:
       max-hp: 1600
       max-mp: 1
@@ -122,6 +134,9 @@ mobs:
     persistent: true
     remove-when-far-away: false
     show-health: true
+    # スキル: strike=地面を叩く / sweep=前方を薙ぐ / barrage=近接だが立ち止まって連射 / dash=突進。ダメージは通常攻撃の damage-rate 倍
+    skills:
+      - {type: strike, radius: 3, damage-rate: 1.2, cooldown-ticks: 200}
     # 遠距離の敵: 探索モードで近づき、射程に入ったら立ち止まって撃つ (攻撃モード)。逃げない。
     ranged:
       range: 14            # この距離 (ブロック) 以内で立ち止まって撃つ

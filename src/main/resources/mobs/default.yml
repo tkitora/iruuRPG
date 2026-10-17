@@ -15,6 +15,9 @@ mobs:
     remove-when-far-away: false
     baby: false
     show-health: true
+    # スキル: strike=地面を叩く / sweep=前方を薙ぐ / barrage=近接だが立ち止まって連射 / dash=突進。ダメージは通常攻撃の damage-rate 倍
+    skills:
+      - {type: strike, radius: 3, damage-rate: 1.3, cooldown-ticks: 200}
     stats:
       max-hp: 120
       max-mp: 1
@@ -50,6 +53,9 @@ mobs:
     fire-proof: true
     remove-when-far-away: false
     show-health: true
+    # スキル: strike=地面を叩く / sweep=前方を薙ぐ / barrage=近接だが立ち止まって連射 / dash=突進。ダメージは通常攻撃の damage-rate 倍
+    skills:
+      - {type: barrage, count: 4, interval-ticks: 6, damage-rate: 0.4, cooldown-ticks: 220}
     stats:
       max-hp: 180
       max-mp: 20
