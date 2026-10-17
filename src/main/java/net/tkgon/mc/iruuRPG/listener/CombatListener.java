@@ -307,6 +307,12 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        if (!attackService.rangedIsInstant(attacker)) {
+            // the shot flies at balance.projectile-speed and hits when it arrives
+            attackService.fireRangedProjectile(attacker, weapon);
+            return;
+        }
+
         AttackService.RangeTrace trace = attackService.traceRange(attacker);
         attackService.playRangeTrail(attacker, weapon, trace.hitLocation());
 
@@ -315,13 +321,6 @@ public final class CombatListener implements Listener {
             attackService.sendMissDebug(attacker, AttackType.RANGE);
             return;
         }
-
-        AttackService.AttackDamage attack = attackService.calculateDamage(attacker, victim, weapon);
-        if (!attackService.applyRangeDamage(attacker, victim, attack.result().damage(), weapon, attack.result().critical())) {
-            return;
-        }
-        attackService.playRangeImpact(attacker, trace.hitLocation(), weapon);
-        attackService.sendDamageDebug(attacker, AttackType.RANGE, victim, attack.result().damage(), attack.result().critical(), false);
-        attackService.applyAreaDamage(attacker, victim, attack.result().damage(), AttackType.RANGE, weapon);
+        attackService.hitWithShot(attacker, weapon, victim, trace.hitLocation());
     }
 }

@@ -76,6 +76,12 @@ public final class AttackEffects {
         burst(world, tip, element, 10, 0.5, 0.05);
     }
 
+    /** The sound of a ranged shot leaving the weapon (the shot itself is drawn while it flies). */
+    public void playRangeLaunch(Player attacker, RpgItemDefinition weapon, Location start) {
+        if (attacker == null || weapon == null || start == null) return;
+        sounds.rangeShot(attacker, start, weapon.element());
+    }
+
     public void playRangeTrail(Player attacker, RpgItemDefinition weapon, Location hitLocation) {
         if (!plugin.getConfig().getBoolean("combat.effects.range-trail.enabled", true)) return;
         if (hitLocation == null || hitLocation.getWorld() == null) return;

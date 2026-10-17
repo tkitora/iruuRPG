@@ -276,12 +276,106 @@ public final class AttackService {
         return traceRange(attacker).victim();
     }
 
-    public RangeTrace traceRange(Player attacker) {
-        // every class's ranged attack reaches balance.range-multiplier (0.5) of combat.range-distance; the mage's
-        // "range area" node (range_area_expand) doubles it back
-        double range = plugin.getConfig().getDouble("combat.range-distance", 16.0)
+    /**
+     * How far a ranged attack of this player reaches: every class has balance.range-multiplier (0.5) of
+     * combat.range-distance; the mage's "range area" node (range_area_expand) doubles it back.
+     */
+    public double rangeDistance(Player attacker) {
+        return plugin.getConfig().getDouble("combat.range-distance", 16.0)
                 * Math.max(0.1, plugin.getConfig().getDouble("balance.range-multiplier", 0.5))
                 * (hasSkill(attacker, RANGE_AREA_EXPAND_SKILL) ? 2.0 : 1.0);
+    }
+
+    private static final String RANGE_INSTANT_SKILL = "range_instant";
+    private static final String ATTACK_SPEED_PROJECTILE_SKILL = "attack_speed_cooldown";
+
+    /** True when this player's ranged attack lands at once (no flight): the ranger's innate "range_instant". */
+    public boolean rangedIsInstant(Player attacker) {
+        return hasSkill(attacker, RANGE_INSTANT_SKILL);
+    }
+
+    /**
+     * Blocks per second a ranged shot of this player flies: balance.projectile-speed (40); the mage's
+     * attack-speed node also raises it by the attack speed %.
+     */
+    public double projectileSpeed(Player attacker) {
+        double speed = Math.max(4.0, plugin.getConfig().getDouble("balance.projectile-speed", 40.0));
+        if (hasSkill(attacker, ATTACK_SPEED_PROJECTILE_SKILL)) {
+            double attackSpeed = equipmentService.recalculate(attacker).finalStats().get(StatType.ATTACK_SPEED);
+            speed *= Math.max(1.0, 1.0 + attackSpeed / 100.0);
+        }
+        return Math.min(400.0, speed);
+    }
+
+    /**
+     * A ranged shot with a speed: the shot flies from the eye along where the player looks and hits the first
+     * enemy (or block) on the way; the damage is the one of an ordinary ranged hit at the moment it arrives.
+     */
+    public void fireRangedProjectile(Player attacker, RpgItemDefinition weapon) {
+        double perTick = projectileSpeed(attacker) / 20.0;
+        double maxDistance = rangeDistance(attacker);
+        double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6);
+        Location eye = attacker.getEyeLocation();
+        Vector direction = eye.getDirection().normalize();
+        Location start = eye.clone().add(direction.clone().multiply(plugin.getConfig().getDouble("combat.effects.range-trail.start-offset", 0.65)));
+        attackEffects.playRangeLaunch(attacker, weapon, start);
+        org.bukkit.World world = attacker.getWorld();
+
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private Location position = start.clone();
+            private double travelled;
+
+            @Override
+            public void run() {
+                if (!attacker.isOnline() || !position.getWorld().equals(attacker.getWorld())) {
+                    cancel();
+                    return;
+                }
+                double step = Math.min(perTick, maxDistance - travelled);
+                if (step <= 1.0E-6) {
+                    cancel();
+                    return;
+                }
+                RayTraceResult result = world.rayTrace(position, direction, step, FluidCollisionMode.NEVER, true, raySize,
+                        entity -> isAttackTarget(entity, attacker));
+                Location next = result != null && result.getHitPosition() != null
+                        ? result.getHitPosition().toLocation(world)
+                        : position.clone().add(direction.clone().multiply(step));
+                attackEffects.playBoltSegment(position, next, weapon.element());
+                if (result != null) {
+                    cancel();
+                    if (result.getHitEntity() instanceof LivingEntity victim) {
+                        hitWithShot(attacker, weapon, victim, next);
+                    } else {
+                        attackEffects.playRangeImpact(attacker, next, weapon);
+                        sendMissDebug(attacker, AttackType.RANGE);
+                    }
+                    return;
+                }
+                position = next;
+                travelled += step;
+                if (travelled >= maxDistance - 1.0E-6) {
+                    cancel();
+                    sendMissDebug(attacker, AttackType.RANGE);
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** The hit of a ranged shot that reached an enemy (also the one of an instant shot). */
+    public void hitWithShot(Player attacker, RpgItemDefinition weapon, LivingEntity victim, Location hitLocation) {
+        if (victim.isDead() || !victim.isValid()) return;
+        AttackDamage attack = calculateDamage(attacker, victim, weapon);
+        if (!applyRangeDamage(attacker, victim, attack.result().damage(), weapon, attack.result().critical())) {
+            return;
+        }
+        playRangeImpact(attacker, hitLocation, weapon);
+        sendDamageDebug(attacker, AttackType.RANGE, victim, attack.result().damage(), attack.result().critical(), false);
+        applyAreaDamage(attacker, victim, attack.result().damage(), AttackType.RANGE, weapon);
+    }
+
+    public RangeTrace traceRange(Player attacker) {
+        double range = rangeDistance(attacker);
         double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6);
         Location start = attacker.getEyeLocation();
         Vector direction = start.getDirection().normalize();

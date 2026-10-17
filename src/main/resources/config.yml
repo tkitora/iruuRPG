@@ -348,3 +348,5 @@ balance:
   xp-requirement-multiplier: 10.0
   # 全クラスの遠距離攻撃の射程の倍率 (combat.range-distance に掛ける)。メイジの「広域魔法」で2倍に戻る
   range-multiplier: 0.5
+  # 遠距離武器の弾の速さ (ブロック/秒)。レンジャーは即着弾、メイジの「詠唱加速」は攻撃速度%ぶん速くなる
+  projectile-speed: 40.0
