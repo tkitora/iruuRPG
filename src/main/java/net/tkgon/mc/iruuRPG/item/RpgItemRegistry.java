@@ -98,6 +98,77 @@ public final class RpgItemRegistry {
         return Collections.unmodifiableMap(definitions);
     }
 
+    private static final java.util.Set<String> STACK_VARIABLES = java.util.Set.of("name", "bar", "count", "max", "percent");
+
+    /**
+     * stacks.display: what the player sees and hears when the stacks change. Everything is optional (the default is
+     * the old look). Too long text is cut, `&` / `§` colour codes are removed (colours are separate keys), a wrong
+     * colour or an out-of-range number is fixed; each is reported.
+     */
+    private WeaponStackSpec.Display stackDisplay(String id, org.bukkit.configuration.ConfigurationSection section) {
+        WeaponStackSpec.Display base = WeaponStackSpec.Display.defaults();
+        if (section == null) return base;
+        String where = "items: " + id + ": stacks.display.";
+        return new WeaponStackSpec.Display(
+                stackText(where + "format", section.getString("format"), base.format(), WeaponStackSpec.Display.MAX_FORMAT_LENGTH, true),
+                stackText(where + "filled", section.getString("filled"), base.filled(), WeaponStackSpec.Display.MAX_SYMBOL_LENGTH, false),
+                stackText(where + "empty", section.getString("empty"), base.empty(), WeaponStackSpec.Display.MAX_SYMBOL_LENGTH, false),
+                stackColor(where + "filled-color", section.getString("filled-color"), base.filledColor()),
+                stackColor(where + "empty-color", section.getString("empty-color"), base.emptyColor()),
+                stackColor(where + "text-color", section.getString("text-color"), base.textColor()),
+                section.contains("max-format")
+                        ? stackText(where + "max-format", section.getString("max-format"), base.maxFormat(), WeaponStackSpec.Display.MAX_FORMAT_LENGTH, true)
+                        : base.maxFormat(),
+                stackColor(where + "max-color", section.getString("max-color"), base.maxColor()),
+                section.getBoolean("bold", base.bold()),
+                section.contains("title")
+                        ? stackText(where + "title", section.getString("title"), "", WeaponStackSpec.Display.MAX_FORMAT_LENGTH, true)
+                        : "",
+                stackNumber(where + "seconds", section, "seconds", base.seconds(), 0.2, 5.0),
+                stackNumber(where + "fade-in", section, "fade-in", base.fadeIn(), 0.0, 1.0),
+                stackNumber(where + "fade-out", section, "fade-out", base.fadeOut(), 0.0, 2.0),
+                section.getBoolean("sound", base.sound()));
+    }
+
+    private String stackText(String where, String raw, String fallback, int limit, boolean variables) {
+        if (raw == null) return fallback;
+        String text = raw.replace("&", "").replace("§", "");
+        if (!text.equals(raw)) plugin.getLogger().warning(where + ": colour codes (& / §) are not used; set colours with the colour keys (removed)");
+        if (text.length() > limit) {
+            plugin.getLogger().warning(where + ": longer than " + limit + " characters (cut)");
+            text = text.substring(0, limit);
+        }
+        if (variables) {
+            java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("\\{([^}]*)}").matcher(text);
+            while (matcher.find()) {
+                if (!STACK_VARIABLES.contains(matcher.group(1).toLowerCase(java.util.Locale.ROOT))) {
+                    plugin.getLogger().warning(where + ": unknown variable {" + matcher.group(1) + "} (name / bar / count / max / percent); it is shown as it is");
+                }
+            }
+        }
+        return text;
+    }
+
+    private net.kyori.adventure.text.format.TextColor stackColor(String where, String raw, net.kyori.adventure.text.format.TextColor fallback) {
+        if (raw == null) return fallback;
+        if (!raw.matches("#[0-9a-fA-F]{6}")) {
+            plugin.getLogger().warning(where + ": '" + raw + "' must look like #rrggbb (the default is used)");
+            return fallback;
+        }
+        return net.kyori.adventure.text.format.TextColor.color(Integer.parseInt(raw.substring(1), 16));
+    }
+
+    private double stackNumber(String where, org.bukkit.configuration.ConfigurationSection section, String key, double fallback, double min, double max) {
+        if (!section.contains(key)) return fallback;
+        double value = section.getDouble(key, fallback);
+        if (value < min || value > max) {
+            double fixed = Math.max(min, Math.min(max, value));
+            plugin.getLogger().warning(where + ": " + value + " is out of range (" + min + " - " + max + "), used " + fixed);
+            return fixed;
+        }
+        return value;
+    }
+
     private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
 
     /** The skills of skills/*.yml, so an item whose `skill:` names none of them is reported. */
@@ -128,7 +199,8 @@ public final class RpgItemRegistry {
         org.bukkit.configuration.ConfigurationSection stackSection = section.getConfigurationSection("stacks");
         if (stackSection != null) {
             stacks = new WeaponStackSpec(stackSection.getString("name", "スタック"), stackSection.getInt("gain", 1),
-                    stackSection.getInt("max", 5), stackSection.getString("on-max", ""), stackSection.getDouble("decay-seconds", 0.0));
+                    stackSection.getInt("max", 5), stackSection.getString("on-max", ""), stackSection.getDouble("decay-seconds", 0.0),
+                    stackDisplay(id, stackSection.getConfigurationSection("display")));
             if (skillId.isEmpty()) {
                 plugin.getLogger().warning("items: " + id + ": stacks need a skill of skills/*.yml in `skill:` (the stacks are ignored)");
                 stacks = null;
