@@ -90,7 +90,7 @@ public final class ClassSkillService {
     private void executeGeneral(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
         net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.all().get(skill.id().toLowerCase());
         if (spec == null) return;
-        skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon), spec,
+        skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon, spec), spec,
                 () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                 });
     }

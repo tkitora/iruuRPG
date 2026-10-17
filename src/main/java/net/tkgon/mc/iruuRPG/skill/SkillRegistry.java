@@ -93,6 +93,15 @@ public final class SkillRegistry {
         return template == null ? Optional.empty() : Optional.of(SkillSpec.defaults(template));
     }
 
+    /** The skill a weapon uses: skill `id` with the item's `skill-overrides` applied; null when there is no such skill. */
+    public SkillSpec forItem(String owner, String id, Map<String, Object> overrides) {
+        SkillSpec base = skills.get(id);
+        if (base == null) return null;
+        if (overrides == null || overrides.isEmpty()) return base;
+        SkillSpec changed = parse(owner, new LinkedHashMap<>(overrides), base, id);
+        return changed == null ? base : changed;
+    }
+
     /** Reloads every skill file; if loading throws, the previous skills stay. */
     public void reload() {
         Map<String, SkillSpec> previous = new LinkedHashMap<>(skills);

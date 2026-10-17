@@ -173,6 +173,8 @@ public final class IruuRPG extends JavaPlugin {
         this.skillRegistry = new net.tkgon.mc.iruuRPG.skill.SkillRegistry(this);
         this.skillRegistry.reload();
         this.classSkillRegistry.setGeneralSkills(skillRegistry);
+        this.itemRegistry.setGeneralSkills(skillRegistry);
+        this.itemFactory.setGeneralSkills(skillRegistry);
         this.mobRegistry = new RpgMobRegistry(this, skillRegistry);
         this.mobRegistry.reload();
         this.profileManager = new PlayerProfileManager(new PlayerProfileStorage(this));
@@ -217,6 +219,7 @@ public final class IruuRPG extends JavaPlugin {
         this.classEffectService.setAttackService(attackService);
         this.deployService = new DeployService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
+        this.itemSkillService.setGeneralSkills(skillRegistry, skillRunner);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);

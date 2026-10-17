@@ -8,6 +8,7 @@ import net.tkgon.mc.iruuRPG.stat.StatSet;
 import org.bukkit.Material;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 public record RpgItemDefinition(
@@ -21,6 +22,8 @@ public record RpgItemDefinition(
         DamageKind damageKind,
         AttackType attackType,
         ItemSkillType skill,
+        String skillId,
+        Map<String, Object> skillOverrides,
         StatSet stats,
         ElementStatSet elementStats,
         List<String> description
@@ -39,9 +42,16 @@ public record RpgItemDefinition(
         damageKind = damageKind == null ? DamageKind.NONE : damageKind;
         attackType = attackType == null ? AttackType.SPECIAL : attackType;
         skill = skill == null ? ItemSkillType.NONE : skill;
+        skillId = skillId == null ? "" : skillId;
+        skillOverrides = skillOverrides == null ? Map.of() : Map.copyOf(skillOverrides);
         stats = stats == null ? new StatSet() : stats.copy();
         elementStats = elementStats == null ? new ElementStatSet() : elementStats.copy();
         description = description == null ? List.of() : List.copyOf(description);
+    }
+
+    /** True when the weapon's `skill:` names a skill of skills/*.yml (the item skills sweep / heal / ... are `skill`). */
+    public boolean hasGeneralSkill() {
+        return !skillId.isEmpty();
     }
 
     public boolean isWeaponLike() {

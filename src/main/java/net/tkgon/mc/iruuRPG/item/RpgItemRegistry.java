@@ -98,6 +98,13 @@ public final class RpgItemRegistry {
         return Collections.unmodifiableMap(definitions);
     }
 
+    private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
+
+    /** The skills of skills/*.yml, so an item whose `skill:` names none of them is reported. */
+    public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills) {
+        this.generalSkills = generalSkills;
+    }
+
     private Optional<RpgItemDefinition> loadDefinition(String id, ConfigurationSection section) {
         MaterialSpec materialSpec = materialSpec(id, section);
         if (materialSpec == null) {
@@ -110,7 +117,16 @@ public final class RpgItemRegistry {
         Element element = Element.fromConfig(section.getString("element", section.getString("colorType")), Element.WHITE);
         DamageKind damageKind = DamageKind.fromConfig(section.getString("damage-kind", section.getString("damageType")), DamageKind.NONE);
         AttackType attackType = AttackType.fromConfig(section.getString("attack-type", section.getString("type")), AttackType.SPECIAL);
-        ItemSkillType skill = ItemSkillType.fromConfig(section.getString("skill"));
+        String rawSkill = section.getString("skill", "").trim();
+        ItemSkillType skill = ItemSkillType.fromConfig(rawSkill);
+        // `skill:` is an item skill (sweep / heal / dash / strike / slash) or the id of a skill of skills/*.yml
+        String skillId = skill == ItemSkillType.NONE && !rawSkill.isEmpty() && !rawSkill.equalsIgnoreCase("none")
+                ? rawSkill.toLowerCase(Locale.ROOT) : "";
+        java.util.Map<String, Object> skillOverrides = section.getConfigurationSection("skill-overrides") == null
+                ? java.util.Map.of() : section.getConfigurationSection("skill-overrides").getValues(false);
+        if (!skillId.isEmpty() && generalSkills != null && !generalSkills.all().containsKey(skillId)) {
+            plugin.getLogger().warning("items: " + id + ": skill '" + skillId + "' is neither an item skill nor a skill of skills/*.yml");
+        }
         List<String> description = section.getStringList("description");
 
         StatSet stats = loadStats(id, section.getConfigurationSection("stats"));
@@ -127,6 +143,8 @@ public final class RpgItemRegistry {
                 damageKind,
                 attackType,
                 skill,
+                skillId,
+                skillOverrides,
                 stats,
                 elementStats,
                 description

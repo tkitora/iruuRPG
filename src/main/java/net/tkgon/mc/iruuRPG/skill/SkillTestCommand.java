@@ -108,7 +108,7 @@ public final class SkillTestCommand implements CommandExecutor, TabCompleter {
         }
         player.sendMessage(Component.text("[skilltest] " + (spec.id().isEmpty() ? spec.template().id() : spec.id())
                 + " を、あなたの武器で撃ちます (敵に本当に当たります。MP・クールダウンは使いません)", NamedTextColor.GRAY));
-        runner.start(new PlayerSkillCaster(plugin, attackService, player, weapon), spec,
+        runner.start(new PlayerSkillCaster(plugin, attackService, player, weapon, spec), spec,
                 () -> PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                 });
     }
