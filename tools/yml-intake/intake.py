@@ -106,9 +106,13 @@ def parse_entries(text, entry_id, kind):
 
 
 class Repo:
-    def __init__(self, root, items_dir):
+    def __init__(self, root, items_dir, adopt_dir=None):
         self.root = Path(root)
         self.items_dir = Path(items_dir) if items_dir else None
+        # the server's working copy (items/ mobs/ crafting/ as the plugin reads them): a file the yml repository does not have yet
+        # (a bundled file such as mobs/dungeon.yml) is taken over into the repository when an entry in it is edited
+        self.adopt_dir = Path(adopt_dir) if adopt_dir else None
+        self.adopted = []
 
     def file(self, kind, element=None):
         if kind == "items":
@@ -127,6 +131,17 @@ class Repo:
             lines, spans = split_top(path.read_text(encoding="utf-8"))
             if entry_id in spans and top in "\n".join(lines):
                 return path
+        if self.adopt_dir:
+            folder = {"items": "items", "mobs": "mobs", "recipes": "crafting"}[kind]
+            for path in sorted((self.adopt_dir / folder).glob("*.yml")) if (self.adopt_dir / folder).exists() else []:
+                lines, spans = split_top(path.read_text(encoding="utf-8"))
+                if entry_id in spans:
+                    target = self.root / folder / path.name
+                    if not target.exists():
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        target.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+                        self.adopted.append(str(target.relative_to(self.root)))
+                    return target
         return None
 
     def known_item_ids(self):
@@ -214,13 +229,14 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True)
     ap.add_argument("--items-dir")
+    ap.add_argument("--adopt-from", help="サーバーの plugins/iruuRPG のコピー。yml リポジトリに無い配布ファイルの中のエントリを編集したとき、そのファイルをリポジトリに取り込む")
     ap.add_argument("--csv", required=True)
     ap.add_argument("--state", help="処理済みの行を覚えておくファイル (json)")
     ap.add_argument("--out", help="結果を書く markdown")
     ap.add_argument("--push", action="store_true", help="git commit と push まで行う")
     args = ap.parse_args()
 
-    repo = Repo(args.repo, args.items_dir)
+    repo = Repo(args.repo, args.items_dir, args.adopt_from)
     state_path = Path(args.state) if args.state else None
     done = set(json.loads(state_path.read_text())) if state_path and state_path.exists() else set()
 
@@ -279,6 +295,8 @@ def main():
     out += ["## 反映できなかった (%d) — 開発者へ返す" % len(failed)] + ["- %s `%s`: %s" % f for f in failed] + [""]
     out += ["## 要確認 (%d) — 管理者へ" % len(review)] + ["- %s %s `%s` (%s): %s" % (l, k, i, w, " / ".join(n))
                                                       for l, k, i, w, n in review] + [""]
+    if repo.adopted:
+        out += ["## yml リポジトリに取り込んだファイル (配布ファイルの編集)"] + ["- %s" % a for a in repo.adopted] + [""]
     report = "\n".join(out)
     if args.out:
         Path(args.out).write_text(report, encoding="utf-8")
