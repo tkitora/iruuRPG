@@ -449,6 +449,8 @@ public final class StatusEffectService {
     private void applyStatusDamage(LivingEntity target, StatusEffectType type, Map<UUID, Double> amounts) {
         if (target == null || isShielded(target) || target.isDead() || !target.isValid() || amounts == null || amounts.isEmpty()) return;
 
+        Location numberLocation = target.getLocation().clone();
+        double numberHeight = target.getHeight();
         double total = 0.0;
         for (Map.Entry<UUID, Double> entry : amounts.entrySet()) {
             double amount = Math.max(0.0, entry.getValue());
@@ -458,9 +460,9 @@ public final class StatusEffectService {
             damageWithoutRecursion(target, amount, entry.getKey());
         }
 
-        if (total > EPSILON && hasRemainingHealth(target) && attackEffects != null) {
-            attackEffects.playRangeHurt(target);
-            attackEffects.playStatusDamageNumber(target, type, total);
+        if (total > EPSILON && attackEffects != null) {
+            if (hasRemainingHealth(target)) attackEffects.playRangeHurt(target);
+            attackEffects.playStatusDamageNumber(numberLocation, numberHeight, type, total);
         }
     }
 

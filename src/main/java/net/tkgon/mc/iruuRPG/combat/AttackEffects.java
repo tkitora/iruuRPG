@@ -243,10 +243,24 @@ public final class AttackEffects {
         spawnFloatingText(targetLocation, targetHeight, Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
     }
 
+    /** The number of an extra hit that comes with an attack (the assassin's orange damage, the healer's pulse, ...). */
+    public void playExtraDamageNumber(Location targetLocation, double targetHeight, Element element, double damage) {
+        if (targetLocation == null || targetLocation.getWorld() == null || damage <= 0.0) return;
+
+        spawnFloatingText(targetLocation, targetHeight + 0.25,
+                Component.text("\u2726" + formatFloating(damage), textColor(element)));
+    }
+
     public void playHealNumber(Player target, double amount) {
         if (target == null || target.isDead() || !target.isValid() || amount <= 0.0) return;
 
         spawnFloatingText(target, Component.text("+" + formatFloating(amount), TextColor.color(75, 235, 95)));
+    }
+
+    public void playStatusDamageNumber(Location targetLocation, double targetHeight, StatusEffectType type, double damage) {
+        if (targetLocation == null || targetLocation.getWorld() == null || type == null || damage <= 0.0) return;
+
+        spawnFloatingText(targetLocation, targetHeight, Component.text(type.icon() + formatFloating(damage), TextColor.color(190, 80, 255)));
     }
 
     public void playStatusDamageNumber(LivingEntity target, StatusEffectType type, double damage) {

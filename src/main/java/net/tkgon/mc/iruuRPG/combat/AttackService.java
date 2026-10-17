@@ -360,6 +360,20 @@ public final class AttackService {
         return applied;
     }
 
+    /**
+     * An extra hit on top of an attack (class effects): applies the damage and shows its number in the element's
+     * color, also when it is the hit that kills (the position is taken before the damage).
+     */
+    public boolean applyExtraDamage(Player attacker, LivingEntity victim, double damage, net.tkgon.mc.iruuRPG.stat.Element element) {
+        Location numberLocation = victim.getLocation().clone();
+        double numberHeight = victim.getHeight();
+        boolean applied = applyDirectDamage(attacker, victim, damage);
+        if (applied) {
+            attackEffects.playExtraDamageNumber(numberLocation, numberHeight, element, damage);
+        }
+        return applied;
+    }
+
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage) {
         if (DeployService.isDeployEntity(victim) || isTutorialProtected(victim)) {
             return false;
