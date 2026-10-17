@@ -326,6 +326,13 @@ attack-sounds:
   enabled: true
   volume: 1.0
 
-# 敵の追尾。chase-range: プレイヤーに気づいて追いかける距離 (mob.target-range と大きい方)
+# 敵の追尾。見えるプレイヤーだけに気づく (壁の向こうは気づかない)
 mob-ai:
-  chase-range: 40.0
+  # この距離以内で、遮るものがなく見えるプレイヤーに気づく
+  sight-range: 16.0
+  # この距離以内なら、見えなくても気づく (足音)
+  close-range: 5.0
+  # これより離れたら諦める
+  lose-range: 28.0
+  # 見失ってから、この時間 (tick) は居場所を覚えて追う
+  memory-ticks: 100

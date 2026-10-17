@@ -564,7 +564,7 @@ public final class AttackService {
         profile.setCurrentHp(profile.currentHp() - finalDamage);
 
         if (profile.currentHp() <= 0.0 && !player.isDead()) {
-            player.setHealth(0.0);
+            playerBars.kill(player, profile);
             return;
         }
 

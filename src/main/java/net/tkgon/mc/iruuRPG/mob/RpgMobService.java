@@ -294,6 +294,7 @@ public final class RpgMobService {
         targetLocks.remove(entity.getUniqueId());
         drivenMelee.remove(entity.getUniqueId());
         nextMelee.remove(entity.getUniqueId());
+        lastSeen.remove(entity.getUniqueId());
         skillBusy.remove(entity.getUniqueId());
         removeStatusDisplay(entity.getUniqueId());
         statusEffectService.clear(entity);
@@ -415,7 +416,7 @@ public final class RpgMobService {
         for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
             MobRuntime runtime = runtimes.get(uuid);
             if (runtime == null || runtime.definition().skills().isEmpty() || !runtime.definition().ai()) continue;
-            if (skillBusy.contains(uuid) || attackMode.contains(uuid)) continue;
+            if (skillBusy.contains(uuid)) continue;
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
             if (now < skillLockUntil.getOrDefault(uuid, 0L)) continue;
@@ -634,10 +635,26 @@ public final class RpgMobService {
         return fresh == null ? null : Bukkit.getPlayer(fresh.playerId());
     }
 
-    /** How far away a mob notices and goes after a player (config mob-ai.chase-range, at least mob.target-range). */
-    private double chaseRange() {
-        double base = Math.max(1.0, plugin.getConfig().getDouble("mob.target-range", 24.0));
-        return Math.max(base, plugin.getConfig().getDouble("mob-ai.chase-range", 40.0));
+    private final Map<UUID, Long> lastSeen = new HashMap<>();
+
+    /** How far a mob can see a player to notice them (needs a clear line): mob-ai.sight-range. */
+    private double sightRange() {
+        return Math.max(2.0, plugin.getConfig().getDouble("mob-ai.sight-range", 16.0));
+    }
+
+    /** Within this distance a mob notices a player even without a clear line (it hears them): mob-ai.close-range. */
+    private double closeRange() {
+        return Math.max(0.0, plugin.getConfig().getDouble("mob-ai.close-range", 5.0));
+    }
+
+    /** Farther than this a mob gives up on its target: mob-ai.lose-range. */
+    private double loseRange() {
+        return Math.max(sightRange(), plugin.getConfig().getDouble("mob-ai.lose-range", 28.0));
+    }
+
+    /** How long a mob remembers where it last saw its target when it is out of sight: mob-ai.memory-ticks. */
+    private long memoryTicks() {
+        return Math.max(0L, plugin.getConfig().getLong("mob-ai.memory-ticks", 100L));
     }
 
     private void tickTargets() {
@@ -722,6 +739,7 @@ public final class RpgMobService {
             } else {
                 lostSightTicks.remove(uuid);
             }
+            if (skillBusy.contains(uuid)) continue; // a skill is running: no facing, no shot
             face(mob, target);
             if (sees && now >= nextShotTick.getOrDefault(uuid, 0L)) {
                 nextShotTick.put(uuid, now + spec.intervalTicks());
@@ -933,16 +951,20 @@ public final class RpgMobService {
         mob.setTarget(target);
     }
 
+    /** The players a mob notices: within sight range with a clear line, or right next to it (it hears them). */
     private ArrayList<Player> nearbyAdventurePlayers(LivingEntity entity) {
-        double range = chaseRange();
-        double rangeSquared = range * range;
+        double sight = sightRange();
+        double sightSquared = sight * sight;
+        double close = closeRange();
+        double closeSquared = close * close;
         ArrayList<Player> players = new ArrayList<>();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             if (!canTarget(entity, player)) continue;
 
             double distance = player.getLocation().distanceSquared(entity.getLocation());
-            if (distance > rangeSquared) continue;
+            if (distance > sightSquared) continue;
+            if (distance > closeSquared && !entity.hasLineOfSight(player)) continue;
             players.add(player);
         }
 
@@ -957,11 +979,23 @@ public final class RpgMobService {
                 && player.getWorld().equals(entity.getWorld());
     }
 
+    /**
+     * A target it already has is kept while it is within the losing range and was seen in the last few seconds (a
+     * mob does not forget a player who ducks behind a corner, but it does not chase one through walls forever).
+     */
     private boolean inTargetRange(LivingEntity entity, Player player) {
         if (!player.getWorld().equals(entity.getWorld())) return false;
 
-        double range = chaseRange();
-        return player.getLocation().distanceSquared(entity.getLocation()) <= range * range;
+        double range = loseRange();
+        double distanceSquared = player.getLocation().distanceSquared(entity.getLocation());
+        if (distanceSquared > range * range) return false;
+        long now = Bukkit.getCurrentTick();
+        if (distanceSquared <= closeRange() * closeRange() || entity.hasLineOfSight(player)) {
+            lastSeen.put(entity.getUniqueId(), now);
+            return true;
+        }
+        Long seen = lastSeen.get(entity.getUniqueId());
+        return seen != null && now - seen <= memoryTicks();
     }
 
     private boolean isCurrentTarget(LivingEntity entity, Player player, long now) {
