@@ -52,6 +52,9 @@ public final class LevelService {
                 + 10.0 * levelValue
                 + 10.0;
         if (!Double.isFinite(raw)) return Long.MAX_VALUE;
+        // balance.xp-requirement-multiplier: every level-up needs this many times the base XP (10 = ten times)
+        raw *= Math.max(0.01, plugin.getConfig().getDouble("balance.xp-requirement-multiplier", 10.0));
+        if (!Double.isFinite(raw)) return Long.MAX_VALUE;
 
         return Math.max(1L, (long) Math.ceil(raw));
     }
