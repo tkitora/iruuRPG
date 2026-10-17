@@ -7,6 +7,26 @@ import org.bukkit.entity.Player;
 
 public final class PlayerBars {
 
+    private final org.bukkit.plugin.java.JavaPlugin plugin;
+    private final java.util.Set<java.util.UUID> pendingDeath = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    public PlayerBars(org.bukkit.plugin.java.JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    /**
+     * Kills a player whose RPG HP ran out. It is done one tick later and only once: calling setHealth(0) inside the
+     * damage event made the vanilla damage code (and every other hit in the same tick) kill the player again, and
+     * the death was announced three times.
+     */
+    public void kill(Player player, PlayerProfile profile) {
+        if (player.isDead() || !pendingDeath.add(player.getUniqueId())) return;
+        org.bukkit.Bukkit.getScheduler().runTask(plugin, () -> {
+            pendingDeath.remove(player.getUniqueId());
+            if (player.isOnline() && !player.isDead() && profile.currentHp() <= 0.0) player.setHealth(0.0);
+        });
+    }
+
     public void sync(Player player, PlayerProfile profile) {
         syncHealth(player, profile);
         syncFood(player, profile);
@@ -21,7 +41,8 @@ public final class PlayerBars {
 
         double shownHealth = clamp(minecraftMaxHealth * ratio, 0.5, minecraftMaxHealth);
         if (profile.currentHp() <= 0.0) {
-            shownHealth = 0.0;
+            kill(player, profile);
+            return;
         }
 
         player.setHealth(shownHealth);

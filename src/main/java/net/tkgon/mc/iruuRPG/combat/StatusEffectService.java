@@ -476,7 +476,7 @@ public final class StatusEffectService {
             PlayerProfile profile = equipmentService.recalculate(player);
             profile.setCurrentHp(profile.currentHp() - amount);
             if (profile.currentHp() <= 0.0 && !player.isDead()) {
-                player.setHealth(0.0);
+                playerBars.kill(player, profile);
                 return;
             }
             playerBars.sync(player, profile);

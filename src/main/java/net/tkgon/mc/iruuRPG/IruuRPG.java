@@ -173,7 +173,7 @@ public final class IruuRPG extends JavaPlugin {
         this.equipmentService = new EquipmentService(profileManager, itemIdentifier, itemRegistry);
         this.classService = new ClassService(this, classRegistry);
         this.equipmentService.setClassService(classService);
-        this.playerBars = new PlayerBars();
+        this.playerBars = new PlayerBars(this);
         this.levelService = new LevelService(this, profileManager, equipmentService, playerBars);
         this.statusEffectService = new StatusEffectService(this, equipmentService, playerBars);
         this.debugTargetService = new DebugTargetService(this);
