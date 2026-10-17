@@ -325,3 +325,7 @@ slash-vfx:
 attack-sounds:
   enabled: true
   volume: 1.0
+
+# 敵の追尾。chase-range: プレイヤーに気づいて追いかける距離 (mob.target-range と大きい方)
+mob-ai:
+  chase-range: 40.0

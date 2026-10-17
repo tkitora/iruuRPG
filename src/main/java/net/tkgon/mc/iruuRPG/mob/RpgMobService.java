@@ -119,6 +119,7 @@ public final class RpgMobService {
     public void startTargetTask() {
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickTargets, 20L, 20L);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickRanged, 5L, 5L);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickChase, 10L, CHASE_PERIOD_TICKS);
         long statusPeriod = Math.max(1L, plugin.getConfig().getLong("mob.status-display.update-period-ticks", 1L));
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickStatusDisplays, 1L, statusPeriod);
     }
@@ -310,6 +311,57 @@ public final class RpgMobService {
 
     public void refreshDisplay(LivingEntity entity) {
         updateName(entity);
+    }
+
+    // ---- chasing -----------------------------------------------------------------------------------------------
+
+    private static final long CHASE_PERIOD_TICKS = 5L;
+    private long chaseCounter;
+
+    /**
+     * Every 5 ticks every mob with AI keeps its target set and walks to it with its own pathfinding on top of the
+     * vanilla goals (which stop on their own now and then: they idle when the path is lost or the target was
+     * dropped), so a mob never wanders or stands still while there is a player to go after. The pathing is spread
+     * over four ticks per mob to keep the cost low.
+     */
+    private void tickChase() {
+        chaseCounter++;
+        for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
+            Entity entity = Bukkit.getEntity(uuid);
+            if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
+            MobRuntime runtime = runtimes.get(uuid);
+            if (runtime == null || !runtime.definition().ai() || attackMode.contains(uuid)) continue;
+
+            Player target = chaseTarget(mob);
+            if (target == null) continue;
+            if (!target.equals(mob.getTarget())) mob.setTarget(target);
+
+            if (mob.getLocation().distanceSquared(target.getLocation()) <= 2.25) continue; // already next to it
+            int phase = (uuid.hashCode() & 0x7fffffff) % 4;
+            boolean due = chaseCounter % 4 == phase;
+            boolean stuck = !mob.getPathfinder().hasPath() && (chaseCounter + phase) % 2 == 0;
+            if (due || stuck) mob.getPathfinder().moveTo(target, 1.0);
+        }
+    }
+
+    /** The player a mob goes after: its locked target while that is valid, else the nearest player in range. */
+    private Player chaseTarget(Mob mob) {
+        TargetLock lock = targetLocks.get(mob.getUniqueId());
+        if (lock != null) {
+            Player locked = Bukkit.getPlayer(lock.playerId());
+            if (locked != null && canTarget(mob, locked) && inTargetRange(mob, locked)) return locked;
+        }
+        MobRuntime runtime = runtimes.get(mob.getUniqueId());
+        if (runtime == null) return null;
+        selectRandomTarget(mob, runtime.definition(), null, System.currentTimeMillis());
+        TargetLock fresh = targetLocks.get(mob.getUniqueId());
+        return fresh == null ? null : Bukkit.getPlayer(fresh.playerId());
+    }
+
+    /** How far away a mob notices and goes after a player (config mob-ai.chase-range, at least mob.target-range). */
+    private double chaseRange() {
+        double base = Math.max(1.0, plugin.getConfig().getDouble("mob.target-range", 24.0));
+        return Math.max(base, plugin.getConfig().getDouble("mob-ai.chase-range", 40.0));
     }
 
     private void tickTargets() {
@@ -590,17 +642,22 @@ public final class RpgMobService {
             return;
         }
 
-        if (previousTargetId != null && candidates.size() > 1) {
-            candidates.removeIf(player -> player.getUniqueId().equals(previousTargetId));
+        // the nearest player (not a random one, which made mobs turn away from a player right next to them)
+        Player target = candidates.get(0);
+        double best = Double.MAX_VALUE;
+        for (Player candidate : candidates) {
+            double distance = candidate.getLocation().distanceSquared(entity.getLocation());
+            if (distance < best) {
+                best = distance;
+                target = candidate;
+            }
         }
-
-        Player target = candidates.get(ThreadLocalRandom.current().nextInt(candidates.size()));
         targetLocks.put(entity.getUniqueId(), new TargetLock(target.getUniqueId(), now + TARGET_LOCK_MILLIS));
         mob.setTarget(target);
     }
 
     private ArrayList<Player> nearbyAdventurePlayers(LivingEntity entity) {
-        double range = Math.max(1.0, plugin.getConfig().getDouble("mob.target-range", 24.0));
+        double range = chaseRange();
         double rangeSquared = range * range;
         ArrayList<Player> players = new ArrayList<>();
 
@@ -626,7 +683,7 @@ public final class RpgMobService {
     private boolean inTargetRange(LivingEntity entity, Player player) {
         if (!player.getWorld().equals(entity.getWorld())) return false;
 
-        double range = Math.max(1.0, plugin.getConfig().getDouble("mob.target-range", 24.0));
+        double range = chaseRange();
         return player.getLocation().distanceSquared(entity.getLocation()) <= range * range;
     }
 

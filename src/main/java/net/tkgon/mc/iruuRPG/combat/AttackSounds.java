@@ -48,19 +48,22 @@ public final class AttackSounds {
 
     public void hit(Player owner, Location at, Element element, boolean critical) {
         SoundKind kind = SoundKind.HIT;
-        play(owner, kind, at, Sound.BLOCK_AMETHYST_CLUSTER_HIT, 0.5f, 1.3f);
-        play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.22f, 1.5f);
-        accent(owner, kind, at, element, 0.15f);
+        // a dull body thud: bone knock + a wet slap under the player-attack punch (no bright chime)
+        play(owner, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.6f, 0.75f);
+        play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.35f, 0.85f);
+        play(owner, kind, at, Sound.BLOCK_SLIME_BLOCK_HIT, 0.25f, 0.7f);
+        accent(owner, kind, at, element, 0.1f);
         if (critical) {
-            play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.5f, 1.2f);
-            play(owner, kind, at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 2.0f);
+            play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.55f, 0.9f);
+            play(owner, kind, at, Sound.ITEM_TRIDENT_HIT, 0.3f, 1.3f);
         }
     }
 
     public void impact(Player owner, Location at, Element element) {
         SoundKind kind = owner == null ? SoundKind.ENEMY : SoundKind.HIT;
-        play(owner, kind, at, Sound.BLOCK_AMETHYST_CLUSTER_HIT, 0.4f, 1.6f);
-        accent(owner, kind, at, element, 0.25f);
+        play(owner, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.45f, 1.0f);
+        play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 0.3f, 1.2f);
+        accent(owner, kind, at, element, 0.2f);
     }
 
     public void boltLaunch(Player owner, Location at, Element element) {
@@ -159,9 +162,9 @@ public final class AttackSounds {
 
     public void slashImpact(Player owner, Location at, Element element) {
         SoundKind kind = SoundKind.SKILL;
-        play(owner, kind, at, Sound.BLOCK_AMETHYST_CLUSTER_HIT, 0.6f, 1.2f);
-        play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.3f, 1.4f);
-        play(owner, kind, at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.35f, 2.0f);
+        play(owner, kind, at, Sound.ITEM_TRIDENT_HIT, 0.45f, 1.1f);
+        play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.4f, 1.1f);
+        play(owner, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.4f, 0.9f);
         accent(owner, kind, at, element, 0.3f);
     }
 
@@ -183,7 +186,7 @@ public final class AttackSounds {
         SoundKind kind = SoundKind.DEPLOY;
         play(owner, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.2f);
         play(owner, kind, at, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.6f, 0.7f);
-        play(owner, kind, at, Sound.BLOCK_AMETHYST_CLUSTER_HIT, 0.5f, 0.9f);
+        play(owner, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.6f, 0.7f);
         accent(owner, kind, at, element, 0.4f);
     }
 
