@@ -507,6 +507,13 @@ public final class ClassSkillService {
         }
     }
 
+    private SniperMode sniperMode;
+
+    /** The ranger's sniper mode (the re-cast of the upgraded instinct release). */
+    public void setSniperMode(SniperMode sniperMode) {
+        this.sniperMode = sniperMode;
+    }
+
     private final java.util.Map<UUID, SanctuaryState> sanctuaries = new java.util.HashMap<>();
 
     /**
@@ -516,6 +523,7 @@ public final class ClassSkillService {
      * handled here (also when it is too early), so no cooldown or MP is spent.
      */
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
+        if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
         if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;
         SanctuaryState state = sanctuaries.get(player.getUniqueId());
         if (state == null || state.ended) return false;

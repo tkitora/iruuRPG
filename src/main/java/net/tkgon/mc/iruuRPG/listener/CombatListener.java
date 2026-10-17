@@ -239,15 +239,18 @@ public final class CombatListener implements Listener {
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         AttackService.AttackDamage attack = attackService.calculateDamage(attacker, victim, weapon);
-        if (!attackService.applyDirectDamage(attacker, victim, attack.result().damage(), weapon, attack.result().critical())) {
+        double scale = attackService.tripleScale(attacker);
+        double damage = Math.round(attack.result().damage() * scale * 10.0) / 10.0;
+        if (!attackService.applyDirectDamage(attacker, victim, damage, weapon, attack.result().critical())) {
             return;
         }
 
         attackService.playMeleeImpact(attacker, victim);
         attackService.playMeleeSlash(attacker, weapon);
-        attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, attack.result().damage(), attack.result().critical(), false);
-        attackService.applyAreaDamage(attacker, victim, attack.result().damage(), AttackType.MELEE, weapon);
+        attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);
+        attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, weapon);
         lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
+        if (scale < 1.0) attackService.scheduleTripleHits(attacker, victim, weapon, AttackType.MELEE);
     }
 
     @EventHandler(priority = EventPriority.NORMAL)
