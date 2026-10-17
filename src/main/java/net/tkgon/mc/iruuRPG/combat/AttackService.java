@@ -527,7 +527,25 @@ public final class AttackService {
     }
 
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon) {
+        // an assassin with a melee weapon in each hand: the crossing slashes of the two hands, on every swing
+        if (dualWielding(attacker)) {
+            attackEffects.playDualSlash(attacker, weapon);
+            return;
+        }
+        // warrior and assassin: a chain of slashes whose direction changes from stage to stage
+        String classId = classService == null ? "" : classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id()).orElse("");
+        if (classId.equals("warrior") || classId.equals("assassin")) {
+            attackEffects.playComboSlash(attacker, weapon);
+            return;
+        }
         attackEffects.playMeleeSlash(attacker, weapon);
+    }
+
+    /** True for an assassin (固有0) who holds a usable melee weapon in the off hand. */
+    public boolean dualWielding(Player attacker) {
+        if (!hasSkill(attacker, ASSASSIN_DUAL_SKILL)) return false;
+        RpgItemDefinition offWeapon = itemIdentifier.itemId(attacker.getInventory().getItemInOffHand()).flatMap(itemRegistry::find).orElse(null);
+        return offWeapon != null && offWeapon.isWeaponLike() && offWeapon.attackType() == AttackType.MELEE && canUseItem(attacker, offWeapon);
     }
 
     public void playRangeTrail(Player attacker, RpgItemDefinition weapon, Location hitLocation) {
@@ -776,7 +794,6 @@ public final class AttackService {
         double damage = round(attack.result().damage() * tripleScale(attacker));
         boolean critical = attack.result().critical();
         if (!applyDirectDamage(attacker, victim, damage, hand.otherWeapon(), critical)) return;
-        attackEffects.playSlashMelee(attacker, hand.otherWeapon(), victim, 1);
         sendDamageDebug(attacker, AttackType.MELEE, victim, damage, critical, false);
         applyAreaDamage(attacker, victim, damage, AttackType.MELEE, hand.otherWeapon());
     }
