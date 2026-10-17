@@ -5,14 +5,14 @@
 # (白・緑の属性ダメージの減少量と、保護の減少量は仮置き)
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 1
+version: 2
 
 id: assassin
 name: "アサシン"
 icon: IRON_SWORD
 description:
-  - "橙の確定ダメージで一撃を叩き込む、超低耐久の暗殺者。"
-  - "最後に殴った敵へ瞬間移動して仕留める。"
+  - "手数で圧倒する近接のクラス。色(属性)に縛られず、"
+  - "二本の武器で攻め立て、混乱を重ねて爆ぜさせる。"
 
 growth:
   attack-speed: 0.05
@@ -21,39 +21,6 @@ growth:
       orange: 0.8
 
 spend:
-  orange_damage:
-    name: "橙の刃"
-    icon: ORANGE_DYE
-    description:
-      - "橙属性の与ダメージが増える。代わりに他の属性を捨てる。"
-    per-level:
-      element-stats:
-        damage:
-          orange: 19
-          red: -65
-          blue: -65
-          white: -65
-          green: -65
-  orange_percent:
-    name: "橙の極み"
-    icon: ORANGE_CONCRETE
-    description:
-      - "橙属性の伸びが増す。代わりに他の属性の伸びを捨てる。"
-    per-level:
-      element-stats:
-        damage-percent:
-          orange: 1.1
-          red: -1.1
-          blue: -1.1
-          white: -1.1
-          green: -1.1
-  move_speed:
-    name: "移動速度"
-    icon: FEATHER
-    description:
-      - "移動が速くなる。"
-    per-level:
-      move-speed: 0.5
   attack_speed:
     name: "攻撃速度"
     icon: CLOCK
@@ -61,6 +28,13 @@ spend:
       - "攻撃が速くなる。"
     per-level:
       attack-speed: 0.5
+  move_speed:
+    name: "移動速度"
+    icon: FEATHER
+    description:
+      - "移動が速くなる。"
+    per-level:
+      move-speed: 0.5
   glass_cannon:
     name: "紙一重"
     icon: TNT
@@ -69,47 +43,76 @@ spend:
     per-level:
       strength: 2.4
       magic: 2.4
-      melee-damage: 20
       defense: -17
       physical-resist: -0.0075
       magic-resist: -0.0075
       damage-reduction: -0.75
       protection: -0.3
+  strength_elements:
+    name: "筋力と属性"
+    icon: IRON_SWORD
+    description:
+      - "筋力と、全ての属性のダメージが増える。"
+    per-level:
+      strength: 1.8
+      element-stats:
+        damage:
+          red: 19
+          blue: 19
+          white: 19
+          green: 19
+          orange: 19
+  crit_damage:
+    name: "会心ダメージ"
+    icon: AMETHYST_SHARD
+    description:
+      - "会心したときの威力が増える。"
+    per-level:
+      crit-damage: 1.1
+
+# 固有0: 最初から有効なパッシブ (SP不要)
+innate:
+  - node_name: "二刀流"
+    icon: IRON_SWORD
+    node_type: passive
+    effect_type: skill
+    name: assassin_dual
+    description:
+      - "オフハンドにも近接武器を持てる。"
+      - "近接攻撃のたびに、メインハンドとオフハンドが交互に攻撃する。"
+      - "(ホットバーやオフハンドの中身は入れ替わらない)"
 
 milestones:
   # 1: SP 5 (ステータス)
-  - node_name: "橙の素養"
-    icon: ORANGE_DYE
+  - node_name: "鋭い腕"
+    icon: IRON_INGOT
     description:
-      - "橙の威力が伸びる。"
+      - "筋力と会心率が伸びる。"
     node_type: passive
     effect_type: status
-    element-stats:
-      damage-percent:
-        orange: 6
-      damage:
-        orange: 103
-  # 2: SP 10 (クラス特有: 攻撃時に橙属性ダメージを追加)
-  - node_name: "追い打ち"
-    icon: BLAZE_POWDER
+    status:
+      strength: 60
+      crit-chance: 5
+  # 2: SP 10 (クラス特有 = 固有1: 近接攻撃で10%、両手で同時に攻撃 / コード側 assassin_double)
+  - node_name: "双牙"
+    icon: PRISMARINE_SHARD
     node_type: passive
     effect_type: skill
-    name: assassin_orange_strike
+    name: assassin_double
     description:
-      - "攻撃するたびに、橙属性のダメージが追加で入る"
+      - "近接攻撃のとき10%の確率で、メインハンドとオフハンドが同時に攻撃する。"
+      - "(斬撃が十字に交差する)"
   # 3: SP 15 (ステータス)
   - node_name: "惑わす刃"
     icon: POPPED_CHORUS_FRUIT
     description:
-      - "混乱を与えやすくなり、橙の威力が伸びる。"
+      - "混乱を与えやすくなり、筋力が伸びる。"
     node_type: passive
     effect_type: status
     status:
       confusion: 1
-    element-stats:
-      damage:
-        orange: 103
-  # 4: SP 20 (クラススキル / F)
+      strength: 60
+  # 4: SP 20 (クラススキル / F。通常攻撃扱いなので、固有0・固有1も発動する)
   - node_name: "SATUJIN"
     icon: NETHERITE_SWORD
     node_type: active
@@ -119,39 +122,36 @@ milestones:
   - node_name: "混濁の眼"
     icon: SPIDER_EYE
     description:
-      - "混乱を与えやすくなり、橙の伸びが増す。"
+      - "混乱を与えやすくなり、会心率が伸びる。"
     node_type: passive
     effect_type: status
     status:
       confusion: 1
-    element-stats:
-      damage-percent:
-        orange: 6
-  # 6: SP 30 (クラス特有: 橙の武器で攻撃時、混乱に応じた爆破)
-  - node_name: "誘爆"
+      crit-chance: 5
+  # 6: SP 30 (クラス特有 = 固有2: 旧固有1の追い打ち + 旧固有2の誘爆 / コード側 assassin_fusion)
+  - node_name: "追い打ち・誘爆"
     icon: TNT
     node_type: passive
     effect_type: skill
-    name: assassin_blast
+    name: assassin_fusion
     description:
-      - "橙属性の武器で攻撃すると、敵の混乱の分だけ爆破が溜まる"
+      - "攻撃するたびに、橙属性のダメージが追加で入る。"
+      - "橙属性の武器で攻撃すると、敵の混乱の分だけ爆破が溜まる。"
   # 7: SP 35 (ステータス)
-  - node_name: "橙の極意"
-    icon: ORANGE_GLAZED_TERRACOTTA
+  - node_name: "鋭い腕・極"
+    icon: NETHERITE_INGOT
     description:
-      - "橙の威力がさらに伸びる。"
+      - "筋力と会心率がさらに伸びる。"
     node_type: passive
     effect_type: status
-    element-stats:
-      damage-percent:
-        orange: 6
-      damage:
-        orange: 103
+    status:
+      strength: 60
+      crit-chance: 5
   # 8: SP 40 (クラススキル強化)
   - node_name: "SATUJIN・極"
     icon: END_CRYSTAL
+    description:
+      - "同じ攻撃を最大9回、対象が倒れるまで繰り返す。"
     node_type: passive
     effect_type: skill
     name: satsujin_upgrade
-    description:
-      - "同じ攻撃を最大9回、対象が倒れるまで繰り返す"

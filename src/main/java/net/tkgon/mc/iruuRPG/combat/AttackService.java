@@ -544,6 +544,11 @@ public final class AttackService {
      * counts). A direct hit never comes through here (it has its own area damage), so nothing is counted twice.
      */
     public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon) {
+        applySwingAreaDamage(attacker, weapon, null);
+    }
+
+    /** {@code profile} (null: the live one) is the attacker's profile with {@code weapon} in hand, for an off-hand swing. */
+    public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile) {
         boolean baseMelee = !hasMeleeAreaSkill(attacker);
         double rate = baseMelee
                 ? plugin.getConfig().getDouble("combat.melee-area-base-damage-rate", 0.40)
@@ -555,7 +560,7 @@ public final class AttackService {
 
         double reach = plugin.getConfig().getDouble("combat.melee-swing-area-reach", 1.8);
         Location center = attacker.getEyeLocation().add(attacker.getEyeLocation().getDirection().normalize().multiply(reach));
-        PlayerProfile attackerProfile = equipmentService.recalculate(attacker);
+        PlayerProfile attackerProfile = profile != null ? profile : equipmentService.recalculate(attacker);
         for (Entity nearby : attacker.getWorld().getNearbyEntities(center, radius, radius, radius)) {
             if (!(nearby instanceof LivingEntity target)) continue;
             if (DeployService.isDeployEntity(target) || target instanceof Player || target.equals(attacker) || target.isInvulnerable()) continue;
@@ -710,6 +715,70 @@ public final class AttackService {
     /** True when this player's class has the skill flag {@code skillName} (an innate or unlocked passive). */
     public boolean hasClassSkill(Player player, String skillName) {
         return hasSkill(player, skillName);
+    }
+
+    // ---- the assassin's two hands ----------------------------------------------------------------------------------
+
+    private static final String ASSASSIN_DUAL_SKILL = "assassin_dual";
+    private static final String ASSASSIN_DOUBLE_SKILL = "assassin_double";
+
+    /**
+     * The hand a melee attack is made with. {@code profile} is the attacker's profile as if that weapon were in the
+     * main hand (null: the live profile). {@code other*} is the weapon of the other hand, for a double strike.
+     */
+    public record MeleeHand(RpgItemDefinition weapon, PlayerProfile profile, boolean offHand,
+                            RpgItemDefinition otherWeapon, PlayerProfile otherProfile, boolean doubleStrike) {
+    }
+
+    private final java.util.Map<UUID, Boolean> nextOffHand = new java.util.HashMap<>();
+
+    /**
+     * Who hits this time. An assassin with 固有0 who holds a melee weapon in each hand hits with the main hand, then
+     * the off hand, then the main hand again ... (the hotbar does not change); with 固有1 there is a 10% chance
+     * (class-effects.assassin.double-chance) that both hands hit at once. Anybody else: the main-hand weapon.
+     */
+    public MeleeHand nextMeleeHand(Player attacker, RpgItemDefinition mainWeapon) {
+        MeleeHand plain = new MeleeHand(mainWeapon, null, false, null, null, false);
+        if (!hasSkill(attacker, ASSASSIN_DUAL_SKILL)) return plain;
+
+        ItemStack offItem = attacker.getInventory().getItemInOffHand();
+        RpgItemDefinition offWeapon = itemIdentifier.itemId(offItem).flatMap(itemRegistry::find).orElse(null);
+        if (offWeapon == null || !offWeapon.isWeaponLike() || offWeapon.attackType() != AttackType.MELEE
+                || !canUseItem(attacker, offWeapon)) {
+            nextOffHand.remove(attacker.getUniqueId());
+            return plain;
+        }
+
+        boolean useOff = nextOffHand.getOrDefault(attacker.getUniqueId(), false);
+        nextOffHand.put(attacker.getUniqueId(), !useOff);
+        boolean both = hasSkill(attacker, ASSASSIN_DOUBLE_SKILL)
+                && java.util.concurrent.ThreadLocalRandom.current().nextDouble() < plugin.getConfig().getDouble("class-effects.assassin.double-chance", 0.10);
+        PlayerProfile offProfile = equipmentService.profileHolding(attacker, offItem);
+        return useOff
+                ? new MeleeHand(offWeapon, offProfile, true, mainWeapon, null, both)
+                : new MeleeHand(mainWeapon, null, false, offWeapon, offProfile, both);
+    }
+
+    /** Damage of a melee hit made with {@code hand}. */
+    public AttackDamage calculateMeleeDamage(Player attacker, LivingEntity victim, MeleeHand hand) {
+        PlayerProfile profile = hand.profile() != null ? hand.profile() : equipmentService.recalculate(attacker);
+        return calculateDamage(profile, victim, hand.weapon());
+    }
+
+    /**
+     * The other hand's hit of a double strike: lands at the same time as the first, shown as two slashes crossing.
+     * (It is an ordinary melee hit with the other weapon; the area splash and the status effects work as usual.)
+     */
+    public void doubleStrikeHit(Player attacker, LivingEntity victim, MeleeHand hand) {
+        if (hand.otherWeapon() == null || victim.isDead() || !victim.isValid()) return;
+        PlayerProfile profile = hand.otherProfile() != null ? hand.otherProfile() : equipmentService.recalculate(attacker);
+        AttackDamage attack = calculateDamage(profile, victim, hand.otherWeapon());
+        double damage = round(attack.result().damage() * tripleScale(attacker));
+        boolean critical = attack.result().critical();
+        if (!applyDirectDamage(attacker, victim, damage, hand.otherWeapon(), critical)) return;
+        attackEffects.playSlashMelee(attacker, hand.otherWeapon(), victim, 1);
+        sendDamageDebug(attacker, AttackType.MELEE, victim, damage, critical, false);
+        applyAreaDamage(attacker, victim, damage, AttackType.MELEE, hand.otherWeapon());
     }
 
     // ---- the ranger's enhanced state: every normal attack is three hits of 70% ---------------------------------------
