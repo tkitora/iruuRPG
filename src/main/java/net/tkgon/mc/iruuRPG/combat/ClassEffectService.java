@@ -29,6 +29,8 @@ public final class ClassEffectService {
     public static final String GIFTED_DECAY = "gifted_decay";
     public static final String INSTINCT_UPGRADE = "instinct_release_upgrade";
     public static final String ICE_LANCE_UPGRADE = "ice_lance_upgrade";
+    /** The assassin's 固有2: the old extra orange hit and the confusion blast in one node. */
+    public static final String ASSASSIN_FUSION = "assassin_fusion";
     public static final String ASSASSIN_ORANGE = "assassin_orange_strike";
     public static final String ASSASSIN_BLAST = "assassin_blast";
     private static final double ASSASSIN_BLAST_DIVISOR = 40.0;
@@ -98,7 +100,8 @@ public final class ClassEffectService {
         if (attackService == null || damage <= 0.0) return;
 
         UUID sourceId = attacker.getUniqueId();
-        if (classService.hasSkill(profile, ASSASSIN_ORANGE)) {
+        boolean fusion = classService.hasSkill(profile, ASSASSIN_FUSION);
+        if (fusion || classService.hasSkill(profile, ASSASSIN_ORANGE)) {
             double extra = damage * (1.0 + Math.max(1, profile.level()) / 100.0);
             if (attackService.applyExtraDamage(attacker, victim, Math.round(extra * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.ORANGE)) {
                 playOrangeHit(victim);
@@ -106,7 +109,7 @@ public final class ClassEffectService {
         }
         if (victim.isDead() || !victim.isValid()) return;
 
-        if (classService.hasSkill(profile, ASSASSIN_BLAST)
+        if ((fusion || classService.hasSkill(profile, ASSASSIN_BLAST))
                 && weapon != null && weapon.element() == net.tkgon.mc.iruuRPG.stat.Element.ORANGE) {
             double confusion = statusEffectService.confusionOf(victim);
             double blast = damage * confusion / ASSASSIN_BLAST_DIVISOR;

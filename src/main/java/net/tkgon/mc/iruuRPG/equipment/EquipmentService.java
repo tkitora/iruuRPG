@@ -58,6 +58,35 @@ public final class EquipmentService {
         return profile;
     }
 
+    /**
+     * A detached profile of the player as if they held {@code held} in the main hand instead of what they hold now
+     * (the armor, the class and the base stats are the same). Used for the off-hand weapon's hit of a dual-wielder.
+     */
+    public PlayerProfile profileHolding(Player player, ItemStack held) {
+        PlayerProfile live = recalculate(player);
+        StatSet stats = new StatSet();
+        stats.addAll(live.finalStats());
+        ElementStatSet elements = new ElementStatSet();
+        elements.addAll(live.finalElementStats());
+
+        StatSet mainStats = new StatSet();
+        ElementStatSet mainElements = new ElementStatSet();
+        accumulate(player, player.getInventory().getItemInMainHand(), mainStats, mainElements);
+        stats.addAll(mainStats.scaled(-1.0));
+        elements.addAll(mainElements.scaled(-1.0));
+
+        accumulate(player, held, stats, elements);
+
+        PlayerProfile detached = new PlayerProfile(player.getUniqueId(), live.maxHp(), live.maxMp());
+        detached.setLevel(live.level());
+        detached.baseStats().replaceWith(stats);
+        detached.baseElementStats().replaceWith(elements);
+        detached.recalculate();
+        detached.setCurrentHp(live.currentHp());
+        detached.setCurrentMp(live.currentMp());
+        return detached;
+    }
+
     /** Move Speed % scales the vanilla walking speed (base 0.1). */
     private void applyMoveSpeed(Player player, PlayerProfile profile) {
         AttributeInstance attribute = player.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);

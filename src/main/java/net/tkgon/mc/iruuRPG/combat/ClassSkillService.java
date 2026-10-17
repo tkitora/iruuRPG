@@ -383,11 +383,18 @@ public final class ClassSkillService {
     }
 
     /** One normal attack with the held weapon, without spending the attack cooldown. */
-    private void normalAttack(Player player, LivingEntity target, RpgItemDefinition weapon) {
-        AttackService.AttackDamage attack = attackService.calculateDamage(player, target, weapon);
+    private void normalAttack(Player player, LivingEntity target, RpgItemDefinition mainWeapon) {
+        // it counts as a normal attack: a dual-wielding assassin's hands alternate (and may strike together) here too
+        AttackService.MeleeHand hand = mainWeapon.attackType() == AttackType.MELEE
+                ? attackService.nextMeleeHand(player, mainWeapon)
+                : new AttackService.MeleeHand(mainWeapon, null, false, null, null, false);
+        RpgItemDefinition weapon = hand.weapon();
+        AttackService.AttackDamage attack = attackService.calculateMeleeDamage(player, target, hand);
         double damage = attack.result().damage();
         boolean critical = attack.result().critical();
         AttackType type = weapon.attackType();
+        if (hand.offHand()) player.swingOffHand();
+        if (hand.doubleStrike()) attackService.doubleStrikeHit(player, target, hand);
         boolean applied;
         if (type == AttackType.RANGE) {
             applied = attackService.applyRangeDamage(player, target, damage, weapon, critical);
