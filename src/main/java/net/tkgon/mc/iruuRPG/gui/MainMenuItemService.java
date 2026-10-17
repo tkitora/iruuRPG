@@ -97,7 +97,7 @@ public final class MainMenuItemService {
             meta.displayName(Component.text("iruuRPG メニュー", NamedTextColor.GOLD, TextDecoration.BOLD)
                     .decoration(TextDecoration.ITALIC, false));
             meta.lore(List.of(
-                    Component.text("右クリックで開く", NamedTextColor.GREEN)
+                    Component.text("右クリック / 左クリックで開く", NamedTextColor.GREEN)
                             .decoration(TextDecoration.ITALIC, false),
                     Component.text("このアイテムは移動・破棄できません", NamedTextColor.GRAY)
                             .decoration(TextDecoration.ITALIC, false)

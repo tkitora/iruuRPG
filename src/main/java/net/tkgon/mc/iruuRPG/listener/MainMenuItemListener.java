@@ -46,8 +46,13 @@ public final class MainMenuItemListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        // right click or left click with the menu item opens the menu (a left click on a block must not break it)
+        Action action = event.getAction();
+        if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK
+                && action != Action.LEFT_CLICK_AIR && action != Action.LEFT_CLICK_BLOCK) return;
         if (!menuItemService.isMenuItem(event.getItem())) return;
+        // the off hand fires the event again for a right click: only the main hand opens it
+        if (event.getHand() != null && event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
 
         event.setCancelled(true);
         mainMenu.open(event.getPlayer());
