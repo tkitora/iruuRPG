@@ -1404,21 +1404,29 @@ public final class DungeonService implements Listener {
 
     private final List<Entity> gateLabels = new ArrayList<>();
 
-    /** Labels over every gate ("ダンジョン: name / 右クリックで入る"); not saved with the world. */
+    private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
+
+    public void setWorldLabels(net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels) {
+        this.worldLabels = worldLabels;
+    }
+
+    /**
+     * Labels over every gate ("ダンジョン: name / 右クリックで入る"); kept in place by
+     * {@link net.tkgon.mc.iruuRPG.hud.WorldLabels} (they are not saved with the world).
+     */
     public void refreshGates() {
-        for (Entity label : gateLabels) {
-            if (label.isValid()) label.remove();
-        }
-        gateLabels.clear();
+        if (worldLabels == null) return;
+        List<net.tkgon.mc.iruuRPG.hud.WorldLabels.Spec> specs = new ArrayList<>();
         for (Map.Entry<DungeonRegistry.Gate, String> entry : registry.allGates().entrySet()) {
             DungeonRegistry.Gate gate = entry.getKey();
-            World world = Bukkit.getWorld(gate.world());
             DungeonDefinition definition = registry.find(entry.getValue()).orElse(null);
-            if (world == null || definition == null) continue;
-            Location at = new Location(world, gate.x() + 0.5, gate.y() + 2.2, gate.z() + 0.5);
-            gateLabels.add(label(at, Component.text("ダンジョン: " + definition.name(), NamedTextColor.GOLD, TextDecoration.BOLD)
-                    .append(Component.newline()).append(Component.text("右クリックで入る (推奨Lv" + definition.minLevel() + ")", NamedTextColor.WHITE))));
+            if (Bukkit.getWorld(gate.world()) == null || definition == null) continue;
+            specs.add(new net.tkgon.mc.iruuRPG.hud.WorldLabels.Spec(gate.world(), gate.x() + 0.5, gate.y() + 2.2, gate.z() + 0.5,
+                    Component.text("ダンジョン: " + definition.name(), NamedTextColor.GOLD, TextDecoration.BOLD)
+                            .append(Component.newline()).append(Component.text("右クリックで入る (推奨Lv" + definition.minLevel() + ")", NamedTextColor.WHITE)),
+                    true));
         }
+        worldLabels.set("gates", specs);
     }
 
     private void tickGates() {
