@@ -318,6 +318,25 @@ public final class IruuRPG extends JavaPlugin {
             craftCommand.setTabCompleter(craft);
         }
 
+        PluginCommand menuCommand = getCommand("menu");
+        if (menuCommand != null) {
+            menuCommand.setExecutor((sender, command, label, args) -> {
+                if (!(sender instanceof Player player)) return true;
+                String sub = args.length == 0 ? "" : args[0].toLowerCase(java.util.Locale.ROOT);
+                switch (sub) {
+                    case "hide", "off" -> setMenuItemHidden(player, true);
+                    case "show", "on" -> setMenuItemHidden(player, false);
+                    case "toggle", "item" -> setMenuItemHidden(player, !mainMenuItemService.isHidden(player));
+                    case "" -> mainMenu.open(player);
+                    default -> player.sendMessage("[メニュー] /menu = 開く / /menu toggle = ホットバーのメニューアイテムの表示切替 (hide / show)");
+                }
+                return true;
+            });
+            menuCommand.setTabCompleter((sender, command, alias, args) ->
+                    args.length == 1 ? java.util.List.of("toggle", "hide", "show").stream()
+                            .filter(name -> name.startsWith(args[0].toLowerCase(java.util.Locale.ROOT))).toList() : java.util.List.of());
+        }
+
         PluginCommand storageCommand = getCommand("storage");
         if (storageCommand != null) {
             storageCommand.setExecutor((sender, command, label, args) -> {
@@ -483,6 +502,13 @@ public final class IruuRPG extends JavaPlugin {
                 new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard),
                 this
         );
+    }
+
+    private void setMenuItemHidden(Player player, boolean hidden) {
+        mainMenuItemService.setHidden(player, hidden);
+        player.sendMessage(hidden
+                ? "[メニュー] ホットバーのメニューアイテムを消しました。/menu でメニューを開けます。戻すには /menu show"
+                : "[メニュー] ホットバーのメニューアイテムを戻しました。");
     }
 
     private void loadOnlinePlayers() {

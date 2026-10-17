@@ -314,3 +314,9 @@ storage:
   free-pages: 1
   price-base: 500
   price-growth: 1.8
+
+# 斬撃・範囲攻撃などの派手な演出 (弧を刃が走るように描く)。重いときは enabled: false か samples-per-block を下げる
+slash-vfx:
+  enabled: true
+  # 弧1ブロックあたりの点の数 (大きいほど滑らかだが粒子が増える)
+  samples-per-block: 5

@@ -119,7 +119,7 @@ public final class MainMenuItemListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onInventoryDrag(InventoryDragEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
-        if (menuItemService.isMenuItem(event.getOldCursor()) || touchesMenuSlot(event)) {
+        if (menuItemService.isMenuItem(event.getOldCursor()) || (!menuItemService.isHidden(player) && touchesMenuSlot(event))) {
             event.setCancelled(true);
             scheduleEnsure(player);
         }
@@ -151,6 +151,10 @@ public final class MainMenuItemListener implements Listener {
     private boolean isProtectedMenuClick(InventoryClickEvent event) {
         if (menuItemService.isMenuItem(event.getCurrentItem()) || menuItemService.isMenuItem(event.getCursor())) {
             return true;
+        }
+        // with the hotbar item switched off the last slot is an ordinary slot
+        if (event.getWhoClicked() instanceof Player player && menuItemService.isHidden(player)) {
+            return false;
         }
         if (event.getHotbarButton() == MainMenuItemService.MENU_SLOT) {
             return true;
