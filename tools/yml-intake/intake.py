@@ -171,8 +171,18 @@ def validate(kind, entry_id, body, repo):
     return problems, warnings
 
 
+def drop_nulls(value):
+    """Keys written with no value ("description:" and nothing after it) mean 'not set': leave them out instead of writing 'null'."""
+    if isinstance(value, dict):
+        return {k: drop_nulls(v) for k, v in value.items() if v is not None}
+    if isinstance(value, list):
+        return [drop_nulls(v) for v in value]
+    return value
+
+
 def apply(repo, kind, entry_id, mode, body):
     """Writes the entry. Returns (path, existed_before)."""
+    body = drop_nulls(body)
     existing = repo.locate(kind, entry_id)
     element = body.get("element") if kind == "items" else None
     path = existing or repo.file(kind, element)
