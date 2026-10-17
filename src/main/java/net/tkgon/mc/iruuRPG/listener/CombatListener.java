@@ -325,6 +325,9 @@ public final class CombatListener implements Listener {
 
         AttackService.RangeTrace trace = attackService.traceRange(attacker);
         attackService.playRangeTrail(attacker, weapon, trace.hitLocation());
+        // the ranger's instant shot winds a double helix along its line
+        org.bukkit.Location muzzle = attacker.getEyeLocation().add(attacker.getEyeLocation().getDirection().multiply(0.8));
+        net.tkgon.mc.iruuRPG.combat.RangerVfx.spiralTrail(attacker.getWorld(), muzzle, trace.hitLocation());
 
         LivingEntity victim = trace.victim();
         if (victim == null) {

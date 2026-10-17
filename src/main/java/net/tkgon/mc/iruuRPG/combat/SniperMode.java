@@ -2,6 +2,11 @@ package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillDefinition;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
+import org.bukkit.NamespacedKey;
+import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.Color;
 import org.bukkit.Material;
 import org.bukkit.Particle;
@@ -49,9 +54,11 @@ public final class SniperMode implements Listener {
     /** The start time of the enhanced state that already had its sniper mode (one per cast). */
     private final Map<UUID, Long> usedFor = new HashMap<>();
 
+    private final NamespacedKey scopeKey;
+    private final NamespacedKey stashKey;
+
     private static final class State {
-        private ItemStack savedOffHand;
-        private float savedWalkSpeed;
+        private ItemStack savedHelmet;
         private double holdY;
         private int age;
         private int totalTicks;
@@ -63,6 +70,8 @@ public final class SniperMode implements Listener {
     }
 
     public SniperMode(JavaPlugin plugin, AttackService attackService, ClassEffectService classEffectService) {
+        this.scopeKey = new NamespacedKey(plugin, "sniper_scope");
+        this.stashKey = new NamespacedKey(plugin, "sniper_helmet");
         this.plugin = plugin;
         this.attackService = attackService;
         this.classEffectService = classEffectService;
@@ -112,14 +121,17 @@ public final class SniperMode implements Listener {
         state.totalTicks = (int) Math.round(skill.values().getOrDefault("sniper-seconds", 10.0) * 20.0);
         double rise = skill.values().getOrDefault("sniper-rise-blocks", 3.0);
         state.holdY = player.getLocation().getY() + rise;
-        state.savedOffHand = player.getInventory().getItemInOffHand().clone();
-        state.savedWalkSpeed = player.getWalkSpeed();
+        // the scope: a carved pumpkin on the head (its dark edge over the screen) and a very strong slowness, which
+        // narrows the field of view (zoom). The real helmet is kept in memory and in the player's data until it is put back.
+        ItemStack helmet = player.getInventory().getHelmet();
+        state.savedHelmet = helmet == null ? new ItemStack(Material.AIR) : helmet.clone();
+        player.getPersistentDataContainer().set(stashKey, PersistentDataType.BYTE_ARRAY, state.savedHelmet.serializeAsBytes());
         states.put(player.getUniqueId(), state);
 
         player.setFallDistance(0.0f);
         player.setGravity(false);
-        player.setWalkSpeed(0.0f);
-        player.getInventory().setItemInOffHand(new ItemStack(Material.SPYGLASS));
+        player.getInventory().setHelmet(scopeItem());
+        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, state.totalTicks + 40, 9, false, false, false));
         player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, SoundCategory.PLAYERS, 0.8f, 1.4f);
         player.sendMessage("[iruuRPG] 狙撃モード: クリックで一撃を放つ (" + (state.totalTicks / 20) + "秒)");
 
@@ -143,8 +155,10 @@ public final class SniperMode implements Listener {
                         player.setVelocity(new Vector(0.0, Math.max(-0.5, Math.min(0.5, (state.holdY - y) * 0.4)), 0.0));
                     }
                     player.setFallDistance(0.0f);
-                    if (state.age % 8 == 1 && !player.hasActiveItem()) {
-                        player.startUsingItem(EquipmentSlot.OFF_HAND);
+                    // a crosshair of light a little ahead of the eyes, for the player only
+                    if (!state.rising && state.age % 4 == 0) {
+                        org.bukkit.Location eye = player.getEyeLocation();
+                        player.spawnParticle(Particle.END_ROD, eye.clone().add(eye.getDirection().multiply(2.0)), 1, 0.0, 0.0, 0.0, 0.0);
                     }
                 } catch (RuntimeException exception) {
                     plugin.getLogger().warning("sniper mode stopped after an error: " + exception);
@@ -160,10 +174,11 @@ public final class SniperMode implements Listener {
         if (state == null) return;
         if (state.task != null) state.task.cancel();
         if (player.isOnline()) {
-            player.clearActiveItem();
+            player.removePotionEffect(PotionEffectType.SLOW);
             player.setGravity(true);
-            player.setWalkSpeed(state.savedWalkSpeed);
-            player.getInventory().setItemInOffHand(state.savedOffHand);
+            ItemStack worn = player.getInventory().getHelmet();
+            if (isScope(worn)) player.getInventory().setHelmet(state.savedHelmet.getType().isAir() ? null : state.savedHelmet);
+            player.getPersistentDataContainer().remove(stashKey);
             player.setFallDistance(0.0f);
         }
     }
@@ -181,7 +196,7 @@ public final class SniperMode implements Listener {
         RayTraceResult hit = world.rayTrace(eye, direction, state.range, org.bukkit.FluidCollisionMode.NEVER, true, 0.5,
                 entity -> attackService.isAttackTarget(entity, player));
         double length = hit == null || hit.getHitPosition() == null ? state.range : hit.getHitPosition().distance(eye.toVector());
-        drawShot(world, eye.clone().add(direction.clone().multiply(0.8)), direction, length);
+        RangerVfx.spiralBeam(plugin, world, eye.clone().add(direction.clone().multiply(0.8)), direction, length);
         world.playSound(eye, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.7f, 1.9f);
         world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 0.6f);
 
@@ -197,13 +212,19 @@ public final class SniperMode implements Listener {
         attackService.playRangeImpact(player, hit.getHitPosition().toLocation(world), state.weapon);
     }
 
-    private void drawShot(World world, org.bukkit.Location from, Vector direction, double length) {
-        int points = (int) Math.min(160, Math.ceil(length / 0.5));
-        for (int index = 0; index <= points; index++) {
-            org.bukkit.Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? SHOT : SHOT_CORE);
-            if (index % 6 == 0) world.spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
+    private ItemStack scopeItem() {
+        ItemStack item = new ItemStack(Material.CARVED_PUMPKIN);
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.getPersistentDataContainer().set(scopeKey, PersistentDataType.BYTE, (byte) 1);
+            item.setItemMeta(meta);
         }
+        return item;
+    }
+
+    private boolean isScope(ItemStack item) {
+        if (item == null || item.getType() != Material.CARVED_PUMPKIN || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(scopeKey, PersistentDataType.BYTE);
     }
 
     // ---- events -----------------------------------------------------------------------------------------------------
@@ -248,9 +269,31 @@ public final class SniperMode implements Listener {
         usedFor.remove(event.getPlayer().getUniqueId());
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.HIGH)
     public void onDeath(PlayerDeathEvent event) {
-        end(event.getEntity(), "死亡");
+        Player player = event.getEntity();
+        State state = states.get(player.getUniqueId());
+        if (state != null && !event.getKeepInventory()) {
+            // the scope must not drop, the helmet they really wore must
+            event.getDrops().removeIf(this::isScope);
+            if (!state.savedHelmet.getType().isAir()) event.getDrops().add(state.savedHelmet);
+        }
+        end(player, "死亡");
+    }
+
+    /** A helmet left in the player's data by a crash or a stop: put it back, and take the scope off. */
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        byte[] stash = player.getPersistentDataContainer().get(stashKey, PersistentDataType.BYTE_ARRAY);
+        if (stash == null || active(player)) return;
+        player.getPersistentDataContainer().remove(stashKey);
+        player.removePotionEffect(PotionEffectType.SLOW);
+        player.setGravity(true);
+        if (isScope(player.getInventory().getHelmet())) {
+            ItemStack saved = ItemStack.deserializeBytes(stash);
+            player.getInventory().setHelmet(saved.getType().isAir() ? null : saved);
+        }
     }
 
     /** On shutdown every sniper is put back down. */
