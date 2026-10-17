@@ -501,16 +501,16 @@ public final class AttackEffects {
 
     // ---- sounds of skills
 
-    public void playSkillWindupSound(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
-        sounds.skillWindup(at, styleOf(look), element);
+    public void playSkillWindupSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        sounds.skillWindup(owner, at, styleOf(look), element);
     }
 
-    public void playSkillCastSound(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
-        sounds.skillCast(at, styleOf(look), element);
+    public void playSkillCastSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        sounds.skillCast(owner, at, styleOf(look), element);
     }
 
-    public void playSkillHitSound(Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
-        sounds.skillImpact(at, styleOf(look), element);
+    public void playSkillHitSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        sounds.skillImpact(owner, at, styleOf(look), element);
     }
 
     private net.tkgon.mc.iruuRPG.skill.SoundStyle styleOf(net.tkgon.mc.iruuRPG.skill.SkillLook look) {

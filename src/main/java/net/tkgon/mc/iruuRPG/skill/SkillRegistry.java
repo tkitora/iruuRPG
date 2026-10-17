@@ -62,6 +62,9 @@ public final class SkillRegistry {
         PARTICLES.put("SMOKE_NORMAL", Particle.SMOKE_NORMAL);
     }
 
+    /** Ids of the item skills (iskill): a weapon's `skill:` with one of these keeps meaning the old skill. */
+    private static final Set<String> RESERVED_IDS = Set.of("sweep", "heal", "dash", "strike", "slash", "none");
+
     private final JavaPlugin plugin;
     private final Map<String, SkillSpec> skills = new LinkedHashMap<>();
 
@@ -117,6 +120,10 @@ public final class SkillRegistry {
                 String owner = file.getName() + ": " + id;
                 if (!ID.matcher(id).matches()) {
                     plugin.getLogger().warning("skills: " + owner + ": the id must be lower case letters, digits and _ (skipped)");
+                    continue;
+                }
+                if (RESERVED_IDS.contains(id) || SkillTemplate.parse(id) != null) {
+                    plugin.getLogger().warning("skills: " + owner + ": the id is taken by a built-in skill or a template name (skipped)");
                     continue;
                 }
                 if (skills.containsKey(id)) {
@@ -243,6 +250,18 @@ public final class SkillRegistry {
             }
         }
 
+        double cost = number(owner, flat, "cost", start.cost(), 0.0, 500.0);
+        List<String> description = start.description();
+        if (flat.get("description") != null) {
+            Object text = flat.get("description");
+            description = new ArrayList<>();
+            if (text instanceof List<?> lines) {
+                for (Object line : lines) description.add(String.valueOf(line));
+            } else {
+                description.add(String.valueOf(text));
+            }
+        }
+
         SkillTemplate template = start.template();
         if (template == SkillTemplate.WAVE && count > 5) {
             plugin.getLogger().warning("skills: " + owner + ": a wave skill can send at most 5 waves, used 5");
@@ -251,7 +270,7 @@ public final class SkillRegistry {
         return new SkillSpec(id.isEmpty() ? start.id() : id, name, template,
                 new SkillLook(colors, particle, size, width, sound),
                 radius, range, angle, orientation, windup, cooldown, count, interval, speed,
-                damageRate, statuses, heal, knockback, target);
+                damageRate, statuses, heal, knockback, target, cost, description);
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------------------

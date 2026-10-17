@@ -34,9 +34,34 @@ public final class ClassSkillRegistry {
         }
     }
 
+    private net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills;
+
+    /** Skills made from templates (skills/*.yml) can be class active skills too: they answer to find() as well. */
+    public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills) {
+        this.generalSkills = generalSkills;
+    }
+
     public Optional<ClassSkillDefinition> find(String id) {
         if (id == null || id.isBlank()) return Optional.empty();
-        return Optional.ofNullable(definitions.get(id.trim().toLowerCase()));
+        ClassSkillDefinition own = definitions.get(id.trim().toLowerCase());
+        if (own != null) return Optional.of(own);
+        return generalDefinition(id.trim().toLowerCase());
+    }
+
+    /** A skills/*.yml skill shown as a class skill: its MP, cooldown and description. */
+    private Optional<ClassSkillDefinition> generalDefinition(String id) {
+        if (generalSkills == null) return Optional.empty();
+        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.all().get(id);
+        if (spec == null) return Optional.empty();
+        List<String> description = spec.description().isEmpty()
+                ? List.of("スキル: " + spec.template().id()) : spec.description();
+        return Optional.of(new ClassSkillDefinition(spec.id(), spec.name(), spec.cost(), spec.cooldownTicks(), description, Map.of()));
+    }
+
+    /** True for a skill of skills/*.yml (not one of the built-in cskill files). */
+    public boolean isGeneral(String id) {
+        return id != null && definitions.get(id.trim().toLowerCase()) == null
+                && generalSkills != null && generalSkills.all().containsKey(id.trim().toLowerCase());
     }
 
     private void loadFile(File file) {

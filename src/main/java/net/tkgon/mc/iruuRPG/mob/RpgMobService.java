@@ -592,8 +592,8 @@ public final class RpgMobService {
         }
 
         @Override
-        public void damage(Player victim, double rate) {
-            hurt(mob, victim, rate);
+        public void damage(org.bukkit.entity.LivingEntity victim, double rate) {
+            if (victim instanceof Player player) hurt(mob, player, rate);
         }
     }
 
