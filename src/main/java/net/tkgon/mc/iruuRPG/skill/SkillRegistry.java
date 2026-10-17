@@ -217,32 +217,7 @@ public final class SkillRegistry {
         if (flat.get("name") != null) name = flat.get("name").toString();
 
         // look
-        SkillLook oldLook = start.look();
-        List<Color> colors = oldLook.colors();
-        if (flat.containsKey("colors") || flat.containsKey("color")) {
-            colors = colors(owner, flat.containsKey("colors") ? flat.get("colors") : flat.get("color"));
-        }
-        Particle particle = oldLook.particle();
-        if (flat.get("particle") != null) {
-            String particleName = flat.get("particle").toString().trim().toUpperCase(Locale.ROOT);
-            Particle found = PARTICLES.get(particleName);
-            if (found == null) {
-                plugin.getLogger().warning("skills: " + owner + ": particle '" + particleName + "' is not allowed (" + String.join(" / ", PARTICLES.keySet()) + "); the element's own is used");
-            } else {
-                particle = found;
-            }
-        }
-        double size = number(owner, flat, "size", oldLook.size(), SkillLook.MIN_SIZE, SkillLook.MAX_SIZE);
-        double width = number(owner, flat, "width", oldLook.width(), SkillLook.MIN_WIDTH, SkillLook.MAX_WIDTH);
-        SoundStyle sound = oldLook.sound();
-        if (flat.get("sound") != null) {
-            SoundStyle parsed = SoundStyle.parse(flat.get("sound").toString());
-            if (parsed == null) {
-                plugin.getLogger().warning("skills: " + owner + ": sound '" + flat.get("sound") + "' is unknown (heavy / sharp / magic / none)");
-            } else {
-                sound = parsed;
-            }
-        }
+        SkillLook look = look(owner, start.look(), flat);
 
         // shape
         double radius = number(owner, flat, "radius", start.radius(), 1.0, 20.0);
@@ -269,7 +244,7 @@ public final class SkillRegistry {
         List<SkillSpec.StatusApply> statuses = start.statuses();
         if (flat.containsKey("status")) statuses = statuses(owner, flat.get("status"));
         double heal = number(owner, flat, "heal-rate", start.healRate(), 0.0, 1.0);
-        double knockback = number(owner, flat, "knockback", start.knockback(), 0.0, 3.0);
+        SkillSpec.Knockback knockback = flat.containsKey("knockback") ? knockback(owner, flat.get("knockback")) : start.knockback();
         SkillSpec.Target target = start.target();
         if (flat.get("target") != null) {
             try {
@@ -302,7 +277,7 @@ public final class SkillRegistry {
             count = 5;
         }
         return new SkillSpec(id.isEmpty() ? start.id() : id, name, template,
-                new SkillLook(colors, particle, size, width, sound),
+                look,
                 radius, range, angle, orientation, windup, cooldown, count, interval, speed,
                 damageRate, statuses, heal, knockback, target, cost, description, start.steps(), origin);
     }
@@ -320,6 +295,7 @@ public final class SkillRegistry {
             plugin.getLogger().warning("skills: " + owner + ": a combo needs a steps list (skipped)");
             return null;
         }
+        double multiplier = number(owner, flatten(raw), "damage-multiplier", 1.0, 0.0, 20.0);
         List<SkillSpec.ComboStep> steps = new ArrayList<>();
         int number = 0;
         int ticks = 0;
@@ -336,6 +312,8 @@ public final class SkillRegistry {
                 plugin.getLogger().warning("skills: " + where + ": must be a section (skipped)");
                 continue;
             }
+            Map<String, Object> comboFlat = flatten(raw);
+            Map<String, Object> stepFlat = flatten(entry);
             SkillSpec stepSpec;
             if (entry.get("skill") != null) {
                 String ref = entry.get("skill").toString().trim();
@@ -349,11 +327,20 @@ public final class SkillRegistry {
                     plugin.getLogger().warning("skills: " + where + ": '" + ref + "' is a combo; a combo cannot contain a combo (skipped)");
                     continue;
                 }
-                stepSpec = parse(where, entry, base, ref);
+                // look: the skill's own < the combo's look < the step's look
+                stepSpec = parse(where, entry, base.withLook(look(owner, base.look(), comboFlat)), ref);
             } else {
-                stepSpec = parse(where, entry, null, "");
+                Object templateName = stepFlat.containsKey("template") ? stepFlat.get("template") : stepFlat.get("type");
+                SkillTemplate template = SkillTemplate.parse(templateName == null ? null : templateName.toString());
+                SkillSpec inline = template == null || template == SkillTemplate.COMBO ? null : SkillSpec.defaults(template);
+                stepSpec = inline == null ? parse(where, entry, null, "")
+                        : parse(where, entry, inline.withLook(look(owner, inline.look(), comboFlat)), "");
             }
             if (stepSpec == null) continue;
+            // the combo's damage-multiplier scales the step's damage-rate, unless the step sets its own damage-rate
+            if (multiplier != 1.0 && !stepFlat.containsKey("damage-rate")) {
+                stepSpec = stepSpec.withDamageRate(Math.min(20.0, stepSpec.damageRate() * multiplier));
+            }
             int delay = (int) Math.round(number(where, flatten(entry), "delay-ticks", 0, 0, 240));
             boolean with = Boolean.TRUE.equals(entry.get("with-previous")) && !steps.isEmpty();
             SkillSpec.ComboStep step = new SkillSpec.ComboStep(stepSpec, delay, with);
@@ -422,6 +409,80 @@ public final class SkillRegistry {
         double side = number(owner, map, "side", 0.0, -20.0, 20.0);
         double up = number(owner, map, "up", 0.0, -5.0, 10.0);
         return new SkillSpec.Origin(anchor, forward, side, up);
+    }
+
+    /** The look keys (colors, particle, size, width, sound) present in {@code flat} laid over {@code oldLook}. */
+    private SkillLook look(String owner, SkillLook oldLook, Map<String, Object> flat) {
+        List<Color> colors = oldLook.colors();
+        if (flat.containsKey("colors") || flat.containsKey("color")) {
+            colors = colors(owner, flat.containsKey("colors") ? flat.get("colors") : flat.get("color"));
+        }
+        Particle particle = oldLook.particle();
+        if (flat.get("particle") != null) {
+            String particleName = flat.get("particle").toString().trim().toUpperCase(Locale.ROOT);
+            Particle found = PARTICLES.get(particleName);
+            if (found == null) {
+                plugin.getLogger().warning("skills: " + owner + ": particle '" + particleName + "' is not allowed (" + String.join(" / ", PARTICLES.keySet()) + "); the element's own is used");
+            } else {
+                particle = found;
+            }
+        }
+        double size = number(owner, flat, "size", oldLook.size(), SkillLook.MIN_SIZE, SkillLook.MAX_SIZE);
+        double width = number(owner, flat, "width", oldLook.width(), SkillLook.MIN_WIDTH, SkillLook.MAX_WIDTH);
+        SoundStyle sound = oldLook.sound();
+        if (flat.get("sound") != null) {
+            SoundStyle parsed = SoundStyle.parse(flat.get("sound").toString());
+            if (parsed == null) {
+                plugin.getLogger().warning("skills: " + owner + ": sound '" + flat.get("sound") + "' is unknown (heavy / sharp / magic / none)");
+            } else {
+                sound = parsed;
+            }
+        }
+        return new SkillLook(colors, particle, size, width, sound);
+    }
+
+    /**
+     * effects.knockback: a number (push away from the origin, 0 = none) or {type: back|up|pull|vector, power, center,
+     * lift, forward, side, up}. Out of range values are fixed with a warning.
+     */
+    private SkillSpec.Knockback knockback(String owner, Object raw) {
+        if (raw instanceof Number number) {
+            double power = number.doubleValue();
+            if (power < 0.0 || power > 3.0) {
+                double fixed = Math.max(0.0, Math.min(3.0, power));
+                plugin.getLogger().warning("skills: " + owner + ": knockback " + power + " is out of range (0.0 - 3.0), used " + fixed);
+                power = fixed;
+            }
+            return power <= 0.0 ? null : new SkillSpec.Knockback(SkillSpec.KnockbackType.BACK, power, SkillSpec.KnockbackCenter.ORIGIN, 0.25, 0, 0, 0);
+        }
+        Map<String, Object> map = toMap(raw);
+        if (map == null) {
+            plugin.getLogger().warning("skills: " + owner + ": knockback must be a number or a section (type / power / center / lift ...); ignored");
+            return null;
+        }
+        SkillSpec.KnockbackType type = SkillSpec.KnockbackType.BACK;
+        if (map.get("type") != null) {
+            try {
+                type = SkillSpec.KnockbackType.valueOf(map.get("type").toString().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("skills: " + owner + ": knockback type '" + map.get("type") + "' is unknown (back / up / pull / vector)");
+            }
+        }
+        SkillSpec.KnockbackCenter center = SkillSpec.KnockbackCenter.ORIGIN;
+        if (map.get("center") != null) {
+            try {
+                center = SkillSpec.KnockbackCenter.valueOf(map.get("center").toString().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("skills: " + owner + ": knockback center '" + map.get("center") + "' is unknown (origin / caster)");
+            }
+        }
+        double power = number(owner, map, "power", 1.0, 0.0, 3.0);
+        double lift = number(owner, map, "lift", type == SkillSpec.KnockbackType.BACK ? 0.25 : 0.0, 0.0, 1.0);
+        double forward = number(owner, map, "forward", 0.0, -3.0, 3.0);
+        double side = number(owner, map, "side", 0.0, -3.0, 3.0);
+        double up = number(owner, map, "up", 0.0, -3.0, 3.0);
+        if (type != SkillSpec.KnockbackType.VECTOR && power <= 0.0) return null;
+        return new SkillSpec.Knockback(type, power, center, lift, forward, side, up);
     }
 
     private List<Color> colors(String owner, Object raw) {

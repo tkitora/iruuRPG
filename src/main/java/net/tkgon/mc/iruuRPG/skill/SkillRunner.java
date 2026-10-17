@@ -211,7 +211,7 @@ public final class SkillRunner {
                     Location center = where.get();
                     effects.playSkillStrike(center, spec.radius(), spec.look(), element);
                     effects.playSkillCastSound(caster.owner(), center, spec.look(), element);
-                    for (LivingEntity player : within(center, caster, spec, spec.radius(), 2.5)) hit(caster, spec, player);
+                    for (LivingEntity player : within(center, caster, spec, spec.radius(), 2.5)) hit(caster, spec, player, center);
                     caster.release();
                     cancel();
                     onDone.run();
@@ -245,7 +245,7 @@ public final class SkillRunner {
                     effects.playSkillCastSound(caster.owner(), origin, spec.look(), element);
                     double tall = spec.orientation() == SkillSpec.Orientation.HORIZONTAL ? 2.5 : 3.5;
                     for (LivingEntity player : within(origin, caster, spec, spec.range(), tall)) {
-                        if (inFan(origin, player, spec.angle() / 2.0)) hit(caster, spec, player);
+                        if (inFan(origin, player, spec.angle() / 2.0)) hit(caster, spec, player, origin);
                     }
                     caster.release();
                     cancel();
@@ -336,7 +336,7 @@ public final class SkillRunner {
                     effects.playSkillBolt(position, end, spec.look(), element);
                     effects.playSkillImpact(end, spec.look(), element);
                     effects.playSkillHitSound(caster.owner(), end, spec.look(), element);
-                    hit(caster, spec, hitPlayer);
+                    hit(caster, spec, hitPlayer, fixed);
                     cancel();
                     return;
                 }
@@ -394,7 +394,7 @@ public final class SkillRunner {
                     caster.lunge(direction.clone().multiply(spec.speed() / 8.0).setY(0.25));
                 }
                 for (LivingEntity player : within(caster.location(), caster, spec, 1.8, 2.5)) {
-                    if (hit.add(player.getUniqueId())) hit(caster, spec, player);
+                    if (hit.add(player.getUniqueId())) hit(caster, spec, player, null);
                 }
                 if (age >= spec.windupTicks() + 8) {
                     cancel();
@@ -456,11 +456,11 @@ public final class SkillRunner {
             double cos = Math.cos(offset);
             double sin = Math.sin(offset);
             Vector direction = new Vector(aimVector.getX() * cos - aimVector.getZ() * sin, aimVector.getY(), aimVector.getX() * sin + aimVector.getZ() * cos).normalize();
-            flyWave(caster, spec, origin.clone(), direction);
+            flyWave(caster, spec, origin.clone(), direction, fixed);
         }
     }
 
-    private void flyWave(SkillCaster caster, SkillSpec spec, Location origin, Vector direction) {
+    private void flyWave(SkillCaster caster, SkillSpec spec, Location origin, Vector direction, Location fixed) {
         Element element = caster.element();
         World world = origin.getWorld();
         new Guarded(null) {
@@ -486,7 +486,7 @@ public final class SkillRunner {
                     hit.add(player.getUniqueId());
                     effects.playSkillImpact(position, spec.look(), element);
                     effects.playSkillHitSound(caster.owner(), position, spec.look(), element);
-                    hit(caster, spec, player);
+                    hit(caster, spec, player, fixed);
                 }
                 if (travelled >= spec.range()) cancel();
             }
@@ -545,7 +545,7 @@ public final class SkillRunner {
                     if (distance > radius + 0.6 || distance < radius - step - 0.6) continue;
                     hit.add(player.getUniqueId());
                     effects.playSkillHitSound(caster.owner(), at.clone().add(0.0, 1.0, 0.0), spec.look(), element);
-                    hit(caster, spec, player);
+                    hit(caster, spec, player, center);
                 }
                 if (radius >= spec.radius()) {
                     cancel();
@@ -607,7 +607,7 @@ public final class SkillRunner {
                     for (LivingEntity player : targets(caster, spec)) {
                         BoundingBox box = player.getBoundingBox().expand(spec.radius());
                         RayTraceResult result = box.rayTrace(from.toVector(), direction, length);
-                        if (result != null) hit(caster, spec, player);
+                        if (result != null) hit(caster, spec, player, fixed);
                     }
                 }
                 effects.playSkillBeam(from, to, spec.radius(), spec.look(), element);
@@ -695,20 +695,18 @@ public final class SkillRunner {
         return result;
     }
 
-    /** One hit: on an enemy the damage and harmful effects, on an ally the heal and the helpful effects. */
-    private void hit(SkillCaster caster, SkillSpec spec, LivingEntity victim) {
+    /**
+     * One hit: on an enemy the damage, the push and the harmful effects, on an ally the heal and the helpful effects.
+     * {@code originPoint} is the skill's origin point (null: the caster's own place), the center of a push.
+     */
+    private void hit(SkillCaster caster, SkillSpec spec, LivingEntity victim, Location originPoint) {
         if (caster.isAlly(victim)) {
             helpAlly(caster, spec, victim);
             return;
         }
         caster.damage(victim, spec.damageRate());
         if (!caster.applyEffects()) return;
-        if (spec.knockback() > 0.0) {
-            Vector away = victim.getLocation().toVector().subtract(caster.location().toVector()).setY(0.0);
-            if (away.lengthSquared() > 1.0E-6) {
-                victim.setVelocity(victim.getVelocity().add(away.normalize().multiply(spec.knockback()).setY(0.25)));
-            }
-        }
+        if (spec.knockback() != null) push(caster, spec.knockback(), victim, originPoint);
         if (statusEffects == null) return;
         for (SkillSpec.StatusApply status : spec.statuses()) {
             switch (status.type()) {
@@ -722,6 +720,33 @@ public final class SkillRunner {
                 }
             }
         }
+    }
+
+    /** Pushes an enemy the way the skill says: away from / toward the center, straight up, or along the caster's facing. */
+    private void push(SkillCaster caster, SkillSpec.Knockback knockback, LivingEntity victim, Location originPoint) {
+        Location center = knockback.center() == SkillSpec.KnockbackCenter.CASTER || originPoint == null ? caster.location() : originPoint;
+        Vector push = new Vector();
+        switch (knockback.type()) {
+            case BACK -> {
+                Vector away = victim.getLocation().toVector().subtract(center.toVector()).setY(0.0);
+                if (away.lengthSquared() > 1.0E-6) push = away.normalize().multiply(knockback.power());
+                push.setY(knockback.lift());
+            }
+            case UP -> push.setY(knockback.power() * 0.6);
+            case PULL -> {
+                Vector toward = center.toVector().subtract(victim.getLocation().toVector()).setY(0.0);
+                double distance = toward.length();
+                if (distance > 0.5) push = toward.normalize().multiply(Math.min(knockback.power(), distance * 0.5));
+                push.setY(knockback.lift());
+            }
+            case VECTOR -> {
+                double yaw = Math.toRadians(caster.location().getYaw());
+                Vector forward = new Vector(-Math.sin(yaw), 0.0, Math.cos(yaw));
+                Vector right = new Vector(-Math.cos(yaw), 0.0, -Math.sin(yaw));
+                push = forward.multiply(knockback.forward()).add(right.multiply(knockback.side())).setY(knockback.up());
+            }
+        }
+        if (push.lengthSquared() > 1.0E-9) victim.setVelocity(victim.getVelocity().add(push));
     }
 
     /** An ally in the skill: healed by heal-rate of their max HP, and given the helpful statuses (not the harmful ones). */
