@@ -8,6 +8,8 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
 import org.bukkit.World;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.LivingEntity;
@@ -81,6 +83,12 @@ public final class AttackEffects {
     /** {@code yawOffset}: turns the whole cut about the vertical axis (degrees), for cuts that follow each other. */
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds, double yawOffset) {
+        cut(attacker, look, forward, drop, side, radius, sweepDegrees, tilt, roll, false, duration, scale, delaySeconds, yawOffset);
+    }
+
+    /** {@code reverseArc}: draw the arc from its other end (roll 180 asks for the same). */
+    private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
+                     double sweepDegrees, double tilt, double roll, boolean reverseArc, double duration, float scale, double delaySeconds, double yawOffset) {
         Vector f = horizontalForward(attacker);
         Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
         double offsetRadians = Math.toRadians(yawOffset);
@@ -92,8 +100,8 @@ public final class AttackEffects {
         double bandRadius = radius;
         radius *= slashSize();
         double turned = ((roll % 360.0) + 360.0) % 360.0;
-        boolean reverse = Math.abs(turned - 180.0) < 1.0;
-        if (reverse) roll = 0.0;
+        boolean reverse = reverseArc || Math.abs(turned - 180.0) < 1.0;
+        if (Math.abs(turned - 180.0) < 1.0) roll = 0.0;
 
         // the middle of the arc, to put it (not the point the line starts from) at the wanted spot
         double s = Math.toRadians(sweepDegrees);
@@ -192,15 +200,16 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat) {
-        playStyledSlash(attacker, weapon, stage, look, repeat, 0.0);
+        playStyledSlash(attacker, weapon, stage, look, repeat, false);
     }
 
     /**
-     * {@code crossSpread} (degrees, 0 = off): the cuts of a run are turned to one side and the other at random so
-     * that neighbours differ by up to this much and cross each other like an X (the assassin's multi-hit lights).
+     * {@code randomAngles}: every cut of a run is drawn at a random one of four angles, a sweep from the right, a
+     * sweep from the left, a chop down from the upper right and a chop down from the upper left (the assassin's
+     * multi-hit lights); the arcs always bulge away from the player.
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
-                                net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, double crossSpread) {
+                                net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, boolean randomAngles) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -222,13 +231,18 @@ public final class AttackEffects {
             double extraDelay = number > 0 ? FOLLOW_DELAY : 0.0;
             double yawShift = run * RUN_YAW_STEP * (run % 2 == 0 ? 1.0 : -1.0);
             double tiltShift = run * RUN_TILT_STEP;
-            if (crossSpread > 0.0) {
-                // alternate sides, each by a random part of half the spread, so neighbours are up to the spread apart
-                yawShift = (run % 2 == 0 ? 1.0 : -1.0) * random.nextDouble(crossSpread * 0.1, crossSpread * 0.5);
+            double roll = cut.roll() + jitter;
+            boolean reverse = false;
+            if (randomAngles) {
+                // 0: from the right, 0 reversed: from the left, -50: a chop from the upper right, +50 reversed: from the upper left
+                int pick = random.nextInt(4);
+                roll = new double[]{0.0, 0.0, -50.0, 50.0}[pick] + random.nextDouble(-6.0, 6.0);
+                reverse = pick == 1 || pick == 3;
+                yawShift = random.nextDouble(-8.0, 8.0);
                 tiltShift = 0.0;
             }
             cut(attacker, r, cut.forward(), cut.drop(), cut.side(), cut.radius(), cut.angle(), cut.tilt() + tiltShift,
-                    cut.roll() + jitter, cut.duration(), (float) cut.scale(), cut.delay() + extraDelay, yawShift);
+                    roll, reverse, cut.duration(), (float) cut.scale(), cut.delay() + extraDelay, yawShift);
             lastForward = cut.forward();
             number++;
         }
@@ -243,13 +257,19 @@ public final class AttackEffects {
      * left and one from the left to the right (counter-clockwise and clockwise seen from above).
      */
     public void playDualSweep(Player attacker, RpgItemDefinition weapon) {
+        playDualSweep(attacker, weapon, 0);
+    }
+
+    /** {@code repeat}: the n-th time of a run (0 = the first): turned a little further each time. */
+    public void playDualSweep(Player attacker, RpgItemDefinition weapon, int repeat) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
         Resolved look = resolve(null, element);
-        cut(attacker, look, 2.0, 0.4, 0.0, 2.9, 160.0, meleeTilt(), 0.0, 0.18, 1.2f, 0.0);
-        cut(attacker, look, 2.0, 0.5, 0.0, 2.9, 160.0, meleeTilt() + RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, -RUN_YAW_STEP);
+        double yaw = repeat * RUN_YAW_STEP * (repeat % 2 == 0 ? 1.0 : -1.0);
+        cut(attacker, look, 2.0, 0.4, 0.0, 2.9, 160.0, meleeTilt() + repeat * RUN_TILT_STEP, 0.0, 0.18, 1.2f, 0.0, yaw);
+        cut(attacker, look, 2.0, 0.5, 0.0, 2.9, 160.0, meleeTilt() + (repeat + 1) * RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, yaw - RUN_YAW_STEP);
         burst(attacker.getWorld(), attacker.getEyeLocation().add(viewDirection(attacker).multiply(2.6)).add(0.0, -0.2, 0.0), element, 12, 0.6, 0.1);
     }
 
@@ -331,13 +351,45 @@ public final class AttackEffects {
             Vector offset = new Vector(random.nextGaussian(), random.nextGaussian() * 0.6, random.nextGaussian()).multiply(range * 0.35);
             if (offset.lengthSquared() > range * range) offset.normalize().multiply(range);
             Location middle = center.clone().add(offset);
-            double half = random.nextDouble(1.0, 1.9);
+            double half = random.nextDouble(1.4, 2.6);
             for (double along = -half; along <= half; along += 0.2) {
                 Location point = middle.clone().add(direction.clone().multiply(along));
                 spawnDust(world, point, look.dust(Math.abs(along) < half * 0.5 ? look.core : look.body, 0.8));
                 if (random.nextInt(6) == 0) look.spark(world, point);
             }
         }
+    }
+
+    /** The finisher's flourish: a burst of sparks, a ring of light around the hit and a loud crack. */
+    public void playFinisherFlourish(Player attacker, RpgItemDefinition weapon) {
+        World world = attacker.getWorld();
+        Element element = weapon.element();
+        Vector view = viewDirection(attacker);
+        Location at = attacker.getEyeLocation().add(view.clone().multiply(2.2)).add(0.0, -0.4, 0.0);
+        world.playSound(at, Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 1.3f);
+        world.playSound(at, Sound.ENTITY_PLAYER_ATTACK_CRIT, SoundCategory.PLAYERS, 0.8f, 1.1f);
+        burst(world, at, element, 18, 0.9, 0.2);
+        world.spawnParticle(Particle.CRIT, at, 14, 0.8, 0.5, 0.8, 0.3);
+        world.spawnParticle(Particle.SWEEP_ATTACK, at, 2, 0.6, 0.3, 0.6, 0.0);
+    }
+
+    /**
+     * A slash all around the player: a wide ring cut (all the way around, {@code radius} blocks out) and a second
+     * one above it, with a burst of sparks. The assassin's heavy attack 1.
+     */
+    public void playSpinSlash(Player attacker, RpgItemDefinition weapon, double radius) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+
+        Element element = weapon.element();
+        sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
+        Resolved look = resolve(null, element);
+        Location middle = attacker.getLocation().add(0.0, 1.0, 0.0);
+        double yaw = attacker.getLocation().getYaw();
+        // a ring of arcs lying around the player at chest height, and one a little higher, turned the other way
+        slash(middle, look, new SlashVfx.Shape(radius / slashSize(), 360.0, 0.0, 0.0, yaw, 80.0, 0.0, vfxDensity()), 0.2, 1.2f, 0.0);
+        slash(middle.clone().add(0.0, 0.4, 0.0), look,
+                new SlashVfx.Shape(radius / slashSize() * 0.85, 360.0, 0.0, 0.0, yaw, 80.0, 0.0, vfxDensity(), true), 0.2, 1.0f, 0.05);
+        burst(attacker.getWorld(), middle, element, 20, radius * 0.4, 0.2);
     }
 
     /** A heavy attack: the wide sweep with a thick upright cut across it. */

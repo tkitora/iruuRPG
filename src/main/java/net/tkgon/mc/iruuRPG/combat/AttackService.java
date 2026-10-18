@@ -148,23 +148,29 @@ public final class AttackService {
         this.comboMoves = comboMoves;
     }
 
+    /** The damage multiplier configured for heavy attack {@code index} of the assassin plan. */
+    public double heavyMultiplier(int index) {
+        return meleeCombo.heavyMultiplier(index);
+    }
+
     /** Throws a heavy attack of the assassin plan (its movement and damage are in {@link ComboMoves}). */
     public void performHeavy(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
         if (comboMoves != null) comboMoves.perform(attacker, weapon, step);
     }
 
     /**
-     * The right click of an assassin with a melee weapon: heavy attack 0 (a step). False when the player is not an
-     * assassin (the click is not used), true when it was used, also when the heavy attack still cools down.
+     * The right click of an assassin with a melee weapon: a heavy attack (number 0 without a combo, else the number of
+     * normal attacks thrown so far). False when the player is not an assassin (the click is not used), true when it
+     * was used, also when the heavy attack still cools down.
      */
-    public boolean tryHeavyZero(Player attacker, RpgItemDefinition weapon) {
+    public boolean tryHeavy(Player attacker, RpgItemDefinition weapon) {
         if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
         if (!MeleeCombo.ASSASSIN.equals(comboPlan(attacker)) || attacker.isSneaking()) return false;
         if (!canUseItem(attacker, weapon)) {
             sendLevelRequirement(attacker, weapon);
             return true;
         }
-        MeleeCombo.Step step = meleeCombo.heavyZero(attacker);
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker);
         if (step == null) {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
@@ -670,9 +676,13 @@ public final class AttackService {
         // an assassin with a weapon in each hand: the crossing slashes of the two hands for the first two lights (the
         // third and fourth are cuts in front), two sweeps in opposite directions for the finisher
         boolean dualWield = dualWielding(attacker);
-        if (step.finisher() && step.assassin() && dualWield) {
-            attackEffects.playDualSweep(attacker, weapon);
-            return;
+        if (step.finisher() && step.assassin()) {
+            // the finisher is louder and brighter than the other cuts
+            attackEffects.playFinisherFlourish(attacker, weapon);
+            if (dualWield) {
+                attackEffects.playDualSweep(attacker, weapon, repeat);
+                return;
+            }
         }
         boolean dualLight = !step.heavy() && !step.finisher() && dualWield && !(step.assassin() && step.stage() >= 3);
         // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
@@ -688,9 +698,9 @@ public final class AttackService {
             net.tkgon.mc.iruuRPG.skill.SkillLook look = style.look() != null ? style.look()
                     : itemStyle != null && itemStyle.look() != null ? itemStyle.look()
                     : classStyle != null ? classStyle.look() : null;
-            // the assassin's multi-hit lights: the cuts cross each other (neighbours up to 40 degrees apart)
-            double cross = step.assassin() && step.extraHits() > 0 ? 40.0 : 0.0;
-            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, cross);
+            // the assassin's multi-hit lights (3 and 4): every cut at a random angle, a sweep or a chop down
+            boolean randomAngles = step.assassin() && step.extraHits() > 0 && !step.finisher();
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, randomAngles);
             return;
         }
         if (step.heavy()) {

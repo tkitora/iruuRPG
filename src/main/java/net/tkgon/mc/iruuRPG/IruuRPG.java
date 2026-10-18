@@ -105,7 +105,6 @@ public final class IruuRPG extends JavaPlugin {
     private RpgMobRegistry mobRegistry;
     private net.tkgon.mc.iruuRPG.skill.SkillRegistry skillRegistry;
     private net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner;
-    private net.tkgon.mc.iruuRPG.combat.MoveTracker moveTracker;
     private ClassSkillListener classSkillListener;
     private RpgMobService mobService;
     private AttackService attackService;
@@ -236,8 +235,7 @@ public final class IruuRPG extends JavaPlugin {
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService.setGeneralSkills(skillRegistry, skillRunner);
         this.attackService.setComboStyleParser(skillRegistry);
-        this.moveTracker = new net.tkgon.mc.iruuRPG.combat.MoveTracker();
-        this.attackService.setComboMoves(new net.tkgon.mc.iruuRPG.combat.ComboMoves(this, attackService, attackEffects, moveTracker, skillRegistry, skillRunner));
+        this.attackService.setComboMoves(new net.tkgon.mc.iruuRPG.combat.ComboMoves(this, attackService, attackEffects));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
@@ -543,7 +541,6 @@ public final class IruuRPG extends JavaPlugin {
                 new CombatListener(attackService, deployService, itemSkillService, rightClickGuard),
                 this
         );
-        getServer().getPluginManager().registerEvents(moveTracker, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerResourceListener(profileManager, playerBars),
                 this

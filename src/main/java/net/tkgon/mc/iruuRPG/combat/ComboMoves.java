@@ -1,10 +1,6 @@
 package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
-import net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster;
-import net.tkgon.mc.iruuRPG.skill.SkillRegistry;
-import net.tkgon.mc.iruuRPG.skill.SkillRunner;
-import net.tkgon.mc.iruuRPG.skill.SkillSpec;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -16,29 +12,25 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 /**
- * The assassin's five heavy attacks (see {@link MeleeCombo}): 0 a step in the walking direction (the right click),
- * 1 a thrust on the spot (the skill {@code combat.combo.assassin.thrust-skill}, so a skill can call it too), 2 two
- * sweeps forwards (40% each) and then a small hop back, 3 a leap along the view with cuts at random places all around
- * on the way, 4 many quick hits (15 of 10%, three a tick) on the enemies within 3 blocks of a point 2 blocks ahead, drawn as
- * straight lines at random angles.
+ * The assassin's five heavy attacks (see {@link MeleeCombo}): 0 a step along the view, 1 a slash all around (radius 4),
+ * 2 a hop back with two sweeps (40% each) forward at the same time, 3 a leap along the view with cuts at random
+ * places all around on the way, 4 many quick hits (20 of 7%, two a tick) on the enemies within 4 blocks of a point
+ * 2 blocks ahead, drawn as straight lines at random angles. Heavy 0 within 2 seconds of the hop of heavy 2 is heavy 3.
  */
 public final class ComboMoves {
+
+    /** Heavy 0 this soon after heavy 2's hop is heavy 3 instead of a step. */
+    private static final long HOP_CHAIN_MILLIS = 2000L;
 
     private final JavaPlugin plugin;
     private final AttackService attackService;
     private final AttackEffects effects;
-    private final MoveTracker moves;
-    private final SkillRegistry skills;
-    private final SkillRunner runner;
+    private final java.util.Map<java.util.UUID, Long> lastHop = new java.util.HashMap<>();
 
-    public ComboMoves(JavaPlugin plugin, AttackService attackService, AttackEffects effects, MoveTracker moves,
-                      SkillRegistry skills, SkillRunner runner) {
+    public ComboMoves(JavaPlugin plugin, AttackService attackService, AttackEffects effects) {
         this.plugin = plugin;
         this.attackService = attackService;
         this.effects = effects;
-        this.moves = moves;
-        this.skills = skills;
-        this.runner = runner;
     }
 
     private double number(String key, double fallback) {
@@ -48,11 +40,18 @@ public final class ComboMoves {
     /** Throws heavy attack {@code step.heavyIndex()}. */
     public void perform(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
         switch (step.heavyIndex()) {
-            case 0 -> step(player, weapon);
-            case 1 -> thrust(player, weapon, step);
-            case 2 -> sweepHop(player, weapon, step);
-            case 3 -> leapSlash(player, weapon, step);
-            default -> surround(player, weapon, step);
+            case 0 -> {
+                Long hopped = lastHop.remove(player.getUniqueId());
+                if (hopped != null && System.currentTimeMillis() - hopped <= HOP_CHAIN_MILLIS) {
+                    leapSlash(player, weapon, attackService.heavyMultiplier(3));
+                } else {
+                    step(player, weapon);
+                }
+            }
+            case 1 -> spin(player, weapon, step.damageMultiplier());
+            case 2 -> sweepHop(player, weapon, step.damageMultiplier());
+            case 3 -> leapSlash(player, weapon, step.damageMultiplier());
+            default -> surround(player, weapon, step.damageMultiplier());
         }
     }
 
@@ -65,49 +64,43 @@ public final class ComboMoves {
     // ---- 0: the step ------------------------------------------------------------------------------------------------
 
     private void step(Player player, RpgItemDefinition weapon) {
-        Vector direction = moves.direction(player);
-        if (direction == null) direction = facing(player);
+        Vector direction = facing(player);
         Location from = player.getLocation().clone();
         player.setFallDistance(0.0f);
         player.setVelocity(direction.clone().multiply(number("step-power", 1.05)).setY(0.12));
         effects.playStepTrail(player, weapon, from, direction);
     }
 
-    // ---- 1: the thrust ----------------------------------------------------------------------------------------------
+    // ---- 1: the slash all around ----------------------------------------------------------------------------------------
 
-    private void thrust(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        String id = plugin.getConfig().getString("combat.combo.assassin.thrust-skill", "assassin_thrust");
-        SkillSpec spec = skills.all().get(id);
-        if (spec == null) {
-            player.sendMessage("[iruuRPG] 強攻撃1のスキルが見つかりません: " + id);
-            return;
+    private void spin(Player player, RpgItemDefinition weapon, double multiplier) {
+        double radius = number("spin-radius", 4.0);
+        effects.playSpinSlash(player, weapon, radius);
+        for (LivingEntity target : around(player, player.getLocation(), radius)) {
+            attackService.strike(player, target, weapon, multiplier);
         }
-        if (step.damageMultiplier() > 0.0) spec = spec.withDamageRate(step.damageMultiplier());
-        SkillSpec cast = spec;
-        runner.start(new PlayerSkillCaster(plugin, attackService, player, weapon, cast), cast,
-                () -> PlayerSkillCaster.aimPoint(player, cast.range()), () -> {
-                });
     }
 
-    // ---- 2: two sweeps and the hop back -------------------------------------------------------------------------------
+    // ---- 2: the hop back and two sweeps at once --------------------------------------------------------------------------
 
-    private void sweepHop(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+    private void sweepHop(Player player, RpgItemDefinition weapon, double multiplier) {
         Vector facing = facing(player);
         long gap = (long) number("sweep-gap-ticks", 5.0);
+        // the hop and the first sweep start together
+        player.setFallDistance(0.0f);
+        player.setVelocity(facing.clone().multiply(-number("hop-back-power", 0.8)).setY(number("hop-up-power", 0.75)));
+        effects.playStepTrail(player, weapon, player.getLocation(), facing.clone().multiply(-1.0));
+        lastHop.put(player.getUniqueId(), System.currentTimeMillis());
         for (int index = 0; index < 2; index++) {
             int repeat = index;
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            Runnable sweep = () -> {
                 if (!player.isOnline() || player.isDead()) return;
                 effects.playSweepMelee(player, weapon, repeat);
-                hitFront(player, weapon, facing, step.damageMultiplier());
-            }, gap * index);
+                hitFront(player, weapon, facing, multiplier);
+            };
+            if (index == 0) sweep.run();
+            else plugin.getServer().getScheduler().runTaskLater(plugin, sweep, gap * index);
         }
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!player.isOnline() || player.isDead()) return;
-            player.setFallDistance(0.0f);
-            player.setVelocity(facing.clone().multiply(-number("hop-back-power", 0.55)).setY(number("hop-up-power", 0.5)));
-            effects.playStepTrail(player, weapon, player.getLocation(), facing.clone().multiply(-1.0));
-        }, gap + 2L);
     }
 
     /** Every enemy in front (within the sweep's radius and half angle) takes {@code multiplier} of the weapon's damage. */
@@ -123,7 +116,7 @@ public final class ComboMoves {
 
     // ---- 3: the leap with cuts all around ---------------------------------------------------------------------------
 
-    private void leapSlash(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+    private void leapSlash(Player player, RpgItemDefinition weapon, double multiplier) {
         Vector view = player.getLocation().getDirection();
         Vector velocity = view.clone().multiply(number("leap-power", 0.95));
         velocity.setY(Math.max(number("leap-up-power", 0.45), view.getY() + 0.3));
@@ -146,7 +139,7 @@ public final class ComboMoves {
                     Location center = player.getLocation().add(0.0, 1.0, 0.0);
                     effects.playRandomSlashes(player, weapon, center, range, 2);
                     for (LivingEntity target : around(player, player.getLocation(), range)) {
-                        attackService.strike(player, target, weapon, step.damageMultiplier());
+                        attackService.strike(player, target, weapon, multiplier);
                     }
                 }
                 age++;
@@ -154,13 +147,13 @@ public final class ComboMoves {
         }.runTaskTimer(plugin, 1L, 1L);
     }
 
-    // ---- 4: many fast cuts in front -----------------------------------------------------------------------------------
+    // ---- 4: many fast hits in front -----------------------------------------------------------------------------------
 
-    private void surround(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+    private void surround(Player player, RpgItemDefinition weapon, double multiplier) {
         Vector facing = facing(player);
-        int hits = (int) Math.max(1, Math.round(number("surround-hits", 15.0)));
-        int perTick = (int) Math.max(1, Math.round(number("surround-hits-per-tick", 3.0)));
-        double range = number("surround-radius", 3.0);
+        int hits = (int) Math.max(1, Math.round(number("surround-hits", 20.0)));
+        int perTick = (int) Math.max(1, Math.round(number("surround-hits-per-tick", 2.0)));
+        double range = number("surround-radius", 4.0);
         double ahead = number("surround-forward", 2.0);
         int ticks = (hits + perTick - 1) / perTick;
         for (int tick = 0; tick < ticks; tick++) {
@@ -172,7 +165,7 @@ public final class ComboMoves {
                 effects.playRandomLines(player, weapon, center, range, count);
                 for (LivingEntity target : around(player, center, range)) {
                     for (int hit = 0; hit < count; hit++) {
-                        attackService.strike(player, target, weapon, step.damageMultiplier());
+                        attackService.strike(player, target, weapon, multiplier);
                     }
                 }
             }, tick);

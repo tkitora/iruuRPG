@@ -189,8 +189,8 @@ public final class CombatListener implements Listener {
     /** Uses the right-click of the weapon in hand (manual skill, or ranged / deploy attack). False when it has none. */
     private boolean useWeaponRightClick(Player player, RpgItemDefinition weapon) {
         if (itemSkillService.handleManualUse(player, weapon)) return true;
-        // an assassin's right click with a melee weapon is heavy attack 0 (a step)
-        if (attackService.tryHeavyZero(player, weapon)) return true;
+        // an assassin's right click with a melee weapon is a heavy attack (the number of normal attacks thrown so far)
+        if (attackService.tryHeavy(player, weapon)) return true;
         if (!isRangedRightClickWeapon(weapon)) return false;
 
         handleRpgRightClick(player, weapon);
