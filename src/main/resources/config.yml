@@ -44,31 +44,31 @@ combat:
     finisher-damage-multiplier: 2.0
     finisher-recovery-ticks: 8
     # アサシンのコンボ (見た目は classes/assassin.yml の combo-style)。弱5回 (5回目が最終段) と、強攻撃0〜4。
-    # 通常3は40%のダメージで3回、通常4は25%のダメージで5回当たる (斬撃もその回数だけ、少しずつ角度をずらして出る)。
-    # 強攻撃Nは、弱をN回出した後のShift+左クリック (弱0回のShift+左クリックは、ふつうの弱)。強攻撃0は右クリック (武器に移動スキルが付いていないとき)。強攻撃を出すと弱のコンボは最初から。
-    # 強攻撃は、それぞれ専用のクールタイムを持つ。リストは0, 1, 2, 3, 4の順。
+    # 通常3は40%のダメージで3回、通常4は30%で4回、通常5 (最終段) は60%で3回当たる (斬撃もその回数だけ出る)。
+    # 強攻撃Nは、弱をN回出した後の右クリック (弱0回なら強攻撃0)。強攻撃を出すと弱のコンボは最初から。Shift+左クリックは、ふつうの弱。
+    # 強攻撃2のジャンプのあと2秒以内の強攻撃0は、ステップではなく強攻撃3になる。
+    # 強攻撃ごとのクールタイム (tick) は、いまは0 (なし)。リストは0, 1, 2, 3, 4の順。
     assassin:
-      heavy-cooldown-ticks: [40, 60, 80, 100, 120]
-      heavy-damage-multiplier: [0.0, 2.2, 0.4, 0.7, 0.1]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと (15回 = 合計1.5倍)
-      multi-hit-rate: [0.4, 0.25]                 # 通常3 / 通常4: 1回ごとのダメージの倍率
-      multi-hit-counts: [3, 5]                    # 通常3 / 通常4: 当たる回数
-      multi-hit-gap-ticks: 4                      # 通常3 / 通常4: 次の1回 (斬撃の演出も) までのtick数
-      finisher-damage-multiplier: 1.5             # 通常5 (フィニッシュ)
-      finisher-area-scale: 1.5                    # フィニッシュの周りへの範囲の広がり (1.5倍)
-      step-power: 1.05                            # 強攻撃0: ステップの強さ
-      thrust-skill: assassin_thrust               # 強攻撃1: 呼ぶスキルの id (skills/*.yml。同じ id を書くと上書きできる)
-      sweep-radius: 3.6                           # 強攻撃2: 前方の薙ぎの半径 / 開き (半角) / 2つ目までのtick数 / 後ろに跳ぶ強さ
+      heavy-cooldown-ticks: [0, 0, 0, 0, 0]
+      heavy-damage-multiplier: [0.0, 1.5, 0.4, 0.6, 0.07]   # 1は周囲の斬撃、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと (20回)
+      multi-hit-rate: [0.4, 0.3, 0.6]             # 通常3 / 通常4 / 通常5: 1回ごとのダメージの倍率
+      multi-hit-counts: [3, 4, 3]                 # 通常3 / 通常4 / 通常5: 当たる回数
+      multi-hit-gap-ticks: 4                      # 次の1回 (斬撃の演出も) までのtick数
+      finisher-area-scale: 1.5                    # 通常5 (フィニッシュ) の周りへの範囲の広がり (1.5倍)
+      step-power: 1.05                            # 強攻撃0: 視点方向へのステップの強さ
+      spin-radius: 4.0                            # 強攻撃1: 周囲の斬撃の半径
+      sweep-radius: 3.6                           # 強攻撃2: 前方の薙ぎの半径 / 開き (半角) / 2つ目までのtick数 / 後ろに跳ぶ強さ / 上に跳ぶ強さ (跳ぶのと1つ目の薙ぎは同時)
       sweep-half-angle: 70
       sweep-gap-ticks: 5
-      hop-back-power: 0.55
-      hop-up-power: 0.5
+      hop-back-power: 0.8
+      hop-up-power: 0.75
       leap-power: 0.95                            # 強攻撃3: 視点方向へ跳ぶ強さ / 上への強さ / 周りの斬撃の範囲 / 最長のtick数
       leap-up-power: 0.45
       leap-radius: 3.0
       leap-ticks: 16
-      surround-hits: 15                           # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
-      surround-hits-per-tick: 3
-      surround-radius: 3.0
+      surround-hits: 20                           # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
+      surround-hits-per-tick: 2
+      surround-radius: 4.0
       surround-forward: 2.0
   # 武器スキルの発動: 近接はShift+右クリック、移動スキル (dash / teleport) は右クリックだけで出る。遠距離はShift+右クリック
   skill-trigger:

@@ -2,9 +2,7 @@
 # (このファイルは jar に入っていて、サーバーには出さない)。
 
 skills:
-  # アサシンの強攻撃1 (その場で突き)。コンボの強攻撃1から呼ばれる (combat.combo.assassin.thrust-skill)。
-  # ダメージ倍率は、コンボから呼ばれたときは combat.combo.assassin.heavy-damage-multiplier の2番目の値になる。
-  # 武器のスキルや他のスキル (コンボの段) からも、この id で呼べる。
+  # その場で突き。武器のスキルや他のスキル (コンボの段) から、この id で呼べる (以前はアサシンの強攻撃1だったが、今の強攻撃1は周囲の斬撃)。
   assassin_thrust:
     name: "突き"
     template: beam
