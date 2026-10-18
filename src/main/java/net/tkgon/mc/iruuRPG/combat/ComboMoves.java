@@ -15,12 +15,12 @@ import org.bukkit.util.Vector;
  * The assassin's five heavy attacks (see {@link MeleeCombo}): 0 a step along the view, 1 a slash all around (radius 4),
  * 2 a hop back with two sweeps (40% each) forward at the same time, 3 a leap along the view with cuts at random
  * places all around on the way, 4 many quick hits (20 of 7%, two a tick) on the enemies within 4 blocks of a point
- * 2 blocks ahead, drawn as straight lines at random angles. Heavy 0 within 2 seconds of the hop of heavy 2 is heavy 3.
+ * 2 blocks ahead, drawn as straight lines at random angles. Heavy 0 within 2.5 seconds of the hop of heavy 2 is heavy 3.
  */
 public final class ComboMoves {
 
-    /** Heavy 0 this soon after heavy 2's hop is heavy 3 instead of a step. */
-    private static final long HOP_CHAIN_MILLIS = 2000L;
+    /** Heavy 0 this soon (2.5 seconds) after heavy 2's hop is heavy 3 instead of a step. */
+    private static final long HOP_CHAIN_MILLIS = 2500L;
 
     private final JavaPlugin plugin;
     private final AttackService attackService;
@@ -37,7 +37,7 @@ public final class ComboMoves {
         return plugin.getConfig().getDouble("combat.combo.assassin." + key, fallback);
     }
 
-    /** True within 2 seconds of heavy 2's hop: a heavy 0 then is heavy 3. */
+    /** True within 2.5 seconds of heavy 2's hop: a heavy 0 then is heavy 3. */
     public boolean hopChainActive(Player player) {
         Long hopped = lastHop.get(player.getUniqueId());
         return hopped != null && System.currentTimeMillis() - hopped <= HOP_CHAIN_MILLIS;
@@ -80,7 +80,7 @@ public final class ComboMoves {
     // ---- 1: the slash all around ----------------------------------------------------------------------------------------
 
     private void spin(Player player, RpgItemDefinition weapon, double multiplier) {
-        double radius = number("spin-radius", 4.0);
+        double radius = number("spin-radius", 2.0);
         effects.playSpinSlash(player, weapon, radius);
         AttackService.MeleeHand hand = attackService.nextSlashHand(player, weapon);
         for (LivingEntity target : around(player, player.getLocation(), radius)) {
