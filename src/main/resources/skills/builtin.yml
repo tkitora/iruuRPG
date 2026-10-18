@@ -19,3 +19,23 @@ skills:
       windup-ticks: 4
     effects:
       damage-rate: 2.2
+
+  # メイジの強攻撃2の氷の波動 (コンボから2つ続けて出る。ダメージ倍率は combat.combo.mage.heavy-damage-multiplier の3番目に置き換わる)。
+  mage_ice_wave:
+    name: "氷の波動"
+    template: wave
+    look:
+      colors: ["#8fdcff", "#d8f6ff", "#ffffff"]
+      particle: SNOWFLAKE
+      size: 1.0
+      width: 1.0
+      sound: magic
+    shape:
+      range: 14
+      radius: 1.6
+      angle: 110
+    timing:
+      windup-ticks: 4
+      speed: 18
+    effects:
+      damage-rate: 0.4

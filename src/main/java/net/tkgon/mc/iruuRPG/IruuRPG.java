@@ -235,6 +235,7 @@ public final class IruuRPG extends JavaPlugin {
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService.setGeneralSkills(skillRegistry, skillRunner);
         this.attackService.setComboStyleParser(skillRegistry);
+        this.attackService.setMageMoves(new net.tkgon.mc.iruuRPG.combat.MageMoves(this, attackService, attackEffects, skillRegistry, skillRunner));
         this.attackService.setComboMoves(new net.tkgon.mc.iruuRPG.combat.ComboMoves(this, attackService, attackEffects));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);

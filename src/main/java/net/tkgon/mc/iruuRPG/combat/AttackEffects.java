@@ -362,6 +362,33 @@ public final class AttackEffects {
         }
     }
 
+    /**
+     * {@code count} blades of wind: straight pale-green lines at random angles through random spots within
+     * {@code range} blocks of {@code center}, long (the mage's tornado).
+     */
+    public void playWindBlades(Player attacker, Location center, double range, int count) {
+        World world = center.getWorld();
+        if (world == null) return;
+        world.playSound(center, Sound.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4f, 1.8f);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(190, 255, 215), 0.9f);
+        Particle.DustOptions pale = new Particle.DustOptions(Color.fromRGB(245, 255, 250), 0.8f);
+        for (int index = 0; index < count; index++) {
+            Vector direction = new Vector(random.nextGaussian(), random.nextGaussian() * 0.5, random.nextGaussian());
+            if (direction.lengthSquared() < 1.0E-6) direction = new Vector(1.0, 0.0, 0.0);
+            direction.normalize();
+            Vector offset = new Vector(random.nextGaussian(), random.nextGaussian() * 0.6, random.nextGaussian()).multiply(range * 0.35);
+            if (offset.lengthSquared() > range * range) offset.normalize().multiply(range);
+            Location middle = center.clone().add(offset);
+            double half = random.nextDouble(1.8, 3.2);
+            for (double along = -half; along <= half; along += 0.25) {
+                Location point = middle.clone().add(direction.clone().multiply(along));
+                world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, Math.abs(along) < half * 0.5 ? pale : dust);
+                if (random.nextInt(7) == 0) world.spawnParticle(Particle.CLOUD, point, 1, 0.05, 0.05, 0.05, 0.0);
+            }
+        }
+    }
+
     /** The finisher's flourish: a burst of sparks, a ring of light around the hit and a loud crack. */
     public void playFinisherFlourish(Player attacker, RpgItemDefinition weapon) {
         World world = attacker.getWorld();

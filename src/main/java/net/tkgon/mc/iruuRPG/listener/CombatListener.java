@@ -68,6 +68,8 @@ public final class CombatListener implements Listener {
         }
         if (!(event.getAttacked() instanceof LivingEntity victim)) return;
 
+        // a mage's left click with a ranged weapon is a heavy attack
+        if (attackService.tryMageHeavy(attacker, weapon)) return;
         handleCustomMelee(attacker, victim, weapon);
     }
 
@@ -141,6 +143,7 @@ public final class CombatListener implements Listener {
             attackService.sendLevelRequirement(attacker, weapon);
             return;
         }
+        if (attackService.tryMageHeavy(attacker, weapon)) return;
         handleCustomMelee(attacker, victim, weapon);
     }
 
@@ -211,6 +214,12 @@ public final class CombatListener implements Listener {
         Player attacker = event.getPlayer();
         RpgItemDefinition weapon = attackService.weaponInMainHand(attacker);
         if (weapon == null || !weapon.isWeaponLike()) return;
+        if (weapon.attackType() == AttackType.RANGE && attackService.isMage(attacker)) {
+            // a mage's left click with a ranged weapon is a heavy attack
+            event.setCancelled(true);
+            attackService.tryMageHeavy(attacker, weapon);
+            return;
+        }
         if (weapon.attackType() != AttackType.MELEE) return;
 
         event.setCancelled(true);
@@ -335,6 +344,8 @@ public final class CombatListener implements Listener {
         if (!attackService.tryStart(attacker, AttackType.RANGE)) {
             return;
         }
+        // the mage's normal attack is a step of its combo
+        if (attackService.mageNormal(attacker, weapon)) return;
 
         if (!attackService.rangedIsInstant(attacker)) {
             // the shot flies at balance.projectile-speed and hits when it arrives

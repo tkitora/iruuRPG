@@ -36,9 +36,11 @@ import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.text.NumberFormat;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
 import java.util.UUID;
@@ -144,6 +146,57 @@ public final class AttackService {
     }
 
     private ComboMoves comboMoves;
+    private MageMoves mageMoves;
+    private final Map<UUID, Integer> lastMageHeavyTick = new HashMap<>();
+
+    public void setMageMoves(MageMoves mageMoves) {
+        this.mageMoves = mageMoves;
+    }
+
+    public boolean isMage(Player attacker) {
+        return hasClassId(attacker, "mage");
+    }
+
+    /** Which attack type's gauge shows the step of the combo: the ranged one for the mage, else the melee one. */
+    public AttackType comboGaugeType(Player attacker) {
+        return isMage(attacker) ? AttackType.RANGE : AttackType.MELEE;
+    }
+
+    /**
+     * The normal attack (a right click) of a mage with a ranged weapon: the next step of the mage's combo. True when
+     * it was handled (the cooldown of the normal attack was already spent).
+     */
+    public boolean mageNormal(Player attacker, RpgItemDefinition weapon) {
+        if (mageMoves == null || !isMage(attacker) || weapon.attackType() != AttackType.RANGE) return false;
+        if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return false;
+        MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
+        mageMoves.normal(attacker, weapon, step);
+        return true;
+    }
+
+    /**
+     * The left click of a mage with a ranged weapon: a heavy attack (number 0 without a combo, else the number of
+     * normal attacks thrown so far). True when the click was used (also while the heavy attack cools down).
+     */
+    public boolean tryMageHeavy(Player attacker, RpgItemDefinition weapon) {
+        if (mageMoves == null || weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.RANGE) return false;
+        if (!isMage(attacker) || !plugin.getConfig().getBoolean("combat.combo.enabled", true)) return false;
+        // one click arrives through several events in the same tick
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer last = lastMageHeavyTick.put(attacker.getUniqueId(), tick);
+        if (last != null && last == tick) return true;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return true;
+        }
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, mageMoves.chainActive(attacker), MeleeCombo.MAGE);
+        if (step == null) {
+            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            return true;
+        }
+        mageMoves.heavy(attacker, weapon, step);
+        return true;
+    }
 
     public void setComboMoves(ComboMoves comboMoves) {
         this.comboMoves = comboMoves;
@@ -189,6 +242,17 @@ public final class AttackService {
         MeleeHand hand = nextMeleeHand(attacker, mainWeapon);
         if (hand.offHand()) attacker.swingOffHand(); else attacker.swingMainHand();
         return hand;
+    }
+
+    /** One ranged hit of {@code rate} times the weapon's damage on {@code target} (the mage's bursts and heavy attacks). */
+    public boolean strikeRanged(Player attacker, LivingEntity target, RpgItemDefinition weapon, double rate) {
+        if (rate <= 0.0 || target.isDead() || !target.isValid()) return false;
+        AttackDamage attack = calculateDamage(attacker, target, weapon);
+        double damage = round(attack.result().damage() * rate);
+        boolean critical = attack.result().critical();
+        if (!applyRangeDamage(attacker, target, damage, weapon, critical)) return false;
+        sendDamageDebug(attacker, AttackType.RANGE, target, damage, critical, false);
+        return true;
     }
 
     /** One hit of {@code multiplier} times the damage of {@code hand}'s weapon on {@code target}. */
@@ -475,12 +539,21 @@ public final class AttackService {
      * enemy (or block) on the way; the damage is the one of an ordinary ranged hit at the moment it arrives.
      */
     public void fireRangedProjectile(Player attacker, RpgItemDefinition weapon) {
-        double perTick = projectileSpeed(attacker) / 20.0;
-        double maxDistance = rangeDistance(attacker);
-        double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6);
         Location eye = attacker.getEyeLocation();
         Vector direction = eye.getDirection().normalize();
         Location start = eye.clone().add(direction.clone().multiply(plugin.getConfig().getDouble("combat.effects.range-trail.start-offset", 0.65)));
+        fireRangedProjectile(attacker, weapon, start, direction, 1.0, 1.0, null);
+    }
+
+    /**
+     * A ranged shot from {@code start} along {@code direction}: it hits for {@code rate} times the usual damage,
+     * flies {@code speedScale} times as fast, and is drawn by {@code segment} (null: the usual bolt of the weapon's element).
+     */
+    public void fireRangedProjectile(Player attacker, RpgItemDefinition weapon, Location start, Vector direction, double rate,
+                                     double speedScale, java.util.function.BiConsumer<Location, Location> segment) {
+        double perTick = projectileSpeed(attacker) * Math.max(0.1, speedScale) / 20.0;
+        double maxDistance = rangeDistance(attacker);
+        double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6);
         attackEffects.playRangeLaunch(attacker, weapon, start);
         org.bukkit.World world = attacker.getWorld();
 
@@ -504,11 +577,12 @@ public final class AttackService {
                 Location next = result != null && result.getHitPosition() != null
                         ? result.getHitPosition().toLocation(world)
                         : position.clone().add(direction.clone().multiply(step));
-                attackEffects.playBoltSegment(position, next, weapon.element());
+                if (segment != null) segment.accept(position, next);
+                else attackEffects.playBoltSegment(position, next, weapon.element());
                 if (result != null) {
                     cancel();
                     if (result.getHitEntity() instanceof LivingEntity victim) {
-                        hitWithShot(attacker, weapon, victim, next);
+                        hitWithShot(attacker, weapon, victim, next, rate);
                     } else {
                         attackEffects.playRangeImpact(attacker, next, weapon);
                         sendMissDebug(attacker, AttackType.RANGE);
@@ -527,10 +601,15 @@ public final class AttackService {
 
     /** The hit of a ranged shot that reached an enemy (also the one of an instant shot). */
     public void hitWithShot(Player attacker, RpgItemDefinition weapon, LivingEntity victim, Location hitLocation) {
+        hitWithShot(attacker, weapon, victim, hitLocation, 1.0);
+    }
+
+    /** {@code rate}: the shot hits for this much of the usual ranged damage (the mage's scatter shots). */
+    public void hitWithShot(Player attacker, RpgItemDefinition weapon, LivingEntity victim, Location hitLocation, double rate) {
         if (victim.isDead() || !victim.isValid()) return;
         AttackDamage attack = calculateDamage(attacker, victim, weapon);
         double scale = tripleScale(attacker);
-        double damage = round(attack.result().damage() * scale);
+        double damage = round(attack.result().damage() * scale * rate);
         if (!applyRangeDamage(attacker, victim, damage, weapon, attack.result().critical())) {
             return;
         }
