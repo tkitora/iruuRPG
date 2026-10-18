@@ -212,19 +212,22 @@ public final class CombatListener implements Listener {
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
 
         Player attacker = event.getPlayer();
-        // the answer to an arm swing the plugin played itself is not a click
-        if (net.tkgon.mc.iruuRPG.combat.SwingGuard.isEcho(attacker)) return;
         RpgItemDefinition weapon = attackService.weaponInMainHand(attacker);
         if (weapon == null || !weapon.isWeaponLike()) return;
         if (weapon.attackType() == AttackType.RANGE && attackService.isMage(attacker)) {
             // a mage's left click with a ranged weapon is a heavy attack
             event.setCancelled(true);
-            attackService.tryMageHeavy(attacker, weapon);
+            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryMageHeavy(attacker, weapon));
             return;
         }
         if (weapon.attackType() != AttackType.MELEE) return;
 
         event.setCancelled(true);
+        // only a real press of the left button counts (not the answer to an arm swing of the plugin, nor a held right button)
+        net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> meleeClick(attacker, weapon));
+    }
+
+    private void meleeClick(Player attacker, RpgItemDefinition weapon) {
         if (!attackService.canUseItem(attacker, weapon)) {
             attackService.sendLevelRequirement(attacker, weapon);
             return;
@@ -260,6 +263,8 @@ public final class CombatListener implements Listener {
             attackService.sendLevelRequirement(attacker, weapon);
             return;
         }
+        // (a heavy attack's recovery also holds off an attack on an enemy)
+        if (!net.tkgon.mc.iruuRPG.combat.ClickSignals.leftPossible(attacker)) return;
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);

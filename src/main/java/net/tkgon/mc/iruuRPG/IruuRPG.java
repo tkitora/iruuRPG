@@ -527,6 +527,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(partyMenu, this);
         getServer().getPluginManager().registerEvents(soundSettings, this);
         getServer().getPluginManager().registerEvents(particleSettings, this);
+        getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.ClickSignals(this), this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);

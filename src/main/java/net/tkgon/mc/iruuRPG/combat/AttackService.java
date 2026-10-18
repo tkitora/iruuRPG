@@ -156,7 +156,10 @@ public final class AttackService {
      */
     public void swingOffHand(Player player) {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline() && !player.isDead()) SwingGuard.swingOff(player);
+            if (player.isOnline() && !player.isDead()) {
+                ClickSignals.offSwingSent(player);
+                player.swingOffHand();
+            }
         }, 3L);
     }
     private MageMoves mageMoves;
@@ -247,6 +250,8 @@ public final class AttackService {
             return true;
         }
         performHeavy(attacker, weapon, step);
+        // a moment of recovery: no normal attack starts right after a heavy one
+        ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
         return true;
     }
 
