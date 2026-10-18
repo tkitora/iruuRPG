@@ -95,7 +95,7 @@ public final class PlayerSkillCaster implements SkillCaster {
 
     @Override
     public void swing() {
-        player.swingMainHand();
+        net.tkgon.mc.iruuRPG.combat.SwingGuard.swingMain(player);
     }
 
     @Override

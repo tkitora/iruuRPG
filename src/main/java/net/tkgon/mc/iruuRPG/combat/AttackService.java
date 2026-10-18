@@ -156,7 +156,7 @@ public final class AttackService {
      */
     public void swingOffHand(Player player) {
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (player.isOnline() && !player.isDead()) player.swingOffHand();
+            if (player.isOnline() && !player.isDead()) SwingGuard.swingOff(player);
         }, 3L);
     }
     private MageMoves mageMoves;
@@ -257,7 +257,8 @@ public final class AttackService {
      */
     public MeleeHand nextSlashHand(Player attacker, RpgItemDefinition mainWeapon) {
         MeleeHand hand = nextMeleeHand(attacker, mainWeapon);
-        if (hand.offHand()) swingOffHand(attacker); else attacker.swingMainHand();
+        // (the main arm swings by itself for the click; only the off hand is played by the plugin)
+        if (hand.offHand()) swingOffHand(attacker);
         return hand;
     }
 

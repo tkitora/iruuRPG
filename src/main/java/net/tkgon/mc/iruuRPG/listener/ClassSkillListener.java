@@ -64,6 +64,8 @@ public final class ClassSkillListener implements Listener {
 
         ClassHotKey hotKey = hotKey(event);
         if (hotKey == null) return;
+        // the answer to an arm swing the plugin played itself is not a click
+        if ((hotKey == ClassHotKey.L || hotKey == ClassHotKey.SL) && net.tkgon.mc.iruuRPG.combat.SwingGuard.isEcho(event.getPlayer())) return;
         boolean rightClick = hotKey == ClassHotKey.R || hotKey == ClassHotKey.SR;
         if (rightClick && rightClickGuard.classRecent(event.getPlayer())) {
             // the same click already fired the skill through the entity-interact event

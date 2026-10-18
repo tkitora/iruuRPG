@@ -51,6 +51,7 @@ public final class MainMenuItemListener implements Listener {
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK
                 && action != Action.LEFT_CLICK_AIR && action != Action.LEFT_CLICK_BLOCK) return;
         if (!menuItemService.isMenuItem(event.getItem())) return;
+        if ((action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) && net.tkgon.mc.iruuRPG.combat.SwingGuard.isEcho(event.getPlayer())) return;
         // the off hand fires the event again for a right click: only the main hand opens it
         if (event.getHand() != null && event.getHand() != org.bukkit.inventory.EquipmentSlot.HAND) return;
 
