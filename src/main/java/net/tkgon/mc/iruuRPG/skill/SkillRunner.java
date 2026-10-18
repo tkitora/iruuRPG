@@ -270,7 +270,7 @@ public final class SkillRunner {
                 if (age >= spec.windupTicks()) {
                     Location origin = fixed == null ? caster.location() : fixed.clone();
                     origin.setYaw(caster.location().getYaw());
-                    effects.playSkillCrescent(origin, origin.getYaw(), spec.range(), spec.angle(), spec.orientation(), spec.look(), element, caster.owner());
+                    effects.playSkillCrescent(origin, origin.getYaw(), spec.range(), spec.angle(), spec.orientation(), spec.look(), element);
                     effects.playSkillCastSound(caster.owner(), origin, spec.look(), element);
                     double tall = spec.orientation() == SkillSpec.Orientation.HORIZONTAL ? 2.5 : 3.5;
                     for (LivingEntity player : within(origin, caster, spec, spec.range(), tall)) {
