@@ -70,12 +70,16 @@ public final class AttackEffects {
      * Draws one arc of a melee cut. Only the way the player faces counts (up and down are ignored): the arc is
      * a sweep across the facing direction, turned about the horizontal axis to the right by {@code tilt}; its middle
      * is {@code forward} blocks ahead, {@code drop} below the eyes and {@code side} to the right. {@code roll}: 0
-     * sweeps from the right to the left, 180 from the left to the right.
+     * sweeps from the right to the left, 180 from the left to the right; either way the arc bulges away from the
+     * player (toward what is hit), the 180 one is drawn from the other end.
      */
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds) {
         Vector f = horizontalForward(attacker);
         Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
+        double turned = ((roll % 360.0) + 360.0) % 360.0;
+        boolean reverse = Math.abs(turned - 180.0) < 1.0;
+        if (reverse) roll = 0.0;
 
         // the middle of the arc, to put it (not the point the line starts from) at the wanted spot
         double s = Math.toRadians(sweepDegrees);
@@ -102,7 +106,7 @@ public final class AttackEffects {
                 .add(f.clone().multiply(forward)).add(right.clone().multiply(side)).add(0.0, -drop, 0.0)
                 .subtract(middle);
         slash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw(),
-                tilt, roll, vfxDensity()), duration, scale, delaySeconds);
+                tilt, roll, vfxDensity(), reverse), duration, scale, delaySeconds);
     }
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
@@ -1099,7 +1103,7 @@ public final class AttackEffects {
         int density = shape.samplesPerBlock();
         while (density > 2 && (arcLength * density + 1) * 9 / ticks > 300) density--;
         SlashVfx.Shape safe = density == shape.samplesPerBlock() ? shape
-                : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density);
+                : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density, shape.reverse());
 
         SlashVfx.Layer core = layer(Particle.REDSTONE, look.core, 0.6f * size, 1, 0.0, 1);
         SlashVfx.Layer[] layers = full

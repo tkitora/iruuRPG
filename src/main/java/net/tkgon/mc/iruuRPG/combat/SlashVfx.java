@@ -73,12 +73,18 @@ public final class SlashVfx {
             double yaw,
             double pitch,
             double roll,
-            int samplesPerBlock
+            int samplesPerBlock,
+            boolean reverse
     ) {
         public Shape {
             if (radius <= 0 || sweepDegrees <= 0 || sweepDegrees > 360 || samplesPerBlock < 1) {
                 throw new IllegalArgumentException("bad shape");
             }
+        }
+
+        public Shape(double radius, double sweepDegrees, double height, double depth, double yaw, double pitch, double roll,
+                     int samplesPerBlock) {
+            this(radius, sweepDegrees, height, depth, yaw, pitch, roll, samplesPerBlock, false);
         }
     }
 
@@ -198,6 +204,8 @@ public final class SlashVfx {
         }
 
         private Vec3 calculatePoint(double u, Layer layer, double thicknessOffset) {
+            // a reversed arc is drawn from its other end, with the same bulge
+            if (shape.reverse()) u = 1.0 - u;
             double sweep = Math.toRadians(shape.sweepDegrees());
             double theta = (u - 0.5) * sweep;
 
