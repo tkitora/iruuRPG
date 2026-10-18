@@ -130,6 +130,22 @@ public final class RpgItemRegistry {
                 section.getBoolean("sound", base.sound()));
     }
 
+    /** stacks.gain-on: a list (or one word) of cast / hit / damaged / kill; unknown words are ignored with a warning. */
+    private java.util.Set<String> stackTriggers(String id, org.bukkit.configuration.ConfigurationSection section) {
+        java.util.List<String> raw = section.isList("gain-on") ? section.getStringList("gain-on")
+                : section.isString("gain-on") ? java.util.List.of(section.getString("gain-on")) : java.util.List.of();
+        java.util.Set<String> result = new java.util.LinkedHashSet<>();
+        for (String word : raw) {
+            String trigger = word == null ? "" : word.trim().toLowerCase(Locale.ROOT);
+            if (WeaponStackSpec.TRIGGERS.contains(trigger)) {
+                result.add(trigger);
+            } else {
+                plugin.getLogger().warning("items: " + id + ": stacks.gain-on '" + word + "' is unknown (use cast / hit / damaged / kill)");
+            }
+        }
+        return result;
+    }
+
     private String stackText(String where, String raw, String fallback, int limit, boolean variables) {
         if (raw == null) return fallback;
         String text = raw.replace("&", "").replace("§", "");
@@ -200,7 +216,7 @@ public final class RpgItemRegistry {
         if (stackSection != null) {
             stacks = new WeaponStackSpec(stackSection.getString("name", "スタック"), stackSection.getInt("gain", 1),
                     stackSection.getInt("max", 5), stackSection.getString("on-max", ""), stackSection.getDouble("decay-seconds", 0.0),
-                    stackDisplay(id, stackSection.getConfigurationSection("display")));
+                    stackDisplay(id, stackSection.getConfigurationSection("display")), stackTriggers(id, stackSection));
             if (skillId.isEmpty()) {
                 plugin.getLogger().warning("items: " + id + ": stacks need a skill of skills/*.yml in `skill:` (the stacks are ignored)");
                 stacks = null;

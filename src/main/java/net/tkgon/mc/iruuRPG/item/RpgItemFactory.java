@@ -233,9 +233,9 @@ public final class RpgItemFactory {
         WeaponStackSpec stacks = definition.stacks();
         if (stacks != null) {
             net.tkgon.mc.iruuRPG.skill.SkillSpec burst = generalSkills.forItem("item " + definition.id(), stacks.onMax(), java.util.Map.of());
-            lore.add(skillLine(stacks.name(), "スキルを使うたびに" + stacks.gain() + "たまり、" + stacks.max() + "で「"
+            lore.add(skillLine(stacks.name(), stacks.gainOnText() + "たびに" + stacks.gain() + "たまり、" + stacks.max() + "で「"
                     + (burst == null ? stacks.onMax() : burst.name()) + "」が発動する"));
-            if (stacks.decaySeconds() > 0.0) lore.add(skillText("使わないと" + format(stacks.decaySeconds()) + "秒で消える"));
+            if (stacks.decaySeconds() > 0.0) lore.add(skillText("たまらないまま" + format(stacks.decaySeconds()) + "秒で消える"));
         }
     }
 
