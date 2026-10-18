@@ -236,7 +236,7 @@ public final class CombatListener implements Listener {
             return;
         }
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
-        if (hand.offHand()) attacker.swingOffHand();
+        if (hand.offHand()) attackService.swingOffHand(attacker);
         attackService.playMeleeSlash(attacker, hand.weapon(), step);
         // a swing that hits nothing directly still splashes the enemies around the spot in front of the player
         // (never for the arm swing of a direct hit: that already did its own area damage)
@@ -276,7 +276,7 @@ public final class CombatListener implements Listener {
             return;
         }
 
-        if (hand.offHand()) attacker.swingOffHand();
+        if (hand.offHand()) attackService.swingOffHand(attacker);
         attackService.playMeleeImpact(attacker, victim);
         attackService.playMeleeSlash(attacker, used, step);
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);

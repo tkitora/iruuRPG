@@ -146,6 +146,19 @@ public final class AttackService {
     }
 
     private ComboMoves comboMoves;
+    private final Map<UUID, Integer> lastHeavyClickTick = new HashMap<>();
+    /** The client repeats a held right click every 4 ticks. */
+    private static final int HELD_CLICK_TICKS = 5;
+
+    /**
+     * Swings the off-hand arm. The client is already swinging its main arm for the click and ignores a swing until that
+     * one is half over, so the off-hand swing is sent a few ticks after the click.
+     */
+    public void swingOffHand(Player player) {
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline() && !player.isDead()) player.swingOffHand();
+        }, 3L);
+    }
     private MageMoves mageMoves;
     private final Map<UUID, Integer> lastMageHeavyTick = new HashMap<>();
 
@@ -220,6 +233,10 @@ public final class AttackService {
     public boolean tryHeavy(Player attacker, RpgItemDefinition weapon) {
         if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
         if (!MeleeCombo.ASSASSIN.equals(comboPlan(attacker)) || attacker.isSneaking()) return false;
+        // holding the right button sends the click again every 4 ticks: a held button is one click, not a stream of heavy attacks
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer lastClick = lastHeavyClickTick.put(attacker.getUniqueId(), tick);
+        if (lastClick != null && tick - lastClick <= HELD_CLICK_TICKS) return true;
         if (!canUseItem(attacker, weapon)) {
             sendLevelRequirement(attacker, weapon);
             return true;
@@ -240,7 +257,7 @@ public final class AttackService {
      */
     public MeleeHand nextSlashHand(Player attacker, RpgItemDefinition mainWeapon) {
         MeleeHand hand = nextMeleeHand(attacker, mainWeapon);
-        if (hand.offHand()) attacker.swingOffHand(); else attacker.swingMainHand();
+        if (hand.offHand()) swingOffHand(attacker); else attacker.swingMainHand();
         return hand;
     }
 

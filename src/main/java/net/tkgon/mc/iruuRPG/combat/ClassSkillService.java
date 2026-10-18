@@ -450,7 +450,7 @@ public final class ClassSkillService {
         double damage = attack.result().damage();
         boolean critical = attack.result().critical();
         AttackType type = weapon.attackType();
-        if (hand.offHand()) player.swingOffHand();
+        if (hand.offHand()) attackService.swingOffHand(player);
         if (hand.doubleStrike()) attackService.doubleStrikeHit(player, target, hand);
         boolean applied;
         if (type == AttackType.RANGE) {
