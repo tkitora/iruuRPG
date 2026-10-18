@@ -15,9 +15,10 @@ import java.util.List;
 public record ComboStyle(SkillLook look, List<Stage> light, Stage finisher, Stage heavy) {
 
     /**
-     * One cut of an attack. {@code tilt} turns the arc's plane from standing across the view (0) to flat (90);
-     * {@code roll} turns it around the view axis. {@code forward} / {@code drop} / {@code side} place the middle of the
-     * arc from the eye (ahead, below, to the right); a tilted arc keeps its lower edge, so the top goes deeper.
+     * One cut of an attack: a sweep across the way the player faces (looking up or down changes nothing).
+     * {@code tilt} turns the sweep about the horizontal axis to the player's right: 0 stands it up across the facing
+     * direction, 90 lays it flat. {@code roll} 0 sweeps from the right to the left, 180 from the left to the right.
+     * {@code forward} / {@code drop} / {@code side} place the middle of the arc from the eyes (ahead, below, to the right).
      */
     public record Cut(double radius, double angle, double tilt, double roll, double rollJitter, double forward,
                       double drop, double duration, double scale, double delay, double side) {

@@ -54,66 +54,56 @@ public final class AttackEffects {
         Element element = weapon.element();
         // a crescent in front of the player leaning away from them, cut from the upper left to the lower right and
         // from the upper right to the lower left on alternate swings
-        cut(attacker, resolve(null, element), 1.8, 0.1, 0.0, 1.7, 120.0, FACE_TILT, flip ? -130.0 : -50.0, 0.14, 1.0f, 0.0);
+        cut(attacker, resolve(null, element), 2.0, 0.4, 0.0, 1.7, 120.0, meleeTilt(), flip ? 180.0 : 0.0, 0.14, 1.0f, 0.0);
     }
 
     /**
-     * How far (degrees) the arcs lean from standing straight across the view. Flat arcs (a plane that contains the
-     * view direction) are seen edge on from the player's eyes and look like a curtain, so cuts stand across the view.
-     * Roll: -50 cuts from the upper right to the lower left, -130 from the upper left to the lower right, 0 sweeps
-     * from the right to the left, 180 from the left to the right.
+     * The tilt (degrees) of a melee cut when nothing else is said: the arc is a sweep lying across the facing
+     * direction, turned about the horizontal axis to the player's right (0 = standing up across the way they face,
+     * 90 = lying flat). Where the player looks up or down does not matter. {@code combat.effects.melee-slash.tilt}.
      */
-    static final double FACE_TILT = 40.0;
+    private double meleeTilt() {
+        return plugin.getConfig().getDouble("combat.effects.melee-slash.tilt", 45.0);
+    }
 
     /**
-     * Draws one arc of a melee cut in the player's view frame: its middle (not the end of the line it is drawn from)
-     * is {@code forward} blocks ahead of the eyes, {@code drop} below and {@code side} to the right of the view
-     * axis, and it leans away from the player ({@code tilt}) with its lower edge staying where it was, so the top
-     * is what goes deeper. {@code roll} sets the direction of the cut (see {@link #FACE_TILT}).
+     * Draws one arc of a melee cut. Only the way the player faces counts (up and down are ignored): the arc is
+     * a sweep across the facing direction, turned about the horizontal axis to the right by {@code tilt}; its middle
+     * is {@code forward} blocks ahead, {@code drop} below the eyes and {@code side} to the right. {@code roll}: 0
+     * sweeps from the right to the left, 180 from the left to the right.
      */
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds) {
-        Vector f = viewDirection(attacker);
-        Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
-        if (right.lengthSquared() < 1.0E-6) {
-            double yaw = Math.toRadians(attacker.getLocation().getYaw());
-            right = new Vector(-Math.cos(yaw), 0.0, -Math.sin(yaw));
-        }
-        right.normalize();
-        Vector up = right.clone().crossProduct(f).normalize();
+        Vector f = horizontalForward(attacker);
+        Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
 
-        // the arc in the view plane (X to the right, Y up) after the roll: its middle and its lowest point
+        // the middle of the arc, to put it (not the point the line starts from) at the wanted spot
         double s = Math.toRadians(sweepDegrees);
         double cr = Math.cos(Math.toRadians(roll));
         double sr = Math.sin(Math.toRadians(roll));
         double sumX = 0.0;
         double sumY = 0.0;
-        double lowest = Double.MAX_VALUE;
         int samples = 17;
         for (int index = 0; index < samples; index++) {
             double theta = (index / (double) (samples - 1) - 0.5) * s;
             double xl = radius * Math.sin(theta);
             double yl = radius * (Math.cos(theta) - Math.cos(s / 2.0));
-            double x = -(xl * cr - yl * sr);
-            double y = xl * sr + yl * cr;
-            sumX += x;
-            sumY += y;
-            lowest = Math.min(lowest, y);
+            sumX += xl * cr - yl * sr;
+            sumY += xl * sr + yl * cr;
         }
         double middleX = sumX / samples;
         double middleY = sumY / samples;
         double t = Math.toRadians(tilt);
-        // the origin that puts the middle at the wanted spot when the arc is upright, then moved so that tilting the
-        // arc about its lower edge keeps that edge in place
-        double ox = side - middleX;
-        double oy = -drop - middleY + lowest * (1.0 - Math.cos(t));
-        double oz = forward - lowest * Math.sin(t);
+        // local x is the player's left, local y turns to (up * cos + forward * sin) with the tilt
+        Vector middle = right.clone().multiply(-middleX)
+                .add(new Vector(0.0, middleY * Math.cos(t), 0.0))
+                .add(f.clone().multiply(middleY * Math.sin(t)));
         Location origin = attacker.getEyeLocation()
-                .add(right.clone().multiply(ox)).add(up.clone().multiply(oy)).add(f.clone().multiply(oz));
+                .add(f.clone().multiply(forward)).add(right.clone().multiply(side)).add(0.0, -drop, 0.0)
+                .subtract(middle);
         slash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw(),
-                attacker.getLocation().getPitch() + tilt, roll, vfxDensity()), duration, scale, delaySeconds);
+                tilt, roll, vfxDensity()), duration, scale, delaySeconds);
     }
-
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
     private final Map<UUID, long[]> comboChain = new ConcurrentHashMap<>();
@@ -149,21 +139,20 @@ public final class AttackEffects {
         Element element = weapon.element();
         Resolved look = resolve(null, element);
         Vector view = viewDirection(attacker);
-        double jitter = ThreadLocalRandom.current().nextDouble(-8.0, 8.0);
         Location feet = attacker.getLocation().add(0.0, 1.0, 0.0);
         switch (stage) {
             case 1 -> {
                 sounds.swing(attacker, feet, element);
-                cut(attacker, look, 1.7, 0.1, 0.0, 1.7, 130.0, FACE_TILT, -130.0 + jitter, 0.12, 1.0f, 0.0);
+                cut(attacker, look, 2.0, 0.4, 0.0, 1.7, 130.0, meleeTilt(), 180.0, 0.12, 1.0f, 0.0);
             }
             case 2 -> {
                 sounds.swing(attacker, feet, element);
-                cut(attacker, look, 1.7, 0.1, 0.0, 1.7, 130.0, FACE_TILT, -50.0 + jitter, 0.12, 1.0f, 0.0);
+                cut(attacker, look, 2.0, 0.4, 0.0, 1.7, 130.0, meleeTilt(), 0.0, 0.12, 1.0f, 0.0);
             }
             default -> {
                 sounds.sweepMelee(attacker, feet, element);
-                cut(attacker, look, 1.8, 0.2, 0.0, 2.4, 170.0, FACE_TILT, 0.0, 0.16, 1.2f, 0.0);
-                cut(attacker, look, 1.9, 0.0, 0.0, 2.0, 110.0, FACE_TILT, 90.0 + jitter, 0.1, 1.1f, 0.08);
+                cut(attacker, look, 2.0, 0.4, 0.0, 2.4, 170.0, meleeTilt(), 0.0, 0.16, 1.2f, 0.0);
+                cut(attacker, look, 2.0, 0.5, 0.0, 2.0, 130.0, meleeTilt(), 180.0, 0.12, 1.1f, 0.08);
                 burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(2.5)).add(0.0, -0.2, 0.0), element, 12, 0.5, 0.1);
             }
         }
@@ -210,8 +199,8 @@ public final class AttackEffects {
         Element element = weapon.element();
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
         Resolved look = resolve(null, element);
-        cut(attacker, look, 1.8, 0.2, 0.0, 2.9, 160.0, FACE_TILT, 0.0, 0.18, 1.2f, 0.0);
-        cut(attacker, look, 1.8, 0.3, 0.0, 2.9, 160.0, FACE_TILT, 180.0, 0.18, 1.2f, 0.05);
+        cut(attacker, look, 2.0, 0.4, 0.0, 2.9, 160.0, meleeTilt(), 0.0, 0.18, 1.2f, 0.0);
+        cut(attacker, look, 2.0, 0.5, 0.0, 2.9, 160.0, meleeTilt(), 180.0, 0.18, 1.2f, 0.05);
         burst(attacker.getWorld(), attacker.getEyeLocation().add(viewDirection(attacker).multiply(2.6)).add(0.0, -0.2, 0.0), element, 12, 0.6, 0.1);
     }
 
@@ -253,7 +242,7 @@ public final class AttackEffects {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         playSweepMelee(attacker, weapon);
-        cut(attacker, resolve(null, weapon.element()), 1.9, 0.0, 0.0, 2.2, 120.0, FACE_TILT, 90.0, 0.12, 1.1f, 0.08);
+        cut(attacker, resolve(null, weapon.element()), 2.0, 0.5, 0.0, 2.6, 150.0, meleeTilt(), 180.0, 0.14, 1.1f, 0.1);
     }
 
     /** The crossing slashes of the assassin's two hands (also drawn for every swing while a weapon is held in each hand). */
@@ -269,8 +258,8 @@ public final class AttackEffects {
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
 
         // a wide crescent swept across the view from the right side to the left, then a smaller one right behind it
-        cut(attacker, look, 1.8, 0.2, 0.0, 2.8, 150.0, FACE_TILT, 0.0, 0.22, 1.15f, 0.0);
-        cut(attacker, look, 1.8, -0.15, 0.0, 2.0, 130.0, FACE_TILT, 0.0, 0.18, 0.9f, 0.06);
+        cut(attacker, look, 2.0, 0.4, 0.0, 2.8, 150.0, meleeTilt(), 0.0, 0.22, 1.15f, 0.0);
+        cut(attacker, look, 2.0, 0.3, 0.0, 2.0, 130.0, meleeTilt(), 0.0, 0.18, 0.9f, 0.06);
 
         burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(2.6)).add(0.0, -0.2, 0.0), element, 10, 0.5, 0.05);
     }

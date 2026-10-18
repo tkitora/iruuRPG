@@ -104,6 +104,7 @@ combat:
     particle-size: 0.85
     melee-slash:
       enabled: true
+      tilt: 45                  # 斬撃の傾き。向いている方向に水平な薙ぎを、横軸まわりに何度傾けるか (0 = 立てる、90 = 寝かせる)。視線の上下は無視する
       particles: 14
       radius: 1.35
       height: 1.15
