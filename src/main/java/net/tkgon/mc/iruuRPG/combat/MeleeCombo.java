@@ -118,7 +118,7 @@ public final class MeleeCombo {
 
     /** The damage multiplier configured for heavy attack {@code index} of the assassin plan. */
     public double heavyMultiplier(int index) {
-        return listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 1.5, 0.4, 0.6, 0.07}[Math.max(0, Math.min(4, index))], 0, 20);
+        return listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 0.3, 0.4, 0.6, 0.07}[Math.max(0, Math.min(4, index))], 0, 20);
     }
 
     private long window() {
