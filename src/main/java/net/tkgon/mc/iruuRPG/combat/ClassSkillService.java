@@ -363,7 +363,16 @@ public final class ClassSkillService {
         normalAttack(player, target, weapon);
 
         boolean upgraded = classService.hasSkill(profileManager.getOrCreate(player), SATSUJIN_UPGRADE);
-        if (!upgraded) return;
+        if (!upgraded) {
+            new SafeTask(plugin) {
+                @Override
+                protected void tick() {
+                    cancel();
+                    kickAway(player, target, skill);
+                }
+            }.runTaskLater(plugin, 4L);
+            return;
+        }
 
         int repeats = (int) Math.round(skill.values().getOrDefault("upgrade-repeats", 9.0));
         long interval = Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-interval-ticks", 3.0)));
@@ -374,12 +383,55 @@ public final class ClassSkillService {
             protected void tick() {
                 if (done >= repeats || !player.isOnline() || target.isDead() || !target.isValid()) {
                     cancel();
+                    kickAway(player, target, skill);
                     return;
                 }
                 normalAttack(player, target, weapon);
                 done++;
             }
         }.runTaskTimer(plugin, interval, interval);
+    }
+
+    /**
+     * The finish of the satsujin: the assassin kicks the enemy (if it is still alive) away along the line between
+     * them, and springs off it backwards and up, away from the enemy. The pushes are the `kick-*` values of the skill.
+     */
+    private void kickAway(Player player, LivingEntity target, ClassSkillDefinition skill) {
+        if (!player.isOnline() || player.isDead() || target.isDead() || !target.isValid()) return;
+        if (!player.getWorld().equals(target.getWorld())) return;
+
+        Vector forward = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
+        if (forward.lengthSquared() < 1.0E-6) forward = player.getLocation().getDirection().setY(0.0);
+        if (forward.lengthSquared() < 1.0E-6) forward = new Vector(0.0, 0.0, 1.0);
+        forward.normalize();
+
+        double enemyPower = skill.values().getOrDefault("kick-enemy-power", 1.2);
+        double enemyLift = skill.values().getOrDefault("kick-enemy-lift", 0.35);
+        double selfPower = skill.values().getOrDefault("kick-self-power", 1.0);
+        double selfLift = skill.values().getOrDefault("kick-self-lift", 0.6);
+        if (enemyPower > 0.0 || enemyLift > 0.0) {
+            target.setVelocity(forward.clone().multiply(enemyPower).setY(enemyLift));
+        }
+        if (selfPower > 0.0 || selfLift > 0.0) {
+            player.setFallDistance(0.0f);
+            player.setVelocity(forward.clone().multiply(-selfPower).setY(selfLift));
+        }
+
+        player.swingMainHand();
+        World world = target.getWorld();
+        Location hit = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
+        world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 1.0f, 0.9f);
+        world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.8f, 1.3f);
+        world.spawnParticle(Particle.SWEEP_ATTACK, hit.clone().subtract(forward.clone().multiply(0.4)), 2, 0.3, 0.2, 0.3, 0.0);
+        world.spawnParticle(Particle.CRIT, hit, 18, 0.35, 0.3, 0.35, 0.35);
+        world.spawnParticle(Particle.REDSTONE, hit, 10, 0.3, 0.3, 0.3, 0.0, SATSUJIN_TRAIL, true);
+        // a streak of dust from the enemy back toward where the assassin is flung
+        Location cursor = hit.clone();
+        Vector back = forward.clone().multiply(-0.35).setY(0.2);
+        for (int index = 0; index < 6; index++) {
+            cursor.add(back);
+            world.spawnParticle(Particle.REDSTONE, cursor, 1, 0.05, 0.05, 0.05, 0.0, SATSUJIN_TRAIL, true);
+        }
     }
 
     /** One normal attack with the held weapon, without spending the attack cooldown. */
