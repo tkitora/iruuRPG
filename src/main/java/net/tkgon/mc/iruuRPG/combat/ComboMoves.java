@@ -16,9 +16,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 /**
- * The assassin's four heavy attacks (see {@link MeleeCombo}): 0 a step in the walking direction (the right click),
- * 1 a thrust on the spot (the skill {@code combat.combo.assassin.thrust-skill}, so a skill can call it too), 2 a sweep
- * forwards and then a small hop back, 3 a dash forwards with cuts all around on the way.
+ * The assassin's five heavy attacks (see {@link MeleeCombo}): 0 a step in the walking direction (the right click),
+ * 1 a thrust on the spot (the skill {@code combat.combo.assassin.thrust-skill}, so a skill can call it too), 2 two
+ * sweeps forwards (40% each) and then a small hop back, 3 a leap along the view with cuts at random places all around
+ * on the way, 4 several cuts around the player (5 hits of 25%), a little in front of them.
  */
 public final class ComboMoves {
 
@@ -49,7 +50,8 @@ public final class ComboMoves {
             case 0 -> step(player, weapon);
             case 1 -> thrust(player, weapon, step);
             case 2 -> sweepHop(player, weapon, step);
-            default -> whirlDash(player, weapon, step);
+            case 3 -> leapSlash(player, weapon, step);
+            default -> surround(player, weapon, step);
         }
     }
 
@@ -86,57 +88,89 @@ public final class ComboMoves {
                 });
     }
 
-    // ---- 2: the sweep and the hop back ------------------------------------------------------------------------------
+    // ---- 2: two sweeps and the hop back -------------------------------------------------------------------------------
 
     private void sweepHop(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
         Vector facing = facing(player);
-        effects.playSweepMelee(player, weapon);
-        double radius = number("sweep-radius", 3.6);
-        double halfAngle = number("sweep-half-angle", 70.0);
-        for (LivingEntity target : around(player, player.getLocation(), radius)) {
-            Vector to = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
-            if (to.lengthSquared() > 1.0 && Math.toDegrees(facing.angle(to)) > halfAngle) continue;
-            attackService.strike(player, target, weapon, step.damageMultiplier());
+        long gap = (long) number("sweep-gap-ticks", 5.0);
+        for (int index = 0; index < 2; index++) {
+            int repeat = index;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline() || player.isDead()) return;
+                effects.playSweepMelee(player, weapon, repeat);
+                hitFront(player, weapon, facing, step.damageMultiplier());
+            }, gap * index);
         }
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || player.isDead()) return;
             player.setFallDistance(0.0f);
             player.setVelocity(facing.clone().multiply(-number("hop-back-power", 0.55)).setY(number("hop-up-power", 0.5)));
             effects.playStepTrail(player, weapon, player.getLocation(), facing.clone().multiply(-1.0));
-        }, 4L);
+        }, gap + 2L);
     }
 
-    // ---- 3: the dash with cuts all around -----------------------------------------------------------------------------
+    /** Every enemy in front (within the sweep's radius and half angle) takes {@code multiplier} of the weapon's damage. */
+    private void hitFront(Player player, RpgItemDefinition weapon, Vector facing, double multiplier) {
+        double radius = number("sweep-radius", 3.6);
+        double halfAngle = number("sweep-half-angle", 70.0);
+        for (LivingEntity target : around(player, player.getLocation(), radius)) {
+            Vector to = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
+            if (to.lengthSquared() > 1.0 && Math.toDegrees(facing.angle(to)) > halfAngle) continue;
+            attackService.strike(player, target, weapon, multiplier);
+        }
+    }
 
-    private void whirlDash(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        Vector direction = facing(player);
-        int ticks = (int) Math.max(4, Math.round(number("whirl-ticks", 10.0)));
-        double power = number("whirl-power", 0.85);
-        double radius = number("whirl-radius", 2.8);
-        World world = player.getWorld();
-        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.8f, 1.3f);
+    // ---- 3: the leap with cuts all around ---------------------------------------------------------------------------
+
+    private void leapSlash(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        Vector view = player.getLocation().getDirection();
+        Vector velocity = view.clone().multiply(number("leap-power", 0.95));
+        velocity.setY(Math.max(number("leap-up-power", 0.45), view.getY() + 0.3));
+        double range = number("leap-radius", 3.0);
+        int maxTicks = (int) Math.max(6, Math.round(number("leap-ticks", 16.0)));
+        player.setFallDistance(0.0f);
+        player.setVelocity(velocity);
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.8f, 1.2f);
         new SafeTask(plugin) {
             private int age;
 
             @Override
             protected void tick() {
-                if (!player.isOnline() || player.isDead() || age >= ticks) {
+                if (!player.isOnline() || player.isDead() || age >= maxTicks || (age > 4 && player.isOnGround())) {
                     cancel();
                     return;
                 }
-                Vector velocity = direction.clone().multiply(power);
-                velocity.setY(Math.max(-0.4, Math.min(0.15, player.getVelocity().getY())));
-                player.setVelocity(velocity);
                 player.setFallDistance(0.0f);
                 if (age % 2 == 0) {
-                    effects.playSpinPulse(player, weapon, radius, age);
-                    for (LivingEntity target : around(player, player.getLocation(), radius)) {
+                    Location center = player.getLocation().add(0.0, 1.0, 0.0);
+                    effects.playRandomSlashes(player, weapon, center, range, 2);
+                    for (LivingEntity target : around(player, player.getLocation(), range)) {
                         attackService.strike(player, target, weapon, step.damageMultiplier());
                     }
                 }
                 age++;
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+        }.runTaskTimer(plugin, 1L, 1L);
+    }
+
+    // ---- 4: cuts all around, a little in front ---------------------------------------------------------------------------
+
+    private void surround(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        Vector facing = facing(player);
+        int hits = (int) Math.max(2, Math.round(number("surround-hits", 5.0)));
+        long gap = (long) Math.max(1, Math.round(number("surround-gap-ticks", 4.0)));
+        double range = number("surround-radius", 3.0);
+        for (int index = 0; index < hits; index++) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline() || player.isDead()) return;
+                // the middle is a little in front of the player
+                Location center = player.getLocation().add(facing.clone().multiply(number("surround-forward", 0.8))).add(0.0, 1.0, 0.0);
+                effects.playRandomSlashes(player, weapon, center, range, 3);
+                for (LivingEntity target : around(player, center, range)) {
+                    attackService.strike(player, target, weapon, step.damageMultiplier());
+                }
+            }, gap * index);
+        }
     }
 
     /** The enemies within {@code radius} (horizontally; a little more than a body's height up and down) of {@code center}. */

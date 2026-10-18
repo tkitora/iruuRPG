@@ -232,7 +232,10 @@ public final class CombatListener implements Listener {
         // a swing that hits nothing directly still splashes the enemies around the spot in front of the player
         // (never for the arm swing of a direct hit: that already did its own area damage)
         Integer direct = lastDirectMelee.get(attacker.getUniqueId());
-        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier(), step.areaScale());
+        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) {
+            attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier(), step.areaScale());
+            if (step.extraHits() > 0) attackService.scheduleRepeats(attacker, null, hand.weapon(), step);
+        }
     }
 
     /** The tick of each player's last direct melee hit: the arm swing that follows it is not a whiff. */
@@ -269,7 +272,7 @@ public final class CombatListener implements Listener {
         attackService.playMeleeSlash(attacker, used, step);
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);
         attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used, step.areaScale());
-        if (step.extraHits() > 0) attackService.scheduleExtraHits(attacker, victim, used, step.damageMultiplier(), step.extraHits(), 3L);
+        if (step.extraHits() > 0) attackService.scheduleRepeats(attacker, victim, used, step);
         lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
         attackService.normalAttackHit(attacker);
         if (hand.doubleStrike()) attackService.doubleStrikeHit(attacker, victim, hand);

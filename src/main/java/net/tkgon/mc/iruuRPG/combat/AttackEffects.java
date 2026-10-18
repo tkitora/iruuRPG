@@ -75,8 +75,20 @@ public final class AttackEffects {
      */
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds) {
+        cut(attacker, look, forward, drop, side, radius, sweepDegrees, tilt, roll, duration, scale, delaySeconds, 0.0);
+    }
+
+    /** {@code yawOffset}: turns the whole cut about the vertical axis (degrees), for cuts that follow each other. */
+    private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
+                     double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds, double yawOffset) {
         Vector f = horizontalForward(attacker);
         Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
+        double offsetRadians = Math.toRadians(yawOffset);
+        if (yawOffset != 0.0) {
+            // the whole cut swings about the player, so a later cut of a run stands a little to the side of the one before
+            f = rotateAroundY(f, offsetRadians);
+            right = rotateAroundY(right, offsetRadians);
+        }
         double turned = ((roll % 360.0) + 360.0) % 360.0;
         boolean reverse = Math.abs(turned - 180.0) < 1.0;
         if (reverse) roll = 0.0;
@@ -105,7 +117,7 @@ public final class AttackEffects {
         Location origin = attacker.getEyeLocation()
                 .add(f.clone().multiply(forward)).add(right.clone().multiply(side)).add(0.0, -drop, 0.0)
                 .subtract(middle);
-        slash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw(),
+        slash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw() + yawOffset,
                 tilt, roll, vfxDensity(), reverse), duration, scale, delaySeconds);
     }
 
@@ -168,6 +180,16 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look) {
+        playStyledSlash(attacker, weapon, stage, look, 0);
+    }
+
+    /**
+     * {@code repeat}: this is the n-th repeat (0 = the first) of a hit that is drawn again and again; each repeat is
+     * turned a little further, so the run of cuts fans out. Inside one stage the same holds for the cuts after the
+     * first: they come {@link #FOLLOW_DELAY} later and are each turned a little more than the one before.
+     */
+    public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
+                                net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -181,11 +203,18 @@ public final class AttackEffects {
         Vector view = viewDirection(attacker);
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double lastForward = 1.5;
+        int number = 0;
         for (ComboStyle.Cut cut : stage.cuts()) {
             double jitter = cut.rollJitter() <= 0.0 ? 0.0 : random.nextDouble(-cut.rollJitter(), cut.rollJitter());
-            cut(attacker, r, cut.forward(), cut.drop(), cut.side(), cut.radius(), cut.angle(), cut.tilt(), cut.roll() + jitter,
-                    cut.duration(), (float) cut.scale(), cut.delay());
+            int run = repeat + number;
+            // later cuts of a run: a little later, and each turned a bit more (alternating sides)
+            double extraDelay = number > 0 ? FOLLOW_DELAY : 0.0;
+            double yawShift = run * RUN_YAW_STEP * (run % 2 == 0 ? 1.0 : -1.0);
+            double tiltShift = run * RUN_TILT_STEP;
+            cut(attacker, r, cut.forward(), cut.drop(), cut.side(), cut.radius(), cut.angle(), cut.tilt() + tiltShift,
+                    cut.roll() + jitter, cut.duration(), (float) cut.scale(), cut.delay() + extraDelay, yawShift);
             lastForward = cut.forward();
+            number++;
         }
         if (stage.burst() > 0) {
             burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(lastForward + 0.8)).add(0.0, -0.2, 0.0),
@@ -204,7 +233,7 @@ public final class AttackEffects {
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
         Resolved look = resolve(null, element);
         cut(attacker, look, 2.0, 0.4, 0.0, 2.9, 160.0, meleeTilt(), 0.0, 0.18, 1.2f, 0.0);
-        cut(attacker, look, 2.0, 0.5, 0.0, 2.9, 160.0, meleeTilt(), 180.0, 0.18, 1.2f, 0.05);
+        cut(attacker, look, 2.0, 0.5, 0.0, 2.9, 160.0, meleeTilt() + RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, -RUN_YAW_STEP);
         burst(attacker.getWorld(), attacker.getEyeLocation().add(viewDirection(attacker).multiply(2.6)).add(0.0, -0.2, 0.0), element, 12, 0.6, 0.1);
     }
 
@@ -241,6 +270,33 @@ public final class AttackEffects {
         burst(world, center, element, 4, 0.5, 0.05);
     }
 
+    /** Extra delay (seconds, 2 ticks) of the second and later cuts of a run of cuts. */
+    static final double FOLLOW_DELAY = 0.1;
+    /** How much (degrees) each cut of a run is turned about the vertical axis / tilted more than the one before. */
+    static final double RUN_YAW_STEP = 9.0;
+    static final double RUN_TILT_STEP = 6.0;
+
+    /**
+     * {@code count} cuts of the normal slash at random places and angles within {@code range} blocks of
+     * {@code center}, drawn with the same slash as a normal attack (the assassin's leap and spin).
+     */
+    public void playRandomSlashes(Player attacker, RpgItemDefinition weapon, Location center, double range, int count) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+
+        Element element = weapon.element();
+        Resolved look = resolve(null, element);
+        sounds.slashCut(attacker, center, element);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int index = 0; index < count; index++) {
+            double angle = random.nextDouble(0.0, Math.PI * 2.0);
+            double distance = range * Math.sqrt(random.nextDouble()) * 0.85;
+            Location origin = center.clone().add(Math.cos(angle) * distance, random.nextDouble(-0.4, 0.8), Math.sin(angle) * distance);
+            double sweep = random.nextDouble(100.0, 160.0);
+            slash(origin, look, new SlashVfx.Shape(random.nextDouble(1.2, 2.0), sweep, 0.0, 0.0, random.nextDouble(0.0, 360.0),
+                    random.nextDouble(10.0, 80.0), 0.0, vfxDensity(), random.nextBoolean()), 0.1, 1.0f, index * 0.05);
+        }
+    }
+
     /** A heavy attack: the wide sweep with a thick upright cut across it. */
     public void playHeavySlash(Player attacker, RpgItemDefinition weapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
@@ -256,14 +312,21 @@ public final class AttackEffects {
     }
 
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
+        playSweepMelee(attacker, weapon, 0);
+    }
+
+    /** {@code repeat}: the n-th sweep of a run (0 = the first): from the other side, turned a little further. */
+    public void playSweepMelee(Player attacker, RpgItemDefinition weapon, int repeat) {
         Vector view = viewDirection(attacker);
         Element element = weapon.element();
         Resolved look = resolve(null, element);
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
 
         // a wide crescent swept across the view from the right side to the left, then a smaller one right behind it
-        cut(attacker, look, 2.0, 0.4, 0.0, 2.8, 150.0, meleeTilt(), 0.0, 0.22, 1.15f, 0.0);
-        cut(attacker, look, 2.0, 0.3, 0.0, 2.0, 130.0, meleeTilt(), 0.0, 0.18, 0.9f, 0.06);
+        double roll = repeat % 2 == 0 ? 0.0 : 180.0;
+        double yaw = repeat * RUN_YAW_STEP * (repeat % 2 == 0 ? 1.0 : -1.0);
+        cut(attacker, look, 2.0, 0.4, 0.0, 2.8, 150.0, meleeTilt() + repeat * RUN_TILT_STEP, roll, 0.22, 1.15f, 0.0, yaw);
+        cut(attacker, look, 2.0, 0.3, 0.0, 2.0, 130.0, meleeTilt() + repeat * RUN_TILT_STEP, roll, 0.18, 0.9f, 0.06 + FOLLOW_DELAY, yaw);
 
         burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(2.6)).add(0.0, -0.2, 0.0), element, 10, 0.5, 0.05);
     }
