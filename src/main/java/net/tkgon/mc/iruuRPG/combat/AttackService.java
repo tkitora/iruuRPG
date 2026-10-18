@@ -106,6 +106,16 @@ public final class AttackService {
     }
 
     private final MeleeCombo meleeCombo;
+    private final DamageMeter damageMeter = new DamageMeter();
+
+    public DamageMeter damageMeter() {
+        return damageMeter;
+    }
+
+    /** How many normal attacks into the combo the player is (0 when the chain is not running). */
+    public int comboStage(Player attacker) {
+        return meleeCombo.currentStage(attacker);
+    }
 
     /**
      * The next melee attack of the light / heavy chain (shift + left click is heavy). Call it once per attack that
@@ -575,6 +585,7 @@ public final class AttackService {
         double numberHeight = victim.getHeight();
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
         boolean applied = applyDirectDamage(attacker, victim, finalDamage);
+        if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
@@ -593,6 +604,7 @@ public final class AttackService {
         Location numberLocation = victim.getLocation().clone();
         double numberHeight = victim.getHeight();
         boolean applied = applyDirectDamage(attacker, victim, damage);
+        if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), damage);
         if (applied) {
             attackEffects.playExtraDamageNumber(numberLocation, numberHeight, element, damage);
         }
@@ -637,6 +649,7 @@ public final class AttackService {
         double numberHeight = victim.getHeight();
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
         boolean applied = applyRangeDamage(attacker, victim, finalDamage);
+        if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);

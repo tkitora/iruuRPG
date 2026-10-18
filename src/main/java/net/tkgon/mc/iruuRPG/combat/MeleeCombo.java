@@ -97,6 +97,7 @@ public final class MeleeCombo {
         if (step != null) {
             state[0] = 0L;
             state[1] = System.currentTimeMillis();
+            shown(player, 0);
         }
         return step;
     }
@@ -114,10 +115,12 @@ public final class MeleeCombo {
 
         if (heavy) {
             state[0] = 0L;
+            shown(player, 0);
             double multiplier = number("heavy-damage-multiplier", 2.0, 1.0, 10.0) + number("heavy-stage-bonus", 0.15, 0.0, 2.0) * done;
             return new Step(Kind.HEAVY, done, multiplier, (int) number("heavy-recovery-ticks", 10, 0, 100), USUAL, 0, 0, 1.0);
         }
         int stage = done + 1;
+        shown(player, Math.min(stage, lights));
         if (stage >= lights) {
             state[0] = 0L;
             return new Step(Kind.FINISHER, lights, number("finisher-damage-multiplier", 2.0, 1.0, 10.0),
@@ -138,11 +141,13 @@ public final class MeleeCombo {
             if (step != null) {
                 state[0] = 0L;
                 state[1] = now;
+                shown(player, 0);
             }
             return step;
         }
         state[1] = now;
         int stage = done + 1;
+        shown(player, Math.min(stage, ASSASSIN_LIGHTS));
         if (stage >= ASSASSIN_LIGHTS) {
             state[0] = 0L;
             return new Step(Kind.FINISHER, ASSASSIN_LIGHTS, number("assassin.finisher-damage-multiplier", 1.5, 0.5, 10.0), 0,
@@ -177,8 +182,23 @@ public final class MeleeCombo {
         return Math.max(0.0, (ready[index] - System.currentTimeMillis()) / 1000.0);
     }
 
+    /** The number of the last light attack of the running chain (the finisher included); 0 when the chain is not running. */
+    public int currentStage(Player player) {
+        long[] last = lastShown.get(player.getUniqueId());
+        if (last == null || System.currentTimeMillis() - last[1] > window()) return 0;
+        return (int) last[0];
+    }
+
+    /** {number of the last light, when} per player (kept after a finisher, which resets the chain, so the bar can show it). */
+    private final Map<UUID, long[]> lastShown = new HashMap<>();
+
+    private void shown(Player player, int stage) {
+        lastShown.put(player.getUniqueId(), new long[]{stage, System.currentTimeMillis()});
+    }
+
     public void forget(UUID player) {
         chains.remove(player);
         heavyReadyAt.remove(player);
+        lastShown.remove(player);
     }
 }

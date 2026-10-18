@@ -165,6 +165,9 @@ public final class ClassSkillListener implements Listener {
         }
 
         startCooldown(player, skill);
+        // the damage dealt while the skill is up is counted for the action bar
+        double activeSeconds = skill.values().getOrDefault("active-seconds", skill.values().getOrDefault("duration-seconds", 6.0));
+        attackService.damageMeter().startSkill(player.getUniqueId(), Math.round(activeSeconds * 1000.0));
         if (precheck.hasEffect()) {
             classSkillService.execute(player, skill, precheck);
             return true;
@@ -187,6 +190,21 @@ public final class ClassSkillListener implements Listener {
             return sneaking ? ClassHotKey.SR : ClassHotKey.R;
         }
         return null;
+    }
+
+    /** The class skill of the player as the action bar shows it: its name and the cooldown left (0 = ready). Null without one. */
+    public HudStatus hudStatus(Player player) {
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        for (String skillId : profile.activeClassSkills().values()) {
+            if (skillId == null || skillId.isBlank()) continue;
+            ClassSkillDefinition skill = skillRegistry.find(skillId).orElse(null);
+            if (skill == null) continue;
+            return new HudStatus(skill.name(), remainingCooldownMillis(player, skill.id()));
+        }
+        return null;
+    }
+
+    public record HudStatus(String name, long remainingMillis) {
     }
 
     private void startCooldown(Player player, ClassSkillDefinition skill) {
