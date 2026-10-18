@@ -2,24 +2,129 @@ package net.tkgon.mc.iruuRPG.hud;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.tkgon.mc.iruuRPG.combat.AttackService;
+import net.tkgon.mc.iruuRPG.combat.AttackType;
+import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.entity.Player;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.text.NumberFormat;
 import java.util.Locale;
 
+/**
+ * The action bar: HP, MP and (when something is cooling down) three cooldown gauges, melee (red), ranged (blue) and
+ * deployed (white). Each gauge is {@code [||||||||||]}: green when the normal attack and the weapon skill can both be
+ * used, otherwise the progress of the cooldown that lasts longer - the normal attack's in a light shade of the type's
+ * color, the weapon skill's in gray. {@code hud.cooldown-gauges}: {@code auto} (only while one is cooling down, else the
+ * usual status line with defense, level and XP), {@code always}, or {@code off}.
+ */
 public final class PlayerHud {
 
-    private final LevelService levelService;
+    private static final int GAUGE_LENGTH = 10;
+    private static final TextColor READY = TextColor.color(0x55ff55);
+    private static final TextColor SKILL = TextColor.color(0x8a8a8a);
+    private static final TextColor EMPTY = TextColor.color(0x3a3a3a);
 
-    public PlayerHud(LevelService levelService) {
+    private final LevelService levelService;
+    private final JavaPlugin plugin;
+    private AttackService attackService;
+    private ItemSkillService itemSkillService;
+
+    public PlayerHud(JavaPlugin plugin, LevelService levelService) {
+        this.plugin = plugin;
         this.levelService = levelService;
     }
 
+    /** Where the cooldowns come from. */
+    public void setCooldowns(AttackService attackService, ItemSkillService itemSkillService) {
+        this.attackService = attackService;
+        this.itemSkillService = itemSkillService;
+    }
+
     public void send(Player player, PlayerProfile profile) {
-        player.sendActionBar(build(profile));
+        player.sendActionBar(build(player, profile));
+    }
+
+    /** True while the gauges are on the bar: one of the three is cooling down, or {@code always}. */
+    public boolean gaugesShown(Player player) {
+        String mode = plugin.getConfig().getString("hud.cooldown-gauges", "auto").toLowerCase(Locale.ROOT);
+        if (attackService == null || itemSkillService == null || mode.equals("off")) return false;
+        if (mode.equals("always")) return true;
+        long now = System.currentTimeMillis();
+        for (AttackType type : TYPES) {
+            if (attackService.normalCooldown(player, type)[0] > 0L || itemSkillService.skillCooldown(player, type)[0] > 0L) {
+                lastActive.put(player.getUniqueId(), now);
+                return true;
+            }
+        }
+        // stay on the gauges a moment after the last cooldown, so the bar does not flip back and forth between swings
+        Long last = lastActive.get(player.getUniqueId());
+        return last != null && now - last < HOLD_MILLIS;
+    }
+
+    private static final long HOLD_MILLIS = 1500L;
+    private final java.util.Map<java.util.UUID, Long> lastActive = new java.util.HashMap<>();
+
+    private static final AttackType[] TYPES = {AttackType.MELEE, AttackType.RANGE, AttackType.DEPLOY};
+
+    public Component build(Player player, PlayerProfile profile) {
+        if (!gaugesShown(player)) return build(profile);
+
+        Component bar = Component.text("HP ", NamedTextColor.RED)
+                .append(Component.text(format(profile.currentHp()), NamedTextColor.RED))
+                .append(Component.text("/", NamedTextColor.GRAY))
+                .append(Component.text(format(profile.maxHp()), NamedTextColor.RED))
+                .append(Component.text("  MP ", NamedTextColor.AQUA))
+                .append(Component.text(format(profile.currentMp()), NamedTextColor.AQUA))
+                .append(Component.text("/", NamedTextColor.GRAY))
+                .append(Component.text(format(profile.maxMp()), NamedTextColor.AQUA))
+                .append(Component.text("  "));
+        for (AttackType type : TYPES) {
+            bar = bar.append(gauge(player, type)).append(Component.text(" "));
+        }
+        return bar;
+    }
+
+    /** One gauge: the brackets in the type's color, the bars green (ready) or the progress of the longer cooldown. */
+    private Component gauge(Player player, AttackType type) {
+        long[] normal = attackService.normalCooldown(player, type);
+        long[] skill = itemSkillService.skillCooldown(player, type);
+        TextColor base = typeColor(type);
+        Component gauge = Component.text("[", base);
+
+        boolean normalActive = normal[0] > 0L && normal[1] > 0L;
+        boolean skillActive = skill[0] > 0L && skill[1] > 0L;
+        if (!normalActive && !skillActive) {
+            gauge = gauge.append(Component.text("|".repeat(GAUGE_LENGTH), READY));
+        } else {
+            // the cooldown that is still to run the longer is the one shown
+            boolean showSkill = skillActive && (!normalActive || skill[0] >= normal[0]);
+            long[] shown = showSkill ? skill : normal;
+            double progress = 1.0 - Math.min(1.0, (double) shown[0] / shown[1]);
+            int filled = (int) Math.max(0, Math.min(GAUGE_LENGTH, Math.round(progress * GAUGE_LENGTH)));
+            gauge = gauge.append(Component.text("|".repeat(filled), showSkill ? SKILL : lighter(base)))
+                    .append(Component.text("|".repeat(GAUGE_LENGTH - filled), EMPTY));
+        }
+        return gauge.append(Component.text("]", base));
+    }
+
+    private TextColor typeColor(AttackType type) {
+        return switch (type) {
+            case MELEE -> NamedTextColor.RED;
+            case RANGE -> NamedTextColor.BLUE;
+            default -> NamedTextColor.WHITE;
+        };
+    }
+
+    /** The light shade of a type's color: the normal attack's cooldown. */
+    private TextColor lighter(TextColor color) {
+        if (color == NamedTextColor.RED) return TextColor.color(0xff9a9a);
+        if (color == NamedTextColor.BLUE) return TextColor.color(0x9ab4ff);
+        return TextColor.color(0xe6e6e6);
     }
 
     public Component build(PlayerProfile profile) {

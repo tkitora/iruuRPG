@@ -21,5 +21,12 @@ public final class PlayerHudTask {
                 });
             }
         }, 0L, 10L);
+        // while a cooldown gauge is on the bar it is refreshed more often, so it fills smoothly
+        Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                if (!playerHud.gaugesShown(player)) continue;
+                profileManager.get(player).ifPresent(profile -> playerHud.send(player, profile));
+            }
+        }, 2L, 2L);
     }
 }

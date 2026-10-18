@@ -288,6 +288,11 @@ public final class AttackService {
         return attackCooldowns.remainingMillis(attacker, attackType);
     }
 
+    /** The normal attack's cooldown of {@code attackType}: {remaining, total} in milliseconds ({0, ...} when ready). */
+    public long[] normalCooldown(Player attacker, AttackType attackType) {
+        return new long[]{attackCooldowns.remainingMillis(attacker, attackType), attackCooldowns.totalMillis(attacker, attackType)};
+    }
+
     public boolean consumeMp(Player player, double amount) {
         PlayerProfile profile = profileForPlayer(player);
         if (profile.currentMp() + 1.0E-9 < amount) {
