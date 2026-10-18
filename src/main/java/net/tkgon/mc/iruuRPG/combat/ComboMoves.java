@@ -82,8 +82,9 @@ public final class ComboMoves {
     private void spin(Player player, RpgItemDefinition weapon, double multiplier) {
         double radius = number("spin-radius", 4.0);
         effects.playSpinSlash(player, weapon, radius);
+        AttackService.MeleeHand hand = attackService.nextSlashHand(player, weapon);
         for (LivingEntity target : around(player, player.getLocation(), radius)) {
-            attackService.strike(player, target, weapon, multiplier);
+            attackService.strike(player, target, hand, multiplier);
         }
     }
 
@@ -102,7 +103,7 @@ public final class ComboMoves {
             Runnable sweep = () -> {
                 if (!player.isOnline() || player.isDead()) return;
                 effects.playSweepMelee(player, weapon, repeat);
-                hitFront(player, weapon, facing, multiplier);
+                hitFront(player, attackService.nextSlashHand(player, weapon), facing, multiplier);
             };
             if (index == 0) sweep.run();
             else plugin.getServer().getScheduler().runTaskLater(plugin, sweep, gap * index);
@@ -110,13 +111,13 @@ public final class ComboMoves {
     }
 
     /** Every enemy in front (within the sweep's radius and half angle) takes {@code multiplier} of the weapon's damage. */
-    private void hitFront(Player player, RpgItemDefinition weapon, Vector facing, double multiplier) {
+    private void hitFront(Player player, AttackService.MeleeHand hand, Vector facing, double multiplier) {
         double radius = number("sweep-radius", 3.6);
         double halfAngle = number("sweep-half-angle", 70.0);
         for (LivingEntity target : around(player, player.getLocation(), radius)) {
             Vector to = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
             if (to.lengthSquared() > 1.0 && Math.toDegrees(facing.angle(to)) > halfAngle) continue;
-            attackService.strike(player, target, weapon, multiplier);
+            attackService.strike(player, target, hand, multiplier);
         }
     }
 
@@ -144,8 +145,10 @@ public final class ComboMoves {
                 if (age % 2 == 0) {
                     Location center = player.getLocation().add(0.0, 1.0, 0.0);
                     effects.playRandomSlashes(player, weapon, center, range, 2);
+                    // the hands take turns, one pulse each
+                    AttackService.MeleeHand hand = attackService.nextSlashHand(player, weapon);
                     for (LivingEntity target : around(player, player.getLocation(), range)) {
-                        attackService.strike(player, target, weapon, multiplier);
+                        attackService.strike(player, target, hand, multiplier);
                     }
                 }
                 age++;
@@ -169,9 +172,12 @@ public final class ComboMoves {
                 // the middle is 2 blocks in front of the player; straight lines at random angles are drawn there
                 Location center = player.getLocation().add(facing.clone().multiply(ahead)).add(0.0, 1.0, 0.0);
                 effects.playRandomLines(player, weapon, center, range, count);
+                // every hit is a line of its own, struck with the next hand
+                java.util.List<AttackService.MeleeHand> hands = new java.util.ArrayList<>();
+                for (int hit = 0; hit < count; hit++) hands.add(attackService.nextSlashHand(player, weapon));
                 for (LivingEntity target : around(player, center, range)) {
-                    for (int hit = 0; hit < count; hit++) {
-                        attackService.strike(player, target, weapon, multiplier);
+                    for (AttackService.MeleeHand hand : hands) {
+                        attackService.strike(player, target, hand, multiplier);
                     }
                 }
             }, tick);

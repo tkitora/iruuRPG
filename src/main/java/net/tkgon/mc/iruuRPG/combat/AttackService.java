@@ -180,6 +180,29 @@ public final class AttackService {
         return true;
     }
 
+    /**
+     * One slash of the assassin's combo: the hand it is struck with is the next one (固有0: the hands take turns, one
+     * slash each, the combo's hits included), so the slash uses that hand's weapon and its stats. Returns the hand so
+     * all the enemies the same slash hits can be struck with it ({@link #strike(Player, LivingEntity, MeleeHand, double)}).
+     */
+    public MeleeHand nextSlashHand(Player attacker, RpgItemDefinition mainWeapon) {
+        MeleeHand hand = nextMeleeHand(attacker, mainWeapon);
+        if (hand.offHand()) attacker.swingOffHand(); else attacker.swingMainHand();
+        return hand;
+    }
+
+    /** One hit of {@code multiplier} times the damage of {@code hand}'s weapon on {@code target}. */
+    public boolean strike(Player attacker, LivingEntity target, MeleeHand hand, double multiplier) {
+        if (multiplier <= 0.0 || target.isDead() || !target.isValid()) return false;
+        AttackDamage attack = calculateMeleeDamage(attacker, target, hand);
+        double damage = round(attack.result().damage() * multiplier);
+        boolean critical = attack.result().critical();
+        if (!applyDirectDamage(attacker, target, damage, hand.weapon(), critical)) return false;
+        playMeleeImpact(attacker, target);
+        sendDamageDebug(attacker, AttackType.MELEE, target, damage, critical, false);
+        return true;
+    }
+
     /** One hit of {@code multiplier} times the weapon's damage on {@code target}, with its number and impact. */
     public boolean strike(Player attacker, LivingEntity target, RpgItemDefinition weapon, double multiplier) {
         if (multiplier <= 0.0 || target.isDead() || !target.isValid()) return false;
@@ -204,7 +227,9 @@ public final class AttackService {
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!attacker.isOnline() || attacker.isDead()) return;
                 playMeleeSlash(attacker, weapon, step, repeat);
-                if (victim != null && !victim.isDead() && victim.isValid()) strike(attacker, victim, weapon, step.damageMultiplier());
+                // each cut is a slash of its own: the hands take turns (固有0)
+                MeleeHand hand = nextSlashHand(attacker, weapon);
+                if (victim != null && !victim.isDead() && victim.isValid()) strike(attacker, victim, hand, step.damageMultiplier());
             }, gapTicks * index);
         }
     }
