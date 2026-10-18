@@ -22,6 +22,8 @@ public final class MeleeCombo {
 
     public static final String USUAL = "";
     public static final String ASSASSIN = "assassin";
+    /** The mage's plan: the same chain on the ranged weapon (a right click is a normal attack, a left click a heavy one). */
+    public static final String MAGE = "mage";
 
     public enum Kind { LIGHT, HEAVY, FINISHER }
 
@@ -53,6 +55,10 @@ public final class MeleeCombo {
 
         public boolean assassin() {
             return ASSASSIN.equals(plan);
+        }
+
+        public boolean mage() {
+            return MAGE.equals(plan);
         }
 
         public int visual() {
@@ -93,7 +99,8 @@ public final class MeleeCombo {
      */
     public Step next(Player player, boolean heavy, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
-        return ASSASSIN.equals(plan) ? nextAssassin(player, heavy) : nextUsual(player, heavy);
+        if (ASSASSIN.equals(plan) || MAGE.equals(plan)) return nextMulti(player, plan);
+        return nextUsual(player, heavy);
     }
 
     /**
@@ -101,13 +108,18 @@ public final class MeleeCombo {
      * out), else the number of lights thrown so far. Null while that heavy attack cools down. The chain starts over.
      */
     public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown) {
+        return heavyByClick(player, skipHeavyZeroCooldown, ASSASSIN);
+    }
+
+    /** Same for the plan {@code plan} (the mage's heavy attacks are the left click). */
+    public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return null;
         long now = System.currentTimeMillis();
         long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
         int done = now - state[1] > window() ? 0 : (int) state[0];
         int index = Math.min(done, ASSASSIN_HEAVIES - 1);
         // heavy 0 right after heavy 2's hop is heavy 3, which has no cooldown of heavy 0's
-        Step step = heavy(player, ASSASSIN, index, index == 0 && skipHeavyZeroCooldown);
+        Step step = heavy(player, plan, index, index == 0 && skipHeavyZeroCooldown);
         if (step != null) {
             state[0] = 0L;
             state[1] = now;
@@ -118,7 +130,12 @@ public final class MeleeCombo {
 
     /** The damage multiplier configured for heavy attack {@code index} of the assassin plan. */
     public double heavyMultiplier(int index) {
-        return listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 0.3, 0.4, 0.6, 0.07}[Math.max(0, Math.min(4, index))], 0, 20);
+        return heavyMultiplier(ASSASSIN, index);
+    }
+
+    public double heavyMultiplier(String plan, int index) {
+        double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 1.0, 0.4, 0.6, 0.07} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
+        return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
 
     private long window() {
@@ -149,32 +166,32 @@ public final class MeleeCombo {
         return new Step(Kind.LIGHT, stage, 1.0, 0, USUAL, 0, 0, 1.0);
     }
 
-    private Step nextAssassin(Player player, boolean heavy) {
+    private Step nextMulti(Player player, String plan) {
         long now = System.currentTimeMillis();
         long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
         int done = now - state[1] > window() ? 0 : (int) state[0];
 
-        // the heavy attacks of the assassin plan are the right click (see heavyByClick): a left click, shift or not, is a light attack
+        // the heavy attacks of these plans are the other click (see heavyByClick): the normal click is always a light attack
         state[1] = now;
         int stage = done + 1;
         shown(player, Math.min(stage, ASSASSIN_LIGHTS));
         if (stage >= ASSASSIN_LIGHTS) {
             state[0] = 0L;
             // the finisher: 3 hits of 60% in front
-            double rate = listed("assassin.multi-hit-rate", 2, 0.6, 0.05, 3.0);
-            int hits = (int) listed("assassin.multi-hit-counts", 2, 3, 1, 10);
-            return new Step(Kind.FINISHER, ASSASSIN_LIGHTS, rate, 0, ASSASSIN, 0, hits - 1, 1.0,
-                    number("assassin.finisher-area-radius", 3.0, 1.0, 8.0));
+            double rate = listed(plan + ".multi-hit-rate", 2, 0.6, 0.05, 3.0);
+            int hits = (int) listed(plan + ".multi-hit-counts", 2, 3, 1, 10);
+            return new Step(Kind.FINISHER, ASSASSIN_LIGHTS, rate, 0, plan, 0, hits - 1, 1.0,
+                    number(plan + ".finisher-area-radius", 3.0, 1.0, 8.0));
         }
         state[0] = stage;
         if (stage == 3 || stage == 4) {
             // several hits in front: the third light is 3 hits of 40%, the fourth 4 hits of 30%
             int which = stage - 3;
-            double rate = listed("assassin.multi-hit-rate", which, new double[]{0.4, 0.3}[which], 0.05, 2.0);
-            int hits = (int) listed("assassin.multi-hit-counts", which, new double[]{3, 4}[which], 2, 10);
-            return new Step(Kind.LIGHT, stage, rate, 0, ASSASSIN, 0, hits - 1, 1.0);
+            double rate = listed(plan + ".multi-hit-rate", which, new double[]{0.4, 0.3}[which], 0.05, 2.0);
+            int hits = (int) listed(plan + ".multi-hit-counts", which, new double[]{3, 4}[which], 2, 10);
+            return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, hits - 1, 1.0);
         }
-        return new Step(Kind.LIGHT, stage, 1.0, 0, ASSASSIN, 0, 0, 1.0);
+        return new Step(Kind.LIGHT, stage, 1.0, 0, plan, 0, 0, 1.0);
     }
 
     /** Heavy attack {@code index} of the assassin plan, or null while its own cooldown runs. */
@@ -183,10 +200,11 @@ public final class MeleeCombo {
         long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId(), ignored -> new long[ASSASSIN_HEAVIES]);
         if (!skipCooldown) {
             if (ready[index] > now) return null;
-            long cooldownTicks = Math.round(listed("assassin.heavy-cooldown-ticks", index, new double[]{80, 0, 0, 0, 0}[index], 0, 1200));
+            double[] defaults = MAGE.equals(plan) ? new double[]{120, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
+            long cooldownTicks = Math.round(listed(plan + ".heavy-cooldown-ticks", index, defaults[index], 0, 1200));
             ready[index] = now + cooldownTicks * 50L;
         }
-        double multiplier = heavyMultiplier(index);
+        double multiplier = heavyMultiplier(plan, index);
         return new Step(Kind.HEAVY, index, multiplier, 0, plan, index, 0, 1.0);
     }
 

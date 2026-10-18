@@ -70,6 +70,44 @@ combat:
       surround-hits-per-tick: 2
       surround-radius: 4.0
       surround-forward: 2.0
+    # メイジのコンボ (遠距離武器): 通常攻撃 = 右クリック (5段)、強攻撃 = 左クリック (通常をN回出したあとの左クリックが強攻撃N、コンボなしが強攻撃0)。
+    # 通常1・2は魔法弾 (左上・右上から)、3は高速の魔力散弾 (40%×3回)、4は高密度の魔力散弾 (30%×4回)、5は魔力バースト (60%×3回)。
+    # 強攻撃0 = 短距離テレポート (固有ct 6秒)。1〜4のあと2秒以内の強攻撃0は、その属性の派生 (1-2 炎の突進 / 2-2 氷の破裂 / 3-2 雷の連鎖 / 4-2 風の真空)。
+    # 派生が当たると、5秒間、通常攻撃がその属性の見た目になる。
+    mage:
+      heavy-cooldown-ticks: [120, 0, 0, 0, 0]
+      heavy-damage-multiplier: [0.0, 1.0, 0.4, 0.6, 0.07]   # 1は炎の衝撃波、2は氷の波動1つごと、3は雷、4は竜巻の1回ごと (20回)
+      multi-hit-rate: [0.4, 0.3, 0.6]             # 通常3 / 通常4 / 通常5: 1回ごとのダメージの倍率
+      multi-hit-counts: [3, 4, 3]                 # 通常3 / 通常4 / 通常5: 当たる回数
+      multi-hit-gap-ticks: 4                      # 次の1回 (演出も) までのtick数
+      burst-radius: 3.5                           # 通常5: 魔力バーストの半径
+      teleport-distance: 6.0                      # 強攻撃0: テレポートの距離
+      flame-radius: 4.0                           # 強攻撃1: 炎の衝撃波の半径
+      hop-back-power: 0.8                         # 強攻撃2: 後ろに跳ぶ強さ / 上に跳ぶ強さ / 波動の間隔のtick数 / 波動のスキルの id
+      hop-up-power: 0.75
+      wave-gap-ticks: 5
+      ice-wave-skill: mage_ice_wave
+      thunder-forward: 4.0                        # 強攻撃3: 雷の位置 (正面何ブロック) / 引き寄せる範囲の半径
+      thunder-radius: 4.0
+      tornado-hits: 20                            # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
+      tornado-hits-per-tick: 2
+      tornado-radius: 4.0
+      tornado-forward: 2.0
+      element-mode-seconds: 5.0                   # 派生が当たったあと、通常攻撃がその属性の見た目になる秒数
+      flame-dash-rate: 0.05                       # 1-2: 突進の途中で2tickごとに当てる倍率 / 突進のtick数 / 強さ
+      flame-dash-ticks: 8
+      flame-dash-power: 1.0
+      ice-burst-rate: 0.6                         # 2-2: 氷の破裂の倍率 / 個数 / 破裂が出る範囲の半径 / 正面何ブロック
+      ice-burst-count: 3
+      ice-burst-radius: 3.0
+      ice-burst-forward: 4.0
+      chain-rate: 0.5                             # 3-2: 連鎖の1回ごとの倍率 (1体に2回) / 当てる体数 / 次へ跳ぶ範囲の半径
+      chain-targets: 3
+      chain-radius: 6.0
+      vacuum-rate: 0.15                           # 4-2: 真空の塊の1回ごとの倍率 / 回数 / 半径 / 後ろに下がる強さ
+      vacuum-hits: 6
+      vacuum-radius: 2.8
+      backstep-power: 1.1
   # 武器 (アイテム) のスキルの発動: 近接も遠距離も Shift+右クリック。movement-plain: true にすると、移動スキル (dash / teleport) は右クリックだけで出る
   skill-trigger:
     melee-sneak: true

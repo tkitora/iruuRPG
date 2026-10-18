@@ -121,7 +121,7 @@ public final class PlayerHud {
         TextColor base = typeColor(type);
         Component gauge = Component.text("[", base);
         // the melee gauge shows the step of the combo in its middle: [|||||3||||]
-        int step = type == AttackType.MELEE ? attackService.comboStage(player) : 0;
+        int step = type == attackService.comboGaugeType(player) ? attackService.comboStage(player) : 0;
         int digitAt = GAUGE_LENGTH / 2;
         boolean ready = normal[0] <= 0L || normal[1] <= 0L;
         int filled = ready ? GAUGE_LENGTH
