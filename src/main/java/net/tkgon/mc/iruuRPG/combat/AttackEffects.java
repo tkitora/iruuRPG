@@ -57,7 +57,7 @@ public final class AttackEffects {
         Element element = weapon.element();
         // a crescent swept across in front of the player, in the plane of the view direction and the horizontal
         // right (leaning a little up / down on alternate swings)
-        slash(origin, element, new SlashVfx.Shape(1.3, 120.0, 0.0, 0.0,
+        slash(attacker, origin, element, new SlashVfx.Shape(1.3, 120.0, 0.0, 0.0,
                 attacker.getLocation().getYaw(), pitch + (flip ? 78.0 : 102.0), 0.0, vfxDensity()), 0.14, 1.0f, 0.0);
     }
 
@@ -101,17 +101,17 @@ public final class AttackEffects {
         switch (stage) {
             case 1 -> {
                 sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch, 50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+                slash(attacker, origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch, 50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
             }
             case 2 -> {
                 sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch, -50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+                slash(attacker, origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch, -50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
             }
             default -> {
                 sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
                 Location low = attacker.getEyeLocation().add(view.clone().multiply(1.1)).add(0.0, -0.5, 0.0);
-                slash(low, element, new SlashVfx.Shape(2.3, 170.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.16, 1.2f, 0.0);
-                slash(origin, element, new SlashVfx.Shape(2.0, 110.0, 0.0, 0.0, yaw, pitch, 90.0 + jitter, vfxDensity()), 0.1, 1.1f, 0.08);
+                slash(attacker, low, element, new SlashVfx.Shape(2.3, 170.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.16, 1.2f, 0.0);
+                slash(attacker, origin, element, new SlashVfx.Shape(2.0, 110.0, 0.0, 0.0, yaw, pitch, 90.0 + jitter, vfxDensity()), 0.1, 1.1f, 0.08);
                 burst(attacker.getWorld(), origin.clone().add(view.clone().multiply(0.8)), element, 12, 0.5, 0.1);
             }
         }
@@ -124,7 +124,7 @@ public final class AttackEffects {
         playSweepMelee(attacker, weapon);
         Vector view = viewDirection(attacker);
         Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.5)).add(0.0, -0.2, 0.0);
-        slash(origin, weapon.element(), new SlashVfx.Shape(2.2, 120.0, 0.0, 0.0, attacker.getLocation().getYaw(),
+        slash(attacker, origin, weapon.element(), new SlashVfx.Shape(2.2, 120.0, 0.0, 0.0, attacker.getLocation().getYaw(),
                 attacker.getLocation().getPitch(), 90.0, vfxDensity()), 0.12, 1.1f, 0.08);
     }
 
@@ -144,8 +144,8 @@ public final class AttackEffects {
 
         // a wide crescent swept from the right side to the left in the plane of the view direction and the
         // horizontal right, then a smaller one right behind it
-        slash(base, element, new SlashVfx.Shape(2.8, 140.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.22, 1.15f, 0.0);
-        slash(base.clone().add(0.0, 0.35, 0.0), element,
+        slash(attacker, base, element, new SlashVfx.Shape(2.8, 140.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.22, 1.15f, 0.0);
+        slash(attacker, base.clone().add(0.0, 0.35, 0.0), element,
                 new SlashVfx.Shape(2.0, 130.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.18, 0.9f, 0.06);
 
         World world = attacker.getWorld();
@@ -491,6 +491,13 @@ public final class AttackEffects {
     public void playSkillCrescent(Location origin, float yaw, double radius, double angle,
                                   net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation orientation,
                                   net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        playSkillCrescent(origin, yaw, radius, angle, orientation, look, element, null);
+    }
+
+    /** {@code owner}: the player who cast it (they see a thin arc), or null. */
+    public void playSkillCrescent(Location origin, float yaw, double radius, double angle,
+                                  net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation orientation,
+                                  net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element, Player owner) {
         if (origin == null || origin.getWorld() == null) return;
         Resolved r = resolve(look, element);
         // in the caster's view frame: the plane of the view direction and the horizontal right (a sweep), or the plane
@@ -503,7 +510,7 @@ public final class AttackEffects {
             // standing arcs are drawn out in front, so they are not around the caster's feet
             at.add(rotateAroundY(new Vector(0.0, 0.0, 1.0), Math.toRadians(yaw)).multiply(Math.max(1.0, radius * 0.45)));
         }
-        slash(at, r, new SlashVfx.Shape(radius * 0.8, angle, 0.0, 0.0, yaw, pitch, roll, vfxDensity()), 0.2, 1.2f, 0.0);
+        slash(owner, at, r, new SlashVfx.Shape(radius * 0.8, angle, 0.0, 0.0, yaw, pitch, roll, vfxDensity()), 0.2, 1.2f, 0.0);
     }
 
     /** One step of a flying slash of a skill: a crescent of {@code radius} that bulges the way it flies. */
@@ -836,8 +843,8 @@ public final class AttackEffects {
         sounds.slashCut(attacker, center, element);
 
         // two diagonal cuts that cross each other like an X, the second one a moment after the first
-        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
-        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
+        slash(attacker, center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
+        slash(attacker, center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
         if (target != null) {
             burst(attacker.getWorld(), center.clone().add(forward.clone().multiply(0.4)), element, 8, 0.3, 0.1);
         }
@@ -971,10 +978,23 @@ public final class AttackEffects {
      * and a spark at the leading tip. {@code delaySeconds} holds the arc back (for follow-up cuts).
      */
     private void slash(Location origin, Element element, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
-        slash(origin, resolve(null, element), shape, duration, scale, delaySeconds);
+        slash(null, origin, resolve(null, element), shape, duration, scale, delaySeconds);
+    }
+
+    private void slash(Player owner, Location origin, Element element, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
+        slash(owner, origin, resolve(null, element), shape, duration, scale, delaySeconds);
     }
 
     private void slash(Location origin, Resolved look, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
+        slash(null, origin, look, shape, duration, scale, delaySeconds);
+    }
+
+    /**
+     * {@code owner} is the one who swings (null: nobody in particular). From behind the eyes the arc is seen along
+     * its own plane, so a ribbon of several colored lines would look like a wide band: the owner gets a thin arc
+     * (one line and a bright core), everyone else the full ribbon ({@code slash-vfx.first-person-thin}, on by default).
+     */
+    private void slash(Player owner, Location origin, Resolved look, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
         if (origin == null || origin.getWorld() == null) return;
 
         boolean full = plugin.getConfig().getBoolean("slash-vfx.enabled", true);
@@ -1005,11 +1025,28 @@ public final class AttackEffects {
                 : new SlashVfx.Layer[]{core};
         SlashVfx.Layer tip = full && look.spark != null ? layer(look.spark, null, 1f, 2, 0.0, 1) : null;
 
+        boolean thinForOwner = owner != null && plugin.getConfig().getBoolean("slash-vfx.first-person-thin", true);
+        SlashVfx.Layer[] thin = !thinForOwner ? null
+                : !full ? new SlashVfx.Layer[]{core}
+                : look.spark == null
+                        ? new SlashVfx.Layer[]{layer(Particle.REDSTONE, look.body, 0.55f * size, 1, 0.0, 1),
+                                layer(Particle.REDSTONE, look.core, 0.4f * size, 1, 0.0, 2)}
+                        : new SlashVfx.Layer[]{layer(Particle.REDSTONE, look.body, 0.55f * size, 1, 0.0, 1),
+                                layer(Particle.REDSTONE, look.core, 0.4f * size, 1, 0.0, 2),
+                                layer(look.spark, null, 1f, 1, 0.0, 6)};
+        Runnable draw = () -> {
+            if (thinForOwner) {
+                slashVfx.play(origin, layers, duration, safe, tip, null, owner);
+                slashVfx.play(origin, thin, duration, safe, null, owner, null);
+            } else {
+                slashVfx.play(origin, layers, duration, safe, tip);
+            }
+        };
         if (delaySeconds > 0.0) {
             long delayTicks = Math.max(1L, Math.round(delaySeconds * 20.0));
-            Bukkit.getScheduler().runTaskLater(plugin, () -> slashVfx.play(origin, layers, duration, safe, tip), delayTicks);
+            Bukkit.getScheduler().runTaskLater(plugin, draw, delayTicks);
         } else {
-            slashVfx.play(origin, layers, duration, safe, tip);
+            draw.run();
         }
     }
 

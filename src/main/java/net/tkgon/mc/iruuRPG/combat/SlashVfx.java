@@ -4,6 +4,7 @@ import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.World;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -83,11 +84,19 @@ public final class SlashVfx {
     }
 
     public void play(Location origin, Layer[] layers, double duration, Shape shape, Layer tipLayer) {
+        play(origin, layers, duration, shape, tipLayer, null, null);
+    }
+
+    /**
+     * {@code only}: shown to this player alone (e.g. the thin first-person arc of the one who swings);
+     * {@code except}: shown to everyone nearby but this player. Both null: shown to everyone.
+     */
+    public void play(Location origin, Layer[] layers, double duration, Shape shape, Layer tipLayer, Player only, Player except) {
         if (!plugin.isEnabled()) return;
         if (origin == null || origin.getWorld() == null || layers == null || shape == null || duration <= 0) return;
 
         active.add(new Instance(origin.getWorld(), origin.getX(), origin.getY(), origin.getZ(),
-                layers.clone(), duration, shape, tipLayer));
+                layers.clone(), duration, shape, tipLayer, only, except));
         if (task == null) {
             task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 0L, 1L);
         }
@@ -133,10 +142,17 @@ public final class SlashVfx {
         private final Vec3[][][] cached;
         private final Shape shape;
 
+        private final Player only;
+        private final Player except;
+        private List<Player> viewers = List.of();
+
         private int tick;
         private int lastSample = -1;
 
-        Instance(World world, double ox, double oy, double oz, Layer[] layers, double duration, Shape shape, Layer tipLayer) {
+        Instance(World world, double ox, double oy, double oz, Layer[] layers, double duration, Shape shape, Layer tipLayer,
+                 Player only, Player except) {
+            this.only = only;
+            this.except = except;
             this.world = world;
             this.ox = ox;
             this.oy = oy;
@@ -232,6 +248,19 @@ public final class SlashVfx {
                 return;
             }
 
+            if (only != null) {
+                viewers = only.isOnline() && only.getWorld().equals(world) ? List.of(only) : List.of();
+            } else if (except != null) {
+                List<Player> near = new ArrayList<>();
+                for (Player player : world.getPlayers()) {
+                    if (player.equals(except)) continue;
+                    double dx = player.getLocation().getX() - ox;
+                    double dz = player.getLocation().getZ() - oz;
+                    if (dx * dx + dz * dz <= 48.0 * 48.0) near.add(player);
+                }
+                viewers = near;
+            }
+
             double progress = Math.min(1.0, (double) (tick + 1) / totalTicks);
             int currentSample = Math.min(sampleCount - 1, (int) Math.floor(progress * (sampleCount - 1)));
 
@@ -260,20 +289,27 @@ public final class SlashVfx {
 
         private void spawn(Layer layer, Vec3 p) {
             if (layer.particle() == Particle.REDSTONE && layer.color() != null) {
-                world.spawnParticle(Particle.REDSTONE, p.x(), p.y(), p.z(), 1, 0, 0, 0, 0,
-                        new Particle.DustOptions(layer.color(), layer.size()));
+                emit(Particle.REDSTONE, p, 1, 0.0, new Particle.DustOptions(layer.color(), layer.size()));
             } else {
-                world.spawnParticle(layer.particle(), p.x(), p.y(), p.z(), 1, 0, 0, 0, 0);
+                emit(layer.particle(), p, 1, 0.0, null);
             }
         }
 
         private void spawnTip(Layer layer, Vec3 p) {
             if (layer.particle() == Particle.REDSTONE && layer.color() != null) {
-                world.spawnParticle(Particle.REDSTONE, p.x(), p.y(), p.z(), Math.max(1, layer.thickness()),
-                        0.04, 0.04, 0.04, 0, new Particle.DustOptions(layer.color(), layer.size()));
+                emit(Particle.REDSTONE, p, Math.max(1, layer.thickness()), 0.04, new Particle.DustOptions(layer.color(), layer.size()));
             } else {
-                world.spawnParticle(layer.particle(), p.x(), p.y(), p.z(), Math.max(1, layer.thickness()),
-                        0.04, 0.04, 0.04, 0);
+                emit(layer.particle(), p, Math.max(1, layer.thickness()), 0.04, null);
+            }
+        }
+
+        private void emit(Particle particle, Vec3 p, int count, double spread, Particle.DustOptions data) {
+            if (only == null && except == null) {
+                world.spawnParticle(particle, p.x(), p.y(), p.z(), count, spread, spread, spread, 0, data);
+                return;
+            }
+            for (Player viewer : viewers) {
+                viewer.spawnParticle(particle, p.x(), p.y(), p.z(), count, spread, spread, spread, 0, data);
             }
         }
     }
