@@ -14,8 +14,8 @@ import java.util.UUID;
  *
  * <p>Two plans: the usual one (any class) has one kind of heavy attack that hits harder after more lights and takes
  * longer to recover from. The assassin plan ({@link #ASSASSIN}) has five lights (the fifth is the finisher) and five
- * heavy attacks, 0 - 4, picked by the number of lights thrown before it (heavy 0 is the right click), each with a
- * cooldown of its own.
+ * heavy attacks, 0 - 4, picked by the number of lights thrown before it (heavy 0 is the right click; a shift + click
+ * before any light is an ordinary light attack), each with a cooldown of its own.
  */
 public final class MeleeCombo {
 
@@ -132,7 +132,8 @@ public final class MeleeCombo {
         long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
         int done = now - state[1] > window() ? 0 : (int) state[0];
 
-        if (heavy) {
+        // shift + click with no light thrown yet is an ordinary light attack (heavy 0 is the right click only)
+        if (heavy && done > 0) {
             Step step = heavy(player, ASSASSIN, Math.min(done, ASSASSIN_HEAVIES - 1));
             if (step != null) {
                 state[0] = 0L;
