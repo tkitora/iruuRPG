@@ -231,12 +231,31 @@ public final class ItemSkillService {
         return true;
     }
 
+    /**
+     * How a weapon's skill is started. A ranged weapon: shift + right click (its plain right click shoots). A melee
+     * weapon: shift + right click too (`combat.skill-trigger.melee-sneak`, on by default), except a movement skill
+     * (dash, teleport), which is a plain right click so it can be used at once (`combat.skill-trigger.movement-plain`).
+     */
     private boolean isManualSkillTrigger(Player player, RpgItemDefinition weapon) {
         return switch (weapon.attackType()) {
-            case MELEE -> true;
+            case MELEE -> isMovementSkill(weapon) && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", true)
+                    || !plugin.getConfig().getBoolean("combat.skill-trigger.melee-sneak", true)
+                    || player.isSneaking();
             case RANGE -> player.isSneaking();
             case DEPLOY, SPECIAL -> false;
         };
+    }
+
+    /** A skill that moves the player (the dash item skill; the dash / teleport templates). */
+    private boolean isMovementSkill(RpgItemDefinition weapon) {
+        if (weapon.skill() == net.tkgon.mc.iruuRPG.item.ItemSkillType.DASH) return true;
+        if (!weapon.hasGeneralSkill() || generalSkills == null) return false;
+        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.forItem("item " + weapon.id(), weapon.skillId(), weapon.skillOverrides());
+        return spec != null && isMovementTemplate(spec.template());
+    }
+
+    public static boolean isMovementTemplate(net.tkgon.mc.iruuRPG.skill.SkillTemplate template) {
+        return template == net.tkgon.mc.iruuRPG.skill.SkillTemplate.DASH || template == net.tkgon.mc.iruuRPG.skill.SkillTemplate.TELEPORT;
     }
 
     private void useSweep(Player player, RpgItemDefinition weapon) {

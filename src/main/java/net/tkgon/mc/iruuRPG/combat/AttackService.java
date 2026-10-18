@@ -102,6 +102,19 @@ public final class AttackService {
         this.attackEffects = attackEffects;
         this.playerBars = playerBars;
         this.statusEffectService = statusEffectService;
+        this.meleeCombo = new MeleeCombo(plugin);
+    }
+
+    private final MeleeCombo meleeCombo;
+
+    /**
+     * The next melee attack of the light / heavy chain (shift + left click is heavy). Call it once per attack that
+     * got through the cooldown; a heavy attack or the finisher also lengthens the cooldown (its recovery).
+     */
+    public MeleeCombo.Step nextMeleeStep(Player attacker) {
+        MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking());
+        attackCooldowns.extend(attacker, AttackType.MELEE, step.recoveryTicks());
+        return step;
     }
 
     public void setMobService(RpgMobService mobService) {
@@ -543,6 +556,28 @@ public final class AttackService {
         return applied;
     }
 
+    /** The slash of an attack of the light / heavy chain: a heavy or the finisher is drawn big, the lights as usual. */
+    public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        if (step.heavy()) {
+            attackEffects.playHeavySlash(attacker, weapon);
+            return;
+        }
+        if (step.finisher()) {
+            attackEffects.playComboSlash(attacker, weapon, 3);
+            return;
+        }
+        if (dualWielding(attacker)) {
+            attackEffects.playDualSlash(attacker, weapon);
+            return;
+        }
+        String classId = classService == null ? "" : classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id()).orElse("");
+        if (classId.equals("warrior") || classId.equals("assassin")) {
+            attackEffects.playComboSlash(attacker, weapon, step.visual());
+            return;
+        }
+        attackEffects.playMeleeSlash(attacker, weapon);
+    }
+
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon) {
         // an assassin with a melee weapon in each hand: the crossing slashes of the two hands, on every swing
         if (dualWielding(attacker)) {
@@ -584,6 +619,11 @@ public final class AttackService {
 
     /** {@code profile} (null: the live one) is the attacker's profile with {@code weapon} in hand, for an off-hand swing. */
     public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile) {
+        applySwingAreaDamage(attacker, weapon, profile, 1.0);
+    }
+
+    /** {@code multiplier}: the damage multiplier of the attack in the light / heavy chain. */
+    public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile, double multiplier) {
         boolean baseMelee = !hasMeleeAreaSkill(attacker);
         double rate = baseMelee
                 ? plugin.getConfig().getDouble("combat.melee-area-base-damage-rate", 0.40)
@@ -602,7 +642,7 @@ public final class AttackService {
             if (target.getLocation().add(0, target.getHeight() / 2.0, 0).distanceSquared(center) > radius * radius) continue;
 
             AttackDamage attack = calculateDamage(attackerProfile, target, weapon);
-            double areaDamage = round(attack.result().damage() * rate);
+            double areaDamage = round(attack.result().damage() * rate * multiplier);
             if (areaDamage <= 0.0) continue;
             if (applyDirectDamage(attacker, target, areaDamage, weapon, false)) {
                 playMeleeImpact(attacker, target);

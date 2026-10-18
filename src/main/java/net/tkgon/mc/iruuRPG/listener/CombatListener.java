@@ -218,13 +218,14 @@ public final class CombatListener implements Listener {
         }
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
+        net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         if (hand.offHand()) attacker.swingOffHand();
-        attackService.playMeleeSlash(attacker, hand.weapon());
+        attackService.playMeleeSlash(attacker, hand.weapon(), step);
         // a swing that hits nothing directly still splashes the enemies around the spot in front of the player
         // (never for the arm swing of a direct hit: that already did its own area damage)
         Integer direct = lastDirectMelee.get(attacker.getUniqueId());
-        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile());
+        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier());
     }
 
     /** The tick of each player's last direct melee hit: the arm swing that follows it is not a whiff. */
@@ -240,19 +241,20 @@ public final class CombatListener implements Listener {
         }
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
+        net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
         // a dual-wielding assassin hits with one hand and then the other
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         RpgItemDefinition used = hand.weapon();
         AttackService.AttackDamage attack = attackService.calculateMeleeDamage(attacker, victim, hand);
         double scale = attackService.tripleScale(attacker);
-        double damage = Math.round(attack.result().damage() * scale * 10.0) / 10.0;
+        double damage = Math.round(attack.result().damage() * scale * step.damageMultiplier() * 10.0) / 10.0;
         if (!attackService.applyDirectDamage(attacker, victim, damage, used, attack.result().critical())) {
             return;
         }
 
         if (hand.offHand()) attacker.swingOffHand();
         attackService.playMeleeImpact(attacker, victim);
-        attackService.playMeleeSlash(attacker, used);
+        attackService.playMeleeSlash(attacker, used, step);
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);
         attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used);
         lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
