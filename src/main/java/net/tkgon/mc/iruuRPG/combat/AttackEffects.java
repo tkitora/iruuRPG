@@ -50,15 +50,11 @@ public final class AttackEffects {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), weapon.element());
-        Vector view = viewDirection(attacker);
-        double pitch = attacker.getLocation().getPitch();
         boolean flip = slashSide.merge(attacker.getUniqueId(), Boolean.TRUE, (old, ignored) -> !old);
-        Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.8)).add(0.0, -0.1, 0.0);
         Element element = weapon.element();
-        // a crescent standing across the view (seen from the player's eyes as a cut, not as a flat curtain), cut from
-        // the upper left to the lower right and from the upper right to the lower left on alternate swings
-        slash(origin, element, new SlashVfx.Shape(1.7, 120.0, 0.0, 0.0,
-                attacker.getLocation().getYaw(), pitch + FACE_TILT, flip ? -130.0 : -50.0, vfxDensity()), 0.14, 1.0f, 0.0);
+        // a crescent in front of the player leaning away from them, cut from the upper left to the lower right and
+        // from the upper right to the lower left on alternate swings
+        cut(attacker, resolve(null, element), 1.8, 0.1, 0.0, 1.7, 120.0, FACE_TILT, flip ? -130.0 : -50.0, 0.14, 1.0f, 0.0);
     }
 
     /**
@@ -67,7 +63,57 @@ public final class AttackEffects {
      * Roll: -50 cuts from the upper right to the lower left, -130 from the upper left to the lower right, 0 sweeps
      * from the right to the left, 180 from the left to the right.
      */
-    static final double FACE_TILT = 15.0;
+    static final double FACE_TILT = 40.0;
+
+    /**
+     * Draws one arc of a melee cut in the player's view frame: its middle (not the end of the line it is drawn from)
+     * is {@code forward} blocks ahead of the eyes, {@code drop} below and {@code side} to the right of the view
+     * axis, and it leans away from the player ({@code tilt}) with its lower edge staying where it was, so the top
+     * is what goes deeper. {@code roll} sets the direction of the cut (see {@link #FACE_TILT}).
+     */
+    private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
+                     double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds) {
+        Vector f = viewDirection(attacker);
+        Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+        if (right.lengthSquared() < 1.0E-6) {
+            double yaw = Math.toRadians(attacker.getLocation().getYaw());
+            right = new Vector(-Math.cos(yaw), 0.0, -Math.sin(yaw));
+        }
+        right.normalize();
+        Vector up = right.clone().crossProduct(f).normalize();
+
+        // the arc in the view plane (X to the right, Y up) after the roll: its middle and its lowest point
+        double s = Math.toRadians(sweepDegrees);
+        double cr = Math.cos(Math.toRadians(roll));
+        double sr = Math.sin(Math.toRadians(roll));
+        double sumX = 0.0;
+        double sumY = 0.0;
+        double lowest = Double.MAX_VALUE;
+        int samples = 17;
+        for (int index = 0; index < samples; index++) {
+            double theta = (index / (double) (samples - 1) - 0.5) * s;
+            double xl = radius * Math.sin(theta);
+            double yl = radius * (Math.cos(theta) - Math.cos(s / 2.0));
+            double x = -(xl * cr - yl * sr);
+            double y = xl * sr + yl * cr;
+            sumX += x;
+            sumY += y;
+            lowest = Math.min(lowest, y);
+        }
+        double middleX = sumX / samples;
+        double middleY = sumY / samples;
+        double t = Math.toRadians(tilt);
+        // the origin that puts the middle at the wanted spot when the arc is upright, then moved so that tilting the
+        // arc about its lower edge keeps that edge in place
+        double ox = side - middleX;
+        double oy = -drop - middleY + lowest * (1.0 - Math.cos(t));
+        double oz = forward - lowest * Math.sin(t);
+        Location origin = attacker.getEyeLocation()
+                .add(right.clone().multiply(ox)).add(up.clone().multiply(oy)).add(f.clone().multiply(oz));
+        slash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw(),
+                attacker.getLocation().getPitch() + tilt, roll, vfxDensity()), duration, scale, delaySeconds);
+    }
+
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
     private final Map<UUID, long[]> comboChain = new ConcurrentHashMap<>();
@@ -101,26 +147,24 @@ public final class AttackEffects {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
+        Resolved look = resolve(null, element);
         Vector view = viewDirection(attacker);
-        float yaw = attacker.getLocation().getYaw();
-        double pitch = attacker.getLocation().getPitch();
-        Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.5)).add(0.0, -0.2, 0.0);
         double jitter = ThreadLocalRandom.current().nextDouble(-8.0, 8.0);
+        Location feet = attacker.getLocation().add(0.0, 1.0, 0.0);
         switch (stage) {
             case 1 -> {
-                sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch + FACE_TILT, -130.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+                sounds.swing(attacker, feet, element);
+                cut(attacker, look, 1.7, 0.1, 0.0, 1.7, 130.0, FACE_TILT, -130.0 + jitter, 0.12, 1.0f, 0.0);
             }
             case 2 -> {
-                sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch + FACE_TILT, -50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+                sounds.swing(attacker, feet, element);
+                cut(attacker, look, 1.7, 0.1, 0.0, 1.7, 130.0, FACE_TILT, -50.0 + jitter, 0.12, 1.0f, 0.0);
             }
             default -> {
-                sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                Location low = attacker.getEyeLocation().add(view.clone().multiply(1.7)).add(0.0, -0.3, 0.0);
-                slash(low, element, new SlashVfx.Shape(2.4, 170.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 0.0, vfxDensity()), 0.16, 1.2f, 0.0);
-                slash(origin, element, new SlashVfx.Shape(2.0, 110.0, 0.0, 0.0, yaw, pitch, 90.0 + jitter, vfxDensity()), 0.1, 1.1f, 0.08);
-                burst(attacker.getWorld(), origin.clone().add(view.clone().multiply(0.8)), element, 12, 0.5, 0.1);
+                sounds.sweepMelee(attacker, feet, element);
+                cut(attacker, look, 1.8, 0.2, 0.0, 2.4, 170.0, FACE_TILT, 0.0, 0.16, 1.2f, 0.0);
+                cut(attacker, look, 1.9, 0.0, 0.0, 2.0, 110.0, FACE_TILT, 90.0 + jitter, 0.1, 1.1f, 0.08);
+                burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(2.5)).add(0.0, -0.2, 0.0), element, 12, 0.5, 0.1);
             }
         }
     }
@@ -142,15 +186,12 @@ public final class AttackEffects {
         }
         Resolved r = resolve(look, element);
         Vector view = viewDirection(attacker);
-        float yaw = attacker.getLocation().getYaw();
-        double pitch = attacker.getLocation().getPitch();
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double lastForward = 1.5;
         for (ComboStyle.Cut cut : stage.cuts()) {
-            Location origin = attacker.getEyeLocation().add(view.clone().multiply(cut.forward())).add(0.0, -cut.drop(), 0.0);
             double jitter = cut.rollJitter() <= 0.0 ? 0.0 : random.nextDouble(-cut.rollJitter(), cut.rollJitter());
-            slash(origin, r, new SlashVfx.Shape(cut.radius(), cut.angle(), 0.0, 0.0, yaw, pitch + cut.tilt(),
-                    cut.roll() + jitter, vfxDensity()), cut.duration(), (float) cut.scale(), cut.delay());
+            cut(attacker, r, cut.forward(), cut.drop(), cut.side(), cut.radius(), cut.angle(), cut.tilt(), cut.roll() + jitter,
+                    cut.duration(), (float) cut.scale(), cut.delay());
             lastForward = cut.forward();
         }
         if (stage.burst() > 0) {
@@ -168,14 +209,10 @@ public final class AttackEffects {
 
         Element element = weapon.element();
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-        Vector view = viewDirection(attacker);
-        float yaw = attacker.getLocation().getYaw();
-        double pitch = attacker.getLocation().getPitch();
-        Location base = attacker.getEyeLocation().add(view.clone().multiply(1.8)).add(0.0, -0.2, 0.0);
-        slash(base, element, new SlashVfx.Shape(2.9, 160.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 0.0, vfxDensity()), 0.18, 1.2f, 0.0);
-        slash(base.clone().add(0.0, -0.1, 0.0), element,
-                new SlashVfx.Shape(2.9, 160.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 180.0, vfxDensity()), 0.18, 1.2f, 0.05);
-        burst(attacker.getWorld(), base.clone().add(view.clone().multiply(0.8)), element, 12, 0.6, 0.1);
+        Resolved look = resolve(null, element);
+        cut(attacker, look, 1.8, 0.2, 0.0, 2.9, 160.0, FACE_TILT, 0.0, 0.18, 1.2f, 0.0);
+        cut(attacker, look, 1.8, 0.3, 0.0, 2.9, 160.0, FACE_TILT, 180.0, 0.18, 1.2f, 0.05);
+        burst(attacker.getWorld(), attacker.getEyeLocation().add(viewDirection(attacker).multiply(2.6)).add(0.0, -0.2, 0.0), element, 12, 0.6, 0.1);
     }
 
     /** The step of the assassin: a streak of afterimages along the way, and a swish. */
@@ -216,10 +253,7 @@ public final class AttackEffects {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         playSweepMelee(attacker, weapon);
-        Vector view = viewDirection(attacker);
-        Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.5)).add(0.0, -0.2, 0.0);
-        slash(origin, weapon.element(), new SlashVfx.Shape(2.2, 120.0, 0.0, 0.0, attacker.getLocation().getYaw(),
-                attacker.getLocation().getPitch(), 90.0, vfxDensity()), 0.12, 1.1f, 0.08);
+        cut(attacker, resolve(null, weapon.element()), 1.9, 0.0, 0.0, 2.2, 120.0, FACE_TILT, 90.0, 0.12, 1.1f, 0.08);
     }
 
     /** The crossing slashes of the assassin's two hands (also drawn for every swing while a weapon is held in each hand). */
@@ -230,20 +264,15 @@ public final class AttackEffects {
 
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
         Vector view = viewDirection(attacker);
-        float yaw = attacker.getLocation().getYaw();
-        double pitch = attacker.getLocation().getPitch();
         Element element = weapon.element();
+        Resolved look = resolve(null, element);
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-        Location base = attacker.getEyeLocation().add(view.clone().multiply(1.8)).add(0.0, -0.2, 0.0);
 
         // a wide crescent swept across the view from the right side to the left, then a smaller one right behind it
-        slash(base, element, new SlashVfx.Shape(2.8, 150.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 0.0, vfxDensity()), 0.22, 1.15f, 0.0);
-        slash(base.clone().add(0.0, 0.35, 0.0), element,
-                new SlashVfx.Shape(2.0, 130.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 0.0, vfxDensity()), 0.18, 0.9f, 0.06);
+        cut(attacker, look, 1.8, 0.2, 0.0, 2.8, 150.0, FACE_TILT, 0.0, 0.22, 1.15f, 0.0);
+        cut(attacker, look, 1.8, -0.15, 0.0, 2.0, 130.0, FACE_TILT, 0.0, 0.18, 0.9f, 0.06);
 
-        World world = attacker.getWorld();
-        Location tip = base.clone().add(view.clone().multiply(2.6));
-        burst(world, tip, element, 10, 0.5, 0.05);
+        burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(2.6)).add(0.0, -0.2, 0.0), element, 10, 0.5, 0.05);
     }
 
     /** The sound of a ranged shot leaving the weapon (the shot itself is drawn while it flies). */

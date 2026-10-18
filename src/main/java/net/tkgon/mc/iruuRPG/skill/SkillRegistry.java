@@ -664,9 +664,10 @@ public final class SkillRegistry {
             cuts.add(new net.tkgon.mc.iruuRPG.combat.ComboStyle.Cut(
                     number(where, cut, "radius", 1.7, 0.5, 6.0), number(where, cut, "angle", 130.0, 20.0, 360.0),
                     number(where, cut, "tilt", 0.0, -180.0, 180.0), number(where, cut, "roll", 0.0, -180.0, 180.0),
-                    number(where, cut, "roll-jitter", 8.0, 0.0, 45.0), number(where, cut, "forward", 1.5, 0.0, 4.0),
+                    number(where, cut, "roll-jitter", 8.0, 0.0, 45.0), number(where, cut, "forward", 1.8, 0.0, 4.0),
                     number(where, cut, "drop", 0.2, -1.0, 1.5), number(where, cut, "duration", 0.12, 0.04, 0.6),
-                    number(where, cut, "scale", 1.0, 0.3, 2.5), number(where, cut, "delay", 0.0, 0.0, 0.5)));
+                    number(where, cut, "scale", 1.0, 0.3, 2.5), number(where, cut, "delay", 0.0, 0.0, 0.5),
+                    number(where, cut, "side", 0.0, -2.0, 2.0)));
         }
         return cuts.isEmpty() ? null : new net.tkgon.mc.iruuRPG.combat.ComboStyle.Stage(cuts, sound, burst);
     }
