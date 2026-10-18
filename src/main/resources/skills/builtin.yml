@@ -16,8 +16,8 @@ skills:
       sound: sharp
     shape:
       range: 4.2
-      radius: 0.9
+      radius: 1.0
     timing:
-      windup-ticks: 3
+      windup-ticks: 4
     effects:
       damage-rate: 2.2
