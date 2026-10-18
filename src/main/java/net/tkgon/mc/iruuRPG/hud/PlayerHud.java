@@ -5,7 +5,6 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
-import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.stat.StatType;
@@ -16,33 +15,30 @@ import java.text.NumberFormat;
 import java.util.Locale;
 
 /**
- * The action bar: HP, MP and (when something is cooling down) three cooldown gauges, melee (red), ranged (blue) and
- * deployed (white). Each gauge is {@code [||||||||||]}: green when the normal attack and the weapon skill can both be
- * used, otherwise the progress of the cooldown that lasts longer - the normal attack's in a light shade of the type's
- * color, the weapon skill's in gray. {@code hud.cooldown-gauges}: {@code auto} (only while one is cooling down, else the
+ * The action bar: HP, MP and (when a normal attack is cooling down) three gauges of the normal attack's cooldown,
+ * melee (red), ranged (blue) and deployed (white). Each gauge is {@code [||||||||||]}: green when the normal attack can
+ * be used, otherwise its progress in a light shade of the type's color. (The weapon skill's cooldown is the item's own
+ * cooldown overlay, not shown here.) {@code hud.cooldown-gauges}: {@code auto} (only while one is cooling down, else the
  * usual status line with defense, level and XP), {@code always}, or {@code off}.
  */
 public final class PlayerHud {
 
     private static final int GAUGE_LENGTH = 10;
     private static final TextColor READY = TextColor.color(0x55ff55);
-    private static final TextColor SKILL = TextColor.color(0x8a8a8a);
     private static final TextColor EMPTY = TextColor.color(0x3a3a3a);
 
     private final LevelService levelService;
     private final JavaPlugin plugin;
     private AttackService attackService;
-    private ItemSkillService itemSkillService;
 
     public PlayerHud(JavaPlugin plugin, LevelService levelService) {
         this.plugin = plugin;
         this.levelService = levelService;
     }
 
-    /** Where the cooldowns come from. */
-    public void setCooldowns(AttackService attackService, ItemSkillService itemSkillService) {
+    /** Where the normal attack cooldowns come from. */
+    public void setCooldowns(AttackService attackService) {
         this.attackService = attackService;
-        this.itemSkillService = itemSkillService;
     }
 
     public void send(Player player, PlayerProfile profile) {
@@ -52,11 +48,11 @@ public final class PlayerHud {
     /** True while the gauges are on the bar: one of the three is cooling down, or {@code always}. */
     public boolean gaugesShown(Player player) {
         String mode = plugin.getConfig().getString("hud.cooldown-gauges", "auto").toLowerCase(Locale.ROOT);
-        if (attackService == null || itemSkillService == null || mode.equals("off")) return false;
+        if (attackService == null || mode.equals("off")) return false;
         if (mode.equals("always")) return true;
         long now = System.currentTimeMillis();
         for (AttackType type : TYPES) {
-            if (attackService.normalCooldown(player, type)[0] > 0L || itemSkillService.skillCooldown(player, type)[0] > 0L) {
+            if (attackService.normalCooldown(player, type)[0] > 0L) {
                 lastActive.put(player.getUniqueId(), now);
                 return true;
             }
@@ -89,24 +85,17 @@ public final class PlayerHud {
         return bar;
     }
 
-    /** One gauge: the brackets in the type's color, the bars green (ready) or the progress of the longer cooldown. */
+    /** One gauge: the brackets in the type's color, the bars green (ready) or the normal attack's progress in a light shade. */
     private Component gauge(Player player, AttackType type) {
         long[] normal = attackService.normalCooldown(player, type);
-        long[] skill = itemSkillService.skillCooldown(player, type);
         TextColor base = typeColor(type);
         Component gauge = Component.text("[", base);
-
-        boolean normalActive = normal[0] > 0L && normal[1] > 0L;
-        boolean skillActive = skill[0] > 0L && skill[1] > 0L;
-        if (!normalActive && !skillActive) {
+        if (normal[0] <= 0L || normal[1] <= 0L) {
             gauge = gauge.append(Component.text("|".repeat(GAUGE_LENGTH), READY));
         } else {
-            // the cooldown that is still to run the longer is the one shown
-            boolean showSkill = skillActive && (!normalActive || skill[0] >= normal[0]);
-            long[] shown = showSkill ? skill : normal;
-            double progress = 1.0 - Math.min(1.0, (double) shown[0] / shown[1]);
+            double progress = 1.0 - Math.min(1.0, (double) normal[0] / normal[1]);
             int filled = (int) Math.max(0, Math.min(GAUGE_LENGTH, Math.round(progress * GAUGE_LENGTH)));
-            gauge = gauge.append(Component.text("|".repeat(filled), showSkill ? SKILL : lighter(base)))
+            gauge = gauge.append(Component.text("|".repeat(filled), lighter(base)))
                     .append(Component.text("|".repeat(GAUGE_LENGTH - filled), EMPTY));
         }
         return gauge.append(Component.text("]", base));
