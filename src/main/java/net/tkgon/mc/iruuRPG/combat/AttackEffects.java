@@ -159,6 +159,58 @@ public final class AttackEffects {
         }
     }
 
+    /**
+     * The finisher of an assassin with a weapon in each hand: two sweeps across the view, one from the right to the
+     * left and one from the left to the right (counter-clockwise and clockwise seen from above).
+     */
+    public void playDualSweep(Player attacker, RpgItemDefinition weapon) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+
+        Element element = weapon.element();
+        sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
+        Vector view = viewDirection(attacker);
+        float yaw = attacker.getLocation().getYaw();
+        double pitch = attacker.getLocation().getPitch();
+        Location base = attacker.getEyeLocation().add(view.clone().multiply(1.8)).add(0.0, -0.2, 0.0);
+        slash(base, element, new SlashVfx.Shape(2.9, 160.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 0.0, vfxDensity()), 0.18, 1.2f, 0.0);
+        slash(base.clone().add(0.0, -0.1, 0.0), element,
+                new SlashVfx.Shape(2.9, 160.0, 0.0, 0.0, yaw, pitch + FACE_TILT, 180.0, vfxDensity()), 0.18, 1.2f, 0.05);
+        burst(attacker.getWorld(), base.clone().add(view.clone().multiply(0.8)), element, 12, 0.6, 0.1);
+    }
+
+    /** The step of the assassin: a streak of afterimages along the way, and a swish. */
+    public void playStepTrail(Player player, RpgItemDefinition weapon, Location from, Vector direction) {
+        World world = from.getWorld();
+        if (world == null) return;
+        sounds.swing(player, from.clone().add(0.0, 1.0, 0.0), weapon.element());
+        Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(235, 235, 245), 1.1f);
+        for (int index = 0; index < 8; index++) {
+            Location point = from.clone().add(direction.clone().multiply(index * 0.45)).add(0.0, 0.2 + (index % 3) * 0.5, 0.0);
+            world.spawnParticle(Particle.REDSTONE, point, 2, 0.15, 0.2, 0.15, 0.0, dust);
+        }
+        world.spawnParticle(Particle.CLOUD, from.clone().add(0.0, 0.1, 0.0), 6, 0.3, 0.05, 0.3, 0.02);
+    }
+
+    /** One pulse of the assassin's dash: a ring of cuts around the body. */
+    public void playSpinPulse(Player player, RpgItemDefinition weapon, double radius, int tick) {
+        World world = player.getWorld();
+        Element element = weapon.element();
+        sounds.slashCut(player, player.getLocation().add(0.0, 1.0, 0.0), element);
+        Location center = player.getLocation().add(0.0, 1.0, 0.0);
+        Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(250, 250, 255), 1.0f);
+        double turn = tick * 0.9;
+        for (int index = 0; index < 28; index++) {
+            double angle = Math.PI * 2.0 * index / 28.0 + turn;
+            world.spawnParticle(Particle.REDSTONE, center.clone().add(Math.cos(angle) * radius * 0.85, 0.0, Math.sin(angle) * radius * 0.85),
+                    1, 0.0, 0.0, 0.0, 0.0, dust);
+        }
+        for (int index = 0; index < 4; index++) {
+            double angle = Math.PI * 0.5 * index + turn;
+            world.spawnParticle(Particle.SWEEP_ATTACK, center.clone().add(Math.cos(angle) * radius * 0.7, 0.0, Math.sin(angle) * radius * 0.7), 1, 0.0, 0.0, 0.0, 0.0);
+        }
+        burst(world, center, element, 4, 0.5, 0.05);
+    }
+
     /** A heavy attack: the wide sweep with a thick upright cut across it. */
     public void playHeavySlash(Player attacker, RpgItemDefinition weapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;

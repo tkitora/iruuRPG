@@ -43,6 +43,24 @@ combat:
     heavy-recovery-ticks: 10     # 強のあとの追加の硬直
     finisher-damage-multiplier: 2.0
     finisher-recovery-ticks: 8
+    # アサシンのコンボ (見た目は classes/assassin.yml の combo-style)。弱4回 (4回目が最終段) と、強攻撃0〜3。
+    # 強攻撃Nは、弱をN回出した後のShift+左クリック。強攻撃0は右クリック (武器に移動スキルが付いていないとき)。強攻撃を出すと弱のコンボは最初から。
+    # 強攻撃は、それぞれ専用のクールタイムを持つ。リストは0, 1, 2, 3の順。
+    assassin:
+      heavy-cooldown-ticks: [40, 60, 80, 100]
+      heavy-damage-multiplier: [0.0, 2.2, 1.8, 0.7]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、3は1回ごと (回りながら何回か当たる)
+      triple-damage-rate: 0.4                      # 通常3: 1回ごとの倍率 (3回当たる)
+      finisher-damage-multiplier: 1.5              # 通常4 (フィニッシュ)
+      finisher-area-scale: 1.5                     # フィニッシュの周りへの範囲の広がり (1.5倍)
+      step-power: 1.05                             # 強攻撃0: ステップの強さ
+      thrust-skill: assassin_thrust                # 強攻撃1: 呼ぶスキルの id (skills/*.yml。同じ id を書くと上書きできる)
+      sweep-radius: 3.6                            # 強攻撃2: 前方の薙ぎの半径 / 開き (半角) / 後ろに跳ぶ強さ
+      sweep-half-angle: 70
+      hop-back-power: 0.55
+      hop-up-power: 0.5
+      whirl-ticks: 10                              # 強攻撃3: 前に進む時間 / 進む強さ / 周りの斬撃の半径
+      whirl-power: 0.85
+      whirl-radius: 2.8
   # 武器スキルの発動: 近接はShift+右クリック、移動スキル (dash / teleport) は右クリックだけで出る。遠距離はShift+右クリック
   skill-trigger:
     melee-sneak: true

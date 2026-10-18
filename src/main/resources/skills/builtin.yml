@@ -1,0 +1,23 @@
+# プラグインに最初から入っているスキル。サーバーの skills/*.yml に同じ id のスキルを書くと、そちらが優先される
+# (このファイルは jar に入っていて、サーバーには出さない)。
+
+skills:
+  # アサシンの強攻撃1 (その場で突き)。コンボの強攻撃1から呼ばれる (combat.combo.assassin.thrust-skill)。
+  # ダメージ倍率は、コンボから呼ばれたときは combat.combo.assassin.heavy-damage-multiplier の2番目の値になる。
+  # 武器のスキルや他のスキル (コンボの段) からも、この id で呼べる。
+  assassin_thrust:
+    name: "突き"
+    template: beam
+    look:
+      colors: ["#ffffff", "#bcd0ff", "#ffffff"]
+      particle: END_ROD
+      size: 1.0
+      width: 0.7
+      sound: sharp
+    shape:
+      range: 4.2
+      radius: 0.9
+    timing:
+      windup-ticks: 3
+    effects:
+      damage-rate: 2.2
