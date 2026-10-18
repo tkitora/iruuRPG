@@ -375,6 +375,21 @@ public final class AttackEffects {
         return new Resolved(look == null ? net.tkgon.mc.iruuRPG.skill.SkillLook.plain() : look, element == null ? Element.WHITE : element);
     }
 
+    /** A ring standing in the plane of {@code right} and {@code up} (the circle a volley leaves from). */
+    public void playSkillCircle(Location center, Vector right, Vector up, double radius,
+                                net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element, int phase) {
+        if (center == null || center.getWorld() == null) return;
+        Resolved r = resolve(look, element);
+        World world = center.getWorld();
+        int points = (int) Math.max(16, Math.min(40, Math.round(radius * 14)));
+        for (int index = 0; index < points; index++) {
+            double angle = Math.PI * 2.0 * index / points + phase * 0.15;
+            Location point = center.clone().add(right.clone().multiply(Math.cos(angle) * radius)).add(up.clone().multiply(Math.sin(angle) * radius));
+            spawnDust(world, point, r.dust(index % 3 == 0 ? r.core : r.body, 1.0));
+            if (index % 8 == 0) r.spark(world, point);
+        }
+    }
+
     /** The ground mark of a coming ground slam / nova: a ring (and a fainter inner one) in the skill's colors. */
     public void playSkillTelegraphRing(Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (center == null || center.getWorld() == null) return;

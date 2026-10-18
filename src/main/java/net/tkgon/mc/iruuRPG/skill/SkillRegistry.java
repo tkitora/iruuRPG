@@ -280,6 +280,31 @@ public final class SkillRegistry {
             }
         }
 
+        // aim and volley settings
+        SkillSpec.Extras old = start.extras();
+        SkillSpec.VolleyPattern pattern = old.pattern();
+        if (flat.get("pattern") != null) {
+            try {
+                pattern = SkillSpec.VolleyPattern.valueOf(flat.get("pattern").toString().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("skills: " + owner + ": pattern '" + flat.get("pattern") + "' is unknown (ring / fan / line / scatter)");
+            }
+        }
+        SkillSpec.Extras extras = new SkillSpec.Extras(
+                flag(flat, "lock-aim", old.lockAim()),
+                flag(flat, "flat-aim", old.flatAim()),
+                number(owner, flat, "aim-yaw", old.aimYaw(), -180.0, 180.0),
+                number(owner, flat, "aim-pitch", old.aimPitch(), -90.0, 90.0),
+                number(owner, flat, "spread", old.spread(), 0.0, 180.0),
+                pattern,
+                number(owner, flat, "curve", old.curve(), 0.0, 2.0),
+                number(owner, flat, "homing-radius", old.homingRadius(), 0.0, 24.0),
+                (int) Math.round(number(owner, flat, "homing-delay-ticks", old.homingDelayTicks(), 0, 60)),
+                number(owner, flat, "homing-turn", old.homingTurn(), 0.05, 1.0),
+                (int) Math.round(number(owner, flat, "lifetime-ticks", old.lifetimeTicks(), 10, 200)),
+                number(owner, flat, "hit-radius", old.hitRadius(), 0.3, 3.0),
+                number(owner, flat, "spawn-distance", old.spawnDistance(), 0.0, 8.0));
+
         SkillTemplate template = start.template();
         if (template == SkillTemplate.WAVE && count > 5) {
             plugin.getLogger().warning("skills: " + owner + ": a wave skill can send at most 5 waves, used 5");
@@ -288,7 +313,7 @@ public final class SkillRegistry {
         return new SkillSpec(id.isEmpty() ? start.id() : id, name, template,
                 look,
                 radius, range, angle, orientation, windup, cooldown, count, interval, speed,
-                damageRate, statuses, heal, knockback, target, cost, description, start.steps(), origin, teleportMode);
+                damageRate, statuses, heal, knockback, target, cost, description, start.steps(), origin, teleportMode, extras);
     }
 
     /**
@@ -323,6 +348,12 @@ public final class SkillRegistry {
             }
             Map<String, Object> comboFlat = flatten(raw);
             Map<String, Object> stepFlat = flatten(entry);
+            // the combo's own effect and aim settings are the defaults of every step (a step's own setting wins)
+            Map<String, Object> withDefaults = new LinkedHashMap<>(entry);
+            for (String key : List.of("damage-rate", "status", "knockback", "heal-rate", "target", "lock-aim", "flat-aim", "aim-yaw", "aim-pitch", "spread")) {
+                if (comboFlat.containsKey(key) && !stepFlat.containsKey(key)) withDefaults.put(key, comboFlat.get(key));
+            }
+            entry = withDefaults;
             SkillSpec stepSpec;
             if (entry.get("skill") != null) {
                 String ref = entry.get("skill").toString().trim();
@@ -352,7 +383,8 @@ public final class SkillRegistry {
             }
             int delay = (int) Math.round(number(where, flatten(entry), "delay-ticks", 0, 0, 240));
             boolean with = Boolean.TRUE.equals(entry.get("with-previous")) && !steps.isEmpty();
-            SkillSpec.ComboStep step = new SkillSpec.ComboStep(stepSpec, delay, with);
+            boolean ifHit = Boolean.TRUE.equals(stepFlat.get("if-hit")) || Boolean.TRUE.equals(stepFlat.get("on-hit"));
+            SkillSpec.ComboStep step = new SkillSpec.ComboStep(stepSpec, delay, with, ifHit && !with);
             int start = with ? previousStart + delay : ticks + delay;
             if (start >= SkillSpec.MAX_COMBO_TICKS) {
                 plugin.getLogger().warning("skills: " + where + ": it would start after " + SkillSpec.MAX_COMBO_TICKS / 20 + " s; a combo is at most "
@@ -372,7 +404,7 @@ public final class SkillRegistry {
         }
         return new SkillSpec(self.id(), self.name(), SkillTemplate.COMBO, self.look(), self.radius(), self.range(), self.angle(), self.orientation(),
                 self.windupTicks(), self.cooldownTicks(), self.count(), self.intervalTicks(), self.speed(), self.damageRate(),
-                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps, null, SkillSpec.TeleportMode.FORWARD);
+                self.statuses(), self.healRate(), self.knockback(), self.target(), self.cost(), self.description(), steps, null, SkillSpec.TeleportMode.FORWARD, self.extras());
     }
 
     private final Set<String> pendingComboIds = new java.util.HashSet<>();
@@ -382,6 +414,11 @@ public final class SkillRegistry {
     }
 
     // ---- helpers -----------------------------------------------------------------------------------------------------
+
+    private boolean flag(Map<String, Object> flat, String key, boolean fallback) {
+        Object value = flat.get(key);
+        return value instanceof Boolean bool ? bool : fallback;
+    }
 
     private double number(String owner, Map<String, Object> flat, String key, double fallback, double min, double max) {
         Object value = flat.get(key);

@@ -53,16 +53,44 @@ public record SkillSpec(
         List<String> description,
         List<ComboStep> steps,
         Origin origin,
-        TeleportMode teleportMode
+        TeleportMode teleportMode,
+        Extras extras
 ) {
 
     public enum Orientation { HORIZONTAL, VERTICAL, DIAGONAL }
+
+    /** Where the bullets of a volley start. */
+    public enum VolleyPattern { RING, FAN, LINE, SCATTER }
+
+    /**
+     * Settings that few skills need. Aim: {@code lockAim} keeps the direction the skill was started with (a combo
+     * whose player turns half way still goes the first way), {@code flatAim} ignores looking up or down,
+     * {@code aimYaw} / {@code aimPitch} turn the aim by that many degrees, {@code spread} fans the bolts of a barrage
+     * over that many degrees. Volley: the start {@code pattern}, how hard the bullets first swing out
+     * ({@code curve}), the {@code homing*} behavior, how long a bullet flies, its hit size and how far in front of
+     * the caster the pattern is.
+     */
+    public record Extras(boolean lockAim, boolean flatAim, double aimYaw, double aimPitch, double spread,
+                         VolleyPattern pattern, double curve, double homingRadius, int homingDelayTicks, double homingTurn,
+                         int lifetimeTicks, double hitRadius, double spawnDistance) {
+
+        public static final Extras NONE = new Extras(false, false, 0.0, 0.0, 0.0,
+                VolleyPattern.RING, 0.9, 0.0, 7, 0.45, 70, 0.9, 2.0);
+
+        public Extras {
+            pattern = pattern == null ? VolleyPattern.RING : pattern;
+        }
+
+        public boolean aimChanged() {
+            return lockAim || flatAim;
+        }
+    }
 
     /** Where a teleport goes: {@code forward} = as far as the range along the facing, {@code behind} = behind the enemy aimed at. */
     public enum TeleportMode { FORWARD, BEHIND }
 
     /** One step of a combo: a skill, how long to wait before it, and whether it starts together with the step before. */
-    public record ComboStep(SkillSpec spec, int delayTicks, boolean withPrevious) {
+    public record ComboStep(SkillSpec spec, int delayTicks, boolean withPrevious, boolean ifHit) {
     }
 
     public enum Anchor { CASTER, TARGET }
@@ -106,20 +134,21 @@ public record SkillSpec(
         SoundStyle sound = switch (template) {
             case STRIKE -> SoundStyle.HEAVY;
             case SWEEP, DASH, WAVE -> SoundStyle.SHARP;
-            case BARRAGE, NOVA, BEAM, TELEPORT -> SoundStyle.MAGIC;
+            case BARRAGE, NOVA, BEAM, TELEPORT, VOLLEY -> SoundStyle.MAGIC;
             case COMBO -> SoundStyle.NONE;
         };
         SkillLook look = new SkillLook(null, null, 1.0, 1.0, sound);
         return switch (template) {
-            case STRIKE -> new SkillSpec("", "", template, look, 3.5, 4.5, 130, Orientation.HORIZONTAL, 24, 160, 1, 4, 12.0, 1.8, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case SWEEP -> new SkillSpec("", "", template, look, 4.5, 4.5, 130, Orientation.HORIZONTAL, 14, 120, 1, 4, 12.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case BARRAGE -> new SkillSpec("", "", template, look, 1.0, 12.0, 130, Orientation.HORIZONTAL, 12, 200, 5, 5, 14.0, 0.5, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case DASH -> new SkillSpec("", "", template, look, 1.0, 10.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 12.0, 1.5, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case TELEPORT -> new SkillSpec("", "", template, look, 3.0, 12.0, 130, Orientation.HORIZONTAL, 12, 160, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case COMBO -> new SkillSpec("", "", template, look, 1.0, 1.0, 130, Orientation.HORIZONTAL, 4, 240, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
-            case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD);
+            case STRIKE -> new SkillSpec("", "", template, look, 3.5, 4.5, 130, Orientation.HORIZONTAL, 24, 160, 1, 4, 12.0, 1.8, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case SWEEP -> new SkillSpec("", "", template, look, 4.5, 4.5, 130, Orientation.HORIZONTAL, 14, 120, 1, 4, 12.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case BARRAGE -> new SkillSpec("", "", template, look, 1.0, 12.0, 130, Orientation.HORIZONTAL, 12, 200, 5, 5, 14.0, 0.5, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case DASH -> new SkillSpec("", "", template, look, 1.0, 10.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 12.0, 1.5, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case TELEPORT -> new SkillSpec("", "", template, look, 3.0, 12.0, 130, Orientation.HORIZONTAL, 12, 160, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case VOLLEY -> new SkillSpec("", "", template, look, 1.2, 24.0, 90, Orientation.HORIZONTAL, 12, 200, 6, 4, 22.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, new Extras(false, false, 0.0, 0.0, 0.0, VolleyPattern.RING, 0.9, 8.0, 7, 0.45, 70, 0.9, 2.0));
+            case COMBO -> new SkillSpec("", "", template, look, 1.0, 1.0, 130, Orientation.HORIZONTAL, 4, 240, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
+            case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
         };
     }
 
@@ -139,7 +168,7 @@ public record SkillSpec(
     public int estimatedTicks() {
         return switch (template) {
             case STRIKE, SWEEP, WAVE -> windupTicks + 2;
-            case BARRAGE -> windupTicks + count * intervalTicks + 2;
+            case BARRAGE, VOLLEY -> windupTicks + count * intervalTicks + extras.lifetimeTicks() / 2;
             case DASH -> windupTicks + 10;
             case NOVA -> windupTicks + (int) Math.ceil(radius / Math.max(0.1, speed / 20.0)) + 2;
             case BEAM -> windupTicks + 6;
@@ -162,11 +191,11 @@ public record SkillSpec(
 
     public SkillSpec withLook(SkillLook newLook) {
         return new SkillSpec(id, name, template, newLook, radius, range, angle, orientation, windupTicks, cooldownTicks, count, intervalTicks,
-                speed, damageRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode);
+                speed, damageRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, extras);
     }
 
     public SkillSpec withDamageRate(double newRate) {
         return new SkillSpec(id, name, template, look, radius, range, angle, orientation, windupTicks, cooldownTicks, count, intervalTicks,
-                speed, newRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode);
+                speed, newRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, extras);
     }
 }

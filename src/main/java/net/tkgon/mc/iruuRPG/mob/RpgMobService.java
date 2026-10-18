@@ -472,6 +472,7 @@ public final class RpgMobService {
             case SWEEP -> distance <= spec.range() && inFront(mob, target, Math.min(90.0, spec.angle() / 2.0));
             case BARRAGE, DASH -> sees && distance >= 4.0 && distance <= spec.range();
             case WAVE, BEAM -> sees && distance >= 3.0 && distance <= spec.range();
+            case VOLLEY -> sees && distance >= 4.0 && distance <= spec.range();
             case NOVA -> distance <= spec.radius();
             case TELEPORT -> sees && distance >= 4.0 && distance <= spec.range();
             case COMBO -> false;
