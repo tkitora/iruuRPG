@@ -73,7 +73,12 @@ public final class MeleeCombo {
     private static final int ASSASSIN_HEAVIES = 5;
 
     private final JavaPlugin plugin;
-    private final Map<UUID, long[]> chains = new HashMap<>();
+    /** The running chain of each player and plan (the mage's ranged chain and their melee chain are separate). */
+    private final Map<String, long[]> chains = new HashMap<>();
+
+    private long[] chain(Player player, String plan) {
+        return chains.computeIfAbsent(player.getUniqueId() + "|" + plan, ignored -> new long[]{0L, 0L});
+    }
     private final Map<UUID, long[]> heavyReadyAt = new HashMap<>();
 
     public MeleeCombo(JavaPlugin plugin) {
@@ -115,7 +120,7 @@ public final class MeleeCombo {
     public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return null;
         long now = System.currentTimeMillis();
-        long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
+        long[] state = chain(player, plan);
         int done = now - state[1] > window() ? 0 : (int) state[0];
         int index = Math.min(done, ASSASSIN_HEAVIES - 1);
         // heavy 0 right after heavy 2's hop is heavy 3, which has no cooldown of heavy 0's
@@ -123,7 +128,7 @@ public final class MeleeCombo {
         if (step != null) {
             state[0] = 0L;
             state[1] = now;
-            shown(player, 0);
+            shown(player, plan, 0);
         }
         return step;
     }
@@ -145,18 +150,18 @@ public final class MeleeCombo {
     private Step nextUsual(Player player, boolean heavy) {
         int lights = (int) number("light-count", 5, 2, 9);
         long now = System.currentTimeMillis();
-        long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
+        long[] state = chain(player, USUAL);
         int done = now - state[1] > window() ? 0 : (int) state[0];
         state[1] = now;
 
         if (heavy) {
             state[0] = 0L;
-            shown(player, 0);
+            shown(player, USUAL, 0);
             double multiplier = number("heavy-damage-multiplier", 2.0, 1.0, 10.0) + number("heavy-stage-bonus", 0.15, 0.0, 2.0) * done;
             return new Step(Kind.HEAVY, done, multiplier, (int) number("heavy-recovery-ticks", 10, 0, 100), USUAL, 0, 0, 1.0);
         }
         int stage = done + 1;
-        shown(player, Math.min(stage, lights));
+        shown(player, USUAL, Math.min(stage, lights));
         if (stage >= lights) {
             state[0] = 0L;
             return new Step(Kind.FINISHER, lights, number("finisher-damage-multiplier", 2.0, 1.0, 10.0),
@@ -168,13 +173,13 @@ public final class MeleeCombo {
 
     private Step nextMulti(Player player, String plan) {
         long now = System.currentTimeMillis();
-        long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
+        long[] state = chain(player, plan);
         int done = now - state[1] > window() ? 0 : (int) state[0];
 
         // the heavy attacks of these plans are the other click (see heavyByClick): the normal click is always a light attack
         state[1] = now;
         int stage = done + 1;
-        shown(player, Math.min(stage, ASSASSIN_LIGHTS));
+        shown(player, plan, Math.min(stage, ASSASSIN_LIGHTS));
         if (stage >= ASSASSIN_LIGHTS) {
             state[0] = 0L;
             // the finisher: 3 hits of 60% in front
@@ -216,22 +221,22 @@ public final class MeleeCombo {
     }
 
     /** The number of the last light attack of the running chain (the finisher included); 0 when the chain is not running. */
-    public int currentStage(Player player) {
-        long[] last = lastShown.get(player.getUniqueId());
+    public int currentStage(Player player, String plan) {
+        long[] last = lastShown.get(player.getUniqueId() + "|" + plan);
         if (last == null || System.currentTimeMillis() - last[1] > window()) return 0;
         return (int) last[0];
     }
 
     /** {number of the last light, when} per player (kept after a finisher, which resets the chain, so the bar can show it). */
-    private final Map<UUID, long[]> lastShown = new HashMap<>();
+    private final Map<String, long[]> lastShown = new HashMap<>();
 
-    private void shown(Player player, int stage) {
-        lastShown.put(player.getUniqueId(), new long[]{stage, System.currentTimeMillis()});
+    private void shown(Player player, String plan, int stage) {
+        lastShown.put(player.getUniqueId() + "|" + plan, new long[]{stage, System.currentTimeMillis()});
     }
 
     public void forget(UUID player) {
-        chains.remove(player);
+        chains.keySet().removeIf(key -> key.startsWith(player + "|"));
         heavyReadyAt.remove(player);
-        lastShown.remove(player);
+        lastShown.keySet().removeIf(key -> key.startsWith(player + "|"));
     }
 }
