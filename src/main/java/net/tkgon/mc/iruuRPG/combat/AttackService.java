@@ -569,12 +569,15 @@ public final class AttackService {
 
     /** The slash of an attack of the light / heavy chain: a heavy or the finisher is drawn big, the lights as usual. */
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        // an assassin with a weapon in each hand: the crossing slashes of the two hands for every light attack
+        boolean dualLight = !step.heavy() && !step.finisher() && dualWielding(attacker);
         // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
         ComboStyle itemStyle = comboStyleOf("item " + weapon.id(), weapon.comboStyle());
         ComboStyle classStyle = classService == null ? null
                 : classService.currentClass(profileManager.getOrCreate(attacker))
                         .map(definition -> comboStyleOf("class " + definition.id(), definition.comboStyle())).orElse(null);
         for (ComboStyle style : new ComboStyle[]{itemStyle, classStyle}) {
+            if (dualLight && style == classStyle) break;
             ComboStyle.Stage stage = style == null ? null : style.stageFor(step);
             if (stage == null) continue;
             ComboStyle.Stage chosen = stage;

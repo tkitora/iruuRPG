@@ -38,9 +38,10 @@ import java.util.UUID;
 
 /**
  * The ranger's 本能開放・極: once during the enhanced state (a few seconds after it started) the key can be pressed
- * again. The ranger then floats up into the air and cannot move, is made to look through a spyglass (a spyglass is
- * put in the off hand and the client is told to use it), and the next click fires one high-damage shot; when the shot
- * is fired or the time is up they drop back to the ground and everything is put back.
+ * again. The ranger then floats up into the air over a turning magic circle and cannot move; a very strong slowness
+ * narrows the field of view (the zoom). The next click starts a charge (motes gather at the muzzle, the pitch of a
+ * chime climbs); when it is full one high-damage shot is fired along the aim as a big spiral beam. When the shot is
+ * fired or the time is up they drop back to the ground.
  */
 public final class SniperMode implements Listener {
 
@@ -58,10 +59,11 @@ public final class SniperMode implements Listener {
     private final NamespacedKey stashKey;
 
     private static final class State {
-        private ItemStack savedHelmet;
         private double holdY;
         private int age;
         private int totalTicks;
+        private int chargeTicks;
+        private int chargeAge = -1;
         private boolean rising = true;
         private RpgItemDefinition weapon;
         private double damageRate;
@@ -119,18 +121,14 @@ public final class SniperMode implements Listener {
         state.damageRate = skill.values().getOrDefault("sniper-damage-rate", 12.0);
         state.range = skill.values().getOrDefault("sniper-range", 60.0);
         state.totalTicks = (int) Math.round(skill.values().getOrDefault("sniper-seconds", 10.0) * 20.0);
+        state.chargeTicks = (int) Math.max(0L, Math.round(skill.values().getOrDefault("sniper-charge-seconds", 1.2) * 20.0));
         double rise = skill.values().getOrDefault("sniper-rise-blocks", 3.0);
         state.holdY = player.getLocation().getY() + rise;
-        // the scope: a carved pumpkin on the head (its dark edge over the screen) and a very strong slowness, which
-        // narrows the field of view (zoom). The real helmet is kept in memory and in the player's data until it is put back.
-        ItemStack helmet = player.getInventory().getHelmet();
-        state.savedHelmet = helmet == null ? new ItemStack(Material.AIR) : helmet.clone();
-        player.getPersistentDataContainer().set(stashKey, PersistentDataType.BYTE_ARRAY, state.savedHelmet.serializeAsBytes());
+        // the scope: a very strong slowness narrows the field of view (zoom)
         states.put(player.getUniqueId(), state);
 
         player.setFallDistance(0.0f);
         player.setGravity(false);
-        player.getInventory().setHelmet(scopeItem());
         player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, state.totalTicks + 40, 9, false, false, false));
         player.getWorld().playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_3, SoundCategory.PLAYERS, 0.8f, 1.4f);
         player.sendMessage("[iruuRPG] 狙撃モード: クリックで一撃を放つ (" + (state.totalTicks / 20) + "秒)");
@@ -155,6 +153,14 @@ public final class SniperMode implements Listener {
                         player.setVelocity(new Vector(0.0, Math.max(-0.5, Math.min(0.5, (state.holdY - y) * 0.4)), 0.0));
                     }
                     player.setFallDistance(0.0f);
+                    if (state.age % 2 == 0) {
+                        double charge = state.chargeAge < 0 || state.chargeTicks <= 0 ? 0.0 : Math.min(1.0, (double) state.chargeAge / state.chargeTicks);
+                        RangerVfx.sniperCircle(player.getWorld(), player.getLocation().add(0.0, -0.9, 0.0), state.age, charge);
+                    }
+                    if (state.chargeAge >= 0) {
+                        chargeTick(player, state);
+                        return;
+                    }
                     // a crosshair of light a little ahead of the eyes, for the player only
                     if (!state.rising && state.age % 4 == 0) {
                         org.bukkit.Location eye = player.getEyeLocation();
@@ -176,19 +182,42 @@ public final class SniperMode implements Listener {
         if (player.isOnline()) {
             player.removePotionEffect(PotionEffectType.SLOW);
             player.setGravity(true);
-            ItemStack worn = player.getInventory().getHelmet();
-            if (isScope(worn)) player.getInventory().setHelmet(state.savedHelmet.getType().isAir() ? null : state.savedHelmet);
-            player.getPersistentDataContainer().remove(stashKey);
             player.setFallDistance(0.0f);
         }
     }
 
     // ---- the shot ---------------------------------------------------------------------------------------------------
 
+    /** The click: starts the charge (a click during the charge does nothing). */
     private void fire(Player player) {
         State state = states.get(player.getUniqueId());
-        if (state == null || state.rising) return;
-        end(player, "発射");
+        if (state == null || state.rising || state.chargeAge >= 0) return;
+        if (state.chargeTicks <= 0) {
+            end(player, "発射");
+            release(player, state);
+            return;
+        }
+        state.chargeAge = 0;
+        player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.8f, 0.5f);
+    }
+
+    /** One tick of the charge: motes gather at the muzzle, a chime climbs in pitch; when full the shot is released. */
+    private void chargeTick(Player player, State state) {
+        double progress = Math.min(1.0, (double) state.chargeAge / state.chargeTicks);
+        org.bukkit.Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection().normalize();
+        RangerVfx.charge(player.getWorld(), eye.clone().add(direction.clone().multiply(1.6)), direction, progress, state.chargeAge);
+        if (state.chargeAge % 3 == 0) {
+            player.getWorld().playSound(eye, Sound.BLOCK_NOTE_BLOCK_CHIME, SoundCategory.PLAYERS, 0.7f, (float) (0.6 + 1.4 * progress));
+        }
+        if (++state.chargeAge > state.chargeTicks) {
+            end(player, "発射");
+            release(player, state);
+        }
+    }
+
+    /** The charged shot: a big spiral beam along the aim, with the high-damage hit. */
+    private void release(Player player, State state) {
 
         World world = player.getWorld();
         org.bukkit.Location eye = player.getEyeLocation();
@@ -197,8 +226,10 @@ public final class SniperMode implements Listener {
                 entity -> attackService.isAttackTarget(entity, player));
         double length = hit == null || hit.getHitPosition() == null ? state.range : hit.getHitPosition().distance(eye.toVector());
         RangerVfx.spiralBeam(plugin, world, eye.clone().add(direction.clone().multiply(0.8)), direction, length);
-        world.playSound(eye, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.7f, 1.9f);
+        world.playSound(eye, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.8f, 1.9f);
         world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 0.6f);
+        world.playSound(eye, Sound.ITEM_TRIDENT_THUNDER, SoundCategory.PLAYERS, 0.9f, 1.3f);
+        world.spawnParticle(Particle.FLASH, eye.clone().add(direction.clone().multiply(1.2)), 1);
 
         if (hit == null || !(hit.getHitEntity() instanceof LivingEntity victim)) {
             attackService.sendMissDebug(player, AttackType.RANGE);
@@ -210,16 +241,6 @@ public final class SniperMode implements Listener {
         if (!attackService.applyRangeDamage(player, victim, damage, state.weapon, critical)) return;
         attackService.sendDamageDebug(player, AttackType.RANGE, victim, damage, critical, false);
         attackService.playRangeImpact(player, hit.getHitPosition().toLocation(world), state.weapon);
-    }
-
-    private ItemStack scopeItem() {
-        ItemStack item = new ItemStack(Material.CARVED_PUMPKIN);
-        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.getPersistentDataContainer().set(scopeKey, PersistentDataType.BYTE, (byte) 1);
-            item.setItemMeta(meta);
-        }
-        return item;
     }
 
     private boolean isScope(ItemStack item) {
@@ -272,16 +293,13 @@ public final class SniperMode implements Listener {
     @EventHandler(priority = EventPriority.HIGH)
     public void onDeath(PlayerDeathEvent event) {
         Player player = event.getEntity();
-        State state = states.get(player.getUniqueId());
-        if (state != null && !event.getKeepInventory()) {
-            // the scope must not drop, the helmet they really wore must
-            event.getDrops().removeIf(this::isScope);
-            if (!state.savedHelmet.getType().isAir()) event.getDrops().add(state.savedHelmet);
-        }
         end(player, "死亡");
     }
 
-    /** A helmet left in the player's data by a crash or a stop: put it back, and take the scope off. */
+    /**
+     * An older version put a carved pumpkin on the head and kept the real helmet in the player's data: if a crash or
+     * a stop left one there, put it back and take the pumpkin off.
+     */
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
