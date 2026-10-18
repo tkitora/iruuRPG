@@ -134,6 +134,7 @@ public final class ClassSkillService {
 
     /** Runs the effect decided in {@link #precheck}. */
     public void execute(Player player, ClassSkillDefinition skill, Precheck precheck) {
+        ParticleFx.mark(player);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) {
             if (classEffectService != null) {
                 classEffectService.activateInstinct(player, skill.values().getOrDefault("duration-seconds", 10.0));
@@ -292,11 +293,13 @@ public final class ClassSkillService {
         world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, big ? 1.0f : 0.7f, big ? 1.2f : 1.6f);
         world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, big ? 1.0f : 0.8f, big ? 0.9f : 1.2f);
 
+        Player fxOwner = ParticleFx.owner();
         new SafeTask(plugin) {
             private int flash;
 
             @Override
             protected void tick() {
+                ParticleFx.mark(fxOwner);
                 if (flash >= BOLT_FLASHES) {
                     cancel();
                     return;
@@ -330,11 +333,11 @@ public final class ClassSkillService {
         }
 
         if (impact) {
-            world.spawnParticle(Particle.ELECTRIC_SPARK, head, big ? 60 : 24, 0.6, 0.6, 0.6, 0.3);
+            ParticleFx.to(world).spawnParticle(Particle.ELECTRIC_SPARK, head, big ? 60 : 24, 0.6, 0.6, 0.6, 0.3);
             drawRing(world, feet.clone().add(0, 0.1, 0), big ? 2.4 : 1.6, big);
             if (big) {
                 drawRing(world, feet.clone().add(0, 0.1, 0), 1.2, true);
-                world.spawnParticle(Particle.FLASH, head, 1);
+                ParticleFx.to(world).spawnParticle(Particle.FLASH, head, 1);
             }
         }
     }
@@ -367,6 +370,7 @@ public final class ClassSkillService {
             new SafeTask(plugin) {
                 @Override
                 protected void tick() {
+                    ParticleFx.mark(player);
                     cancel();
                     kickAway(player, target, skill);
                 }
@@ -381,6 +385,7 @@ public final class ClassSkillService {
 
             @Override
             protected void tick() {
+                ParticleFx.mark(player);
                 if (done >= repeats || !player.isOnline() || target.isDead() || !target.isValid()) {
                     cancel();
                     kickAway(player, target, skill);
@@ -422,15 +427,15 @@ public final class ClassSkillService {
         Location hit = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
         world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 1.0f, 0.9f);
         world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.8f, 1.3f);
-        world.spawnParticle(Particle.SWEEP_ATTACK, hit.clone().subtract(forward.clone().multiply(0.4)), 2, 0.3, 0.2, 0.3, 0.0);
-        world.spawnParticle(Particle.CRIT, hit, 18, 0.35, 0.3, 0.35, 0.35);
-        world.spawnParticle(Particle.REDSTONE, hit, 10, 0.3, 0.3, 0.3, 0.0, SATSUJIN_TRAIL, true);
+        ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, hit.clone().subtract(forward.clone().multiply(0.4)), 2, 0.3, 0.2, 0.3, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.CRIT, hit, 18, 0.35, 0.3, 0.35, 0.35);
+        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, hit, 10, 0.3, 0.3, 0.3, 0.0, SATSUJIN_TRAIL, true);
         // a streak of dust from the enemy back toward where the assassin is flung
         Location cursor = hit.clone();
         Vector back = forward.clone().multiply(-0.35).setY(0.2);
         for (int index = 0; index < 6; index++) {
             cursor.add(back);
-            world.spawnParticle(Particle.REDSTONE, cursor, 1, 0.05, 0.05, 0.05, 0.0, SATSUJIN_TRAIL, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, 1, 0.05, 0.05, 0.05, 0.0, SATSUJIN_TRAIL, true);
         }
     }
 
@@ -480,10 +485,10 @@ public final class ClassSkillService {
         step.multiply(1.0 / points);
         Location cursor = from.clone().add(0, 1.0, 0);
         for (int index = 0; index <= points; index++) {
-            world.spawnParticle(Particle.REDSTONE, cursor, 2, 0.1, 0.2, 0.1, 0.0, SATSUJIN_TRAIL, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, 2, 0.1, 0.2, 0.1, 0.0, SATSUJIN_TRAIL, true);
             cursor.add(step);
         }
-        world.spawnParticle(Particle.SWEEP_ATTACK, to.clone().add(0, 1.0, 0), 3, 0.4, 0.3, 0.4, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, to.clone().add(0, 1.0, 0), 3, 0.4, 0.3, 0.4, 0.0);
     }
 
     // ---- sanctuary (healer) --------------------------------------------------------
@@ -529,6 +534,7 @@ public final class ClassSkillService {
 
             @Override
             protected void tick() {
+                ParticleFx.mark(player);
                 state.age = tick;
                 boolean finished = tick >= totalTicks || !player.isOnline() || state.ended;
                 if (tick % 20 == 0 && !finished) {
@@ -611,7 +617,7 @@ public final class ClassSkillService {
         world.playSound(state.center, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.9f);
         world.playSound(state.center, Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.5f);
         for (int ring = 1; ring <= 3; ring++) drawSanctuary(world, state.center, state.radius * ring / 3.0, ring * 12);
-        world.spawnParticle(Particle.VILLAGER_HAPPY, state.center.clone().add(0.0, 1.0, 0.0), 40, state.radius * 0.4, 0.8, state.radius * 0.4, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, state.center.clone().add(0.0, 1.0, 0.0), 40, state.radius * 0.4, 0.8, state.radius * 0.4, 0.0);
         return true;
     }
 
@@ -653,13 +659,13 @@ public final class ClassSkillService {
         for (int index = 0; index < points; index++) {
             double angle = 2.0 * Math.PI * index / points + rotation;
             Location edge = center.clone().add(Math.cos(angle) * radius, 0.12, Math.sin(angle) * radius);
-            world.spawnParticle(Particle.REDSTONE, edge, 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_RING, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, edge, 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_RING, true);
             if (index % 6 == 0) {
                 double rise = (tick % 40) / 40.0 * 2.5;
-                world.spawnParticle(Particle.REDSTONE, edge.clone().add(0, rise, 0), 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_LIGHT, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, edge.clone().add(0, rise, 0), 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_LIGHT, true);
             }
         }
-        world.spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 0.6, 0), 3, radius / 3.0, 0.3, radius / 3.0, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 0.6, 0), 3, radius / 3.0, 0.3, radius / 3.0, 0.0);
     }
 
     // ---- ice lance (mage) ---------------------------------------------------
@@ -731,11 +737,13 @@ public final class ClassSkillService {
         final Vector sideAxis = side;
         final Vector upAxis = up;
 
+        Player fxOwner = ParticleFx.owner();
         new SafeTask(plugin) {
             private int tick;
 
             @Override
             protected void tick() {
+                ParticleFx.mark(fxOwner);
                 if (tick >= LANCE_TICKS) {
                     cancel();
                     return;
@@ -744,20 +752,20 @@ public final class ClassSkillService {
                 double to = length * (tick + 1) / LANCE_TICKS;
                 for (double distance = from; distance < to; distance += 0.25) {
                     Location point = start.clone().add(direction.clone().multiply(distance));
-                    world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, ICE_CORE, true);
+                    ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, ICE_CORE, true);
                     double thickness = upgraded ? 0.34 : 0.24;
                     for (int index = 0; index < 4; index++) {
                         double angle = Math.PI / 2.0 * index + distance * 2.0;
                         Vector offset = sideAxis.clone().multiply(Math.cos(angle) * thickness)
                                 .add(upAxis.clone().multiply(Math.sin(angle) * thickness));
-                        world.spawnParticle(Particle.REDSTONE, point.clone().add(offset), 1, 0.0, 0.0, 0.0, 0.0, ICE_GLOW, true);
+                        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point.clone().add(offset), 1, 0.0, 0.0, 0.0, 0.0, ICE_GLOW, true);
                     }
                     if (ThreadLocalRandom.current().nextInt(3) == 0) {
-                        world.spawnParticle(Particle.SNOWFLAKE, point, 1, 0.15, 0.15, 0.15, 0.01, null, true);
+                        ParticleFx.to(world).spawnParticle(Particle.SNOWFLAKE, point, 1, 0.15, 0.15, 0.15, 0.01, null, true);
                     }
                 }
                 Location tip = start.clone().add(direction.clone().multiply(to));
-                world.spawnParticle(Particle.REDSTONE, tip, upgraded ? 6 : 3, 0.12, 0.12, 0.12, 0.0, ICE_CORE, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, tip, upgraded ? 6 : 3, 0.12, 0.12, 0.12, 0.0, ICE_CORE, true);
                 tick++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -768,10 +776,10 @@ public final class ClassSkillService {
         if (world == null) return;
 
         world.playSound(center, Sound.BLOCK_GLASS_BREAK, 0.9f, 1.1f);
-        world.spawnParticle(Particle.SNOWFLAKE, center, upgraded ? 40 : 18, 0.4, 0.5, 0.4, 0.05, null, true);
-        world.spawnParticle(Particle.REDSTONE, center, upgraded ? 24 : 10, 0.45, 0.55, 0.45, 0.0, ICE_FROST, true);
+        ParticleFx.to(world).spawnParticle(Particle.SNOWFLAKE, center, upgraded ? 40 : 18, 0.4, 0.5, 0.4, 0.05, null, true);
+        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, upgraded ? 24 : 10, 0.45, 0.55, 0.45, 0.0, ICE_FROST, true);
         if (upgraded) {
-            world.spawnParticle(Particle.BLOCK_CRACK, center, 30, 0.4, 0.5, 0.4, 0.0,
+            ParticleFx.to(world).spawnParticle(Particle.BLOCK_CRACK, center, 30, 0.4, 0.5, 0.4, 0.0,
                     org.bukkit.Material.BLUE_ICE.createBlockData());
         }
     }
@@ -790,8 +798,8 @@ public final class ClassSkillService {
         step.multiply(1.0 / points);
         Location cursor = from.clone();
         for (int index = 0; index <= points; index++) {
-            world.spawnParticle(Particle.REDSTONE, cursor, big ? 2 : 1, 0.0, 0.0, 0.0, 0.0, big ? BIG_BOLT_CORE : BOLT_CORE, true);
-            world.spawnParticle(Particle.REDSTONE, cursor, big ? 4 : 2, big ? 0.22 : 0.12, big ? 0.22 : 0.12, big ? 0.22 : 0.12, 0.0, big ? BIG_BOLT_GLOW : BOLT_GLOW, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, big ? 2 : 1, 0.0, 0.0, 0.0, 0.0, big ? BIG_BOLT_CORE : BOLT_CORE, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, big ? 4 : 2, big ? 0.22 : 0.12, big ? 0.22 : 0.12, big ? 0.22 : 0.12, 0.0, big ? BIG_BOLT_GLOW : BOLT_GLOW, true);
             cursor.add(step);
         }
     }
@@ -801,7 +809,7 @@ public final class ClassSkillService {
         for (int index = 0; index < points; index++) {
             double angle = 2.0 * Math.PI * index / points;
             Location point = center.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, big ? BIG_BOLT_GLOW : BOLT_GLOW, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, big ? BIG_BOLT_GLOW : BOLT_GLOW, true);
         }
     }
 

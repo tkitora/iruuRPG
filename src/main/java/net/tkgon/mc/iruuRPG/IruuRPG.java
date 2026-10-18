@@ -138,6 +138,7 @@ public final class IruuRPG extends JavaPlugin {
     private PartyService partyService;
     private PartyMenu partyMenu;
     private SoundSettings soundSettings;
+    private net.tkgon.mc.iruuRPG.combat.ParticleSettings particleSettings;
     private net.tkgon.mc.iruuRPG.combat.SniperMode sniperMode;
     private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
     private AttackEffects attackEffectsRef;
@@ -198,6 +199,8 @@ public final class IruuRPG extends JavaPlugin {
         this.debugTargetService = new DebugTargetService(this);
 
         this.soundSettings = new SoundSettings(this);
+        this.particleSettings = new net.tkgon.mc.iruuRPG.combat.ParticleSettings(this);
+        net.tkgon.mc.iruuRPG.combat.ParticleFx.install(particleSettings);
         AttackEffects attackEffects = new AttackEffects(this, soundSettings);
         this.statusEffectService.setAttackEffects(attackEffects);
         this.attackService = new AttackService(
@@ -263,7 +266,7 @@ public final class IruuRPG extends JavaPlugin {
         this.skillTreeMenu.setMainMenu(mainMenu);
         this.classSelectMenu.setMainMenu(mainMenu);
         this.mainMenuItemService = new MainMenuItemService(this);
-        this.settingsMenu = new SettingsMenu(soundSettings, attackEffectsRef.sounds(), mainMenuItemService);
+        this.settingsMenu = new SettingsMenu(soundSettings, attackEffectsRef.sounds(), mainMenuItemService, particleSettings);
         this.settingsMenu.setMainMenu(mainMenu);
         this.mainMenu.setSettingsMenu(settingsMenu);
         this.marketService = new MarketService(this, profileManager);
@@ -523,6 +526,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(partyService, this);
         getServer().getPluginManager().registerEvents(partyMenu, this);
         getServer().getPluginManager().registerEvents(soundSettings, this);
+        getServer().getPluginManager().registerEvents(particleSettings, this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);

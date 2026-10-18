@@ -110,7 +110,7 @@ public final class MageMoves {
     }
 
     /** A line of light in {@code style}'s look. */
-    private void line(World world, Location from, Location to, Style style, RpgItemDefinition weapon) {
+    private void line(Player player, World world, Location from, Location to, Style style, RpgItemDefinition weapon) {
         if (style == Style.MAGIC) {
             effects.playBoltSegment(from, to, weapon.element());
             return;
@@ -123,8 +123,8 @@ public final class MageMoves {
         int points = Math.max(1, (int) Math.ceil(length / 0.3));
         for (int index = 0; index <= points; index++) {
             Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-            if (index % 3 == 0) world.spawnParticle(sparkParticle(style), point, 1, 0.03, 0.03, 0.03, 0.0);
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+            if (index % 3 == 0) ParticleFx.to(player, world).spawnParticle(sparkParticle(style), point, 1, 0.03, 0.03, 0.03, 0.0);
         }
     }
 
@@ -192,7 +192,7 @@ public final class MageMoves {
         Style style = style(player);
         World world = player.getWorld();
         attackService.fireRangedProjectile(player, weapon, start, direction, rate, speedScale,
-                (from, to) -> line(world, from, to, style, weapon));
+                (from, to) -> line(player, world, from, to, style, weapon));
     }
 
     /**
@@ -220,7 +220,7 @@ public final class MageMoves {
                         Location start = player.getEyeLocation().add(axes[0].clone().multiply(0.6))
                                 .add(axes[1].clone().multiply(side + random.nextDouble(-0.5, 0.5))).add(axes[2].clone().multiply(up + random.nextDouble(-0.4, 0.4)));
                         Location end = aim.clone().add(random.nextDouble(-0.5, 0.5), random.nextDouble(-0.4, 0.4), random.nextDouble(-0.5, 0.5));
-                        line(player.getWorld(), start, end, style, weapon);
+                        line(player, player.getWorld(), start, end, style, weapon);
                     }
                 }
             });
@@ -258,10 +258,10 @@ public final class MageMoves {
         for (int index = 0; index < 24; index++) {
             double angle = Math.PI * 2.0 * index / 24.0 + repeat * 0.4;
             Location point = center.clone().add(Math.cos(angle) * radius * 0.7, 0.2, Math.sin(angle) * radius * 0.7);
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
         }
-        world.spawnParticle(sparkParticle(style), center, 18, radius * 0.3, 0.5, radius * 0.3, 0.12);
-        world.spawnParticle(Particle.FLASH, center, 1);
+        ParticleFx.to(player, world).spawnParticle(sparkParticle(style), center, 18, radius * 0.3, 0.5, radius * 0.3, 0.12);
+        ParticleFx.to(player, world).spawnParticle(Particle.FLASH, center, 1);
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.5f, 1.6f + random.nextFloat() * 0.3f);
         effects.playBoltImpact(center, weapon.element());
         for (LivingEntity target : around(player, center, radius)) hit(player, weapon, target, rate);
@@ -288,8 +288,8 @@ public final class MageMoves {
                         double angle = direction * (tick * 0.7 + along * Math.PI * 2.0) + arm * Math.PI;
                         double radius = 0.4 + 1.6 * along;
                         Location point = center.clone().add(Math.cos(angle) * radius, 0.1 + along * 1.6, Math.sin(angle) * radius);
-                        world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-                        if (step % 3 == 0) world.spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
+                        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+                        if (step % 3 == 0) ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
                     }
                 }
                 tick++;
@@ -354,9 +354,9 @@ public final class MageMoves {
         Particle.DustOptions dust = new Particle.DustOptions(dustColor(Style.MAGIC), 1.2f);
         for (Location at : new Location[]{from, destination}) {
             for (int index = 0; index < 14; index++) {
-                world.spawnParticle(Particle.REDSTONE, at.clone().add(0.0, index * 0.15, 0.0), 2, 0.3, 0.05, 0.3, 0.0, dust);
+                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at.clone().add(0.0, index * 0.15, 0.0), 2, 0.3, 0.05, 0.3, 0.0, dust);
             }
-            world.spawnParticle(Particle.PORTAL, at.clone().add(0.0, 1.0, 0.0), 24, 0.4, 0.7, 0.4, 0.4);
+            ParticleFx.to(player, world).spawnParticle(Particle.PORTAL, at.clone().add(0.0, 1.0, 0.0), 24, 0.4, 0.7, 0.4, 0.4);
         }
         world.playSound(from, Sound.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 0.8f, 1.5f);
         world.playSound(destination, Sound.ENTITY_ENDERMAN_TELEPORT, SoundCategory.PLAYERS, 0.8f, 1.3f);
@@ -377,12 +377,12 @@ public final class MageMoves {
                 for (int index = 0; index < points; index++) {
                     double angle = Math.PI * 2.0 * index / points;
                     Location point = center.clone().add(Math.cos(angle) * r, 0.0, Math.sin(angle) * r);
-                    world.spawnParticle(Particle.FLAME, point, 1, 0.05, 0.1, 0.05, 0.02);
-                    if (index % 2 == 0) world.spawnParticle(Particle.REDSTONE, point.clone().add(0.0, 0.3, 0.0), 1, 0.0, 0.0, 0.0, 0.0, dust);
+                    ParticleFx.to(player, world).spawnParticle(Particle.FLAME, point, 1, 0.05, 0.1, 0.05, 0.02);
+                    if (index % 2 == 0) ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point.clone().add(0.0, 0.3, 0.0), 1, 0.0, 0.0, 0.0, 0.0, dust);
                 }
             });
         }
-        world.spawnParticle(Particle.EXPLOSION_LARGE, center, 1);
+        ParticleFx.to(player, world).spawnParticle(Particle.EXPLOSION_LARGE, center, 1);
         for (LivingEntity target : around(player, player.getLocation(), radius)) {
             if (hit(player, weapon, target, rate)) {
                 Vector away = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
@@ -431,8 +431,8 @@ public final class MageMoves {
         Particle.DustOptions dust = new Particle.DustOptions(dustColor(Style.THUNDER), 1.3f);
         for (int index = 0; index < 20; index++) {
             Location point = center.clone().add(random.nextDouble(-0.4, 0.4), index * 0.35, random.nextDouble(-0.4, 0.4));
-            world.spawnParticle(Particle.ELECTRIC_SPARK, point, 2, 0.1, 0.1, 0.1, 0.1);
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+            ParticleFx.to(player, world).spawnParticle(Particle.ELECTRIC_SPARK, point, 2, 0.1, 0.1, 0.1, 0.1);
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
         }
         for (LivingEntity target : around(player, center, range)) {
             if (!hit(player, weapon, target, rate)) continue;
@@ -490,8 +490,8 @@ public final class MageMoves {
                 player.setVelocity(direction.clone().multiply(power));
                 player.setFallDistance(0.0f);
                 Location body = player.getLocation().add(0.0, 1.0, 0.0);
-                world.spawnParticle(Particle.FLAME, body, 14, 0.5, 0.7, 0.5, 0.05);
-                world.spawnParticle(Particle.LAVA, body, 2, 0.4, 0.6, 0.4, 0.0);
+                ParticleFx.to(player, world).spawnParticle(Particle.FLAME, body, 14, 0.5, 0.7, 0.5, 0.05);
+                ParticleFx.to(player, world).spawnParticle(Particle.LAVA, body, 2, 0.4, 0.6, 0.4, 0.0);
                 if (age % 2 == 0) {
                     for (LivingEntity target : around(player, body, 2.2)) {
                         if (hit(player, weapon, target, rate)) landedHit = true;
@@ -577,7 +577,7 @@ public final class MageMoves {
             LivingEntity target = chain.get(index);
             Location to = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
             Location start = from.clone();
-            later(index, () -> lightning(world, start, to));
+            later(index, () -> lightning(player, world, start, to));
             later(index, () -> {
                 hit(player, weapon, target, rate);
                 hit(player, weapon, target, rate);
@@ -591,7 +591,7 @@ public final class MageMoves {
     }
 
     /** A jagged bolt of lightning between two points. */
-    private void lightning(World world, Location from, Location to) {
+    private void lightning(Player player, World world, Location from, Location to) {
         Vector path = to.toVector().subtract(from.toVector());
         double length = path.length();
         if (length < 0.1) return;
@@ -602,8 +602,8 @@ public final class MageMoves {
         for (int index = 0; index <= points; index++) {
             Location point = from.clone().add(direction.clone().multiply(length * index / points))
                     .add(random.nextDouble(-0.25, 0.25), random.nextDouble(-0.25, 0.25), random.nextDouble(-0.25, 0.25));
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-            world.spawnParticle(Particle.ELECTRIC_SPARK, point, 1, 0.05, 0.05, 0.05, 0.0);
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+            ParticleFx.to(player, world).spawnParticle(Particle.ELECTRIC_SPARK, point, 1, 0.05, 0.05, 0.05, 0.0);
         }
     }
 
@@ -630,8 +630,8 @@ public final class MageMoves {
                     double angle = Math.PI * 2.0 * index / 22.0 + age * 0.9;
                     double height = Math.sin(index * 0.9 + age) * radius * 0.4;
                     Location point = spot.clone().add(Math.cos(angle) * radius * 0.8, height, Math.sin(angle) * radius * 0.8);
-                    world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-                    if (index % 4 == 0) world.spawnParticle(Particle.CLOUD, point, 1, 0.05, 0.05, 0.05, 0.0);
+                    ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+                    if (index % 4 == 0) ParticleFx.to(player, world).spawnParticle(Particle.CLOUD, point, 1, 0.05, 0.05, 0.05, 0.0);
                 }
                 boolean landed = false;
                 for (LivingEntity target : around(player, spot, radius)) {

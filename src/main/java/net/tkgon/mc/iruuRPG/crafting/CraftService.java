@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.crafting;
 
+import net.tkgon.mc.iruuRPG.combat.ParticleFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -199,7 +200,7 @@ public final class CraftService implements Listener {
                 hit++;
                 Location spot = player.getLocation().add(player.getLocation().getDirection().multiply(0.8)).add(0, 1.0, 0);
                 player.getWorld().playSound(spot, Sound.BLOCK_ANVIL_PLACE, 0.6f, 1.0f + 0.08f * hit);
-                player.getWorld().spawnParticle(Particle.CRIT, spot, 8, 0.15, 0.1, 0.15, 0.3);
+                ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.CRIT, spot, 8, 0.15, 0.1, 0.15, 0.3);
                 player.sendActionBar(Component.text("カン".repeat(hit) + "…", NamedTextColor.GOLD));
                 if (onHit != null) onHit.accept(hit);
                 if (hit >= HAMMER_HITS) {

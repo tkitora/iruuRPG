@@ -120,7 +120,7 @@ public final class ClassEffectService {
     private void playOrangeHit(LivingEntity victim) {
         World world = victim.getWorld();
         Location center = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
-        world.spawnParticle(Particle.REDSTONE, center, 10, 0.35, 0.45, 0.35, 0.0, ORANGE_HIT, true);
+        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 10, 0.35, 0.45, 0.35, 0.0, ORANGE_HIT, true);
     }
 
     /** The enemy the player hit last, if still valid within {@code maxSeconds}. */
@@ -223,9 +223,9 @@ public final class ClassEffectService {
         for (int index = 0; index < points; index++) {
             double angle = 2.0 * Math.PI * index / points;
             Location point = center.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius);
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, GREEN_PULSE, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, GREEN_PULSE, true);
         }
-        world.spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 1.0, 0), 6, 0.6, 0.6, 0.6, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 1.0, 0), 6, 0.6, 0.6, 0.6, 0.0);
     }
 
     // ---- instinct release (gifted active skill) --------------------------------
@@ -265,6 +265,7 @@ public final class ClassEffectService {
 
             @Override
             protected void tick() {
+                ParticleFx.mark(player);
                 if (tick >= totalTicks || !player.isOnline() || player.isDead() || !instinctActive(player.getUniqueId())) {
                     cancel();
                     return;

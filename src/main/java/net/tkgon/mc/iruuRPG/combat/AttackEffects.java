@@ -49,6 +49,7 @@ public final class AttackEffects {
     }
 
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), weapon.element());
@@ -155,11 +156,13 @@ public final class AttackEffects {
      * has its own fixed direction (with a few degrees of jitter) so a run of hits looks like a combo.
      */
     public void playComboSlash(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         playComboSlash(attacker, weapon, nextComboStage(attacker));
     }
 
     /** The slash of {@code stage} 1 / 2 (the two light cuts) or 3 (the finisher's). */
     public void playComboSlash(Player attacker, RpgItemDefinition weapon, int stage) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -190,6 +193,7 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look) {
+        ParticleFx.mark(attacker);
         playStyledSlash(attacker, weapon, stage, look, 0);
     }
 
@@ -200,6 +204,7 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat) {
+        ParticleFx.mark(attacker);
         playStyledSlash(attacker, weapon, stage, look, repeat, false);
     }
 
@@ -210,6 +215,7 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, boolean randomAngles) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -257,11 +263,13 @@ public final class AttackEffects {
      * left and one from the left to the right (counter-clockwise and clockwise seen from above).
      */
     public void playDualSweep(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         playDualSweep(attacker, weapon, weapon, 0);
     }
 
     /** {@code repeat}: the n-th time of a run (0 = the first): turned a little further each time. */
     public void playDualSweep(Player attacker, RpgItemDefinition weapon, RpgItemDefinition offWeapon, int repeat) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -277,19 +285,21 @@ public final class AttackEffects {
 
     /** The step of the assassin: a streak of afterimages along the way, and a swish. */
     public void playStepTrail(Player player, RpgItemDefinition weapon, Location from, Vector direction) {
+        ParticleFx.mark(player);
         World world = from.getWorld();
         if (world == null) return;
         sounds.swing(player, from.clone().add(0.0, 1.0, 0.0), weapon.element());
         Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(235, 235, 245), 1.1f);
         for (int index = 0; index < 8; index++) {
             Location point = from.clone().add(direction.clone().multiply(index * 0.45)).add(0.0, 0.2 + (index % 3) * 0.5, 0.0);
-            world.spawnParticle(Particle.REDSTONE, point, 2, 0.15, 0.2, 0.15, 0.0, dust);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 2, 0.15, 0.2, 0.15, 0.0, dust);
         }
-        world.spawnParticle(Particle.CLOUD, from.clone().add(0.0, 0.1, 0.0), 6, 0.3, 0.05, 0.3, 0.02);
+        ParticleFx.to(world).spawnParticle(Particle.CLOUD, from.clone().add(0.0, 0.1, 0.0), 6, 0.3, 0.05, 0.3, 0.02);
     }
 
     /** One pulse of the assassin's dash: a ring of cuts around the body. */
     public void playSpinPulse(Player player, RpgItemDefinition weapon, double radius, int tick) {
+        ParticleFx.mark(player);
         World world = player.getWorld();
         Element element = weapon.element();
         sounds.slashCut(player, player.getLocation().add(0.0, 1.0, 0.0), element);
@@ -298,12 +308,12 @@ public final class AttackEffects {
         double turn = tick * 0.9;
         for (int index = 0; index < 28; index++) {
             double angle = Math.PI * 2.0 * index / 28.0 + turn;
-            world.spawnParticle(Particle.REDSTONE, center.clone().add(Math.cos(angle) * radius * 0.85, 0.0, Math.sin(angle) * radius * 0.85),
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center.clone().add(Math.cos(angle) * radius * 0.85, 0.0, Math.sin(angle) * radius * 0.85),
                     1, 0.0, 0.0, 0.0, 0.0, dust);
         }
         for (int index = 0; index < 4; index++) {
             double angle = Math.PI * 0.5 * index + turn;
-            world.spawnParticle(Particle.SWEEP_ATTACK, center.clone().add(Math.cos(angle) * radius * 0.7, 0.0, Math.sin(angle) * radius * 0.7), 1, 0.0, 0.0, 0.0, 0.0);
+            ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, center.clone().add(Math.cos(angle) * radius * 0.7, 0.0, Math.sin(angle) * radius * 0.7), 1, 0.0, 0.0, 0.0, 0.0);
         }
         burst(world, center, element, 4, 0.5, 0.05);
     }
@@ -319,6 +329,7 @@ public final class AttackEffects {
      * {@code center}, drawn with the same slash as a normal attack (the assassin's leap and spin).
      */
     public void playRandomSlashes(Player attacker, RpgItemDefinition weapon, Location center, double range, int count) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -340,6 +351,7 @@ public final class AttackEffects {
      * (not the arcs of the normal slash): the assassin's rapid hits.
      */
     public void playRandomLines(Player attacker, RpgItemDefinition weapon, Location center, double range, int count) {
+        ParticleFx.mark(attacker);
         World world = center.getWorld();
         if (world == null) return;
         Element element = weapon.element();
@@ -367,6 +379,7 @@ public final class AttackEffects {
      * {@code range} blocks of {@code center}, long (the mage's tornado).
      */
     public void playWindBlades(Player attacker, Location center, double range, int count) {
+        ParticleFx.mark(attacker);
         World world = center.getWorld();
         if (world == null) return;
         world.playSound(center, Sound.ENTITY_PHANTOM_FLAP, SoundCategory.PLAYERS, 0.4f, 1.8f);
@@ -383,14 +396,15 @@ public final class AttackEffects {
             double half = random.nextDouble(1.8, 3.2);
             for (double along = -half; along <= half; along += 0.25) {
                 Location point = middle.clone().add(direction.clone().multiply(along));
-                world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, Math.abs(along) < half * 0.5 ? pale : dust);
-                if (random.nextInt(7) == 0) world.spawnParticle(Particle.CLOUD, point, 1, 0.05, 0.05, 0.05, 0.0);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, Math.abs(along) < half * 0.5 ? pale : dust);
+                if (random.nextInt(7) == 0) ParticleFx.to(world).spawnParticle(Particle.CLOUD, point, 1, 0.05, 0.05, 0.05, 0.0);
             }
         }
     }
 
     /** The finisher's flourish: a burst of sparks, a ring of light around the hit and a loud crack. */
     public void playFinisherFlourish(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         World world = attacker.getWorld();
         Element element = weapon.element();
         Vector view = viewDirection(attacker);
@@ -398,8 +412,8 @@ public final class AttackEffects {
         world.playSound(at, Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 1.3f);
         world.playSound(at, Sound.ENTITY_PLAYER_ATTACK_CRIT, SoundCategory.PLAYERS, 0.8f, 1.1f);
         burst(world, at, element, 18, 0.9, 0.2);
-        world.spawnParticle(Particle.CRIT, at, 14, 0.8, 0.5, 0.8, 0.3);
-        world.spawnParticle(Particle.SWEEP_ATTACK, at, 2, 0.6, 0.3, 0.6, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.CRIT, at, 14, 0.8, 0.5, 0.8, 0.3);
+        ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, at, 2, 0.6, 0.3, 0.6, 0.0);
     }
 
     /**
@@ -416,6 +430,7 @@ public final class AttackEffects {
      * one above it, with a burst of sparks. The assassin's heavy attack 1.
      */
     public void playSpinSlash(Player attacker, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -435,6 +450,7 @@ public final class AttackEffects {
 
     /** A heavy attack: the wide sweep with a thick upright cut across it. */
     public void playHeavySlash(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         playSweepMelee(attacker, weapon);
@@ -443,21 +459,25 @@ public final class AttackEffects {
 
     /** The crossing slashes of the assassin's two hands (also drawn for every swing while a weapon is held in each hand). */
     public void playDualSlash(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         playDualSlash(attacker, weapon, weapon);
     }
 
     /** The cross of the two hands: the first cut has the colour of the main hand's weapon, the second the off hand's. */
     public void playDualSlash(Player attacker, RpgItemDefinition weapon, RpgItemDefinition offWeapon) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
         playSlashMelee(attacker, weapon, offWeapon, null, 0);
     }
 
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         playSweepMelee(attacker, weapon, 0);
     }
 
     /** {@code repeat}: the n-th sweep of a run (0 = the first): from the other side, turned a little further. */
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon, int repeat) {
+        ParticleFx.mark(attacker);
         Vector view = viewDirection(attacker);
         Element element = weapon.element();
         Resolved look = resolve(null, element);
@@ -474,11 +494,13 @@ public final class AttackEffects {
 
     /** The sound of a ranged shot leaving the weapon (the shot itself is drawn while it flies). */
     public void playRangeLaunch(Player attacker, RpgItemDefinition weapon, Location start) {
+        ParticleFx.mark(attacker);
         if (attacker == null || weapon == null || start == null) return;
         sounds.rangeShot(attacker, start, weapon.element());
     }
 
     public void playRangeTrail(Player attacker, RpgItemDefinition weapon, Location hitLocation) {
+        ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.range-trail.enabled", true)) return;
         if (hitLocation == null || hitLocation.getWorld() == null) return;
 
@@ -544,6 +566,7 @@ public final class AttackEffects {
     }
 
     public void playRangeImpact(Player attacker, Location hitLocation, RpgItemDefinition weapon) {
+        ParticleFx.mark(attacker);
         if (hitLocation == null || hitLocation.getWorld() == null) return;
         impact(attacker, hitLocation, weapon.element());
     }
@@ -574,6 +597,7 @@ public final class AttackEffects {
     }
 
     public void playSweepRangeWave(Player player, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(player);
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, 0.25, 0.0);
         ParticlePalette palette = palette(weapon.element());
@@ -615,7 +639,7 @@ public final class AttackEffects {
 
         int damageParticles = Math.max(0, plugin.getConfig().getInt("combat.effects.range-hurt.damage-indicators", 5));
         if (damageParticles > 0) {
-            world.spawnParticle(Particle.DAMAGE_INDICATOR, center, damageParticles, 0.22, 0.18, 0.22, 0.0);
+            ParticleFx.to(world).spawnParticle(Particle.DAMAGE_INDICATOR, center, damageParticles, 0.22, 0.18, 0.22, 0.0);
         }
 
         Particle.DustOptions red = new Particle.DustOptions(Color.fromRGB(255, 45, 45), 0.85f);
@@ -628,6 +652,7 @@ public final class AttackEffects {
     }
 
     public void playDamageNumber(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical) {
+        ParticleFx.mark(attacker);
         if (target == null || damage <= 0.0) return;
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
@@ -637,6 +662,7 @@ public final class AttackEffects {
     }
 
     public void playDamageNumber(Player attacker, Location targetLocation, double targetHeight, RpgItemDefinition weapon, double damage, boolean critical) {
+        ParticleFx.mark(attacker);
         if (targetLocation == null || targetLocation.getWorld() == null || damage <= 0.0) return;
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
@@ -687,9 +713,9 @@ public final class AttackEffects {
         private void spark(World world, Location point) {
             if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
             if (spark == null) {
-                world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust(edge, 0.8));
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust(edge, 0.8));
             } else {
-                world.spawnParticle(spark, point, 1, 0.0, 0.0, 0.0, 0.0);
+                ParticleFx.to(world).spawnParticle(spark, point, 1, 0.0, 0.0, 0.0, 0.0);
             }
         }
 
@@ -697,10 +723,10 @@ public final class AttackEffects {
             if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
             if (spark == null) {
                 for (int index = 0; index < count; index++) {
-                    world.spawnParticle(Particle.REDSTONE, point, 1, spread, spread, spread, 0.0, dust(index % 2 == 0 ? edge : core, 0.8));
+                    ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, spread, spread, spread, 0.0, dust(index % 2 == 0 ? edge : core, 0.8));
                 }
             } else {
-                world.spawnParticle(spark, point, count, spread, spread, spread, speed);
+                ParticleFx.to(world).spawnParticle(spark, point, count, spread, spread, spread, speed);
             }
         }
     }
@@ -922,14 +948,17 @@ public final class AttackEffects {
     // ---- sounds of skills
 
     public void playSkillWindupSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        ParticleFx.mark(owner);
         sounds.skillWindup(owner, at, styleOf(look), element);
     }
 
     public void playSkillCastSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        ParticleFx.mark(owner);
         sounds.skillCast(owner, at, styleOf(look), element);
     }
 
     public void playSkillHitSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        ParticleFx.mark(owner);
         sounds.skillImpact(owner, at, styleOf(look), element);
     }
 
@@ -945,6 +974,7 @@ public final class AttackEffects {
     }
 
     public void playHealNumber(Player target, double amount) {
+        ParticleFx.mark(target);
         if (target == null || target.isDead() || !target.isValid() || amount <= 0.0) return;
 
         spawnFloatingText(target, Component.text("+" + formatFloating(amount), TextColor.color(75, 235, 95)));
@@ -1020,6 +1050,7 @@ public final class AttackEffects {
     }
 
     public void playDeploySweep(Player owner, Location center, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(owner);
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
@@ -1049,6 +1080,7 @@ public final class AttackEffects {
     }
 
     public void playHealBurst(Player player, RpgItemDefinition weapon) {
+        ParticleFx.mark(player);
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, Math.max(0.7, player.getHeight() * 0.55), 0.0);
         ParticlePalette palette = palette(weapon.element());
@@ -1061,10 +1093,11 @@ public final class AttackEffects {
             spawnDust(world, point, index % 2 == 0 ? palette.primary() : palette.secondary());
             if (index % 3 == 0) spark(world, point, weapon.element());
         }
-        world.spawnParticle(Particle.HEART, center.clone().add(0.0, 0.45, 0.0), 2, 0.25, 0.18, 0.25, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.HEART, center.clone().add(0.0, 0.45, 0.0), 2, 0.25, 0.18, 0.25, 0.0);
     }
 
     public void playHealRing(Player owner, Location center, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(owner);
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
@@ -1088,6 +1121,7 @@ public final class AttackEffects {
     }
 
     public void playDashBurst(Player player, RpgItemDefinition weapon) {
+        ParticleFx.mark(player);
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, 0.35, 0.0);
         Vector backward = horizontalForward(player).multiply(-1.0);
@@ -1104,6 +1138,7 @@ public final class AttackEffects {
     }
 
     public void playStrikeMeleeBurst(Player player, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(player);
         World world = player.getWorld();
         Location center = player.getLocation().add(0.0, 0.65, 0.0);
         ParticlePalette palette = palette(weapon.element());
@@ -1119,6 +1154,7 @@ public final class AttackEffects {
     }
 
     public void playStrikeRangeCharge(Player owner, Location center, Vector direction, RpgItemDefinition weapon) {
+        ParticleFx.mark(owner);
         if (center == null || center.getWorld() == null) return;
         sounds.strikeCharge(owner, center);
         spawnStrikeCylinder(center.getWorld(), center, direction, weapon, 0.75, 3, 18);
@@ -1130,11 +1166,13 @@ public final class AttackEffects {
     }
 
     public void playSlashMelee(Player attacker, RpgItemDefinition weapon, LivingEntity target, int sequence) {
+        ParticleFx.mark(attacker);
         playSlashMelee(attacker, weapon, weapon, target, sequence);
     }
 
     /** {@code secondWeapon}: the weapon whose colour the second cut of the X has (the off hand's for two hands). */
     public void playSlashMelee(Player attacker, RpgItemDefinition weapon, RpgItemDefinition secondWeapon, LivingEntity target, int sequence) {
+        ParticleFx.mark(attacker);
         if (attacker == null || weapon == null) return;
 
         Vector forward = target == null
@@ -1191,6 +1229,7 @@ public final class AttackEffects {
     }
 
     public void playSlashImpact(Player owner, LivingEntity target, RpgItemDefinition weapon) {
+        ParticleFx.mark(owner);
         if (target == null || target.isDead() || !target.isValid() || weapon == null) return;
 
         playRangeHurt(target);
@@ -1207,6 +1246,7 @@ public final class AttackEffects {
     }
 
     public void playDeployDashFinish(Player owner, Location center, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(owner);
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
@@ -1230,6 +1270,7 @@ public final class AttackEffects {
     }
 
     public void playDeployStrikeCrush(Player owner, Location center, RpgItemDefinition weapon, double radius) {
+        ParticleFx.mark(owner);
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
@@ -1346,7 +1387,12 @@ public final class AttackEffects {
                 : new SlashVfx.Layer[]{outer};
         SlashVfx.Layer tip = full && look.spark != null ? layer(look.spark, null, 1f, 2, 0.0, 1) : null;
 
-        Runnable draw = () -> slashVfx.play(origin, layers, duration, safe, tip);
+        // the slash is drawn a moment later (by one shared task): it keeps the player whose slash it is
+        Player slashOwner = ParticleFx.owner();
+        Runnable draw = () -> {
+            ParticleFx.mark(slashOwner);
+            slashVfx.play(origin, layers, duration, safe, tip);
+        };
         if (delaySeconds > 0.0) {
             long delayTicks = Math.max(1L, Math.round(delaySeconds * 20.0));
             Bukkit.getScheduler().runTaskLater(plugin, draw, delayTicks);
@@ -1374,13 +1420,13 @@ public final class AttackEffects {
     private void burst(World world, Location point, Element element, int count, double spread, double speed) {
         if (world == null || point == null) return;
         if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
-        world.spawnParticle(sparkParticle(element), point, count, spread, spread, spread, speed);
+        ParticleFx.to(world).spawnParticle(sparkParticle(element), point, count, spread, spread, spread, speed);
     }
 
     /** One spark at {@code point} (used to dress up rings and lines). */
     private void spark(World world, Location point, Element element) {
         if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
-        world.spawnParticle(sparkParticle(element), point, 1, 0.0, 0.0, 0.0, 0.0);
+        ParticleFx.to(world).spawnParticle(sparkParticle(element), point, 1, 0.0, 0.0, 0.0, 0.0);
     }
 
     /**
@@ -1411,7 +1457,7 @@ public final class AttackEffects {
     }
 
     private void spawnDust(World world, Location point, Particle.DustOptions dust) {
-        world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
     }
 
     private void spawnFloatingText(LivingEntity target, Component text) {

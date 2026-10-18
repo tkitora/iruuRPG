@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.dungeon;
 
+import net.tkgon.mc.iruuRPG.combat.ParticleFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -860,7 +861,7 @@ public final class DungeonService implements Listener {
                     && player.getLocation().distanceSquared(down.corpse) > SPECTATE_RANGE * SPECTATE_RANGE) {
                 player.teleport(down.corpse.clone().add(0, 1.0, 0)); // watch around, but stay near the body
             }
-            down.corpse.getWorld().spawnParticle(Particle.SOUL, down.corpse.clone().add(0, 0.3, 0), 3, 0.3, 0.1, 0.3, 0.01);
+            ParticleFx.to(down.corpse.getWorld()).spawnParticle(Particle.SOUL, down.corpse.clone().add(0, 0.3, 0), 3, 0.3, 0.1, 0.3, 0.01);
 
             List<Player> helpers = new ArrayList<>();
             for (UUID other : instance.players) {
@@ -927,7 +928,7 @@ public final class DungeonService implements Listener {
     private void exitParticles(Instance instance, boolean open) {
         if (instance.definition.exit() == null || instance.world == null) return;
         Location at = instance.definition.exit().in(instance.world).add(0, 1.0, 0);
-        instance.world.spawnParticle(open ? Particle.END_ROD : Particle.SMOKE_NORMAL, at, open ? 12 : 6, 0.4, 0.6, 0.4, 0.01);
+        ParticleFx.to(instance.world).spawnParticle(open ? Particle.END_ROD : Particle.SMOKE_NORMAL, at, open ? 12 : 6, 0.4, 0.6, 0.4, 0.01);
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -1126,11 +1127,11 @@ public final class DungeonService implements Listener {
         // the way to the boss opens only after most of the dungeon's mobs are dead (running past them does not work)
         int[] progress = trashProgress(instance);
         if (progress[0] < progress[1]) {
-            instance.world.spawnParticle(Particle.SMOKE_NORMAL, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
+            ParticleFx.to(instance.world).spawnParticle(Particle.SMOKE_NORMAL, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
             if (instance.triggerLabel != null && instance.triggerLabel.isValid()) instance.triggerLabel.text(lockedText(progress[0], progress[1]));
             return; // (how many are left is in the sidebar and on the label)
         }
-        instance.world.spawnParticle(Particle.FLAME, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
+        ParticleFx.to(instance.world).spawnParticle(Particle.FLAME, trigger.clone().add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
 
         int need = Math.max(1, instance.players.size() - 1);
         int here = 0;
@@ -1433,7 +1434,7 @@ public final class DungeonService implements Listener {
         for (DungeonRegistry.Gate gate : registry.allGates().keySet()) {
             World world = Bukkit.getWorld(gate.world());
             if (world == null || !world.isChunkLoaded(gate.x() >> 4, gate.z() >> 4)) continue;
-            world.spawnParticle(Particle.PORTAL, gate.x() + 0.5, gate.y() + 1.0, gate.z() + 0.5, 12, 0.3, 0.6, 0.3, 0.2);
+            ParticleFx.to(world).spawnParticle(Particle.PORTAL, gate.x() + 0.5, gate.y() + 1.0, gate.z() + 0.5, 12, 0.3, 0.6, 0.3, 0.2);
         }
     }
 
@@ -1571,14 +1572,14 @@ public final class DungeonService implements Listener {
             if (definition == null) continue;
             for (DungeonDefinition.MobSpawn spawn : definition.spawns()) {
                 boolean boss = spawn.mobId().equals(definition.boss());
-                world.spawnParticle(boss ? Particle.FLAME : Particle.VILLAGER_HAPPY, spawn.in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+                ParticleFx.to(world).spawnParticle(boss ? Particle.FLAME : Particle.VILLAGER_HAPPY, spawn.in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
             }
-            world.spawnParticle(Particle.COMPOSTER, definition.entry().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+            ParticleFx.to(world).spawnParticle(Particle.COMPOSTER, definition.entry().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
             if (definition.exit() != null) {
-                world.spawnParticle(Particle.END_ROD, definition.exit().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
+                ParticleFx.to(world).spawnParticle(Particle.END_ROD, definition.exit().in(world).add(0, 0.8, 0), 6, 0.2, 0.6, 0.2, 0.0);
             }
             if (definition.bossTrigger() != null) {
-                world.spawnParticle(Particle.FLAME, definition.bossTrigger().in(world).add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
+                ParticleFx.to(world).spawnParticle(Particle.FLAME, definition.bossTrigger().in(world).add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
             }
         }
     }
