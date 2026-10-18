@@ -19,7 +19,7 @@ import java.util.Locale;
  * The action bar: HP, MP and (when a normal attack is cooling down) three gauges of the normal attack's cooldown,
  * melee (red), ranged (blue) and deployed (white). Each gauge is {@code [||||||||||]}: green when the normal attack can
  * be used, otherwise its progress in a light shade of the type's color. (The weapon skill's cooldown is the item's own
- * cooldown overlay, not shown here.) {@code hud.cooldown-gauges}: {@code auto} (only while one is cooling down, else the
+ * cooldown overlay, not shown here.) {@code hud.cooldown-gauges}: {@code auto} (only while a normal attack is cooling down or damage is being dealt, else the
  * usual status line with defense, level and XP), {@code always}, or {@code off}.
  */
 public final class PlayerHud {
@@ -58,6 +58,12 @@ public final class PlayerHud {
         if (attackService == null || mode.equals("off")) return false;
         if (mode.equals("always")) return true;
         long now = System.currentTimeMillis();
+        // damage is being dealt (the DPS is not 0: also when only skills hit), or the class skill's total is up
+        var meter = attackService.damageMeter();
+        if (meter.dps(player.getUniqueId()) > 0.0 || meter.skillTotalShown(player.getUniqueId())) {
+            lastActive.put(player.getUniqueId(), now);
+            return true;
+        }
         for (AttackType type : TYPES) {
             if (attackService.normalCooldown(player, type)[0] > 0L) {
                 lastActive.put(player.getUniqueId(), now);
