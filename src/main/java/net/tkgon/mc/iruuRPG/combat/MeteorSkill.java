@@ -53,14 +53,17 @@ final class MeteorSkill {
 
     void cast(Player player, Map<String, Double> values, RpgItemDefinition weapon, boolean upgraded) {
         int chargeTicks = (int) Math.round(values.getOrDefault("charge-ticks", 16.0));
-        int count = (int) Math.round(upgraded ? values.getOrDefault("upgrade-count", 6.0) : values.getOrDefault("count", 3.0));
-        int interval = Math.max(1, (int) Math.round(values.getOrDefault("interval-ticks", 5.0)));
+        int count = Math.max(1, (int) Math.round(upgraded ? values.getOrDefault("upgrade-count", 12.0) : values.getOrDefault("count", 6.0)));
+        // the meteors share a fixed firing time (more meteors = a shorter gap between them), so the skill lasts as long as before
+        int fireTicks = Math.max(1, (int) Math.round(upgraded ? values.getOrDefault("upgrade-fire-ticks", 30.0) : values.getOrDefault("fire-ticks", 15.0)));
+        double interval = (double) fireTicks / count;
         int beamCharge = (int) Math.round(values.getOrDefault("beam-charge-ticks", 30.0));
-        int total = chargeTicks + count * interval;
+        int total = chargeTicks + fireTicks;
 
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.7f, 1.7f);
         new SafeTask(plugin) {
             private int age;
+            private int launched;
             private boolean beamFired;
 
             @Override
@@ -76,8 +79,10 @@ final class MeteorSkill {
                         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.5f, (float) (0.8 + 0.9 * grow));
                     }
                     if (upgraded) drawCharge(player, age, 0.45);
-                    if (age >= chargeTicks && (age - chargeTicks) % interval == 0) {
-                        launch(player, values, weapon, (age - chargeTicks) / interval, count);
+                    // meteor k leaves k * interval ticks after the charge (a gap of 2 or 3 ticks, not always a whole number)
+                    while (launched < count && age >= chargeTicks + (int) Math.round(launched * interval)) {
+                        launch(player, values, weapon, launched, count);
+                        launched++;
                     }
                 } else if (upgraded && age < total + beamCharge) {
                     // the light gathers faster and faster toward the beam
@@ -160,12 +165,15 @@ final class MeteorSkill {
         right.normalize();
         Vector up = right.clone().crossProduct(forward).normalize();
 
-        // meteors come out of the circle at spread-out places and first swing outward, then curve to the front
-        double angle = Math.PI * 2.0 * number / Math.max(1, count) + ThreadLocalRandom.current().nextDouble(-0.4, 0.4);
+        // meteors leave the circle on its upper half only (a meteor sent downward would hit the ground at once), in a fan
+        // that is filled from the middle, alternately to the right and the left; each first swings outward and up, then
+        // curves in an arc toward the front (away from the center line, so none of them starts into the ground)
+        double angle = fanAngle(number, count) + ThreadLocalRandom.current().nextDouble(-0.1, 0.1);
         Vector outward = right.clone().multiply(Math.cos(angle)).add(up.clone().multiply(Math.sin(angle)));
         Location start = center.clone().add(outward.clone().multiply(1.1));
+        for (int lift = 0; lift < 4 && !(start.getBlock().isPassable()); lift++) start.add(0.0, 0.5, 0.0);
         double perTick = values.getOrDefault("speed", 22.0) / 20.0;
-        Vector velocity = forward.clone().multiply(perTick * 0.55).add(outward.clone().multiply(perTick * 0.9));
+        Vector velocity = forward.clone().multiply(perTick * 0.4).add(outward.clone().multiply(perTick * 1.0));
         world.playSound(start, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 1.4f);
 
         double rate = values.getOrDefault("damage-rate", 1.3);
@@ -188,7 +196,7 @@ final class MeteorSkill {
                     return;
                 }
                 Vector desired = aim.clone().multiply(perTick);
-                double turn = 0.22; // the streamlined curve toward the front
+                double turn = Math.min(0.22, 0.07 + 0.02 * age); // a wide swing first, then the curve toward the front
                 if (age >= homingDelay) {
                     if (homing == null || homing.isDead() || !homing.isValid() || age % 6 == 0) homing = nearestTarget(player, position, homingRadius);
                     if (homing != null) {
@@ -204,8 +212,16 @@ final class MeteorSkill {
                 if (length > perTick * 1.2) velocityNow.multiply(perTick * 1.2 / length);
                 if (length < 1.0E-6) return;
                 Vector direction = velocityNow.clone().normalize();
-                RayTraceResult hit = world.rayTrace(position, direction, length, FluidCollisionMode.NEVER, true, hitRadius,
+                // blocks do not count during the first ticks, so a meteor never ends against the ground it just left
+                RayTraceResult entityHit = world.rayTraceEntities(position, direction, length, hitRadius,
                         entity -> attackService.isAttackTarget(entity, player));
+                RayTraceResult blockHit = age > 3 ? world.rayTraceBlocks(position, direction, length, FluidCollisionMode.NEVER, true) : null;
+                RayTraceResult hit = entityHit;
+                if (blockHit != null && blockHit.getHitPosition() != null
+                        && (entityHit == null || entityHit.getHitPosition() == null
+                        || blockHit.getHitPosition().distanceSquared(position.toVector()) < entityHit.getHitPosition().distanceSquared(position.toVector()))) {
+                    hit = blockHit;
+                }
                 Location next = hit != null && hit.getHitPosition() != null
                         ? hit.getHitPosition().toLocation(world) : position.clone().add(velocityNow);
                 drawMeteor(world, position, next);
@@ -219,6 +235,16 @@ final class MeteorSkill {
                 if (hit.getHitEntity() instanceof LivingEntity victim) hitVictim(player, weapon, victim, rate, next);
             }
         }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /**
+     * The direction a meteor leaves the circle in, as an angle in the circle's plane (0 = right, 90 degrees = straight up):
+     * only the upper half (20 to 160 degrees), starting in the middle and alternating to the right and the left.
+     */
+    private static double fanAngle(int number, int count) {
+        int slot = number % 2 == 0 ? number / 2 : count - 1 - number / 2;
+        double share = (slot + 0.5) / Math.max(1, count);
+        return Math.toRadians(20.0 + 140.0 * share);
     }
 
     private void drawMeteor(World world, Location from, Location to) {
