@@ -181,7 +181,7 @@ public final class AttackService {
      * is null for a swing that hit nothing (only the cuts are drawn).
      */
     public void scheduleRepeats(Player attacker, LivingEntity victim, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        long gapTicks = Math.max(1L, plugin.getConfig().getLong("combat.combo.assassin.multi-hit-gap-ticks", 5L));
+        long gapTicks = Math.max(1L, plugin.getConfig().getLong("combat.combo.assassin.multi-hit-gap-ticks", 4L));
         for (int index = 1; index <= step.extraHits(); index++) {
             int repeat = index;
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
@@ -670,7 +670,9 @@ public final class AttackService {
             net.tkgon.mc.iruuRPG.skill.SkillLook look = style.look() != null ? style.look()
                     : itemStyle != null && itemStyle.look() != null ? itemStyle.look()
                     : classStyle != null ? classStyle.look() : null;
-            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat);
+            // the assassin's multi-hit lights: the cuts cross each other (neighbours up to 40 degrees apart)
+            double cross = step.assassin() && step.extraHits() > 0 ? 40.0 : 0.0;
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, cross);
             return;
         }
         if (step.heavy()) {

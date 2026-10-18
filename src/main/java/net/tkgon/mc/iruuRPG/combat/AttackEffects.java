@@ -190,6 +190,15 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat) {
+        playStyledSlash(attacker, weapon, stage, look, repeat, 0.0);
+    }
+
+    /**
+     * {@code crossSpread} (degrees, 0 = off): the cuts of a run are turned to one side and the other at random so
+     * that neighbours differ by up to this much and cross each other like an X (the assassin's multi-hit lights).
+     */
+    public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
+                                net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, double crossSpread) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -211,6 +220,11 @@ public final class AttackEffects {
             double extraDelay = number > 0 ? FOLLOW_DELAY : 0.0;
             double yawShift = run * RUN_YAW_STEP * (run % 2 == 0 ? 1.0 : -1.0);
             double tiltShift = run * RUN_TILT_STEP;
+            if (crossSpread > 0.0) {
+                // alternate sides, each by a random part of half the spread, so neighbours are up to the spread apart
+                yawShift = (run % 2 == 0 ? 1.0 : -1.0) * random.nextDouble(crossSpread * 0.1, crossSpread * 0.5);
+                tiltShift = 0.0;
+            }
             cut(attacker, r, cut.forward(), cut.drop(), cut.side(), cut.radius(), cut.angle(), cut.tilt() + tiltShift,
                     cut.roll() + jitter, cut.duration(), (float) cut.scale(), cut.delay() + extraDelay, yawShift);
             lastForward = cut.forward();
