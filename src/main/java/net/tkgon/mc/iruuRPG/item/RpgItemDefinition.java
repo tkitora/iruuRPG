@@ -27,8 +27,17 @@ public record RpgItemDefinition(
         WeaponStackSpec stacks,
         StatSet stats,
         ElementStatSet elementStats,
-        List<String> description
+        List<String> description,
+        Map<String, Object> comboStyle
 ) {
+    public RpgItemDefinition(String id, Material material, ItemVisualOptions visualOptions, String name, int requiredLevel,
+                             Rarity rarity, Element element, DamageKind damageKind, AttackType attackType, ItemSkillType skill,
+                             String skillId, Map<String, Object> skillOverrides, WeaponStackSpec stacks, StatSet stats,
+                             ElementStatSet elementStats, List<String> description) {
+        this(id, material, visualOptions, name, requiredLevel, rarity, element, damageKind, attackType, skill, skillId,
+                skillOverrides, stacks, stats, elementStats, description, Map.of());
+    }
+
     public RpgItemDefinition {
         if (id == null || id.isBlank()) {
             throw new IllegalArgumentException("Item id must not be blank");
@@ -48,6 +57,7 @@ public record RpgItemDefinition(
         stats = stats == null ? new StatSet() : stats.copy();
         elementStats = elementStats == null ? new ElementStatSet() : elementStats.copy();
         description = description == null ? List.of() : List.copyOf(description);
+        comboStyle = comboStyle == null ? Map.of() : comboStyle;
     }
 
     /** True when the weapon's `skill:` names a skill of skills/*.yml (the item skills sweep / heal / ... are `skill`). */

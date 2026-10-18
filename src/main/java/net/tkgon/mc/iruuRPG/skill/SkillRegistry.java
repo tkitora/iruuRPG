@@ -579,6 +579,78 @@ public final class SkillRegistry {
         return flat;
     }
 
+    private final Map<Map<String, Object>, net.tkgon.mc.iruuRPG.combat.ComboStyle> comboStyles =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
+
+    /**
+     * The `combo-style:` of a class or an item (see {@link net.tkgon.mc.iruuRPG.combat.ComboStyle}), parsed once
+     * and kept. {@code owner} names it in warnings; out of range values are fixed with a warning.
+     */
+    public net.tkgon.mc.iruuRPG.combat.ComboStyle comboStyle(String owner, Map<String, Object> raw) {
+        if (raw == null || raw.isEmpty()) return null;
+        net.tkgon.mc.iruuRPG.combat.ComboStyle cached = comboStyles.get(raw);
+        if (cached != null) return cached;
+        String where = "combo-style of " + owner;
+        Map<String, Object> lookMap = toMap(raw.get("look"));
+        SkillLook look = lookMap == null ? null : look(where, SkillLook.plain(), lookMap);
+        java.util.List<net.tkgon.mc.iruuRPG.combat.ComboStyle.Stage> light = new ArrayList<>();
+        Object lightRaw = raw.get("light");
+        if (lightRaw instanceof List<?> list) {
+            for (Object item : list) {
+                if (light.size() >= 9) break;
+                net.tkgon.mc.iruuRPG.combat.ComboStyle.Stage stage = comboStage(where + " light " + (light.size() + 1), item);
+                if (stage != null) light.add(stage);
+            }
+        } else if (lightRaw != null) {
+            plugin.getLogger().warning("skills: " + where + ": light must be a list (one entry per light attack); ignored");
+        }
+        net.tkgon.mc.iruuRPG.combat.ComboStyle style = new net.tkgon.mc.iruuRPG.combat.ComboStyle(look, light,
+                comboStage(where + " finisher", raw.get("finisher")), comboStage(where + " heavy", raw.get("heavy")));
+        comboStyles.put(raw, style);
+        return style;
+    }
+
+    /** One attack: a list of cuts, or {cuts: [...], sound: swing|sweep|cut, burst: n}, or a single cut. */
+    private net.tkgon.mc.iruuRPG.combat.ComboStyle.Stage comboStage(String where, Object raw) {
+        if (raw == null) return null;
+        Object cutsRaw = raw;
+        String sound = "swing";
+        int burst = 0;
+        Map<String, Object> map = toMap(raw);
+        if (map != null && map.containsKey("cuts")) {
+            cutsRaw = map.get("cuts");
+            if (map.get("sound") != null) {
+                String word = map.get("sound").toString().trim().toLowerCase(Locale.ROOT);
+                if (word.equals("swing") || word.equals("sweep") || word.equals("cut")) {
+                    sound = word;
+                } else {
+                    plugin.getLogger().warning("skills: " + where + ": sound '" + word + "' is unknown (swing / sweep / cut)");
+                }
+            }
+            burst = (int) number(where, map, "burst", 0, 0, 30);
+        }
+        java.util.List<net.tkgon.mc.iruuRPG.combat.ComboStyle.Cut> cuts = new ArrayList<>();
+        List<?> items = cutsRaw instanceof List<?> list ? list : List.of(cutsRaw);
+        for (Object item : items) {
+            if (cuts.size() >= 4) {
+                plugin.getLogger().warning("skills: " + where + ": at most 4 cuts per attack; the rest are ignored");
+                break;
+            }
+            Map<String, Object> cut = toMap(item);
+            if (cut == null) {
+                plugin.getLogger().warning("skills: " + where + ": a cut must be a section (radius / angle / tilt / roll ...); skipped");
+                continue;
+            }
+            cuts.add(new net.tkgon.mc.iruuRPG.combat.ComboStyle.Cut(
+                    number(where, cut, "radius", 1.7, 0.5, 6.0), number(where, cut, "angle", 130.0, 20.0, 360.0),
+                    number(where, cut, "tilt", 0.0, -180.0, 180.0), number(where, cut, "roll", 0.0, -180.0, 180.0),
+                    number(where, cut, "roll-jitter", 8.0, 0.0, 45.0), number(where, cut, "forward", 1.5, 0.0, 4.0),
+                    number(where, cut, "drop", 0.2, -1.0, 1.5), number(where, cut, "duration", 0.12, 0.04, 0.6),
+                    number(where, cut, "scale", 1.0, 0.3, 2.5), number(where, cut, "delay", 0.0, 0.0, 0.5)));
+        }
+        return cuts.isEmpty() ? null : new net.tkgon.mc.iruuRPG.combat.ComboStyle.Stage(cuts, sound, burst);
+    }
+
     /** A yaml section or map as a plain map (nested sections too); null for anything else. */
     @SuppressWarnings("unchecked")
     private Map<String, Object> toMap(Object raw) {

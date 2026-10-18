@@ -20,8 +20,15 @@ public record ClassDefinition(
         ElementStatSet growthElements,
         List<SpendNodeDefinition> spendNodes,
         List<ClassNodeDefinition> milestones,
-        List<ClassNodeDefinition> innate
+        List<ClassNodeDefinition> innate,
+        java.util.Map<String, Object> comboStyle
 ) {
+
+    public ClassDefinition(String id, String name, Material icon, List<String> description, StatSet growth,
+                           ElementStatSet growthElements, List<SpendNodeDefinition> spendNodes,
+                           List<ClassNodeDefinition> milestones, List<ClassNodeDefinition> innate) {
+        this(id, name, icon, description, growth, growthElements, spendNodes, milestones, innate, java.util.Map.of());
+    }
 
     public ClassDefinition {
         id = id == null ? "" : id;
@@ -33,6 +40,7 @@ public record ClassDefinition(
         spendNodes = spendNodes == null ? List.of() : List.copyOf(spendNodes);
         milestones = milestones == null ? List.of() : List.copyOf(milestones);
         innate = innate == null ? List.of() : List.copyOf(innate);
+        comboStyle = comboStyle == null ? java.util.Map.of() : comboStyle;
     }
 
     public SpendNodeDefinition spendNode(String nodeId) {

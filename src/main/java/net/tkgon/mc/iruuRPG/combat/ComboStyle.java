@@ -1,0 +1,45 @@
+package net.tkgon.mc.iruuRPG.combat;
+
+import net.tkgon.mc.iruuRPG.skill.SkillLook;
+
+import java.util.List;
+
+/**
+ * How a melee combo looks (the `combo-style:` section of a class or an item). The lights, the finisher and the heavy
+ * attack each have their own cuts; a part left out falls back to the next level (item, then class, then the built-in
+ * look).
+ *
+ * @param look   colors / spark / size / width of the cuts (null: the weapon's element)
+ * @param light  the cuts of light attack 1, 2, 3, ... (the list is gone through again if the chain is longer)
+ */
+public record ComboStyle(SkillLook look, List<Stage> light, Stage finisher, Stage heavy) {
+
+    /**
+     * One cut of an attack. {@code tilt} turns the arc's plane from standing across the view (0) to flat (90);
+     * {@code roll} turns it around the view axis; {@code forward} / {@code drop} place it from the eye.
+     */
+    public record Cut(double radius, double angle, double tilt, double roll, double rollJitter, double forward,
+                      double drop, double duration, double scale, double delay) {
+    }
+
+    /** The cuts of one attack, the sound ({@code swing} / {@code sweep} / {@code cut}) and a burst of sparks. */
+    public record Stage(List<Cut> cuts, String sound, int burst) {
+        public Stage {
+            cuts = cuts == null ? List.of() : List.copyOf(cuts);
+            sound = sound == null ? "swing" : sound;
+        }
+    }
+
+    public ComboStyle {
+        light = light == null ? List.of() : List.copyOf(light);
+    }
+
+    /** The stage drawn for {@code step}, or null when this style leaves it to the next level. */
+    public Stage stageFor(MeleeCombo.Step step) {
+        if (step.heavy()) return heavy;
+        if (step.finisher()) return finisher;
+        if (light.isEmpty()) return null;
+        Stage stage = light.get((Math.max(1, step.stage()) - 1) % light.size());
+        return stage.cuts().isEmpty() ? null : stage;
+    }
+}

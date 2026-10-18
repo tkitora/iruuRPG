@@ -113,7 +113,8 @@ public final class ClassRegistry {
             innate.add(loadMilestone(normalizedId + ".innate_" + index, node));
         }
 
-        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, section.getStringList("description"), growth, growthElements, spendNodes, milestones, innate));
+        definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, section.getStringList("description"), growth, growthElements, spendNodes, milestones, innate,
+                section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false)));
     }
 
     private ClassNodeDefinition loadMilestone(String id, ConfigurationSection section) {

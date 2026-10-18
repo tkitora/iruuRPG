@@ -117,6 +117,17 @@ public final class AttackService {
         return step;
     }
 
+    private net.tkgon.mc.iruuRPG.skill.SkillRegistry comboStyleParser;
+
+    /** The skill registry that reads `combo-style:` sections. */
+    public void setComboStyleParser(net.tkgon.mc.iruuRPG.skill.SkillRegistry parser) {
+        this.comboStyleParser = parser;
+    }
+
+    private ComboStyle comboStyleOf(String owner, java.util.Map<String, Object> raw) {
+        return comboStyleParser == null || raw == null || raw.isEmpty() ? null : comboStyleParser.comboStyle(owner, raw);
+    }
+
     public void setMobService(RpgMobService mobService) {
         this.mobService = mobService;
     }
@@ -558,6 +569,21 @@ public final class AttackService {
 
     /** The slash of an attack of the light / heavy chain: a heavy or the finisher is drawn big, the lights as usual. */
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
+        ComboStyle itemStyle = comboStyleOf("item " + weapon.id(), weapon.comboStyle());
+        ComboStyle classStyle = classService == null ? null
+                : classService.currentClass(profileManager.getOrCreate(attacker))
+                        .map(definition -> comboStyleOf("class " + definition.id(), definition.comboStyle())).orElse(null);
+        for (ComboStyle style : new ComboStyle[]{itemStyle, classStyle}) {
+            ComboStyle.Stage stage = style == null ? null : style.stageFor(step);
+            if (stage == null) continue;
+            ComboStyle.Stage chosen = stage;
+            net.tkgon.mc.iruuRPG.skill.SkillLook look = style.look() != null ? style.look()
+                    : itemStyle != null && itemStyle.look() != null ? itemStyle.look()
+                    : classStyle != null ? classStyle.look() : null;
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look);
+            return;
+        }
         if (step.heavy()) {
             attackEffects.playHeavySlash(attacker, weapon);
             return;
