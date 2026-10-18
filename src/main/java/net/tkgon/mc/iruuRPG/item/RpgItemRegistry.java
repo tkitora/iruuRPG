@@ -251,7 +251,8 @@ public final class RpgItemRegistry {
                 stacks,
                 stats,
                 elementStats,
-                description
+                description,
+                section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false)
         ));
     }
 

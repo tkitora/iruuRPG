@@ -117,6 +117,40 @@ public final class AttackEffects {
         }
     }
 
+    /**
+     * An attack drawn from a `combo-style`: every cut of {@code stage} placed from the eye along the view, in the
+     * view frame ({@code tilt} 0 = the arc stands across the view, 90 = flat), with the stage's sound and sparks.
+     */
+    public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
+                                net.tkgon.mc.iruuRPG.skill.SkillLook look) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+
+        Element element = weapon.element();
+        Location feet = attacker.getLocation().add(0.0, 1.0, 0.0);
+        switch (stage.sound()) {
+            case "sweep" -> sounds.sweepMelee(attacker, feet, element);
+            case "cut" -> sounds.slashCut(attacker, feet, element);
+            default -> sounds.swing(attacker, feet, element);
+        }
+        Resolved r = resolve(look, element);
+        Vector view = viewDirection(attacker);
+        float yaw = attacker.getLocation().getYaw();
+        double pitch = attacker.getLocation().getPitch();
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        double lastForward = 1.5;
+        for (ComboStyle.Cut cut : stage.cuts()) {
+            Location origin = attacker.getEyeLocation().add(view.clone().multiply(cut.forward())).add(0.0, -cut.drop(), 0.0);
+            double jitter = cut.rollJitter() <= 0.0 ? 0.0 : random.nextDouble(-cut.rollJitter(), cut.rollJitter());
+            slash(attacker, origin, r, new SlashVfx.Shape(cut.radius(), cut.angle(), 0.0, 0.0, yaw, pitch + cut.tilt(),
+                    cut.roll() + jitter, vfxDensity()), cut.duration(), (float) cut.scale(), cut.delay());
+            lastForward = cut.forward();
+        }
+        if (stage.burst() > 0) {
+            burst(attacker.getWorld(), attacker.getEyeLocation().add(view.clone().multiply(lastForward + 0.8)).add(0.0, -0.2, 0.0),
+                    element, stage.burst(), 0.5, 0.1);
+        }
+    }
+
     /** A heavy attack: the wide sweep with a thick upright cut across it. */
     public void playHeavySlash(Player attacker, RpgItemDefinition weapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
