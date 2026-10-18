@@ -120,8 +120,8 @@ public final class PlayerHud {
         long[] normal = attackService.normalCooldown(player, type);
         TextColor base = typeColor(type);
         Component gauge = Component.text("[", base);
-        // the melee gauge shows the step of the combo in its middle: [|||||3||||]
-        int step = type == attackService.comboGaugeType(player) ? attackService.comboStage(player) : 0;
+        // the gauge shows the step of its combo in its middle: [|||||3||||] (melee: the melee chain, ranged: the mage's chain)
+        int step = attackService.comboStage(player, type);
         int digitAt = GAUGE_LENGTH / 2;
         boolean ready = normal[0] <= 0L || normal[1] <= 0L;
         int filled = ready ? GAUGE_LENGTH

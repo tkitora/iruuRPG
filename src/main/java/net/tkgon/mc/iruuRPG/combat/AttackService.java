@@ -114,9 +114,14 @@ public final class AttackService {
         return damageMeter;
     }
 
-    /** How many normal attacks into the combo the player is (0 when the chain is not running). */
-    public int comboStage(Player attacker) {
-        return meleeCombo.currentStage(attacker);
+    /**
+     * How many normal attacks into the combo of {@code type} the player is (0 when the chain is not running): the
+     * melee chain for MELEE, the mage's ranged chain for RANGE. The two are counted apart.
+     */
+    public int comboStage(Player attacker, AttackType type) {
+        if (type == AttackType.MELEE) return meleeCombo.currentStage(attacker, comboPlan(attacker));
+        if (type == AttackType.RANGE && isMage(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.MAGE);
+        return 0;
     }
 
     /**
