@@ -256,8 +256,12 @@ public final class SniperMode implements Listener {
         if (!active(event.getPlayer())) return;
         if (event.getAction() == Action.PHYSICAL) return;
         event.setCancelled(true);
-        if ((event.getAction() == Action.LEFT_CLICK_AIR || event.getAction() == Action.LEFT_CLICK_BLOCK) && SwingGuard.isEcho(event.getPlayer())) return;
-        fire(event.getPlayer());
+        Player player = event.getPlayer();
+        if (event.getAction() == Action.LEFT_CLICK_AIR || event.getAction() == Action.LEFT_CLICK_BLOCK) {
+            ClickSignals.left(player, () -> fire(player));
+        } else {
+            fire(player);
+        }
     }
 
     /** An arm swing (the client sends one for a click even when the use of an item holds the interaction). */
@@ -265,8 +269,9 @@ public final class SniperMode implements Listener {
     public void onSwing(PlayerAnimationEvent event) {
         if (!active(event.getPlayer())) return;
         // only the main arm is a click; the off hand's swing and the answer to a swing of the plugin are not
-        if (event.getAnimationType() != org.bukkit.event.player.PlayerAnimationType.ARM_SWING || SwingGuard.isEcho(event.getPlayer())) return;
-        fire(event.getPlayer());
+        if (event.getAnimationType() != org.bukkit.event.player.PlayerAnimationType.ARM_SWING) return;
+        Player player = event.getPlayer();
+        ClickSignals.left(player, () -> fire(player));
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
