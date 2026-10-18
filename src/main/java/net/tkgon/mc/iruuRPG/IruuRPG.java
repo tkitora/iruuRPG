@@ -106,6 +106,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.skill.SkillRegistry skillRegistry;
     private net.tkgon.mc.iruuRPG.skill.SkillRunner skillRunner;
     private net.tkgon.mc.iruuRPG.combat.MoveTracker moveTracker;
+    private ClassSkillListener classSkillListener;
     private RpgMobService mobService;
     private AttackService attackService;
     private DeployService deployService;
@@ -322,6 +323,7 @@ public final class IruuRPG extends JavaPlugin {
         Bukkit.getScheduler().runTask(this, tutorialService::sweepEntities);
         PlayerHud playerHud = new PlayerHud(this, levelService);
         playerHud.setCooldowns(attackService);
+        playerHud.setClassSkills(classSkillListener);
         PlayerHudTask.start(this, profileManager, playerBars, levelService, playerHud);
         PlayerResourceTask.start(this, profileManager, playerBars);
         getLogger().info("iruuRPG enabled.");
@@ -566,10 +568,8 @@ public final class IruuRPG extends JavaPlugin {
                 new MainMenuItemListener(this, mainMenu, mainMenuItemService),
                 this
         );
-        getServer().getPluginManager().registerEvents(
-                new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard),
-                this
-        );
+        this.classSkillListener = new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard);
+        getServer().getPluginManager().registerEvents(classSkillListener, this);
     }
 
     private void setMenuItemHidden(Player player, boolean hidden) {
