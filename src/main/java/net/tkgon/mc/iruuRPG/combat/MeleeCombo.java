@@ -13,8 +13,8 @@ import java.util.UUID;
  * left click is a heavy attack, thrown after the lights done so far; it ends the chain.
  *
  * <p>Two plans: the usual one (any class) has one kind of heavy attack that hits harder after more lights and takes
- * longer to recover from. The assassin plan ({@link #ASSASSIN}) has four lights (the fourth is the finisher) and four
- * heavy attacks, 0 - 3, picked by the number of lights thrown before it (heavy 0 is the right click), each with a
+ * longer to recover from. The assassin plan ({@link #ASSASSIN}) has five lights (the fifth is the finisher) and five
+ * heavy attacks, 0 - 4, picked by the number of lights thrown before it (heavy 0 is the right click), each with a
  * cooldown of its own.
  */
 public final class MeleeCombo {
@@ -56,8 +56,8 @@ public final class MeleeCombo {
         }
     }
 
-    private static final int ASSASSIN_LIGHTS = 4;
-    private static final int ASSASSIN_HEAVIES = 4;
+    private static final int ASSASSIN_LIGHTS = 5;
+    private static final int ASSASSIN_HEAVIES = 5;
 
     private final JavaPlugin plugin;
     private final Map<UUID, long[]> chains = new HashMap<>();
@@ -148,10 +148,12 @@ public final class MeleeCombo {
                     ASSASSIN, 0, 0, number("assassin.finisher-area-scale", 1.5, 1.0, 3.0));
         }
         state[0] = stage;
-        if (stage == 3) {
-            // three hits of 40% in front
-            double rate = number("assassin.triple-damage-rate", 0.4, 0.1, 2.0);
-            return new Step(Kind.LIGHT, stage, rate, 0, ASSASSIN, 0, 2, 1.0);
+        if (stage == 3 || stage == 4) {
+            // several hits in front: the third light is 3 hits of 40%, the fourth 5 hits of 25%
+            int which = stage - 3;
+            double rate = listed("assassin.multi-hit-rate", which, new double[]{0.4, 0.25}[which], 0.05, 2.0);
+            int hits = (int) listed("assassin.multi-hit-counts", which, new double[]{3, 5}[which], 2, 10);
+            return new Step(Kind.LIGHT, stage, rate, 0, ASSASSIN, 0, hits - 1, 1.0);
         }
         return new Step(Kind.LIGHT, stage, 1.0, 0, ASSASSIN, 0, 0, 1.0);
     }
@@ -161,9 +163,9 @@ public final class MeleeCombo {
         long now = System.currentTimeMillis();
         long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId(), ignored -> new long[ASSASSIN_HEAVIES]);
         if (ready[index] > now) return null;
-        long cooldownTicks = Math.round(listed("assassin.heavy-cooldown-ticks", index, new double[]{40, 60, 80, 100}[index], 0, 1200));
+        long cooldownTicks = Math.round(listed("assassin.heavy-cooldown-ticks", index, new double[]{40, 60, 80, 100, 120}[index], 0, 1200));
         ready[index] = now + cooldownTicks * 50L;
-        double multiplier = listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 2.2, 1.8, 0.7}[index], 0, 20);
+        double multiplier = listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 2.2, 0.4, 0.7, 0.25}[index], 0, 20);
         return new Step(Kind.HEAVY, index, multiplier, 0, plan, index, 0, 1.0);
     }
 

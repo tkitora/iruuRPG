@@ -175,12 +175,19 @@ public final class AttackService {
         return true;
     }
 
-    /** {@code count} more hits of {@code rate} times the weapon's damage on {@code victim}, a few ticks apart. */
-    public void scheduleExtraHits(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double rate, int count, long gapTicks) {
-        for (int index = 1; index <= count; index++) {
+    /**
+     * The repeats of a multi-hit attack ({@code step.extraHits()} more cuts, each drawn again a little turned and, on
+     * an enemy, hitting for {@code step.damageMultiplier()} of the weapon's damage), a few ticks apart. {@code victim}
+     * is null for a swing that hit nothing (only the cuts are drawn).
+     */
+    public void scheduleRepeats(Player attacker, LivingEntity victim, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        long gapTicks = Math.max(1L, plugin.getConfig().getLong("combat.combo.assassin.multi-hit-gap-ticks", 5L));
+        for (int index = 1; index <= step.extraHits(); index++) {
+            int repeat = index;
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (!attacker.isOnline() || attacker.isDead() || victim.isDead() || !victim.isValid()) return;
-                strike(attacker, victim, weapon, rate);
+                if (!attacker.isOnline() || attacker.isDead()) return;
+                playMeleeSlash(attacker, weapon, step, repeat);
+                if (victim != null && !victim.isDead() && victim.isValid()) strike(attacker, victim, weapon, step.damageMultiplier());
             }, gapTicks * index);
         }
     }
@@ -637,14 +644,19 @@ public final class AttackService {
 
     /** The slash of an attack of the light / heavy chain: a heavy or the finisher is drawn big, the lights as usual. */
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        playMeleeSlash(attacker, weapon, step, 0);
+    }
+
+    /** {@code repeat}: the n-th time (0 = the first) the cut of a multi-hit attack is drawn; each is turned a little further. */
+    public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step, int repeat) {
         // an assassin with a weapon in each hand: the crossing slashes of the two hands for the first two lights (the
-        // third is three cuts in front), two sweeps in opposite directions for the finisher
+        // third and fourth are cuts in front), two sweeps in opposite directions for the finisher
         boolean dualWield = dualWielding(attacker);
         if (step.finisher() && step.assassin() && dualWield) {
             attackEffects.playDualSweep(attacker, weapon);
             return;
         }
-        boolean dualLight = !step.heavy() && !step.finisher() && dualWield && !(step.assassin() && step.stage() == 3);
+        boolean dualLight = !step.heavy() && !step.finisher() && dualWield && !(step.assassin() && step.stage() >= 3);
         // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
         ComboStyle itemStyle = comboStyleOf("item " + weapon.id(), weapon.comboStyle());
         ComboStyle classStyle = classService == null ? null
@@ -658,7 +670,7 @@ public final class AttackService {
             net.tkgon.mc.iruuRPG.skill.SkillLook look = style.look() != null ? style.look()
                     : itemStyle != null && itemStyle.look() != null ? itemStyle.look()
                     : classStyle != null ? classStyle.look() : null;
-            attackEffects.playStyledSlash(attacker, weapon, chosen, look);
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat);
             return;
         }
         if (step.heavy()) {

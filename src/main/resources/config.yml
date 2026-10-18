@@ -43,24 +43,33 @@ combat:
     heavy-recovery-ticks: 10     # 強のあとの追加の硬直
     finisher-damage-multiplier: 2.0
     finisher-recovery-ticks: 8
-    # アサシンのコンボ (見た目は classes/assassin.yml の combo-style)。弱4回 (4回目が最終段) と、強攻撃0〜3。
+    # アサシンのコンボ (見た目は classes/assassin.yml の combo-style)。弱5回 (5回目が最終段) と、強攻撃0〜4。
+    # 通常3は40%のダメージで3回、通常4は25%のダメージで5回当たる (斬撃もその回数だけ、少しずつ角度をずらして出る)。
     # 強攻撃Nは、弱をN回出した後のShift+左クリック。強攻撃0は右クリック (武器に移動スキルが付いていないとき)。強攻撃を出すと弱のコンボは最初から。
-    # 強攻撃は、それぞれ専用のクールタイムを持つ。リストは0, 1, 2, 3の順。
+    # 強攻撃は、それぞれ専用のクールタイムを持つ。リストは0, 1, 2, 3, 4の順。
     assassin:
-      heavy-cooldown-ticks: [40, 60, 80, 100]
-      heavy-damage-multiplier: [0.0, 2.2, 1.8, 0.7]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、3は1回ごと (回りながら何回か当たる)
-      triple-damage-rate: 0.4                      # 通常3: 1回ごとの倍率 (3回当たる)
-      finisher-damage-multiplier: 1.5              # 通常4 (フィニッシュ)
-      finisher-area-scale: 1.5                     # フィニッシュの周りへの範囲の広がり (1.5倍)
-      step-power: 1.05                             # 強攻撃0: ステップの強さ
-      thrust-skill: assassin_thrust                # 強攻撃1: 呼ぶスキルの id (skills/*.yml。同じ id を書くと上書きできる)
-      sweep-radius: 3.6                            # 強攻撃2: 前方の薙ぎの半径 / 開き (半角) / 後ろに跳ぶ強さ
+      heavy-cooldown-ticks: [40, 60, 80, 100, 120]
+      heavy-damage-multiplier: [0.0, 2.2, 0.4, 0.7, 0.25]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと
+      multi-hit-rate: [0.4, 0.25]                 # 通常3 / 通常4: 1回ごとのダメージの倍率
+      multi-hit-counts: [3, 5]                    # 通常3 / 通常4: 当たる回数
+      multi-hit-gap-ticks: 5                      # 通常3 / 通常4: 次の1回までのtick数
+      finisher-damage-multiplier: 1.5             # 通常5 (フィニッシュ)
+      finisher-area-scale: 1.5                    # フィニッシュの周りへの範囲の広がり (1.5倍)
+      step-power: 1.05                            # 強攻撃0: ステップの強さ
+      thrust-skill: assassin_thrust               # 強攻撃1: 呼ぶスキルの id (skills/*.yml。同じ id を書くと上書きできる)
+      sweep-radius: 3.6                           # 強攻撃2: 前方の薙ぎの半径 / 開き (半角) / 2つ目までのtick数 / 後ろに跳ぶ強さ
       sweep-half-angle: 70
+      sweep-gap-ticks: 5
       hop-back-power: 0.55
       hop-up-power: 0.5
-      whirl-ticks: 10                              # 強攻撃3: 前に進む時間 / 進む強さ / 周りの斬撃の半径
-      whirl-power: 0.85
-      whirl-radius: 2.8
+      leap-power: 0.95                            # 強攻撃3: 視点方向へ跳ぶ強さ / 上への強さ / 周りの斬撃の範囲 / 最長のtick数
+      leap-up-power: 0.45
+      leap-radius: 3.0
+      leap-ticks: 16
+      surround-hits: 5                            # 強攻撃4: 当たる回数 / 間隔のtick数 / 範囲 / 自分の正面へずらす距離
+      surround-gap-ticks: 4
+      surround-radius: 3.0
+      surround-forward: 0.8
   # 武器スキルの発動: 近接はShift+右クリック、移動スキル (dash / teleport) は右クリックだけで出る。遠距離はShift+右クリック
   skill-trigger:
     melee-sneak: true
