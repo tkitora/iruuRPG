@@ -52,7 +52,7 @@ combat:
       heavy-damage-multiplier: [0.0, 2.2, 0.4, 0.7, 0.25]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと
       multi-hit-rate: [0.4, 0.25]                 # 通常3 / 通常4: 1回ごとのダメージの倍率
       multi-hit-counts: [3, 5]                    # 通常3 / 通常4: 当たる回数
-      multi-hit-gap-ticks: 5                      # 通常3 / 通常4: 次の1回までのtick数
+      multi-hit-gap-ticks: 4                      # 通常3 / 通常4: 次の1回 (斬撃の演出も) までのtick数
       finisher-damage-multiplier: 1.5             # 通常5 (フィニッシュ)
       finisher-area-scale: 1.5                    # フィニッシュの周りへの範囲の広がり (1.5倍)
       step-power: 1.05                            # 強攻撃0: ステップの強さ
