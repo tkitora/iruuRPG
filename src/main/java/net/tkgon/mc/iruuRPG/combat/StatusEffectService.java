@@ -540,7 +540,7 @@ public final class StatusEffectService {
         World world = target.getWorld();
         Location head = target.getLocation().add(0.0, target.getHeight() + 0.2, 0.0);
         world.playSound(head, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 0.8f, 0.6f);
-        world.spawnParticle(Particle.PORTAL, head, 24, 0.3, 0.2, 0.3, 0.2);
+        ParticleFx.to(world).spawnParticle(Particle.PORTAL, head, 24, 0.3, 0.2, 0.3, 0.2);
         holdStunned(target);
         return end;
     }
@@ -554,7 +554,7 @@ public final class StatusEffectService {
         target.setVelocity(new Vector(0.0, Math.min(0.0, velocity.getY()), 0.0));
         target.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, 6, 7, false, false, false));
         Location head = target.getLocation().add(0.0, target.getHeight() + 0.15, 0.0);
-        target.getWorld().spawnParticle(Particle.REDSTONE, head, 3, 0.2, 0.08, 0.2, 0.0,
+        ParticleFx.to(target.getWorld()).spawnParticle(Particle.REDSTONE, head, 3, 0.2, 0.08, 0.2, 0.0,
                 new Particle.DustOptions(Color.fromRGB(170, 70, 230), 1.0f));
     }
 
@@ -599,7 +599,7 @@ public final class StatusEffectService {
         World world = target.getWorld();
         Location fuse = target.getLocation().add(0.0, target.getHeight() * 0.6, 0.0);
         world.playSound(fuse, Sound.ENTITY_CREEPER_PRIMED, 0.8f, 1.2f);
-        world.spawnParticle(Particle.SMOKE_NORMAL, fuse, 12, 0.3, 0.3, 0.3, 0.02);
+        ParticleFx.to(world).spawnParticle(Particle.SMOKE_NORMAL, fuse, 12, 0.3, 0.3, 0.3, 0.02);
         plugin.getServer().getScheduler().runTaskLater(plugin, detonate, delay);
     }
 
@@ -607,8 +607,8 @@ public final class StatusEffectService {
         World world = origin.getWorld();
         Location center = origin.getLocation().add(0.0, origin.getHeight() * 0.45, 0.0);
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, 0.9f, 1.3f);
-        world.spawnParticle(Particle.EXPLOSION_LARGE, center, 2, 0.4, 0.3, 0.4, 0.0);
-        world.spawnParticle(Particle.REDSTONE, center, 30, radius * 0.4, 0.5, radius * 0.4, 0.0,
+        ParticleFx.to(world).spawnParticle(Particle.EXPLOSION_LARGE, center, 2, 0.4, 0.3, 0.4, 0.0);
+        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 30, radius * 0.4, 0.5, radius * 0.4, 0.0,
                 new Particle.DustOptions(Color.fromRGB(255, 150, 40), 1.4f));
 
         List<LivingEntity> victims = new ArrayList<>();
@@ -673,37 +673,37 @@ public final class StatusEffectService {
         switch (type) {
             case BLEED -> {
                 Location drop = center.clone().add(randomOffset(random, 0.22), 0.12, randomOffset(random, 0.22));
-                world.spawnParticle(Particle.REDSTONE, drop, 3, 0.035, 0.18, 0.035, 0.0,
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, drop, 3, 0.035, 0.18, 0.035, 0.0,
                         new Particle.DustOptions(Color.fromRGB(190, 0, 20), 0.9f));
-                world.spawnParticle(Particle.DAMAGE_INDICATOR, drop.clone().add(0.0, 0.12, 0.0), 1, 0.06, 0.02, 0.06, 0.0);
+                ParticleFx.to(world).spawnParticle(Particle.DAMAGE_INDICATOR, drop.clone().add(0.0, 0.12, 0.0), 1, 0.06, 0.02, 0.06, 0.0);
             }
             case SLOW -> {
                 Location feet = target.getLocation().add(0.0, 0.18, 0.0);
-                world.spawnParticle(Particle.SNOWFLAKE, feet, 4, 0.28, 0.08, 0.28, 0.01);
-                world.spawnParticle(Particle.CLOUD, feet, 1, 0.22, 0.02, 0.22, 0.0);
+                ParticleFx.to(world).spawnParticle(Particle.SNOWFLAKE, feet, 4, 0.28, 0.08, 0.28, 0.01);
+                ParticleFx.to(world).spawnParticle(Particle.CLOUD, feet, 1, 0.22, 0.02, 0.22, 0.0);
             }
-            case CORROSION -> world.spawnParticle(Particle.REDSTONE, center, 5, 0.3, 0.35, 0.3, 0.0,
+            case CORROSION -> ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 5, 0.3, 0.35, 0.3, 0.0,
                     new Particle.DustOptions(Color.fromRGB(38, 135, 42), 0.8f));
             case DECAY -> {
-                world.spawnParticle(Particle.ASH, center, 5, 0.3, 0.45, 0.3, 0.01);
-                world.spawnParticle(Particle.REDSTONE, center, 2, 0.22, 0.3, 0.22, 0.0,
+                ParticleFx.to(world).spawnParticle(Particle.ASH, center, 5, 0.3, 0.45, 0.3, 0.01);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 2, 0.22, 0.3, 0.22, 0.0,
                         new Particle.DustOptions(Color.fromRGB(100, 100, 100), 0.75f));
             }
             case CONFUSION -> {
                 Location head = target.getLocation().add(0.0, target.getHeight() + 0.15, 0.0);
-                world.spawnParticle(Particle.PORTAL, head, 6, 0.22, 0.12, 0.22, 0.03);
-                world.spawnParticle(Particle.REDSTONE, head, 2, 0.18, 0.08, 0.18, 0.0,
+                ParticleFx.to(world).spawnParticle(Particle.PORTAL, head, 6, 0.22, 0.12, 0.22, 0.03);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, head, 2, 0.18, 0.08, 0.18, 0.0,
                         new Particle.DustOptions(Color.fromRGB(170, 70, 230), 0.8f));
             }
             case EXPLOSION -> {
                 Location fuse = target.getLocation().add(0.0, target.getHeight() * 0.75, 0.0);
                 int dust = value >= 8.0 ? 5 : 2;
-                world.spawnParticle(Particle.SMOKE_NORMAL, fuse, 5, 0.25, 0.25, 0.25, 0.01);
-                world.spawnParticle(Particle.REDSTONE, fuse, dust, 0.22, 0.18, 0.22, 0.0,
+                ParticleFx.to(world).spawnParticle(Particle.SMOKE_NORMAL, fuse, 5, 0.25, 0.25, 0.25, 0.01);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, fuse, dust, 0.22, 0.18, 0.22, 0.0,
                         new Particle.DustOptions(Color.fromRGB(255, 125, 15), 0.95f));
             }
-            case MAGIC_AMPLIFY -> world.spawnParticle(Particle.SPELL_WITCH, center, 5, 0.28, 0.35, 0.28, 0.02);
-            case PROTECTION -> world.spawnParticle(Particle.REDSTONE, center, 5, 0.35, 0.45, 0.35, 0.0,
+            case MAGIC_AMPLIFY -> ParticleFx.to(world).spawnParticle(Particle.SPELL_WITCH, center, 5, 0.28, 0.35, 0.28, 0.02);
+            case PROTECTION -> ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 5, 0.35, 0.45, 0.35, 0.0,
                     new Particle.DustOptions(Color.fromRGB(55, 120, 255), 0.85f));
             case LACERATION -> {
             }

@@ -70,6 +70,7 @@ final class MeteorSkill {
 
             @Override
             protected void tick() {
+                ParticleFx.mark(player);
                 if (!player.isOnline() || player.isDead()) {
                     cancel();
                     return;
@@ -133,8 +134,8 @@ final class MeteorSkill {
         for (int index = 0; index < points; index++) {
             double angle = Math.PI * 2.0 * index / points + age * 0.12;
             Location point = center.clone().add(right.clone().multiply(Math.cos(angle) * radius)).add(up.clone().multiply(Math.sin(angle) * radius));
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, CIRCLE);
-            if (index % 7 == 0) world.spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, CIRCLE);
+            if (index % 7 == 0) ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
         }
         // an inner star turning the other way
         for (int ray = 0; ray < 5; ray++) {
@@ -142,7 +143,7 @@ final class MeteorSkill {
             for (int step = 1; step <= 3; step++) {
                 double r = radius * step / 3.5;
                 Location point = center.clone().add(right.clone().multiply(Math.cos(angle) * r)).add(up.clone().multiply(Math.sin(angle) * r));
-                world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, TRAIL_LIGHT);
+                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, TRAIL_LIGHT);
             }
         }
     }
@@ -159,7 +160,7 @@ final class MeteorSkill {
             out.normalize().multiply(random.nextDouble(1.2, 2.4));
             Location from = chest.clone().add(out);
             Vector in = out.clone().multiply(-0.18);
-            world.spawnParticle(Particle.END_ROD, from, 0, in.getX(), in.getY(), in.getZ(), 1.0);
+            ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, from, 0, in.getX(), in.getY(), in.getZ(), 1.0);
         }
     }
 
@@ -198,6 +199,7 @@ final class MeteorSkill {
 
             @Override
             protected void tick() {
+                ParticleFx.mark(player);
                 if (!player.isOnline() || age++ > maxTicks) {
                     cancel();
                     return;
@@ -231,13 +233,13 @@ final class MeteorSkill {
                 }
                 Location next = hit != null && hit.getHitPosition() != null
                         ? hit.getHitPosition().toLocation(world) : position.clone().add(velocityNow);
-                drawMeteor(world, position, next);
+                drawMeteor(player, world, position, next);
                 position = next;
                 if (hit == null) return;
                 cancel();
-                world.spawnParticle(Particle.FLASH, next, 1);
-                world.spawnParticle(Particle.END_ROD, next, 14, 0.4, 0.4, 0.4, 0.15);
-                world.spawnParticle(Particle.REDSTONE, next, 16, 0.5, 0.5, 0.5, 0.0, TRAIL);
+                ParticleFx.to(player, world).spawnParticle(Particle.FLASH, next, 1);
+                ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, next, 14, 0.4, 0.4, 0.4, 0.15);
+                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, next, 16, 0.5, 0.5, 0.5, 0.0, TRAIL);
                 world.playSound(next, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.7f);
                 if (hit.getHitEntity() instanceof LivingEntity victim) hitVictim(player, weapon, victim, rate, next);
             }
@@ -254,7 +256,7 @@ final class MeteorSkill {
         return Math.toRadians(20.0 + 140.0 * share);
     }
 
-    private void drawMeteor(World world, Location from, Location to) {
+    private void drawMeteor(Player player, World world, Location from, Location to) {
         Vector path = to.toVector().subtract(from.toVector());
         double length = path.length();
         if (length < 1.0E-6) return;
@@ -262,9 +264,9 @@ final class MeteorSkill {
         int points = Math.max(1, (int) Math.ceil(length / 0.25));
         for (int index = 0; index <= points; index++) {
             Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? TRAIL : TRAIL_LIGHT);
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? TRAIL : TRAIL_LIGHT);
         }
-        world.spawnParticle(Particle.END_ROD, to, 2, 0.04, 0.04, 0.04, 0.0);
+        ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, to, 2, 0.04, 0.04, 0.04, 0.0);
     }
 
     private LivingEntity nearestTarget(Player player, Location from, double radius) {

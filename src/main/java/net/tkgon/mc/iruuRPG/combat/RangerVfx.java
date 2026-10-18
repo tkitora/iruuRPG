@@ -6,6 +6,7 @@ import org.bukkit.Particle;
 import org.bukkit.World;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 /** The ranger's showy effects: a rising double helix aura, and the charge and the spiral beam of the sniper shot. */
@@ -26,14 +27,14 @@ public final class RangerVfx {
             double angle = height * 5.0 + strand * (Math.PI * 2.0 / 3.0) + tick * 0.12;
             double radius = 0.85 - 0.25 * phase;
             Location point = base.clone().add(Math.cos(angle) * radius, 0.1 + height, Math.sin(angle) * radius);
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, strand % 2 == 0 ? GOLD : ICE, true);
-            world.spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, strand % 2 == 0 ? GOLD : ICE, true);
+            ParticleFx.to(world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
         }
         if (tick % 6 == 0) {
             double radius = 1.0 + 0.5 * Math.sin(tick * 0.1);
             for (int index = 0; index < 20; index++) {
                 double angle = Math.PI * 2.0 * index / 20.0 + tick * 0.2;
-                world.spawnParticle(Particle.REDSTONE, base.clone().add(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, base.clone().add(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
             }
         }
     }
@@ -44,13 +45,13 @@ public final class RangerVfx {
             double radius = ring * 0.9;
             for (int index = 0; index < 28; index++) {
                 double angle = Math.PI * 2.0 * index / 28.0;
-                world.spawnParticle(Particle.REDSTONE, base.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, ring % 2 == 0 ? ICE : GOLD, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, base.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, ring % 2 == 0 ? ICE : GOLD, true);
             }
         }
         for (int step = 0; step < 14; step++) {
-            world.spawnParticle(Particle.END_ROD, base.clone().add(0.0, step * 0.25, 0.0), 2, 0.15, 0.0, 0.15, 0.02);
+            ParticleFx.to(world).spawnParticle(Particle.END_ROD, base.clone().add(0.0, step * 0.25, 0.0), 2, 0.15, 0.0, 0.15, 0.02);
         }
-        world.spawnParticle(Particle.FLASH, base.clone().add(0.0, 1.0, 0.0), 1);
+        ParticleFx.to(world).spawnParticle(Particle.FLASH, base.clone().add(0.0, 1.0, 0.0), 1);
     }
 
     private static Vector[] basis(Vector direction) {
@@ -70,17 +71,17 @@ public final class RangerVfx {
             for (int index = 0; index < points; index++) {
                 double angle = Math.PI * 2.0 * index / points + (ring == 0 ? turn : -turn);
                 Location point = feet.clone().add(Math.cos(angle) * radius, 0.05, Math.sin(angle) * radius);
-                world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? GOLD : ICE, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? GOLD : ICE, true);
             }
         }
         for (int spoke = 0; spoke < 4; spoke++) {
             double angle = turn + spoke * Math.PI / 2.0;
             for (double r = 0.3; r < 2.0; r += 0.45) {
-                world.spawnParticle(Particle.REDSTONE, feet.clone().add(Math.cos(angle) * r, 0.05, Math.sin(angle) * r), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, feet.clone().add(Math.cos(angle) * r, 0.05, Math.sin(angle) * r), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
             }
         }
         if (charge > 0.0 && tick % 2 == 0) {
-            world.spawnParticle(Particle.END_ROD, feet.clone().add(0.0, 0.1, 0.0), 1 + (int) (charge * 3), 1.0, 0.05, 1.0, 0.03);
+            ParticleFx.to(world).spawnParticle(Particle.END_ROD, feet.clone().add(0.0, 0.1, 0.0), 1 + (int) (charge * 3), 1.0, 0.05, 1.0, 0.03);
         }
     }
 
@@ -97,10 +98,10 @@ public final class RangerVfx {
             if (offset.lengthSquared() < 1.0E-6) continue;
             offset.normalize().multiply(sphere * (0.7 + 0.3 * random.nextDouble()));
             Location point = muzzle.clone().add(offset);
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? GOLD : ICE, true);
-            if (index % 4 == 0) world.spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? GOLD : ICE, true);
+            if (index % 4 == 0) ParticleFx.to(world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
         }
-        world.spawnParticle(Particle.REDSTONE, muzzle, 2, 0.04, 0.04, 0.04, 0.0,
+        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, muzzle, 2, 0.04, 0.04, 0.04, 0.0,
                 new Particle.DustOptions(Color.fromRGB(255, 255, 255), (float) (0.8 + progress * 2.2)), true);
         Vector[] axes = basis(direction.clone().normalize());
         double radius = 0.5 + 0.7 * progress;
@@ -108,7 +109,7 @@ public final class RangerVfx {
             double angle = Math.PI * 2.0 * index / 16.0 + tick * 0.35;
             Location point = muzzle.clone().add(direction.clone().normalize().multiply(0.9))
                     .add(axes[0].clone().multiply(Math.cos(angle) * radius)).add(axes[1].clone().multiply(Math.sin(angle) * radius));
-            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, GOLD, true);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, GOLD, true);
         }
     }
 
@@ -121,11 +122,13 @@ public final class RangerVfx {
         Vector[] axes = basis(dir);
         int steps = (int) Math.max(2, Math.ceil(length / 0.5));
         int ticks = 5;
+        Player owner = ParticleFx.owner();
         new BukkitRunnable() {
             private int tick;
 
             @Override
             public void run() {
+                ParticleFx.mark(owner);
                 int first = steps * tick / ticks;
                 int last = steps * (tick + 1) / ticks;
                 for (int step = first; step < last; step++) {
@@ -137,28 +140,28 @@ public final class RangerVfx {
                         double a = angle + strand * (Math.PI / 2.0);
                         double r = strand == 3 ? radius * 0.5 : radius;
                         Location point = center.clone().add(axes[0].clone().multiply(Math.cos(a) * r)).add(axes[1].clone().multiply(Math.sin(a) * r));
-                        world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, strand % 2 == 0 ? GOLD : ICE, true);
+                        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, strand % 2 == 0 ? GOLD : ICE, true);
                     }
-                    world.spawnParticle(Particle.REDSTONE, center, 2, 0.05, 0.05, 0.05, 0.0, WHITE, true);
-                    if (step % 3 == 0) world.spawnParticle(Particle.END_ROD, center, 1, 0.0, 0.0, 0.0, 0.0);
+                    ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 2, 0.05, 0.05, 0.05, 0.0, WHITE, true);
+                    if (step % 3 == 0) ParticleFx.to(world).spawnParticle(Particle.END_ROD, center, 1, 0.0, 0.0, 0.0, 0.0);
                     if (step % 10 == 0) {
                         for (int index = 0; index < 14; index++) {
                             double a = Math.PI * 2.0 * index / 14.0;
                             Location point = center.clone().add(axes[0].clone().multiply(Math.cos(a) * 1.7)).add(axes[1].clone().multiply(Math.sin(a) * 1.7));
-                            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
+                            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
                         }
                     }
                 }
                 if (++tick >= ticks) {
                     Location end = from.clone().add(dir.clone().multiply(length));
-                    world.spawnParticle(Particle.FLASH, end, 1);
-                    world.spawnParticle(Particle.END_ROD, end, 24, 0.5, 0.5, 0.5, 0.2);
-                    world.spawnParticle(Particle.EXPLOSION_LARGE, end, 3, 0.6, 0.6, 0.6, 0.0);
+                    ParticleFx.to(world).spawnParticle(Particle.FLASH, end, 1);
+                    ParticleFx.to(world).spawnParticle(Particle.END_ROD, end, 24, 0.5, 0.5, 0.5, 0.2);
+                    ParticleFx.to(world).spawnParticle(Particle.EXPLOSION_LARGE, end, 3, 0.6, 0.6, 0.6, 0.0);
                     for (int ring = 1; ring <= 3; ring++) {
                         for (int index = 0; index < 24; index++) {
                             double a = Math.PI * 2.0 * index / 24.0;
                             Location point = end.clone().add(axes[0].clone().multiply(Math.cos(a) * ring * 0.8)).add(axes[1].clone().multiply(Math.sin(a) * ring * 0.8));
-                            world.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, ring % 2 == 0 ? ICE : GOLD, true);
+                            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, ring % 2 == 0 ? ICE : GOLD, true);
                         }
                     }
                     cancel();

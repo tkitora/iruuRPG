@@ -138,6 +138,8 @@ public final class SlashVfx {
         private final int sampleCount;
         private final Vec3[][][] cached;
         private final Shape shape;
+        /** The player whose slash this is (their particle settings and the others' hiding apply to it). */
+        private final org.bukkit.entity.Player owner = ParticleFx.owner();
 
         private int tick;
         private int lastSample = -1;
@@ -268,19 +270,19 @@ public final class SlashVfx {
 
         private void spawn(Layer layer, Vec3 p) {
             if (layer.particle() == Particle.REDSTONE && layer.color() != null) {
-                world.spawnParticle(Particle.REDSTONE, p.x(), p.y(), p.z(), 1, 0, 0, 0, 0,
+                ParticleFx.to(owner, world).spawnParticle(Particle.REDSTONE, p.x(), p.y(), p.z(), 1, 0, 0, 0, 0,
                         new Particle.DustOptions(layer.color(), layer.size()));
             } else {
-                world.spawnParticle(layer.particle(), p.x(), p.y(), p.z(), 1, 0, 0, 0, 0);
+                ParticleFx.to(owner, world).spawnParticle(layer.particle(), p.x(), p.y(), p.z(), 1, 0, 0, 0, 0);
             }
         }
 
         private void spawnTip(Layer layer, Vec3 p) {
             if (layer.particle() == Particle.REDSTONE && layer.color() != null) {
-                world.spawnParticle(Particle.REDSTONE, p.x(), p.y(), p.z(), Math.max(1, layer.thickness()),
+                ParticleFx.to(owner, world).spawnParticle(Particle.REDSTONE, p.x(), p.y(), p.z(), Math.max(1, layer.thickness()),
                         0.04, 0.04, 0.04, 0, new Particle.DustOptions(layer.color(), layer.size()));
             } else {
-                world.spawnParticle(layer.particle(), p.x(), p.y(), p.z(), Math.max(1, layer.thickness()),
+                ParticleFx.to(owner, world).spawnParticle(layer.particle(), p.x(), p.y(), p.z(), Math.max(1, layer.thickness()),
                         0.04, 0.04, 0.04, 0);
             }
         }

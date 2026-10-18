@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.tutorial;
 
+import net.tkgon.mc.iruuRPG.combat.ParticleFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -235,7 +236,7 @@ public final class TutorialService implements TutorialDamageHook {
         session.ratHits++;
         session.lastRatHitMillis = System.currentTimeMillis();
         rat.customName(ratName(session.ratHits));
-        rat.getWorld().spawnParticle(Particle.CRIT, rat.getLocation().add(0, 0.2, 0), 8, 0.2, 0.1, 0.2, 0.1);
+        ParticleFx.to(rat.getWorld()).spawnParticle(Particle.CRIT, rat.getLocation().add(0, 0.2, 0), 8, 0.2, 0.1, 0.2, 0.1);
         if (session.ratHits < 3 || !session.ratWaiting) return;
 
         session.ratWaiting = false;
@@ -583,7 +584,7 @@ public final class TutorialService implements TutorialDamageHook {
         face(rat, player);
         session.rat = rat;
         session.ratHits = 0;
-        player.getWorld().spawnParticle(Particle.CLOUD, ratLocation.clone().add(0, 0.1, 0), 10, 0.2, 0.05, 0.2, 0.02);
+        ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.CLOUD, ratLocation.clone().add(0, 0.1, 0), 10, 0.2, 0.05, 0.2, 0.02);
     }
 
     private void finish(TutorialSession session, Player player) {

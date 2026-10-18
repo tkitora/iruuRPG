@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.travel;
 
+import net.tkgon.mc.iruuRPG.combat.ParticleFx;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
@@ -145,7 +146,7 @@ public final class TravelService implements Listener {
             double angle = tick * 0.6;
             for (int k = 0; k < 3; k++) {
                 double a = angle + k * (Math.PI * 2 / 3);
-                at.getWorld().spawnParticle(Particle.END_ROD, at.clone().add(Math.cos(a) * 0.8, 0.3 + (tick % 6) * 0.3, Math.sin(a) * 0.8), 1, 0, 0, 0, 0);
+                ParticleFx.to(at.getWorld()).spawnParticle(Particle.END_ROD, at.clone().add(Math.cos(a) * 0.8, 0.3 + (tick % 6) * 0.3, Math.sin(a) * 0.8), 1, 0, 0, 0, 0);
             }
             for (Player player : at.getWorld().getPlayers()) {
                 if (known(player, point.id())) continue;
@@ -161,7 +162,7 @@ public final class TravelService implements Listener {
         player.sendMessage(Component.text("◆ ファストトラベル地点「" + point.name() + "」を見つけた。メニューの「ファストトラベル」から来られる。", NamedTextColor.AQUA));
         player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.8f, 1.2f);
         player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.4f, 1.8f);
-        player.getWorld().spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1, 0), 30, 0.6, 0.8, 0.6, 0.05);
+        ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.END_ROD, player.getLocation().add(0, 1, 0), 30, 0.6, 0.8, 0.6, 0.05);
     }
 
     // ---- travelling ------------------------------------------------------------------------------------------------
@@ -255,16 +256,16 @@ public final class TravelService implements Listener {
         Particle.DustOptions white = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 0.9f);
         for (int k = 0; k < 2; k++) {
             double a = angle + k * Math.PI;
-            world.spawnParticle(Particle.REDSTONE, origin.clone().add(Math.cos(a) * 1.1, height, Math.sin(a) * 1.1), 1, 0, 0, 0, 0, cyan);
-            world.spawnParticle(Particle.REDSTONE, origin.clone().add(Math.cos(a + 0.4) * 1.1, height * 0.7, Math.sin(a + 0.4) * 1.1), 1, 0, 0, 0, 0, white);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, origin.clone().add(Math.cos(a) * 1.1, height, Math.sin(a) * 1.1), 1, 0, 0, 0, 0, cyan);
+            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, origin.clone().add(Math.cos(a + 0.4) * 1.1, height * 0.7, Math.sin(a + 0.4) * 1.1), 1, 0, 0, 0, 0, white);
         }
         if (t % 4 == 0) {
             double radius = 1.6 * (1.0 - progress) + 0.3;
             for (int i = 0; i < 16; i++) {
                 double a = i * Math.PI / 8;
-                world.spawnParticle(Particle.END_ROD, origin.clone().add(Math.cos(a) * radius, 0.05, Math.sin(a) * radius), 1, 0, 0, 0, 0);
+                ParticleFx.to(world).spawnParticle(Particle.END_ROD, origin.clone().add(Math.cos(a) * radius, 0.05, Math.sin(a) * radius), 1, 0, 0, 0, 0);
             }
-            world.spawnParticle(Particle.PORTAL, origin.clone().add(0, 1.0, 0), 12, 0.4, 0.6, 0.4, 0.4);
+            ParticleFx.to(world).spawnParticle(Particle.PORTAL, origin.clone().add(0, 1.0, 0), 12, 0.4, 0.6, 0.4, 0.4);
         }
         if (t % 10 == 0) {
             player.playSound(origin, Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 0.6f + (float) progress * 1.2f);

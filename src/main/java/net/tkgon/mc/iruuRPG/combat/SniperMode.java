@@ -136,6 +136,7 @@ public final class SniperMode implements Listener {
         state.task = new BukkitRunnable() {
             @Override
             public void run() {
+                ParticleFx.mark(player);
                 try {
                     if (!player.isOnline() || player.isDead() || state.age++ >= state.totalTicks) {
                         end(player, "時間切れ");
@@ -229,7 +230,7 @@ public final class SniperMode implements Listener {
         world.playSound(eye, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.8f, 1.9f);
         world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 0.6f);
         world.playSound(eye, Sound.ITEM_TRIDENT_THUNDER, SoundCategory.PLAYERS, 0.9f, 1.3f);
-        world.spawnParticle(Particle.FLASH, eye.clone().add(direction.clone().multiply(1.2)), 1);
+        ParticleFx.to(player, world).spawnParticle(Particle.FLASH, eye.clone().add(direction.clone().multiply(1.2)), 1);
 
         if (hit == null || !(hit.getHitEntity() instanceof LivingEntity victim)) {
             attackService.sendMissDebug(player, AttackType.RANGE);

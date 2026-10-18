@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.combat.AttackSounds;
+import net.tkgon.mc.iruuRPG.combat.ParticleSettings;
 import net.tkgon.mc.iruuRPG.combat.SoundKind;
 import net.tkgon.mc.iruuRPG.combat.SoundSettings;
 import org.bukkit.Bukkit;
@@ -25,15 +26,19 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The settings screens: the hub (sound, hotbar menu item) and the sound screen (how loud every kind of attack sound
- * is, and whether other players' attack sounds are heard).
+ * The settings screens: the hub (sound, particles, hotbar menu item), the sound screen (how loud every kind of attack
+ * sound is, and whether other players' attack sounds are heard) and the particle screen (how much of the particles is
+ * shown, and whether other players' particles are).
  */
 public final class SettingsMenu implements Listener {
 
     private static final int SIZE = 27;
     private static final int BACK = 18;
     private static final int SOUND_BUTTON = 11;
+    private static final int PARTICLE_BUTTON = 13;
     private static final int MENU_ITEM_BUTTON = 15;
+    private static final int PARTICLE_AMOUNT = 11;
+    private static final int PARTICLE_OTHERS = 15;
     private static final int[] KIND_SLOTS = {10, 11, 12, 13, 14, 15, 16};
     private static final int RESET = 20;
     private static final int OTHERS = 24;
@@ -41,9 +46,11 @@ public final class SettingsMenu implements Listener {
     private final SoundSettings soundSettings;
     private final AttackSounds attackSounds;
     private final MainMenuItemService menuItemService;
+    private final ParticleSettings particleSettings;
     private MainMenu mainMenu;
 
-    public SettingsMenu(SoundSettings soundSettings, AttackSounds attackSounds, MainMenuItemService menuItemService) {
+    public SettingsMenu(SoundSettings soundSettings, AttackSounds attackSounds, MainMenuItemService menuItemService, ParticleSettings particleSettings) {
+        this.particleSettings = particleSettings;
         this.soundSettings = soundSettings;
         this.attackSounds = attackSounds;
         this.menuItemService = menuItemService;
@@ -69,6 +76,14 @@ public final class SettingsMenu implements Listener {
         player.openInventory(inventory);
     }
 
+    public void openParticles(Player player) {
+        Holder holder = new Holder(player.getUniqueId(), Screen.PARTICLE);
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("設定 - パーティクル"));
+        holder.inventory = inventory;
+        render(player, holder);
+        player.openInventory(inventory);
+    }
+
     private void render(Player player, Holder holder) {
         Inventory inventory = holder.inventory;
         inventory.clear();
@@ -82,10 +97,33 @@ public final class SettingsMenu implements Listener {
             inventory.setItem(SOUND_BUTTON, item(Material.NOTE_BLOCK, "サウンド", NamedTextColor.AQUA, List.of(
                     text("攻撃の音の大きさを、種類ごとに調整します", NamedTextColor.GRAY),
                     text("他のプレイヤーの攻撃音を消すこともできます", NamedTextColor.GRAY))));
+            inventory.setItem(PARTICLE_BUTTON, item(Material.FIREWORK_STAR, "パーティクル", NamedTextColor.LIGHT_PURPLE, List.of(
+                    text("表示するパーティクルの量を調整します", NamedTextColor.GRAY),
+                    text("他のプレイヤーのパーティクルを消すこともできます", NamedTextColor.GRAY))));
             boolean hidden = menuItemService.isHidden(player);
             inventory.setItem(MENU_ITEM_BUTTON, item(Material.NETHER_STAR, "ホットバーのメニューアイテム", NamedTextColor.GOLD, List.of(
                     text("現在: " + (hidden ? "表示しない" : "表示する"), hidden ? NamedTextColor.RED : NamedTextColor.GREEN),
                     text("建築の邪魔なときは消せます (/menu でメニューを開けます)", NamedTextColor.GRAY),
+                    text("クリックで切り替え", NamedTextColor.YELLOW))));
+            return;
+        }
+
+        if (holder.screen == Screen.PARTICLE) {
+            int percent = particleSettings.percent(player);
+            List<Component> amount = new ArrayList<>();
+            amount.add(text("見えるパーティクルの量。減らすと、重いときに軽くなります", NamedTextColor.GRAY));
+            amount.add(text(" ", NamedTextColor.GRAY));
+            amount.add(Component.text(bar(percent) + " ", percent == 0 ? NamedTextColor.RED : NamedTextColor.GREEN)
+                    .append(Component.text(percent + "%", NamedTextColor.WHITE))
+                    .decoration(TextDecoration.ITALIC, false));
+            amount.add(text("左クリック: +" + ParticleSettings.STEP + "%", NamedTextColor.YELLOW));
+            amount.add(text("右クリック: -" + ParticleSettings.STEP + "%", NamedTextColor.YELLOW));
+            amount.add(text("Shift+左: 100% / Shift+右: 消す", NamedTextColor.YELLOW));
+            inventory.setItem(PARTICLE_AMOUNT, item(Material.FIREWORK_STAR, "パーティクルの量", NamedTextColor.AQUA, amount));
+            boolean hideOthers = particleSettings.hideOthers(player);
+            inventory.setItem(PARTICLE_OTHERS, item(hideOthers ? Material.SKELETON_SKULL : Material.PLAYER_HEAD, "他のプレイヤーのパーティクル", NamedTextColor.LIGHT_PURPLE, List.of(
+                    text("現在: " + (hideOthers ? "消している" : "見える"), hideOthers ? NamedTextColor.RED : NamedTextColor.GREEN),
+                    text("消すと、自分の攻撃のパーティクルと敵のパーティクルだけが見えます", NamedTextColor.GRAY),
                     text("クリックで切り替え", NamedTextColor.YELLOW))));
             return;
         }
@@ -132,7 +170,7 @@ public final class SettingsMenu implements Listener {
 
         int slot = event.getRawSlot();
         if (slot == BACK) {
-            if (holder.screen == Screen.SOUND) {
+            if (holder.screen == Screen.SOUND || holder.screen == Screen.PARTICLE) {
                 open(player);
             } else if (mainMenu != null) {
                 mainMenu.open(player);
@@ -143,8 +181,31 @@ public final class SettingsMenu implements Listener {
         if (holder.screen == Screen.HUB) {
             if (slot == SOUND_BUTTON) {
                 openSound(player);
+            } else if (slot == PARTICLE_BUTTON) {
+                openParticles(player);
             } else if (slot == MENU_ITEM_BUTTON) {
                 menuItemService.setHidden(player, !menuItemService.isHidden(player));
+                render(player, holder);
+            }
+            return;
+        }
+
+        if (holder.screen == Screen.PARTICLE) {
+            if (slot == PARTICLE_AMOUNT) {
+                int current = particleSettings.percent(player);
+                int next = switch (event.getClick()) {
+                    case LEFT -> current + ParticleSettings.STEP;
+                    case RIGHT -> current - ParticleSettings.STEP;
+                    case SHIFT_LEFT -> 100;
+                    case SHIFT_RIGHT -> 0;
+                    default -> current;
+                };
+                if (next != current) {
+                    particleSettings.setPercent(player, next);
+                    render(player, holder);
+                }
+            } else if (slot == PARTICLE_OTHERS) {
+                particleSettings.setHideOthers(player, !particleSettings.hideOthers(player));
                 render(player, holder);
             }
             return;
@@ -188,7 +249,7 @@ public final class SettingsMenu implements Listener {
 
     private ItemStack back(Screen screen) {
         ItemStack item = MenuButtons.back();
-        if (screen == Screen.SOUND) {
+        if (screen == Screen.SOUND || screen == Screen.PARTICLE) {
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
                 meta.lore(List.of(text("設定へ戻る", NamedTextColor.GRAY)));
@@ -216,7 +277,8 @@ public final class SettingsMenu implements Listener {
 
     private enum Screen {
         HUB,
-        SOUND
+        SOUND,
+        PARTICLE
     }
 
     private static final class Holder implements MenuHolder {

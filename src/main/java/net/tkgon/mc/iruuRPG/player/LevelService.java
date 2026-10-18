@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.player;
 
+import net.tkgon.mc.iruuRPG.combat.ParticleFx;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
 import net.tkgon.mc.iruuRPG.hud.PlayerBars;
 import org.bukkit.Bukkit;
@@ -239,8 +240,8 @@ public final class LevelService {
         Location center = player.getLocation().add(0.0, 1.0, 0.0);
         player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.9f, 1.2f);
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.55f, 1.6f);
-        player.getWorld().spawnParticle(Particle.TOTEM, center, 42, 0.65, 0.8, 0.65, 0.05);
-        player.getWorld().spawnParticle(Particle.END_ROD, center, 28, 0.5, 0.7, 0.5, 0.02);
-        player.getWorld().spawnParticle(Particle.VILLAGER_HAPPY, center, 18, 0.45, 0.55, 0.45, 0.02);
+        ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.TOTEM, center, 42, 0.65, 0.8, 0.65, 0.05);
+        ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.END_ROD, center, 28, 0.5, 0.7, 0.5, 0.02);
+        ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.VILLAGER_HAPPY, center, 18, 0.45, 0.55, 0.45, 0.02);
     }
 }

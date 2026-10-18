@@ -563,6 +563,7 @@ public final class AttackService {
 
             @Override
             public void run() {
+                ParticleFx.mark(attacker);
                 if (!attacker.isOnline() || !position.getWorld().equals(attacker.getWorld())) {
                     cancel();
                     return;
