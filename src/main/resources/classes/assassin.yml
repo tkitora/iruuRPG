@@ -5,7 +5,7 @@
 # (白・緑の属性ダメージの減少量と、保護の減少量は仮置き)
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 4
+version: 5
 
 id: assassin
 name: "アサシン"
@@ -157,26 +157,21 @@ milestones:
     name: satsujin_upgrade
 
 # コンボの見た目 (見た目だけ。ダメージ・硬直は変わらない)。書き方は design/combo-style-example.yml
-# アサシン: 速く細かい斬撃。弱は小さな斜め斬りを左右に、3回目は十字、4回目は低い水平。最終段は大きな十字と縦の一閃。
-# (両手に近接武器を持っている間の弱は、これではなく、二刀流の交差する斬撃になる)
+# アサシンのコンボ (手数・ダメージ・強攻撃は config.yml の combat.combo.assassin):
+#   通常1 左上からの斬撃 / 通常2 右上からの斬撃 (両手に近接武器があるときは、十字の斬撃と音)
+#   通常3 正面に複数の斬撃 (40%のダメージで3回当たる) / 通常4 (フィニッシュ) 前方に、少し範囲の広い薙ぎ払い
+#   (両手に近接武器があるときは、左回りと右回りの2つの薙ぎ払い)
+# 強攻撃 0〜3 は、見た目も動きも ComboMoves (コード) が出す。
 combo-style:
   light:
-    - [{radius: 1.9, angle: 110, tilt: 15, roll: -130, forward: 1.8, duration: 0.08, scale: 0.95}]
-    - [{radius: 1.9, angle: 110, tilt: 15, roll: -50, forward: 1.8, duration: 0.08, scale: 0.95}]
-    - - {radius: 1.8, angle: 90, tilt: 15, roll: -130, forward: 1.8, duration: 0.07, scale: 0.95, roll-jitter: 3}
-      - {radius: 1.8, angle: 90, tilt: 15, roll: -50, forward: 1.8, duration: 0.07, scale: 0.95, roll-jitter: 3, delay: 0.05}
-    - [{radius: 2.0, angle: 140, tilt: 15, roll: 0, forward: 1.8, drop: 0.2, duration: 0.09, scale: 0.95, roll-jitter: 0}]
+    - [{radius: 2.0, angle: 110, tilt: 15, roll: -130, forward: 1.8, duration: 0.08, scale: 1.0}]
+    - [{radius: 2.0, angle: 110, tilt: 15, roll: -50, forward: 1.8, duration: 0.08, scale: 1.0}]
+    - - {radius: 1.8, angle: 100, tilt: 15, roll: -130, forward: 1.8, duration: 0.07, scale: 0.9, roll-jitter: 3}
+      - {radius: 1.8, angle: 100, tilt: 15, roll: -50, forward: 1.8, duration: 0.07, scale: 0.9, roll-jitter: 3, delay: 0.06}
+      - {radius: 1.9, angle: 100, tilt: 15, roll: -90, forward: 1.9, duration: 0.07, scale: 1.0, roll-jitter: 3, delay: 0.12}
   finisher:
-    sound: cut
-    burst: 14
+    sound: sweep
+    burst: 12
     cuts:
-      - {radius: 2.4, angle: 120, tilt: 15, roll: -130, forward: 1.8, duration: 0.09, scale: 1.1, roll-jitter: 2}
-      - {radius: 2.4, angle: 120, tilt: 15, roll: -50, forward: 1.8, duration: 0.09, scale: 1.1, roll-jitter: 2, delay: 0.06}
-      - {radius: 2.6, angle: 100, roll: 90, forward: 1.9, duration: 0.08, scale: 1.2, roll-jitter: 0, delay: 0.14}
-  heavy:
-    sound: cut
-    burst: 6
-    cuts:
-      - {radius: 2.6, angle: 160, tilt: 15, roll: 0, forward: 1.8, drop: 0.2, duration: 0.14, scale: 1.1, roll-jitter: 0}
-      - {radius: 2.2, angle: 110, tilt: 15, roll: -130, forward: 1.8, duration: 0.08, scale: 1.1, delay: 0.07}
-      - {radius: 2.2, angle: 110, tilt: 15, roll: -50, forward: 1.8, duration: 0.08, scale: 1.1, delay: 0.12}
+      - {radius: 3.0, angle: 170, tilt: 15, roll: 0, forward: 1.8, drop: 0.2, duration: 0.16, scale: 1.2, roll-jitter: 0}
+      - {radius: 2.4, angle: 150, tilt: 15, roll: 0, forward: 1.8, drop: 0.45, duration: 0.14, scale: 1.0, roll-jitter: 0, delay: 0.05}

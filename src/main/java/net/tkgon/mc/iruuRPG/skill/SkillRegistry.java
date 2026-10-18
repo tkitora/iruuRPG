@@ -123,12 +123,26 @@ public final class SkillRegistry {
         java.util.Arrays.sort(files);
         List<String[]> comboOwners = new ArrayList<>();
         List<Map<String, Object>> comboMaps = new ArrayList<>();
-        for (File file : files) {
-            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        // the skills that come with the plugin (skills/builtin.yml in the jar) first: a skill of the same id in the
+        // server's skills/*.yml replaces one
+        java.util.Set<String> builtinIds = new java.util.HashSet<>();
+        List<Object[]> sources = new ArrayList<>();
+        try (java.io.InputStream stream = plugin.getResource("skills/builtin.yml")) {
+            if (stream != null) {
+                sources.add(new Object[]{"(built-in)", YamlConfiguration.loadConfiguration(new java.io.InputStreamReader(stream, java.nio.charset.StandardCharsets.UTF_8))});
+            }
+        } catch (java.io.IOException e) {
+            plugin.getLogger().warning("skills: could not read the built-in skills: " + e);
+        }
+        for (File file : files) sources.add(new Object[]{file.getName(), YamlConfiguration.loadConfiguration(file)});
+        for (Object[] source : sources) {
+            String fileName = (String) source[0];
+            boolean builtin = "(built-in)".equals(fileName);
+            YamlConfiguration yaml = (YamlConfiguration) source[1];
             ConfigurationSection section = yaml.getConfigurationSection("skills");
             if (section == null) continue;
             for (String id : section.getKeys(false)) {
-                String owner = file.getName() + ": " + id;
+                String owner = fileName + ": " + id;
                 if (!ID.matcher(id).matches()) {
                     plugin.getLogger().warning("skills: " + owner + ": the id must be lower case letters, digits and _ (skipped)");
                     continue;
@@ -138,8 +152,11 @@ public final class SkillRegistry {
                     continue;
                 }
                 if (skills.containsKey(id)) {
-                    plugin.getLogger().warning("skills: " + owner + ": duplicate skill id (the first one is kept)");
-                    continue;
+                    if (!builtinIds.remove(id)) {
+                        plugin.getLogger().warning("skills: " + owner + ": duplicate skill id (the first one is kept)");
+                        continue;
+                    }
+                    skills.remove(id);
                 }
                 Object raw = section.get(id);
                 Map<String, Object> map = toMap(raw);
@@ -156,7 +173,10 @@ public final class SkillRegistry {
                     continue;
                 }
                 SkillSpec spec = parse(owner, map, null, id);
-                if (spec != null) skills.put(id, spec);
+                if (spec != null) {
+                    skills.put(id, spec);
+                    if (builtin) builtinIds.add(id);
+                }
             }
         }
         pendingComboIds.clear();
@@ -165,7 +185,7 @@ public final class SkillRegistry {
             SkillSpec combo = parseCombo(comboOwners.get(index)[0], comboMaps.get(index), comboOwners.get(index)[1]);
             if (combo != null) skills.put(comboOwners.get(index)[1], combo);
         }
-        if (!skills.isEmpty()) plugin.getLogger().info("Loaded " + skills.size() + " skills from " + files.length + " files.");
+        if (!skills.isEmpty()) plugin.getLogger().info("Loaded " + skills.size() + " skills from " + files.length + " files and the built-in ones.");
     }
 
     // ---- reading one entry -------------------------------------------------------------------------------------------

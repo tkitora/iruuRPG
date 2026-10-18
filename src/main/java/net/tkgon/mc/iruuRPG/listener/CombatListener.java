@@ -189,6 +189,8 @@ public final class CombatListener implements Listener {
     /** Uses the right-click of the weapon in hand (manual skill, or ranged / deploy attack). False when it has none. */
     private boolean useWeaponRightClick(Player player, RpgItemDefinition weapon) {
         if (itemSkillService.handleManualUse(player, weapon)) return true;
+        // an assassin's right click with a melee weapon is heavy attack 0 (a step)
+        if (attackService.tryHeavyZero(player, weapon)) return true;
         if (!isRangedRightClickWeapon(weapon)) return false;
 
         handleRpgRightClick(player, weapon);
@@ -219,13 +221,18 @@ public final class CombatListener implements Listener {
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
+        if (step == null) return;
+        if (step.heavy() && step.assassin()) {
+            attackService.performHeavy(attacker, weapon, step);
+            return;
+        }
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         if (hand.offHand()) attacker.swingOffHand();
         attackService.playMeleeSlash(attacker, hand.weapon(), step);
         // a swing that hits nothing directly still splashes the enemies around the spot in front of the player
         // (never for the arm swing of a direct hit: that already did its own area damage)
         Integer direct = lastDirectMelee.get(attacker.getUniqueId());
-        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier());
+        if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier(), step.areaScale());
     }
 
     /** The tick of each player's last direct melee hit: the arm swing that follows it is not a whiff. */
@@ -242,6 +249,11 @@ public final class CombatListener implements Listener {
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
+        if (step == null) return;
+        if (step.heavy() && step.assassin()) {
+            attackService.performHeavy(attacker, weapon, step);
+            return;
+        }
         // a dual-wielding assassin hits with one hand and then the other
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         RpgItemDefinition used = hand.weapon();
@@ -256,7 +268,8 @@ public final class CombatListener implements Listener {
         attackService.playMeleeImpact(attacker, victim);
         attackService.playMeleeSlash(attacker, used, step);
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);
-        attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used);
+        attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used, step.areaScale());
+        if (step.extraHits() > 0) attackService.scheduleExtraHits(attacker, victim, used, step.damageMultiplier(), step.extraHits(), 3L);
         lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
         attackService.normalAttackHit(attacker);
         if (hand.doubleStrike()) attackService.doubleStrikeHit(attacker, victim, hand);

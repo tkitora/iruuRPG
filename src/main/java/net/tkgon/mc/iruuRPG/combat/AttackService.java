@@ -112,9 +112,77 @@ public final class AttackService {
      * got through the cooldown; a heavy attack or the finisher also lengthens the cooldown (its recovery).
      */
     public MeleeCombo.Step nextMeleeStep(Player attacker) {
-        MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking());
+        MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking(), comboPlan(attacker));
+        if (step == null) {
+            // a heavy attack that is still cooling down: a dull click, nothing thrown
+            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            return null;
+        }
         attackCooldowns.extend(attacker, AttackType.MELEE, step.recoveryTicks());
         return step;
+    }
+
+    /** Which combo plan the player follows: the assassin has its own, everybody else the usual one. */
+    public String comboPlan(Player attacker) {
+        return hasClassId(attacker, "assassin") ? MeleeCombo.ASSASSIN : MeleeCombo.USUAL;
+    }
+
+    private boolean hasClassId(Player attacker, String classId) {
+        if (classService == null) return false;
+        return classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id().equals(classId)).orElse(false);
+    }
+
+    private ComboMoves comboMoves;
+
+    public void setComboMoves(ComboMoves comboMoves) {
+        this.comboMoves = comboMoves;
+    }
+
+    /** Throws a heavy attack of the assassin plan (its movement and damage are in {@link ComboMoves}). */
+    public void performHeavy(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        if (comboMoves != null) comboMoves.perform(attacker, weapon, step);
+    }
+
+    /**
+     * The right click of an assassin with a melee weapon: heavy attack 0 (a step). False when the player is not an
+     * assassin (the click is not used), true when it was used, also when the heavy attack still cools down.
+     */
+    public boolean tryHeavyZero(Player attacker, RpgItemDefinition weapon) {
+        if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
+        if (!MeleeCombo.ASSASSIN.equals(comboPlan(attacker)) || attacker.isSneaking()) return false;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return true;
+        }
+        MeleeCombo.Step step = meleeCombo.heavyZero(attacker);
+        if (step == null) {
+            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            return true;
+        }
+        performHeavy(attacker, weapon, step);
+        return true;
+    }
+
+    /** One hit of {@code multiplier} times the weapon's damage on {@code target}, with its number and impact. */
+    public boolean strike(Player attacker, LivingEntity target, RpgItemDefinition weapon, double multiplier) {
+        if (multiplier <= 0.0 || target.isDead() || !target.isValid()) return false;
+        AttackDamage attack = calculateDamage(attacker, target, weapon);
+        double damage = round(attack.result().damage() * multiplier);
+        boolean critical = attack.result().critical();
+        if (!applyDirectDamage(attacker, target, damage, weapon, critical)) return false;
+        playMeleeImpact(attacker, target);
+        sendDamageDebug(attacker, AttackType.MELEE, target, damage, critical, false);
+        return true;
+    }
+
+    /** {@code count} more hits of {@code rate} times the weapon's damage on {@code victim}, a few ticks apart. */
+    public void scheduleExtraHits(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double rate, int count, long gapTicks) {
+        for (int index = 1; index <= count; index++) {
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!attacker.isOnline() || attacker.isDead() || victim.isDead() || !victim.isValid()) return;
+                strike(attacker, victim, weapon, rate);
+            }, gapTicks * index);
+        }
     }
 
     private net.tkgon.mc.iruuRPG.skill.SkillRegistry comboStyleParser;
@@ -569,8 +637,14 @@ public final class AttackService {
 
     /** The slash of an attack of the light / heavy chain: a heavy or the finisher is drawn big, the lights as usual. */
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        // an assassin with a weapon in each hand: the crossing slashes of the two hands for every light attack
-        boolean dualLight = !step.heavy() && !step.finisher() && dualWielding(attacker);
+        // an assassin with a weapon in each hand: the crossing slashes of the two hands for the first two lights (the
+        // third is three cuts in front), two sweeps in opposite directions for the finisher
+        boolean dualWield = dualWielding(attacker);
+        if (step.finisher() && step.assassin() && dualWield) {
+            attackEffects.playDualSweep(attacker, weapon);
+            return;
+        }
+        boolean dualLight = !step.heavy() && !step.finisher() && dualWield && !(step.assassin() && step.stage() == 3);
         // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
         ComboStyle itemStyle = comboStyleOf("item " + weapon.id(), weapon.comboStyle());
         ComboStyle classStyle = classService == null ? null
@@ -653,6 +727,11 @@ public final class AttackService {
 
     /** {@code multiplier}: the damage multiplier of the attack in the light / heavy chain. */
     public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile, double multiplier) {
+        applySwingAreaDamage(attacker, weapon, profile, multiplier, 1.0);
+    }
+
+    /** {@code radiusScale}: how much wider the splash is (the assassin's finisher). */
+    public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile, double multiplier, double radiusScale) {
         boolean baseMelee = !hasMeleeAreaSkill(attacker);
         double rate = baseMelee
                 ? plugin.getConfig().getDouble("combat.melee-area-base-damage-rate", 0.40)
@@ -661,6 +740,7 @@ public final class AttackService {
                 ? plugin.getConfig().getDouble("combat.melee-area-base-radius", 2.0)
                 : plugin.getConfig().getDouble("combat.area-radius", 3.0);
         if (rate <= 0.0 || radius <= 0.0) return;
+        radius *= Math.max(0.1, radiusScale);
 
         double reach = plugin.getConfig().getDouble("combat.melee-swing-area-reach", 1.8);
         Location center = attacker.getEyeLocation().add(attacker.getEyeLocation().getDirection().normalize().multiply(reach));
@@ -685,6 +765,11 @@ public final class AttackService {
     }
 
     public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType, RpgItemDefinition weapon) {
+        applyAreaDamage(attacker, mainVictim, sourceDamage, attackType, weapon, 1.0);
+    }
+
+    /** {@code radiusScale}: how much wider the splash is (the assassin's finisher). */
+    public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType, RpgItemDefinition weapon, double radiusScale) {
         if (sourceDamage <= 0.0) return;
 
         // melee: everyone has a small area (a weaker copy of the warrior's); the warrior's milestone makes it full size
@@ -700,6 +785,7 @@ public final class AttackService {
                 : expanded
                 ? plugin.getConfig().getDouble("combat.range-area-expanded-radius", 5.0)
                 : plugin.getConfig().getDouble("combat.area-radius", 3.0);
+        radius *= Math.max(0.1, radiusScale);
         double radiusSquared = radius * radius;
         double areaDamage = round(sourceDamage * damageRate);
         if (areaDamage <= 0.0) return;
