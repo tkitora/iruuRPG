@@ -123,8 +123,19 @@ public final class ItemSkillService {
                 () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                 });
         startCooldown(player, weapon, weapon.attackType(), spec.cooldownTicks());
-        gainStacks(player, weapon);
+        gainStacks(player, weapon, "cast");
         return true;
+    }
+
+    /**
+     * Something happened that a special weapon's stacks can grow from ({@code hit}: a normal attack landed,
+     * {@code damaged}: the player was hurt, {@code kill}: an enemy was killed). The weapon in the main hand gains.
+     */
+    public void onStackTrigger(Player player, String trigger) {
+        if (generalSkills == null || skillRunner == null || player == null || !player.isOnline()) return;
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null) return;
+        gainStacks(player, weapon, trigger);
     }
 
     // ---- weapon stacks ---------------------------------------------------------------------------------------------
@@ -137,13 +148,13 @@ public final class ItemSkillService {
     private final Map<UUID, Map<String, StackState>> weaponStacks = new HashMap<>();
 
     /**
-     * A special weapon (`stacks:`) gains stacks of its own whenever its skill is cast; at the maximum they are spent
+     * A special weapon (`stacks:`) gains stacks of its own whenever one of its `gain-on` things happens (its skill is cast by default); at the maximum they are spent
      * and the weapon's `on-max` skill is cast as well (with no MP and no cooldown). They fade when the weapon is not
      * used for `decay-seconds`. The count is shown as a subtitle.
      */
-    private void gainStacks(Player player, RpgItemDefinition weapon) {
+    private void gainStacks(Player player, RpgItemDefinition weapon, String trigger) {
         net.tkgon.mc.iruuRPG.item.WeaponStackSpec stacks = weapon.stacks();
-        if (stacks == null) return;
+        if (stacks == null || !stacks.gainsOn(trigger)) return;
 
         long now = System.currentTimeMillis();
         StackState state = weaponStacks.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())

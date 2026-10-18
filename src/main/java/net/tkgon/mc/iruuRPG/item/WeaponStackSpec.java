@@ -12,7 +12,29 @@ import java.util.Locale;
  * Stacks fade away when the weapon's skill is not cast for {@code decaySeconds} (0 = they never fade).
  * {@code display} is what the player sees (a subtitle) and hears when the count changes.
  */
-public record WeaponStackSpec(String name, int gain, int max, String onMax, double decaySeconds, Display display) {
+public record WeaponStackSpec(String name, int gain, int max, String onMax, double decaySeconds, Display display,
+                              java.util.Set<String> gainOn) {
+
+    /** What makes the stacks grow: the weapon's skill is cast, a normal attack hits, the player is hurt, an enemy is killed. */
+    public static final java.util.Set<String> TRIGGERS = java.util.Set.of("cast", "hit", "damaged", "kill");
+
+    public WeaponStackSpec(String name, int gain, int max, String onMax, double decaySeconds, Display display) {
+        this(name, gain, max, onMax, decaySeconds, display, java.util.Set.of("cast"));
+    }
+
+    public boolean gainsOn(String trigger) {
+        return gainOn.contains(trigger);
+    }
+
+    /** The triggers in the lore's words. */
+    public String gainOnText() {
+        java.util.List<String> parts = new java.util.ArrayList<>();
+        if (gainOn.contains("cast")) parts.add("スキルを使う");
+        if (gainOn.contains("hit")) parts.add("通常攻撃が当たる");
+        if (gainOn.contains("damaged")) parts.add("ダメージを受ける");
+        if (gainOn.contains("kill")) parts.add("敵を倒す");
+        return String.join("・", parts);
+    }
 
     public WeaponStackSpec {
         name = name == null || name.isBlank() ? "スタック" : name;
@@ -21,6 +43,7 @@ public record WeaponStackSpec(String name, int gain, int max, String onMax, doub
         onMax = onMax == null ? "" : onMax.trim().toLowerCase(Locale.ROOT);
         decaySeconds = Math.max(0.0, Math.min(300.0, decaySeconds));
         display = display == null ? Display.defaults() : display;
+        gainOn = gainOn == null || gainOn.isEmpty() ? java.util.Set.of("cast") : java.util.Set.copyOf(gainOn);
     }
 
     /**

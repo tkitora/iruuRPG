@@ -232,6 +232,7 @@ public final class IruuRPG extends JavaPlugin {
         this.deployService = new DeployService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService = new ItemSkillService(this, attackService, attackEffects, itemSkillRegistry);
         this.itemSkillService.setGeneralSkills(skillRegistry, skillRunner);
+        this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
@@ -242,7 +243,10 @@ public final class IruuRPG extends JavaPlugin {
         this.questRegistry.reload();
         this.questService = new QuestService(this, questRegistry, profileManager, itemIdentifier);
         this.questBoardMenu = new QuestBoardMenu(questService);
-        this.mobService.setKillHook(questService::onMobKilled);
+        this.mobService.setKillHook((player, mobId) -> {
+            questService.onMobKilled(player, mobId);
+            itemSkillService.onStackTrigger(player, "kill");
+        });
         this.craftRegistry = new CraftRegistry(this);
         this.craftRegistry.reload();
         this.craftService = new CraftService(this, craftRegistry, profileManager, itemIdentifier, itemRegistry, itemFactory);

@@ -256,6 +256,7 @@ public final class CombatListener implements Listener {
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);
         attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used);
         lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
+        attackService.normalAttackHit(attacker);
         if (hand.doubleStrike()) attackService.doubleStrikeHit(attacker, victim, hand);
         if (scale < 1.0) attackService.scheduleTripleHits(attacker, victim, used, AttackType.MELEE);
     }

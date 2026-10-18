@@ -64,6 +64,21 @@ public final class AttackService {
     private static final double TUTORIAL_DAMAGE_CAP = 99.0;
     private ClassEffectService classEffectService;
     private DebugTargetService debugTargetService;
+    private java.util.function.BiConsumer<Player, String> stackHook;
+
+    /** Called with (player, "hit" | "damaged") when something a weapon's stacks can grow from happens. */
+    public void setStackHook(java.util.function.BiConsumer<Player, String> stackHook) {
+        this.stackHook = stackHook;
+    }
+
+    private void stackTrigger(Player player, String trigger) {
+        if (stackHook != null) stackHook.accept(player, trigger);
+    }
+
+    /** A normal attack of the player landed on an enemy. */
+    public void normalAttackHit(Player attacker) {
+        stackTrigger(attacker, "hit");
+    }
 
     public AttackService(
             JavaPlugin plugin,
@@ -237,6 +252,7 @@ public final class AttackService {
                 .filter(RpgItemDefinition::isWeaponLike)
                 .orElseGet(this::fallbackMobWeapon);
         statusEffectService.onMobDamageDealt(attacker, victim, weapon, attackerProfile, damage);
+        stackTrigger(victim, "damaged");
     }
 
     public PlayerProfile snapshotAttacker(Player attacker) {
@@ -376,6 +392,7 @@ public final class AttackService {
         sendDamageDebug(attacker, AttackType.RANGE, victim, damage, attack.result().critical(), false);
         applyAreaDamage(attacker, victim, damage, AttackType.RANGE, weapon);
         if (scale < 1.0) scheduleTripleHits(attacker, victim, weapon, AttackType.RANGE);
+        normalAttackHit(attacker);
     }
 
     public RangeTrace traceRange(Player attacker) {
