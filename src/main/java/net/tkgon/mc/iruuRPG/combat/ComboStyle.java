@@ -16,10 +16,11 @@ public record ComboStyle(SkillLook look, List<Stage> light, Stage finisher, Stag
 
     /**
      * One cut of an attack. {@code tilt} turns the arc's plane from standing across the view (0) to flat (90);
-     * {@code roll} turns it around the view axis; {@code forward} / {@code drop} place it from the eye.
+     * {@code roll} turns it around the view axis. {@code forward} / {@code drop} / {@code side} place the middle of the
+     * arc from the eye (ahead, below, to the right); a tilted arc keeps its lower edge, so the top goes deeper.
      */
     public record Cut(double radius, double angle, double tilt, double roll, double rollJitter, double forward,
-                      double drop, double duration, double scale, double delay) {
+                      double drop, double duration, double scale, double delay, double side) {
     }
 
     /** The cuts of one attack, the sound ({@code swing} / {@code sweep} / {@code cut}) and a burst of sparks. */

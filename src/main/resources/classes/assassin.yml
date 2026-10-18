@@ -5,7 +5,7 @@
 # (白・緑の属性ダメージの減少量と、保護の減少量は仮置き)
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 5
+version: 6
 
 id: assassin
 name: "アサシン"
@@ -162,16 +162,17 @@ milestones:
 #   通常3 正面に複数の斬撃 (40%のダメージで3回当たる) / 通常4 (フィニッシュ) 前方に、少し範囲の広い薙ぎ払い
 #   (両手に近接武器があるときは、左回りと右回りの2つの薙ぎ払い)
 # 強攻撃 0〜3 は、見た目も動きも ComboMoves (コード) が出す。
+# 斬撃は、プレイヤーの目から見て正面の中央に、上側を奥へ大きく倒して出す (tilt 55。下の縁は動かない)。
 combo-style:
   light:
-    - [{radius: 2.0, angle: 110, tilt: 15, roll: -130, forward: 1.8, duration: 0.08, scale: 1.0}]
-    - [{radius: 2.0, angle: 110, tilt: 15, roll: -50, forward: 1.8, duration: 0.08, scale: 1.0}]
-    - - {radius: 1.8, angle: 100, tilt: 15, roll: -130, forward: 1.8, duration: 0.07, scale: 0.9, roll-jitter: 3}
-      - {radius: 1.8, angle: 100, tilt: 15, roll: -50, forward: 1.8, duration: 0.07, scale: 0.9, roll-jitter: 3, delay: 0.06}
-      - {radius: 1.9, angle: 100, tilt: 15, roll: -90, forward: 1.9, duration: 0.07, scale: 1.0, roll-jitter: 3, delay: 0.12}
+    - [{radius: 2.0, angle: 110, tilt: 55, roll: -130, forward: 1.9, drop: 0.2, duration: 0.08, scale: 1.0}]
+    - [{radius: 2.0, angle: 110, tilt: 55, roll: -50, forward: 1.9, drop: 0.2, duration: 0.08, scale: 1.0}]
+    - - {radius: 1.8, angle: 100, tilt: 55, roll: -130, forward: 1.9, drop: 0.2, side: -0.3, duration: 0.07, scale: 0.9, roll-jitter: 3}
+      - {radius: 1.8, angle: 100, tilt: 55, roll: -50, forward: 1.9, drop: 0.2, side: 0.3, duration: 0.07, scale: 0.9, roll-jitter: 3, delay: 0.06}
+      - {radius: 1.9, angle: 100, tilt: 55, roll: -90, forward: 2.0, drop: 0.2, duration: 0.07, scale: 1.0, roll-jitter: 3, delay: 0.12}
   finisher:
     sound: sweep
     burst: 12
     cuts:
-      - {radius: 3.0, angle: 170, tilt: 15, roll: 0, forward: 1.8, drop: 0.2, duration: 0.16, scale: 1.2, roll-jitter: 0}
-      - {radius: 2.4, angle: 150, tilt: 15, roll: 0, forward: 1.8, drop: 0.45, duration: 0.14, scale: 1.0, roll-jitter: 0, delay: 0.05}
+      - {radius: 3.0, angle: 170, tilt: 55, roll: 0, forward: 1.9, drop: 0.2, duration: 0.16, scale: 1.2, roll-jitter: 0}
+      - {radius: 2.4, angle: 150, tilt: 55, roll: 0, forward: 1.9, drop: 0.45, duration: 0.14, scale: 1.0, roll-jitter: 0, delay: 0.05}
