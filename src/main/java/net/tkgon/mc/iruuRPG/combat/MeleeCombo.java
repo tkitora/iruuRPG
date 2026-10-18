@@ -29,10 +29,16 @@ public final class MeleeCombo {
      * One attack of the chain. {@code stage} is the number of this light (1-based; for a heavy, the number of lights
      * thrown before it). {@code extraHits}: further hits of the same strength a few ticks after the first (the
      * assassin's third light is three hits). {@code areaScale}: how much wider the splash around the hit is.
-     * {@code heavyIndex}: which heavy attack of the plan (0 - 3), for a heavy.
+     * {@code areaRadius}: when above 0, the splash around the hit has exactly this radius (instead of the usual one
+     * times {@code areaScale}). {@code heavyIndex}: which heavy attack of the plan (0 - 4), for a heavy.
      */
     public record Step(Kind kind, int stage, double damageMultiplier, int recoveryTicks, String plan, int heavyIndex,
-                       int extraHits, double areaScale) {
+                       int extraHits, double areaScale, double areaRadius) {
+
+        public Step(Kind kind, int stage, double damageMultiplier, int recoveryTicks, String plan, int heavyIndex,
+                    int extraHits, double areaScale) {
+            this(kind, stage, damageMultiplier, recoveryTicks, plan, heavyIndex, extraHits, areaScale, 0.0);
+        }
 
         /** An attack outside the chain (the chain is switched off, or a skill swings the weapon). */
         public static final Step PLAIN = new Step(Kind.LIGHT, 1, 1.0, 0, USUAL, 0, 0, 1.0);
@@ -94,12 +100,14 @@ public final class MeleeCombo {
      * The heavy attack of the assassin plan for a right click: number 0 when no light was thrown (or the chain ran
      * out), else the number of lights thrown so far. Null while that heavy attack cools down. The chain starts over.
      */
-    public Step heavyByClick(Player player) {
+    public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return null;
         long now = System.currentTimeMillis();
         long[] state = chains.computeIfAbsent(player.getUniqueId(), ignored -> new long[]{0L, 0L});
         int done = now - state[1] > window() ? 0 : (int) state[0];
-        Step step = heavy(player, ASSASSIN, Math.min(done, ASSASSIN_HEAVIES - 1));
+        int index = Math.min(done, ASSASSIN_HEAVIES - 1);
+        // heavy 0 right after heavy 2's hop is heavy 3, which has no cooldown of heavy 0's
+        Step step = heavy(player, ASSASSIN, index, index == 0 && skipHeavyZeroCooldown);
         if (step != null) {
             state[0] = 0L;
             state[1] = now;
@@ -155,8 +163,8 @@ public final class MeleeCombo {
             // the finisher: 3 hits of 60% in front
             double rate = listed("assassin.multi-hit-rate", 2, 0.6, 0.05, 3.0);
             int hits = (int) listed("assassin.multi-hit-counts", 2, 3, 1, 10);
-            return new Step(Kind.FINISHER, ASSASSIN_LIGHTS, rate, 0, ASSASSIN, 0, hits - 1,
-                    number("assassin.finisher-area-scale", 1.5, 1.0, 3.0));
+            return new Step(Kind.FINISHER, ASSASSIN_LIGHTS, rate, 0, ASSASSIN, 0, hits - 1, 1.0,
+                    number("assassin.finisher-area-radius", 3.0, 1.0, 8.0));
         }
         state[0] = stage;
         if (stage == 3 || stage == 4) {
@@ -170,12 +178,14 @@ public final class MeleeCombo {
     }
 
     /** Heavy attack {@code index} of the assassin plan, or null while its own cooldown runs. */
-    private Step heavy(Player player, String plan, int index) {
+    private Step heavy(Player player, String plan, int index, boolean skipCooldown) {
         long now = System.currentTimeMillis();
         long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId(), ignored -> new long[ASSASSIN_HEAVIES]);
-        if (ready[index] > now) return null;
-        long cooldownTicks = Math.round(listed("assassin.heavy-cooldown-ticks", index, new double[]{0, 0, 0, 0, 0}[index], 0, 1200));
-        ready[index] = now + cooldownTicks * 50L;
+        if (!skipCooldown) {
+            if (ready[index] > now) return null;
+            long cooldownTicks = Math.round(listed("assassin.heavy-cooldown-ticks", index, new double[]{80, 0, 0, 0, 0}[index], 0, 1200));
+            ready[index] = now + cooldownTicks * 50L;
+        }
         double multiplier = heavyMultiplier(index);
         return new Step(Kind.HEAVY, index, multiplier, 0, plan, index, 0, 1.0);
     }

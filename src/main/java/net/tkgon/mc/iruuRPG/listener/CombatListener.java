@@ -233,7 +233,7 @@ public final class CombatListener implements Listener {
         // (never for the arm swing of a direct hit: that already did its own area damage)
         Integer direct = lastDirectMelee.get(attacker.getUniqueId());
         if (direct == null || direct != org.bukkit.Bukkit.getCurrentTick()) {
-            attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier(), step.areaScale());
+            attackService.applySwingAreaDamage(attacker, hand.weapon(), hand.profile(), step.damageMultiplier(), step.areaScale(), step.areaRadius());
             if (step.extraHits() > 0) attackService.scheduleRepeats(attacker, null, hand.weapon(), step);
         }
     }
@@ -271,7 +271,7 @@ public final class CombatListener implements Listener {
         attackService.playMeleeImpact(attacker, victim);
         attackService.playMeleeSlash(attacker, used, step);
         attackService.sendDamageDebug(attacker, AttackType.MELEE, victim, damage, attack.result().critical(), false);
-        attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used, step.areaScale());
+        attackService.applyAreaDamage(attacker, victim, damage, AttackType.MELEE, used, step.areaScale(), step.areaRadius());
         if (step.extraHits() > 0) attackService.scheduleRepeats(attacker, victim, used, step);
         lastDirectMelee.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
         attackService.normalAttackHit(attacker);

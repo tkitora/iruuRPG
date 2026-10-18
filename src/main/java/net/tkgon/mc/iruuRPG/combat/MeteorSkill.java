@@ -61,6 +61,8 @@ final class MeteorSkill {
         int total = chargeTicks + fireTicks;
 
         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.7f, 1.7f);
+        // the circle stays where it was drawn: it does not follow the mage or turn with their view
+        Frame frame = frameOf(player);
         new SafeTask(plugin) {
             private int age;
             private int launched;
@@ -74,14 +76,14 @@ final class MeteorSkill {
                 }
                 if (age < total) {
                     double grow = Math.min(1.0, (age + 1.0) / Math.max(1, chargeTicks));
-                    drawCircle(player, age, grow);
+                    drawCircle(player, frame, age, grow);
                     if (age % 4 == 0) {
                         player.getWorld().playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.5f, (float) (0.8 + 0.9 * grow));
                     }
                     if (upgraded) drawCharge(player, age, 0.45);
                     // meteor k leaves k * interval ticks after the charge (a gap of 2 or 3 ticks, not always a whole number)
                     while (launched < count && age >= chargeTicks + (int) Math.round(launched * interval)) {
-                        launch(player, values, weapon, launched, count);
+                        launch(player, frame, values, weapon, launched, count);
                         launched++;
                     }
                 } else if (upgraded && age < total + beamCharge) {
@@ -106,19 +108,26 @@ final class MeteorSkill {
 
     // ---- the magic circle and the charge ----------------------------------------------------------------------------
 
-    private Location circleCenter(Player player) {
-        Location eye = player.getEyeLocation();
-        return eye.clone().add(eye.getDirection().normalize().multiply(1.9)).add(0.0, 0.2, 0.0);
+    /** The circle's place and the way it faces, fixed when the skill is cast. */
+    private record Frame(Location center, Vector forward, Vector right, Vector up) {
     }
 
-    private void drawCircle(Player player, int age, double grow) {
-        World world = player.getWorld();
-        Location center = circleCenter(player);
-        Vector forward = player.getEyeLocation().getDirection().normalize();
+    private Frame frameOf(Player player) {
+        Location eye = player.getEyeLocation();
+        Vector forward = eye.getDirection().normalize();
+        Location center = eye.clone().add(forward.clone().multiply(1.9)).add(0.0, 0.2, 0.0);
         Vector right = forward.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
         if (right.lengthSquared() < 1.0E-6) right = new Vector(1.0, 0.0, 0.0);
         right.normalize();
         Vector up = right.clone().crossProduct(forward).normalize();
+        return new Frame(center, forward, right, up);
+    }
+
+    private void drawCircle(Player player, Frame frame, int age, double grow) {
+        World world = player.getWorld();
+        Location center = frame.center();
+        Vector right = frame.right();
+        Vector up = frame.up();
         double radius = 0.5 + 1.1 * grow;
         int points = 28;
         for (int index = 0; index < points; index++) {
@@ -156,14 +165,12 @@ final class MeteorSkill {
 
     // ---- meteors ----------------------------------------------------------------------------------------------------
 
-    private void launch(Player player, Map<String, Double> values, RpgItemDefinition weapon, int number, int count) {
+    private void launch(Player player, Frame frame, Map<String, Double> values, RpgItemDefinition weapon, int number, int count) {
         World world = player.getWorld();
-        Location center = circleCenter(player);
-        Vector forward = player.getEyeLocation().getDirection().normalize();
-        Vector right = forward.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
-        if (right.lengthSquared() < 1.0E-6) right = new Vector(1.0, 0.0, 0.0);
-        right.normalize();
-        Vector up = right.clone().crossProduct(forward).normalize();
+        Location center = frame.center();
+        Vector forward = frame.forward();
+        Vector right = frame.right();
+        Vector up = frame.up();
 
         // meteors leave the circle on its upper half only (a meteor sent downward would hit the ground at once), in a fan
         // that is filled from both ends inward, alternately the right end and the left end; each first swings outward and up, then

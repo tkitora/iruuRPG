@@ -268,8 +268,8 @@ public final class AttackEffects {
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
         Resolved look = resolve(null, element);
         double yaw = repeat * RUN_YAW_STEP * (repeat % 2 == 0 ? 1.0 : -1.0);
-        cut(attacker, look, 2.0, 0.4, 0.0, 2.9, 160.0, meleeTilt() + repeat * RUN_TILT_STEP, 0.0, 0.18, 1.2f, 0.0, yaw);
-        cut(attacker, look, 2.0, 0.5, 0.0, 2.9, 160.0, meleeTilt() + (repeat + 1) * RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, yaw - RUN_YAW_STEP);
+        cut(attacker, look, 2.0, 0.4, 0.0, 2.5, 160.0, meleeTilt() + repeat * RUN_TILT_STEP, 0.0, 0.18, 1.2f, 0.0, yaw);
+        cut(attacker, look, 2.0, 0.5, 0.0, 2.5, 160.0, meleeTilt() + (repeat + 1) * RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, yaw - RUN_YAW_STEP);
         burst(attacker.getWorld(), attacker.getEyeLocation().add(viewDirection(attacker).multiply(2.6)).add(0.0, -0.2, 0.0), element, 12, 0.6, 0.1);
     }
 
@@ -374,6 +374,15 @@ public final class AttackEffects {
     }
 
     /**
+     * The origin that puts the middle of a full 360 degree ring of the (drawn) radius {@code radius} at {@code center}:
+     * the ring's circle is centered one radius along the arc's own y axis, which the tilt turns to up * cos + forward * sin.
+     */
+    private Location ringOrigin(Location center, Vector forward, double tilt, double radius) {
+        double t = Math.toRadians(tilt);
+        return center.clone().subtract(0.0, Math.cos(t) * radius, 0.0).subtract(forward.clone().multiply(Math.sin(t) * radius));
+    }
+
+    /**
      * A slash all around the player: a wide ring cut (all the way around, {@code radius} blocks out) and a second
      * one above it, with a burst of sparks. The assassin's heavy attack 1.
      */
@@ -385,10 +394,13 @@ public final class AttackEffects {
         Resolved look = resolve(null, element);
         Location middle = attacker.getLocation().add(0.0, 1.0, 0.0);
         double yaw = attacker.getLocation().getYaw();
+        double tilt = 80.0;
+        Vector f = horizontalForward(attacker);
         // a ring of arcs lying around the player at chest height, and one a little higher, turned the other way
-        slash(middle, look, new SlashVfx.Shape(radius / slashSize(), 360.0, 0.0, 0.0, yaw, 80.0, 0.0, vfxDensity()), 0.2, 1.2f, 0.0);
-        slash(middle.clone().add(0.0, 0.4, 0.0), look,
-                new SlashVfx.Shape(radius / slashSize() * 0.85, 360.0, 0.0, 0.0, yaw, 80.0, 0.0, vfxDensity(), true), 0.2, 1.0f, 0.05);
+        slash(ringOrigin(middle, f, tilt, radius), look,
+                new SlashVfx.Shape(radius / slashSize(), 360.0, 0.0, 0.0, yaw, tilt, 0.0, vfxDensity()), 0.2, 1.2f, 0.0);
+        slash(ringOrigin(middle.clone().add(0.0, 0.4, 0.0), f, tilt, radius * 0.85), look,
+                new SlashVfx.Shape(radius / slashSize() * 0.85, 360.0, 0.0, 0.0, yaw, tilt, 0.0, vfxDensity(), true), 0.2, 1.0f, 0.05);
         burst(attacker.getWorld(), middle, element, 20, radius * 0.4, 0.2);
     }
 

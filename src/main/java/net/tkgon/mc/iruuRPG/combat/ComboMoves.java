@@ -37,12 +37,18 @@ public final class ComboMoves {
         return plugin.getConfig().getDouble("combat.combo.assassin." + key, fallback);
     }
 
+    /** True within 2 seconds of heavy 2's hop: a heavy 0 then is heavy 3. */
+    public boolean hopChainActive(Player player) {
+        Long hopped = lastHop.get(player.getUniqueId());
+        return hopped != null && System.currentTimeMillis() - hopped <= HOP_CHAIN_MILLIS;
+    }
+
     /** Throws heavy attack {@code step.heavyIndex()}. */
     public void perform(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
         switch (step.heavyIndex()) {
             case 0 -> {
-                Long hopped = lastHop.remove(player.getUniqueId());
-                if (hopped != null && System.currentTimeMillis() - hopped <= HOP_CHAIN_MILLIS) {
+                if (hopChainActive(player)) {
+                    lastHop.remove(player.getUniqueId());
                     leapSlash(player, weapon, attackService.heavyMultiplier(3));
                 } else {
                     step(player, weapon);

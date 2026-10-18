@@ -233,12 +233,12 @@ public final class ItemSkillService {
 
     /**
      * How a weapon's skill is started. A ranged weapon: shift + right click (its plain right click shoots). A melee
-     * weapon: shift + right click too (`combat.skill-trigger.melee-sneak`, on by default), except a movement skill
-     * (dash, teleport), which is a plain right click so it can be used at once (`combat.skill-trigger.movement-plain`).
+     * weapon: shift + right click too (`combat.skill-trigger.melee-sneak`, on by default). A movement skill (dash,
+     * teleport) can be put on a plain right click (`combat.skill-trigger.movement-plain`, off by default).
      */
     private boolean isManualSkillTrigger(Player player, RpgItemDefinition weapon) {
         return switch (weapon.attackType()) {
-            case MELEE -> isMovementSkill(weapon) && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", true)
+            case MELEE -> isMovementSkill(weapon) && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", false)
                     || !plugin.getConfig().getBoolean("combat.skill-trigger.melee-sneak", true)
                     || player.isSneaking();
             case RANGE -> player.isSneaking();
