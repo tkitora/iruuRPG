@@ -166,7 +166,7 @@ final class MeteorSkill {
         Vector up = right.clone().crossProduct(forward).normalize();
 
         // meteors leave the circle on its upper half only (a meteor sent downward would hit the ground at once), in a fan
-        // that is filled from the middle, alternately to the right and the left; each first swings outward and up, then
+        // that is filled from both ends inward, alternately the right end and the left end; each first swings outward and up, then
         // curves in an arc toward the front (away from the center line, so none of them starts into the ground)
         double angle = fanAngle(number, count) + ThreadLocalRandom.current().nextDouble(-0.1, 0.1);
         Vector outward = right.clone().multiply(Math.cos(angle)).add(up.clone().multiply(Math.sin(angle)));
@@ -239,7 +239,7 @@ final class MeteorSkill {
 
     /**
      * The direction a meteor leaves the circle in, as an angle in the circle's plane (0 = right, 90 degrees = straight up):
-     * only the upper half (20 to 160 degrees), starting in the middle and alternating to the right and the left.
+     * only the upper half (20 to 160 degrees), filled from both ends inward: the 1st meteor takes the right end, the 2nd the left end, the 3rd the next one in from the right, and so on.
      */
     private static double fanAngle(int number, int count) {
         int slot = number % 2 == 0 ? number / 2 : count - 1 - number / 2;
