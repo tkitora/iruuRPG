@@ -422,7 +422,7 @@ public final class ClassSkillService {
             player.setVelocity(forward.clone().multiply(-selfPower).setY(selfLift));
         }
 
-        player.swingMainHand();
+        SwingGuard.swingMain(player);
         World world = target.getWorld();
         Location hit = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
         world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 1.0f, 0.9f);

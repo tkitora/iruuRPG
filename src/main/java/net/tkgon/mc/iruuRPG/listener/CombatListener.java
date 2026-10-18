@@ -212,6 +212,8 @@ public final class CombatListener implements Listener {
         if (event.getAction() != Action.LEFT_CLICK_AIR && event.getAction() != Action.LEFT_CLICK_BLOCK) return;
 
         Player attacker = event.getPlayer();
+        // the answer to an arm swing the plugin played itself is not a click
+        if (net.tkgon.mc.iruuRPG.combat.SwingGuard.isEcho(attacker)) return;
         RpgItemDefinition weapon = attackService.weaponInMainHand(attacker);
         if (weapon == null || !weapon.isWeaponLike()) return;
         if (weapon.attackType() == AttackType.RANGE && attackService.isMage(attacker)) {
