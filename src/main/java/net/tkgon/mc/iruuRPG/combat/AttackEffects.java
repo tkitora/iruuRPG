@@ -210,6 +210,16 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, boolean randomAngles) {
+        playStyledSlash(attacker, weapon, stage, look, repeat, randomAngles, null);
+    }
+
+    /**
+     * {@code offHand}: with a weapon in each hand (固有0), which hand makes this cut (null: not dual wielding). With
+     * random angles the right hand cuts from the right side and the left hand from the left side, so the cuts of a
+     * run swing from one side to the other as the hands take turns.
+     */
+    public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
+                                net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, boolean randomAngles, Boolean offHand) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -235,7 +245,7 @@ public final class AttackEffects {
             boolean reverse = false;
             if (randomAngles) {
                 // 0: from the right, 0 reversed: from the left, -50: a chop from the upper right, +50 reversed: from the upper left
-                int pick = random.nextInt(4);
+                int pick = offHand == null ? random.nextInt(4) : (offHand ? 1 + 2 * random.nextInt(2) : 2 * random.nextInt(2));
                 roll = new double[]{0.0, 0.0, -50.0, 50.0}[pick] + random.nextDouble(-6.0, 6.0);
                 reverse = pick == 1 || pick == 3;
                 yawShift = random.nextDouble(-8.0, 8.0);
