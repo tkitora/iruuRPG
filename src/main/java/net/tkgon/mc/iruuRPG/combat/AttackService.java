@@ -226,9 +226,9 @@ public final class AttackService {
             int repeat = index;
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!attacker.isOnline() || attacker.isDead()) return;
-                // each cut is a slash of its own: the hands take turns (固有0), and the cut is drawn from that hand's side
+                playMeleeSlash(attacker, weapon, step, repeat);
+                // each cut is a slash of its own: the hands take turns (固有0)
                 MeleeHand hand = nextSlashHand(attacker, weapon);
-                playMeleeSlash(attacker, weapon, step, repeat, dualWielding(attacker) ? hand.offHand() : null);
                 if (victim != null && !victim.isDead() && victim.isValid()) strike(attacker, victim, hand, step.damageMultiplier());
             }, gapTicks * index);
         }
@@ -699,22 +699,6 @@ public final class AttackService {
 
     /** {@code repeat}: the n-th time (0 = the first) the cut of a multi-hit attack is drawn; each is turned a little further. */
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step, int repeat) {
-        playMeleeSlash(attacker, weapon, step, repeat, null);
-    }
-
-    /** Both arms swing, one after the other: a cross cut of two weapons. */
-    private void swingBothHands(Player attacker) {
-        attacker.swingMainHand();
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (attacker.isOnline() && !attacker.isDead()) attacker.swingOffHand();
-        }, 2L);
-    }
-
-    /**
-     * {@code offHand}: with a weapon in each hand (固有0), whether this cut is made by the left hand (null: not
-     * dual wielding). Each cut of a multi-hit light has its own hand: it swings from that hand's side.
-     */
-    public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step, int repeat, Boolean offHand) {
         // an assassin with a weapon in each hand: the crossing slashes of the two hands for the first two lights (the
         // third and fourth are cuts in front), two sweeps in opposite directions for the finisher
         boolean dualWield = dualWielding(attacker);
@@ -723,7 +707,6 @@ public final class AttackService {
             attackEffects.playFinisherFlourish(attacker, weapon);
             if (dualWield) {
                 attackEffects.playDualSweep(attacker, weapon, repeat);
-                swingBothHands(attacker);
                 return;
             }
         }
@@ -745,7 +728,7 @@ public final class AttackService {
                     : classStyle != null ? classStyle.look() : null;
             // the assassin's multi-hit lights (3 and 4): every cut at a random angle, a sweep or a chop down
             boolean randomAngles = step.assassin() && step.extraHits() > 0 && !step.finisher();
-            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, randomAngles, offHand);
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, randomAngles);
             return;
         }
         if (step.heavy()) {
@@ -758,7 +741,6 @@ public final class AttackService {
         }
         if (dualWielding(attacker)) {
             attackEffects.playDualSlash(attacker, weapon);
-            swingBothHands(attacker);
             return;
         }
         String classId = classService == null ? "" : classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id()).orElse("");
