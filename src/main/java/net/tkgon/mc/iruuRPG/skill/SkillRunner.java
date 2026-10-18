@@ -8,6 +8,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.util.BoundingBox;
@@ -41,9 +42,24 @@ public final class SkillRunner {
      * fixed point). {@code onDone} runs when the caster is free again.
      */
     public void start(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+        startShaped(caster, spec, aim, onDone, null);
+    }
+
+    /**
+     * Starts a skill; {@code groupHits} (a combo's counter, or null) counts the hits it lands. With
+     * {@code lock-aim} the skill keeps the direction it was started with, with {@code flat-aim} it ignores looking
+     * up or down (both by playing it through a {@link ShapedCaster}).
+     */
+    private void startShaped(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone,
+                             java.util.concurrent.atomic.AtomicInteger groupHits) {
         if (!caster.valid()) {
             onDone.run();
             return;
+        }
+        if (spec.extras().aimChanged() || groupHits != null) {
+            ShapedCaster shaped = new ShapedCaster(caster, spec.extras().lockAim(), spec.extras().flatAim(), groupHits, aim);
+            caster = shaped;
+            aim = shaped.aim();
         }
         if (spec.template() == SkillTemplate.COMBO) {
             combo(caster, spec, aim, onDone);
@@ -62,6 +78,7 @@ public final class SkillRunner {
             case NOVA -> nova(caster, spec, aim, onDone);
             case BEAM -> beam(caster, spec, aim, onDone);
             case TELEPORT -> teleport(caster, spec, aim, onDone);
+            case VOLLEY -> volley(caster, spec, aim, onDone);
             case COMBO -> onDone.run();
         }
     }
@@ -122,6 +139,9 @@ public final class SkillRunner {
         private int pending;
         /** Index of the next step that has not been scheduled yet. */
         private int next;
+        /** Hits landed by the steps of the group that is running / just ended (for the steps that need a hit). */
+        private final java.util.concurrent.atomic.AtomicInteger groupHits = new java.util.concurrent.atomic.AtomicInteger();
+        private int lastGroupHits;
         private boolean finished;
         private final int startedAt = org.bukkit.Bukkit.getCurrentTick();
 
@@ -156,10 +176,16 @@ public final class SkillRunner {
                 stepOver(true);
                 return;
             }
+            SkillSpec.ComboStep comboStep = spec.steps().get(index);
+            if (comboStep.ifHit() && lastGroupHits <= 0) {
+                // a step that needs a hit: the steps before it hit nothing, so it is skipped
+                stepOver(false);
+                return;
+            }
             // a guard: the combo cannot be judged finished while this step is being started and its partners scheduled
             pending++;
             try {
-                start(caster, spec.steps().get(index).spec(), aim, () -> stepOver(false));
+                startShaped(caster, comboStep.spec(), aim, () -> stepOver(false), groupHits);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("skill: a combo step failed: " + exception);
                 stepOver(false);
@@ -183,6 +209,7 @@ public final class SkillRunner {
         /** Nothing running or waiting: start the next normal step, or end the combo. */
         private void settle() {
             if (finished || pending > 0) return;
+            lastGroupHits = groupHits.getAndSet(0);
             if (next < spec.steps().size() && caster.valid()) {
                 schedule(next);
             } else {
@@ -289,7 +316,9 @@ public final class SkillRunner {
                     return;
                 }
                 if (age >= spec.windupTicks() && (age - spec.windupTicks()) % spec.intervalTicks() == 0) {
-                    fireBolt(caster, spec, at, fixed);
+                    // the bolts fan out over `spread` degrees across the whole series
+                    double fan = spec.count() > 1 ? spec.extras().spread() * ((fired + 0.5) / spec.count() - 0.5) : 0.0;
+                    fireBolt(caster, spec, at, fixed, fan);
                     fired++;
                 }
                 age++;
@@ -297,13 +326,14 @@ public final class SkillRunner {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private void fireBolt(SkillCaster caster, SkillSpec spec, Location at, Location fixed) {
+    private void fireBolt(SkillCaster caster, SkillSpec spec, Location at, Location fixed, double extraYaw) {
         Element element = caster.element();
         Location from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0)
                 : caster.eye().add(caster.location().getDirection().multiply(0.4)).add(0.0, -0.2, 0.0);
         Vector direction = at.toVector().subtract(from.toVector());
         if (direction.lengthSquared() < 1.0E-6) return;
-        direction.normalize();
+        direction = offsetAim(direction.normalize(), spec, extraYaw);
+        final Vector flight = direction;
         caster.swing();
         effects.playSkillCastSound(caster.owner(), from, spec.look(), element);
         World world = caster.world();
@@ -319,13 +349,13 @@ public final class SkillRunner {
                     cancel();
                     return;
                 }
-                Location next = position.clone().add(direction.clone().multiply(perTick));
-                RayTraceResult wall = world.rayTraceBlocks(position, direction, perTick, FluidCollisionMode.NEVER, true);
+                Location next = position.clone().add(flight.clone().multiply(perTick));
+                RayTraceResult wall = world.rayTraceBlocks(position, flight, perTick, FluidCollisionMode.NEVER, true);
                 double wallDistance = wall == null ? Double.MAX_VALUE : wall.getHitPosition().distance(position.toVector());
                 LivingEntity hitPlayer = null;
                 double hitDistance = Double.MAX_VALUE;
                 for (LivingEntity player : targets(caster, spec)) {
-                    RayTraceResult result = player.getBoundingBox().expand(0.25).rayTrace(position.toVector(), direction, perTick);
+                    RayTraceResult result = player.getBoundingBox().expand(0.25).rayTrace(position.toVector(), flight, perTick);
                     if (result == null) continue;
                     double distance = result.getHitPosition().distance(position.toVector());
                     if (distance < hitDistance) {
@@ -334,7 +364,7 @@ public final class SkillRunner {
                     }
                 }
                 if (hitPlayer != null && hitDistance <= wallDistance) {
-                    Location end = position.clone().add(direction.clone().multiply(hitDistance));
+                    Location end = position.clone().add(flight.clone().multiply(hitDistance));
                     effects.playSkillBolt(position, end, spec.look(), element);
                     effects.playSkillImpact(end, spec.look(), element);
                     effects.playSkillHitSound(caster.owner(), end, spec.look(), element);
@@ -586,7 +616,7 @@ public final class SkillRunner {
         Location origin = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye().add(0.0, -0.3, 0.0);
         Vector aimVector = at.toVector().subtract(origin.toVector());
         if (aimVector.lengthSquared() < 1.0E-6) return;
-        aimVector.normalize();
+        aimVector = offsetAim(aimVector.normalize(), spec, 0.0);
         caster.swing();
         effects.playSkillCastSound(caster.owner(), caster.location(), spec.look(), element);
         for (int index = 0; index < spec.count(); index++) {
@@ -735,7 +765,7 @@ public final class SkillRunner {
                         onDone.run();
                         return;
                     }
-                    direction.normalize();
+                    direction = offsetAim(direction.normalize(), spec, 0.0);
                     World world = caster.world();
                     RayTraceResult wall = world.rayTraceBlocks(from, direction, spec.range(), FluidCollisionMode.NEVER, true);
                     double length = wall == null ? spec.range() : wall.getHitPosition().distance(from.toVector());
@@ -838,6 +868,7 @@ public final class SkillRunner {
      * {@code originPoint} is the skill's origin point (null: the caster's own place), the center of a push.
      */
     private void hit(SkillCaster caster, SkillSpec spec, LivingEntity victim, Location originPoint) {
+        if (caster instanceof ShapedCaster shaped && shaped.hits != null) shaped.hits.incrementAndGet();
         if (caster.isAlly(victim)) {
             helpAlly(caster, spec, victim);
             return;
@@ -906,5 +937,362 @@ public final class SkillRunner {
                 }
             }
         }
+    }
+
+    // ---- aim shaping ---------------------------------------------------------------------------------------------------
+
+    /**
+     * Turns an aim direction by the skill's aim-yaw (+ {@code extraYawDegrees}, positive = to the right) and aim-pitch
+     * (positive = up).
+     */
+    private Vector offsetAim(Vector direction, SkillSpec spec, double extraYawDegrees) {
+        double yaw = spec.extras().aimYaw() + extraYawDegrees;
+        double pitch = spec.extras().aimPitch();
+        if (Math.abs(yaw) < 1.0E-6 && Math.abs(pitch) < 1.0E-6) return direction;
+        Location frame = new Location(null, 0.0, 0.0, 0.0);
+        frame.setDirection(direction);
+        frame.setYaw((float) (frame.getYaw() + yaw));
+        frame.setPitch((float) Math.max(-89.0, Math.min(89.0, frame.getPitch() - pitch)));
+        return frame.getDirection().normalize();
+    }
+
+    /**
+     * A caster seen through the skill's aim settings: with {@code lock} its direction stays the one it had when the
+     * skill started (it ignores {@code face} and the aim does not follow the target), with {@code flat} it never looks
+     * up or down. It also counts the hits the skill lands (for the combo steps that need one).
+     */
+    private static final class ShapedCaster implements SkillCaster {
+        private final SkillCaster inner;
+        private final boolean lock;
+        private final boolean flat;
+        private final java.util.concurrent.atomic.AtomicInteger hits;
+        private final Supplier<Location> source;
+        private final Location lockedAim;
+        private final float lockedYaw;
+        private final float lockedPitch;
+
+        private ShapedCaster(SkillCaster inner, boolean lock, boolean flat, java.util.concurrent.atomic.AtomicInteger hits, Supplier<Location> source) {
+            this.inner = inner;
+            this.lock = lock;
+            this.flat = flat;
+            this.hits = hits;
+            this.source = source;
+            Location now = source.get();
+            this.lockedAim = lock && now != null ? flattened(now) : null;
+            if (lockedAim != null) inner.face(lockedAim); // turn once, then keep the direction
+            Location facing = inner.location();
+            this.lockedYaw = facing.getYaw();
+            this.lockedPitch = flat ? 0.0f : facing.getPitch();
+        }
+
+        private Location flattened(Location at) {
+            if (!flat) return at.clone();
+            Location copy = at.clone();
+            copy.setY(inner.eye().getY());
+            return copy;
+        }
+
+        private Supplier<Location> aim() {
+            return () -> {
+                if (lockedAim != null) return lockedAim.clone();
+                Location at = source.get();
+                return at == null ? null : flattened(at);
+            };
+        }
+
+        private Location turned(Location location) {
+            if (lock) location.setYaw(lockedYaw);
+            if (lock || flat) location.setPitch(lock ? lockedPitch : 0.0f);
+            return location;
+        }
+
+        @Override
+        public Player owner() {
+            return inner.owner();
+        }
+
+        @Override
+        public World world() {
+            return inner.world();
+        }
+
+        @Override
+        public Location location() {
+            return turned(inner.location());
+        }
+
+        @Override
+        public Location eye() {
+            return turned(inner.eye());
+        }
+
+        @Override
+        public boolean valid() {
+            return inner.valid();
+        }
+
+        @Override
+        public Element element() {
+            return inner.element();
+        }
+
+        @Override
+        public void freeze() {
+            inner.freeze();
+        }
+
+        @Override
+        public void release() {
+            inner.release();
+        }
+
+        @Override
+        public void face(Location at) {
+            if (lock) return;
+            inner.face(flat ? flattened(at) : at);
+        }
+
+        @Override
+        public void swing() {
+            inner.swing();
+        }
+
+        @Override
+        public void lunge(Vector velocity) {
+            inner.lunge(velocity);
+        }
+
+        @Override
+        public void teleport(Location to) {
+            inner.teleport(to);
+        }
+
+        @Override
+        public java.util.List<? extends LivingEntity> candidates() {
+            return inner.candidates();
+        }
+
+        @Override
+        public java.util.List<? extends LivingEntity> allyCandidates() {
+            return inner.allyCandidates();
+        }
+
+        @Override
+        public boolean isAlly(LivingEntity entity) {
+            return inner.isAlly(entity);
+        }
+
+        @Override
+        public void heal(LivingEntity ally, double ratio) {
+            inner.heal(ally, ratio);
+        }
+
+        @Override
+        public boolean applyEffects() {
+            return inner.applyEffects();
+        }
+
+        @Override
+        public void damage(LivingEntity victim, double rate) {
+            inner.damage(victim, rate);
+        }
+    }
+
+    // ---- volley ---------------------------------------------------------------------------------------------------------
+
+    /**
+     * A volley: after the warning, {@code count} bullets leave a pattern in front of the caster one every
+     * {@code interval} ticks. RING: on a circle (radius = the size of the pattern) facing the caster's aim, swinging
+     * out by {@code curve} first and then bending to the front; FAN: all from one point over {@code angle} degrees;
+     * LINE: side by side on a row; SCATTER: at random inside the circle. After {@code homing-delay-ticks} a bullet with
+     * an enemy within {@code homing-radius} turns toward it. A bullet hits the first enemy or block in its way.
+     */
+    private void volley(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+        Element element = caster.element();
+        Location fixed = originPoint(caster, spec, aim);
+        SkillSpec.Extras extras = spec.extras();
+        new Guarded(() -> {
+            caster.release();
+            onDone.run();
+        }) {
+            private int age;
+            private int launched;
+
+            @Override
+            protected void tick() {
+                if (!caster.valid()) {
+                    cancel();
+                    onDone.run();
+                    return;
+                }
+                Location at = aim.get();
+                if (at != null) caster.face(at);
+                Vector[] frame = frame(caster, at, extras, fixed);
+                Location center = patternCenter(caster, fixed, frame[0], extras);
+                if (age < spec.windupTicks()) {
+                    if (age % 3 == 0) effects.playSkillCircle(center, frame[1], frame[2], spec.radius(), spec.look(), element, age);
+                    age++;
+                    return;
+                }
+                if (launched >= spec.count()) {
+                    caster.release();
+                    cancel();
+                    onDone.run();
+                    return;
+                }
+                if ((age - spec.windupTicks()) % spec.intervalTicks() == 0) {
+                    effects.playSkillCircle(center, frame[1], frame[2], spec.radius(), spec.look(), element, age);
+                    launchBullet(caster, spec, center, frame, launched);
+                    launched++;
+                }
+                age++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** The aim direction (0), the right (1) and the up (2) of a volley. */
+    private Vector[] frame(SkillCaster caster, Location at, SkillSpec.Extras extras, Location fixed) {
+        Location from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye();
+        Vector forward = at == null ? caster.location().getDirection() : at.toVector().subtract(from.toVector());
+        if (forward.lengthSquared() < 1.0E-6) forward = new Vector(0.0, 0.0, 1.0);
+        forward.normalize();
+        Vector right = forward.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+        if (right.lengthSquared() < 1.0E-6) right = new Vector(1.0, 0.0, 0.0);
+        right.normalize();
+        Vector up = right.clone().crossProduct(forward).normalize();
+        return new Vector[]{forward, right, up};
+    }
+
+    private Location patternCenter(SkillCaster caster, Location fixed, Vector forward, SkillSpec.Extras extras) {
+        Location from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye().add(0.0, -0.1, 0.0);
+        return from.add(forward.clone().multiply(extras.spawnDistance()));
+    }
+
+    private void launchBullet(SkillCaster caster, SkillSpec spec, Location center, Vector[] frame, int number) {
+        Element element = caster.element();
+        SkillSpec.Extras extras = spec.extras();
+        World world = caster.world();
+        double perTick = spec.speed() / 20.0;
+        Vector aimDirection = offsetAim(frame[0].clone(), spec, 0.0);
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        int count = Math.max(1, spec.count());
+
+        Location start = center.clone();
+        Vector velocity = aimDirection.clone().multiply(perTick);
+        boolean steer = false;
+        switch (extras.pattern()) {
+            case RING -> {
+                double angle = Math.PI * 2.0 * number / count + random.nextDouble(-0.25, 0.25);
+                Vector outward = frame[1].clone().multiply(Math.cos(angle)).add(frame[2].clone().multiply(Math.sin(angle)));
+                start.add(outward.clone().multiply(spec.radius()));
+                velocity = aimDirection.clone().multiply(perTick * 0.55).add(outward.multiply(perTick * extras.curve()));
+                steer = true;
+            }
+            case FAN -> {
+                double yaw = spec.angle() * ((number + 0.5) / count - 0.5);
+                velocity = rotateAroundVertical(aimDirection, Math.toRadians(-yaw)).multiply(perTick);
+            }
+            case LINE -> {
+                double spacing = count > 1 ? spec.radius() * 2.0 / (count - 1) : 0.0;
+                start.add(frame[1].clone().multiply((number - (count - 1) / 2.0) * spacing));
+            }
+            case SCATTER -> {
+                double angle = random.nextDouble(0.0, Math.PI * 2.0);
+                double radius = spec.radius() * Math.sqrt(random.nextDouble());
+                start.add(frame[1].clone().multiply(Math.cos(angle) * radius)).add(frame[2].clone().multiply(Math.sin(angle) * radius));
+            }
+        }
+        effects.playSkillCastSound(caster.owner(), start, spec.look(), element);
+        final Vector initial = velocity;
+        final boolean curved = steer && extras.curve() > 0.0;
+
+        new Guarded(null) {
+            private Location position = start.clone();
+            private Vector current = initial.clone();
+            private LivingEntity homing;
+            private int age;
+
+            @Override
+            protected void tick() {
+                if (!caster.valid() || age++ > extras.lifetimeTicks()) {
+                    cancel();
+                    return;
+                }
+                Vector desired = aimDirection.clone().multiply(perTick);
+                double turn = curved ? 0.22 : 0.0;
+                if (extras.homingRadius() > 0.0 && age >= extras.homingDelayTicks()) {
+                    if (homing == null || homing.isDead() || !homing.isValid() || age % 6 == 0) {
+                        homing = nearest(targets(caster, spec), position, extras.homingRadius());
+                    }
+                    if (homing != null) {
+                        Vector toward = homing.getLocation().add(0.0, homing.getHeight() * 0.5, 0.0).toVector().subtract(position.toVector());
+                        if (toward.lengthSquared() > 1.0E-6) {
+                            desired = toward.normalize().multiply(perTick);
+                            turn = extras.homingTurn();
+                        }
+                    }
+                }
+                if (turn > 0.0) current.add(desired.subtract(current).multiply(turn));
+                double length = current.length();
+                if (length > perTick * 1.2) current.multiply(perTick * 1.2 / length);
+                length = current.length();
+                if (length < 1.0E-6) return;
+                Vector direction = current.clone().normalize();
+
+                RayTraceResult wall = world.rayTraceBlocks(position, direction, length, FluidCollisionMode.NEVER, true);
+                double wallDistance = wall == null ? Double.MAX_VALUE : wall.getHitPosition().distance(position.toVector());
+                LivingEntity victim = null;
+                double hitDistance = Double.MAX_VALUE;
+                for (LivingEntity candidate : targets(caster, spec)) {
+                    RayTraceResult result = candidate.getBoundingBox().expand(extras.hitRadius()).rayTrace(position.toVector(), direction, length);
+                    if (result == null) continue;
+                    double distance = result.getHitPosition().distance(position.toVector());
+                    if (distance < hitDistance) {
+                        hitDistance = distance;
+                        victim = candidate;
+                    }
+                }
+                Location next;
+                if (victim != null && hitDistance <= wallDistance) {
+                    next = position.clone().add(direction.clone().multiply(hitDistance));
+                } else if (wall != null) {
+                    next = wall.getHitPosition().toLocation(world);
+                    victim = null;
+                } else {
+                    next = position.clone().add(current);
+                    victim = null;
+                    effects.playSkillBolt(position, next, spec.look(), element);
+                    position = next;
+                    return;
+                }
+                effects.playSkillBolt(position, next, spec.look(), element);
+                effects.playSkillImpact(next, spec.look(), element);
+                if (victim != null) {
+                    effects.playSkillHitSound(caster.owner(), next, spec.look(), element);
+                    hit(caster, spec, victim, null);
+                }
+                cancel();
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    private LivingEntity nearest(java.util.List<LivingEntity> candidates, Location from, double radius) {
+        LivingEntity best = null;
+        double bestDistance = radius * radius;
+        for (LivingEntity candidate : candidates) {
+            double distance = candidate.getLocation().add(0.0, candidate.getHeight() * 0.5, 0.0).distanceSquared(from);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = candidate;
+            }
+        }
+        return best;
+    }
+
+    /** {@code vector} turned around the vertical axis by {@code radians} (positive = to the right). */
+    private Vector rotateAroundVertical(Vector vector, double radians) {
+        double cos = Math.cos(radians);
+        double sin = Math.sin(radians);
+        return new Vector(vector.getX() * cos - vector.getZ() * sin, vector.getY(), vector.getX() * sin + vector.getZ() * cos);
     }
 }
