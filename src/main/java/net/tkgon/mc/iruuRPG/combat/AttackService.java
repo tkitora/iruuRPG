@@ -226,9 +226,9 @@ public final class AttackService {
             int repeat = index;
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!attacker.isOnline() || attacker.isDead()) return;
-                // each cut is a slash of its own: the hands take turns (固有0), and the cut is drawn from that hand's side
+                // each cut is a slash of its own: the hands take turns (固有0), and the cut has the colour of that hand's weapon
                 MeleeHand hand = nextSlashHand(attacker, weapon);
-                playMeleeSlash(attacker, weapon, step, repeat, dualWielding(attacker) ? hand.offHand() : null);
+                playMeleeSlash(attacker, hand.weapon(), step, repeat);
                 if (victim != null && !victim.isDead() && victim.isValid()) strike(attacker, victim, hand, step.damageMultiplier());
             }, gapTicks * index);
         }
@@ -699,22 +699,6 @@ public final class AttackService {
 
     /** {@code repeat}: the n-th time (0 = the first) the cut of a multi-hit attack is drawn; each is turned a little further. */
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step, int repeat) {
-        playMeleeSlash(attacker, weapon, step, repeat, null);
-    }
-
-    /** Both arms swing, one after the other: a cross cut of two weapons. */
-    private void swingBothHands(Player attacker) {
-        attacker.swingMainHand();
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (attacker.isOnline() && !attacker.isDead()) attacker.swingOffHand();
-        }, 2L);
-    }
-
-    /**
-     * {@code offHand}: with a weapon in each hand (固有0), whether this cut is made by the left hand (null: not
-     * dual wielding). Each cut of a multi-hit light has its own hand: it swings from that hand's side.
-     */
-    public void playMeleeSlash(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step, int repeat, Boolean offHand) {
         // an assassin with a weapon in each hand: the crossing slashes of the two hands for the first two lights (the
         // third and fourth are cuts in front), two sweeps in opposite directions for the finisher
         boolean dualWield = dualWielding(attacker);
@@ -722,8 +706,8 @@ public final class AttackService {
             // the finisher is louder and brighter than the other cuts
             attackEffects.playFinisherFlourish(attacker, weapon);
             if (dualWield) {
-                attackEffects.playDualSweep(attacker, weapon, repeat);
-                swingBothHands(attacker);
+                RpgItemDefinition[] pair = dualWeapons(attacker, weapon);
+                attackEffects.playDualSweep(attacker, pair[0], pair[1], repeat);
                 return;
             }
         }
@@ -745,7 +729,7 @@ public final class AttackService {
                     : classStyle != null ? classStyle.look() : null;
             // the assassin's multi-hit lights (3 and 4): every cut at a random angle, a sweep or a chop down
             boolean randomAngles = step.assassin() && step.extraHits() > 0 && !step.finisher();
-            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, randomAngles, offHand);
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, randomAngles);
             return;
         }
         if (step.heavy()) {
@@ -757,8 +741,8 @@ public final class AttackService {
             return;
         }
         if (dualWielding(attacker)) {
-            attackEffects.playDualSlash(attacker, weapon);
-            swingBothHands(attacker);
+            RpgItemDefinition[] pair = dualWeapons(attacker, weapon);
+            attackEffects.playDualSlash(attacker, pair[0], pair[1]);
             return;
         }
         String classId = classService == null ? "" : classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id()).orElse("");
@@ -772,7 +756,8 @@ public final class AttackService {
     public void playMeleeSlash(Player attacker, RpgItemDefinition weapon) {
         // an assassin with a melee weapon in each hand: the crossing slashes of the two hands, on every swing
         if (dualWielding(attacker)) {
-            attackEffects.playDualSlash(attacker, weapon);
+            RpgItemDefinition[] pair = dualWeapons(attacker, weapon);
+            attackEffects.playDualSlash(attacker, pair[0], pair[1]);
             return;
         }
         // warrior and assassin: a chain of slashes whose direction changes from stage to stage
@@ -782,6 +767,20 @@ public final class AttackService {
             return;
         }
         attackEffects.playMeleeSlash(attacker, weapon);
+    }
+
+    /** The usable melee weapon in the off hand of an assassin with 固有0, or null. */
+    public RpgItemDefinition dualOffWeapon(Player attacker) {
+        if (!hasSkill(attacker, ASSASSIN_DUAL_SKILL)) return null;
+        RpgItemDefinition offWeapon = itemIdentifier.itemId(attacker.getInventory().getItemInOffHand()).flatMap(itemRegistry::find).orElse(null);
+        boolean usable = offWeapon != null && offWeapon.isWeaponLike() && offWeapon.attackType() == AttackType.MELEE && canUseItem(attacker, offWeapon);
+        return usable ? offWeapon : null;
+    }
+
+    /** The two weapons {main, off} of a dual-wielding assassin, for effects that show the colour of each hand's weapon. */
+    private RpgItemDefinition[] dualWeapons(Player attacker, RpgItemDefinition fallbackMain) {
+        RpgItemDefinition main = weaponInMainHand(attacker);
+        return new RpgItemDefinition[]{main != null ? main : fallbackMain, dualOffWeapon(attacker)};
     }
 
     /** True for an assassin (固有0) who holds a usable melee weapon in the off hand. */

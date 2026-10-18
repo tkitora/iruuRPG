@@ -210,16 +210,6 @@ public final class AttackEffects {
      */
     public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
                                 net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, boolean randomAngles) {
-        playStyledSlash(attacker, weapon, stage, look, repeat, randomAngles, null);
-    }
-
-    /**
-     * {@code offHand}: with a weapon in each hand (固有0), which hand makes this cut (null: not dual wielding). With
-     * random angles the right hand cuts from the right side and the left hand from the left side, so the cuts of a
-     * run swing from one side to the other as the hands take turns.
-     */
-    public void playStyledSlash(Player attacker, RpgItemDefinition weapon, ComboStyle.Stage stage,
-                                net.tkgon.mc.iruuRPG.skill.SkillLook look, int repeat, boolean randomAngles, Boolean offHand) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -245,7 +235,7 @@ public final class AttackEffects {
             boolean reverse = false;
             if (randomAngles) {
                 // 0: from the right, 0 reversed: from the left, -50: a chop from the upper right, +50 reversed: from the upper left
-                int pick = offHand == null ? random.nextInt(4) : (offHand ? 1 + 2 * random.nextInt(2) : 2 * random.nextInt(2));
+                int pick = random.nextInt(4);
                 roll = new double[]{0.0, 0.0, -50.0, 50.0}[pick] + random.nextDouble(-6.0, 6.0);
                 reverse = pick == 1 || pick == 3;
                 yawShift = random.nextDouble(-8.0, 8.0);
@@ -267,11 +257,11 @@ public final class AttackEffects {
      * left and one from the left to the right (counter-clockwise and clockwise seen from above).
      */
     public void playDualSweep(Player attacker, RpgItemDefinition weapon) {
-        playDualSweep(attacker, weapon, 0);
+        playDualSweep(attacker, weapon, weapon, 0);
     }
 
     /** {@code repeat}: the n-th time of a run (0 = the first): turned a little further each time. */
-    public void playDualSweep(Player attacker, RpgItemDefinition weapon, int repeat) {
+    public void playDualSweep(Player attacker, RpgItemDefinition weapon, RpgItemDefinition offWeapon, int repeat) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         Element element = weapon.element();
@@ -279,7 +269,9 @@ public final class AttackEffects {
         Resolved look = resolve(null, element);
         double yaw = repeat * RUN_YAW_STEP * (repeat % 2 == 0 ? 1.0 : -1.0);
         cut(attacker, look, 2.0, 0.4, 0.0, 2.5, 160.0, meleeTilt() + repeat * RUN_TILT_STEP, 0.0, 0.18, 1.2f, 0.0, yaw);
-        cut(attacker, look, 2.0, 0.5, 0.0, 2.5, 160.0, meleeTilt() + (repeat + 1) * RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, yaw - RUN_YAW_STEP);
+        // the second sweep is the left hand's: the colour of its weapon
+        Resolved offLook = resolve(null, offWeapon == null ? element : offWeapon.element());
+        cut(attacker, offLook, 2.0, 0.5, 0.0, 2.5, 160.0, meleeTilt() + (repeat + 1) * RUN_TILT_STEP, 180.0, 0.18, 1.2f, 0.05 + FOLLOW_DELAY, yaw - RUN_YAW_STEP);
         burst(attacker.getWorld(), attacker.getEyeLocation().add(viewDirection(attacker).multiply(2.6)).add(0.0, -0.2, 0.0), element, 12, 0.6, 0.1);
     }
 
@@ -424,8 +416,13 @@ public final class AttackEffects {
 
     /** The crossing slashes of the assassin's two hands (also drawn for every swing while a weapon is held in each hand). */
     public void playDualSlash(Player attacker, RpgItemDefinition weapon) {
+        playDualSlash(attacker, weapon, weapon);
+    }
+
+    /** The cross of the two hands: the first cut has the colour of the main hand's weapon, the second the off hand's. */
+    public void playDualSlash(Player attacker, RpgItemDefinition weapon, RpgItemDefinition offWeapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
-        playSlashMelee(attacker, weapon, null, 0);
+        playSlashMelee(attacker, weapon, offWeapon, null, 0);
     }
 
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
@@ -1106,6 +1103,11 @@ public final class AttackEffects {
     }
 
     public void playSlashMelee(Player attacker, RpgItemDefinition weapon, LivingEntity target, int sequence) {
+        playSlashMelee(attacker, weapon, weapon, target, sequence);
+    }
+
+    /** {@code secondWeapon}: the weapon whose colour the second cut of the X has (the off hand's for two hands). */
+    public void playSlashMelee(Player attacker, RpgItemDefinition weapon, RpgItemDefinition secondWeapon, LivingEntity target, int sequence) {
         if (attacker == null || weapon == null) return;
 
         Vector forward = target == null
@@ -1132,7 +1134,7 @@ public final class AttackEffects {
 
         // two diagonal cuts that cross each other like an X, the second one a moment after the first
         slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
-        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
+        slash(center, secondWeapon == null ? element : secondWeapon.element(), new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
         if (target != null) {
             burst(attacker.getWorld(), center.clone().add(forward.clone().multiply(0.4)), element, 8, 0.3, 0.1);
         }
