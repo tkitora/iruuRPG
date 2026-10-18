@@ -50,13 +50,15 @@ public final class AttackEffects {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
         sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), weapon.element());
-        Vector forward = horizontalForward(attacker);
+        Vector view = viewDirection(attacker);
+        double pitch = attacker.getLocation().getPitch();
         boolean flip = slashSide.merge(attacker.getUniqueId(), Boolean.TRUE, (old, ignored) -> !old);
-        Location origin = attacker.getLocation().add(forward.clone().multiply(0.7)).add(0.0, 1.0, 0.0);
+        Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.2)).add(0.0, -0.35, 0.0);
         Element element = weapon.element();
-        // a flat crescent swept across in front of the player (leaning a little up / down on alternate swings)
+        // a crescent swept across in front of the player, in the plane of the view direction and the horizontal
+        // right (leaning a little up / down on alternate swings)
         slash(origin, element, new SlashVfx.Shape(1.3, 120.0, 0.0, 0.0,
-                attacker.getLocation().getYaw(), flip ? 78.0 : 102.0, 0.0, vfxDensity()), 0.14, 1.0f, 0.0);
+                attacker.getLocation().getYaw(), pitch + (flip ? 78.0 : 102.0), 0.0, vfxDensity()), 0.14, 1.0f, 0.0);
     }
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
@@ -87,25 +89,26 @@ public final class AttackEffects {
 
         int stage = nextComboStage(attacker);
         Element element = weapon.element();
-        Vector forward = horizontalForward(attacker);
+        Vector view = viewDirection(attacker);
         float yaw = attacker.getLocation().getYaw();
-        Location origin = attacker.getLocation().add(forward.clone().multiply(1.1)).add(0.0, 1.25, 0.0);
+        double pitch = attacker.getLocation().getPitch();
+        Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.5)).add(0.0, -0.2, 0.0);
         double jitter = ThreadLocalRandom.current().nextDouble(-8.0, 8.0);
         switch (stage) {
             case 1 -> {
                 sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, 0.0, 50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch, 50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
             }
             case 2 -> {
                 sounds.swing(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, 0.0, -50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
+                slash(origin, element, new SlashVfx.Shape(1.7, 130.0, 0.0, 0.0, yaw, pitch, -50.0 + jitter, vfxDensity()), 0.12, 1.0f, 0.0);
             }
             default -> {
                 sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-                Location low = attacker.getLocation().add(forward.clone().multiply(0.8)).add(0.0, 1.0, 0.0);
-                slash(low, element, new SlashVfx.Shape(2.3, 170.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.16, 1.2f, 0.0);
-                slash(origin, element, new SlashVfx.Shape(2.0, 110.0, 0.0, 0.0, yaw, 0.0, 90.0 + jitter, vfxDensity()), 0.1, 1.1f, 0.08);
-                burst(attacker.getWorld(), origin.clone().add(forward.clone().multiply(0.8)), element, 12, 0.5, 0.1);
+                Location low = attacker.getEyeLocation().add(view.clone().multiply(1.1)).add(0.0, -0.5, 0.0);
+                slash(low, element, new SlashVfx.Shape(2.3, 170.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.16, 1.2f, 0.0);
+                slash(origin, element, new SlashVfx.Shape(2.0, 110.0, 0.0, 0.0, yaw, pitch, 90.0 + jitter, vfxDensity()), 0.1, 1.1f, 0.08);
+                burst(attacker.getWorld(), origin.clone().add(view.clone().multiply(0.8)), element, 12, 0.5, 0.1);
             }
         }
     }
@@ -117,19 +120,21 @@ public final class AttackEffects {
     }
 
     public void playSweepMelee(Player attacker, RpgItemDefinition weapon) {
-        Vector forward = horizontalForward(attacker);
+        Vector view = viewDirection(attacker);
         float yaw = attacker.getLocation().getYaw();
+        double pitch = attacker.getLocation().getPitch();
         Element element = weapon.element();
         sounds.sweepMelee(attacker, attacker.getLocation().add(0.0, 1.0, 0.0), element);
-        Location base = attacker.getLocation().add(forward.clone().multiply(0.8)).add(0.0, 1.0, 0.0);
+        Location base = attacker.getEyeLocation().add(view.clone().multiply(0.9)).add(0.0, -0.3, 0.0);
 
-        // a wide horizontal crescent swept from the right side to the left, then a smaller one right behind it
-        slash(base, element, new SlashVfx.Shape(2.8, 140.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.22, 1.15f, 0.0);
+        // a wide crescent swept from the right side to the left in the plane of the view direction and the
+        // horizontal right, then a smaller one right behind it
+        slash(base, element, new SlashVfx.Shape(2.8, 140.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.22, 1.15f, 0.0);
         slash(base.clone().add(0.0, 0.35, 0.0), element,
-                new SlashVfx.Shape(2.0, 130.0, 0.0, 0.0, yaw, 90.0, 0.0, vfxDensity()), 0.18, 0.9f, 0.06);
+                new SlashVfx.Shape(2.0, 130.0, 0.0, 0.0, yaw, 90.0 + pitch, 0.0, vfxDensity()), 0.18, 0.9f, 0.06);
 
         World world = attacker.getWorld();
-        Location tip = base.clone().add(forward.clone().multiply(2.6));
+        Location tip = base.clone().add(view.clone().multiply(2.6));
         burst(world, tip, element, 10, 0.5, 0.05);
     }
 
@@ -458,7 +463,10 @@ public final class AttackEffects {
                                   net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (origin == null || origin.getWorld() == null) return;
         Resolved r = resolve(look, element);
-        double pitch = orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL ? 90.0 : 0.0;
+        // in the caster's view frame: the plane of the view direction and the horizontal right (a sweep), or the plane
+        // across the view direction (standing / diagonal), turned around the view axis
+        double view = origin.getPitch();
+        double pitch = orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL ? 90.0 + view : view;
         double roll = orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.DIAGONAL ? 40.0 : 0.0;
         Location at = origin.clone().add(0.0, orientation == net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL ? 0.9 : 1.3, 0.0);
         if (orientation != net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation.HORIZONTAL) {
@@ -789,13 +797,17 @@ public final class AttackEffects {
                 : target.getLocation().add(0.0, Math.max(0.75, target.getHeight() * 0.58), 0.0);
         // pull the arc a little toward the attacker so it is drawn around the target instead of behind it
         center.subtract(forward.clone().multiply(0.35));
-        double yaw = Math.toDegrees(Math.atan2(-forward.getX(), forward.getZ()));
+        // the X is drawn across the line from the attacker's eyes to its center (the view direction when there is none)
+        Vector across = center.toVector().subtract(attacker.getEyeLocation().toVector());
+        if (across.lengthSquared() <= 1.0E-9) across = viewDirection(attacker); else across.normalize();
+        double yaw = Math.toDegrees(Math.atan2(-across.getX(), across.getZ()));
+        double pitch = -Math.toDegrees(Math.asin(Math.max(-1.0, Math.min(1.0, across.getY()))));
         Element element = weapon.element();
         sounds.slashCut(attacker, center, element);
 
         // two diagonal cuts that cross each other like an X, the second one a moment after the first
-        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, 0.0, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
-        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, 0.0, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
+        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, 45.0, vfxDensity()), 0.1, 1.0f, 0.0);
+        slash(center, element, new SlashVfx.Shape(2.2, 70.0, 0.0, 0.0, yaw, pitch, -45.0, vfxDensity()), 0.1, 1.0f, 0.1);
         if (target != null) {
             burst(attacker.getWorld(), center.clone().add(forward.clone().multiply(0.4)), element, 8, 0.3, 0.1);
         }
@@ -997,6 +1009,16 @@ public final class AttackEffects {
     private void spark(World world, Location point, Element element) {
         if (!plugin.getConfig().getBoolean("slash-vfx.enabled", true)) return;
         world.spawnParticle(sparkParticle(element), point, 1, 0.0, 0.0, 0.0, 0.0);
+    }
+
+    /**
+     * The player's view frame for slashes: every slash is built in the plane across the view direction (or, for a
+     * sweep, the plane of the view direction and the horizontal right) and turned by an angle around the view axis,
+     * so it follows where the player looks, up and down too (the shape's pitch is the view pitch).
+     */
+    private Vector viewDirection(Player attacker) {
+        Vector view = attacker.getLocation().getDirection();
+        return view.lengthSquared() <= 1.0E-9 ? new Vector(0.0, 0.0, 1.0) : view.normalize();
     }
 
     private Vector horizontalForward(Player attacker) {
