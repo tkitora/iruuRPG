@@ -311,6 +311,33 @@ public final class AttackEffects {
         }
     }
 
+    /**
+     * {@code count} straight lines at random angles through random spots within {@code range} blocks of {@code center}
+     * (not the arcs of the normal slash): the assassin's rapid hits.
+     */
+    public void playRandomLines(Player attacker, RpgItemDefinition weapon, Location center, double range, int count) {
+        World world = center.getWorld();
+        if (world == null) return;
+        Element element = weapon.element();
+        Resolved look = resolve(null, element);
+        sounds.slashCut(attacker, center, element);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int index = 0; index < count; index++) {
+            Vector direction = new Vector(random.nextGaussian(), random.nextGaussian(), random.nextGaussian());
+            if (direction.lengthSquared() < 1.0E-6) direction = new Vector(1.0, 0.0, 0.0);
+            direction.normalize();
+            Vector offset = new Vector(random.nextGaussian(), random.nextGaussian() * 0.6, random.nextGaussian()).multiply(range * 0.35);
+            if (offset.lengthSquared() > range * range) offset.normalize().multiply(range);
+            Location middle = center.clone().add(offset);
+            double half = random.nextDouble(1.0, 1.9);
+            for (double along = -half; along <= half; along += 0.2) {
+                Location point = middle.clone().add(direction.clone().multiply(along));
+                spawnDust(world, point, look.dust(Math.abs(along) < half * 0.5 ? look.core : look.body, 0.8));
+                if (random.nextInt(6) == 0) look.spark(world, point);
+            }
+        }
+    }
+
     /** A heavy attack: the wide sweep with a thick upright cut across it. */
     public void playHeavySlash(Player attacker, RpgItemDefinition weapon) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;

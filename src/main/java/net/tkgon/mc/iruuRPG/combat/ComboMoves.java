@@ -19,7 +19,8 @@ import org.bukkit.util.Vector;
  * The assassin's five heavy attacks (see {@link MeleeCombo}): 0 a step in the walking direction (the right click),
  * 1 a thrust on the spot (the skill {@code combat.combo.assassin.thrust-skill}, so a skill can call it too), 2 two
  * sweeps forwards (40% each) and then a small hop back, 3 a leap along the view with cuts at random places all around
- * on the way, 4 several cuts around the player (5 hits of 25%), a little in front of them.
+ * on the way, 4 many quick hits (15 of 10%, three a tick) on the enemies within 3 blocks of a point 2 blocks ahead, drawn as
+ * straight lines at random angles.
  */
 public final class ComboMoves {
 
@@ -153,23 +154,28 @@ public final class ComboMoves {
         }.runTaskTimer(plugin, 1L, 1L);
     }
 
-    // ---- 4: cuts all around, a little in front ---------------------------------------------------------------------------
+    // ---- 4: many fast cuts in front -----------------------------------------------------------------------------------
 
     private void surround(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
         Vector facing = facing(player);
-        int hits = (int) Math.max(2, Math.round(number("surround-hits", 5.0)));
-        long gap = (long) Math.max(1, Math.round(number("surround-gap-ticks", 4.0)));
+        int hits = (int) Math.max(1, Math.round(number("surround-hits", 15.0)));
+        int perTick = (int) Math.max(1, Math.round(number("surround-hits-per-tick", 3.0)));
         double range = number("surround-radius", 3.0);
-        for (int index = 0; index < hits; index++) {
+        double ahead = number("surround-forward", 2.0);
+        int ticks = (hits + perTick - 1) / perTick;
+        for (int tick = 0; tick < ticks; tick++) {
+            int count = Math.min(perTick, hits - tick * perTick);
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
                 if (!player.isOnline() || player.isDead()) return;
-                // the middle is a little in front of the player
-                Location center = player.getLocation().add(facing.clone().multiply(number("surround-forward", 0.8))).add(0.0, 1.0, 0.0);
-                effects.playRandomSlashes(player, weapon, center, range, 3);
+                // the middle is 2 blocks in front of the player; straight lines at random angles are drawn there
+                Location center = player.getLocation().add(facing.clone().multiply(ahead)).add(0.0, 1.0, 0.0);
+                effects.playRandomLines(player, weapon, center, range, count);
                 for (LivingEntity target : around(player, center, range)) {
-                    attackService.strike(player, target, weapon, step.damageMultiplier());
+                    for (int hit = 0; hit < count; hit++) {
+                        attackService.strike(player, target, weapon, step.damageMultiplier());
+                    }
                 }
-            }, gap * index);
+            }, tick);
         }
     }
 
