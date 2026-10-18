@@ -166,7 +166,7 @@ public final class MeleeCombo {
         if (ready[index] > now) return null;
         long cooldownTicks = Math.round(listed("assassin.heavy-cooldown-ticks", index, new double[]{40, 60, 80, 100, 120}[index], 0, 1200));
         ready[index] = now + cooldownTicks * 50L;
-        double multiplier = listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 2.2, 0.4, 0.7, 0.25}[index], 0, 20);
+        double multiplier = listed("assassin.heavy-damage-multiplier", index, new double[]{0.0, 2.2, 0.4, 0.7, 0.1}[index], 0, 20);
         return new Step(Kind.HEAVY, index, multiplier, 0, plan, index, 0, 1.0);
     }
 

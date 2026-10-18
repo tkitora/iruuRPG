@@ -49,7 +49,7 @@ combat:
     # 強攻撃は、それぞれ専用のクールタイムを持つ。リストは0, 1, 2, 3, 4の順。
     assassin:
       heavy-cooldown-ticks: [40, 60, 80, 100, 120]
-      heavy-damage-multiplier: [0.0, 2.2, 0.4, 0.7, 0.25]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと
+      heavy-damage-multiplier: [0.0, 2.2, 0.4, 0.7, 0.1]   # 1は突き (スキルのダメージ倍率をこれに置き換える)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと (15回 = 合計1.5倍)
       multi-hit-rate: [0.4, 0.25]                 # 通常3 / 通常4: 1回ごとのダメージの倍率
       multi-hit-counts: [3, 5]                    # 通常3 / 通常4: 当たる回数
       multi-hit-gap-ticks: 4                      # 通常3 / 通常4: 次の1回 (斬撃の演出も) までのtick数
@@ -66,10 +66,10 @@ combat:
       leap-up-power: 0.45
       leap-radius: 3.0
       leap-ticks: 16
-      surround-hits: 5                            # 強攻撃4: 当たる回数 / 間隔のtick数 / 範囲 / 自分の正面へずらす距離
-      surround-gap-ticks: 4
+      surround-hits: 15                           # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
+      surround-hits-per-tick: 3
       surround-radius: 3.0
-      surround-forward: 0.8
+      surround-forward: 2.0
   # 武器スキルの発動: 近接はShift+右クリック、移動スキル (dash / teleport) は右クリックだけで出る。遠距離はShift+右クリック
   skill-trigger:
     melee-sneak: true
