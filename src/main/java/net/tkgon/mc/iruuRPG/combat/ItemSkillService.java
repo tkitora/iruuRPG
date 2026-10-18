@@ -86,7 +86,6 @@ public final class ItemSkillService {
     private final AttackEffects attackEffects;
     private final ItemSkillRegistry skillRegistry;
     private final Map<UUID, Map<String, Long>> cooldownUntilMillis = new HashMap<>();
-    private final Map<UUID, Map<String, Long>> cooldownTotalMillis = new HashMap<>();
 
     public ItemSkillService(JavaPlugin plugin, AttackService attackService, AttackEffects attackEffects, ItemSkillRegistry skillRegistry) {
         this.plugin = plugin;
@@ -642,17 +641,7 @@ public final class ItemSkillService {
         cooldownUntilMillis
                 .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
                 .put(cooldownKey(attackType), System.currentTimeMillis() + ticks * 50L);
-        cooldownTotalMillis
-                .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
-                .put(cooldownKey(attackType), ticks * 50L);
         attackService.showItemCooldown(player, attackType, ticks);
-    }
-
-    /** The weapon skill's cooldown of {@code attackType}: {remaining, total} in milliseconds ({0, ...} when ready). */
-    public long[] skillCooldown(Player player, AttackType attackType) {
-        Map<String, Long> totals = cooldownTotalMillis.get(player.getUniqueId());
-        long total = totals == null ? 0L : totals.getOrDefault(cooldownKey(attackType), 0L);
-        return new long[]{remainingSkillCooldownMillis(player, attackType), total};
     }
 
     private long remainingSkillCooldownMillis(Player player, AttackType attackType) {

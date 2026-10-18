@@ -280,7 +280,7 @@ public final class AttackService {
             return false;
         }
 
-        showItemCooldown(attacker, attackType, cooldownTicks);
+        // the normal attack's cooldown is shown by the action bar gauge; the item's own cooldown is the weapon skill's only
         return true;
     }
 
