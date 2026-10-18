@@ -211,7 +211,7 @@ public final class RpgItemFactory {
             return;
         }
         boolean movement = net.tkgon.mc.iruuRPG.combat.ItemSkillService.isMovementTemplate(spec.template());
-        boolean meleePlain = (movement && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", true))
+        boolean meleePlain = (movement && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", false))
                 || !plugin.getConfig().getBoolean("combat.skill-trigger.melee-sneak", true);
         String trigger = switch (definition.attackType()) {
             case MELEE -> meleePlain ? "右クリック" : "シフト右クリック";

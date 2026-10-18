@@ -134,7 +134,8 @@ public final class AttackService {
 
     /** Which combo plan the player follows: the assassin has its own, everybody else the usual one. */
     public String comboPlan(Player attacker) {
-        return hasClassId(attacker, "assassin") ? MeleeCombo.ASSASSIN : MeleeCombo.USUAL;
+        // the assassin's own combo comes with the 固有2 (before it, an assassin attacks like everybody else)
+        return hasClassId(attacker, "assassin") && hasSkill(attacker, ASSASSIN_COMBO_SKILL) ? MeleeCombo.ASSASSIN : MeleeCombo.USUAL;
     }
 
     private boolean hasClassId(Player attacker, String classId) {
@@ -170,7 +171,7 @@ public final class AttackService {
             sendLevelRequirement(attacker, weapon);
             return true;
         }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker);
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, comboMoves != null && comboMoves.hopChainActive(attacker));
         if (step == null) {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
@@ -687,8 +688,10 @@ public final class AttackService {
         boolean dualLight = !step.heavy() && !step.finisher() && dualWield && !(step.assassin() && step.stage() >= 3);
         // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
         ComboStyle itemStyle = comboStyleOf("item " + weapon.id(), weapon.comboStyle());
+        // (an assassin's class style is for its combo: without the 固有2 it attacks like everybody else)
         ComboStyle classStyle = classService == null ? null
                 : classService.currentClass(profileManager.getOrCreate(attacker))
+                        .filter(definition -> !definition.id().equals("assassin") || step.assassin())
                         .map(definition -> comboStyleOf("class " + definition.id(), definition.comboStyle())).orElse(null);
         for (ComboStyle style : new ComboStyle[]{itemStyle, classStyle}) {
             if (dualLight && style == classStyle) break;
@@ -716,7 +719,7 @@ public final class AttackService {
             return;
         }
         String classId = classService == null ? "" : classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id()).orElse("");
-        if (classId.equals("warrior") || classId.equals("assassin")) {
+        if (classId.equals("warrior")) {
             attackEffects.playComboSlash(attacker, weapon, step.visual());
             return;
         }
@@ -731,7 +734,7 @@ public final class AttackService {
         }
         // warrior and assassin: a chain of slashes whose direction changes from stage to stage
         String classId = classService == null ? "" : classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id()).orElse("");
-        if (classId.equals("warrior") || classId.equals("assassin")) {
+        if (classId.equals("warrior")) {
             attackEffects.playComboSlash(attacker, weapon);
             return;
         }
@@ -774,6 +777,11 @@ public final class AttackService {
 
     /** {@code radiusScale}: how much wider the splash is (the assassin's finisher). */
     public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile, double multiplier, double radiusScale) {
+        applySwingAreaDamage(attacker, weapon, profile, multiplier, radiusScale, 0.0);
+    }
+
+    /** {@code fixedRadius}: when above 0, the splash has exactly this radius. */
+    public void applySwingAreaDamage(Player attacker, RpgItemDefinition weapon, PlayerProfile profile, double multiplier, double radiusScale, double fixedRadius) {
         boolean baseMelee = !hasMeleeAreaSkill(attacker);
         double rate = baseMelee
                 ? plugin.getConfig().getDouble("combat.melee-area-base-damage-rate", 0.40)
@@ -782,7 +790,7 @@ public final class AttackService {
                 ? plugin.getConfig().getDouble("combat.melee-area-base-radius", 2.0)
                 : plugin.getConfig().getDouble("combat.area-radius", 3.0);
         if (rate <= 0.0 || radius <= 0.0) return;
-        radius *= Math.max(0.1, radiusScale);
+        radius = fixedRadius > 0.0 ? fixedRadius : radius * Math.max(0.1, radiusScale);
 
         double reach = plugin.getConfig().getDouble("combat.melee-swing-area-reach", 1.8);
         Location center = attacker.getEyeLocation().add(attacker.getEyeLocation().getDirection().normalize().multiply(reach));
@@ -812,6 +820,11 @@ public final class AttackService {
 
     /** {@code radiusScale}: how much wider the splash is (the assassin's finisher). */
     public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType, RpgItemDefinition weapon, double radiusScale) {
+        applyAreaDamage(attacker, mainVictim, sourceDamage, attackType, weapon, radiusScale, 0.0);
+    }
+
+    /** {@code fixedRadius}: when above 0, the splash has exactly this radius. */
+    public void applyAreaDamage(Player attacker, LivingEntity mainVictim, double sourceDamage, AttackType attackType, RpgItemDefinition weapon, double radiusScale, double fixedRadius) {
         if (sourceDamage <= 0.0) return;
 
         // melee: everyone has a small area (a weaker copy of the warrior's); the warrior's milestone makes it full size
@@ -827,7 +840,7 @@ public final class AttackService {
                 : expanded
                 ? plugin.getConfig().getDouble("combat.range-area-expanded-radius", 5.0)
                 : plugin.getConfig().getDouble("combat.area-radius", 3.0);
-        radius *= Math.max(0.1, radiusScale);
+        radius = fixedRadius > 0.0 ? fixedRadius : radius * Math.max(0.1, radiusScale);
         double radiusSquared = radius * radius;
         double areaDamage = round(sourceDamage * damageRate);
         if (areaDamage <= 0.0) return;
@@ -951,6 +964,7 @@ public final class AttackService {
 
     // ---- the assassin's two hands ----------------------------------------------------------------------------------
 
+    private static final String ASSASSIN_COMBO_SKILL = "assassin_combo";
     private static final String ASSASSIN_DUAL_SKILL = "assassin_dual";
     private static final String ASSASSIN_DOUBLE_SKILL = "assassin_double";
 
