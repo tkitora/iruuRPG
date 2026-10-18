@@ -33,6 +33,20 @@ mob:
 combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
+  # 近接の弱・強コンボ: 左クリックが弱、Shiftを押しながら左クリックが強。弱を light-count 回つなげた最後が「最終段」
+  combo:
+    enabled: true
+    light-count: 5               # 弱の連続回数 (最後の1回が最終段)
+    window-ticks: 32             # 次の攻撃までにこれ以上あくとコンボが切れる
+    heavy-damage-multiplier: 2.0 # 強のダメージ倍率 (弱を何回かつなげた後だと、1回ごとに heavy-stage-bonus が足される)
+    heavy-stage-bonus: 0.15
+    heavy-recovery-ticks: 10     # 強のあとの追加の硬直
+    finisher-damage-multiplier: 2.0
+    finisher-recovery-ticks: 8
+  # 武器スキルの発動: 近接はShift+右クリック、移動スキル (dash / teleport) は右クリックだけで出る。遠距離はShift+右クリック
+  skill-trigger:
+    melee-sneak: true
+    movement-plain: true
   # 近接の範囲攻撃: 全員が持つ小さな範囲 (戦士の「近接範囲攻撃化」の下位互換)。戦士は上の 0.65 / area-radius
   melee-area-base-damage-rate: 0.40
   melee-area-base-radius: 2.0

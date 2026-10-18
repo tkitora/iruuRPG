@@ -85,9 +85,13 @@ public final class AttackEffects {
      * has its own fixed direction (with a few degrees of jitter) so a run of hits looks like a combo.
      */
     public void playComboSlash(Player attacker, RpgItemDefinition weapon) {
+        playComboSlash(attacker, weapon, nextComboStage(attacker));
+    }
+
+    /** The slash of {@code stage} 1 / 2 (the two light cuts) or 3 (the finisher's). */
+    public void playComboSlash(Player attacker, RpgItemDefinition weapon, int stage) {
         if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
 
-        int stage = nextComboStage(attacker);
         Element element = weapon.element();
         Vector view = viewDirection(attacker);
         float yaw = attacker.getLocation().getYaw();
@@ -111,6 +115,17 @@ public final class AttackEffects {
                 burst(attacker.getWorld(), origin.clone().add(view.clone().multiply(0.8)), element, 12, 0.5, 0.1);
             }
         }
+    }
+
+    /** A heavy attack: the wide sweep with a thick upright cut across it. */
+    public void playHeavySlash(Player attacker, RpgItemDefinition weapon) {
+        if (!plugin.getConfig().getBoolean("combat.effects.melee-slash.enabled", true)) return;
+
+        playSweepMelee(attacker, weapon);
+        Vector view = viewDirection(attacker);
+        Location origin = attacker.getEyeLocation().add(view.clone().multiply(1.5)).add(0.0, -0.2, 0.0);
+        slash(origin, weapon.element(), new SlashVfx.Shape(2.2, 120.0, 0.0, 0.0, attacker.getLocation().getYaw(),
+                attacker.getLocation().getPitch(), 90.0, vfxDensity()), 0.12, 1.1f, 0.08);
     }
 
     /** The crossing slashes of the assassin's two hands (also drawn for every swing while a weapon is held in each hand). */

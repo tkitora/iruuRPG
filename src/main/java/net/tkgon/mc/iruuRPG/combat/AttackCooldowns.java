@@ -34,6 +34,14 @@ public final class AttackCooldowns {
         return true;
     }
 
+    /** Makes the current lock of {@code attackType} last {@code extraTicks} longer (a heavy attack's recovery). */
+    public void extend(Player player, AttackType attackType, int extraTicks) {
+        if (extraTicks <= 0) return;
+        EnumMap<AttackType, Long> playerLocks = lockedUntilMillis.get(player.getUniqueId());
+        if (playerLocks == null || !playerLocks.containsKey(attackType)) return;
+        playerLocks.put(attackType, playerLocks.get(attackType) + extraTicks * 50L);
+    }
+
     public long remainingMillis(Player player, AttackType attackType) {
         EnumMap<AttackType, Long> playerLocks = lockedUntilMillis.get(player.getUniqueId());
         if (playerLocks == null) return 0L;
