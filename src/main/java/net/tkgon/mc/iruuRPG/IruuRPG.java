@@ -320,7 +320,9 @@ public final class IruuRPG extends JavaPlugin {
         registerListeners();
         loadOnlinePlayers();
         Bukkit.getScheduler().runTask(this, tutorialService::sweepEntities);
-        PlayerHudTask.start(this, profileManager, playerBars, levelService, new PlayerHud(levelService));
+        PlayerHud playerHud = new PlayerHud(this, levelService);
+        playerHud.setCooldowns(attackService, itemSkillService);
+        PlayerHudTask.start(this, profileManager, playerBars, levelService, playerHud);
         PlayerResourceTask.start(this, profileManager, playerBars);
         getLogger().info("iruuRPG enabled.");
     }

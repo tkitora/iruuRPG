@@ -12,6 +12,8 @@ public final class AttackCooldowns {
 
     private final JavaPlugin plugin;
     private final Map<UUID, EnumMap<AttackType, Long>> lockedUntilMillis = new HashMap<>();
+    /** How long the current / last lock of each type lasts in all (for a progress gauge). */
+    private final Map<UUID, EnumMap<AttackType, Long>> totalMillis = new HashMap<>();
 
     public AttackCooldowns(JavaPlugin plugin) {
         this.plugin = plugin;
@@ -31,6 +33,7 @@ public final class AttackCooldowns {
 
         long cooldownMillis = (long) Math.max(0, cooldownTicks) * 50L;
         playerLocks.put(attackType, now + cooldownMillis);
+        totalMillis.computeIfAbsent(player.getUniqueId(), ignored -> new EnumMap<>(AttackType.class)).put(attackType, cooldownMillis);
         return true;
     }
 
@@ -40,6 +43,14 @@ public final class AttackCooldowns {
         EnumMap<AttackType, Long> playerLocks = lockedUntilMillis.get(player.getUniqueId());
         if (playerLocks == null || !playerLocks.containsKey(attackType)) return;
         playerLocks.put(attackType, playerLocks.get(attackType) + extraTicks * 50L);
+        EnumMap<AttackType, Long> totals = totalMillis.get(player.getUniqueId());
+        if (totals != null && totals.containsKey(attackType)) totals.put(attackType, totals.get(attackType) + extraTicks * 50L);
+    }
+
+    /** How long the lock of {@code attackType} lasts in all (0 when none was ever set). */
+    public long totalMillis(Player player, AttackType attackType) {
+        EnumMap<AttackType, Long> totals = totalMillis.get(player.getUniqueId());
+        return totals == null ? 0L : totals.getOrDefault(attackType, 0L);
     }
 
     public long remainingMillis(Player player, AttackType attackType) {
