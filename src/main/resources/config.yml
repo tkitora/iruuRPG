@@ -362,6 +362,8 @@ slash-vfx:
   enabled: true
   # 弧1ブロックあたりの点の数 (大きいほど滑らかだが粒子が増える)
   samples-per-block: 5
+  # 斬撃の大きさの倍率 (幅は広げない。粒子の線の間隔はせまく、外側ほど明るい色になる)
+  size-scale: 1.2
 
 # 攻撃の音 (バニラの小さな音を重ねて作った音)。うるさければ volume を下げる
 attack-sounds:

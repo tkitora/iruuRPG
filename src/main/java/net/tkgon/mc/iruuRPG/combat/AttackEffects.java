@@ -89,6 +89,8 @@ public final class AttackEffects {
             f = rotateAroundY(f, offsetRadians);
             right = rotateAroundY(right, offsetRadians);
         }
+        double bandRadius = radius;
+        radius *= slashSize();
         double turned = ((roll % 360.0) + 360.0) % 360.0;
         boolean reverse = Math.abs(turned - 180.0) < 1.0;
         if (reverse) roll = 0.0;
@@ -117,8 +119,8 @@ public final class AttackEffects {
         Location origin = attacker.getEyeLocation()
                 .add(f.clone().multiply(forward)).add(right.clone().multiply(side)).add(0.0, -drop, 0.0)
                 .subtract(middle);
-        slash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw() + yawOffset,
-                tilt, roll, vfxDensity(), reverse), duration, scale, delaySeconds);
+        drawSlash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw() + yawOffset,
+                tilt, roll, vfxDensity(), reverse), bandRadius, duration, scale, delaySeconds);
     }
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
@@ -1193,13 +1195,30 @@ public final class AttackEffects {
         slash(origin, resolve(null, element), shape, duration, scale, delaySeconds);
     }
 
+    /** How much bigger than the shapes asked for every slash is drawn (`slash-vfx.size-scale`, 1.2). */
+    private double slashSize() {
+        return Math.max(0.5, Math.min(2.0, plugin.getConfig().getDouble("slash-vfx.size-scale", 1.2)));
+    }
+
     private void slash(Location origin, Resolved look, SlashVfx.Shape shape, double duration, float scale, double delaySeconds) {
+        double size = slashSize();
+        drawSlash(origin, look, new SlashVfx.Shape(shape.radius() * size, shape.sweepDegrees(), shape.height(), shape.depth(),
+                shape.yaw(), shape.pitch(), shape.roll(), shape.samplesPerBlock(), shape.reverse()), shape.radius(), duration, scale, delaySeconds);
+    }
+
+    /**
+     * Draws a slash of exactly this shape. {@code bandRadius}: the radius the width of the band of lines is worked out
+     * from (the size it was asked for, so a bigger slash is not wider).
+     */
+    private void drawSlash(Location origin, Resolved look, SlashVfx.Shape shape, double bandRadius, double duration, float scale, double delaySeconds) {
         if (origin == null || origin.getWorld() == null) return;
 
         boolean full = plugin.getConfig().getBoolean("slash-vfx.enabled", true);
         // the slash has depth: a band of lines across the arc (for the flat crescent that is the way it reaches
-        // forward), wider for bigger arcs, with a faint wide glow, the colored body in the middle and a thin core
-        double band = Math.min(1.4, 0.35 + 0.35 * shape.radius()) * look.width;
+        // forward). The outermost lines stay at the edge of the band; the lines are close together (a third of the
+        // band apart) and get lighter towards the outside: the body color inside, the edge color, then the core color
+        double band = Math.min(1.4, 0.35 + 0.35 * bandRadius) * look.width;
+        double half = band / 2.0;
         float size = scale * (float) look.size;
         // at most about 300 particles in one tick, whatever the settings
         double arcLength = shape.radius() * Math.toRadians(shape.sweepDegrees());
@@ -1209,19 +1228,19 @@ public final class AttackEffects {
         SlashVfx.Shape safe = density == shape.samplesPerBlock() ? shape
                 : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density, shape.reverse());
 
-        SlashVfx.Layer core = layer(Particle.REDSTONE, look.core, 0.6f * size, 1, 0.0, 1);
+        SlashVfx.Layer outer = layer(Particle.REDSTONE, look.core, 0.65f * size, 2, half * 2.0, 1);
         SlashVfx.Layer[] layers = full
                 ? (look.spark == null
                         ? new SlashVfx.Layer[]{
-                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 4, band / 3.0, 2),
-                                layer(Particle.REDSTONE, look.body, 0.8f * size, 3, band * 0.3, 1),
-                                core}
+                                layer(Particle.REDSTONE, look.body, 0.75f * size, 2, half * 0.4, 1),
+                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 2, half * 1.2, 1),
+                                outer}
                         : new SlashVfx.Layer[]{
-                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 4, band / 3.0, 2),
-                                layer(Particle.REDSTONE, look.body, 0.8f * size, 3, band * 0.3, 1),
-                                core,
+                                layer(Particle.REDSTONE, look.body, 0.75f * size, 2, half * 0.4, 1),
+                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 2, half * 1.2, 1),
+                                outer,
                                 layer(look.spark, null, 1f, 1, 0.0, 4)})
-                : new SlashVfx.Layer[]{core};
+                : new SlashVfx.Layer[]{outer};
         SlashVfx.Layer tip = full && look.spark != null ? layer(look.spark, null, 1f, 2, 0.0, 1) : null;
 
         Runnable draw = () -> slashVfx.play(origin, layers, duration, safe, tip);
