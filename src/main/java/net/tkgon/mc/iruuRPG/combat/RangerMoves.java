@@ -15,13 +15,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
-import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.RayTraceResult;
 import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,22 +30,18 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p>The loop: a melee hit powers up the next ranged normal attack (+10% damage, faster bullet); a ranged hit makes the
  * player's deployed weapons resonate (2% of their damage on the enemies around each of them); damage from a deployed
- * weapon (or a trap) powers up melee attacks for 5 seconds (+10%, and faster movement while attacking).
+ * weapon powers up melee attacks for 5 seconds (+10%, and faster movement while attacking).
  *
- * <p>Normal attacks (a ranged weapon's right click; a melee weapon's left click for the fifth): 1 and 2 a fast shot,
- * 3 three quick shots (40% each) that waver, 4 a fan of three shots (35% each), 5 a burst at close range (three hits
- * of 40%, thrown with a melee weapon, nothing happens with another one and the count goes on), 6 one strong shot (100%)
+ * <p>Normal attacks (a ranged weapon's right click; a melee weapon's left click for the fifth): 1 and 2 a fast arrow,
+ * 3 three quick arrows (40% each) that waver, 4 a fan of three (35% each), 5 a burst at close range (three hits
+ * of 40%, thrown with a melee weapon, nothing happens with another one and the count goes on), 6 one strong arrow (100%)
  * with a piercing beam.
  *
- * <p>Heavy attacks (the other click, the number of normal attacks so far): 0 a step back that leaves a trap (5 s
- * cooldown), 1 a fan of arrows (70 degrees, 5 blocks, 80%), 2 a hop back with two wires forward (40% each), 3 arrows
- * raining on the ground all around while the player hangs in the air (60%), 4 a downpour of 20 hits of 7% in front.
- * Heavy 0 with a deployed weapon within 2 seconds of heavy 2's hop is heavy 3.
+ * <p>Heavy attacks (the other click, the number of normal attacks so far): 0 a jump back (5 s cooldown), 1 a fan of
+ * arrows (70 degrees, 5 blocks, 30%), 2 a hop back with two wires forward (40% each), 3 an arrow that bounces off up to
+ * three blocks and bursts at each, 4 arrows raining on the ground around a point 5 blocks ahead (60%).
  */
 public final class RangerMoves {
-
-    /** Heavy 0 this soon after heavy 2's hop (with a deployed weapon in hand) is heavy 3. */
-    private static final long HOP_CHAIN_MILLIS = 2000L;
 
     private final JavaPlugin plugin;
     private final AttackService attackService;
@@ -55,24 +49,7 @@ public final class RangerMoves {
     private DeployService deployService;
     private final Map<UUID, Long> rangeBoostUntil = new HashMap<>();
     private final Map<UUID, Long> meleeBoostUntil = new HashMap<>();
-    private final Map<UUID, Long> lastHop = new HashMap<>();
     private final Map<UUID, Integer> lastResonanceTick = new HashMap<>();
-    private final List<Trap> traps = new ArrayList<>();
-    private BukkitTask trapTask;
-
-    private static final class Trap {
-        private final UUID owner;
-        private final Location at;
-        private final RpgItemDefinition weapon;
-        private final long expires;
-
-        private Trap(UUID owner, Location at, RpgItemDefinition weapon, long expires) {
-            this.owner = owner;
-            this.at = at;
-            this.weapon = weapon;
-            this.expires = expires;
-        }
-    }
 
     public RangerMoves(JavaPlugin plugin, AttackService attackService, AttackEffects effects) {
         this.plugin = plugin;
@@ -86,12 +63,6 @@ public final class RangerMoves {
 
     private double number(String key, double fallback) {
         return plugin.getConfig().getDouble("combat.combo.ranger." + key, fallback);
-    }
-
-    public void shutdown() {
-        if (trapTask != null) trapTask.cancel();
-        trapTask = null;
-        traps.clear();
     }
 
     // ---- the loop ------------------------------------------------------------------------------------------------------
@@ -121,7 +92,7 @@ public final class RangerMoves {
         }
     }
 
-    /** Damage from a deployed weapon or a trap: melee attacks are stronger for a while. */
+    /** Damage from a deployed weapon: melee attacks are stronger for a while. */
     public void grantMeleeBoost(Player player) {
         long now = System.currentTimeMillis();
         Long until = meleeBoostUntil.get(player.getUniqueId());
@@ -291,8 +262,7 @@ public final class RangerMoves {
     private void fire(Player player, RpgItemDefinition weapon, Location start, Vector direction, double rate, double speedScale) {
         World world = player.getWorld();
         Color color = color(weapon.element());
-        double scale = attackService.rangedIsInstant(player) ? speedScale * 8.0 : speedScale;
-        attackService.fireRangedProjectile(player, weapon, start, direction, rate, scale,
+        attackService.fireRangedProjectile(player, weapon, start, direction, rate, speedScale,
                 (from, to) -> line(player, world, from, to, color, 1.0f, Particle.CRIT, 2));
     }
 
@@ -331,8 +301,8 @@ public final class RangerMoves {
         double range = attackService.rangeDistance(player);
         AttackService.RangeTrace trace = attackService.traceRange(player);
         Color color = color(weapon.element());
-        world.playSound(eye, Sound.ENTITY_FIREWORK_ROCKET_BLAST, SoundCategory.PLAYERS, 0.9f, 1.4f);
-        world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 0.9f, 0.8f);
+        world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 0.9f);
+        world.playSound(eye, Sound.ITEM_CROSSBOW_SHOOT, SoundCategory.PLAYERS, 0.5f, 0.8f);
         Location start = eye.clone().add(direction.clone().multiply(0.7)).subtract(0.0, 0.1, 0.0);
         Particle.DustOptions dust = new Particle.DustOptions(color, 1.5f);
         Particle.DustOptions white = new Particle.DustOptions(Color.WHITE, 1.1f);
@@ -422,131 +392,26 @@ public final class RangerMoves {
 
     // ---- heavy attacks -----------------------------------------------------------------------------------------------------
 
-    /** True within 2 seconds of heavy 2's hop with a deployed weapon in hand: a heavy 0 then is heavy 3. */
-    public boolean hopChainActive(Player player, RpgItemDefinition weapon) {
-        Long hopped = lastHop.get(player.getUniqueId());
-        return weapon != null && weapon.attackType() == AttackType.DEPLOY && hopped != null && System.currentTimeMillis() - hopped <= HOP_CHAIN_MILLIS;
-    }
-
     /** Throws heavy attack {@code step.heavyIndex()} (with whatever weapon is in hand). */
     public void heavy(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
         switch (step.heavyIndex()) {
-            case 0 -> {
-                if (hopChainActive(player, weapon)) {
-                    lastHop.remove(player.getUniqueId());
-                    rain(player, weapon, attackService.heavyMultiplier(MeleeCombo.RANGER, 3));
-                } else {
-                    trap(player, weapon, step.damageMultiplier());
-                }
-            }
+            case 0 -> jumpBack(player, weapon);
             case 1 -> arrowFan(player, weapon, step.damageMultiplier());
             case 2 -> wires(player, weapon, step.damageMultiplier());
-            case 3 -> rain(player, weapon, step.damageMultiplier());
-            default -> downpour(player, weapon, step.damageMultiplier());
+            case 3 -> ricochet(player, weapon, step.damageMultiplier());
+            default -> rain(player, weapon, step.damageMultiplier());
         }
     }
 
-    // 0: the step back and the trap
-    private void trap(Player player, RpgItemDefinition weapon, double rate) {
+    // 0: the jump back
+    private void jumpBack(Player player, RpgItemDefinition weapon) {
         Vector facing = facing(player);
-        Location at = player.getLocation().clone();
-        at.setPitch(0.0f);
+        Location from = player.getLocation().clone();
         player.setFallDistance(0.0f);
-        player.setVelocity(facing.clone().multiply(-number("step-back-power", 0.7)).setY(0.15));
-        effects.playStepTrail(player, weapon, at, facing.clone().multiply(-1.0));
-        long life = Math.round(number("trap-seconds", 30.0) * 1000.0);
-        // at most three traps of a player at once: the oldest goes
-        int mine = 0;
-        for (Trap trap : traps) if (trap.owner.equals(player.getUniqueId())) mine++;
-        while (mine >= (int) number("trap-max", 3.0)) {
-            for (Iterator<Trap> it = traps.iterator(); it.hasNext(); ) {
-                Trap trap = it.next();
-                if (trap.owner.equals(player.getUniqueId())) {
-                    it.remove();
-                    mine--;
-                    break;
-                }
-            }
-        }
-        traps.add(new Trap(player.getUniqueId(), at, weapon, System.currentTimeMillis() + life));
-        player.getWorld().playSound(at, Sound.BLOCK_TRIPWIRE_ATTACH, SoundCategory.PLAYERS, 0.8f, 0.8f);
-        ensureTrapTask();
-    }
-
-    private void ensureTrapTask() {
-        if (trapTask != null) return;
-        trapTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tickTraps, 5L, 5L);
-    }
-
-    private int trapTicks;
-
-    private void tickTraps() {
-        trapTicks++;
-        double trigger = number("trap-trigger-radius", 1.6);
-        long now = System.currentTimeMillis();
-        for (Iterator<Trap> it = traps.iterator(); it.hasNext(); ) {
-            Trap trap = it.next();
-            Player owner = plugin.getServer().getPlayer(trap.owner);
-            World world = trap.at.getWorld();
-            if (owner == null || !owner.isOnline() || world == null || now > trap.expires || !owner.getWorld().equals(world)) {
-                it.remove();
-                continue;
-            }
-            // the sensor: a ring on the ground and a small blinking light
-            if (trapTicks % 2 == 0) {
-                Particle.DustOptions dust = new Particle.DustOptions(color(trap.weapon.element()), 1.0f);
-                for (int index = 0; index < 12; index++) {
-                    double angle = Math.PI * 2.0 * index / 12.0 + trapTicks * 0.2;
-                    ParticleFx.to(owner, world).spawnParticle(Particle.REDSTONE, trap.at.clone().add(Math.cos(angle) * trigger * 0.8, 0.1, Math.sin(angle) * trigger * 0.8), 1, 0.0, 0.0, 0.0, 0.0, dust);
-                }
-                ParticleFx.to(owner, world).spawnParticle(Particle.ELECTRIC_SPARK, trap.at.clone().add(0.0, 0.25, 0.0), 1, 0.1, 0.05, 0.1, 0.0);
-            }
-            boolean sprung = false;
-            for (Entity entity : world.getNearbyEntities(trap.at, trigger, 1.5, trigger)) {
-                if (attackService.isAttackTarget(entity, owner)) {
-                    sprung = true;
-                    break;
-                }
-            }
-            if (!sprung) continue;
-            it.remove();
-            spring(owner, trap);
-        }
-        if (traps.isEmpty() && trapTask != null) {
-            trapTask.cancel();
-            trapTask = null;
-        }
-    }
-
-    /** An enemy stepped on a trap: everything around is slowed and takes damage over time. */
-    private void spring(Player owner, Trap trap) {
-        World world = trap.at.getWorld();
-        double radius = number("trap-radius", 3.0);
-        double rate = attackService.heavyMultiplier(MeleeCombo.RANGER, 0);
-        int ticks = (int) number("trap-ticks", 5.0);
-        long gap = (long) number("trap-tick-gap", 10.0);
-        world.playSound(trap.at, Sound.BLOCK_PISTON_EXTEND, SoundCategory.PLAYERS, 0.9f, 1.4f);
-        world.playSound(trap.at, Sound.ENTITY_ARROW_HIT_PLAYER, SoundCategory.PLAYERS, 0.6f, 0.7f);
-        ParticleFx.to(owner, world).spawnParticle(Particle.CRIT, trap.at.clone().add(0.0, 0.4, 0.0), 24, radius * 0.4, 0.3, radius * 0.4, 0.2);
-        for (LivingEntity target : around(owner, trap.at, radius)) {
-            attackService.slow(target, number("trap-slow-percent", 50.0), Math.round(number("trap-slow-seconds", 3.0) * 1000.0), owner.getUniqueId());
-        }
-        for (int index = 0; index < ticks; index++) {
-            later(gap * index, () -> {
-                if (!owner.isOnline() || owner.isDead()) return;
-                Particle.DustOptions dust = new Particle.DustOptions(color(trap.weapon.element()), 1.2f);
-                for (int point = 0; point < 16; point++) {
-                    double angle = Math.PI * 2.0 * point / 16.0;
-                    ParticleFx.to(owner, world).spawnParticle(Particle.REDSTONE, trap.at.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, dust);
-                }
-                boolean any = false;
-                for (LivingEntity target : around(owner, trap.at, radius)) {
-                    if (dealt(owner, target, trap.weapon, rate)) any = true;
-                }
-                // the trap's damage is a deployed weapon's: melee attacks get stronger
-                if (any) grantMeleeBoost(owner);
-            });
-        }
+        player.setVelocity(facing.clone().multiply(-number("back-jump-power", 1.0)).setY(number("back-jump-up-power", 0.55)));
+        effects.playStepTrail(player, weapon, from, facing.clone().multiply(-1.0));
+        player.getWorld().playSound(from, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.6f, 1.4f);
+        ParticleFx.to(player, player.getWorld()).spawnParticle(Particle.CLOUD, from.add(0.0, 0.1, 0.0), 6, 0.25, 0.05, 0.25, 0.02);
     }
 
     // 1: the fan of arrows
@@ -591,7 +456,6 @@ public final class RangerMoves {
         player.setFallDistance(0.0f);
         player.setVelocity(facing.clone().multiply(-number("hop-back-power", 0.8)).setY(number("hop-up-power", 0.75)));
         effects.playStepTrail(player, weapon, player.getLocation(), facing.clone().multiply(-1.0));
-        lastHop.put(player.getUniqueId(), System.currentTimeMillis());
         double length = number("wire-length", 8.0);
         for (int index = 0; index < 2; index++) {
             int which = index;
@@ -613,40 +477,120 @@ public final class RangerMoves {
         }
     }
 
-    // 3: arrows raining on the ground all around while the player hangs in the air
+    // 3: an arrow that bounces off up to three blocks and bursts at each
+    private void ricochet(Player player, RpgItemDefinition weapon, double rate) {
+        World world = player.getWorld();
+        Color color = color(weapon.element());
+        Location eye = player.getEyeLocation();
+        Vector[] axes = basis(player);
+        Location start = eye.clone().add(axes[0].clone().multiply(0.7)).subtract(0.0, 0.15, 0.0);
+        Vector direction = axes[0].clone();
+        int maxBounces = (int) number("ricochet-bounces", 3.0);
+        double speed = number("ricochet-speed", 2.2);
+        double blastRadius = number("blast-radius", 2.2);
+        double blastRate = number("blast-rate", 0.3);
+        double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6) * 0.6;
+        int maxTicks = (int) number("ricochet-ticks", 40.0);
+        world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 1.1f);
+        world.playSound(eye, Sound.ITEM_CROSSBOW_SHOOT, SoundCategory.PLAYERS, 0.4f, 1.0f);
+        new SafeTask(plugin) {
+            private Location position = start.clone();
+            private Vector heading = direction.clone();
+            private int bounces;
+            private int age;
+
+            @Override
+            protected void tick() {
+                ParticleFx.mark(player);
+                if (!player.isOnline() || age++ >= maxTicks) {
+                    cancel();
+                    return;
+                }
+                RayTraceResult result = world.rayTrace(position, heading, speed, FluidCollisionMode.NEVER, true, raySize,
+                        entity -> attackService.isAttackTarget(entity, player));
+                Location next = result != null && result.getHitPosition() != null
+                        ? result.getHitPosition().toLocation(world)
+                        : position.clone().add(heading.clone().multiply(speed));
+                line(player, world, position, next, color, 1.1f, Particle.CRIT, 2);
+                if (result == null) {
+                    position = next;
+                    return;
+                }
+                if (result.getHitEntity() instanceof LivingEntity victim) {
+                    dealt(player, victim, weapon, rate);
+                    burst(player, weapon, next, blastRadius, blastRate);
+                    cancel();
+                    return;
+                }
+                burst(player, weapon, next, blastRadius, blastRate);
+                if (bounces >= maxBounces || result.getHitBlockFace() == null) {
+                    cancel();
+                    return;
+                }
+                bounces++;
+                Vector normal = result.getHitBlockFace().getDirection();
+                heading = heading.clone().subtract(normal.clone().multiply(2.0 * heading.dot(normal))).normalize();
+                position = next.clone().add(normal.clone().multiply(0.15));
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** A small burst where the arrow struck: hurts what is within {@code radius}. */
+    private void burst(Player player, RpgItemDefinition weapon, Location at, double radius, double rate) {
+        World world = at.getWorld();
+        if (world == null) return;
+        ParticleFx.to(player, world).spawnParticle(Particle.EXPLOSION_NORMAL, at, 6, radius * 0.2, radius * 0.2, radius * 0.2, 0.02);
+        ParticleFx.to(player, world).spawnParticle(Particle.FLAME, at, 8, radius * 0.25, radius * 0.25, radius * 0.25, 0.05);
+        Particle.DustOptions dust = new Particle.DustOptions(color(weapon.element()), 1.3f);
+        for (int index = 0; index < 12; index++) {
+            double angle = Math.PI * 2.0 * index / 12.0;
+            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at.clone().add(Math.cos(angle) * radius * 0.6, 0.0, Math.sin(angle) * radius * 0.6), 1, 0.0, 0.0, 0.0, 0.0, dust);
+        }
+        world.playSound(at, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.45f, 1.7f);
+        world.playSound(at, Sound.ENTITY_ARROW_HIT, SoundCategory.PLAYERS, 0.5f, 1.2f);
+        for (Entity entity : world.getNearbyEntities(at, radius, radius, radius)) {
+            if (!attackService.isAttackTarget(entity, player)) continue;
+            LivingEntity living = (LivingEntity) entity;
+            if (living.getLocation().add(0.0, living.getHeight() * 0.5, 0.0).distanceSquared(at) > radius * radius) continue;
+            dealt(player, living, weapon, rate);
+        }
+    }
+
+    // 4: arrows raining on the ground around a point 5 blocks ahead of where the player looks
     private void rain(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         double radius = number("rain-radius", 4.0);
-        int arrows = (int) number("rain-arrows", 16.0);
+        int arrows = (int) number("rain-arrows", 20.0);
         int ticks = (int) number("rain-ticks", 10.0);
-        Location base = player.getLocation().clone();
         Color color = color(weapon.element());
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        player.setFallDistance(0.0f);
-        player.setVelocity(new Vector(0.0, 0.05, 0.0));
-        world.playSound(base, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, SoundCategory.PLAYERS, 0.9f, 1.2f);
+        Location eye = player.getEyeLocation();
+        Vector direction = eye.getDirection().normalize();
+        double ahead = number("rain-forward", 5.0);
+        RayTraceResult wall = world.rayTraceBlocks(eye, direction, ahead, FluidCollisionMode.NEVER, true);
+        double reach = wall == null ? ahead : Math.max(0.0, wall.getHitPosition().distance(eye.toVector()) - 0.3);
+        Location aim = eye.clone().add(direction.clone().multiply(reach));
+        Location center = groundAt(world, aim.getX(), aim.getY() + 0.5, aim.getZ());
+        if (center.getY() < player.getLocation().getY() - 12.0) center.setY(player.getLocation().getY());
+        world.playSound(player.getLocation(), Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 0.7f);
+        world.playSound(center, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, SoundCategory.PLAYERS, 0.6f, 1.4f);
         new SafeTask(plugin) {
             private int age;
 
             @Override
             protected void tick() {
-                if (!player.isOnline() || player.isDead() || age >= ticks + 3) {
+                if (!player.isOnline() || player.isDead() || age >= ticks) {
                     cancel();
                     return;
                 }
-                // hanging in the air, looking where it was
-                player.setFallDistance(0.0f);
-                if (age < ticks) {
-                    Vector velocity = player.getVelocity();
-                    player.setVelocity(new Vector(velocity.getX() * 0.5, 0.03, velocity.getZ() * 0.5));
-                    int from = arrows * age / ticks;
-                    int to = arrows * (age + 1) / ticks;
-                    for (int index = from; index < to; index++) {
-                        double angle = random.nextDouble(Math.PI * 2.0);
-                        double distance = Math.sqrt(random.nextDouble()) * radius;
-                        Location ground = groundAt(world, base.getX() + Math.cos(angle) * distance, base.getY() + 1.0, base.getZ() + Math.sin(angle) * distance);
-                        arrowFall(player, weapon, ground, color, rate);
-                    }
+                int from = arrows * age / ticks;
+                int to = arrows * (age + 1) / ticks;
+                for (int index = from; index < to; index++) {
+                    double angle = random.nextDouble(Math.PI * 2.0);
+                    double distance = Math.sqrt(random.nextDouble()) * radius;
+                    Location ground = groundAt(world, center.getX() + Math.cos(angle) * distance, center.getY() + 2.0, center.getZ() + Math.sin(angle) * distance);
+                    if (Math.abs(ground.getY() - center.getY()) > 6.0) ground.setY(center.getY());
+                    arrowFall(player, weapon, ground, color, rate);
                 }
                 age++;
             }
@@ -672,41 +616,5 @@ public final class RangerMoves {
             world.playSound(ground, Sound.ENTITY_ARROW_HIT, SoundCategory.PLAYERS, 0.35f, 1.3f + random.nextFloat() * 0.4f);
             for (LivingEntity target : around(player, ground, 1.6)) dealt(player, target, weapon, rate);
         });
-    }
-
-    // 4: the downpour in front
-    private void downpour(Player player, RpgItemDefinition weapon, double rate) {
-        Vector facing = facing(player);
-        int hits = (int) Math.max(1, Math.round(number("downpour-hits", 20.0)));
-        int perTick = (int) Math.max(1, Math.round(number("downpour-hits-per-tick", 2.0)));
-        double range = number("downpour-radius", 4.0);
-        double ahead = number("downpour-forward", 3.0);
-        Color color = color(weapon.element());
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        Location center = player.getLocation().add(facing.clone().multiply(ahead)).add(0.0, 1.0, 0.0);
-        player.getWorld().playSound(center, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 0.9f, 0.9f);
-        int ticks = (hits + perTick - 1) / perTick;
-        for (int tick = 0; tick < ticks; tick++) {
-            int count = Math.min(perTick, hits - tick * perTick);
-            later(tick, () -> {
-                if (!player.isOnline() || player.isDead()) return;
-                World world = player.getWorld();
-                for (int index = 0; index < count; index++) {
-                    // a bullet of light from the sky or a slant, to a spot in the area (a little longer than the usual ones)
-                    double angle = random.nextDouble(Math.PI * 2.0);
-                    double distance = Math.sqrt(random.nextDouble()) * range;
-                    Location target = center.clone().add(Math.cos(angle) * distance, -0.8 + random.nextDouble(0.0, 0.6), Math.sin(angle) * distance);
-                    double fromAngle = random.nextDouble(Math.PI * 2.0);
-                    double slant = random.nextDouble(0.2, 1.0);
-                    Vector back = new Vector(Math.cos(fromAngle) * slant, 1.0, Math.sin(fromAngle) * slant).normalize().multiply(random.nextDouble(6.0, 8.0));
-                    Location from = target.clone().add(back);
-                    line(player, world, from, target, color, 1.0f, Particle.END_ROD, 4);
-                    ParticleFx.to(player, world).spawnParticle(Particle.CRIT, target, 2, 0.1, 0.1, 0.1, 0.1);
-                }
-                for (LivingEntity victim : around(player, center, range)) {
-                    for (int index = 0; index < count; index++) dealt(player, victim, weapon, rate);
-                }
-            });
-        }
     }
 }

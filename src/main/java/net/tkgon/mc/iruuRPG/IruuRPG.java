@@ -350,9 +350,6 @@ public final class IruuRPG extends JavaPlugin {
         if (dungeonEditor != null) {
             dungeonEditor.shutdown();
         }
-        if (rangerMoves != null) {
-            rangerMoves.shutdown();
-        }
         if (fieldSpawnerEditor != null) {
             fieldSpawnerEditor.shutdown();
         }

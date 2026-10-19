@@ -148,7 +148,7 @@ public final class MeleeCombo {
 
     public double heavyMultiplier(String plan, int index) {
         double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 1.0, 0.4, 0.6, 0.07}
-                : RANGER.equals(plan) ? new double[]{0.25, 0.8, 0.4, 0.6, 0.07} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
+                : RANGER.equals(plan) ? new double[]{0.0, 0.3, 0.4, 0.5, 0.6} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
         return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
 

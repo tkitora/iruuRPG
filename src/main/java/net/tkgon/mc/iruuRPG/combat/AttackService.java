@@ -279,7 +279,7 @@ public final class AttackService {
             sendLevelRequirement(attacker, weapon);
             return true;
         }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, rangerMoves.hopChainActive(attacker, weapon), MeleeCombo.RANGER);
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, MeleeCombo.RANGER);
         if (step == null) {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
@@ -622,16 +622,22 @@ public final class AttackService {
     public double rangeDistance(Player attacker) {
         return plugin.getConfig().getDouble("combat.range-distance", 16.0)
                 * Math.max(0.1, plugin.getConfig().getDouble("balance.range-multiplier", 0.5))
-                * (hasSkill(attacker, RANGE_DOUBLE_SKILL) ? 2.0 : 1.0);
+                * (hasSkill(attacker, RANGE_DOUBLE_SKILL) ? 2.0 : 1.0)
+                // the ranger's 固有1: a longer range for its ranged weapon
+                * (hasSkill(attacker, RANGE_INSTANT_SKILL) && hasClassId(attacker, "gifted")
+                        ? Math.max(1.0, plugin.getConfig().getDouble("combat.ranger-range-multiplier", 2.0)) : 1.0);
     }
 
     private static final String RANGE_DOUBLE_SKILL = "range_double";
     private static final String RANGE_INSTANT_SKILL = "range_instant";
     private static final String ATTACK_SPEED_PROJECTILE_SKILL = "attack_speed_cooldown";
 
-    /** True when this player's ranged attack lands at once (no flight): the ranger's innate "range_instant". */
+    /**
+     * Ranged shots always fly now (the ranger's 固有1 used to make them land at once; it lengthens the range instead,
+     * see {@link #rangeDistance}).
+     */
     public boolean rangedIsInstant(Player attacker) {
-        return hasSkill(attacker, RANGE_INSTANT_SKILL);
+        return false;
     }
 
     /**
@@ -667,7 +673,9 @@ public final class AttackService {
         double perTick = projectileSpeed(attacker) * Math.max(0.1, speedScale) / 20.0;
         double maxDistance = rangeDistance(attacker);
         double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6);
-        attackEffects.playRangeLaunch(attacker, weapon, start);
+        // (a ranger's shots are arrows: they sound like arrows)
+        if (isRanger(attacker)) attackEffects.playArrowLaunch(attacker, start);
+        else attackEffects.playRangeLaunch(attacker, weapon, start);
         org.bukkit.World world = attacker.getWorld();
 
         new org.bukkit.scheduler.BukkitRunnable() {

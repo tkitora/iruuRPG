@@ -499,6 +499,13 @@ public final class AttackEffects {
         sounds.rangeShot(attacker, start, weapon.element());
     }
 
+    /** The sound of an arrow leaving the bow (the ranger's shots). */
+    public void playArrowLaunch(Player attacker, Location start) {
+        ParticleFx.mark(attacker);
+        if (attacker == null || start == null) return;
+        sounds.arrowShot(attacker, start);
+    }
+
     public void playRangeTrail(Player attacker, RpgItemDefinition weapon, Location hitLocation) {
         ParticleFx.mark(attacker);
         if (!plugin.getConfig().getBoolean("combat.effects.range-trail.enabled", true)) return;
