@@ -20,7 +20,7 @@ skills:
     effects:
       damage-rate: 2.2
 
-  # メイジの強攻撃2の氷の波動 (コンボから2つ続けて出る。ダメージ倍率は combat.combo.mage.heavy-damage-multiplier の3番目に置き換わる)。
+  # 氷の波動 (以前はメイジの強攻撃2だった。今のコンボでは使っていないが、ほかのスキルや武器から id で呼べる)。
   mage_ice_wave:
     name: "氷の波動"
     template: wave

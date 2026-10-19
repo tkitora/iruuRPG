@@ -192,6 +192,7 @@ public final class AttackService {
         if (mageMoves == null || !isMage(attacker) || weapon.attackType() != AttackType.RANGE) return false;
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
+        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-ticks", 8L));
         mageMoves.normal(attacker, weapon, step);
         return true;
     }
@@ -245,6 +246,7 @@ public final class AttackService {
     public boolean rangerNormal(Player attacker, RpgItemDefinition weapon) {
         if (!isRanger(attacker) || weapon.attackType() != AttackType.RANGE || !comboOn()) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
+        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.ranger.normal-gap-ticks", 8L));
         rangerMoves.normal(attacker, weapon, step);
         return true;
     }
