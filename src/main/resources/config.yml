@@ -110,6 +110,48 @@ combat:
       vacuum-hits: 6
       vacuum-radius: 2.8
       backstep-power: 1.1
+    # レンジャーのコンボ (クラス id は gifted)。通常攻撃は遠距離武器の右クリックで、1・2 高速の弾、3 高速の3連弾 (40%×3)、
+    # 4 扇形の3方向 (35%×3)、5 至近距離の散弾 (近接武器の左クリック、40%×3。近接以外・敵なしは空振りで数だけ進む)、6 強力な一撃 (100%)。
+    # 強攻撃は、その武器の通常攻撃ではない方のクリック (遠距離・設置は左、近接は右)。0 後ろにステップして罠 (固有ct 5秒) /
+    # 1 扇形の矢 (70度・半径5・80%) / 2 後ろに跳んでワイヤー2本 (40%×2) / 3 空中で矢の雨 (60%、強2のあと2秒以内に設置武器で強0) /
+    # 4 前方3ブロックに弾幕 (7%×20回)。
+    # 3つの攻撃のループ: 近接が当たる→次の遠距離通常が +10%・弾が速い / 遠距離が当たる→設置武器から周囲に2% / 設置のダメージ→近接 +10% (5秒)。
+    ranger:
+      window-ticks: 44                            # 通常攻撃の間隔。武器を持ち替える分、ほかより長い
+      heavy-cooldown-ticks: [100, 0, 0, 0, 0]
+      heavy-damage-multiplier: [0.25, 0.8, 0.4, 0.6, 0.07]   # 0は罠の継続ダメージ1回ごと、2はワイヤー1本ごと、3は矢1本ごと、4は1回ごと
+      hit-rate: [1.0, 1.0, 0.4, 0.35, 0.4, 1.0]   # 通常1〜6: 1発ごとの倍率
+      range-boost-percent: 10                     # 近接が当たったあとの遠距離通常: ダメージ+% / 弾速の倍率 / 有効な秒数
+      range-boost-speed: 1.5
+      range-boost-seconds: 10
+      melee-boost-percent: 10                     # 設置のダメージのあとの近接: ダメージ+% / 有効な秒数
+      melee-boost-seconds: 5
+      resonance-rate: 0.02                        # 遠距離が当たったときの設置武器の共鳴: 倍率 / 続けて起きる最短のtick数
+      resonance-gap-ticks: 4
+      fan-angle: 14.0                             # 通常4: 3方向の間の角度
+      close-radius: 3.5                           # 通常5: 敵がこの距離にいると当たる / 正面の角度 (片側)
+      close-half-angle: 80.0
+      trap-trigger-radius: 1.6                    # 強攻撃0: 罠が反応する距離 / 効果の半径 / 継続ダメージの回数と間隔 / 鈍足の強さと秒数 / 罠の寿命と数
+      trap-radius: 3.0
+      trap-ticks: 5
+      trap-tick-gap: 10
+      trap-slow-percent: 50
+      trap-slow-seconds: 3
+      trap-seconds: 30
+      trap-max: 3
+      step-back-power: 0.7
+      fan-radius: 5.0                             # 強攻撃1: 扇形の半径と角度
+      fan-arrow-angle: 70.0
+      hop-back-power: 0.8                         # 強攻撃2: 後ろに跳ぶ強さ / 上に跳ぶ強さ / ワイヤーの長さ
+      hop-up-power: 0.75
+      wire-length: 8.0
+      rain-radius: 4.0                            # 強攻撃3: 矢の雨の半径 / 矢の数 / 降らせるtick数
+      rain-arrows: 16
+      rain-ticks: 10
+      downpour-hits: 20                           # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
+      downpour-hits-per-tick: 2
+      downpour-radius: 4.0
+      downpour-forward: 3.0
   # 武器 (アイテム) のスキルの発動: 近接も遠距離も Shift+右クリック。movement-plain: true にすると、移動スキル (dash / teleport) は右クリックだけで出る
   skill-trigger:
     melee-sneak: true

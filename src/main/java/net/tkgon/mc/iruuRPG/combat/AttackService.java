@@ -121,6 +121,7 @@ public final class AttackService {
     public int comboStage(Player attacker, AttackType type) {
         if (type == AttackType.MELEE) return meleeCombo.currentStage(attacker, comboPlan(attacker));
         if (type == AttackType.RANGE && isMage(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.MAGE);
+        if (type == AttackType.RANGE && isRanger(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.RANGER);
         return 0;
     }
 
@@ -217,6 +218,90 @@ public final class AttackService {
         }
         mageMoves.heavy(attacker, weapon, step);
         return true;
+    }
+
+    // ---- the ranger (internal class id "gifted") ------------------------------------------------------------------------
+
+    private RangerMoves rangerMoves;
+    private final Map<UUID, Integer> lastRangerHeavyTick = new HashMap<>();
+
+    public void setRangerMoves(RangerMoves rangerMoves) {
+        this.rangerMoves = rangerMoves;
+    }
+
+    public RangerMoves rangerMoves() {
+        return rangerMoves;
+    }
+
+    public boolean isRanger(Player attacker) {
+        return rangerMoves != null && hasClassId(attacker, "gifted");
+    }
+
+    private boolean comboOn() {
+        return plugin.getConfig().getBoolean("combat.combo.enabled", true);
+    }
+
+    /** The normal attack (a right click) of a ranger with a ranged weapon: the next step of the ranger's combo. */
+    public boolean rangerNormal(Player attacker, RpgItemDefinition weapon) {
+        if (!isRanger(attacker) || weapon.attackType() != AttackType.RANGE || !comboOn()) return false;
+        MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
+        rangerMoves.normal(attacker, weapon, step);
+        return true;
+    }
+
+    /**
+     * The left click of a ranger with a melee weapon, when the next normal attack of the ranger's combo is the fifth
+     * (the close-range burst): it is thrown instead of an ordinary melee attack. False for every other click.
+     */
+    public boolean rangerMeleeStep(Player attacker, RpgItemDefinition weapon) {
+        if (!isRanger(attacker) || weapon.attackType() != AttackType.MELEE || attacker.isSneaking() || !comboOn()) return false;
+        if (meleeCombo.done(attacker, MeleeCombo.RANGER) != 4) return false;
+        MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
+        rangerMoves.closeBurst(attacker, weapon, step);
+        return true;
+    }
+
+    /**
+     * A ranger's heavy attack: the other click than the weapon's normal one (a ranged or deployed weapon: the left click;
+     * a melee weapon: the right click). The number is how many normal attacks were thrown so far. True when the click
+     * was used, also while heavy 0 cools down.
+     */
+    public boolean tryRangerHeavy(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
+        if (weapon == null || !weapon.isWeaponLike() || !isRanger(attacker) || !comboOn()) return false;
+        boolean melee = weapon.attackType() == AttackType.MELEE;
+        if (melee != rightClick) return false;
+        if (rightClick && attacker.isSneaking()) return false;
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer last = lastRangerHeavyTick.put(attacker.getUniqueId(), tick);
+        // one click arrives through several events in the same tick; a held right button sends it again every 4 ticks
+        if (last != null && (rightClick ? tick - last <= HELD_CLICK_TICKS : last == tick)) return true;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return true;
+        }
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, rangerMoves.hopChainActive(attacker, weapon), MeleeCombo.RANGER);
+        if (step == null) {
+            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            return true;
+        }
+        rangerMoves.heavy(attacker, weapon, step);
+        if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+        return true;
+    }
+
+    /** Called after each hit of a player: a ranger's hits power up the next kind of attack (see {@link RangerMoves}). */
+    public void rangerHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon) {
+        if (isRanger(attacker)) rangerMoves.onHit(attacker, victim, weapon);
+    }
+
+    /** The damage multiplier configured for heavy attack {@code index} of {@code plan}. */
+    public double heavyMultiplier(String plan, int index) {
+        return meleeCombo.heavyMultiplier(plan, index);
+    }
+
+    /** Slows an enemy by {@code percent} for {@code millis}. */
+    public void slow(LivingEntity target, double percent, long millis, UUID source) {
+        statusEffectService.applyTimedSlow(target, percent, millis, source);
     }
 
     public void setComboMoves(ComboMoves comboMoves) {
@@ -1364,7 +1449,12 @@ public final class AttackService {
 
     private double modifiedCustomDamage(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage) {
         double modified = statusEffectService.modifyIncomingDamage(victim, damage);
-        return statusEffectService.modifyOutgoingDamage(attacker, weapon, modified);
+        double outgoing = statusEffectService.modifyOutgoingDamage(attacker, weapon, modified);
+        // the ranger's loop: damage from a deployed weapon makes melee attacks stronger for a while
+        if (rangerMoves != null && attacker != null && weapon != null && weapon.attackType() == AttackType.MELEE && isRanger(attacker)) {
+            outgoing *= rangerMoves.meleeMultiplier(attacker);
+        }
+        return outgoing;
     }
 
     private void updateDebugTargetName(LivingEntity victim) {

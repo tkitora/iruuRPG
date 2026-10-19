@@ -51,6 +51,23 @@ public final class DeployService {
         this.skillRegistry = skillRegistry;
     }
 
+    /** The deployed weapons that are up now, per owner (the ranger's ranged hits make them resonate). */
+    private final java.util.Map<java.util.UUID, List<ActiveDeploy>> active = new java.util.HashMap<>();
+
+    /**
+     * The owner's ranged hit: each of their deployed weapons pulses once more for {@code rate} of its damage on the
+     * enemies in its range (the ranger's resonance). Healing deployed weapons do not take part.
+     */
+    public void resonate(Player owner, double rate) {
+        List<ActiveDeploy> list = active.get(owner.getUniqueId());
+        if (list == null || list.isEmpty()) return;
+        for (ActiveDeploy deploy : new java.util.ArrayList<>(list)) {
+            if (deploy.weapon.skill() == ItemSkillType.HEAL || !deploy.stand.isValid()) continue;
+            attackEffects.playDeployPulse(deploy.center, deploy.weapon, deploy.radius * 0.4);
+            deploy.hitTargets(false, rate);
+        }
+    }
+
     public void deploy(Player owner, RpgItemDefinition weapon) {
         PlayerProfile snapshot = attackService.snapshotAttacker(owner);
         ItemSkillVariant deploySkill = skill(weapon);
@@ -179,6 +196,7 @@ public final class DeployService {
         }
 
         private void start() {
+            active.computeIfAbsent(owner.getUniqueId(), ignored -> new java.util.ArrayList<>()).add(this);
             this.task = Bukkit.getScheduler().runTaskTimer(plugin, this::tick, 0L, 1L);
         }
 
@@ -461,6 +479,11 @@ public final class DeployService {
             }
             if (task != null) {
                 task.cancel();
+            }
+            List<ActiveDeploy> list = active.get(owner.getUniqueId());
+            if (list != null) {
+                list.remove(this);
+                if (list.isEmpty()) active.remove(owner.getUniqueId());
             }
             if (stand.isValid()) {
                 stand.remove();
