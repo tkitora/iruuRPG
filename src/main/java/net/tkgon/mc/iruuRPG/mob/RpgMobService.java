@@ -291,15 +291,20 @@ public final class RpgMobService {
     }
 
     public void remove(Entity entity) {
-        runtimes.remove(entity.getUniqueId());
-        targetLocks.remove(entity.getUniqueId());
-        drivenMelee.remove(entity.getUniqueId());
-        nextMelee.remove(entity.getUniqueId());
-        lastSeen.remove(entity.getUniqueId());
-        skillBusy.remove(entity.getUniqueId());
-        skillStarted.remove(entity.getUniqueId());
-        removeStatusDisplay(entity.getUniqueId());
+        forget(entity.getUniqueId());
         statusEffectService.clear(entity);
+    }
+
+    /** Drops what is kept for a mob that is gone (dead, or its chunk unloaded) and cannot be looked up any more. */
+    public void forget(UUID uuid) {
+        runtimes.remove(uuid);
+        targetLocks.remove(uuid);
+        drivenMelee.remove(uuid);
+        nextMelee.remove(uuid);
+        lastSeen.remove(uuid);
+        skillBusy.remove(uuid);
+        skillStarted.remove(uuid);
+        removeStatusDisplay(uuid);
     }
 
     public void clear() {
