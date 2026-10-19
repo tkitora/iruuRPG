@@ -75,6 +75,7 @@ public final class ClassEffectService {
         lastTargets.put(attacker.getUniqueId(), victim.getUniqueId());
         lastTargetTimes.put(attacker.getUniqueId(), System.currentTimeMillis());
         giftedOnHit(attacker, victim, weapon, profile);
+        if (attackService != null) attackService.rangerHit(attacker, victim, weapon);
         assassinOnHit(attacker, victim, weapon, damage, profile);
         mageOnHit(attacker, victim, damage, profile);
     }

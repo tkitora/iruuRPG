@@ -24,6 +24,8 @@ public final class MeleeCombo {
     public static final String ASSASSIN = "assassin";
     /** The mage's plan: the same chain on the ranged weapon (a right click is a normal attack, a left click a heavy one). */
     public static final String MAGE = "mage";
+    /** The ranger's plan: six normal attacks (a ranged weapon's right click; the fifth is thrown with a melee weapon). */
+    public static final String RANGER = "ranger";
 
     public enum Kind { LIGHT, HEAVY, FINISHER }
 
@@ -61,6 +63,10 @@ public final class MeleeCombo {
             return MAGE.equals(plan);
         }
 
+        public boolean ranger() {
+            return RANGER.equals(plan);
+        }
+
         public int visual() {
             return switch (kind) {
                 case FINISHER, HEAVY -> 3;
@@ -71,6 +77,7 @@ public final class MeleeCombo {
 
     private static final int ASSASSIN_LIGHTS = 5;
     private static final int ASSASSIN_HEAVIES = 5;
+    private static final int RANGER_LIGHTS = 6;
 
     private final JavaPlugin plugin;
     /** The running chain of each player and plan (the mage's ranged chain and their melee chain are separate). */
@@ -104,6 +111,7 @@ public final class MeleeCombo {
      */
     public Step next(Player player, boolean heavy, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
+        if (RANGER.equals(plan)) return nextRanger(player);
         if (ASSASSIN.equals(plan) || MAGE.equals(plan)) return nextMulti(player, plan);
         return nextUsual(player, heavy);
     }
@@ -121,7 +129,7 @@ public final class MeleeCombo {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return null;
         long now = System.currentTimeMillis();
         long[] state = chain(player, plan);
-        int done = now - state[1] > window() ? 0 : (int) state[0];
+        int done = now - state[1] > window(plan) ? 0 : (int) state[0];
         int index = Math.min(done, ASSASSIN_HEAVIES - 1);
         // heavy 0 right after heavy 2's hop is heavy 3, which has no cooldown of heavy 0's
         Step step = heavy(player, plan, index, index == 0 && skipHeavyZeroCooldown);
@@ -139,12 +147,25 @@ public final class MeleeCombo {
     }
 
     public double heavyMultiplier(String plan, int index) {
-        double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 1.0, 0.4, 0.6, 0.07} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
+        double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 1.0, 0.4, 0.6, 0.07}
+                : RANGER.equals(plan) ? new double[]{0.25, 0.8, 0.4, 0.6, 0.07} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
         return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
 
     private long window() {
         return Math.round(number("window-ticks", 32, 6, 200)) * 50L;
+    }
+
+    /** The ranger takes a moment to change weapons between the normal attacks, so its chain waits longer. */
+    private long window(String plan) {
+        if (RANGER.equals(plan)) return Math.round(number("ranger.window-ticks", 44, 6, 200)) * 50L;
+        return window();
+    }
+
+    /** How many normal attacks of {@code plan}'s running chain were thrown (0 when it is not running). */
+    public int done(Player player, String plan) {
+        long[] state = chain(player, plan);
+        return System.currentTimeMillis() - state[1] > window(plan) ? 0 : (int) state[0];
     }
 
     private Step nextUsual(Player player, boolean heavy) {
@@ -174,7 +195,7 @@ public final class MeleeCombo {
     private Step nextMulti(Player player, String plan) {
         long now = System.currentTimeMillis();
         long[] state = chain(player, plan);
-        int done = now - state[1] > window() ? 0 : (int) state[0];
+        int done = now - state[1] > window(plan) ? 0 : (int) state[0];
 
         // the heavy attacks of these plans are the other click (see heavyByClick): the normal click is always a light attack
         state[1] = now;
@@ -199,13 +220,37 @@ public final class MeleeCombo {
         return new Step(Kind.LIGHT, stage, 1.0, 0, plan, 0, 0, 1.0);
     }
 
+    /**
+     * The next normal attack of the ranger's chain: 1 and 2 a shot, 3 three quick shots (40% each), 4 a fan of three
+     * (35% each), 5 a burst at close range (3 hits of 40%, with a melee weapon), 6 the finisher, one strong shot (100%).
+     */
+    private Step nextRanger(Player player) {
+        long now = System.currentTimeMillis();
+        long[] state = chain(player, RANGER);
+        int done = now - state[1] > window(RANGER) ? 0 : (int) state[0];
+        state[1] = now;
+        int stage = done + 1;
+        shown(player, RANGER, Math.min(stage, RANGER_LIGHTS));
+        if (stage >= RANGER_LIGHTS) {
+            state[0] = 0L;
+            return new Step(Kind.FINISHER, RANGER_LIGHTS, listed("ranger.hit-rate", 5, 1.0, 0.05, 5.0), 0, RANGER, 0, 0, 1.0);
+        }
+        state[0] = stage;
+        return switch (stage) {
+            case 3 -> new Step(Kind.LIGHT, stage, listed("ranger.hit-rate", 2, 0.4, 0.05, 3.0), 0, RANGER, 0, 2, 1.0);
+            case 4 -> new Step(Kind.LIGHT, stage, listed("ranger.hit-rate", 3, 0.35, 0.05, 3.0), 0, RANGER, 0, 2, 1.0);
+            case 5 -> new Step(Kind.LIGHT, stage, listed("ranger.hit-rate", 4, 0.4, 0.05, 3.0), 0, RANGER, 0, 2, 1.0);
+            default -> new Step(Kind.LIGHT, stage, listed("ranger.hit-rate", stage - 1, 1.0, 0.05, 3.0), 0, RANGER, 0, 0, 1.0);
+        };
+    }
+
     /** Heavy attack {@code index} of the assassin plan, or null while its own cooldown runs. */
     private Step heavy(Player player, String plan, int index, boolean skipCooldown) {
         long now = System.currentTimeMillis();
         long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId(), ignored -> new long[ASSASSIN_HEAVIES]);
         if (!skipCooldown) {
             if (ready[index] > now) return null;
-            double[] defaults = MAGE.equals(plan) ? new double[]{120, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
+            double[] defaults = MAGE.equals(plan) ? new double[]{120, 0, 0, 0, 0} : RANGER.equals(plan) ? new double[]{100, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
             long cooldownTicks = Math.round(listed(plan + ".heavy-cooldown-ticks", index, defaults[index], 0, 1200));
             ready[index] = now + cooldownTicks * 50L;
         }
@@ -223,7 +268,7 @@ public final class MeleeCombo {
     /** The number of the last light attack of the running chain (the finisher included); 0 when the chain is not running. */
     public int currentStage(Player player, String plan) {
         long[] last = lastShown.get(player.getUniqueId() + "|" + plan);
-        if (last == null || System.currentTimeMillis() - last[1] > window()) return 0;
+        if (last == null || System.currentTimeMillis() - last[1] > window(plan)) return 0;
         return (int) last[0];
     }
 

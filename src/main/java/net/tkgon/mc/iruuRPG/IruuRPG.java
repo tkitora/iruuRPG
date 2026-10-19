@@ -133,6 +133,7 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonService dungeonService;
     private DungeonMenu dungeonMenu;
     private DungeonEditor dungeonEditor;
+    private net.tkgon.mc.iruuRPG.combat.RangerMoves rangerMoves;
     private RewardChestMenu rewardChestMenu;
     private SidebarService sidebarService;
     private PartyService partyService;
@@ -240,6 +241,9 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.setComboStyleParser(skillRegistry);
         this.attackService.setMageMoves(new net.tkgon.mc.iruuRPG.combat.MageMoves(this, attackService, attackEffects, skillRegistry, skillRunner));
         this.attackService.setComboMoves(new net.tkgon.mc.iruuRPG.combat.ComboMoves(this, attackService, attackEffects));
+        this.rangerMoves = new net.tkgon.mc.iruuRPG.combat.RangerMoves(this, attackService, attackEffects);
+        this.rangerMoves.setDeployService(deployService);
+        this.attackService.setRangerMoves(rangerMoves);
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
@@ -335,6 +339,9 @@ public final class IruuRPG extends JavaPlugin {
     public void onDisable() {
         if (dungeonEditor != null) {
             dungeonEditor.shutdown();
+        }
+        if (rangerMoves != null) {
+            rangerMoves.shutdown();
         }
         if (travelService != null) {
             travelService.shutdown();

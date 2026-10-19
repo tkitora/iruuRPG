@@ -68,8 +68,9 @@ public final class CombatListener implements Listener {
         }
         if (!(event.getAttacked() instanceof LivingEntity victim)) return;
 
-        // a mage's left click with a ranged weapon is a heavy attack
+        // a mage's left click with a ranged weapon is a heavy attack (a ranger's, with a ranged or deployed one)
         if (attackService.tryMageHeavy(attacker, weapon)) return;
+        if (weapon.attackType() != AttackType.MELEE && attackService.tryRangerHeavy(attacker, weapon, false)) return;
         handleCustomMelee(attacker, victim, weapon);
     }
 
@@ -144,6 +145,7 @@ public final class CombatListener implements Listener {
             return;
         }
         if (attackService.tryMageHeavy(attacker, weapon)) return;
+        if (weapon.attackType() != AttackType.MELEE && attackService.tryRangerHeavy(attacker, weapon, false)) return;
         handleCustomMelee(attacker, victim, weapon);
     }
 
@@ -194,6 +196,8 @@ public final class CombatListener implements Listener {
         if (itemSkillService.handleManualUse(player, weapon)) return true;
         // an assassin's right click with a melee weapon is a heavy attack (the number of normal attacks thrown so far)
         if (attackService.tryHeavy(player, weapon)) return true;
+        // a ranger's too
+        if (attackService.tryRangerHeavy(player, weapon, true)) return true;
         if (!isRangedRightClickWeapon(weapon)) return false;
 
         handleRpgRightClick(player, weapon);
@@ -220,6 +224,12 @@ public final class CombatListener implements Listener {
             net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryMageHeavy(attacker, weapon));
             return;
         }
+        if (attackService.isRanger(attacker) && (weapon.attackType() == AttackType.RANGE || weapon.attackType() == AttackType.DEPLOY)) {
+            // a ranger's left click with a ranged or deployed weapon is a heavy attack
+            event.setCancelled(true);
+            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryRangerHeavy(attacker, weapon, false));
+            return;
+        }
         if (weapon.attackType() != AttackType.MELEE) return;
 
         event.setCancelled(true);
@@ -234,6 +244,8 @@ public final class CombatListener implements Listener {
         }
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
+        // a ranger's fifth normal attack is the close-range burst
+        if (attackService.rangerMeleeStep(attacker, weapon)) return;
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
         if (step == null) return;
         if (step.heavy() && step.assassin()) {
@@ -267,6 +279,7 @@ public final class CombatListener implements Listener {
         if (!net.tkgon.mc.iruuRPG.combat.ClickSignals.leftPossible(attacker)) return;
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
+        if (attackService.rangerMeleeStep(attacker, weapon)) return;
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
         if (step == null) return;
         if (step.heavy() && step.assassin()) {
@@ -353,6 +366,8 @@ public final class CombatListener implements Listener {
         }
         // the mage's normal attack is a step of its combo
         if (attackService.mageNormal(attacker, weapon)) return;
+        // the ranger's too: the next step of its combo
+        if (attackService.rangerNormal(attacker, weapon)) return;
 
         if (!attackService.rangedIsInstant(attacker)) {
             // the shot flies at balance.projectile-speed and hits when it arrives
