@@ -71,43 +71,41 @@ combat:
       surround-radius: 4.0
       surround-forward: 2.0
     # メイジのコンボ (遠距離武器): 通常攻撃 = 右クリック (5段)、強攻撃 = 左クリック (通常をN回出したあとの左クリックが強攻撃N、コンボなしが強攻撃0)。
-    # 通常1・2は魔法弾 (左上・右上から)、3は高速の魔力散弾 (40%×3回)、4は高密度の魔力散弾 (30%×4回)、5は魔力バースト (60%×3回)。
-    # 強攻撃0 = 短距離テレポート (固有ct 6秒)。1〜4のあと2秒以内の強攻撃0は、その属性の派生 (1-2 炎の突進 / 2-2 氷の破裂 / 3-2 雷の連鎖 / 4-2 風の真空)。
-    # 派生が当たると、5秒間、通常攻撃がその属性の見た目になる。
+    # 色は武器の属性と紫 (強い技ほど紫が多い)。通常攻撃の間には最低 normal-gap-ticks のあきができる。
+    # 通常1は左上から50%、2は右上から80%、3は高速の魔力散弾 (30%×3回)、4は高密度の魔力散弾 (30%×4回)、5は紫の魔力バースト (60%×3回)。
+    # 強攻撃1 = 前方に球状の弾 (60%、0.6秒で破裂)、2 = 後ろに追尾弾3つ (15%ずつ)、3 = 前方に扇形のエリア3段 (8tick後にスパイク、60%)、
+    # 4 = 前方に球体 (20tick、近くの敵を引き寄せて2tickごとに10%)。
+    # 強攻撃0 はそれ自体の効果はなく、再発動できる強攻撃があればそれを発動する (1 球をその場で破裂 / 2 小さい追尾弾5つ (5%) /
+    # 3 スパイクが当たった敵に空中から追加のスパイク (20%) / 4 輪状の衝撃波 (5%、最大3回))。再発動できないときの強攻撃0は固有ct 3秒。
     mage:
-      heavy-cooldown-ticks: [120, 0, 0, 0, 0]
-      heavy-damage-multiplier: [0.0, 1.0, 0.4, 0.6, 0.07]   # 1は炎の衝撃波、2は氷の波動1つごと、3は雷、4は竜巻の1回ごと (20回)
-      multi-hit-rate: [0.4, 0.3, 0.6]             # 通常3 / 通常4 / 通常5: 1回ごとのダメージの倍率
+      normal-gap-ticks: 8                         # 通常攻撃と次の通常攻撃の最短の間隔
+      heavy-cooldown-ticks: [60, 0, 0, 0, 0]
+      heavy-damage-multiplier: [0.0, 0.6, 0.15, 0.6, 0.1]   # 1は球の破裂、2は追尾弾1つごと、3はスパイクの1エリアごと、4は球体の1回ごと
+      light-rate: [0.5, 0.8]                      # 通常1 / 通常2 の倍率
+      multi-hit-rate: [0.3, 0.3, 0.6]             # 通常3 / 通常4 / 通常5: 1回ごとのダメージの倍率
       multi-hit-counts: [3, 4, 3]                 # 通常3 / 通常4 / 通常5: 当たる回数
-      multi-hit-gap-ticks: 4                      # 次の1回 (演出も) までのtick数
+      multi-hit-gap-ticks: 1                      # 次の1回 (演出も) までのtick数
       burst-radius: 3.5                           # 通常5: 魔力バーストの半径
-      teleport-distance: 6.0                      # 強攻撃0: テレポートの距離
-      flame-radius: 4.0                           # 強攻撃1: 炎の衝撃波の半径
-      hop-back-power: 0.8                         # 強攻撃2: 後ろに跳ぶ強さ / 上に跳ぶ強さ / 波動の間隔のtick数 / 波動のスキルの id
-      hop-up-power: 0.75
-      wave-gap-ticks: 5
-      ice-wave-skill: mage_ice_wave
-      thunder-forward: 4.0                        # 強攻撃3: 雷の位置 (正面何ブロック) / 引き寄せる範囲の半径
-      thunder-radius: 4.0
-      tornado-hits: 20                            # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
-      tornado-hits-per-tick: 2
-      tornado-radius: 4.0
-      tornado-forward: 2.0
-      element-mode-seconds: 5.0                   # 派生が当たったあと、通常攻撃がその属性の見た目になる秒数
-      flame-dash-rate: 0.05                       # 1-2: 突進の途中で2tickごとに当てる倍率 / 突進のtick数 / 強さ
-      flame-dash-ticks: 8
-      flame-dash-power: 1.0
-      ice-burst-rate: 0.6                         # 2-2: 氷の破裂の倍率 / 個数 / 破裂が出る範囲の半径 / 正面何ブロック
-      ice-burst-count: 3
-      ice-burst-radius: 3.0
-      ice-burst-forward: 4.0
-      chain-rate: 0.5                             # 3-2: 連鎖の1回ごとの倍率 (1体に2回) / 当てる体数 / 次へ跳ぶ範囲の半径
-      chain-targets: 3
-      chain-radius: 6.0
-      vacuum-rate: 0.15                           # 4-2: 真空の塊の1回ごとの倍率 / 回数 / 半径 / 後ろに下がる強さ
-      vacuum-hits: 6
-      vacuum-radius: 2.8
-      backstep-power: 1.1
+      reactivate-seconds: 3.0                     # 強攻撃2・3の再発動を受け付ける秒数
+      orb-speed: 1.0                              # 強攻撃1: 球の速さ (ブロック/tick) / 持続秒数 / 破裂の半径
+      orb-seconds: 0.6
+      orb-radius: 2.5
+      homing-speed: 1.3                           # 強攻撃2: 追尾弾の速さ / 敵を探す半径 / 飛ぶ最長tick数 / 再発動の小さい弾の倍率
+      homing-radius: 18.0
+      homing-ticks: 50
+      homing-small-rate: 0.05
+      spike-stage-ticks: 3                        # 強攻撃3: エリアを作る間隔 / スパイクが出るまで / 1エリアのスパイクの数 / 再発動の倍率と1体あたりの数
+      spike-delay-ticks: 8
+      spikes-per-area: 9
+      air-spike-rate: 0.2
+      air-spikes-each: 3
+      sphere-forward: 3.0                         # 強攻撃4: 球体の位置 (正面何ブロック) / 持続tick / 引き寄せる半径 / 引き寄せる強さ
+      sphere-ticks: 20
+      sphere-pull-radius: 1.5
+      sphere-pull: 0.12
+      ring-radius: 3.0                            # 強攻撃4の再発動: 輪の半径 / 倍率 / 引き寄せる強さ
+      ring-rate: 0.05
+      ring-pull: 0.55
     # レンジャーのコンボ (クラス id は gifted)。通常攻撃は遠距離武器の右クリックで、1・2 高速の矢、3 高速の3連射 (40%×3)、
     # 4 扇形の3方向 (35%×3)、5 至近距離の散弾 (近接武器の左クリック、40%×3。近接以外・敵なしは空振りで数だけ進む)、6 強力な一撃 (100%)。
     # 強攻撃は、その武器の通常攻撃ではない方のクリック (遠距離・設置は左、近接は右)。0 後ろにジャンプ (固有ct 5秒) /
@@ -116,6 +114,7 @@ combat:
     # 3つの攻撃のループ: 近接が当たる→次の遠距離通常が +10%・弾が速い / 遠距離が当たる→設置武器から周囲に2% / 設置のダメージ→近接 +10% (5秒)。
     ranger:
       window-ticks: 44                            # 通常攻撃の間隔。武器を持ち替える分、ほかより長い
+      normal-gap-ticks: 8                         # 通常攻撃と次の通常攻撃の最短の間隔
       heavy-cooldown-ticks: [100, 0, 0, 0, 0]
       heavy-damage-multiplier: [0.0, 0.3, 0.4, 0.5, 0.6]   # 1は扇形、2はワイヤー1本ごと、3は矢が敵に当たったとき、4は矢1本ごと
       hit-rate: [1.0, 1.0, 0.4, 0.35, 0.4, 1.0]   # 通常1〜6: 1発ごとの倍率

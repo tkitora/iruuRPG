@@ -147,7 +147,7 @@ public final class MeleeCombo {
     }
 
     public double heavyMultiplier(String plan, int index) {
-        double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 1.0, 0.4, 0.6, 0.07}
+        double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 0.6, 0.15, 0.6, 0.1}
                 : RANGER.equals(plan) ? new double[]{0.0, 0.3, 0.4, 0.5, 0.6} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
         return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
@@ -213,11 +213,14 @@ public final class MeleeCombo {
         if (stage == 3 || stage == 4) {
             // several hits in front: the third light is 3 hits of 40%, the fourth 4 hits of 30%
             int which = stage - 3;
-            double rate = listed(plan + ".multi-hit-rate", which, new double[]{0.4, 0.3}[which], 0.05, 2.0);
+            double[] defaults = MAGE.equals(plan) ? new double[]{0.3, 0.3} : new double[]{0.4, 0.3};
+            double rate = listed(plan + ".multi-hit-rate", which, defaults[which], 0.05, 2.0);
             int hits = (int) listed(plan + ".multi-hit-counts", which, new double[]{3, 4}[which], 2, 10);
             return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, hits - 1, 1.0);
         }
-        return new Step(Kind.LIGHT, stage, 1.0, 0, plan, 0, 0, 1.0);
+        // the mage's first two lights are bolts of their own strength (50% and 80%)
+        double rate = MAGE.equals(plan) ? listed(plan + ".light-rate", stage - 1, new double[]{0.5, 0.8}[Math.min(1, stage - 1)], 0.05, 3.0) : 1.0;
+        return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, 0, 1.0);
     }
 
     /**
@@ -250,7 +253,7 @@ public final class MeleeCombo {
         long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId(), ignored -> new long[ASSASSIN_HEAVIES]);
         if (!skipCooldown) {
             if (ready[index] > now) return null;
-            double[] defaults = MAGE.equals(plan) ? new double[]{120, 0, 0, 0, 0} : RANGER.equals(plan) ? new double[]{100, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
+            double[] defaults = MAGE.equals(plan) ? new double[]{60, 0, 0, 0, 0} : RANGER.equals(plan) ? new double[]{100, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
             long cooldownTicks = Math.round(listed(plan + ".heavy-cooldown-ticks", index, defaults[index], 0, 1200));
             ready[index] = now + cooldownTicks * 50L;
         }

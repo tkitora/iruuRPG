@@ -47,6 +47,20 @@ public final class AttackCooldowns {
         if (totals != null && totals.containsKey(attackType)) totals.put(attackType, totals.get(attackType) + extraTicks * 50L);
     }
 
+    /**
+     * Makes sure {@code attackType} stays locked for at least {@code ticks} from now (the least delay between the normal
+     * attacks of a combo, so a fast weapon cannot fire them all at once).
+     */
+    public void ensureAtLeast(Player player, AttackType attackType, int ticks) {
+        if (ticks <= 0) return;
+        long now = System.currentTimeMillis();
+        EnumMap<AttackType, Long> playerLocks = lockedUntilMillis.computeIfAbsent(player.getUniqueId(), ignored -> new EnumMap<>(AttackType.class));
+        long wanted = now + ticks * 50L;
+        if (playerLocks.getOrDefault(attackType, 0L) >= wanted) return;
+        playerLocks.put(attackType, wanted);
+        totalMillis.computeIfAbsent(player.getUniqueId(), ignored -> new EnumMap<>(AttackType.class)).put(attackType, ticks * 50L);
+    }
+
     /** How long the lock of {@code attackType} lasts in all (0 when none was ever set). */
     public long totalMillis(Player player, AttackType attackType) {
         EnumMap<AttackType, Long> totals = totalMillis.get(player.getUniqueId());
