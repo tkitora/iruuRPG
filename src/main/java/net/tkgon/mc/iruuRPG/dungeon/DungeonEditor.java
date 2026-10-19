@@ -161,6 +161,13 @@ public final class DungeonEditor implements Listener {
         return sessions.containsKey(player.getUniqueId());
     }
 
+    private java.util.function.Predicate<Player> otherEditor = player -> false;
+
+    /** True while the player is in another editor (the field spawner editor): two editors cannot share the hotbar. */
+    public void setOtherEditor(java.util.function.Predicate<Player> otherEditor) {
+        this.otherEditor = otherEditor;
+    }
+
     // ---- switching -------------------------------------------------------------------------------------------------
 
     /** /dungeon edit [id]: go to the template (if needed) and switch the editor on; inside the template it toggles. */
@@ -168,6 +175,10 @@ public final class DungeonEditor implements Listener {
         Session current = sessions.get(player.getUniqueId());
         if (current != null && (id == null || id.equals(current.dungeonId))) {
             stop(player, true);
+            return;
+        }
+        if (current == null && otherEditor.test(player)) {
+            player.sendMessage(Component.text("[エディター] スポナーのエディターを終えてから使ってください。", NamedTextColor.RED));
             return;
         }
         if (id == null) {
