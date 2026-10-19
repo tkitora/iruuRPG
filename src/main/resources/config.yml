@@ -40,7 +40,7 @@ combat:
     window-ticks: 32             # 次の攻撃までにこれ以上あくとコンボが切れる
     heavy-damage-multiplier: 2.0 # 強のダメージ倍率 (弱を何回かつなげた後だと、1回ごとに heavy-stage-bonus が足される)
     heavy-stage-bonus: 0.15
-    heavy-recovery-ticks: 10     # 強のあとの追加の硬直
+    heavy-recovery-ticks: 8      # 強のあとの追加の硬直。強攻撃を出したあと、この間 (tick) は通常攻撃 (左クリック) が始まらない
     finisher-damage-multiplier: 2.0
     finisher-recovery-ticks: 8
     # アサシンのコンボ (見た目は classes/assassin.yml の combo-style)。弱5回 (5回目が最終段) と、強攻撃0〜4。
@@ -48,8 +48,6 @@ combat:
     # 強攻撃Nは、弱をN回出した後の右クリック (弱0回なら強攻撃0)。強攻撃を出すと弱のコンボは最初から。Shift+左クリックは、ふつうの弱。
     # 強攻撃2のジャンプのあと2.5秒以内の強攻撃0は、ステップではなく強攻撃3になる。
     # 強攻撃ごとのクールタイム (tick): 強攻撃0のステップだけ4秒 (80)。強攻撃2のジャンプのあとの強攻撃3には掛からない。リストは0, 1, 2, 3, 4の順。
-    # 強攻撃を出したあと、この間 (tick) は通常攻撃 (左クリック) が始まらない
-    heavy-recovery-ticks: 8
     assassin:
       heavy-cooldown-ticks: [80, 0, 0, 0, 0]
       heavy-damage-multiplier: [0.0, 0.3, 0.4, 0.6, 0.07]   # 1は周囲の斬撃 (30%)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと (20回)
