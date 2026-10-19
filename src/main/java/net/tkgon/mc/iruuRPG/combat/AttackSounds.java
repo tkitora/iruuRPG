@@ -46,6 +46,13 @@ public final class AttackSounds {
         accent(owner, kind, at, element, 0.25f);
     }
 
+    /** An arrow loosed from a bow (the ranger's shots). */
+    public void arrowShot(Player owner, Location at) {
+        SoundKind kind = SoundKind.RANGED;
+        play(owner, kind, at, Sound.ENTITY_ARROW_SHOOT, 0.7f, 1.25f);
+        play(owner, kind, at, Sound.ITEM_CROSSBOW_SHOOT, 0.15f, 1.6f);
+    }
+
     public void hit(Player owner, Location at, Element element, boolean critical) {
         SoundKind kind = SoundKind.HIT;
         // a dull body thud: bone knock + a wet slap under the player-attack punch (no bright chime)

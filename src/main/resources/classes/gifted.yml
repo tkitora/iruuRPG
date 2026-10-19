@@ -4,7 +4,7 @@
 # 消費ノードの - 側 (筋力% や属性ダメージなど) は、+側の1SPあたりと同じ価値だけ減らす初期案。
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 3
+version: 4
 
 id: gifted
 name: "レンジャー"
@@ -96,7 +96,7 @@ milestones:
     effect_type: skill
     name: range_instant
     description:
-      - "遠距離武器の弾が、撃った瞬間に着弾する。"
+      - "遠距離武器の射程が伸びる。"
   # 3: SP 15 (ステータス)
   - node_name: "才能の開花"
     icon: GLOWSTONE_DUST
