@@ -33,6 +33,9 @@ import net.tkgon.mc.iruuRPG.item.ItemSkillRegistry;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonCommand;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonEditor;
+import net.tkgon.mc.iruuRPG.spawner.FieldSpawnerCommand;
+import net.tkgon.mc.iruuRPG.spawner.FieldSpawnerEditor;
+import net.tkgon.mc.iruuRPG.spawner.FieldSpawnerService;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
@@ -134,6 +137,8 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonMenu dungeonMenu;
     private DungeonEditor dungeonEditor;
     private net.tkgon.mc.iruuRPG.combat.RangerMoves rangerMoves;
+    private FieldSpawnerService fieldSpawnerService;
+    private FieldSpawnerEditor fieldSpawnerEditor;
     private RewardChestMenu rewardChestMenu;
     private SidebarService sidebarService;
     private PartyService partyService;
@@ -285,6 +290,11 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonService.setWorldLabels(worldLabels);
         this.dungeonMenu = new DungeonMenu(dungeonService);
         this.dungeonEditor = new DungeonEditor(this, dungeonService, mobRegistry);
+        this.fieldSpawnerService = new FieldSpawnerService(this, mobService, mobRegistry);
+        this.fieldSpawnerEditor = new FieldSpawnerEditor(this, fieldSpawnerService, mobRegistry);
+        this.fieldSpawnerService.setEditing(fieldSpawnerEditor::editing);
+        this.fieldSpawnerEditor.setOtherEditor(dungeonEditor::editing);
+        this.dungeonEditor.setOtherEditor(fieldSpawnerEditor::editing);
         this.rewardChestMenu = new RewardChestMenu(this);
         this.dungeonService.setRewardTools(itemRegistry, itemFactory, rewardChestMenu);
         this.sidebarService = new SidebarService(this, profileManager);
@@ -342,6 +352,12 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (rangerMoves != null) {
             rangerMoves.shutdown();
+        }
+        if (fieldSpawnerEditor != null) {
+            fieldSpawnerEditor.shutdown();
+        }
+        if (fieldSpawnerService != null) {
+            fieldSpawnerService.shutdown();
         }
         if (travelService != null) {
             travelService.shutdown();
@@ -453,6 +469,13 @@ public final class IruuRPG extends JavaPlugin {
             dungeonCommand.setTabCompleter(dungeon);
         }
 
+        PluginCommand spawnerCommand = getCommand("spawner");
+        if (spawnerCommand != null) {
+            FieldSpawnerCommand spawner = new FieldSpawnerCommand(fieldSpawnerService, fieldSpawnerEditor);
+            spawnerCommand.setExecutor(spawner);
+            spawnerCommand.setTabCompleter(spawner);
+        }
+
         PluginCommand tradeCommand = getCommand("trade");
         if (tradeCommand != null) {
             TradeCommand trade = new TradeCommand(tradeService);
@@ -528,6 +551,10 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(dungeonService, this);
         getServer().getPluginManager().registerEvents(dungeonMenu, this);
         getServer().getPluginManager().registerEvents(dungeonEditor, this);
+        getServer().getPluginManager().registerEvents(fieldSpawnerService, this);
+        getServer().getPluginManager().registerEvents(fieldSpawnerEditor, this);
+        fieldSpawnerService.start();
+        fieldSpawnerEditor.start();
         getServer().getPluginManager().registerEvents(rewardChestMenu, this);
         getServer().getPluginManager().registerEvents(sidebarService, this);
         getServer().getPluginManager().registerEvents(partyService, this);

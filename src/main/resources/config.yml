@@ -389,6 +389,19 @@ dungeon:
     - fm
     - tutorialstart
 
+# 一般フィールドのモブスポナー (/spawner edit で置く。設定はスポナーごとにも変えられる)
+field-spawner:
+  enabled: true
+  trigger-radius: 24         # プレイヤーがこの距離まで近づくと湧く (新しく置くスポナーの初期値)
+  min-count: 1               # 一度に湧く数 (最小・新しく置くスポナーの初期値)
+  max-count: 2               # 一度に湧く数 (最大)
+  max-alive: 2               # 同時に生きられる数
+  respawn-seconds: 20        # 湧いてから次に湧けるまでの間隔
+  spread: 3                  # スポナーの周りにばらける距離 (ブロック)
+  leash-distance: 64         # スポナーからこれ以上離れたモブは消す (また湧けるように)
+  idle-despawn-minutes: 10   # 湧いてからこの分数たっても、戦闘中でなければ消す
+  combat-radius: 16          # モブの近くにプレイヤーがこの距離以内にいる間は戦闘中とみなす
+
 # 画面右のサイドバー (上に点滅する iruuRPG、下にサーバーのアドレス。間に名前・レベル・クラス・所持金・現在地・時刻)
 sidebar:
   enabled: true
