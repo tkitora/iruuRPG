@@ -198,6 +198,8 @@ public final class CombatListener implements Listener {
         if (attackService.tryHeavy(player, weapon)) return true;
         // a ranger's too
         if (attackService.tryRangerHeavy(player, weapon, true)) return true;
+        // and a warrior's
+        if (attackService.tryWarriorHeavy(player, weapon)) return true;
         if (!isRangedRightClickWeapon(weapon)) return false;
 
         handleRpgRightClick(player, weapon);
@@ -252,6 +254,10 @@ public final class CombatListener implements Listener {
             attackService.performHeavy(attacker, weapon, step);
             return;
         }
+        if (step.warrior() && step.stage() >= 4) {
+            attackService.warriorNormal(attacker, weapon, step);
+            return;
+        }
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         if (hand.offHand()) attackService.swingOffHand(attacker);
         attackService.playMeleeSlash(attacker, hand.weapon(), step);
@@ -284,6 +290,10 @@ public final class CombatListener implements Listener {
         if (step == null) return;
         if (step.heavy() && step.assassin()) {
             attackService.performHeavy(attacker, weapon, step);
+            return;
+        }
+        if (step.warrior() && step.stage() >= 4) {
+            attackService.warriorNormal(attacker, weapon, step);
             return;
         }
         // a dual-wielding assassin hits with one hand and then the other

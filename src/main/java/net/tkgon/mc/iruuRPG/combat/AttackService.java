@@ -137,13 +137,18 @@ public final class AttackService {
             return null;
         }
         attackCooldowns.extend(attacker, AttackType.MELEE, step.recoveryTicks());
+        // a least delay between two normal attacks of the warrior's combo, so a fast weapon cannot throw them all at once
+        if (step.warrior()) attackCooldowns.ensureAtLeast(attacker, AttackType.MELEE, (int) plugin.getConfig().getLong("combat.combo.warrior.normal-gap-ticks", 8L));
         return step;
     }
 
     /** Which combo plan the player follows: the assassin has its own, everybody else the usual one. */
     public String comboPlan(Player attacker) {
         // the assassin's own combo comes with the 固有2 (before it, an assassin attacks like everybody else)
-        return hasClassId(attacker, "assassin") && hasSkill(attacker, ASSASSIN_COMBO_SKILL) ? MeleeCombo.ASSASSIN : MeleeCombo.USUAL;
+        if (hasClassId(attacker, "assassin") && hasSkill(attacker, ASSASSIN_COMBO_SKILL)) return MeleeCombo.ASSASSIN;
+        // the warrior's combo: five normal attacks and heavy attacks 0 - 4
+        if (warriorMoves != null && hasClassId(attacker, "warrior")) return MeleeCombo.WARRIOR;
+        return MeleeCombo.USUAL;
     }
 
     private boolean hasClassId(Player attacker, String classId) {
@@ -218,6 +223,50 @@ public final class AttackService {
             return true;
         }
         mageMoves.heavy(attacker, weapon, step);
+        return true;
+    }
+
+    // ---- the warrior ------------------------------------------------------------------------------------------------------
+
+    private WarriorMoves warriorMoves;
+    private final Map<UUID, Integer> lastWarriorClickTick = new HashMap<>();
+
+    public void setWarriorMoves(WarriorMoves warriorMoves) {
+        this.warriorMoves = warriorMoves;
+    }
+
+    /** Normal attack 4 or 5 of the warrior's combo (1 - 3 are the usual slashes). */
+    public void warriorNormal(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        warriorMoves.normal(attacker, weapon, step);
+    }
+
+    /**
+     * The right click of a warrior with a melee weapon: a heavy attack (the number of normal attacks thrown so far; 0
+     * without a combo). While heavy 2, 3 or 4 can be followed up the click is that follow-up instead of heavy 0 (and has
+     * no cooldown). True when the click was used, also while heavy 0 cools down.
+     */
+    public boolean tryWarriorHeavy(Player attacker, RpgItemDefinition weapon) {
+        if (warriorMoves == null || weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
+        if (!MeleeCombo.WARRIOR.equals(comboPlan(attacker)) || attacker.isSneaking() || !comboOn()) return false;
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer last = lastWarriorClickTick.put(attacker.getUniqueId(), tick);
+        // a held right button sends the click again every 4 ticks: it is one click
+        if (last != null && tick - last <= HELD_CLICK_TICKS) return true;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return true;
+        }
+        if (meleeCombo.done(attacker, MeleeCombo.WARRIOR) == 0 && warriorMoves.followUp(attacker)) return true;
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, MeleeCombo.WARRIOR);
+        if (step == null) {
+            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            return true;
+        }
+        warriorMoves.heavy(attacker, weapon, step);
+        // a moment of recovery (heavy 2 and 3 hold the normal attacks off by themselves)
+        if (step.heavyIndex() != 2 && step.heavyIndex() != 3) {
+            ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+        }
         return true;
     }
 

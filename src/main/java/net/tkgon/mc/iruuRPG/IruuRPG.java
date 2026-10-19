@@ -249,6 +249,7 @@ public final class IruuRPG extends JavaPlugin {
         this.rangerMoves = new net.tkgon.mc.iruuRPG.combat.RangerMoves(this, attackService, attackEffects);
         this.rangerMoves.setDeployService(deployService);
         this.attackService.setRangerMoves(rangerMoves);
+        this.attackService.setWarriorMoves(new net.tkgon.mc.iruuRPG.combat.WarriorMoves(this, attackService, attackEffects));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
