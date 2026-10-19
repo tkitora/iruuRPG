@@ -26,6 +26,8 @@ public final class MeleeCombo {
     public static final String MAGE = "mage";
     /** The ranger's plan: six normal attacks (a ranged weapon's right click; the fifth is thrown with a melee weapon). */
     public static final String RANGER = "ranger";
+    /** The warrior's plan: five normal attacks on a melee weapon (the fourth and fifth depend on a jump) and heavy attacks 0 - 4. */
+    public static final String WARRIOR = "warrior";
 
     public enum Kind { LIGHT, HEAVY, FINISHER }
 
@@ -67,6 +69,10 @@ public final class MeleeCombo {
             return RANGER.equals(plan);
         }
 
+        public boolean warrior() {
+            return WARRIOR.equals(plan);
+        }
+
         public int visual() {
             return switch (kind) {
                 case FINISHER, HEAVY -> 3;
@@ -78,6 +84,7 @@ public final class MeleeCombo {
     private static final int ASSASSIN_LIGHTS = 5;
     private static final int ASSASSIN_HEAVIES = 5;
     private static final int RANGER_LIGHTS = 6;
+    private static final int WARRIOR_LIGHTS = 5;
 
     private final JavaPlugin plugin;
     /** The running chain of each player and plan (the mage's ranged chain and their melee chain are separate). */
@@ -112,6 +119,7 @@ public final class MeleeCombo {
     public Step next(Player player, boolean heavy, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
         if (RANGER.equals(plan)) return nextRanger(player);
+        if (WARRIOR.equals(plan)) return nextWarrior(player);
         if (ASSASSIN.equals(plan) || MAGE.equals(plan)) return nextMulti(player, plan);
         return nextUsual(player, heavy);
     }
@@ -148,6 +156,7 @@ public final class MeleeCombo {
 
     public double heavyMultiplier(String plan, int index) {
         double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 0.6, 0.15, 0.6, 0.1}
+                : WARRIOR.equals(plan) ? new double[]{0.3, 1.0, 0.1, 0.7, 1.2}
                 : RANGER.equals(plan) ? new double[]{0.0, 0.3, 0.4, 0.5, 0.6} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
         return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
@@ -224,6 +233,28 @@ public final class MeleeCombo {
     }
 
     /**
+     * The next normal attack of the warrior's chain: 1 and 2 slashes of 90%, 3 a sideways slash of 120%, 4 a thrust of
+     * 100% (a chop of 150% in the air), 5 the finisher (a sweep of 100%, or a thrust of 150% after the chop). The
+     * special rates of 4 and 5 are the warrior moves' own settings.
+     */
+    private Step nextWarrior(Player player) {
+        long now = System.currentTimeMillis();
+        long[] state = chain(player, WARRIOR);
+        int done = now - state[1] > window(WARRIOR) ? 0 : (int) state[0];
+        state[1] = now;
+        int stage = done + 1;
+        shown(player, WARRIOR, Math.min(stage, WARRIOR_LIGHTS));
+        double[] defaults = {0.9, 0.9, 1.2, 1.0, 1.0};
+        double rate = listed("warrior.hit-rate", Math.min(stage, WARRIOR_LIGHTS) - 1, defaults[Math.min(stage, WARRIOR_LIGHTS) - 1], 0.05, 5.0);
+        if (stage >= WARRIOR_LIGHTS) {
+            state[0] = 0L;
+            return new Step(Kind.FINISHER, WARRIOR_LIGHTS, rate, 0, WARRIOR, 0, 0, 1.0);
+        }
+        state[0] = stage;
+        return new Step(Kind.LIGHT, stage, rate, 0, WARRIOR, 0, 0, 1.0);
+    }
+
+    /**
      * The next normal attack of the ranger's chain: 1 and 2 a shot, 3 three quick shots (40% each), 4 a fan of three
      * (35% each), 5 a burst at close range (3 hits of 40%, with a melee weapon), 6 the finisher, one strong shot (100%).
      */
@@ -253,7 +284,8 @@ public final class MeleeCombo {
         long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId(), ignored -> new long[ASSASSIN_HEAVIES]);
         if (!skipCooldown) {
             if (ready[index] > now) return null;
-            double[] defaults = MAGE.equals(plan) ? new double[]{60, 0, 0, 0, 0} : RANGER.equals(plan) ? new double[]{100, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
+            double[] defaults = MAGE.equals(plan) ? new double[]{60, 0, 0, 0, 0} : RANGER.equals(plan) ? new double[]{100, 0, 0, 0, 0}
+                    : WARRIOR.equals(plan) ? new double[]{60, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
             long cooldownTicks = Math.round(listed(plan + ".heavy-cooldown-ticks", index, defaults[index], 0, 1200));
             ready[index] = now + cooldownTicks * 50L;
         }
