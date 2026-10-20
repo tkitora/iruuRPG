@@ -156,7 +156,7 @@ public final class MeleeCombo {
 
     public double heavyMultiplier(String plan, int index) {
         double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 0.6, 0.15, 0.6, 0.1}
-                : WARRIOR.equals(plan) ? new double[]{0.3, 1.0, 0.1, 0.7, 1.2}
+                : WARRIOR.equals(plan) ? new double[]{0.0, 0.3, 0.04, 0.7, 1.2}
                 : RANGER.equals(plan) ? new double[]{0.0, 0.3, 0.4, 0.5, 0.6} : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
         return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
@@ -285,7 +285,7 @@ public final class MeleeCombo {
         if (!skipCooldown) {
             if (ready[index] > now) return null;
             double[] defaults = MAGE.equals(plan) ? new double[]{60, 0, 0, 0, 0} : RANGER.equals(plan) ? new double[]{100, 0, 0, 0, 0}
-                    : WARRIOR.equals(plan) ? new double[]{60, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
+                    : WARRIOR.equals(plan) ? new double[]{300, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
             long cooldownTicks = Math.round(listed(plan + ".heavy-cooldown-ticks", index, defaults[index], 0, 1200));
             ready[index] = now + cooldownTicks * 50L;
         }

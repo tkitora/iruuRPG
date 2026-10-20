@@ -28,16 +28,17 @@ import java.util.concurrent.ThreadLocalRandom;
  * right click a heavy one.
  *
  * <p>Normal attacks: 1 a slash from the upper right to the lower left (90%), 2 from the upper left to the lower right
- * (90%), 3 a sideways slash (120%) - these three are drawn by the class's {@code combo-style}. 4 in the air a downward
- * chop (150%) that throws the enemies back, on the ground a thrust (100%). 5 after the chop in the air a thrust (150%)
- * that finds the enemies thrown back, otherwise a sweep (100%).
+ * (90%), 3 a sideways slash (120%) - these three are drawn by the class's {@code combo-style}. 4 a chop from above
+ * (150%) that throws the enemies back, 5 a big conical thrust (150%) that finds the enemies thrown back.
  *
- * <p>Heavy attacks (the number of normal attacks so far): 0 a dash with a blow where it ends (30%, 3 s cooldown), 1 a
- * blow ahead (20%, small knockback), then a leap and a crash on the landing spot (100%), 2 twenty ticks of spinning
- * (10% every 2 ticks, radius 3) ending in a blast (20%, radius 4), 3 a jump that throws the enemies in front up (70%),
- * 4 three big cuts. While 2 or 3 last, normal attacks stop; a heavy click in that time (it would be heavy 0, but is not
- * thrown, and no cooldown) ends 2 early, or, after 3, dives and brings the enemies thrown up down again (70%); within
- * a second of 4 it leaps back and comes down with a crack in the ground ahead that throws the enemies up (120%).
+ * <p>Heavy attacks (the number of normal attacks so far): 0 three shields turning round the player (at most 3, 15 s
+ * cooldown): damage taken is cut by 70% while one is up, and each damage takes one shield, 1 three wheel-shaped slashes
+ * put on the ground ahead, 1.5 blocks apart (30% on contact), 2 twenty ticks of spinning (4% every 3 ticks, radius 4,
+ * lifts the enemies a little) ending in a conical thrust (50%), 3 a jump straight up that throws the enemies in front
+ * up (70%), 4 three big cuts. While 2 or 3 last, normal attacks stop; a heavy click in that time (it would be heavy 0,
+ * but is not thrown, and no cooldown) ends 2 early, or, after 3, dives and brings the enemies thrown up down again
+ * (70%); within a second of 4 it leaps back and comes down with a crack in the ground ahead that throws the enemies up
+ * (120%), and within 2 seconds of that another one rushes behind a big shield (160%, with a shield left) or hops back.
  */
 public final class WarriorMoves {
 
@@ -195,24 +196,16 @@ public final class WarriorMoves {
 
     /** Normal attack 4 or 5 ({@code step.stage()}); 1 - 3 are the usual slashes. */
     public void normal(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        boolean air = !player.isOnGround() || player.getVelocity().getY() > 0.1;
         if (step.stage() == 4) {
-            if (air) {
-                chop(player, weapon);
-            } else {
-                thrust(player, weapon, number("thrust-rate", 1.0), null);
-            }
+            chop(player, weapon);
             return;
         }
         Thrown last = thrown.remove(player.getUniqueId());
-        if (last != null && System.currentTimeMillis() - last.when() <= (long) (number("follow-seconds", 3.0) * 1000.0)) {
-            thrust(player, weapon, number("chase-thrust-rate", 1.5), last.targets());
-        } else {
-            sweep(player, weapon, number("sweep-rate", 1.0));
-        }
+        List<LivingEntity> chase = last != null && System.currentTimeMillis() - last.when() <= (long) (number("follow-seconds", 3.0) * 1000.0) ? last.targets() : null;
+        thrust(player, weapon, number("thrust-rate", 1.5), chase);
     }
 
-    /** 4 in the air: a chop from above that throws what it hits back. */
+    /** 4: a chop from above that throws what it hits back. */
     private void chop(Player player, RpgItemDefinition weapon) {
         World world = player.getWorld();
         Vector facing = facing(player);
@@ -242,14 +235,14 @@ public final class WarriorMoves {
     }
 
     /**
-     * A thrust ahead. {@code chase}: the enemies a chop threw back; they are hit for sure when they are within a
-     * reasonable distance and in front, and the thrust is drawn toward the nearest of them.
+     * 5: a big conical thrust ahead. {@code chase}: the enemies the chop threw back; they are hit for sure when they are
+     * within a reasonable distance and in front, and the thrust is drawn toward the nearest of them.
      */
     private void thrust(Player player, RpgItemDefinition weapon, double rate, List<LivingEntity> chase) {
         World world = player.getWorld();
         Vector facing = facing(player);
         Location eye = player.getEyeLocation();
-        double length = number("thrust-length", 4.5);
+        double length = number("thrust-length", 5.5);
         List<LivingEntity> targets = new ArrayList<>();
         Vector aim = facing.clone();
         if (chase != null) {
@@ -273,52 +266,46 @@ public final class WarriorMoves {
                 length = Math.max(length, Math.min(reach, best + 1.0));
             }
         }
-        for (LivingEntity target : cone(player, length, 22.0)) {
+        for (LivingEntity target : cone(player, length, number("thrust-half-angle", 30.0))) {
             if (!targets.contains(target)) targets.add(target);
         }
         Location start = eye.clone().add(aim.clone().multiply(0.8)).subtract(0.0, 0.35, 0.0);
-        Location end = start.clone().add(aim.clone().multiply(length));
-        Color color = color(weapon.element());
-        // a long thin blade of light with a bright tip
-        line(player, world, start, end, color, 1.2f, Particle.CRIT, 2);
-        line(player, world, start, end, IRON, 0.8f, Particle.END_ROD, 4);
-        ParticleFx.to(player, world).spawnParticle(Particle.FLASH, end, 1);
-        ParticleFx.to(player, world).spawnParticle(Particle.CRIT, end, 10, 0.2, 0.2, 0.2, 0.3);
-        world.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, SoundCategory.PLAYERS, 1.0f, 1.2f);
-        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 0.9f, 0.9f);
-        world.playSound(end, Sound.ITEM_TRIDENT_HIT, SoundCategory.PLAYERS, 0.8f, 1.3f);
+        coneThrust(player, weapon, start, aim, length, number("thrust-spread", 1.8));
+        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 0.8f);
+        world.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, SoundCategory.PLAYERS, 0.8f, 1.2f);
         // a step into the thrust
-        player.setVelocity(aim.clone().setY(0.0).normalize().multiply(0.35).setY(player.getVelocity().getY()));
+        player.setVelocity(aim.clone().setY(0.0).normalize().multiply(0.4).setY(player.getVelocity().getY()));
         for (LivingEntity target : targets) strike(player, target, weapon, rate);
     }
 
-    /** 5 on the ground (or without anything thrown back): a wide sweep. */
-    private void sweep(Player player, RpgItemDefinition weapon, double rate) {
+    /** A thrust drawn as a cone: lines from the tip out to a circle {@code spread} wide at the end, with rings on the way. */
+    private void coneThrust(Player player, RpgItemDefinition weapon, Location start, Vector aim, double length, double spread) {
         World world = player.getWorld();
-        Vector facing = facing(player);
-        double radius = number("sweep-radius", 3.8);
-        Location eye = player.getEyeLocation().subtract(0.0, 0.5, 0.0);
         Color color = color(weapon.element());
-        // a horizontal arc from the right round to the left, drawn over two ticks
-        for (int part = 0; part < 2; part++) {
-            int which = part;
-            later(which, () -> {
-                if (!player.isOnline()) return;
-                for (int index = 0; index <= 10; index++) {
-                    double angle = Math.toRadians(-100.0 + 200.0 * (which * 11 + index) / 21.0);
-                    for (double r = radius - 0.9; r <= radius; r += 0.45) {
-                        Location at = eye.clone().add(facing.clone().rotateAroundY(-angle).multiply(r));
-                        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(r > radius - 0.3 ? IRON : color, 1.6f));
-                    }
-                    if (index % 3 == 0) ParticleFx.to(player, world).spawnParticle(Particle.SWEEP_ATTACK, eye.clone().add(facing.clone().rotateAroundY(-angle).multiply(radius - 0.4)), 1, 0.0, 0.0, 0.0, 0.0);
-                }
-            });
+        Vector side = aim.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+        if (side.lengthSquared() < 1.0E-6) side = new Vector(1.0, 0.0, 0.0);
+        side.normalize();
+        Vector up = side.clone().crossProduct(aim).normalize();
+        Location end = start.clone().add(aim.clone().multiply(length));
+        // the axis, and eight lines to the rim
+        line(player, world, start, end, IRON, 1.1f, Particle.END_ROD, 4);
+        for (int index = 0; index < 8; index++) {
+            double angle = Math.PI * 2.0 * index / 8.0;
+            Location rim = end.clone().add(side.clone().multiply(Math.cos(angle) * spread)).add(up.clone().multiply(Math.sin(angle) * spread));
+            line(player, world, start, rim, index % 2 == 0 ? color : IRON, 1.0f, Particle.CRIT, 3);
         }
-        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 1.0f, 0.8f);
-        world.playSound(player.getLocation(), Sound.ITEM_TRIDENT_THROW, SoundCategory.PLAYERS, 0.8f, 0.7f);
-        for (LivingEntity target : cone(player, radius, 100.0)) {
-            if (strike(player, target, weapon, rate)) push(target, player.getLocation().toVector(), 0.4, 0.15);
+        for (int ring = 1; ring <= 4; ring++) {
+            double along = length * ring / 4.0;
+            double radius = spread * ring / 4.0;
+            Location center = start.clone().add(aim.clone().multiply(along));
+            for (int index = 0; index < 14; index++) {
+                double angle = Math.PI * 2.0 * index / 14.0;
+                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, center.clone().add(side.clone().multiply(Math.cos(angle) * radius)).add(up.clone().multiply(Math.sin(angle) * radius)), 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(color, 1.3f));
+            }
         }
+        ParticleFx.to(player, world).spawnParticle(Particle.FLASH, end, 1);
+        ParticleFx.to(player, world).spawnParticle(Particle.CRIT, end, 14, spread * 0.3, spread * 0.3, spread * 0.3, 0.4);
+        world.playSound(end, Sound.ITEM_TRIDENT_HIT, SoundCategory.PLAYERS, 0.9f, 1.2f);
     }
 
     // ---- heavy attacks ---------------------------------------------------------------------------------------------------------
@@ -328,98 +315,208 @@ public final class WarriorMoves {
         // a new heavy attack ends what could have been followed up
         follows.remove(player.getUniqueId());
         switch (step.heavyIndex()) {
-            case 0 -> dash(player, weapon, step.damageMultiplier());
-            case 1 -> leapAndCrash(player, weapon, step.damageMultiplier());
+            case 0 -> gainShields(player);
+            case 1 -> wheels(player, weapon, step.damageMultiplier());
             case 2 -> spin(player, weapon, step.damageMultiplier());
             case 3 -> launch(player, weapon, step.damageMultiplier());
             default -> tripleCut(player, weapon, step.damageMultiplier());
         }
     }
 
-    // 0: a dash with a blow where it ends
-    private void dash(Player player, RpgItemDefinition weapon, double rate) {
-        Vector facing = facing(player);
-        Location from = player.getLocation().clone();
-        int ticks = (int) number("dash-ticks", 6.0);
-        double power = number("dash-power", 1.4);
-        World world = player.getWorld();
-        effects.playStepTrail(player, weapon, from, facing);
-        world.playSound(from, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.9f, 0.7f);
-        new SafeTask(plugin) {
-            private int age;
+    // ---- 0: the shields ------------------------------------------------------------------------------------------------------------
 
+    private final Map<UUID, Integer> shields = new HashMap<>();
+    private final Map<UUID, Long> chargingUntil = new HashMap<>();
+    private SafeTask shieldTask;
+    private int shieldTicks;
+
+    public int shieldCount(Player player) {
+        return shields.getOrDefault(player.getUniqueId(), 0);
+    }
+
+    private void gainShields(Player player) {
+        shields.put(player.getUniqueId(), (int) number("shield-count", 3.0));
+        World world = player.getWorld();
+        world.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_IRON, SoundCategory.PLAYERS, 1.0f, 0.9f);
+        world.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.6f, 1.6f);
+        ParticleFx.to(player, world).spawnParticle(Particle.CRIT_MAGIC, player.getLocation().add(0.0, 1.0, 0.0), 20, 0.6, 0.6, 0.6, 0.3);
+        ensureShieldTask();
+    }
+
+    /**
+     * Damage {@code player} is about to take: with a shield up it is cut by 70% and the shield is lost (during the
+     * charge only the cut applies). Returns the damage to take.
+     */
+    public double absorb(Player player, double damage) {
+        if (damage <= 0.0) return damage;
+        int count = shieldCount(player);
+        if (count <= 0) return damage;
+        Long charging = chargingUntil.get(player.getUniqueId());
+        boolean charge = charging != null && System.currentTimeMillis() <= charging;
+        World world = player.getWorld();
+        if (!charge) {
+            if (count - 1 <= 0) shields.remove(player.getUniqueId());
+            else shields.put(player.getUniqueId(), count - 1);
+            world.playSound(player.getLocation(), Sound.ITEM_SHIELD_BREAK, SoundCategory.PLAYERS, 0.9f, 1.2f);
+            ParticleFx.to(player, world).spawnParticle(Particle.CRIT, player.getLocation().add(0.0, 1.0, 0.0), 14, 0.5, 0.5, 0.5, 0.3);
+        } else {
+            world.playSound(player.getLocation(), Sound.ITEM_SHIELD_BLOCK, SoundCategory.PLAYERS, 0.8f, 1.0f);
+        }
+        return damage * (1.0 - number("shield-reduction", 0.7));
+    }
+
+    private void ensureShieldTask() {
+        if (shieldTask != null) return;
+        shieldTask = new SafeTask(plugin) {
             @Override
             protected void tick() {
-                if (!player.isOnline() || player.isDead()) {
+                shieldTicks++;
+                if (shields.isEmpty()) {
                     cancel();
+                    shieldTask = null;
                     return;
                 }
-                if (age >= ticks) {
-                    cancel();
-                    Location at = player.getLocation();
-                    impact(player, world, at, number("dash-radius", 3.0), weapon, 0.8f);
-                    for (LivingEntity target : around(player, at, number("dash-radius", 3.0))) {
-                        if (strike(player, target, weapon, rate)) push(target, at.toVector(), 0.4, 0.2);
+                for (UUID id : new ArrayList<>(shields.keySet())) {
+                    Player owner = plugin.getServer().getPlayer(id);
+                    if (owner == null || !owner.isOnline() || owner.isDead()) {
+                        shields.remove(id);
+                        continue;
                     }
-                    return;
+                    int count = shields.get(id);
+                    Location center = owner.getLocation().add(0.0, 1.1, 0.0);
+                    World world = owner.getWorld();
+                    for (int index = 0; index < count; index++) {
+                        double angle = shieldTicks * 0.22 + Math.PI * 2.0 * index / count;
+                        Vector out = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
+                        Location at = center.clone().add(out.clone().multiply(1.3));
+                        Vector tangent = new Vector(-out.getZ(), 0.0, out.getX());
+                        // a small plate standing on the circle: a column and a few points across
+                        for (double h = -0.35; h <= 0.35; h += 0.17) {
+                            for (double w = -0.22; w <= 0.22; w += 0.22) {
+                                ParticleFx.to(owner, world).spawnParticle(Particle.REDSTONE, at.clone().add(tangent.clone().multiply(w)).add(0.0, h, 0.0), 1, 0.0, 0.0, 0.0, 0.0,
+                                        new Particle.DustOptions(Math.abs(w) > 0.1 ? IRON : Color.fromRGB(110, 170, 255), 1.1f));
+                            }
+                        }
+                    }
                 }
-                player.setFallDistance(0.0f);
-                player.setVelocity(facing.clone().multiply(power).setY(Math.min(0.0, player.getVelocity().getY())));
-                ParticleFx.to(player, world).spawnParticle(Particle.CLOUD, player.getLocation().add(0.0, 0.2, 0.0), 2, 0.2, 0.05, 0.2, 0.01);
-                age++;
             }
-        }.runTaskTimer(plugin, 0L, 1L);
+        };
+        shieldTask.runTaskTimer(plugin, 0L, 2L);
     }
 
-    // 1: a blow ahead, then a leap and a crash where it lands
-    private void leapAndCrash(Player player, RpgItemDefinition weapon, double crashRate) {
+    public void shutdown() {
+        if (shieldTask != null) shieldTask.cancel();
+        shieldTask = null;
+        shields.clear();
+        wheelList.clear();
+        if (wheelTask != null) wheelTask.cancel();
+        wheelTask = null;
+    }
+
+    // ---- 1: three wheels of slashes on the ground ahead ---------------------------------------------------------------------------
+
+    private static final class Wheel {
+        private final Player owner;
+        private final Location at;
+        private final Vector facing;
+        private final RpgItemDefinition weapon;
+        private final double rate;
+        private final long until;
+        private final Map<UUID, Long> hitAt = new HashMap<>();
+
+        private Wheel(Player owner, Location at, Vector facing, RpgItemDefinition weapon, double rate, long until) {
+            this.owner = owner;
+            this.at = at;
+            this.facing = facing;
+            this.weapon = weapon;
+            this.rate = rate;
+            this.until = until;
+        }
+    }
+
+    private final List<Wheel> wheelList = new ArrayList<>();
+    private SafeTask wheelTask;
+    private int wheelTicks;
+
+    private void wheels(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         Vector facing = facing(player);
-        double jabRate = number("jab-rate", 0.2);
-        Location eye = player.getEyeLocation().subtract(0.0, 0.4, 0.0);
-        line(player, world, eye.clone().add(facing.clone().multiply(0.6)), eye.clone().add(facing.clone().multiply(3.4)), color(weapon.element()), 1.3f, Particle.CRIT, 2);
-        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 1.0f);
-        for (LivingEntity target : cone(player, 3.6, 45.0)) {
-            if (strike(player, target, weapon, jabRate)) target.setVelocity(facing.clone().multiply(number("jab-knockback", 0.35)).setY(0.1));
+        double spacing = number("wheel-spacing", 1.5);
+        long until = System.currentTimeMillis() + Math.round(number("wheel-seconds", 6.0) * 1000.0);
+        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 1.0f, 0.7f);
+        for (int index = 1; index <= 3; index++) {
+            Location at = player.getLocation().add(facing.clone().multiply(spacing * index)).add(0.0, 1.0, 0.0);
+            int which = index;
+            later(index - 1, () -> {
+                if (!player.isOnline()) return;
+                wheelList.add(new Wheel(player, at, facing, weapon, rate, until));
+                world.playSound(at, Sound.BLOCK_CHAIN_PLACE, SoundCategory.PLAYERS, 1.0f, 0.8f + which * 0.15f);
+                ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at, 8, 0.4, 0.4, 0.4, 0.2);
+                ensureWheelTask();
+            });
         }
-        later(3L, () -> {
-            if (!player.isOnline() || player.isDead()) return;
-            player.setFallDistance(0.0f);
-            player.setVelocity(facing.clone().multiply(number("leap-power", 0.7)).setY(number("leap-up-power", 0.7)));
-            world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.8f, 0.6f);
-            new SafeTask(plugin) {
-                private int age;
-
-                @Override
-                protected void tick() {
-                    if (!player.isOnline() || player.isDead()) {
-                        cancel();
-                        return;
-                    }
-                    age++;
-                    player.setFallDistance(0.0f);
-                    boolean landed = age > 5 && player.isOnGround();
-                    if (age % 2 == 0) ParticleFx.to(player, world).spawnParticle(Particle.CRIT, player.getLocation().add(0.0, 1.0, 0.0), 4, 0.3, 0.4, 0.3, 0.1);
-                    if (!landed && age < 30) return;
-                    cancel();
-                    Location at = player.getLocation();
-                    double radius = number("crash-radius", 3.5);
-                    impact(player, world, at, radius, weapon, 1.2f);
-                    for (LivingEntity target : around(player, at, radius)) {
-                        if (strike(player, target, weapon, crashRate)) push(target, at.toVector(), 0.5, 0.3);
-                    }
-                }
-            }.runTaskTimer(plugin, 1L, 1L);
-        });
     }
 
-    // 2: twenty ticks of spinning that end in a blast; a heavy click ends it early
+    private void ensureWheelTask() {
+        if (wheelTask != null) return;
+        wheelTask = new SafeTask(plugin) {
+            @Override
+            protected void tick() {
+                wheelTicks++;
+                long now = System.currentTimeMillis();
+                wheelList.removeIf(wheel -> now > wheel.until || !wheel.owner.isOnline());
+                if (wheelList.isEmpty()) {
+                    cancel();
+                    wheelTask = null;
+                    return;
+                }
+                double reach = number("wheel-radius", 1.2);
+                for (Wheel wheel : wheelList) {
+                    World world = wheel.at.getWorld();
+                    if (world == null) continue;
+                    Vector side = wheel.facing.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
+                    Color color = color(wheel.weapon.element());
+                    // a wheel standing on its edge, turning: a rim, spokes and sparks
+                    double turn = wheelTicks * 0.5;
+                    for (int index = 0; index < 20; index++) {
+                        double angle = Math.PI * 2.0 * index / 20.0 + turn;
+                        Location rim = wheel.at.clone().add(wheel.facing.clone().multiply(Math.cos(angle) * reach)).add(0.0, Math.sin(angle) * reach, 0.0);
+                        ParticleFx.to(wheel.owner, world).spawnParticle(Particle.REDSTONE, rim, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(index % 2 == 0 ? color : IRON, 1.4f));
+                    }
+                    for (int spoke = 0; spoke < 3; spoke++) {
+                        double angle = turn + Math.PI * spoke / 3.0;
+                        for (double r = -reach; r <= reach; r += 0.4) {
+                            ParticleFx.to(wheel.owner, world).spawnParticle(Particle.REDSTONE, wheel.at.clone().add(wheel.facing.clone().multiply(Math.cos(angle) * r)).add(0.0, Math.sin(angle) * r, 0.0), 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(IRON, 0.9f));
+                        }
+                    }
+                    if (wheelTicks % 3 == 0) ParticleFx.to(wheel.owner, world).spawnParticle(Particle.CRIT, wheel.at, 2, reach * 0.5, reach * 0.5, reach * 0.5, 0.1);
+                    // touching it hurts (not the same enemy again within half a second)
+                    for (Entity entity : world.getNearbyEntities(wheel.at, reach + 0.4, reach + 0.4, reach + 0.4)) {
+                        if (!attackService.isAttackTarget(entity, wheel.owner)) continue;
+                        LivingEntity target = (LivingEntity) entity;
+                        Location body = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
+                        if (body.distanceSquared(wheel.at) > (reach + 0.4) * (reach + 0.4)) continue;
+                        Long last = wheel.hitAt.get(target.getUniqueId());
+                        if (last != null && now - last < 500L) continue;
+                        wheel.hitAt.put(target.getUniqueId(), now);
+                        if (strike(wheel.owner, target, wheel.weapon, wheel.rate)) {
+                            world.playSound(body, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.6f, 1.4f);
+                            ParticleFx.to(wheel.owner, world).spawnParticle(Particle.SWEEP_ATTACK, body, 1, 0.0, 0.0, 0.0, 0.0);
+                        }
+                    }
+                }
+            }
+        };
+        wheelTask.runTaskTimer(plugin, 0L, 2L);
+    }
+
+    // 2: twenty ticks of spinning that end in a thrust; a heavy click ends it early
     private void spin(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         int ticks = (int) number("spin-ticks", 20.0);
-        double radius = number("spin-radius", 3.0);
-        double endRadius = number("spin-end-radius", 4.0);
-        double endRate = number("spin-end-rate", 0.2);
+        int every = (int) Math.max(1, number("spin-every-ticks", 3.0));
+        double radius = number("spin-radius", 4.0);
+        double endRate = number("spin-end-rate", 0.5);
         Color color = color(weapon.element());
         boolean[] over = {false};
         SafeTask[] holder = new SafeTask[1];
@@ -428,11 +525,13 @@ public final class WarriorMoves {
             over[0] = true;
             if (holder[0] != null) holder[0].cancel();
             follows.remove(player.getUniqueId());
-            Location at = player.getLocation();
-            impact(player, world, at, endRadius, weapon, 1.2f);
-            for (LivingEntity target : around(player, at, endRadius)) {
-                if (strike(player, target, weapon, endRate)) push(target, at.toVector(), 1.0, 0.4);
-            }
+            // a thrust 4 blocks ahead, a cone, 50%
+            Vector facing = facing(player);
+            Location start = player.getEyeLocation().add(facing.clone().multiply(0.8)).subtract(0.0, 0.35, 0.0);
+            double length = number("spin-end-length", 4.0);
+            coneThrust(player, weapon, start, facing, length, number("thrust-spread", 1.8) * 0.8);
+            world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 0.8f);
+            for (LivingEntity target : cone(player, length, number("thrust-half-angle", 30.0))) strike(player, target, weapon, endRate);
         };
         ClickSignals.lockLeft(player, ticks + 2);
         follow(player, ticks, finish);
@@ -453,10 +552,10 @@ public final class WarriorMoves {
                 // blades turning round the player
                 Location center = player.getLocation().add(0.0, 1.0, 0.0);
                 for (int arm = 0; arm < 2; arm++) {
-                    double base = age * 0.9 + arm * Math.PI;
-                    for (int step = 0; step < 8; step++) {
-                        double angle = base - step * 0.11;
-                        for (double r = radius - 0.8; r <= radius; r += 0.4) {
+                    double base = age * 0.8 + arm * Math.PI;
+                    for (int step = 0; step < 9; step++) {
+                        double angle = base - step * 0.1;
+                        for (double r = radius - 0.9; r <= radius; r += 0.45) {
                             Location at = center.clone().add(Math.cos(angle) * r, Math.sin(age * 0.5 + arm) * 0.25, Math.sin(angle) * r);
                             ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(step < 2 ? IRON : color, 1.5f));
                         }
@@ -464,8 +563,12 @@ public final class WarriorMoves {
                     ParticleFx.to(player, world).spawnParticle(Particle.SWEEP_ATTACK, center.clone().add(Math.cos(base) * (radius - 0.3), 0.0, Math.sin(base) * (radius - 0.3)), 1, 0.0, 0.0, 0.0, 0.0);
                 }
                 if (age % 4 == 0) world.playSound(center, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.7f, 0.9f);
-                if (age % 2 == 0) {
-                    for (LivingEntity target : around(player, player.getLocation(), radius)) strike(player, target, weapon, rate);
+                if (age % every == 0) {
+                    for (LivingEntity target : around(player, player.getLocation(), radius)) {
+                        if (!strike(player, target, weapon, rate)) continue;
+                        // a little float: up, and down again before the next hit
+                        target.setVelocity(new Vector(target.getVelocity().getX(), number("spin-float", 0.22), target.getVelocity().getZ()));
+                    }
                 }
                 age++;
             }
@@ -473,26 +576,34 @@ public final class WarriorMoves {
         holder[0].runTaskTimer(plugin, 0L, 1L);
     }
 
-    // 3: a jump that throws the enemies in front up; a heavy click dives and brings them down
+    // 3: a jump straight up that throws the enemies in front up (an uppercut); a heavy click dives and brings them down
     private void launch(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         Vector facing = facing(player);
         int window = (int) number("launch-window-ticks", 30.0);
+        double radius = number("launch-radius", 5.0);
         List<LivingEntity> up = new ArrayList<>();
         player.setFallDistance(0.0f);
-        player.setVelocity(facing.clone().multiply(0.15).setY(number("launch-jump-power", 0.9)));
-        Location eye = player.getEyeLocation();
-        // a rising fan of cuts
-        for (int index = 0; index < 7; index++) {
-            double turn = Math.toRadians(-45.0 + 90.0 * index / 6.0);
-            Vector direction = facing.clone().rotateAroundY(turn);
-            line(player, world, player.getLocation().add(direction.clone().multiply(0.8)), player.getLocation().add(direction.clone().multiply(3.8)).add(0.0, 1.6, 0.0), color(weapon.element()), 1.3f, Particle.CRIT, 2);
+        player.setVelocity(new Vector(0.0, number("launch-jump-power", 0.9), 0.0));
+        // the uppercut: an arc rising in front from low to high, with sparks thrown up after it
+        Location base = player.getLocation().add(0.0, 0.2, 0.0);
+        Color color = color(weapon.element());
+        for (int index = 0; index <= 14; index++) {
+            double angle = Math.toRadians(-20.0 + 110.0 * index / 14.0);
+            Location at = base.clone().add(facing.clone().multiply(Math.cos(angle) * 2.6)).add(0.0, 1.0 + Math.sin(angle) * 2.6, 0.0);
+            later(index / 5, () -> {
+                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 2, 0.05, 0.05, 0.05, 0.0, new Particle.DustOptions(color, 1.8f));
+                ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at, 1, 0.05, 0.05, 0.05, 0.1);
+            });
         }
-        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 0.8f);
-        world.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, SoundCategory.PLAYERS, 0.7f, 1.3f);
-        for (LivingEntity target : cone(player, number("launch-radius", 4.2), 50.0)) {
+        ParticleFx.to(player, world).spawnParticle(Particle.CLOUD, base.clone().add(facing.clone().multiply(1.5)), 10, 0.8, 0.1, 0.8, 0.05);
+        world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 0.7f);
+        world.playSound(player.getLocation(), Sound.ITEM_TRIDENT_RIPTIDE_1, SoundCategory.PLAYERS, 0.8f, 1.4f);
+        world.playSound(player.getLocation(), Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.4f, 1.8f);
+        for (LivingEntity target : cone(player, radius, 50.0)) {
             if (!strike(player, target, weapon, rate)) continue;
             target.setVelocity(new Vector(0.0, number("launch-power", 1.0), 0.0));
+            ParticleFx.to(player, world).spawnParticle(Particle.CRIT, target.getLocation().add(0.0, 1.0, 0.0), 10, 0.3, 0.5, 0.3, 0.4);
             up.add(target);
         }
         ClickSignals.lockLeft(player, window);
@@ -598,6 +709,11 @@ public final class WarriorMoves {
                 if ((age > 7 && player.isOnGround()) || age > 30) {
                     cancel();
                     split(player, weapon, rate, facing);
+                    // within 2 seconds the next heavy click charges with a big shield (when one is left), or hops back
+                    follow(player, (long) number("charge-window-ticks", 40.0), () -> {
+                        if (shieldCount(player) > 0) charge(player, weapon, facing);
+                        else hopBack(player, facing);
+                    });
                 }
             }
         }.runTaskTimer(plugin, 1L, 1L);
@@ -643,5 +759,62 @@ public final class WarriorMoves {
                 }
             });
         }
+    }
+
+    /** Without a shield: a small hop back. */
+    private void hopBack(Player player, Vector facing) {
+        player.setFallDistance(0.0f);
+        player.setVelocity(facing.clone().multiply(-0.6).setY(0.35));
+        player.getWorld().playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.6f, 1.2f);
+    }
+
+    /** A rush behind a big shield: enemies on the way are pushed aside and take 160%; the shields do not break meanwhile. */
+    private void charge(Player player, RpgItemDefinition weapon, Vector facing) {
+        World world = player.getWorld();
+        int ticks = (int) number("charge-ticks", 12.0);
+        double power = number("charge-power", 1.1);
+        double rate = number("charge-rate", 1.6);
+        Vector side = facing.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
+        Color color = color(weapon.element());
+        java.util.Set<UUID> struck = new java.util.HashSet<>();
+        chargingUntil.put(player.getUniqueId(), System.currentTimeMillis() + (ticks + 6) * 50L);
+        ClickSignals.lockLeft(player, ticks + 2);
+        world.playSound(player.getLocation(), Sound.ITEM_SHIELD_BLOCK, SoundCategory.PLAYERS, 1.0f, 0.6f);
+        world.playSound(player.getLocation(), Sound.ENTITY_RAVAGER_ROAR, SoundCategory.PLAYERS, 0.5f, 1.4f);
+        new SafeTask(plugin) {
+            private int age;
+
+            @Override
+            protected void tick() {
+                if (!player.isOnline() || player.isDead() || age >= ticks) {
+                    cancel();
+                    return;
+                }
+                age++;
+                player.setFallDistance(0.0f);
+                player.setVelocity(facing.clone().multiply(power).setY(Math.min(0.0, player.getVelocity().getY())));
+                // a big shield in front: a disc standing across the way
+                Location front = player.getLocation().add(facing.clone().multiply(1.6)).add(0.0, 1.1, 0.0);
+                for (int ring = 0; ring < 3; ring++) {
+                    double r = 0.6 + ring * 0.5;
+                    for (int index = 0; index < 14 + ring * 6; index++) {
+                        double angle = Math.PI * 2.0 * index / (14 + ring * 6);
+                        Location at = front.clone().add(side.clone().multiply(Math.cos(angle) * r)).add(0.0, Math.sin(angle) * r * 1.1, 0.0);
+                        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(ring == 2 ? color : IRON, 1.5f));
+                    }
+                }
+                ParticleFx.to(player, world).spawnParticle(Particle.CLOUD, player.getLocation().add(0.0, 0.2, 0.0), 3, 0.3, 0.05, 0.3, 0.02);
+                for (LivingEntity target : around(player, front, 2.2)) {
+                    Vector to = target.getLocation().toVector().subtract(player.getLocation().toVector());
+                    // pushed off to the side it is on, and along
+                    double across = to.dot(side);
+                    target.setVelocity(side.clone().multiply(Math.signum(across == 0.0 ? 1.0 : across) * 0.6).add(facing.clone().multiply(0.7)).setY(0.2));
+                    if (struck.add(target.getUniqueId()) && strike(player, target, weapon, rate)) {
+                        world.playSound(target.getLocation(), Sound.ENTITY_IRON_GOLEM_ATTACK, SoundCategory.PLAYERS, 1.0f, 0.7f);
+                        ParticleFx.to(player, world).spawnParticle(Particle.CRIT, target.getLocation().add(0.0, 1.0, 0.0), 12, 0.3, 0.5, 0.3, 0.4);
+                    }
+                }
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
     }
 }
