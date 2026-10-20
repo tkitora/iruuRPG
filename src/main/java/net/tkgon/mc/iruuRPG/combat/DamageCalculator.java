@@ -24,7 +24,7 @@ public final class DamageCalculator {
 
     public DamageResult calculate(DamageInput input) {
         RpgItemDefinition weapon = input.weapon();
-        if (weapon.damageKind() == DamageKind.NONE) {
+        if (weapon.damageKind().noDamage()) {
             return new DamageResult(0.0, false);
         }
 
