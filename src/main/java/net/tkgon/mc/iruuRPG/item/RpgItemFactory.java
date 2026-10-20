@@ -126,6 +126,19 @@ public final class RpgItemFactory {
     private List<Component> lore(RpgItemDefinition definition, StatSet craftedBonus, ElementStatSet craftedElements) {
         List<Component> lore = new ArrayList<>();
 
+        // the marks of the classes: red = cannot use, white = can, yellow = favorite (the class's combo comes with it)
+        if (definition.marked()) {
+            Component marks = Component.empty();
+            boolean first = true;
+            for (ClassMark entry : ClassMark.order()) {
+                ClassUse use = definition.classUse(entry.classId());
+                NamedTextColor color = use == ClassUse.UNUSABLE ? NamedTextColor.RED : use == ClassUse.FAVORITE ? NamedTextColor.YELLOW : NamedTextColor.WHITE;
+                if (!first) marks = marks.append(Component.text(" "));
+                marks = marks.append(Component.text(entry.mark(), color));
+                first = false;
+            }
+            lore.add(marks.decoration(TextDecoration.ITALIC, false));
+        }
         Component header = Component.text("Lv", NamedTextColor.GOLD, TextDecoration.BOLD)
                 .append(Component.text(definition.requiredLevel(), NamedTextColor.YELLOW, TextDecoration.BOLD));
         // (a word that is empty is not written: no 特殊 unless the item says so with kind-label / type-label)

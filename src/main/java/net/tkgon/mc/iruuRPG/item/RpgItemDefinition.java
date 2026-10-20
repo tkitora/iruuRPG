@@ -30,14 +30,24 @@ public record RpgItemDefinition(
         List<String> description,
         Map<String, Object> comboStyle,
         String kindLabel,
-        String typeLabel
+        String typeLabel,
+        Map<String, ClassUse> classUse
 ) {
     public RpgItemDefinition(String id, Material material, ItemVisualOptions visualOptions, String name, int requiredLevel,
                              Rarity rarity, Element element, DamageKind damageKind, AttackType attackType, ItemSkillType skill,
                              String skillId, Map<String, Object> skillOverrides, WeaponStackSpec stacks, StatSet stats,
                              ElementStatSet elementStats, List<String> description, Map<String, Object> comboStyle) {
         this(id, material, visualOptions, name, requiredLevel, rarity, element, damageKind, attackType, skill, skillId,
-                skillOverrides, stacks, stats, elementStats, description, comboStyle, "", "");
+                skillOverrides, stacks, stats, elementStats, description, comboStyle, "", "", Map.of());
+    }
+
+    public RpgItemDefinition(String id, Material material, ItemVisualOptions visualOptions, String name, int requiredLevel,
+                             Rarity rarity, Element element, DamageKind damageKind, AttackType attackType, ItemSkillType skill,
+                             String skillId, Map<String, Object> skillOverrides, WeaponStackSpec stacks, StatSet stats,
+                             ElementStatSet elementStats, List<String> description, Map<String, Object> comboStyle,
+                             String kindLabel, String typeLabel) {
+        this(id, material, visualOptions, name, requiredLevel, rarity, element, damageKind, attackType, skill, skillId,
+                skillOverrides, stacks, stats, elementStats, description, comboStyle, kindLabel, typeLabel, Map.of());
     }
 
     public RpgItemDefinition(String id, Material material, ItemVisualOptions visualOptions, String name, int requiredLevel,
@@ -70,6 +80,32 @@ public record RpgItemDefinition(
         comboStyle = comboStyle == null ? Map.of() : comboStyle;
         kindLabel = kindLabel == null ? "" : kindLabel.trim();
         typeLabel = typeLabel == null ? "" : typeLabel.trim();
+        classUse = classUse == null ? Map.of() : Map.copyOf(classUse);
+    }
+
+    /** True for a weapon with an attack type (melee / ranged / deployed): these have a mark line and a use per class. */
+    public boolean marked() {
+        return attackType != AttackType.SPECIAL && isWeaponLike();
+    }
+
+    /**
+     * What the item is to the class: what its `classes:` says, else the default of its attack type (see
+     * {@link ClassMark#defaultUse}). Usable for anything that is not a melee / ranged / deployed weapon.
+     */
+    public ClassUse classUse(String classId) {
+        if (!marked()) return ClassUse.USABLE;
+        ClassUse set = classId == null ? null : classUse.get(classId);
+        return set != null ? set : ClassMark.defaultUse(attackType, classId);
+    }
+
+    /** False for a class the item is red to. */
+    public boolean usableByClass(String classId) {
+        return classUse(classId) != ClassUse.UNUSABLE;
+    }
+
+    /** True when the class's combo comes with the item: it is yellow to the class (anything not marked has no restriction). */
+    public boolean comboByClass(String classId) {
+        return !marked() || classUse(classId) == ClassUse.FAVORITE;
     }
 
     /** True when the weapon's `skill:` names a skill of skills/*.yml (the item skills sweep / heal / ... are `skill`). */

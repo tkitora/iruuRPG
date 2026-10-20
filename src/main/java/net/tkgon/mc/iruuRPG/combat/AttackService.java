@@ -130,6 +130,11 @@ public final class AttackService {
      * got through the cooldown; a heavy attack or the finisher also lengthens the cooldown (its recovery).
      */
     public MeleeCombo.Step nextMeleeStep(Player attacker) {
+        // a weapon that is not yellow to the class is used with ordinary attacks (no combo)
+        if (!comboAllowed(attacker, weaponInMainHand(attacker))) {
+            beginAttack(attacker);
+            return MeleeCombo.Step.PLAIN;
+        }
         MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking(), comboPlan(attacker));
         if (step == null) {
             // a heavy attack that is still cooling down: a dull click, nothing thrown
@@ -196,7 +201,7 @@ public final class AttackService {
      */
     public boolean mageNormal(Player attacker, RpgItemDefinition weapon) {
         if (mageMoves == null || !isMage(attacker) || weapon.attackType() != AttackType.RANGE) return false;
-        if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return false;
+        if (!plugin.getConfig().getBoolean("combat.combo.enabled", true) || !comboAllowed(attacker, weapon)) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
         beginAttack(attacker);
         attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-ticks", 8L));
@@ -210,7 +215,7 @@ public final class AttackService {
      */
     public boolean tryMageHeavy(Player attacker, RpgItemDefinition weapon) {
         if (mageMoves == null || weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.RANGE) return false;
-        if (!isMage(attacker) || !plugin.getConfig().getBoolean("combat.combo.enabled", true)) return false;
+        if (!isMage(attacker) || !plugin.getConfig().getBoolean("combat.combo.enabled", true) || !comboAllowed(attacker, weapon)) return false;
         // one click arrives through several events in the same tick
         int tick = org.bukkit.Bukkit.getCurrentTick();
         Integer last = lastMageHeavyTick.put(attacker.getUniqueId(), tick);
@@ -254,7 +259,7 @@ public final class AttackService {
      */
     public boolean tryWarriorHeavy(Player attacker, RpgItemDefinition weapon) {
         if (warriorMoves == null || weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
-        if (!MeleeCombo.WARRIOR.equals(comboPlan(attacker)) || attacker.isSneaking() || !comboOn()) return false;
+        if (!MeleeCombo.WARRIOR.equals(comboPlan(attacker)) || attacker.isSneaking() || !comboOn() || !comboAllowed(attacker, weapon)) return false;
         int tick = org.bukkit.Bukkit.getCurrentTick();
         Integer last = lastWarriorClickTick.put(attacker.getUniqueId(), tick);
         // a held right button sends the click again every 4 ticks: it is one click
@@ -301,7 +306,7 @@ public final class AttackService {
 
     /** The normal attack (a right click) of a ranger with a ranged weapon: the next step of the ranger's combo. */
     public boolean rangerNormal(Player attacker, RpgItemDefinition weapon) {
-        if (!isRanger(attacker) || weapon.attackType() != AttackType.RANGE || !comboOn()) return false;
+        if (!isRanger(attacker) || weapon.attackType() != AttackType.RANGE || !comboOn() || !comboAllowed(attacker, weapon)) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
         beginAttack(attacker);
         attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.ranger.normal-gap-ticks", 8L));
@@ -331,6 +336,9 @@ public final class AttackService {
         if (weapon == null || !weapon.isWeaponLike() || !isRanger(attacker) || !comboOn()) return false;
         boolean melee = weapon.attackType() == AttackType.MELEE;
         if (melee != rightClick) return false;
+        // (the ranger's chain goes through its melee weapon whatever its color: the fifth normal attack and the heavy
+        // attacks thrown with it; a ranged or deployed weapon has to be yellow to the ranger)
+        if (!melee && !comboAllowed(attacker, weapon)) return false;
         if (rightClick && attacker.isSneaking()) return false;
         int tick = org.bukkit.Bukkit.getCurrentTick();
         Integer last = lastRangerHeavyTick.put(attacker.getUniqueId(), tick);
@@ -387,7 +395,7 @@ public final class AttackService {
      */
     public boolean tryHeavy(Player attacker, RpgItemDefinition weapon) {
         if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
-        if (!MeleeCombo.ASSASSIN.equals(comboPlan(attacker)) || attacker.isSneaking()) return false;
+        if (!MeleeCombo.ASSASSIN.equals(comboPlan(attacker)) || attacker.isSneaking() || !comboAllowed(attacker, weapon)) return false;
         // holding the right button sends the click again every 4 ticks: a held button is one click, not a stream of heavy attacks
         int tick = org.bukkit.Bukkit.getCurrentTick();
         Integer lastClick = lastHeavyClickTick.put(attacker.getUniqueId(), tick);
@@ -536,8 +544,22 @@ public final class AttackService {
         return equipmentService.canUse(player, definition);
     }
 
+    /**
+     * Whether the class's combo (the class's own chain of normal attacks and its heavy attacks) comes with this weapon:
+     * only when the weapon is yellow (favorite) to the player's class. Anything that is not a melee / ranged / deployed
+     * weapon has no restriction. A white weapon is used with ordinary attacks.
+     */
+    public boolean comboAllowed(Player attacker, RpgItemDefinition weapon) {
+        if (weapon == null) return true;
+        return weapon.comboByClass(equipmentService.classIdOf(attacker));
+    }
+
     public void sendLevelRequirement(Player player, RpgItemDefinition definition) {
         if (definition == null) return;
+        if (equipmentService.classUnusable(player, definition)) {
+            player.sendMessage("[iruuRPG] このクラスでは、この武器は使えません。");
+            return;
+        }
 
         PlayerProfile profile = profileManager.getOrCreate(player);
         player.sendMessage("[iruuRPG] このアイテムはLv" + definition.requiredLevel()
