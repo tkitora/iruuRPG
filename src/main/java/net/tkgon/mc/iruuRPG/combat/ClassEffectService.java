@@ -67,6 +67,11 @@ public final class ClassEffectService {
 
     /** Called after every player attack hit (melee, ranged, deploy, area). */
     public void onDamageDealt(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, boolean critical) {
+        onDamageDealt(attacker, victim, weapon, damage, critical, true);
+    }
+
+    /** {@code statuses} false: the enemy already got this attack's status effects (bleed, corrosion, decay, explosion). */
+    public void onDamageDealt(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, boolean critical, boolean statuses) {
         if (attacker == null || victim == null || victim.isDead() || !victim.isValid()) return;
 
         PlayerProfile profile = profileManager.getOrCreate(attacker);
@@ -74,10 +79,10 @@ public final class ClassEffectService {
 
         lastTargets.put(attacker.getUniqueId(), victim.getUniqueId());
         lastTargetTimes.put(attacker.getUniqueId(), System.currentTimeMillis());
-        giftedOnHit(attacker, victim, weapon, profile);
+        if (statuses) giftedOnHit(attacker, victim, weapon, profile);
         if (attackService != null) attackService.rangerHit(attacker, victim, weapon);
-        assassinOnHit(attacker, victim, weapon, damage, profile);
-        mageOnHit(attacker, victim, damage, profile);
+        assassinOnHit(attacker, victim, weapon, damage, profile, statuses);
+        if (statuses) mageOnHit(attacker, victim, damage, profile);
     }
 
     /** Mage upgrade: hits on a stopped enemy (slow 100%+) add corrosion and decay equal to the final damage. */
@@ -96,7 +101,7 @@ public final class ClassEffectService {
      * Assassin: every hit adds orange damage of hit damage x (100% + level %); hits with an orange weapon
      * also add an explosion of hit damage x (target's confusion / 40).
      */
-    private void assassinOnHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, PlayerProfile profile) {
+    private void assassinOnHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, PlayerProfile profile, boolean statuses) {
         if (attackService == null || damage <= 0.0) return;
 
         UUID sourceId = attacker.getUniqueId();
@@ -108,7 +113,7 @@ public final class ClassEffectService {
         }
         if (victim.isDead() || !victim.isValid()) return;
 
-        if (classService.hasSkill(profile, ASSASSIN_BLAST)
+        if (statuses && classService.hasSkill(profile, ASSASSIN_BLAST)
                 && weapon != null && weapon.element() == net.tkgon.mc.iruuRPG.stat.Element.ORANGE) {
             double confusion = statusEffectService.confusionOf(victim);
             double blast = damage * confusion / ASSASSIN_BLAST_DIVISOR;
