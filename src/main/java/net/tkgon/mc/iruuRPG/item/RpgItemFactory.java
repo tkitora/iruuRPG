@@ -126,13 +126,13 @@ public final class RpgItemFactory {
     private List<Component> lore(RpgItemDefinition definition, StatSet craftedBonus, ElementStatSet craftedElements) {
         List<Component> lore = new ArrayList<>();
 
-        // the marks of the classes: red = cannot use, white = can, yellow = favorite (the class's combo comes with it)
+        // the marks of the classes: white = cannot use, yellow = can, red = favorite (the class's combo comes with it)
         if (definition.marked()) {
             Component marks = Component.empty();
             boolean first = true;
             for (ClassMark entry : ClassMark.order()) {
                 ClassUse use = definition.classUse(entry.classId());
-                NamedTextColor color = use == ClassUse.UNUSABLE ? NamedTextColor.RED : use == ClassUse.FAVORITE ? NamedTextColor.YELLOW : NamedTextColor.WHITE;
+                NamedTextColor color = use == ClassUse.UNUSABLE ? NamedTextColor.WHITE : use == ClassUse.FAVORITE ? NamedTextColor.RED : NamedTextColor.YELLOW;
                 if (!first) marks = marks.append(Component.text(" "));
                 marks = marks.append(Component.text(entry.mark(), color));
                 first = false;

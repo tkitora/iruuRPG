@@ -98,12 +98,12 @@ public record RpgItemDefinition(
         return set != null ? set : ClassMark.defaultUse(attackType, classId);
     }
 
-    /** False for a class the item is red to. */
+    /** False for a class the item is unusable to (a white mark). */
     public boolean usableByClass(String classId) {
         return classUse(classId) != ClassUse.UNUSABLE;
     }
 
-    /** True when the class's combo comes with the item: it is yellow to the class (anything not marked has no restriction). */
+    /** True when the class's combo comes with the item: it is favorite (a red mark) to the class (anything not marked has no restriction). */
     public boolean comboByClass(String classId) {
         return !marked() || classUse(classId) == ClassUse.FAVORITE;
     }

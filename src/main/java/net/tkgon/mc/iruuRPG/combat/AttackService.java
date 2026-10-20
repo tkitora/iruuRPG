@@ -130,7 +130,7 @@ public final class AttackService {
      * got through the cooldown; a heavy attack or the finisher also lengthens the cooldown (its recovery).
      */
     public MeleeCombo.Step nextMeleeStep(Player attacker) {
-        // a weapon that is not yellow to the class is used with ordinary attacks (no combo)
+        // a weapon that is not a favorite (red mark) of the class is used with ordinary attacks (no combo)
         if (!comboAllowed(attacker, weaponInMainHand(attacker))) {
             beginAttack(attacker);
             return MeleeCombo.Step.PLAIN;
@@ -546,8 +546,8 @@ public final class AttackService {
 
     /**
      * Whether the class's combo (the class's own chain of normal attacks and its heavy attacks) comes with this weapon:
-     * only when the weapon is yellow (favorite) to the player's class. Anything that is not a melee / ranged / deployed
-     * weapon has no restriction. A white weapon is used with ordinary attacks.
+     * only when the weapon is a favorite (red mark) of the player's class. Anything that is not a melee / ranged / deployed
+     * weapon has no restriction. A usable weapon (yellow mark) is used with ordinary attacks.
      */
     public boolean comboAllowed(Player attacker, RpgItemDefinition weapon) {
         if (weapon == null) return true;
