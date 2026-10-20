@@ -126,11 +126,16 @@ public final class RpgItemFactory {
     private List<Component> lore(RpgItemDefinition definition, StatSet craftedBonus, ElementStatSet craftedElements) {
         List<Component> lore = new ArrayList<>();
 
-        lore.add(Component.text("Lv", NamedTextColor.GOLD, TextDecoration.BOLD)
-                .append(Component.text(definition.requiredLevel(), NamedTextColor.YELLOW, TextDecoration.BOLD))
-                .append(Component.text("  " + definition.damageKind().displayName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD))
-                .append(Component.text("  " + definition.attackType().displayName(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD))
-                .decoration(TextDecoration.ITALIC, false));
+        Component header = Component.text("Lv", NamedTextColor.GOLD, TextDecoration.BOLD)
+                .append(Component.text(definition.requiredLevel(), NamedTextColor.YELLOW, TextDecoration.BOLD));
+        // (a word that is empty is not written: no 特殊 unless the item says so with kind-label / type-label)
+        if (!definition.kindText().isEmpty()) {
+            header = header.append(Component.text("  " + definition.kindText(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD));
+        }
+        if (!definition.typeText().isEmpty()) {
+            header = header.append(Component.text("  " + definition.typeText(), NamedTextColor.DARK_AQUA, TextDecoration.BOLD));
+        }
+        lore.add(header.decoration(TextDecoration.ITALIC, false));
 
         for (StatType type : StatType.values()) {
             double value = definition.stats().get(type);

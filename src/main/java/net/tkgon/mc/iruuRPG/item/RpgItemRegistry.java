@@ -252,7 +252,9 @@ public final class RpgItemRegistry {
                 stats,
                 elementStats,
                 description,
-                section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false)
+                section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false),
+                section.getString("kind-label", ""),
+                section.getString("type-label", "")
         ));
     }
 
