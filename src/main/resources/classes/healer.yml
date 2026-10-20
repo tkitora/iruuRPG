@@ -2,10 +2,10 @@
 # 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 
 id: healer
-name: "クレリック"
+name: "クレリック✞"
 icon: GOLDEN_APPLE
 description:
   - "耐久力と回復で仲間を支える緑のクラス。"
