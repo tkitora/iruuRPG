@@ -38,7 +38,7 @@ import java.util.concurrent.ThreadLocalRandom;
  *
  * <p>Heavy attacks (left click, the number of normal attacks so far): 1 a ball of magic flying ahead that bursts for 60%,
  * 2 three homing bolts conjured behind the player (15% each), 3 three fan-shaped areas, one beyond the other, that erupt
- * in spikes after 8 ticks (60%), 4 a sphere ahead that pulls enemies in and hurts them every 2 ticks (10%).
+ * in spikes after 8 ticks (60%), 4 a sphere ahead that slows the enemies close to it (30%) and hurts them every 2 ticks (10%).
  * Heavy 0 does nothing of its own: while a heavy attack can be reactivated it triggers that (1 bursts the ball at once,
  * 2 conjures five smaller homing bolts (5%), 3 stabs the enemies the spikes hit again from the air (20%), 4 sends out a
  * ring that pulls in again (5%), up to three times). Without a reactivation to trigger, heavy 0 cools down for 3 seconds.
@@ -591,14 +591,15 @@ public final class MageMoves {
         }
     }
 
-    // 4: a sphere ahead that pulls enemies in gently and hurts them every 2 ticks; up to three rings when triggered again
+    // 4: a sphere ahead that slows the enemies close to it by 30% and hurts them every 2 ticks; up to three rings when triggered again
     private void sphere(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         Vector facing = facing(player);
         Location center = player.getLocation().add(facing.clone().multiply(number("sphere-forward", 3.0))).add(0.0, 1.2, 0.0);
         int life = (int) number("sphere-ticks", 20.0);
-        double pullRadius = number("sphere-pull-radius", 1.5);
-        double pull = number("sphere-pull", 0.12);
+        double slowRadius = number("sphere-radius", 1.5);
+        double slowPercent = number("sphere-slow-percent", 30.0);
+        long slowMillis = Math.round(number("sphere-slow-seconds", 0.5) * 1000.0);
         Element element = weapon.element();
         long millis = life * 50L;
         boolean[] gone = {false};
@@ -624,13 +625,9 @@ public final class MageMoves {
                 ParticleFx.to(player, world).spawnParticle(Particle.PORTAL, center, 6, 0.4, 0.4, 0.4, 0.6);
                 ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, center, 1, 0.1, 0.1, 0.1, 0.0);
                 if (age % 2 == 0) {
-                    for (LivingEntity target : around(player, center, pullRadius)) {
-                        // pulled a little at a time: the enemy can still move
-                        Vector toward = center.toVector().subtract(target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0).toVector());
-                        if (toward.lengthSquared() > 0.04) {
-                            Vector velocity = target.getVelocity().multiply(0.85).add(toward.normalize().multiply(pull));
-                            target.setVelocity(velocity);
-                        }
+                    for (LivingEntity target : around(player, center, slowRadius)) {
+                        // slowed by 30% while it is inside (it can still move)
+                        attackService.slow(target, slowPercent, slowMillis, player.getUniqueId());
                         hit(player, weapon, target, rate);
                     }
                 }
