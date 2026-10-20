@@ -35,7 +35,9 @@ CLASS_IDS = ("warrior", "mage", "gifted", "healer", "assassin")
 CLASS_ALIASES = {**{c: c for c in CLASS_IDS}, "ranger": "gifted", "cleric": "healer", "戦士": "warrior", "メイジ": "mage",
                  "レンジャー": "gifted", "クレリック": "healer", "アサシン": "assassin"}
 CLASS_STATES = ("favorite", "usable", "unusable")
-CLASS_STATE_JA = ("得意", "使用可", "使用不可")
+# 値の別名: 日本語と、色の名前 (マークの色: 得意 = 黄色、使用可 = 白、使用不可 = 灰色。red は古い名前で、使用不可のまま)
+CLASS_STATE_ALIASES = {"得意": "favorite", "使用可": "usable", "使用可能": "usable", "使用不可": "unusable",
+                       "yellow": "favorite", "white": "usable", "gray": "unusable", "grey": "unusable", "red": "unusable"}
 ELEMENT_FILES = {"RED": "red", "BLUE": "blue", "GREEN": "green", "ORANGE": "orange", "WHITE": "white"}
 MAX_YML = 20000
 
@@ -187,8 +189,11 @@ def validate(kind, entry_id, body, repo):
                     if not cid:
                         warnings.append("classes.%s: 知らないクラスです (%s、または 戦士 メイジ レンジャー クレリック アサシン)" % (key, " / ".join(CLASS_IDS)))
                         continue
-                    if str(value).strip().lower() not in CLASS_STATES and str(value).strip() not in CLASS_STATE_JA:
+                    state = str(value).strip()
+                    if state.lower() not in CLASS_STATES and state.lower() not in CLASS_STATE_ALIASES and state not in CLASS_STATE_ALIASES:
                         warnings.append("classes.%s: '%s' は、favorite / usable / unusable (得意 / 使用可 / 使用不可) ではありません" % (key, value))
+                    elif state.lower() == "red":
+                        warnings.append("classes.%s: red は古い名前です (使用不可として読まれます。今の色は灰色: unusable / gray)" % key)
                     if cid in seen:
                         warnings.append("classes: 同じクラスが2回書かれています (%s と %s)" % (seen[cid], key))
                     seen[cid] = key
