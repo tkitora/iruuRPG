@@ -1,10 +1,10 @@
 # クラス定義: メイジ (青 / 魔力特化)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 # 書き方は classes/warrior.yml を参照。固有スキルのホットキーは全クラス F。
 
 id: mage
-name: "メイジ"
+name: "メイジ📖"
 icon: BLAZE_ROD
 description:
   - "魔力を操り、遠距離から範囲魔法で敵を焼き払う後衛。"
