@@ -277,7 +277,7 @@ public final class DeployService {
                 AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                 double damage = sweep ? round(attack.result().damage() * deploySkill.value("damage-rate", 1.2)) : attack.result().damage();
                 damage = round(damage * scale);
-                if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical())) {
+                if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical(), snapshot)) {
                     attackService.sendDamageDebug(owner, AttackType.DEPLOY, target, damage, attack.result().critical(), false);
                 }
             }
@@ -353,7 +353,7 @@ public final class DeployService {
                         attackEffects.playSlashImpact(owner, target, weapon);
                         AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                         double damage = attack.result().damage();
-                        if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical())) {
+                        if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical(), snapshot)) {
                             attackService.sendDamageDebug(owner, AttackType.DEPLOY, target, damage, attack.result().critical(), false);
                         }
                         cancel();
@@ -398,7 +398,7 @@ public final class DeployService {
             for (LivingEntity target : targets) {
                 AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                 double damage = round(attack.result().damage() * deploySkill.value("damage-rate", 15.0));
-                if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical())) {
+                if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical(), snapshot)) {
                     attackService.sendDamageDebug(owner, AttackType.DEPLOY, target, damage, attack.result().critical(), false);
                 }
             }
@@ -418,7 +418,7 @@ public final class DeployService {
 
                 AttackService.AttackDamage attack = attackService.calculateDamage(snapshot, target, weapon);
                 double damage = round(attack.result().damage() * deploySkill.value("damage-rate", 1.7));
-                if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical())) {
+                if (attackService.applyDirectDamage(owner, target, damage, weapon, attack.result().critical(), snapshot)) {
                     attackService.sendDamageDebug(owner, AttackType.DEPLOY, target, damage, attack.result().critical(), false);
                 }
             }

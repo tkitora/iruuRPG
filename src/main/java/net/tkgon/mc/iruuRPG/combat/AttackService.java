@@ -891,6 +891,14 @@ public final class AttackService {
     }
 
     public boolean applyDirectDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
+        return applyDirectDamage(attacker, victim, damage, weapon, critical, null);
+    }
+
+    /**
+     * {@code snapshot}: the attacker's stats taken when the attack was made (a deployed weapon's); the status effects it
+     * gives come from these and not from what the player holds now. Null: the live stats.
+     */
+    public boolean applyDirectDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical, PlayerProfile snapshot) {
         if (isTutorialProtected(victim) && !tutorialHook.isOwnTarget(attacker, victim)) {
             return false;
         }
@@ -914,9 +922,9 @@ public final class AttackService {
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             boolean statuses = statusAllowed(attacker, victim, weapon);
-            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
+            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             if (classEffectService != null) {
-                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             }
         }
         return applied;
@@ -956,6 +964,10 @@ public final class AttackService {
     }
 
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical) {
+        return applyRangeDamage(attacker, victim, damage, weapon, critical, null);
+    }
+
+    public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage, RpgItemDefinition weapon, boolean critical, PlayerProfile snapshot) {
         if (isTutorialProtected(victim) && !tutorialHook.isOwnTarget(attacker, victim)) {
             return false;
         }
@@ -979,9 +991,9 @@ public final class AttackService {
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             boolean statuses = statusAllowed(attacker, victim, weapon);
-            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
+            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             if (classEffectService != null) {
-                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             }
         }
         return applied;
