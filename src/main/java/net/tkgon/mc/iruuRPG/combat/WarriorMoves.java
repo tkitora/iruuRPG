@@ -32,8 +32,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * (150%) that throws the enemies back, 5 a big conical thrust (150%) that finds the enemies thrown back.
  *
  * <p>Heavy attacks (the number of normal attacks so far): 0 three shields turning round the player (at most 3, 15 s
- * cooldown): damage taken is cut by 70% while one is up, and each damage takes one shield, 1 three wheel-shaped slashes
- * put on the ground ahead, 1.5 blocks apart (30% on contact), 2 twenty ticks of spinning (4% every 3 ticks, radius 4,
+ * cooldown): damage taken is cut by 70% while one is up, and each damage takes one shield (they last 10 seconds at most), 1 a wheel-shaped slash
+ * put ahead (30% on contact, 3 seconds, one at a time), 2 twenty ticks of spinning (4% every 3 ticks, radius 4,
  * lifts the enemies a little) ending in a conical thrust (50%), 3 a jump straight up that throws the enemies in front
  * up (70%), 4 three big cuts. While 2 or 3 last, normal attacks stop; a heavy click in that time (it would be heavy 0,
  * but is not thrown, and no cooldown) ends 2 early, or, after 3, dives and brings the enemies thrown up down again
@@ -327,6 +327,8 @@ public final class WarriorMoves {
 
     private final Map<UUID, Integer> shields = new HashMap<>();
     private final Map<UUID, Long> chargingUntil = new HashMap<>();
+    /** When each player's shields run out (10 seconds after heavy 0). */
+    private final Map<UUID, Long> shieldUntil = new HashMap<>();
     private SafeTask shieldTask;
     private int shieldTicks;
 
@@ -336,6 +338,7 @@ public final class WarriorMoves {
 
     private void gainShields(Player player) {
         shields.put(player.getUniqueId(), (int) number("shield-count", 3.0));
+        shieldUntil.put(player.getUniqueId(), System.currentTimeMillis() + Math.round(number("shield-seconds", 10.0) * 1000.0));
         World world = player.getWorld();
         world.playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_IRON, SoundCategory.PLAYERS, 1.0f, 0.9f);
         world.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.6f, 1.6f);
@@ -351,11 +354,15 @@ public final class WarriorMoves {
         if (damage <= 0.0) return damage;
         int count = shieldCount(player);
         if (count <= 0) return damage;
+        if (shieldExpired(player)) {
+            dropShields(player.getUniqueId());
+            return damage;
+        }
         Long charging = chargingUntil.get(player.getUniqueId());
         boolean charge = charging != null && System.currentTimeMillis() <= charging;
         World world = player.getWorld();
         if (!charge) {
-            if (count - 1 <= 0) shields.remove(player.getUniqueId());
+            if (count - 1 <= 0) dropShields(player.getUniqueId());
             else shields.put(player.getUniqueId(), count - 1);
             world.playSound(player.getLocation(), Sound.ITEM_SHIELD_BREAK, SoundCategory.PLAYERS, 0.9f, 1.2f);
             ParticleFx.to(player, world).spawnParticle(Particle.CRIT, player.getLocation().add(0.0, 1.0, 0.0), 14, 0.5, 0.5, 0.5, 0.3);
@@ -363,6 +370,16 @@ public final class WarriorMoves {
             world.playSound(player.getLocation(), Sound.ITEM_SHIELD_BLOCK, SoundCategory.PLAYERS, 0.8f, 1.0f);
         }
         return damage * (1.0 - number("shield-reduction", 0.7));
+    }
+
+    private boolean shieldExpired(Player player) {
+        Long until = shieldUntil.get(player.getUniqueId());
+        return until != null && System.currentTimeMillis() > until;
+    }
+
+    private void dropShields(UUID id) {
+        shields.remove(id);
+        shieldUntil.remove(id);
     }
 
     private void ensureShieldTask() {
@@ -379,7 +396,12 @@ public final class WarriorMoves {
                 for (UUID id : new ArrayList<>(shields.keySet())) {
                     Player owner = plugin.getServer().getPlayer(id);
                     if (owner == null || !owner.isOnline() || owner.isDead()) {
-                        shields.remove(id);
+                        dropShields(id);
+                        continue;
+                    }
+                    if (shieldExpired(owner)) {
+                        dropShields(id);
+                        owner.getWorld().playSound(owner.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, SoundCategory.PLAYERS, 0.6f, 0.8f);
                         continue;
                     }
                     int count = shields.get(id);
@@ -408,12 +430,13 @@ public final class WarriorMoves {
         if (shieldTask != null) shieldTask.cancel();
         shieldTask = null;
         shields.clear();
+        shieldUntil.clear();
         wheelList.clear();
         if (wheelTask != null) wheelTask.cancel();
         wheelTask = null;
     }
 
-    // ---- 1: three wheels of slashes on the ground ahead ---------------------------------------------------------------------------
+    // ---- 1: a wheel of slashes ahead ---------------------------------------------------------------------------
 
     private static final class Wheel {
         private final Player owner;
@@ -441,20 +464,15 @@ public final class WarriorMoves {
     private void wheels(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         Vector facing = facing(player);
-        double spacing = number("wheel-spacing", 1.5);
-        long until = System.currentTimeMillis() + Math.round(number("wheel-seconds", 6.0) * 1000.0);
+        long until = System.currentTimeMillis() + Math.round(number("wheel-seconds", 3.0) * 1000.0);
+        // one wheel at a time: the one still standing goes when the next is put
+        wheelList.removeIf(wheel -> wheel.owner.equals(player));
+        Location at = player.getLocation().add(facing.clone().multiply(number("wheel-distance", 3.0))).add(0.0, 1.0, 0.0);
         world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 1.0f, 0.7f);
-        for (int index = 1; index <= 3; index++) {
-            Location at = player.getLocation().add(facing.clone().multiply(spacing * index)).add(0.0, 1.0, 0.0);
-            int which = index;
-            later(index - 1, () -> {
-                if (!player.isOnline()) return;
-                wheelList.add(new Wheel(player, at, facing, weapon, rate, until));
-                world.playSound(at, Sound.BLOCK_CHAIN_PLACE, SoundCategory.PLAYERS, 1.0f, 0.8f + which * 0.15f);
-                ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at, 8, 0.4, 0.4, 0.4, 0.2);
-                ensureWheelTask();
-            });
-        }
+        wheelList.add(new Wheel(player, at, facing, weapon, rate, until));
+        world.playSound(at, Sound.BLOCK_CHAIN_PLACE, SoundCategory.PLAYERS, 1.0f, 0.9f);
+        ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at, 8, 0.4, 0.4, 0.4, 0.2);
+        ensureWheelTask();
     }
 
     private void ensureWheelTask() {
