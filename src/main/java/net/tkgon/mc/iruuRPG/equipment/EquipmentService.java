@@ -109,8 +109,21 @@ public final class EquipmentService {
     public boolean canUse(Player player, RpgItemDefinition definition) {
         if (definition == null) return true;
 
+        if (classUnusable(player, definition)) return false;
         PlayerProfile profile = profileManager.getOrCreate(player);
         return definition.requiredLevel() <= profile.level();
+    }
+
+    /** True when the item is red to the player's class (its `classes:`): it cannot be used, and gives no stats. */
+    public boolean classUnusable(Player player, RpgItemDefinition definition) {
+        if (definition == null || !definition.marked()) return false;
+        return !definition.usableByClass(classIdOf(player));
+    }
+
+    /** The internal id of the player's class ("" without one). */
+    public String classIdOf(Player player) {
+        if (classService == null) return "";
+        return classService.currentClass(profileManager.getOrCreate(player)).map(definition -> definition.id()).orElse("");
     }
 
     private void accumulate(Player player, ItemStack item, StatSet targetStats, ElementStatSet targetElementStats) {

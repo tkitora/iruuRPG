@@ -254,8 +254,31 @@ public final class RpgItemRegistry {
                 description,
                 section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false),
                 section.getString("kind-label", ""),
-                section.getString("type-label", "")
+                section.getString("type-label", ""),
+                classUse(id, section.getConfigurationSection("classes"))
         ));
+    }
+
+    /**
+     * `classes:` of an item: class (warrior / mage / gifted or ranger / healer or cleric / assassin, or the Japanese
+     * name) -> favorite (yellow) / usable (white) / unusable (red). A class not listed gets the default of the item's
+     * attack type ({@link ClassMark#defaultUse}).
+     */
+    private java.util.Map<String, ClassUse> classUse(String id, ConfigurationSection section) {
+        java.util.Map<String, ClassUse> result = new java.util.HashMap<>();
+        if (section == null) return result;
+        for (String key : section.getKeys(false)) {
+            String classId = ClassMark.classIdOf(key);
+            ClassUse use = ClassUse.parse(section.get(key));
+            if (classId == null) {
+                plugin.getLogger().warning("items: " + id + ": classes: '" + key + "' is not a class (warrior / mage / gifted (ranger) / healer (cleric) / assassin)");
+            } else if (use == null) {
+                plugin.getLogger().warning("items: " + id + ": classes." + key + " must be favorite / usable / unusable");
+            } else {
+                result.put(classId, use);
+            }
+        }
+        return result;
     }
 
     private MaterialSpec materialSpec(String id, ConfigurationSection section) {
