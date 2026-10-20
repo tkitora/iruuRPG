@@ -235,6 +235,10 @@ public final class AttackService {
         this.warriorMoves = warriorMoves;
     }
 
+    public WarriorMoves warriorMoves() {
+        return warriorMoves;
+    }
+
     /** Normal attack 4 or 5 of the warrior's combo (1 - 3 are the usual slashes). */
     public void warriorNormal(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
         warriorMoves.normal(attacker, weapon, step);
@@ -1206,6 +1210,8 @@ public final class AttackService {
     }
 
     public void applyPlayerDamage(Player player, PlayerProfile profile, double damage) {
+        // the warrior's shields cut the damage (and break)
+        if (warriorMoves != null) damage = warriorMoves.absorb(player, damage);
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);
         profile.setCurrentHp(profile.currentHp() - finalDamage);
 
