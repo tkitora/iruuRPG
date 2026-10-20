@@ -119,6 +119,7 @@ public final class ItemSkillService {
         }
         if (!canUse(player, weapon, weapon.attackType(), spec.cost())) return true;
 
+        attackService.beginAttack(player);
         skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon, spec), spec,
                 () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                 });
@@ -203,6 +204,7 @@ public final class ItemSkillService {
         // a short beat after the normal skill, so both can be seen
         org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline() || player.isDead()) return;
+            attackService.beginAttack(player);
             skillRunner.start(new net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster(plugin, attackService, player, weapon, spec), spec,
                     () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                     });
@@ -219,6 +221,7 @@ public final class ItemSkillService {
             return true;
         }
 
+        attackService.beginAttack(player);
         switch (weapon.skill()) {
             case SWEEP -> useSweep(player, weapon);
             case HEAL -> useHeal(player, weapon);

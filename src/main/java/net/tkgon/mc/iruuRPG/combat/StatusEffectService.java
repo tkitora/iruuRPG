@@ -94,6 +94,11 @@ public final class StatusEffectService {
     }
 
     public void onDamageDealt(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical) {
+        onDamageDealt(attacker, target, weapon, damage, critical, true);
+    }
+
+    /** {@code statuses} false: the enemy already got this attack's status effects, so only the player's own effects are applied. */
+    public void onDamageDealt(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical, boolean statuses) {
         if (attacker == null || target == null || weapon == null || damage <= 0.0) return;
         if (target instanceof Player || DeployService.isDeployEntity(target) || isShielded(target) || target.isDead() || !target.isValid()) return;
 
@@ -101,8 +106,10 @@ public final class StatusEffectService {
         StatSet stats = attackerProfile.finalStats();
         UUID sourceId = attacker.getUniqueId();
 
-        applyOffensiveEffects(target, attackerProfile, stats, sourceId);
-        if (!target.isValid() || target.isDead()) return;
+        if (statuses) {
+            applyOffensiveEffects(target, attackerProfile, stats, sourceId);
+            if (!target.isValid() || target.isDead()) return;
+        }
 
         long selfDurationMillis = durationMillis(attackerProfile, "duration-ticks", 100);
         applySingle(attacker, StatusEffectType.PROTECTION, stats.get(StatType.PROTECTION), selfDurationMillis, sourceId, false);

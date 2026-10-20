@@ -142,6 +142,14 @@ public final class ClassSkillService {
             return;
         }
         if (precheck.weapon() == null) return;
+        // the assassin's class skill gives status effects with every hit; every other class skill, once per enemy
+        if (SATSUJIN.equalsIgnoreCase(skill.id())) {
+            int repeats = (int) Math.round(skill.values().getOrDefault("upgrade-repeats", 9.0));
+            int interval = (int) Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-interval-ticks", 3.0)));
+            attackService.statusUnlimited(player, 4 + (repeats + 1) * interval + 10);
+        } else {
+            attackService.beginAttack(player);
+        }
         if (isGeneral(skill)) {
             executeGeneral(player, skill, precheck.weapon());
             return;

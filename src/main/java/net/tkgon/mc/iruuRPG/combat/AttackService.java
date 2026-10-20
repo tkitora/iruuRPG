@@ -138,6 +138,7 @@ public final class AttackService {
         }
         attackCooldowns.extend(attacker, AttackType.MELEE, step.recoveryTicks());
         // a least delay between two normal attacks of the warrior's combo, so a fast weapon cannot throw them all at once
+        beginAttack(attacker);
         if (step.warrior()) attackCooldowns.ensureAtLeast(attacker, AttackType.MELEE, (int) plugin.getConfig().getLong("combat.combo.warrior.normal-gap-ticks", 8L));
         return step;
     }
@@ -197,6 +198,7 @@ public final class AttackService {
         if (mageMoves == null || !isMage(attacker) || weapon.attackType() != AttackType.RANGE) return false;
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
+        beginAttack(attacker);
         attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-ticks", 8L));
         mageMoves.normal(attacker, weapon, step);
         return true;
@@ -222,6 +224,7 @@ public final class AttackService {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
         }
+        beginAttack(attacker);
         mageMoves.heavy(attacker, weapon, step);
         return true;
     }
@@ -260,6 +263,7 @@ public final class AttackService {
             sendLevelRequirement(attacker, weapon);
             return true;
         }
+        beginAttack(attacker);
         if (meleeCombo.done(attacker, MeleeCombo.WARRIOR) == 0 && warriorMoves.followUp(attacker)) return true;
         MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, MeleeCombo.WARRIOR);
         if (step == null) {
@@ -299,6 +303,7 @@ public final class AttackService {
     public boolean rangerNormal(Player attacker, RpgItemDefinition weapon) {
         if (!isRanger(attacker) || weapon.attackType() != AttackType.RANGE || !comboOn()) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
+        beginAttack(attacker);
         attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.ranger.normal-gap-ticks", 8L));
         rangerMoves.normal(attacker, weapon, step);
         return true;
@@ -312,6 +317,7 @@ public final class AttackService {
         if (!isRanger(attacker) || weapon.attackType() != AttackType.MELEE || attacker.isSneaking() || !comboOn()) return false;
         if (meleeCombo.done(attacker, MeleeCombo.RANGER) != 4) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
+        beginAttack(attacker);
         rangerMoves.closeBurst(attacker, weapon, step);
         return true;
     }
@@ -339,6 +345,7 @@ public final class AttackService {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
         }
+        beginAttack(attacker);
         rangerMoves.heavy(attacker, weapon, step);
         if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
         return true;
@@ -394,6 +401,7 @@ public final class AttackService {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
         }
+        beginAttack(attacker);
         performHeavy(attacker, weapon, step);
         // a moment of recovery: no normal attack starts right after a heavy one
         ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
@@ -545,6 +553,34 @@ public final class AttackService {
         this.tutorialHook = tutorialHook;
     }
 
+    // ---- status effects: once per attack ------------------------------------------------------------------------------------
+
+    /** The enemies that already got the status effects of the attack (a combo step, a normal attack, a skill cast) now going on, per player. */
+    private final Map<UUID, java.util.Set<UUID>> statusGiven = new HashMap<>();
+    private final Map<UUID, Integer> statusUnlimitedUntil = new HashMap<>();
+
+    /**
+     * A new attack starts (a normal attack, a step of a combo, a skill cast): its hits give an enemy status effects
+     * only once, however many times they hit.
+     */
+    public void beginAttack(Player attacker) {
+        if (attacker != null) statusGiven.remove(attacker.getUniqueId());
+    }
+
+    /** For the next {@code ticks} ticks every hit of the player gives status effects (the assassin's class skill). */
+    public void statusUnlimited(Player attacker, int ticks) {
+        statusUnlimitedUntil.put(attacker.getUniqueId(), org.bukkit.Bukkit.getCurrentTick() + ticks);
+    }
+
+    /** True when this hit may give {@code victim} status effects: the first hit of the attack on it (a deployed weapon's pulses always may). */
+    private boolean statusAllowed(Player attacker, LivingEntity victim, RpgItemDefinition weapon) {
+        if (attacker == null) return true;
+        if (weapon != null && weapon.attackType() == AttackType.DEPLOY) return true;
+        Integer until = statusUnlimitedUntil.get(attacker.getUniqueId());
+        if (until != null && org.bukkit.Bukkit.getCurrentTick() <= until) return true;
+        return statusGiven.computeIfAbsent(attacker.getUniqueId(), ignored -> new java.util.HashSet<>()).add(victim.getUniqueId());
+    }
+
     public boolean tryStart(Player attacker, AttackType attackType) {
         if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) {
             return false;
@@ -553,6 +589,7 @@ public final class AttackService {
         if (!attackCooldowns.tryStart(attacker, attackType, cooldownTicks)) {
             return false;
         }
+        beginAttack(attacker);
 
         // the normal attack's cooldown is shown by the action bar gauge; the item's own cooldown is the weapon skill's only
         return true;
@@ -876,9 +913,10 @@ public final class AttackService {
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
-            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            boolean statuses = statusAllowed(attacker, victim, weapon);
+            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
             if (classEffectService != null) {
-                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
             }
         }
         return applied;
@@ -940,9 +978,10 @@ public final class AttackService {
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
-            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+            boolean statuses = statusAllowed(attacker, victim, weapon);
+            statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
             if (classEffectService != null) {
-                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical);
+                classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses);
             }
         }
         return applied;
