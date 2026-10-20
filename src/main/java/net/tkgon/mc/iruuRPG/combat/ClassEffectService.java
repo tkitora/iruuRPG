@@ -72,6 +72,11 @@ public final class ClassEffectService {
 
     /** {@code statuses} false: the enemy already got this attack's status effects (bleed, corrosion, decay, explosion). */
     public void onDamageDealt(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, boolean critical, boolean statuses) {
+        onDamageDealt(attacker, victim, weapon, damage, critical, statuses, null);
+    }
+
+    /** {@code snapshot}: the stats a status effect is worked out from (a deployed weapon's); null: the player's live stats. */
+    public void onDamageDealt(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage, boolean critical, boolean statuses, PlayerProfile snapshot) {
         if (attacker == null || victim == null || victim.isDead() || !victim.isValid()) return;
 
         PlayerProfile profile = profileManager.getOrCreate(attacker);
@@ -79,7 +84,7 @@ public final class ClassEffectService {
 
         lastTargets.put(attacker.getUniqueId(), victim.getUniqueId());
         lastTargetTimes.put(attacker.getUniqueId(), System.currentTimeMillis());
-        if (statuses) giftedOnHit(attacker, victim, weapon, profile);
+        if (statuses) giftedOnHit(attacker, victim, weapon, profile, snapshot);
         if (attackService != null) attackService.rangerHit(attacker, victim, weapon);
         assassinOnHit(attacker, victim, weapon, damage, profile, statuses);
         if (statuses) mageOnHit(attacker, victim, damage, profile);
@@ -148,9 +153,9 @@ public final class ClassEffectService {
      * corrosion/decay = level x range damage x (100% + range damage %); during
      * the instinct release every attack also bursts a laceration of deploy damage x deploy damage %.
      */
-    private void giftedOnHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon, PlayerProfile profile) {
+    private void giftedOnHit(Player attacker, LivingEntity victim, RpgItemDefinition weapon, PlayerProfile profile, PlayerProfile snapshot) {
         UUID sourceId = attacker.getUniqueId();
-        StatSet stats = profile.finalStats();
+        StatSet stats = snapshot != null ? snapshot.finalStats() : profile.finalStats();
         int level = Math.max(1, profile.level());
 
         // the ranger's 固有2: attacks with a melee weapon cause bleeding (level x melee damage x (100% + melee damage %))

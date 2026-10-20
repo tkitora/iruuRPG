@@ -99,10 +99,15 @@ public final class StatusEffectService {
 
     /** {@code statuses} false: the enemy already got this attack's status effects, so only the player's own effects are applied. */
     public void onDamageDealt(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical, boolean statuses) {
+        onDamageDealt(attacker, target, weapon, damage, critical, statuses, null);
+    }
+
+    /** {@code snapshot}: the stats the effects come from (a deployed weapon's, taken when it was put); null: the player's live stats. */
+    public void onDamageDealt(Player attacker, LivingEntity target, RpgItemDefinition weapon, double damage, boolean critical, boolean statuses, PlayerProfile snapshot) {
         if (attacker == null || target == null || weapon == null || damage <= 0.0) return;
         if (target instanceof Player || DeployService.isDeployEntity(target) || isShielded(target) || target.isDead() || !target.isValid()) return;
 
-        PlayerProfile attackerProfile = equipmentService.recalculate(attacker);
+        PlayerProfile attackerProfile = snapshot != null ? snapshot : equipmentService.recalculate(attacker);
         StatSet stats = attackerProfile.finalStats();
         UUID sourceId = attacker.getUniqueId();
 
