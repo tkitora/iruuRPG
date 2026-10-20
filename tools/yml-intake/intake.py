@@ -30,6 +30,7 @@ KINDS = {"アイテム": "items", "item": "items", "items": "items",
          "モブ": "mobs", "mob": "mobs", "mobs": "mobs",
          "レシピ": "recipes", "recipe": "recipes", "recipes": "recipes"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_\-]{0,63}$")
+DAMAGE_KINDS = ("NONE", "PHYSICAL", "MAGIC", "SPECIAL", "MATERIAL", "ARMOR")
 ELEMENT_FILES = {"RED": "red", "BLUE": "blue", "GREEN": "green", "ORANGE": "orange", "WHITE": "white"}
 MAX_YML = 20000
 
@@ -165,6 +166,13 @@ def validate(kind, entry_id, body, repo):
             problems.append("material (素材名) がありません")
         if not body.get("name"):
             problems.append("name (表示名) がありません")
+        # 説明文の1行目 (Lv N 種類 攻撃タイプ) の表記: kind-label / type-label は、任意の文字 (空欄 = 自動)
+        for key in ("kind-label", "type-label"):
+            if body.get(key) is not None and not isinstance(body.get(key), str):
+                problems.append("%s は文字です (空欄にすると、自動の表記になります)" % key)
+        kind_value = body.get("damage-kind")
+        if kind_value is not None and str(kind_value).upper() not in DAMAGE_KINDS:
+            warnings.append("damage-kind '%s' は、%s のどれかではありません" % (kind_value, " / ".join(DAMAGE_KINDS)))
     elif kind == "mobs":
         if not body.get("type"):
             problems.append("type (モブの種類) がありません")
