@@ -98,7 +98,7 @@ public record RpgItemDefinition(
         return set != null ? set : ClassMark.defaultUse(attackType, classId);
     }
 
-    /** False for a class the item is red to. */
+    /** False for a class the item is unusable to (a gray mark). */
     public boolean usableByClass(String classId) {
         return classUse(classId) != ClassUse.UNUSABLE;
     }

@@ -261,7 +261,7 @@ public final class RpgItemRegistry {
 
     /**
      * `classes:` of an item: class (warrior / mage / gifted or ranger / healer or cleric / assassin, or the Japanese
-     * name) -> favorite (yellow) / usable (white) / unusable (red). A class not listed gets the default of the item's
+     * name) -> favorite (yellow mark) / usable (white mark) / unusable (gray mark). A class not listed gets the default of the item's
      * attack type ({@link ClassMark#defaultUse}).
      */
     private java.util.Map<String, ClassUse> classUse(String id, ConfigurationSection section) {

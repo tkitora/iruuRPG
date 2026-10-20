@@ -114,7 +114,7 @@ public final class EquipmentService {
         return definition.requiredLevel() <= profile.level();
     }
 
-    /** True when the item is red to the player's class (its `classes:`): it cannot be used, and gives no stats. */
+    /** True when the item is unusable (a gray mark) to the player's class (its `classes:`): it cannot be used, and gives no stats. */
     public boolean classUnusable(Player player, RpgItemDefinition definition) {
         if (definition == null || !definition.marked()) return false;
         return !definition.usableByClass(classIdOf(player));
