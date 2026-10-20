@@ -31,6 +31,11 @@ KINDS = {"アイテム": "items", "item": "items", "items": "items",
          "レシピ": "recipes", "recipe": "recipes", "recipes": "recipes"}
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9_\-]{0,63}$")
 DAMAGE_KINDS = ("NONE", "PHYSICAL", "MAGIC", "SPECIAL", "MATERIAL", "ARMOR")
+CLASS_IDS = ("warrior", "mage", "gifted", "healer", "assassin")
+CLASS_ALIASES = {**{c: c for c in CLASS_IDS}, "ranger": "gifted", "cleric": "healer", "戦士": "warrior", "メイジ": "mage",
+                 "レンジャー": "gifted", "クレリック": "healer", "アサシン": "assassin"}
+CLASS_STATES = ("favorite", "usable", "unusable")
+CLASS_STATE_JA = ("得意", "使用可", "使用不可")
 ELEMENT_FILES = {"RED": "red", "BLUE": "blue", "GREEN": "green", "ORANGE": "orange", "WHITE": "white"}
 MAX_YML = 20000
 
@@ -170,6 +175,25 @@ def validate(kind, entry_id, body, repo):
         for key in ("kind-label", "type-label"):
             if body.get(key) is not None and not isinstance(body.get(key), str):
                 problems.append("%s は文字です (空欄にすると、自動の表記になります)" % key)
+        # classes: クラスごとの 得意 / 使用可 / 使用不可 (間違いは、プラグインが読み飛ばすので、警告)
+        classes = body.get("classes")
+        if classes is not None:
+            if not isinstance(classes, dict):
+                problems.append("classes は、クラス: 状態 のマップです (例: warrior: favorite)")
+            else:
+                seen = {}
+                for key, value in classes.items():
+                    cid = CLASS_ALIASES.get(str(key).strip().lower()) or CLASS_ALIASES.get(str(key).strip())
+                    if not cid:
+                        warnings.append("classes.%s: 知らないクラスです (%s、または 戦士 メイジ レンジャー クレリック アサシン)" % (key, " / ".join(CLASS_IDS)))
+                        continue
+                    if str(value).strip().lower() not in CLASS_STATES and str(value).strip() not in CLASS_STATE_JA:
+                        warnings.append("classes.%s: '%s' は、favorite / usable / unusable (得意 / 使用可 / 使用不可) ではありません" % (key, value))
+                    if cid in seen:
+                        warnings.append("classes: 同じクラスが2回書かれています (%s と %s)" % (seen[cid], key))
+                    seen[cid] = key
+                if str(body.get("attack-type", "")).upper() == "SPECIAL":
+                    warnings.append("classes: attack-type が SPECIAL の武器では、無視されます (マークの行も制限もありません)")
         kind_value = body.get("damage-kind")
         if kind_value is not None and str(kind_value).upper() not in DAMAGE_KINDS:
             warnings.append("damage-kind '%s' は、%s のどれかではありません" % (kind_value, " / ".join(DAMAGE_KINDS)))
