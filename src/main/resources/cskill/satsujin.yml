@@ -1,11 +1,14 @@
 # クラススキル定義: アサシンの「SATUJIN」(解放ノード4 / ホットキー F)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 #
 # 最後に攻撃した敵の背後へ瞬間移動し、混乱を100与え、持っている武器で通常攻撃を1回行う
 # (通常攻撃のクールタイムは発生しない)。
 # 強化(解放ノード8)を解放済みなら、同じ攻撃を最大9回、対象が死ぬまで繰り返す。
 # 最後に、敵がまだ生きていれば蹴り飛ばす: 敵は前へ、自分は斜め後ろ (後ろと上) へ跳ね飛ぶ。
+#
+# 強化: 瞬間移動の軌跡に残像が残る。対象の周囲 spread-radius ブロックの敵にも混乱 spread-confusion が広がる。
+# 最後の蹴りは着地点に衝撃が走り、周囲 kick-shock-radius ブロックの敵に威力の kick-shock-rate 倍 (通常攻撃基準) のダメージと、2 秒の鈍足。
 
 id: satsujin
 name: "SATUJIN"
@@ -36,3 +39,9 @@ values:
   kick-enemy-lift: 0.35
   kick-self-power: 1.0
   kick-self-lift: 0.6
+  # 混乱の広がり: 範囲(ブロック) / 混乱の量 (0 でなし)
+  spread-radius: 3.0
+  spread-confusion: 50
+  # 蹴りの衝撃: 範囲(ブロック) / 威力の倍率 (0 でなし)
+  kick-shock-radius: 3.0
+  kick-shock-rate: 0.8

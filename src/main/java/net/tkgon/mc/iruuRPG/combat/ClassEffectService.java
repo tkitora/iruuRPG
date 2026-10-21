@@ -248,6 +248,12 @@ public final class ClassEffectService {
         world.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.6f);
         world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.8f);
         RangerVfx.activation(world, player.getLocation());
+        // the enhanced state also makes the ranger quicker on their feet for as long as it lasts
+        int speedLevel = (int) Math.round(plugin.getConfig().getDouble("class-effects.gifted.instinct-speed-level", 1.0));
+        if (speedLevel > 0) {
+            player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED,
+                    (int) Math.round(seconds * 20.0), speedLevel - 1, true, false, true));
+        }
         playAura(player, seconds);
     }
 

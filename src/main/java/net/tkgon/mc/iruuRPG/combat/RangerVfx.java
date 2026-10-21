@@ -8,6 +8,8 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
+import net.tkgon.mc.iruuRPG.vfx.Fx;
+import net.tkgon.mc.iruuRPG.vfx.Trig;
 
 /** The ranger's showy effects: a rising double helix aura, and the charge and the spiral beam of the sniper shot. */
 public final class RangerVfx {
@@ -19,38 +21,34 @@ public final class RangerVfx {
     private RangerVfx() {
     }
 
-    /** One frame of the enhanced state's aura: three strands climbing around the body, a turning ring, sparks. */
+    /** One frame of the enhanced state's aura: three strands climbing round the body (gold to white to ice), a turning ring, rising motes. */
     public static void aura(World world, Location base, int tick) {
+        Fx fx = Fx.of(ParticleFx.owner(), world, base);
+        if (!fx.active()) return;
         for (int strand = 0; strand < 3; strand++) {
-            double phase = (tick * 0.06 + strand / 3.0) % 1.0;
-            double height = phase * 2.2;
-            double angle = height * 5.0 + strand * (Math.PI * 2.0 / 3.0) + tick * 0.12;
-            double radius = 0.85 - 0.25 * phase;
-            Location point = base.clone().add(Math.cos(angle) * radius, 0.1 + height, Math.sin(angle) * radius);
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, strand % 2 == 0 ? GOLD : ICE, true);
-            ParticleFx.to(world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
+            for (int sub = 0; sub < 2; sub++) {
+                double phase = (tick * 0.06 + strand / 3.0 - sub * 0.025 + 1.0) % 1.0;
+                double height = phase * 2.2;
+                double angle = height * 5.0 + strand * (Math.PI * 2.0 / 3.0) + tick * 0.12;
+                double radius = 0.85 - 0.25 * phase;
+                fx.dust(base.getX() + Trig.cos(angle) * radius, base.getY() + 0.1 + height, base.getZ() + Trig.sin(angle) * radius,
+                        SkillFx.INSTINCT, phase, sub == 0 ? 1.0 : 0.7);
+            }
         }
         if (tick % 6 == 0) {
-            double radius = 1.0 + 0.5 * Math.sin(tick * 0.1);
-            for (int index = 0; index < 20; index++) {
-                double angle = Math.PI * 2.0 * index / 20.0 + tick * 0.2;
-                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, base.clone().add(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
-            }
+            double radius = 1.0 + 0.5 * Trig.sin(tick * 0.1);
+            fx.flatRing(base.clone().add(0.0, 0.1, 0.0), radius, 24, SkillFx.INSTINCT, 0.5, 0.0, 0.9);
         }
     }
 
-    /** The burst when the enhanced state starts: a shock ring and a column of light. */
+    /** The burst when the enhanced state starts: three shock rings, a column of light and a flash. */
     public static void activation(World world, Location base) {
+        Player owner = ParticleFx.owner();
         for (int ring = 1; ring <= 3; ring++) {
-            double radius = ring * 0.9;
-            for (int index = 0; index < 28; index++) {
-                double angle = Math.PI * 2.0 * index / 28.0;
-                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, base.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, ring % 2 == 0 ? ICE : GOLD, true);
-            }
+            SkillFx.groundRing(owner, base, ring * 1.1, SkillFx.INSTINCT, ring / 3.0, 1.1);
         }
-        for (int step = 0; step < 14; step++) {
-            ParticleFx.to(world).spawnParticle(Particle.END_ROD, base.clone().add(0.0, step * 0.25, 0.0), 2, 0.15, 0.0, 0.15, 0.02);
-        }
+        SkillFx.column(owner, base, 3.5, 0.5, SkillFx.INSTINCT);
+        SkillFx.burst(owner, base.clone().add(0.0, 1.0, 0.0), 2.0, SkillFx.INSTINCT);
         ParticleFx.to(world).spawnParticle(Particle.FLASH, base.clone().add(0.0, 1.0, 0.0), 1);
     }
 

@@ -309,6 +309,8 @@ class-effects:
     decay-scale: 0.1
     # 本能開放の裂傷 = 設置ダメージ × 設置ダメージ% ÷ 100 × この値
     laceration-scale: 1.0
+    # 本能開放の発動中に付く移動速度上昇のレベル (1 = 移動速度上昇 I、0 でなし)
+    instinct-speed-level: 1
   healer:
     # 回復→敵ダメージの範囲(ブロック)
     pulse-radius: 7
