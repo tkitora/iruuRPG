@@ -254,6 +254,15 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.ClericMeleeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerDeployCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerRangeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.ClericRangeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.ClericDeployCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.MageMeleeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.MageDeployCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerMeleeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.AssassinRangeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.AssassinDeployCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorRangeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorDeployCombo());
         this.attackService.setWarriorMoves(new net.tkgon.mc.iruuRPG.combat.WarriorMoves(this, attackService, attackEffects));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
