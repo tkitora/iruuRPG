@@ -119,11 +119,11 @@ public final class AttackService {
      * melee chain for MELEE, the mage's ranged chain for RANGE. The two are counted apart.
      */
     public int comboStage(Player attacker, AttackType type) {
-        if (type == AttackType.MELEE) return meleeCombo.currentStage(attacker, comboPlan(attacker));
         if (type == AttackType.RANGE && isMage(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.MAGE);
         // the generic combos (see ClassCombo): the chain of the class's combo with this kind of weapon
         ClassCombo combo = classCombos.get(equipmentService.classIdOf(attacker) + "|" + type);
         if (combo != null) return meleeCombo.currentStage(attacker, combo.spec().plan());
+        if (type == AttackType.MELEE) return meleeCombo.currentStage(attacker, MeleeCombo.USUAL);
         return 0;
     }
 
@@ -137,26 +137,15 @@ public final class AttackService {
             beginAttack(attacker);
             return MeleeCombo.Step.PLAIN;
         }
-        MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking(), comboPlan(attacker));
+        MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking(), MeleeCombo.USUAL);
         if (step == null) {
             // a heavy attack that is still cooling down: a dull click, nothing thrown
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return null;
         }
         attackCooldowns.extend(attacker, AttackType.MELEE, step.recoveryTicks());
-        // a least delay between two normal attacks of the warrior's combo, so a fast weapon cannot throw them all at once
         beginAttack(attacker);
-        if (step.warrior()) attackCooldowns.ensureAtLeast(attacker, AttackType.MELEE, (int) plugin.getConfig().getLong("combat.combo.warrior.normal-gap-ticks", 8L));
         return step;
-    }
-
-    /** Which combo plan the player follows: the assassin has its own, everybody else the usual one. */
-    public String comboPlan(Player attacker) {
-        // the assassin's own combo comes with the 固有2 (before it, an assassin attacks like everybody else)
-        if (hasClassId(attacker, "assassin") && hasSkill(attacker, ASSASSIN_COMBO_SKILL)) return MeleeCombo.ASSASSIN;
-        // the warrior's combo: five normal attacks and heavy attacks 0 - 4
-        if (warriorMoves != null && hasClassId(attacker, "warrior")) return MeleeCombo.WARRIOR;
-        return MeleeCombo.USUAL;
     }
 
     private boolean hasClassId(Player attacker, String classId) {
@@ -164,7 +153,6 @@ public final class AttackService {
         return classService.currentClass(profileManager.getOrCreate(attacker)).map(definition -> definition.id().equals(classId)).orElse(false);
     }
 
-    private ComboMoves comboMoves;
     private final Map<UUID, Integer> lastHeavyClickTick = new HashMap<>();
     /** The client repeats a held right click every 4 ticks. */
     private static final int HELD_CLICK_TICKS = 5;
@@ -335,53 +323,16 @@ public final class AttackService {
         return true;
     }
 
-    // ---- the warrior ------------------------------------------------------------------------------------------------------
+    // ---- guard (invulnerability, damage cut, shields) -----------------------------------------------------------------------
 
-    private WarriorMoves warriorMoves;
-    private final Map<UUID, Integer> lastWarriorClickTick = new HashMap<>();
+    private Guard guard;
 
-    public void setWarriorMoves(WarriorMoves warriorMoves) {
-        this.warriorMoves = warriorMoves;
+    public void setGuard(Guard guard) {
+        this.guard = guard;
     }
 
-    public WarriorMoves warriorMoves() {
-        return warriorMoves;
-    }
-
-    /** Normal attack 4 or 5 of the warrior's combo (1 - 3 are the usual slashes). */
-    public void warriorNormal(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        warriorMoves.normal(attacker, weapon, step);
-    }
-
-    /**
-     * The right click of a warrior with a melee weapon: a heavy attack (the number of normal attacks thrown so far; 0
-     * without a combo). While heavy 2, 3 or 4 can be followed up the click is that follow-up instead of heavy 0 (and has
-     * no cooldown). True when the click was used, also while heavy 0 cools down.
-     */
-    public boolean tryWarriorHeavy(Player attacker, RpgItemDefinition weapon) {
-        if (warriorMoves == null || weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
-        if (!MeleeCombo.WARRIOR.equals(comboPlan(attacker)) || attacker.isSneaking() || !comboOn() || !comboAllowed(attacker, weapon)) return false;
-        int tick = org.bukkit.Bukkit.getCurrentTick();
-        Integer last = lastWarriorClickTick.put(attacker.getUniqueId(), tick);
-        // a held right button sends the click again every 4 ticks: it is one click
-        if (last != null && tick - last <= HELD_CLICK_TICKS) return true;
-        if (!canUseItem(attacker, weapon)) {
-            sendLevelRequirement(attacker, weapon);
-            return true;
-        }
-        beginAttack(attacker);
-        if (meleeCombo.done(attacker, MeleeCombo.WARRIOR) == 0 && warriorMoves.followUp(attacker)) return true;
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, MeleeCombo.WARRIOR);
-        if (step == null) {
-            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
-            return true;
-        }
-        warriorMoves.heavy(attacker, weapon, step);
-        // a moment of recovery (heavy 2 and 3 hold the normal attacks off by themselves)
-        if (step.heavyIndex() != 2 && step.heavyIndex() != 3) {
-            ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
-        }
-        return true;
+    public Guard guard() {
+        return guard;
     }
 
     // ---- the ranger (internal class id "gifted") ------------------------------------------------------------------------
@@ -420,51 +371,14 @@ public final class AttackService {
         return meleeCombo.heavyMultiplier(plan, index);
     }
 
+    /** Adds {@code amount} of confusion to an enemy (the assassin's). */
+    public void confuse(LivingEntity target, double amount, UUID source) {
+        if (statusEffectService != null && target.isValid() && !target.isDead()) statusEffectService.addConfusion(target, amount, source);
+    }
+
     /** Slows an enemy by {@code percent} for {@code millis}. */
     public void slow(LivingEntity target, double percent, long millis, UUID source) {
         statusEffectService.applyTimedSlow(target, percent, millis, source);
-    }
-
-    public void setComboMoves(ComboMoves comboMoves) {
-        this.comboMoves = comboMoves;
-    }
-
-    /** The damage multiplier configured for heavy attack {@code index} of the assassin plan. */
-    public double heavyMultiplier(int index) {
-        return meleeCombo.heavyMultiplier(index);
-    }
-
-    /** Throws a heavy attack of the assassin plan (its movement and damage are in {@link ComboMoves}). */
-    public void performHeavy(Player attacker, RpgItemDefinition weapon, MeleeCombo.Step step) {
-        if (comboMoves != null) comboMoves.perform(attacker, weapon, step);
-    }
-
-    /**
-     * The right click of an assassin with a melee weapon: a heavy attack (number 0 without a combo, else the number of
-     * normal attacks thrown so far). False when the player is not an assassin (the click is not used), true when it
-     * was used, also when the heavy attack still cools down.
-     */
-    public boolean tryHeavy(Player attacker, RpgItemDefinition weapon) {
-        if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) return false;
-        if (!MeleeCombo.ASSASSIN.equals(comboPlan(attacker)) || attacker.isSneaking() || !comboAllowed(attacker, weapon)) return false;
-        // holding the right button sends the click again every 4 ticks: a held button is one click, not a stream of heavy attacks
-        int tick = org.bukkit.Bukkit.getCurrentTick();
-        Integer lastClick = lastHeavyClickTick.put(attacker.getUniqueId(), tick);
-        if (lastClick != null && tick - lastClick <= HELD_CLICK_TICKS) return true;
-        if (!canUseItem(attacker, weapon)) {
-            sendLevelRequirement(attacker, weapon);
-            return true;
-        }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, comboMoves != null && comboMoves.hopChainActive(attacker));
-        if (step == null) {
-            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
-            return true;
-        }
-        beginAttack(attacker);
-        performHeavy(attacker, weapon, step);
-        // a moment of recovery: no normal attack starts right after a heavy one
-        ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
-        return true;
     }
 
     /**
@@ -1083,22 +997,13 @@ public final class AttackService {
         // an assassin with a weapon in each hand: the crossing slashes of the two hands for the first two lights (the
         // third and fourth are cuts in front), two sweeps in opposite directions for the finisher
         boolean dualWield = dualWielding(attacker);
-        if (step.finisher() && step.assassin()) {
-            // the finisher is louder and brighter than the other cuts
-            attackEffects.playFinisherFlourish(attacker, weapon);
-            if (dualWield) {
-                RpgItemDefinition[] pair = dualWeapons(attacker, weapon);
-                attackEffects.playDualSweep(attacker, pair[0], pair[1], repeat);
-                return;
-            }
-        }
-        boolean dualLight = !step.heavy() && !step.finisher() && dualWield && !(step.assassin() && step.stage() >= 3);
+        boolean dualLight = !step.heavy() && !step.finisher() && dualWield;
         // a `combo-style` of the weapon, then of the class, decides first (each part falls back to the next level)
         ComboStyle itemStyle = comboStyleOf("item " + weapon.id(), weapon.comboStyle());
-        // (an assassin's class style is for its combo: without the 固有2 it attacks like everybody else)
+        // (the assassin's class style was for its old combo plan; its combo is drawn by the combo itself now)
         ComboStyle classStyle = classService == null ? null
                 : classService.currentClass(profileManager.getOrCreate(attacker))
-                        .filter(definition -> !definition.id().equals("assassin") || step.assassin())
+                        .filter(definition -> !definition.id().equals("assassin"))
                         .map(definition -> comboStyleOf("class " + definition.id(), definition.comboStyle())).orElse(null);
         for (ComboStyle style : new ComboStyle[]{itemStyle, classStyle}) {
             if (dualLight && style == classStyle) break;
@@ -1108,9 +1013,7 @@ public final class AttackService {
             net.tkgon.mc.iruuRPG.skill.SkillLook look = style.look() != null ? style.look()
                     : itemStyle != null && itemStyle.look() != null ? itemStyle.look()
                     : classStyle != null ? classStyle.look() : null;
-            // the assassin's multi-hit lights (3 and 4): every cut at a random angle, a sweep or a chop down
-            boolean randomAngles = step.assassin() && step.extraHits() > 0 && !step.finisher();
-            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, randomAngles);
+            attackEffects.playStyledSlash(attacker, weapon, chosen, look, repeat, false);
             return;
         }
         if (step.heavy()) {
@@ -1335,8 +1238,8 @@ public final class AttackService {
     }
 
     public void applyPlayerDamage(Player player, PlayerProfile profile, double damage) {
-        // the warrior's shields cut the damage (and break)
-        if (warriorMoves != null) damage = warriorMoves.absorb(player, damage);
+        // an invulnerable moment, a guard and the warrior's shields cut the damage (shields break)
+        if (guard != null) damage = guard.absorb(player, damage);
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);
         profile.setCurrentHp(profile.currentHp() - finalDamage);
 
@@ -1389,7 +1292,6 @@ public final class AttackService {
 
     // ---- the assassin's two hands ----------------------------------------------------------------------------------
 
-    private static final String ASSASSIN_COMBO_SKILL = "assassin_combo";
     private static final String ASSASSIN_DUAL_SKILL = "assassin_dual";
     private static final String ASSASSIN_DOUBLE_SKILL = "assassin_double";
 
@@ -1643,6 +1545,10 @@ public final class AttackService {
         // the ranger's loop: damage from a deployed weapon makes melee attacks stronger for a while
         if (rangerMoves != null && attacker != null && weapon != null && weapon.attackType() == AttackType.MELEE && isRanger(attacker)) {
             outgoing *= rangerMoves.meleeMultiplier(attacker);
+        }
+        // the ranger's arrows mark an enemy: the melee and deployed weapons hit it harder
+        if (rangerMoves != null && attacker != null && weapon != null && weapon.attackType() != AttackType.RANGE && isRanger(attacker)) {
+            outgoing *= rangerMoves.markMultiplier(victim);
         }
         return outgoing;
     }

@@ -245,7 +245,6 @@ public final class IruuRPG extends JavaPlugin {
         this.itemSkillService.setGeneralSkills(skillRegistry, skillRunner);
         this.attackService.setComboStyleParser(skillRegistry);
         this.attackService.setMageMoves(new net.tkgon.mc.iruuRPG.combat.MageMoves(this, attackService, attackEffects, skillRegistry, skillRunner));
-        this.attackService.setComboMoves(new net.tkgon.mc.iruuRPG.combat.ComboMoves(this, attackService, attackEffects));
         net.tkgon.mc.iruuRPG.vfx.Fx.configure(getConfig());
         net.tkgon.mc.iruuRPG.vfx.Shapes.warmUp();
         this.rangerMoves = new net.tkgon.mc.iruuRPG.combat.RangerMoves(this, attackService, attackEffects);
@@ -259,11 +258,13 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.MageMeleeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.MageDeployCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerMeleeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.AssassinMeleeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.AssassinRangeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.AssassinDeployCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorMeleeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorRangeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorDeployCombo());
-        this.attackService.setWarriorMoves(new net.tkgon.mc.iruuRPG.combat.WarriorMoves(this, attackService, attackEffects));
+        this.attackService.setGuard(new net.tkgon.mc.iruuRPG.combat.Guard(this));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
@@ -368,8 +369,8 @@ public final class IruuRPG extends JavaPlugin {
         if (attackService != null) {
             attackService.shutdownCombos();
         }
-        if (attackService != null && attackService.warriorMoves() != null) {
-            attackService.warriorMoves().shutdown();
+        if (attackService != null && attackService.guard() != null) {
+            attackService.guard().shutdown();
         }
         if (fieldSpawnerEditor != null) {
             fieldSpawnerEditor.shutdown();

@@ -28,6 +28,8 @@ public final class RangerMoves {
     private final Map<UUID, Long> rangeBoostUntil = new HashMap<>();
     private final Map<UUID, Long> meleeBoostUntil = new HashMap<>();
     private final Map<UUID, Integer> lastResonanceTick = new HashMap<>();
+    /** The enemies the ranger's arrows have marked, and until when: the ranger's melee and deployed weapons hit them harder. */
+    private final Map<UUID, Long> marked = new HashMap<>();
 
     public RangerMoves(JavaPlugin plugin, AttackService attackService, AttackEffects effects) {
         this.plugin = plugin;
@@ -46,11 +48,38 @@ public final class RangerMoves {
         if (weapon == null) return;
         switch (weapon.attackType()) {
             case MELEE -> grantRangeBoost(attacker);
-            case RANGE -> resonate(attacker);
+            case RANGE -> {
+                resonate(attacker);
+                mark(victim);
+            }
             case DEPLOY -> grantMeleeBoost(attacker);
             default -> {
             }
         }
+    }
+
+    /** Marks {@code victim} for a while (a ranged hit does it): see {@link #markMultiplier}. */
+    public void mark(LivingEntity victim) {
+        if (victim == null) return;
+        long now = System.currentTimeMillis();
+        Long until = marked.get(victim.getUniqueId());
+        boolean fresh = until == null || until < now;
+        marked.put(victim.getUniqueId(), now + Math.round(number("mark-seconds", 5.0) * 1000.0));
+        if (marked.size() > 200) marked.values().removeIf(time -> time < now);
+        if (fresh) {
+            ParticleFx.to(victim.getWorld()).spawnParticle(Particle.CRIT_MAGIC, victim.getLocation().add(0.0, victim.getHeight() + 0.4, 0.0), 8, 0.2, 0.15, 0.2, 0.1);
+        }
+    }
+
+    /** What a hit of the ranger's melee or deployed weapon on {@code victim} is multiplied by: more on an enemy the ranger's arrows have marked. */
+    public double markMultiplier(LivingEntity victim) {
+        Long until = marked.get(victim.getUniqueId());
+        if (until == null) return 1.0;
+        if (until < System.currentTimeMillis()) {
+            marked.remove(victim.getUniqueId());
+            return 1.0;
+        }
+        return 1.0 + number("mark-bonus-percent", 20.0) / 100.0;
     }
 
     /** A melee hit: the next ranged attack is stronger and faster. */

@@ -44,33 +44,6 @@ combat:
     heavy-recovery-ticks: 8      # 強のあとの追加の硬直。強攻撃を出したあと、この間 (tick) は通常攻撃 (左クリック) が始まらない
     finisher-damage-multiplier: 2.0
     finisher-recovery-ticks: 8
-    # アサシンのコンボ (見た目は classes/assassin.yml の combo-style)。弱5回 (5回目が最終段) と、強攻撃0〜4。
-    # 通常3は40%のダメージで3回、通常4は30%で4回、通常5 (最終段) は60%で3回当たる (斬撃もその回数だけ出る)。
-    # 強攻撃Nは、弱をN回出した後の右クリック (弱0回なら強攻撃0)。強攻撃を出すと弱のコンボは最初から。Shift+左クリックは、ふつうの弱。
-    # 強攻撃2のジャンプのあと2.5秒以内の強攻撃0は、ステップではなく強攻撃3になる。
-    # 強攻撃ごとのクールタイム (tick): 強攻撃0のステップだけ4秒 (80)。強攻撃2のジャンプのあとの強攻撃3には掛からない。リストは0, 1, 2, 3, 4の順。
-    assassin:
-      heavy-cooldown-ticks: [80, 0, 0, 0, 0]
-      heavy-damage-multiplier: [0.0, 0.3, 0.4, 0.6, 0.07]   # 1は周囲の斬撃 (30%)、2は薙ぎ1回ごと、3は斬撃1回ごと、4は1回ごと (20回)
-      multi-hit-rate: [0.4, 0.3, 0.6]             # 通常3 / 通常4 / 通常5: 1回ごとのダメージの倍率
-      multi-hit-counts: [3, 4, 3]                 # 通常3 / 通常4 / 通常5: 当たる回数
-      multi-hit-gap-ticks: 4                      # 次の1回 (斬撃の演出も) までのtick数
-      finisher-area-radius: 3.0                   # 通常5 (フィニッシュ) の攻撃範囲の半径 (演出も同じ大きさ)
-      step-power: 1.05                            # 強攻撃0: 視点方向へのステップの強さ
-      spin-radius: 2.0                            # 強攻撃1: 周囲の斬撃の半径 (攻撃範囲も演出も。発生位置はプレイヤーの位置)
-      sweep-radius: 3.6                           # 強攻撃2: 前方の薙ぎの半径 / 開き (半角) / 2つ目までのtick数 / 後ろに跳ぶ強さ / 上に跳ぶ強さ (跳ぶのと1つ目の薙ぎは同時)
-      sweep-half-angle: 70
-      sweep-gap-ticks: 5
-      hop-back-power: 0.8
-      hop-up-power: 0.75
-      leap-power: 0.95                            # 強攻撃3: 視点方向へ跳ぶ強さ / 上への強さ / 周りの斬撃の範囲 / 最長のtick数
-      leap-up-power: 0.45
-      leap-radius: 3.0
-      leap-ticks: 16
-      surround-hits: 20                           # 強攻撃4: 当たる回数 / 1tickに当たる回数 / 範囲の半径 / 自分の正面何ブロックを中心にするか
-      surround-hits-per-tick: 2
-      surround-radius: 4.0
-      surround-forward: 2.0
     # メイジのコンボ (遠距離武器): 通常攻撃 = 右クリック (5段)、強攻撃 = 左クリック (通常をN回出したあとの左クリックが強攻撃N、コンボなしが強攻撃0)。
     # 色は武器の属性と紫 (強い技ほど紫が多い)。通常攻撃は、武器の通常の間隔に normal-gap-extra-ticks だけあきが足される (2〜4tick程度)。
     # 通常1は左上から50%、2は右上から80%、3は高速の魔力散弾 (30%×3回)、4は高密度の魔力散弾 (30%×4回)、5は紫の魔力バースト (60%×3回)。
@@ -108,74 +81,16 @@ combat:
       ring-radius: 3.0                            # 強攻撃4の再発動: 輪の半径 / 倍率 / 引き寄せる強さ
       ring-rate: 0.05
       ring-pull: 0.55
-    # 戦士のコンボ (近接武器): 通常攻撃 = 左クリック (5段)、強攻撃 = 右クリック (通常をN回出したあとの右クリックが強攻撃N、コンボなしが強攻撃0)。
-    # 通常1は右上から左下に90%、2は左上から右下に90%、3は横に120%、4は打ち下ろし (150%、敵を少し後ろへ飛ばす)、
-    # 5は円錐の突き (150%、飛ばした敵に確実に当たる)。通常攻撃の間には最低 normal-gap-ticks のあきができる。
-    # 強攻撃0 = 周りを回るシールド3枚 (上限3、固有ct 15秒、最長10秒。ある間は受けるダメージ70%減、受けるたびに1枚なくなる) /
-    # 1 = 正面に車輪の斬撃を1つ (接触で30%、3秒、同時に残れるのは1個) / 2 = 20tick 自分の周り半径4を3tickごとに4% (敵が少し浮く)、終了時に前方4ブロックの円錐の突き (50%) /
-    # 3 = 真上に跳んで前方5ブロックの扇形を打ち上げる (70%) / 4 = 1.5倍の大きさの3連撃。
-    # 2・3・4のあとに右クリック (強攻撃0になるはずのクリック) をすると、強攻撃0にはならず続きが出る
-    # (2 は早めに終わる / 3 は降下して打ち上げた敵にもう一度70%で落とす / 4 は1秒以内なら後ろへ跳んで降下し、正面10ブロックに地割れ、120%の打ち上げ。
-    # その降下のあと2秒以内にもう一度で、シールドがあれば盾で突撃 (160%、突撃中はシールドは減らない)、なければ少し後ろへ跳ぶ)。この右クリックにctはない。
+    # 戦士のシールド (戦士の近接コンボの強攻撃0「堅陣」と、通常2・強攻撃1で増える): 数 / 軽減する割合 / 残る最長の秒数。受けるたびに1枚なくなる
     warrior:
-      normal-gap-ticks: 8                         # 通常攻撃と次の通常攻撃の最短の間隔
-      heavy-cooldown-ticks: [300, 0, 0, 0, 0]
-      heavy-damage-multiplier: [0.0, 0.3, 0.04, 0.7, 1.2]   # 1は車輪の接触、2は回転1回ごと、3は打ち上げと落下それぞれ、4は地割れ
-      hit-rate: [0.9, 0.9, 1.2, 1.0, 1.0]         # 通常1〜3の倍率 (4・5は下の専用の設定が使われる)
-      follow-seconds: 3.0                         # 通常4のあと、通常5が飛ばした敵を追う秒数
-      chop-rate: 1.5                              # 通常4: 打ち下ろしの倍率 / 半径 / 飛ばす強さ
-      chop-radius: 3.6
-      chop-knockback: 0.9
-      thrust-rate: 1.5                            # 通常5: 突きの倍率 / 長さ / 円錐の半角 / 円錐の先の広がり / 飛ばした敵に届く距離
-      thrust-length: 5.5
-      thrust-half-angle: 30.0
-      thrust-spread: 1.8
-      chase-reach: 9.0
-      shield-count: 3                             # 強攻撃0: シールドの数 / 軽減する割合 / 残る最長の秒数
+      shield-count: 3
+      shield-seconds: 10
       shield-reduction: 0.7
-      shield-seconds: 10.0
-      wheel-distance: 3.0                         # 強攻撃1: 車輪を置く位置 (正面何ブロック) / 車輪の半径 / 残る秒数 (同時に置けるのは1個。次を出すと前のは消える)
-      wheel-radius: 1.2
-      wheel-seconds: 3.0
-      spin-ticks: 20                              # 強攻撃2: 回転する長さ / 当たる間隔 / 半径 / 敵が浮く強さ / 終了時の突きの倍率と長さ
-      spin-every-ticks: 3
-      spin-radius: 4.0
-      spin-float: 0.22
-      spin-end-rate: 0.5
-      spin-end-length: 4.0
-      launch-radius: 5.0                          # 強攻撃3: 打ち上げの半径 / 跳ぶ強さ / 敵を打ち上げる強さ / 続きを受け付けるtick数 / 降下の強さ / 落とす強さ
-      launch-jump-power: 0.9
-      launch-power: 1.0
-      launch-window-ticks: 30
-      dive-power: 1.4
-      slam-down-power: 1.5
-      cut-rate: 0.5                               # 強攻撃4: 3連撃の1回ごとの倍率 / 半径 / 続きを受け付けるtick数
-      cut-radius: 4.5
-      crack-window-ticks: 20
-      crack-back-power: 1.0                       # 後ろへ跳ぶ強さ (後ろ / 上) / 降下の強さ / 地割れの長さ・幅 / 打ち上げの強さ
-      crack-up-power: 0.75
-      crack-dive-power: 1.3
-      crack-length: 10.0
-      crack-width: 3.5
-      crack-launch-power: 1.0
-      charge-window-ticks: 40                     # 地割れのあとの突撃: 受け付けるtick数 / 突撃のtick数 / 速さ / 倍率
-      charge-ticks: 12
-      charge-power: 1.1
-      charge-rate: 1.6
-    # レンジャーの3つの攻撃のループ (近接→遠距離→設置)。近接が当たる→次の遠距離攻撃が +10%・矢が速い (10秒) /
-    # 遠距離が当たる→設置武器から周囲に2% / 設置のダメージ→近接 +10% (5秒)。
-    ranger:
-      range-boost-percent: 10                     # 近接が当たったあとの遠距離攻撃: ダメージ+% / 矢の速さの倍率 / 有効な秒数
-      range-boost-speed: 1.5
-      range-boost-seconds: 10
-      melee-boost-percent: 10                     # 設置のダメージのあとの近接: ダメージ+% / 有効な秒数
-      melee-boost-seconds: 5
-      resonance-rate: 0.02                        # 遠距離が当たったときの設置武器の共鳴: 倍率 / 続けて起きる最短のtick数
-      resonance-gap-ticks: 4
     # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃0〜4 (通常をN回出したあとが強攻撃N)。
     # 近接は左クリックが通常・右クリックが強攻撃、遠距離と設置は右クリックが通常・左クリックが強攻撃。
     # plan 名: cleric_melee / cleric_range / cleric_deploy、ranger_melee / ranger_range / ranger_deploy、mage_melee / mage_deploy (遠距離のメイジは mage)、
-    #          assassin_range / assassin_deploy (近接のアサシンは assassin)、warrior_range / warrior_deploy (近接の戦士は warrior)。
+    #          assassin_melee / assassin_range / assassin_deploy、warrior_melee / warrior_range / warrior_deploy。
+    # アサシンの近接コンボは、得意な武器を持てば常に使える。戦士の近接コンボは、守り (受けるダメージが減る・シールド) と一撃の重さ。
     # どのクラスがどの武器でコンボを出すか (得意) は、アイテムの classes: と、武器の種類ごとの既定値で決まる。
     # 作りは同じで、plan 名の下に次のキーを書くと数値を変えられる:
     #   hit-rate: [5つ]               通常1〜5の1ヒットの倍率 / hit-counts: [5つ] 通常1〜5のヒット数
@@ -186,6 +101,8 @@ combat:
     # 設置武器のコンボの通常攻撃の間隔 (tick、攻撃速度で短くなる):
     deploy-normal-ticks: 14
     cleric_melee:
+      normal-gap-ticks: 10
+    warrior_melee:
       normal-gap-ticks: 10
     ranger_deploy:
       normal-gap-ticks: 10

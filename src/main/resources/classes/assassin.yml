@@ -5,7 +5,7 @@
 # (白・緑の属性ダメージの減少量と、保護の減少量は仮置き)
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 12
+version: 13
 
 id: assassin
 name: "アサシン⚔"
@@ -128,16 +128,16 @@ milestones:
     status:
       confusion: 1
       crit-chance: 5
-  # 6: SP 30 (クラス特有 = 固有2: アサシンの連撃コンボ / コード側 assassin_combo)
-  - node_name: "連撃"
-    icon: NETHERITE_SWORD
-    node_type: passive
-    effect_type: skill
-    name: assassin_combo
+  # 6: SP 30 (ステータス。以前の「連撃」は、解放しなくても常に使えるコンボになった)
+  - node_name: "影走り"
+    icon: FEATHER
     description:
-      - "通常攻撃が5段の連撃になる。3段目から複数回当たり、5段目で大きく斬る。"
-      - "通常攻撃を出したあとの右クリックで、その段数に応じた強攻撃が出る。"
-      - "(これを解放するまでは、ほかのクラスと同じ通常攻撃)"
+      - "攻撃速度と会心ダメージが伸びる。"
+    node_type: passive
+    effect_type: status
+    status:
+      attack-speed: 10
+      crit-damage: 36
   # 7: SP 35 (ステータス)
   - node_name: "鋭い腕・極"
     icon: NETHERITE_INGOT
@@ -157,16 +157,8 @@ milestones:
     effect_type: skill
     name: satsujin_upgrade
 
-# コンボの見た目 (見た目だけ。ダメージ・硬直は変わらない)。書き方は design/combo-style-example.yml
-# アサシンのコンボ (固有2「連撃」を解放したときだけ。それまでは、ほかのクラスと同じ通常攻撃) (手数・ダメージ・強攻撃は config.yml の combat.combo.assassin):
-#   通常1 左からの斬撃 / 通常2 右からの斬撃 (両手に近接武器があるときは、十字の斬撃と音)
-#   通常3 正面に斬撃 (40%のダメージで3回) / 通常4 正面に斬撃 (30%のダメージで4回)
-#       斬撃の角度は、横からの斬撃と、斜めからの切り下ろしから、1回ごとにランダムに選ぶ (ここで書く傾き・位置・大きさは共通)
-#   通常5 (フィニッシュ) 正面に斬撃 (60%のダメージで3回)。少し派手な音とエフェクト。両手に近接武器があるときは、左回りと右回りの2つ
-# 1回の攻撃に斬撃が2つ以上あるときは、2つ目以降を2tick遅らせ、少しずつ角度をずらす。
-# 強攻撃 0〜4 (右クリック) は、見た目も動きも ComboMoves (コード) が出す。
-# 斬撃は、プレイヤーの向いている方向に対して水平な薙ぎを、傾き (tilt。横軸まわりの回転) で変える。視線の上下は無視する。
-# roll は薙ぐ向きだけ (0 = 右から左へ、180 = 左から右へ)。
+# アサシンのコンボ (近接) は、得意な (黄色の) 近接武器を持てば常に使える (解放するスキルは要らない)。手数・ダメージ・動きはコード (AssassinMeleeCombo) が決める。
+# 下の combo-style は、いまは使われていない (コンボは自分で斬撃を描く)。
 combo-style:
   light:
     - [{radius: 2.0, angle: 120, tilt: 55, roll: 180, forward: 2.0, drop: 0.4, duration: 0.08, scale: 1.0, roll-jitter: 0}]
