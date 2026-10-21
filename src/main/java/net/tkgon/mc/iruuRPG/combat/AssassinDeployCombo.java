@@ -96,7 +96,7 @@ public final class AssassinDeployCombo extends BaseCombo {
             case 3 -> ComboParts.homingVolley(kit, 4, rate, 14.0, end -> kit.burst(end, 1.2));
             default -> {
                 // a veil of night: the aim goes dark and what stands in it is cut again and again
-                kit.sound(target, Sound.ENTITY_ILLUSIONER_PREPARE_BLINDNESS, 1.0f, 0.7f);
+                kit.sound(target, Sfx.MAGIC_DARK, 1.0f, 0.7f);
                 ComboParts.sigil(kit, "assassin_night", target, 4.6, rate, 50, 10, here ->
                         kit.fx(here).particle(org.bukkit.Particle.SQUID_INK, here.getX(), here.getY() + 1.0, here.getZ(), 10, 2.0, 0.8, 2.0, 0.01));
             }

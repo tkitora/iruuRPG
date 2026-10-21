@@ -468,6 +468,11 @@ public final class MoveKit {
         at.getWorld().playSound(at, sound, SoundCategory.PLAYERS, volume, pitch);
     }
 
+    /** A sound role ({@link Sfx}): several vanilla sounds layered; {@code pitch} 1.0 is the role's own pitch. */
+    public void sound(Location at, Sfx role, float volume, float pitch) {
+        role.play(at, volume, pitch);
+    }
+
     public void particle(Particle particle, Location at, int count, double spread, double speed) {
         Fx.of(player, at.getWorld(), at).particle(particle, at.getX(), at.getY(), at.getZ(), count, spread, spread, spread, speed);
     }

@@ -35,7 +35,7 @@ public final class MageMeleeCombo extends BaseCombo {
                     int which = index;
                     kit.later(index * 2L, () -> {
                         kit.slash("arc", 2.3, 130.0, 40.0, which % 2 == 0 ? 0.0 : 180.0, 2.0, 0.3, 0.0, 1.0, 0.1, 0.0);
-                        kit.sound(feet, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.5f, 1.6f + which * 0.1f);
+                        kit.sound(feet, Sfx.MAGIC, 0.5f, 1.6f + which * 0.1f);
                         kit.hitAll(kit.cone(3.2, 65.0), rate);
                     });
                 }
@@ -45,14 +45,14 @@ public final class MageMeleeCombo extends BaseCombo {
                     int which = index;
                     kit.later(index, () -> {
                         kit.slash("line", 2.6, 120.0, 0.0, which == 0 ? 50.0 : -50.0, 2.0, 0.3, 0.0, 1.1, 0.1, 0.0);
-                        kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.7f, 1.4f);
+                        kit.sound(feet, Sfx.WIND, 0.7f, 1.4f);
                         kit.hitAll(kit.cone(3.3, 70.0), rate);
                     });
                 }
             }
             case 3 -> {
                 kit.slash("drop", 2.6, 130.0, 15.0, 0.0, 2.0, 0.2, 0.0, 1.3, 0.14, 0.0);
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 1.0f);
+                kit.sound(feet, Sfx.METAL, 1.0f, 1.0f);
                 Location rune = feet.clone().add(kit.facing().multiply(2.6));
                 kit.hitAll(kit.cone(3.4, 55.0), rate);
                 // a rune where the blade struck: it shows, then bursts
@@ -72,7 +72,7 @@ public final class MageMeleeCombo extends BaseCombo {
                     double side = (index - 1) * 0.5;
                     Location start = kit.eye().add(facing.clone().multiply(0.9)).add(new Vector(-facing.getZ() * side, -0.4, facing.getX() * side));
                     kit.later(index, () -> {
-                        kit.sound(start, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.6f, 1.8f);
+                        kit.sound(start, Sfx.MAGIC, 0.6f, 1.8f);
                         kit.bolt(start, facing, 1.6, 7.0, rate, end -> kit.burst(end, 0.9));
                     });
                 }
@@ -129,7 +129,7 @@ public final class MageMeleeCombo extends BaseCombo {
             case 2 -> {
                 // a wave of magic running along the ground, widening
                 kit.slash("line", 3.4, 100.0, 0.0, 0.0, 1.8, 0.2, 0.0, 1.4, 0.14, 0.0);
-                kit.sound(feet, Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 1.0f, 1.2f);
+                kit.sound(feet, Sfx.MAGIC, 1.0f, 1.2f);
                 for (int index = 1; index <= 8; index++) {
                     double along = index;
                     kit.later(index - 1, () -> {
@@ -144,7 +144,7 @@ public final class MageMeleeCombo extends BaseCombo {
             case 3 -> {
                 // a drain: the cone is cut and its life flows to the mage
                 kit.slash("drop", 2.8, 140.0, 30.0, 0.0, 2.0, 0.3, 0.0, 1.3, 0.16, 0.0);
-                kit.sound(feet, Sound.ENTITY_ILLUSIONER_PREPARE_BLINDNESS, 0.9f, 1.4f);
+                kit.sound(feet, Sfx.MAGIC_DARK, 0.9f, 1.4f);
                 int hit = 0;
                 for (LivingEntity target : kit.cone(3.8, 60.0)) {
                     if (!kit.hit(target, rate)) continue;
@@ -156,7 +156,7 @@ public final class MageMeleeCombo extends BaseCombo {
             }
             default -> {
                 // a storm of blades: they turn round the mage for a second
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.7f);
+                kit.sound(feet, Sfx.WIND, 1.0f, 0.7f);
                 kit.every(21, age -> {
                     Location center = kit.player.getLocation().add(0.0, 1.0, 0.0);
                     for (int arm = 0; arm < 4; arm++) {

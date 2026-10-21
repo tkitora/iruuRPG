@@ -46,7 +46,7 @@ public final class ClericRangeCombo extends BaseCombo {
             case 4 -> ComboParts.homingVolley(kit, hits, rate, 14.0, end -> kit.burst(end, 1.0));
             default -> {
                 Location start = ComboParts.hand(kit);
-                kit.sound(start, Sound.ENTITY_EVOKER_CAST_SPELL, 1.0f, 1.4f);
+                kit.sound(start, Sfx.MAGIC, 1.0f, 1.4f);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
                 kit.bolt(start, direction, 1.8, 16.0, rate, end -> {
                     kit.burst(end, 2.6);

@@ -12,18 +12,18 @@ import java.util.List;
 
 /**
  * The cleric's combo with a melee weapon (a mace): prayer and judgment. Blows that also heal a little (a heal makes the
- * cleric's pulse hit the enemies around). Normal: 1 an overhead smash (100%), 2 two quick cuts (60% x2), 3 a holy ring around
- * (110%, heals 2%), 4 a thrust of light (60% x2), 5 a leaping slam (150%, heals 5%). Heavy: 0 a sanctuary under the feet for 2.5 s (20%
- * a pulse, heals 1% a pulse), 1 a hammer wave ahead (120%), 2 a spinning prayer (about 125%, heals 3%), 3 a pillar of light at the aim (140%),
- * 4 a wide sanctuary ring (100%, slows 40%, heals 6%).
+ * cleric's pulse hit the enemies around). Normal: 1 an overhead smash (80%), 2 two quick cuts (45% x2), 3 a holy ring around
+ * (85%, heals 2%), 4 a thrust of light (45% x2), 5 a leaping slam (110%, heals 5%). Heavy: 0 a sanctuary under the feet for 2.5 s (15%
+ * a pulse, heals 1% a pulse), 1 a hammer wave ahead (90%), 2 a spinning prayer (about 100%, heals 3%), 3 a pillar of light at the aim (100%),
+ * 4 a wide sanctuary ring (80%, slows 40%, heals 6%). The blows push little (the cleric's damage is not meant to come from knocking enemies about).
  */
 public final class ClericMeleeCombo implements ClassCombo {
 
     static final String PLAN = "cleric_melee";
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
-            new double[]{1.0, 0.6, 1.1, 0.6, 1.5}, new int[]{1, 2, 1, 2, 1},
-            new double[]{0.2, 1.2, 0.18, 1.4, 1.0}, new int[]{160, 0, 0, 0, 0}, 40);
+            new double[]{0.8, 0.45, 0.85, 0.45, 1.1}, new int[]{1, 2, 1, 2, 1},
+            new double[]{0.15, 0.9, 0.14, 1.0, 0.8}, new int[]{160, 0, 0, 0, 0}, 40);
 
     @Override
     public String classId() {
@@ -49,9 +49,9 @@ public final class ClericMeleeCombo implements ClassCombo {
         switch (step.stage()) {
             case 1 -> {
                 kit.slash("drop", 2.6, 120.0, 10.0, 0.0, 2.0, 0.2, 0.0, 1.2, 0.14, 0.0);
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 0.8f);
+                kit.sound(feet, Sfx.METAL, 1.0f, 0.8f);
                 for (LivingEntity target : kit.cone(3.4, 55.0)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.4, 0.15);
+                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.2, 0.0);
                 }
                 kit.burst(feet.clone().add(kit.facing().multiply(2.5)).add(0.0, 0.3, 0.0), 1.2);
             }
@@ -60,7 +60,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                     int which = index;
                     kit.later(index * 3L, () -> {
                         kit.slash("arc", 2.3, 130.0, 45.0, which % 2 == 0 ? 0.0 : 180.0, 2.0, 0.3, 0.0, 1.05, 0.1, 0.0);
-                        kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.8f, 1.2f + which * 0.15f);
+                        kit.sound(feet, Sfx.WIND, 0.8f, 1.2f + which * 0.15f);
                         kit.hitAll(kit.cone(3.2, 70.0), rate);
                     });
                 }
@@ -79,9 +79,9 @@ public final class ClericMeleeCombo implements ClassCombo {
                     kit.later(index * 2L, () -> {
                         kit.line(from, from.clone().add(facing.clone().multiply(5.2)), 0.2, 1.0, 1.4);
                         kit.fx(from.clone().add(facing.clone().multiply(5.2))).particle(Particle.CRIT_MAGIC, from.getX() + facing.getX() * 5.2, from.getY(), from.getZ() + facing.getZ() * 5.2, 6, 0.3, 0.3, 0.3, 0.2);
-                        kit.sound(feet, Sound.ITEM_TRIDENT_RIPTIDE_1, 0.7f, 1.5f);
+                        kit.sound(feet, Sfx.WIND_BURST, 0.7f, 1.5f);
                         for (LivingEntity target : kit.corridor(from, facing, 5.2, 1.1)) {
-                            if (kit.hit(target, rate)) kit.pull(target, feet, 0.25);
+                            if (kit.hit(target, rate)) kit.pull(target, feet, 0.15);
                         }
                     });
                 }
@@ -94,7 +94,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                     kit.sound(land, Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.2f);
                     kit.sound(land, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0f, 0.9f);
                     for (LivingEntity target : kit.around(land, 4.2)) {
-                        if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.7, 0.35);
+                        if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.4, 0.15);
                     }
                     kit.heal(5.0);
                 });
@@ -122,7 +122,7 @@ public final class ClericMeleeCombo implements ClassCombo {
             case 1 -> {
                 // a hammer wave: rings of light run ahead one after the other
                 Vector facing = kit.facing();
-                kit.sound(feet, Sound.ENTITY_IRON_GOLEM_ATTACK, 1.0f, 0.7f);
+                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.7f);
                 kit.slash("line", 3.0, 100.0, 0.0, 0.0, 1.8, 0.2, 0.0, 1.3, 0.14, 0.0);
                 for (int index = 1; index <= 6; index++) {
                     double along = index;
@@ -132,7 +132,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                     });
                 }
                 for (LivingEntity target : kit.corridor(feet.clone().add(0.0, 0.5, 0.0), facing, 6.0, 1.5)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.9, 0.3);
+                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.45, 0.1);
                 }
             }
             case 2 -> {
@@ -146,7 +146,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                     }
                     if (age % 3 == 0) {
                         kit.hitAll(kit.around(kit.player.getLocation(), 3.5), rate);
-                        kit.sound(center, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 1.3f);
+                        kit.sound(center, Sfx.WIND, 0.5f, 1.3f);
                     }
                     if (age == 20) kit.heal(3.0);
                     return false;
@@ -166,7 +166,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                     kit.sound(at, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.6f, 1.6f);
                     kit.sound(at, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0f, 0.7f);
                     for (LivingEntity target : kit.around(at, 2.4)) {
-                        if (kit.hit(target, rate)) kit.lift(target, 0.5);
+                        if (kit.hit(target, rate)) kit.lift(target, 0.3);
                     }
                 });
             }

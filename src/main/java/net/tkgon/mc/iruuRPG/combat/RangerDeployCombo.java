@@ -67,7 +67,7 @@ public final class RangerDeployCombo implements ClassCombo {
         switch (step.stage()) {
             case 1 -> kit.lob(hand(kit), target, 8, 2.0, land -> {
                 kit.burst(land.clone().add(0.0, 0.3, 0.0), 3.0);
-                kit.sound(land, Sound.BLOCK_GLASS_BREAK, 0.8f, 1.3f);
+                kit.sound(land, Sfx.CRACK, 0.8f, 1.3f);
                 kit.sound(land, Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.6f);
                 kit.hitAll(kit.around(land, 3.0), rate);
             });
@@ -76,7 +76,7 @@ public final class RangerDeployCombo implements ClassCombo {
                     Location spot = target.clone().add(right.clone().multiply(index == 0 ? -2.0 : 2.0));
                     kit.later(index, () -> kit.lob(hand(kit), spot, 8, 1.8, land -> {
                         kit.burst(land.clone().add(0.0, 0.3, 0.0), 2.5);
-                        kit.sound(land, Sound.BLOCK_GLASS_BREAK, 0.7f, 1.5f);
+                        kit.sound(land, Sfx.CRACK, 0.7f, 1.5f);
                         kit.hitAll(kit.around(land, 2.5), rate);
                     }));
                 }
@@ -118,7 +118,7 @@ public final class RangerDeployCombo implements ClassCombo {
                     kit.later(index * 2L, () -> {
                         lantern(kit, ground.clone().add(0.0, 0.5, 0.0), 0.4);
                         kit.burst(ground.clone().add(0.0, 0.3, 0.0), 1.8);
-                        kit.sound(ground, Sound.BLOCK_GLASS_BREAK, 0.6f, 1.7f);
+                        kit.sound(ground, Sfx.CRACK, 0.6f, 1.7f);
                         kit.hitAll(kit.around(ground, 1.9), rate);
                     });
                 }
@@ -133,7 +133,7 @@ public final class RangerDeployCombo implements ClassCombo {
                     Location from = spot.clone().add(0.0, 8.0, 0.0);
                     kit.later(index * 2L, () -> kit.lob(from, spot, 5, 0.0, land -> {
                         kit.burst(land.clone().add(0.0, 0.3, 0.0), 2.0);
-                        kit.sound(land, Sound.BLOCK_GLASS_BREAK, 0.6f, 1.2f);
+                        kit.sound(land, Sfx.CRACK, 0.6f, 1.2f);
                         kit.hitAll(kit.around(land, 2.0), rate);
                     }));
                 }
@@ -168,7 +168,7 @@ public final class RangerDeployCombo implements ClassCombo {
                     Location start = bounce == 0 ? from : kit.ground(feet.clone().add(facing.clone().multiply(3.0 * bounce)));
                     kit.later(bounce * 7L, () -> kit.lob(start, landing, 6, 1.5, land -> {
                         kit.burst(land.clone().add(0.0, 0.3, 0.0), 2.0);
-                        kit.sound(land, Sound.BLOCK_GLASS_BREAK, 0.7f, 1.0f + 0.2f * (float) (land.distance(feet) / 6.0));
+                        kit.sound(land, Sfx.CRACK, 0.7f, 1.0f + 0.2f * (float) (land.distance(feet) / 6.0));
                         kit.hitAll(kit.around(land, 2.2), rate);
                     }));
                 }
@@ -197,7 +197,7 @@ public final class RangerDeployCombo implements ClassCombo {
                     Vector heading = axes[0].clone().add(axes[1].clone().multiply(side * 0.4)).add(new Vector(0.0, 0.3, 0.0));
                     kit.later(index, () -> kit.homing(start, heading, 1.2, 40, rate, 14.0, end -> kit.burst(end, 1.4)));
                 }
-                kit.sound(feet, Sound.ENTITY_EVOKER_PREPARE_ATTACK, 0.8f, 1.6f);
+                kit.sound(feet, Sfx.MAGIC_DARK, 0.8f, 1.6f);
             }
             default -> {
                 // a great lantern: it swells for a second and pulls the enemies in, then bursts
@@ -213,7 +213,7 @@ public final class RangerDeployCombo implements ClassCombo {
                         kit.burst(at, 5.0);
                         kit.shockwave(target, 1.0, 5.0, 5, 1.2);
                         kit.sound(at, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.9f);
-                        kit.sound(at, Sound.BLOCK_GLASS_BREAK, 1.0f, 0.6f);
+                        kit.sound(at, Sfx.CRACK, 1.0f, 0.6f);
                         for (LivingEntity victim : kit.around(at, 5.0)) {
                             if (kit.hit(victim, rate)) kit.lift(victim, 0.5);
                         }

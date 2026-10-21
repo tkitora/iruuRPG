@@ -219,7 +219,9 @@ public final class AttackService {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true) || !comboAllowed(attacker, weapon)) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
         beginAttack(attacker);
-        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-ticks", 10L));
+        // the delay a combo adds to a normal attack is small: the weapon's own cooldown and a few ticks (2 - 4)
+        int base = (int) Math.round(attackCooldowns.totalMillis(attacker, AttackType.RANGE) / 50.0);
+        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, base + (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-extra-ticks", 3L));
         mageMoves.normal(attacker, weapon, step);
         return true;
     }

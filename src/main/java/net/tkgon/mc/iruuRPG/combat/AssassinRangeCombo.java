@@ -34,7 +34,7 @@ public final class AssassinRangeCombo extends BaseCombo {
             case 3 -> {
                 Location start = ComboParts.hand(kit);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
-                kit.sound(start, Sound.ITEM_TRIDENT_THROW, 0.9f, 1.8f);
+                kit.sound(start, Sfx.WIND, 0.9f, 1.8f);
                 kit.ricochet(start, direction, 2, 2.2, 40, rate, end -> kit.burst(end, 1.0));
             }
             case 4 -> {
@@ -64,7 +64,7 @@ public final class AssassinRangeCombo extends BaseCombo {
                     kit.player.setFallDistance(0.0f);
                 }
                 kit.slash("drop", 2.8, 150.0, 20.0, 0.0, 1.8, 0.3, 0.0, 1.3, 0.14, 0.0);
-                kit.sound(kit.player.getLocation(), Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 1.3f);
+                kit.sound(kit.player.getLocation(), Sfx.METAL, 1.0f, 1.3f);
                 kit.later(1, () -> {
                     for (LivingEntity victim : kit.cone(3.4, 65.0)) kit.hit(victim, rate);
                 });
@@ -106,7 +106,7 @@ public final class AssassinRangeCombo extends BaseCombo {
             case 2 -> {
                 // three knives that pin
                 Location start = ComboParts.hand(kit);
-                kit.sound(start, Sound.ITEM_TRIDENT_THROW, 0.9f, 1.5f);
+                kit.sound(start, Sfx.WIND, 0.9f, 1.5f);
                 for (int index = 0; index < 3; index++) {
                     double turn = Math.toRadians((index - 1) * 8.0);
                     Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
@@ -130,7 +130,7 @@ public final class AssassinRangeCombo extends BaseCombo {
             default -> {
                 // a thousand knives (twelve of them): a fan that fills the air
                 Location start = ComboParts.hand(kit);
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 1.9f);
+                kit.sound(feet, Sfx.WIND, 1.0f, 1.9f);
                 for (int index = 0; index < 12; index++) {
                     double turn = Math.toRadians((index - 5.5) * 5.0);
                     double lift = Math.toRadians(((index % 3) - 1) * 4.0);
