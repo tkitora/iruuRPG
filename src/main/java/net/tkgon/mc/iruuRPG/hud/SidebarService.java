@@ -38,7 +38,8 @@ import java.util.UUID;
  */
 public final class SidebarService implements Listener {
 
-    private static final String[] ENTRIES = {"§0", "§1", "§2", "§3", "§4", "§5", "§6", "§7", "§8", "§9"};
+    /** One unique invisible entry per line (the sidebar shows at most 15 lines). */
+    private static final String[] ENTRIES = {"§0", "§1", "§2", "§3", "§4", "§5", "§6", "§7", "§8", "§9", "§a", "§b", "§c", "§d", "§e"};
     private static final String NO_COLLISION_TEAM = "iruurpg_nocollide";
     /** The two colors that flash against each other during a burst. */
     private static final TextColor FLASH_A = NamedTextColor.WHITE;
@@ -201,6 +202,10 @@ public final class SidebarService implements Listener {
                 if (lines.size() >= ENTRIES.length - 2) break;
                 lines.add(line);
             }
+            for (Component line : partyLines(player)) {
+                if (lines.size() >= ENTRIES.length - 2) break;
+                lines.add(line);
+            }
             lines.add(Component.text(" "));
             lines.add(addressLine());
             show(board, lines);
@@ -220,15 +225,42 @@ public final class SidebarService implements Listener {
         lines.add(label("所持金", Component.text(profile == null ? "-" : String.format("%,d", profile.currency()) + " " + currency, NamedTextColor.GOLD)));
         lines.add(label("現在地", Component.text(placeOf(player), NamedTextColor.AQUA)));
         lines.add(label("時刻", Component.text(clock(player), NamedTextColor.WHITE)));
-        var party = partyService == null ? null : partyService.partyOf(player.getUniqueId());
-        if (party != null) {
-            lines.add(label("パーティー", Component.text(party.online().size() + " / " + party.size() + " 人", NamedTextColor.AQUA)));
-        }
+        lines.addAll(partyLines(player));
         lines.add(Component.text(" "));
         lines.add(addressLine());
 
         show(board, lines);
         syncNoCollision(board);
+    }
+
+    /**
+     * The party block: "パーティー 2/4人", then each of the other members with their HP (green above 60 %, yellow
+     * above 30 %, red below; gray when offline). Empty without a party. Looks at the members' saved HP in their profile.
+     */
+    private List<Component> partyLines(Player player) {
+        var party = partyService == null ? null : partyService.partyOf(player.getUniqueId());
+        if (party == null) return List.of();
+
+        List<Component> lines = new ArrayList<>();
+        lines.add(label("パーティー", Component.text(party.online().size() + " / " + party.size() + " 人", NamedTextColor.AQUA)));
+        for (UUID id : party.members()) {
+            if (id.equals(player.getUniqueId())) continue;
+            Player member = Bukkit.getPlayer(id);
+            String name = member != null ? member.getName() : net.tkgon.mc.iruuRPG.party.PartyService.nameOf(id);
+            if (name.length() > 12) name = name.substring(0, 12);
+            var profile = member == null ? null : profileManager.get(member).orElse(null);
+            if (profile == null) {
+                lines.add(Component.text(" " + name, NamedTextColor.DARK_GRAY).append(Component.text(" (オフライン)", NamedTextColor.DARK_GRAY)));
+                continue;
+            }
+            double max = Math.max(1.0, profile.maxHp());
+            double ratio = Math.max(0.0, Math.min(1.0, profile.currentHp() / max));
+            NamedTextColor color = ratio > 0.6 ? NamedTextColor.GREEN : ratio > 0.3 ? NamedTextColor.YELLOW : NamedTextColor.RED;
+            lines.add(Component.text(" " + name + " ", NamedTextColor.WHITE)
+                    .append(Component.text("♥", NamedTextColor.RED))
+                    .append(Component.text(Math.round(Math.max(0.0, profile.currentHp())) + "/" + Math.round(profile.maxHp()), color)));
+        }
+        return lines;
     }
 
     private String zoneSource = "";
