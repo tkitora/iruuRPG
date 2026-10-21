@@ -63,8 +63,9 @@ import java.util.function.Predicate;
  * player is shown (a label, a column of particles and a ring as wide as its trigger radius), and spawners are placed,
  * set up and deleted by clicking. The real hotbar is kept (also in a file) and given back when leaving the editor.
  *
- * Tools (slots 1-3, 8 = done): place a spawner (click a block, pick the mob; sneak = the last mob again), set up a
- * spawner (look at it and click: the mob, how many appear, how many live at once, the trigger radius), delete one.
+ * Tools (slots 1-4, 8 = done): place a spawner (click a block, pick the mob; sneak = the last mob again), set up a
+ * spawner (look at it and click: the mob, how many appear, how many live at once, the trigger radius), delete one,
+ * and the list of every spawner (left click = teleport there, right click = set it up, sneak + right click = delete).
  */
 public final class FieldSpawnerEditor implements Listener {
 
@@ -75,6 +76,8 @@ public final class FieldSpawnerEditor implements Listener {
                 "スポナーの方を向いてクリック → 設定の画面", "モブ / 湧く数 / 同時に生きられる数 / 反応する距離"),
         DELETE(Material.BARRIER, "スポナーを消す", NamedTextColor.DARK_RED,
                 "スポナーの方を向いてクリック → 消す"),
+        LIST(Material.BOOK, "スポナーの一覧", NamedTextColor.GOLD,
+                "クリック → 全部のスポナーの一覧", "左クリック: そこへテレポート / 右クリック: 設定 / しゃがんで右クリック: 消す"),
         DONE(Material.LIME_DYE, "エディターを終える", NamedTextColor.WHITE,
                 "クリック: 元のホットバーに戻る (変更はその場で保存済み)");
 
@@ -92,7 +95,7 @@ public final class FieldSpawnerEditor implements Listener {
     }
 
     private static final int TOOL_SLOTS = 8;
-    private static final Tool[] HOTBAR = {Tool.PLACE, Tool.SETUP, Tool.DELETE, null, null, null, null, Tool.DONE};
+    private static final Tool[] HOTBAR = {Tool.PLACE, Tool.SETUP, Tool.DELETE, Tool.LIST, null, null, null, Tool.DONE};
     private static final double SHOW_DISTANCE = 48.0;
     private static final double AIM_DISTANCE = 40.0;
     private static final double AIM_TOLERANCE = 1.3;
@@ -258,6 +261,7 @@ public final class FieldSpawnerEditor implements Listener {
         if (!(event.getWhoClicked() instanceof Player player) || !editing(player)) return;
         event.setCancelled(true);
         if (event.getView().getTopInventory().getHolder() instanceof Picker picker) onPick(player, picker, event.getRawSlot());
+        if (event.getView().getTopInventory().getHolder() instanceof Lister lister) onList(player, lister, event.getRawSlot(), event.getClick());
         if (event.getView().getTopInventory().getHolder() instanceof Setup setup) onSetup(player, setup, event.getRawSlot(), event.getClick().isRightClick(), event.getClick().isShiftClick());
     }
 
@@ -344,6 +348,7 @@ public final class FieldSpawnerEditor implements Listener {
                 }
                 openSetup(player, target);
             }
+            case LIST -> openList(player);
             case DELETE -> {
                 FieldSpawner target = aimed(player);
                 if (target == null) {
@@ -587,6 +592,128 @@ public final class FieldSpawnerEditor implements Listener {
         service.save();
         syncLabels();
         renderSetup(holder, spawner);
+    }
+
+    // ---- the list of every spawner --------------------------------------------------------------------------------------
+
+    private static final class Lister implements MenuHolder {
+        /** slot -> spawner id */
+        private final Map<Integer, String> spawners = new HashMap<>();
+        private int page;
+        private Inventory inventory;
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private static final int LIST_PER_PAGE = 45;
+
+    private void openList(Player player) {
+        Lister lister = new Lister();
+        lister.inventory = Bukkit.createInventory(lister, 54, Component.text("スポナーの一覧"));
+        renderList(player, lister);
+        player.openInventory(lister.inventory);
+    }
+
+    /** Spawners of the player's world first (the nearest first), then the others. */
+    private List<FieldSpawner> listed(Player player) {
+        List<FieldSpawner> all = new ArrayList<>(service.all());
+        String here = player.getWorld().getName();
+        Location at = player.getLocation();
+        all.sort((left, right) -> {
+            boolean leftHere = left.worldName().equals(here);
+            boolean rightHere = right.worldName().equals(here);
+            if (leftHere != rightHere) return leftHere ? -1 : 1;
+            if (leftHere) return Double.compare(distanceSquared(left, at), distanceSquared(right, at));
+            int byWorld = left.worldName().compareTo(right.worldName());
+            return byWorld != 0 ? byWorld : left.id().compareTo(right.id());
+        });
+        return all;
+    }
+
+    private double distanceSquared(FieldSpawner spawner, Location at) {
+        double dx = spawner.x() - at.getX();
+        double dy = spawner.y() - at.getY();
+        double dz = spawner.z() - at.getZ();
+        return dx * dx + dy * dy + dz * dz;
+    }
+
+    private void renderList(Player player, Lister lister) {
+        Inventory inventory = lister.inventory;
+        inventory.clear();
+        lister.spawners.clear();
+        List<FieldSpawner> all = listed(player);
+        int pages = Math.max(1, (all.size() + LIST_PER_PAGE - 1) / LIST_PER_PAGE);
+        lister.page = Math.max(0, Math.min(lister.page, pages - 1));
+        String here = player.getWorld().getName();
+        for (int index = 0; index < LIST_PER_PAGE; index++) {
+            int at = lister.page * LIST_PER_PAGE + index;
+            if (at >= all.size()) break;
+            FieldSpawner spawner = all.get(at);
+            RpgMobDefinition mob = mobRegistry.find(spawner.mobId()).orElse(null);
+            Material egg = mob == null ? null : Material.matchMaterial(mob.entityType().name() + "_SPAWN_EGG");
+            boolean sameWorld = spawner.worldName().equals(here);
+            List<Component> lore = new ArrayList<>();
+            lore.add(text("id: " + spawner.mobId() + (mob == null ? " (不明なモブ)" : " / Lv " + mob.level()), NamedTextColor.GRAY));
+            lore.add(text(spawner.worldName() + " (" + Math.round(spawner.x()) + ", " + Math.round(spawner.y()) + ", " + Math.round(spawner.z()) + ")", NamedTextColor.WHITE));
+            if (sameWorld) lore.add(text("ここから " + Math.round(Math.sqrt(distanceSquared(spawner, player.getLocation()))) + " ブロック", NamedTextColor.AQUA));
+            lore.add(text(spawner.min() + "~" + spawner.max() + "体 / 同時 " + spawner.maxAlive() + " / 反応する距離 " + spawner.radius()
+                    + " / 今 " + spawner.aliveCount() + " 体", NamedTextColor.GRAY));
+            lore.add(text("左クリック: テレポート / 右クリック: 設定", NamedTextColor.YELLOW));
+            lore.add(text("しゃがんで右クリック: 消す", NamedTextColor.RED));
+            inventory.setItem(index, button(egg == null ? Material.PAPER : egg, spawner.id() + " " + (mob == null ? spawner.mobId() : mob.name()),
+                    sameWorld ? NamedTextColor.GREEN : NamedTextColor.GRAY, lore));
+            lister.spawners.put(index, spawner.id());
+        }
+        ItemStack frame = button(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
+        for (int slot = 45; slot < 54; slot++) inventory.setItem(slot, frame);
+        inventory.setItem(CANCEL, button(Material.ARROW, "閉じる", NamedTextColor.GRAY, List.of()));
+        if (lister.page > 0) inventory.setItem(PREV, button(Material.SPECTRAL_ARROW, "前のページ", NamedTextColor.YELLOW, List.of()));
+        if (lister.page < pages - 1) inventory.setItem(NEXT, button(Material.SPECTRAL_ARROW, "次のページ", NamedTextColor.YELLOW,
+                List.of(text("ページ " + (lister.page + 1) + " / " + pages, NamedTextColor.GRAY))));
+        inventory.setItem(FILTER, button(Material.BOOK, "スポナー " + all.size() + " か所", NamedTextColor.GOLD, List.of()));
+        if (all.isEmpty()) inventory.setItem(22, button(Material.PAPER, "スポナーはまだありません", NamedTextColor.GRAY, List.of()));
+    }
+
+    private void onList(Player player, Lister lister, int slot, org.bukkit.event.inventory.ClickType click) {
+        if (slot == CANCEL) {
+            player.closeInventory();
+            return;
+        }
+        if (slot == PREV || slot == NEXT) {
+            lister.page += slot == NEXT ? 1 : -1;
+            renderList(player, lister);
+            return;
+        }
+        String id = lister.spawners.get(slot);
+        FieldSpawner spawner = id == null ? null : service.find(id).orElse(null);
+        if (spawner == null) return;
+
+        if (click.isRightClick() && click.isShiftClick()) {
+            service.remove(spawner);
+            syncLabels();
+            done(player, spawner.id() + " (" + spawner.mobId() + ") を消した。");
+            renderList(player, lister);
+        } else if (click.isRightClick()) {
+            // opened on the next tick: this click is still being processed
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                if (player.isOnline() && editing(player)) openSetup(player, spawner);
+            });
+        } else if (click.isLeftClick()) {
+            World world = Bukkit.getWorld(spawner.worldName());
+            if (world == null) {
+                hint(player, "そのワールドは、いま読み込まれていません。");
+                return;
+            }
+            player.closeInventory();
+            Location target = spawner.in(world).add(0.0, 0.2, 0.0);
+            target.setYaw(player.getLocation().getYaw());
+            target.setPitch(player.getLocation().getPitch());
+            player.teleport(target);
+            done(player, spawner.id() + " (" + spawner.mobId() + ") へテレポートした。");
+        }
     }
 
     // ---- the mob list ---------------------------------------------------------------------------------------------------
