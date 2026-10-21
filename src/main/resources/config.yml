@@ -441,7 +441,7 @@ dungeon:
 # 一般フィールドのモブスポナー (/spawner edit で置く。設定はスポナーごとにも変えられる)
 field-spawner:
   enabled: true
-  trigger-radius: 24         # プレイヤーがこの距離まで近づくと湧く (新しく置くスポナーの初期値)
+  default-radius: 48         # プレイヤーがこの距離まで近づくと湧く (新しく置くスポナーの初期値。スポナーごとに 8〜128)
   min-count: 1               # 一度に湧く数 (最小・新しく置くスポナーの初期値)
   max-count: 2               # 一度に湧く数 (最大)
   max-alive: 2               # 同時に生きられる数
