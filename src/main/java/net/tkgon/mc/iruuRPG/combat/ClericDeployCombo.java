@@ -95,7 +95,7 @@ public final class ClericDeployCombo extends BaseCombo {
             case 1 -> {
                 // a rush of light forward, lanterns left behind it
                 Vector facing = kit.facing();
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.9f, 0.8f);
+                kit.sound(feet, Sfx.WIND, 0.9f, 0.8f);
                 kit.dash(facing, 1.2, 5, end -> {
                     kit.shockwave(end, 1.0, 3.0, 3, 1.0);
                     kit.heal(2.0);

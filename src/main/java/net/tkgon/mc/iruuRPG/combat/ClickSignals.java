@@ -33,6 +33,8 @@ public final class ClickSignals implements Listener {
 
     private static JavaPlugin plugin;
     private static final Map<UUID, Integer> LAST_RIGHT_TICK = new ConcurrentHashMap<>();
+    /** The right click before the last one (a held button repeats: two clicks close together mean it is held). */
+    private static final Map<UUID, Integer> PREV_RIGHT_TICK = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> OFF_SWING_SENT = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> OFF_SWING_SEEN = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> LEFT_LOCKED_UNTIL_TICK = new ConcurrentHashMap<>();
@@ -49,7 +51,8 @@ public final class ClickSignals implements Listener {
         Action action = event.getAction();
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
-            LAST_RIGHT_TICK.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
+            Integer before = LAST_RIGHT_TICK.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
+            if (before != null) PREV_RIGHT_TICK.put(event.getPlayer().getUniqueId(), before);
         }
     }
 
@@ -64,6 +67,7 @@ public final class ClickSignals implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID id = event.getPlayer().getUniqueId();
         LAST_RIGHT_TICK.remove(id);
+        PREV_RIGHT_TICK.remove(id);
         OFF_SWING_SENT.remove(id);
         OFF_SWING_SEEN.remove(id);
         LEFT_LOCKED_UNTIL_TICK.remove(id);
@@ -79,13 +83,24 @@ public final class ClickSignals implements Listener {
         LEFT_LOCKED_UNTIL_TICK.put(player.getUniqueId(), Bukkit.getCurrentTick() + Math.max(0, ticks));
     }
 
-    /** False when a left click arriving now cannot be a press: a right click came just before, or a heavy attack just started. */
+    /**
+     * False when a left click arriving now cannot be a press: a heavy attack just started, or it comes with a right click (in the
+     * same or the next tick), or the right button is being held (its clicks repeat every 4 ticks, with arm swings among them).
+     * A single right click does not hold the left one off for longer: a ranged / deployed weapon's heavy attack (the left click)
+     * thrown right after a normal one (the right click) in the air has to count, as it does on an enemy.
+     */
     public static boolean leftPossible(Player player) {
         int now = Bukkit.getCurrentTick();
-        Integer locked = LEFT_LOCKED_UNTIL_TICK.get(player.getUniqueId());
+        UUID id = player.getUniqueId();
+        Integer locked = LEFT_LOCKED_UNTIL_TICK.get(id);
         if (locked != null && now < locked) return false;
-        Integer right = LAST_RIGHT_TICK.get(player.getUniqueId());
-        return right == null || now - right > RIGHT_HELD_TICKS;
+        Integer right = LAST_RIGHT_TICK.get(id);
+        if (right == null) return true;
+        int since = now - right;
+        if (since <= 1) return false;
+        if (since > RIGHT_HELD_TICKS) return true;
+        Integer before = PREV_RIGHT_TICK.get(id);
+        return before == null || right - before > RIGHT_HELD_TICKS;
     }
 
     private static boolean offSwingRecentlySent(Player player) {

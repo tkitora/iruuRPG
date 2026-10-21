@@ -35,7 +35,7 @@ public final class RangerMeleeCombo extends BaseCombo {
                     kit.later(index * 2L, () -> {
                         Location from = kit.eye().add(facing.clone().multiply(0.8)).subtract(0.0, 0.4, 0.0);
                         kit.line(from, from.clone().add(facing.clone().multiply(3.4)), 0.2, 1.0, 1.2);
-                        kit.sound(feet, Sound.ITEM_TRIDENT_THROW, 0.6f, 1.7f);
+                        kit.sound(feet, Sfx.WIND, 0.6f, 1.7f);
                         kit.hitAll(kit.cone(3.4, 25.0), rate);
                     });
                 }
@@ -45,13 +45,13 @@ public final class RangerMeleeCombo extends BaseCombo {
                     int which = index;
                     kit.later(index * 2L, () -> {
                         kit.slash(which == 1 ? "line" : "arc", 2.3, 120.0, 35.0 + which * 20.0, which % 2 == 0 ? 0.0 : 180.0, 2.0, 0.3, 0.0, 1.0, 0.1, 0.0);
-                        kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.6f, 1.5f);
+                        kit.sound(feet, Sfx.WIND, 0.6f, 1.5f);
                         kit.hitAll(kit.cone(3.2, 65.0), rate);
                     });
                 }
             }
             case 3 -> {
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.9f, 1.2f);
+                kit.sound(feet, Sfx.METAL, 0.9f, 1.2f);
                 kit.dash(facing, 1.0, 4, end -> {
                     kit.slash("drop", 2.6, 130.0, 25.0, 0.0, 1.8, 0.3, 0.0, 1.2, 0.14, 0.0);
                     kit.hitAll(kit.cone(3.2, 60.0), rate);
@@ -65,7 +65,7 @@ public final class RangerMeleeCombo extends BaseCombo {
                         kit.hitAll(kit.cone(3.0, 65.0), rate);
                     });
                 }
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.9f, 1.8f);
+                kit.sound(feet, Sfx.WIND, 0.9f, 1.8f);
             }
             default -> {
                 // the finisher: a leap onto the target
@@ -98,7 +98,7 @@ public final class RangerMeleeCombo extends BaseCombo {
                 });
             }
             case 1 -> {
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.8f);
+                kit.sound(feet, Sfx.WIND, 1.0f, 0.8f);
                 kit.slash("arc", 3.0, 340.0, 85.0, 0.0, 0.8, 0.9, 0.0, 1.3, 0.16, 0.0);
                 kit.shockwave(feet, 1.0, 3.2, 3, 1.0);
                 for (LivingEntity target : kit.around(feet, 3.2)) {
@@ -107,7 +107,7 @@ public final class RangerMeleeCombo extends BaseCombo {
             }
             case 2 -> {
                 Vector[] axes = kit.axes();
-                kit.sound(feet, Sound.ITEM_TRIDENT_THROW, 0.9f, 1.4f);
+                kit.sound(feet, Sfx.WIND, 0.9f, 1.4f);
                 for (int index = 0; index < 3; index++) {
                     double turn = Math.toRadians((index - 1) * 12.0);
                     Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
@@ -117,14 +117,14 @@ public final class RangerMeleeCombo extends BaseCombo {
             }
             case 3 -> {
                 kit.slash("drop", 2.8, 120.0, 20.0, 0.0, 2.0, 0.3, 0.0, 1.3, 0.14, 0.0);
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_STRONG, 1.0f, 0.9f);
+                kit.sound(feet, Sfx.METAL, 1.0f, 0.9f);
                 for (LivingEntity target : kit.cone(3.6, 50.0)) {
                     if (kit.hit(target, rate)) kit.slow(target, 60.0, 2.0);
                 }
             }
             default -> {
                 // a run through the line: everything in the way is cut once, the ranger comes out the other side
-                kit.sound(feet, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.6f);
+                kit.sound(feet, Sfx.WIND, 1.0f, 0.6f);
                 Location from = feet.clone().add(0.0, 1.0, 0.0);
                 kit.line(from, from.clone().add(facing.clone().multiply(7.0)), 0.2, 1.0, 1.5);
                 kit.hitAll(kit.corridor(from, facing, 7.0, 1.6), rate);

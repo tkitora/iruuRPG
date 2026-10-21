@@ -87,13 +87,13 @@ public final class WarriorDeployCombo extends BaseCombo {
         switch (step.heavyIndex()) {
             case 0 -> {
                 Location at = kit.ground(feet);
-                kit.sound(feet, Sound.BLOCK_ANVIL_PLACE, 0.8f, 0.8f);
+                kit.sound(feet, Sfx.METAL_HEAVY, 0.8f, 0.8f);
                 ComboParts.sigil(kit, "warrior_totem", at, 3.6, rate, 50, 10, here -> {
                     for (double y = 0.0; y <= 2.4; y += 0.4) kit.fx(here).dust(here.getX(), here.getY() + y, here.getZ(), kit.palette(), y / 2.4, 1.3);
                 });
             }
             case 1 -> {
-                kit.sound(feet, Sound.ENTITY_IRON_GOLEM_ATTACK, 1.0f, 0.6f);
+                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.6f);
                 kit.shockwave(feet, 0.8, 2.4, 3, 1.1);
                 for (int along = 1; along <= 7; along++) {
                     double d = along;
@@ -110,7 +110,7 @@ public final class WarriorDeployCombo extends BaseCombo {
                 // a barricade of five across the way for 2.5 seconds
                 Vector side = new Vector(-facing.getZ(), 0.0, facing.getX());
                 Location middle = kit.ground(feet.clone().add(facing.clone().multiply(4.5)));
-                kit.sound(feet, Sound.BLOCK_ANVIL_PLACE, 1.0f, 1.0f);
+                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 1.0f);
                 kit.zone("warrior_barricade", middle, 50, 8, zone -> {
                     for (int index = -2; index <= 2; index++) {
                         Location at = middle.clone().add(side.clone().multiply(index * 1.6));

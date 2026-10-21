@@ -1333,7 +1333,7 @@ public final class AttackEffects {
     }
 
     private int vfxDensity() {
-        return Math.max(2, plugin.getConfig().getInt("slash-vfx.samples-per-block", 8));
+        return Math.max(2, plugin.getConfig().getInt("slash-vfx.samples-per-block", 10));
     }
 
     /**
@@ -1380,7 +1380,7 @@ public final class AttackEffects {
         // a ribbon of five fine lines (colored across the band: body in the middle, edge, then core outside; along the arc:
         // a deep small tail to a bright full head) and one thin bright core line; the particles are smaller than before
         // and the lines closer, so the slash is a sharp blade and not a smear
-        float fine = (float) plugin.getConfig().getDouble("slash-vfx.particle-size", 0.55);
+        float fine = (float) plugin.getConfig().getDouble("slash-vfx.particle-size", 0.7);
         SlashVfx.Layer ribbon = SlashVfx.Layer.ribbon(Palettes.triple(look.body, look.edge, look.core), fine * size, 5, half * 0.5, 0.1, 0.7);
         SlashVfx.Layer coreLine = SlashVfx.Layer.ribbon(Palettes.fromColor(look.core), fine * 0.8f * size, 1, 0.0, 0.7, 0.0);
         SlashVfx.Layer[] layers = full

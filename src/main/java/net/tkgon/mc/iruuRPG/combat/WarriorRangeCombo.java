@@ -33,11 +33,11 @@ public final class WarriorRangeCombo extends BaseCombo {
         switch (step.stage()) {
             case 1 -> {
                 Location start = ComboParts.hand(kit);
-                kit.sound(start, Sound.ITEM_TRIDENT_THROW, 1.0f, 0.8f);
+                kit.sound(start, Sfx.WIND, 1.0f, 0.8f);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
                 kit.bolt(start, direction, 1.7, 14.0, rate, end -> {
                     kit.burst(end, 1.6);
-                    kit.sound(end, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.8f, 0.8f);
+                    kit.sound(end, Sfx.METAL_HEAVY, 0.8f, 0.8f);
                 });
             }
             case 2 -> ComboParts.quickBolts(kit, hits, rate, 1.9, 14.0, 0.0);
@@ -45,7 +45,7 @@ public final class WarriorRangeCombo extends BaseCombo {
                 // a boomerang axe: it flies out, hits, and comes back, hitting again
                 Location start = ComboParts.hand(kit);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
-                kit.sound(start, Sound.ITEM_TRIDENT_THROW, 1.0f, 1.2f);
+                kit.sound(start, Sfx.WIND, 1.0f, 1.2f);
                 kit.bolt(start, direction, 1.5, 9.0, rate, out -> {
                     kit.burst(out, 1.2);
                     kit.later(2, () -> {
@@ -61,7 +61,7 @@ public final class WarriorRangeCombo extends BaseCombo {
                 for (int index = 0; index < hits; index++) {
                     int which = index;
                     kit.later(index * 3L, () -> {
-                        kit.sound(feet, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.8f, 0.7f + which * 0.15f);
+                        kit.sound(feet, Sfx.METAL_HEAVY, 0.8f, 0.7f + which * 0.15f);
                         for (int along = 1; along <= 6; along++) {
                             double d = along;
                             kit.later(along / 2, () -> {
@@ -82,7 +82,7 @@ public final class WarriorRangeCombo extends BaseCombo {
                     Location aim = kit.aim();
                     Vector direction = aim.toVector().subtract(from.toVector());
                     direction = direction.lengthSquared() < 1.0E-6 ? axes[0].clone() : direction.normalize();
-                    kit.sound(land, Sound.ITEM_TRIDENT_THROW, 1.0f, 0.7f);
+                    kit.sound(land, Sfx.WIND, 1.0f, 0.7f);
                     kit.bolt(from, direction, 1.9, 14.0, rate, end -> {
                         kit.burst(end, 3.0);
                         kit.shockwave(end, 0.8, 3.0, 4, 1.1);
@@ -112,7 +112,7 @@ public final class WarriorRangeCombo extends BaseCombo {
             case 1 -> {
                 Location start = ComboParts.hand(kit);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
-                kit.sound(start, Sound.ITEM_TRIDENT_THROW, 1.0f, 0.6f);
+                kit.sound(start, Sfx.WIND, 1.0f, 0.6f);
                 kit.slash("drop", 3.0, 120.0, 20.0, 0.0, 1.8, 0.3, 0.0, 1.5, 0.16, 0.0);
                 ComboParts.pierce(kit, start, direction, 12.0, 1.2, rate);
             }

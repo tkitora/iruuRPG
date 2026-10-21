@@ -27,7 +27,7 @@ public final class MageDeployCombo extends BaseCombo {
     /** An orb that circles the player for 2.5 s and shoots the nearest enemy within 10 blocks every 8 ticks. */
     private void satellite(MoveKit kit, String key, double phase, double rate) {
         Location start = kit.player.getLocation();
-        kit.sound(start, Sound.ENTITY_EVOKER_PREPARE_SUMMON, 0.8f, 1.6f);
+        kit.sound(start, Sfx.MAGIC, 0.8f, 1.6f);
         kit.zone(key, start, 50, 1, zone -> {
             double angle = phase + zone.age() * 0.28;
             Location at = kit.player.getLocation().add(Trig.cos(angle) * 1.8, 1.4 + Math.sin(zone.age() * 0.2) * 0.2, Trig.sin(angle) * 1.8);
@@ -46,7 +46,7 @@ public final class MageDeployCombo extends BaseCombo {
                     Location to = best.getLocation().add(0.0, best.getHeight() * 0.5, 0.0);
                     kit.line(at, to, 0.2, 1.0, 1.1);
                     kit.hit(best, rate);
-                    kit.sound(at, Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.4f, 1.8f);
+                    kit.sound(at, Sfx.MAGIC, 0.4f, 1.8f);
                 }
             }
         }, null);
@@ -149,7 +149,7 @@ public final class MageDeployCombo extends BaseCombo {
             default -> {
                 // a black hole: it pulls for a second and hurts, and bursts
                 Location at = target.clone().add(0.0, 1.5, 0.0);
-                kit.sound(at, Sound.ENTITY_ILLUSIONER_PREPARE_BLINDNESS, 1.0f, 0.6f);
+                kit.sound(at, Sfx.MAGIC_DARK, 1.0f, 0.6f);
                 kit.every(21, age -> {
                     kit.fx(at).sphereShell(at, 0.7 + 0.2 * Math.sin(age * 0.6), age * 0.5, 32, kit.palette(), 1.2);
                     for (LivingEntity victim : kit.around(at, 6.0)) kit.pull(victim, at, 0.2);
