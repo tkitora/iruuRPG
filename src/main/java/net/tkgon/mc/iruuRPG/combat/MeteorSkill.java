@@ -6,7 +6,6 @@ import net.tkgon.mc.iruuRPG.skill.SkillRegistry;
 import net.tkgon.mc.iruuRPG.skill.SkillRunner;
 import net.tkgon.mc.iruuRPG.skill.SkillSpec;
 import net.tkgon.mc.iruuRPG.skill.SkillTemplate;
-import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -32,9 +31,6 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 final class MeteorSkill {
 
-    private static final Particle.DustOptions TRAIL = new Particle.DustOptions(Color.fromRGB(80, 140, 255), 1.3f);
-    private static final Particle.DustOptions TRAIL_LIGHT = new Particle.DustOptions(Color.fromRGB(190, 225, 255), 1.0f);
-    private static final Particle.DustOptions CIRCLE = new Particle.DustOptions(Color.fromRGB(110, 170, 255), 1.1f);
 
     private final JavaPlugin plugin;
     private final AttackService attackService;
@@ -125,27 +121,8 @@ final class MeteorSkill {
     }
 
     private void drawCircle(Player player, Frame frame, int age, double grow) {
-        World world = player.getWorld();
-        Location center = frame.center();
-        Vector right = frame.right();
-        Vector up = frame.up();
         double radius = 0.5 + 1.1 * grow;
-        int points = 28;
-        for (int index = 0; index < points; index++) {
-            double angle = Math.PI * 2.0 * index / points + age * 0.12;
-            Location point = center.clone().add(right.clone().multiply(Math.cos(angle) * radius)).add(up.clone().multiply(Math.sin(angle) * radius));
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, CIRCLE);
-            if (index % 7 == 0) ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
-        }
-        // an inner star turning the other way
-        for (int ray = 0; ray < 5; ray++) {
-            double angle = Math.PI * 2.0 * ray / 5.0 - age * 0.09;
-            for (int step = 1; step <= 3; step++) {
-                double r = radius * step / 3.5;
-                Location point = center.clone().add(right.clone().multiply(Math.cos(angle) * r)).add(up.clone().multiply(Math.sin(angle) * r));
-                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, TRAIL_LIGHT);
-            }
-        }
+        SkillFx.circle(player, frame.center(), frame.right(), frame.up(), radius, age, SkillFx.METEOR);
     }
 
     /** Light drawn in toward the mage while they charge (the upgrade's beam). */
@@ -159,8 +136,8 @@ final class MeteorSkill {
             if (out.lengthSquared() < 1.0E-6) continue;
             out.normalize().multiply(random.nextDouble(1.2, 2.4));
             Location from = chest.clone().add(out);
-            Vector in = out.clone().multiply(-0.18);
-            ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, from, 0, in.getX(), in.getY(), in.getZ(), 1.0);
+            Location to = from.clone().add(out.clone().multiply(-0.45));
+            SkillFx.trail(player, from, to, SkillFx.METEOR, 0.8);
         }
     }
 
@@ -189,6 +166,8 @@ final class MeteorSkill {
         int homingDelay = (int) Math.round(values.getOrDefault("homing-delay-ticks", 7.0));
         int maxTicks = (int) Math.round(values.getOrDefault("max-ticks", 70.0));
         double hitRadius = values.getOrDefault("hit-radius", 0.9);
+        double blastRadius = values.getOrDefault("blast-radius", 2.2);
+        double blastShare = values.getOrDefault("blast-share", 0.35);
         Vector aim = forward.clone();
 
         new SafeTask(plugin) {
@@ -238,10 +217,10 @@ final class MeteorSkill {
                 if (hit == null) return;
                 cancel();
                 ParticleFx.to(player, world).spawnParticle(Particle.FLASH, next, 1);
-                ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, next, 14, 0.4, 0.4, 0.4, 0.15);
-                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, next, 16, 0.5, 0.5, 0.5, 0.0, TRAIL);
+                SkillFx.burst(player, next, blastRadius, SkillFx.METEOR);
                 world.playSound(next, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.7f);
                 if (hit.getHitEntity() instanceof LivingEntity victim) hitVictim(player, weapon, victim, rate, next);
+                blast(player, weapon, next, blastRadius, rate * blastShare, hit.getHitEntity());
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }
@@ -257,16 +236,20 @@ final class MeteorSkill {
     }
 
     private void drawMeteor(Player player, World world, Location from, Location to) {
-        Vector path = to.toVector().subtract(from.toVector());
-        double length = path.length();
-        if (length < 1.0E-6) return;
-        Vector direction = path.normalize();
-        int points = Math.max(1, (int) Math.ceil(length / 0.25));
-        for (int index = 0; index <= points; index++) {
-            Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? TRAIL : TRAIL_LIGHT);
+        // a tapered streak: deep blue tail, white-hot head, with a thin glow round it
+        SkillFx.trail(player, from, to, SkillFx.METEOR, 1.3);
+    }
+
+    /** The blast of a meteor: enemies round the impact point (but the one it hit) take a share of the damage. */
+    private void blast(Player player, RpgItemDefinition weapon, Location at, double radius, double rate, Entity struck) {
+        if (radius <= 0.0 || rate <= 0.0) return;
+        for (Entity entity : at.getWorld().getNearbyEntities(at, radius, radius, radius)) {
+            if (entity.equals(struck) || !(entity instanceof LivingEntity near) || near.isDead()) continue;
+            if (!attackService.isAttackTarget(near, player)) continue;
+            AttackService.AttackDamage attack = attackService.calculateDamage(player, near, weapon);
+            double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
+            attackService.applyRangeDamage(player, near, damage, weapon, false);
         }
-        ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, to, 2, 0.04, 0.04, 0.04, 0.0);
     }
 
     private LivingEntity nearestTarget(Player player, Location from, double radius) {
@@ -303,7 +286,7 @@ final class MeteorSkill {
         map.put("windup-ticks", 4);
         map.put("damage-rate", values.getOrDefault("beam-damage-rate", 5.0));
         map.put("colors", List.of("#4a8cff", "#bfe0ff", "#ffffff"));
-        map.put("particle", "END_ROD");
+        map.put("particle", "DUST");
         map.put("size", 1.4);
         map.put("width", 1.8);
         map.put("sound", "magic");

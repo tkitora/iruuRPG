@@ -2,6 +2,7 @@ package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillDefinition;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
+import net.tkgon.mc.iruuRPG.vfx.Curves;
 import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
@@ -288,6 +289,22 @@ public final class ClassSkillService {
         }
 
         if (lifesteal > 0.0) attackService.healPlayer(player, damage * lifesteal);
+        // the thunder spreads: the enemies round the target take a share of the strike and are stunned for a moment (a strong slow)
+        double splashRadius = skill.values().getOrDefault("splash-radius", 3.5) * (big ? 1.3 : 1.0);
+        double splashShare = skill.values().getOrDefault("splash-share", 0.33);
+        if (splashRadius > 0.0 && splashShare > 0.0) {
+            for (org.bukkit.entity.Entity entity : target.getWorld().getNearbyEntities(target.getLocation(), splashRadius, splashRadius, splashRadius)) {
+                if (!isValidTarget(player, entity) || entity.equals(target)) continue;
+                LivingEntity near = (LivingEntity) entity;
+                if (near.getLocation().distanceSquared(target.getLocation()) > splashRadius * splashRadius) continue;
+                AttackService.AttackDamage around = attackService.calculateDamage(player, near, weapon);
+                double splash = Math.round(around.result().damage() * rate * splashShare * 10.0) / 10.0;
+                if (attackService.applyDirectDamage(player, near, splash, weapon, false) && statusEffectService != null && near.isValid() && !near.isDead()) {
+                    statusEffectService.applyTimedSlow(near, 80.0, 1500L, player.getUniqueId());
+                    SkillFx.trail(ParticleFx.owner(), target.getLocation().add(0.0, 1.0, 0.0), near.getLocation().add(0.0, 1.0, 0.0), SkillFx.LIGHTNING, 1.0);
+                }
+            }
+        }
         attackService.sendDamageDebug(player, AttackType.MELEE, target, damage, critical, false);
         // Melee area passive (if unlocked) also splashes each hit at the usual area rate.
         attackService.applyAreaDamage(player, target, damage, AttackType.MELEE, weapon);
@@ -322,29 +339,13 @@ public final class ClassSkillService {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         double height = big ? BOLT_HEIGHT + 6.0 : BOLT_HEIGHT;
         Location top = head.clone().add(random.nextDouble(-1.2, 1.2), height, random.nextDouble(-1.2, 1.2));
-        int segments = (int) height;
-        Location previous = top;
-        for (int index = 1; index <= segments; index++) {
-            double progress = index / (double) segments;
-            // The jitter shrinks toward the head so the bolt always lands on it.
-            double spread = (1.0 - progress) * (big ? 1.3 : 0.9);
-            Location point = top.clone().add(
-                    (head.getX() - top.getX()) * progress + jitter(random, spread),
-                    (head.getY() - top.getY()) * progress,
-                    (head.getZ() - top.getZ()) * progress + jitter(random, spread)
-            );
-            if (index == segments) {
-                point = head.clone();
-            }
-            drawSegment(world, previous, point, big);
-            previous = point;
-        }
-
+        // a zigzag from the sky to the head (a hot core and a dimmer glow beside it, the color from amber to white)
+        SkillFx.bolt(ParticleFx.owner(), top, head, (int) height, big ? 1.3 : 0.9, SkillFx.LIGHTNING, big);
         if (impact) {
             ParticleFx.to(world).spawnParticle(Particle.ELECTRIC_SPARK, head, big ? 60 : 24, 0.6, 0.6, 0.6, 0.3);
-            drawRing(world, feet.clone().add(0, 0.1, 0), big ? 2.4 : 1.6, big);
+            SkillFx.groundRing(ParticleFx.owner(), feet, big ? 2.6 : 1.8, SkillFx.LIGHTNING, 0.6, 1.2);
             if (big) {
-                drawRing(world, feet.clone().add(0, 0.1, 0), 1.2, true);
+                SkillFx.groundRing(ParticleFx.owner(), feet, 1.3, SkillFx.LIGHTNING, 0.9, 1.2);
                 ParticleFx.to(world).spawnParticle(Particle.FLASH, head, 1);
             }
         }
@@ -370,6 +371,15 @@ public final class ClassSkillService {
 
         if (statusEffectService != null) {
             statusEffectService.addConfusion(target, skill.values().getOrDefault("confusion", 100.0), player.getUniqueId());
+            // the confusion spreads to the enemies round the target (half as strong)
+            double spreadRadius = skill.values().getOrDefault("spread-radius", 3.0);
+            double spreadConfusion = skill.values().getOrDefault("spread-confusion", 50.0);
+            if (spreadRadius > 0.0 && spreadConfusion > 0.0) {
+                for (org.bukkit.entity.Entity entity : target.getWorld().getNearbyEntities(target.getLocation(), spreadRadius, spreadRadius, spreadRadius)) {
+                    if (!isValidTarget(player, entity) || entity.equals(target)) continue;
+                    statusEffectService.addConfusion((LivingEntity) entity, spreadConfusion, player.getUniqueId());
+                }
+            }
         }
         normalAttack(player, target, weapon);
 
@@ -436,13 +446,25 @@ public final class ClassSkillService {
         world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.8f, 1.3f);
         ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, hit.clone().subtract(forward.clone().multiply(0.4)), 2, 0.3, 0.2, 0.3, 0.0);
         ParticleFx.to(world).spawnParticle(Particle.CRIT, hit, 18, 0.35, 0.3, 0.35, 0.35);
-        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, hit, 10, 0.3, 0.3, 0.3, 0.0, SATSUJIN_TRAIL, true);
-        // a streak of dust from the enemy back toward where the assassin is flung
-        Location cursor = hit.clone();
-        Vector back = forward.clone().multiply(-0.35).setY(0.2);
-        for (int index = 0; index < 6; index++) {
-            cursor.add(back);
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, 1, 0.05, 0.05, 0.05, 0.0, SATSUJIN_TRAIL, true);
+        Player kickOwner = ParticleFx.owner();
+        SkillFx.burst(kickOwner, hit, 2.2, SkillFx.SHADOW);
+        // a streak from the enemy back toward where the assassin is flung, and a ring of shadow
+        SkillFx.trail(kickOwner, hit, hit.clone().add(forward.clone().multiply(-2.4)).add(0.0, 0.6, 0.0), SkillFx.SHADOW, 1.3);
+        SkillFx.groundRing(kickOwner, target.getLocation(), 3.2, SkillFx.SHADOW, 0.7, 1.2);
+        // the kick shakes the enemies round the target: a share of the normal attack and a slow
+        double shockRadius = skill.values().getOrDefault("kick-shock-radius", 3.0);
+        double shockRate = skill.values().getOrDefault("kick-shock-rate", 0.8);
+        if (shockRadius > 0.0 && shockRate > 0.0) {
+            RpgItemDefinition held = attackService.weaponInMainHand(player);
+            for (org.bukkit.entity.Entity entity : world.getNearbyEntities(target.getLocation(), shockRadius, shockRadius, shockRadius)) {
+                if (!isValidTarget(player, entity) || entity.equals(target) || held == null) continue;
+                LivingEntity near = (LivingEntity) entity;
+                AttackService.AttackDamage around = attackService.calculateDamage(player, near, held);
+                double shock = Math.round(around.result().damage() * shockRate * 10.0) / 10.0;
+                if (attackService.applyDirectDamage(player, near, shock, held, false) && statusEffectService != null && near.isValid() && !near.isDead()) {
+                    statusEffectService.applyTimedSlow(near, 50.0, 2000L, player.getUniqueId());
+                }
+            }
         }
     }
 
@@ -488,13 +510,19 @@ public final class ClassSkillService {
         double length = step.length();
         if (length < 1.0E-6) return;
 
-        int points = Math.max(4, (int) (length * 3.0));
-        step.multiply(1.0 / points);
-        Location cursor = from.clone().add(0, 1.0, 0);
-        for (int index = 0; index <= points; index++) {
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, 2, 0.1, 0.2, 0.1, 0.0, SATSUJIN_TRAIL, true);
-            cursor.add(step);
+        // a streak from where the assassin was to where it is (deep at the start, bright at the end) and afterimages along it
+        Player owner = ParticleFx.owner();
+        Location a = from.clone().add(0, 1.0, 0);
+        Location b = to.clone().add(0, 1.0, 0);
+        SkillFx.trail(owner, a, b, SkillFx.SHADOW, 1.4);
+        SkillFx.trail(owner, a.clone().add(0.0, 0.4, 0.0), b.clone().add(0.0, 0.4, 0.0), SkillFx.SHADOW, 1.0);
+        net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, a);
+        for (int image = 0; image < 5; image++) {
+            double share = (image + 1) / 6.0;
+            Location at = a.clone().add(b.toVector().subtract(a.toVector()).multiply(share));
+            fx.sphereShell(at, 0.55, image * 0.7, 24, SkillFx.SHADOW, 1.0);
         }
+        SkillFx.burst(owner, b, 1.6, SkillFx.SHADOW);
         ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, to.clone().add(0, 1.0, 0), 3, 0.4, 0.3, 0.4, 0.0);
     }
 
@@ -530,6 +558,13 @@ public final class ClassSkillService {
         if (world == null) return;
 
         world.playSound(center, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.4f);
+        // it opens with a column of light and a ring that rushes out to the edge
+        SkillFx.column(player, center, 6.0, 1.8, SkillFx.HOLY);
+        for (int ring = 1; ring <= 5; ring++) {
+            double r = radius * Curves.expOut(ring / 5.0, 3.0);
+            int which = ring;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(player, center, r, SkillFx.HOLY, 1.0 - 0.15 * which, 1.2), ring - 1);
+        }
         int totalTicks = (int) Math.round(seconds * 20.0);
 
         SanctuaryState state = new SanctuaryState(center, radius, healPerSecond);
@@ -548,6 +583,18 @@ public final class ClassSkillService {
                     for (Player ally : alliesIn(center, radius)) {
                         attackService.healPlayerBy(player, ally, healPerSecond);
                     }
+                    // the enemies inside are weighed down (a slow of 25% for as long as they stay)
+                    double enemySlow = skill.values().getOrDefault("enemy-slow-percent", 25.0);
+                    if (enemySlow > 0.0 && statusEffectService != null) {
+                        for (org.bukkit.entity.Entity entity : world.getNearbyEntities(center, radius, radius, radius)) {
+                            if (!isValidTarget(player, entity)) continue;
+                            LivingEntity enemy = (LivingEntity) entity;
+                            if (enemy.getLocation().distanceSquared(center) <= radius * radius) {
+                                statusEffectService.applyTimedSlow(enemy, enemySlow, 1500L, player.getUniqueId());
+                            }
+                        }
+                    }
+                    SkillFx.groundRing(player, center, radius, SkillFx.HOLY, 0.8, 1.2);
                 }
                 if (upgraded) {
                     updateKnockbackShield(finished ? java.util.List.of() : alliesIn(center, radius), shielded);
@@ -661,18 +708,9 @@ public final class ClassSkillService {
     }
 
     private void drawSanctuary(World world, Location center, double radius, int tick) {
-        int points = 48;
-        double rotation = tick * 0.05;
-        for (int index = 0; index < points; index++) {
-            double angle = 2.0 * Math.PI * index / points + rotation;
-            Location edge = center.clone().add(Math.cos(angle) * radius, 0.12, Math.sin(angle) * radius);
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, edge, 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_RING, true);
-            if (index % 6 == 0) {
-                double rise = (tick % 40) / 40.0 * 2.5;
-                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, edge.clone().add(0, rise, 0), 1, 0.0, 0.0, 0.0, 0.0, SANCTUARY_LIGHT, true);
-            }
-        }
-        ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 0.6, 0), 3, radius / 3.0, 0.3, radius / 3.0, 0.0);
+        // a dome of light over the sanctuary (the upper half of a turning shell), a ring at its foot and motes rising inside
+        SkillFx.dome(ParticleFx.owner(), center, radius, tick, SkillFx.HOLY);
+        ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 0.6, 0), 2, radius / 3.0, 0.3, radius / 3.0, 0.0);
     }
 
     // ---- ice lance (mage) ---------------------------------------------------
@@ -717,6 +755,26 @@ public final class ClassSkillService {
             }
             playLanceImpact(victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0), upgraded);
         }
+        // where the lance ends it shatters: the enemies round that point (and not already hit) take a share of it and are slowed
+        double shatterRadius = skill.values().getOrDefault("shatter-radius", 3.0);
+        double shatterShare = skill.values().getOrDefault("shatter-share", 0.3);
+        if (shatterRadius > 0.0 && shatterShare > 0.0) {
+            Location end = start.clone().add(direction.clone().multiply(length));
+            List<LivingEntity> already = entitiesOnLine(player, start, direction, length, width);
+            SkillFx.burst(player, end, shatterRadius, SkillFx.ICE);
+            SkillFx.groundRing(player, end, shatterRadius, SkillFx.ICE, 0.8, 1.2);
+            world.playSound(end, Sound.BLOCK_GLASS_BREAK, 1.0f, 0.7f);
+            for (Entity entity : world.getNearbyEntities(end, shatterRadius, shatterRadius, shatterRadius)) {
+                if (!isValidTarget(player, entity)) continue;
+                LivingEntity near = (LivingEntity) entity;
+                if (already.contains(near) || near.getLocation().distanceSquared(end) > shatterRadius * shatterRadius) continue;
+                AttackService.AttackDamage attack = attackService.calculateDamage(player, near, weapon);
+                double damage = Math.round(attack.result().damage() * rate * shatterShare * 10.0) / 10.0;
+                if (attackService.applyRangeDamage(player, near, damage, weapon, false) && statusEffectService != null && near.isValid() && !near.isDead()) {
+                    statusEffectService.applyTimedSlow(near, slowPercent, slowMillis / 2, sourceId);
+                }
+            }
+        }
     }
 
     private List<LivingEntity> entitiesOnLine(Player player, Location start, Vector direction, double length, double width) {
@@ -735,15 +793,8 @@ public final class ClassSkillService {
         return hits;
     }
 
-    /** The spear flies out over a few ticks as a thick blue-white dust line with frost. */
+    /** The spear flies out over a few ticks: two turning strands of ice round a bright axis (the color deep blue at the tail, white at the tip), frost in the air. */
     private void playLanceTrail(World world, Location start, Vector direction, double length, boolean upgraded) {
-        Vector side = direction.clone().crossProduct(new Vector(0, 1, 0));
-        if (side.lengthSquared() < 1.0E-6) side = new Vector(1, 0, 0);
-        side.normalize();
-        Vector up = side.clone().crossProduct(direction).normalize();
-        final Vector sideAxis = side;
-        final Vector upAxis = up;
-
         Player fxOwner = ParticleFx.owner();
         new SafeTask(plugin) {
             private int tick;
@@ -757,22 +808,13 @@ public final class ClassSkillService {
                 }
                 double from = length * tick / LANCE_TICKS;
                 double to = length * (tick + 1) / LANCE_TICKS;
-                for (double distance = from; distance < to; distance += 0.25) {
-                    Location point = start.clone().add(direction.clone().multiply(distance));
-                    ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, ICE_CORE, true);
-                    double thickness = upgraded ? 0.34 : 0.24;
-                    for (int index = 0; index < 4; index++) {
-                        double angle = Math.PI / 2.0 * index + distance * 2.0;
-                        Vector offset = sideAxis.clone().multiply(Math.cos(angle) * thickness)
-                                .add(upAxis.clone().multiply(Math.sin(angle) * thickness));
-                        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point.clone().add(offset), 1, 0.0, 0.0, 0.0, 0.0, ICE_GLOW, true);
-                    }
-                    if (ThreadLocalRandom.current().nextInt(3) == 0) {
+                SkillFx.helix(fxOwner, start, direction, from, to, length, upgraded ? 0.36 : 0.26, SkillFx.ICE);
+                for (double distance = from; distance < to; distance += 0.8) {
+                    if (ThreadLocalRandom.current().nextInt(2) == 0) {
+                        Location point = start.clone().add(direction.clone().multiply(distance));
                         ParticleFx.to(world).spawnParticle(Particle.SNOWFLAKE, point, 1, 0.15, 0.15, 0.15, 0.01, null, true);
                     }
                 }
-                Location tip = start.clone().add(direction.clone().multiply(to));
-                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, tip, upgraded ? 6 : 3, 0.12, 0.12, 0.12, 0.0, ICE_CORE, true);
                 tick++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -784,39 +826,10 @@ public final class ClassSkillService {
 
         world.playSound(center, Sound.BLOCK_GLASS_BREAK, 0.9f, 1.1f);
         ParticleFx.to(world).spawnParticle(Particle.SNOWFLAKE, center, upgraded ? 40 : 18, 0.4, 0.5, 0.4, 0.05, null, true);
-        ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, upgraded ? 24 : 10, 0.45, 0.55, 0.45, 0.0, ICE_FROST, true);
+        SkillFx.burst(ParticleFx.owner(), center, upgraded ? 2.2 : 1.6, SkillFx.ICE);
         if (upgraded) {
             ParticleFx.to(world).spawnParticle(Particle.BLOCK_CRACK, center, 30, 0.4, 0.5, 0.4, 0.0,
                     org.bukkit.Material.BLUE_ICE.createBlockData());
-        }
-    }
-
-    /** A random offset in [-spread, spread]; zero when there is no spread (nextDouble rejects an empty range). */
-    private static double jitter(ThreadLocalRandom random, double spread) {
-        return spread < 1.0E-9 ? 0.0 : random.nextDouble(-spread, spread);
-    }
-
-    private void drawSegment(World world, Location from, Location to, boolean big) {
-        Vector step = to.toVector().subtract(from.toVector());
-        double length = step.length();
-        if (length < 1.0E-6) return;
-
-        int points = Math.max(2, (int) Math.ceil(length * 4.0));
-        step.multiply(1.0 / points);
-        Location cursor = from.clone();
-        for (int index = 0; index <= points; index++) {
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, big ? 2 : 1, 0.0, 0.0, 0.0, 0.0, big ? BIG_BOLT_CORE : BOLT_CORE, true);
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, cursor, big ? 4 : 2, big ? 0.22 : 0.12, big ? 0.22 : 0.12, big ? 0.22 : 0.12, 0.0, big ? BIG_BOLT_GLOW : BOLT_GLOW, true);
-            cursor.add(step);
-        }
-    }
-
-    private void drawRing(World world, Location center, double radius, boolean big) {
-        int points = 28;
-        for (int index = 0; index < points; index++) {
-            double angle = 2.0 * Math.PI * index / points;
-            Location point = center.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius);
-            ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, big ? BIG_BOLT_GLOW : BOLT_GLOW, true);
         }
     }
 

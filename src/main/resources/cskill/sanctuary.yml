@@ -1,6 +1,6 @@
 # クラススキル定義: ヒーラーの「聖域」(解放ノード4 / ホットキー F)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 #
 # 発動した場所に、範囲7の緑のエリアを作る。エリア内の味方全員を、
 # 持っている武器が与えるダメージ分(敵の防具なし・設置武器は安定性込み)、毎秒回復する。
@@ -9,6 +9,8 @@ version: 2
 # 強化(解放ノード8)を解放済みなら、効果時間が10秒になり、エリア内はノックバックを受けない。
 # さらに、発動して recast-delay-seconds 秒後から効果が続く間、もう一度キーを押すと再発動できる(1回だけ):
 # 範囲内の味方に recast-burst-seconds 秒分の回復が一気に入り、範囲内の敵全員に混乱 recast-confusion が付く(聖域はそこで終わる)。
+#
+# 聖域のエリアはドーム状に光り、範囲内の敵は毎秒 enemy-slow-percent % 動きが遅くなる (0 でなし)。
 
 id: sanctuary
 name: "聖域"
@@ -33,3 +35,5 @@ values:
   recast-delay-seconds: 3
   recast-burst-seconds: 4
   recast-confusion: 100
+  # 範囲内の敵の鈍足(%)
+  enemy-slow-percent: 25
