@@ -4,7 +4,7 @@ rarity:
 player:
   level-cap: 256
   first-release-level-cap: 20
-  default-max-hp: 20.0
+  initial-max-hp: 200.0      # 初期体力 (新しく始めるプレイヤー。すでに遊んでいる人の体力は変わらない)
   default-hp-regen-per-3s: 1.0
   default-max-mp: 20.0
   default-mp-regen-per-3s: 5.0
