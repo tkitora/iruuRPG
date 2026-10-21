@@ -21,7 +21,17 @@ public record ComboStyle(SkillLook look, List<Stage> light, Stage finisher, Stag
      * {@code forward} / {@code drop} / {@code side} place the middle of the arc from the eyes (ahead, below, to the right).
      */
     public record Cut(double radius, double angle, double tilt, double roll, double rollJitter, double forward,
-                      double drop, double duration, double scale, double delay, double side) {
+                      double drop, double duration, double scale, double delay, double side, String shape) {
+
+        public Cut {
+            shape = shape == null ? "arc" : shape;
+        }
+
+        /** A cut drawn as an arc. */
+        public Cut(double radius, double angle, double tilt, double roll, double rollJitter, double forward,
+                   double drop, double duration, double scale, double delay, double side) {
+            this(radius, angle, tilt, roll, rollJitter, forward, drop, duration, scale, delay, side, "arc");
+        }
     }
 
     /** The cuts of one attack, the sound ({@code swing} / {@code sweep} / {@code cut}) and a burst of sparks. */

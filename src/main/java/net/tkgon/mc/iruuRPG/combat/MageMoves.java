@@ -162,7 +162,7 @@ public final class MageMoves {
      * at first, in the element's color mixed with purple. A spark every third point.
      */
     private void line(Player player, World world, Location from, Location to, Element element, double purple, float size) {
-        Fx.of(player, world, from).line(from, to, Palettes.mixed(element, purple), 0.2, 1.0, 2.5, size, 0.3, Particle.END_ROD, 3);
+        Fx.of(player, world, from).line(from, to, Palettes.mixed(element, purple), 0.2, 1.0, 2.5, size, 0.3, null, 1);
     }
 
     // ---- normal attacks ----------------------------------------------------------------------------------------------------
@@ -265,12 +265,19 @@ public final class MageMoves {
             fx.ring(center.clone().add(0.0, 0.2 + 0.25 * ring, 0.0), u, v, r, 24, gradient, 0.35 + 0.3 * ring, 0.6, 1.4);
         }
         ParticleFx.to(player, world).spawnParticle(Particle.PORTAL, center, 30, radius * 0.3, 0.6, radius * 0.3, 0.8);
-        ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, center, 18, radius * 0.3, 0.5, radius * 0.3, 0.14);
+        // a soft glow of bright dust where it bursts (not the end-rod sparks: they were too loud)
+        Gradient glow = Palettes.mixed(weapon.element(), purple);
+        ThreadLocalRandom glowRandom = ThreadLocalRandom.current();
+        for (int index = 0; index < 22; index++) {
+            double gx = glowRandom.nextGaussian() * radius * 0.22;
+            double gy = glowRandom.nextDouble(0.0, 0.7);
+            double gz = glowRandom.nextGaussian() * radius * 0.22;
+            fx.dust(center.getX() + gx, center.getY() + gy, center.getZ() + gz, glow, 0.75 + glowRandom.nextDouble(0.25), 0.9);
+        }
         ParticleFx.to(player, world).spawnParticle(Particle.EXPLOSION_LARGE, center, 1);
         ParticleFx.to(player, world).spawnParticle(Particle.FLASH, center, 1);
         world.playSound(center, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.7f, 1.5f + random.nextFloat() * 0.3f);
         world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, SoundCategory.PLAYERS, 0.8f, 1.2f + repeat * 0.2f);
-        effects.playBoltImpact(center, weapon.element());
         for (LivingEntity target : around(player, center, radius)) hit(player, weapon, target, rate);
     }
 
@@ -295,7 +302,7 @@ public final class MageMoves {
                     double direction = arm == 0 ? 1.0 : -1.0;
                     fx.spiral(base, X_AXIS, Z_AXIS, Y_AXIS, 0.4, 2.0, direction, direction * tick * 0.7 + arm * Math.PI, 1.6, 8, gradient, 1.3);
                     double tip = direction * (tick * 0.7 + Math.PI * 2.0) + arm * Math.PI;
-                    fx.particle(Particle.END_ROD, base.getX() + Trig.cos(tip) * 2.0, base.getY() + 1.6, base.getZ() + Trig.sin(tip) * 2.0, 1, 0.0, 0.0, 0.0, 0.0);
+                    fx.dust(base.getX() + Trig.cos(tip) * 2.0, base.getY() + 1.6, base.getZ() + Trig.sin(tip) * 2.0, gradient, 1.0, 1.4);
                 }
                 tick++;
             }
@@ -373,7 +380,6 @@ public final class MageMoves {
                 // the ball: a small sphere of dust around the middle
                 Fx fx = Fx.of(player, world, next);
                 fx.sphereShell(next, 0.45, age * 0.5, 22, Palettes.mixed(element, 0.75), 1.2);
-                ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, next, 2, 0.1, 0.1, 0.1, 0.01);
                 where[0] = next;
                 if (result != null) burst.run();
             }
@@ -621,7 +627,7 @@ public final class MageMoves {
                 // the sphere: a baked shell of 32 points turning slowly (dark at the bottom, bright at the top), with a bright core
                 Fx.of(player, world, center).sphereShell(center, 1.0, age * 0.35, 32, Palettes.mixed(element, 0.8), 1.2);
                 ParticleFx.to(player, world).spawnParticle(Particle.PORTAL, center, 6, 0.4, 0.4, 0.4, 0.6);
-                ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, center, 1, 0.1, 0.1, 0.1, 0.0);
+                Fx.of(player, world, center).dust(center.getX(), center.getY(), center.getZ(), Palettes.mixed(element, 0.8), 1.0, 1.6);
                 if (age % 2 == 0) {
                     for (LivingEntity target : around(player, center, slowRadius)) {
                         // slowed by 30% while it is inside (it can still move)

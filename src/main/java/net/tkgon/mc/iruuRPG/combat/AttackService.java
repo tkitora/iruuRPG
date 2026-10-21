@@ -199,12 +199,25 @@ public final class AttackService {
      * The normal attack (a right click) of a mage with a ranged weapon: the next step of the mage's combo. True when
      * it was handled (the cooldown of the normal attack was already spent).
      */
+    /**
+     * True when this right click is a button that is being held: the client sends the click again every 4 ticks, and a
+     * normal attack of a combo is not a stream of them. A click within 5 ticks of the one before (also an ignored one)
+     * is held; the first of a series, and a click that comes after a pause, are not.
+     */
+    public boolean heldRangedClick(Player attacker) {
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer last = lastRangedClickTick.put(attacker.getUniqueId(), tick);
+        return last != null && tick - last <= HELD_CLICK_TICKS;
+    }
+
+    private final Map<UUID, Integer> lastRangedClickTick = new HashMap<>();
+
     public boolean mageNormal(Player attacker, RpgItemDefinition weapon) {
         if (mageMoves == null || !isMage(attacker) || weapon.attackType() != AttackType.RANGE) return false;
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true) || !comboAllowed(attacker, weapon)) return false;
         MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
         beginAttack(attacker);
-        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-ticks", 8L));
+        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.mage.normal-gap-ticks", 10L));
         mageMoves.normal(attacker, weapon, step);
         return true;
     }

@@ -710,7 +710,7 @@ public final class WarriorMoves {
             later(index * 3L, () -> {
                 if (!player.isOnline() || player.isDead()) return;
                 // bigger than a usual cut (1.5 times)
-                ComboStyle.Stage stage = new ComboStyle.Stage(List.of(new ComboStyle.Cut(3.0, 170.0, looks[which][0], looks[which][1], 0.0, 2.2, 0.3, 0.18, 1.5, 0.0, 0.0)), "sweep", 10);
+                ComboStyle.Stage stage = new ComboStyle.Stage(List.of(new ComboStyle.Cut(3.0, 170.0, looks[which][0], looks[which][1], 0.0, 2.2, 0.3, 0.18, 1.5, 0.0, 0.0, new String[]{"drop", "arc", "line"}[which])), "sweep", 10);
                 effects.playStyledSlash(player, weapon, stage, null, which);
                 for (LivingEntity target : cone(player, radius, 90.0)) strike(player, target, weapon, rate);
             });

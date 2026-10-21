@@ -25,6 +25,27 @@ public final class Fx {
 
     private static final Fx NOTHING = new Fx(null, 1, false);
 
+    /** Dust is drawn at this fraction of the size asked for (finer particles); {@code vfx.size-scale}. */
+    private static volatile double sizeScale = 0.65;
+    /** Points per block of a line and points of a ring / spiral / sphere / disc are this many times the number asked for; {@code vfx.density}. */
+    private static volatile double density = 1.6;
+    private static final int MAX_RING = 160;
+    private static final int MAX_SPHERE = 140;
+
+    /** Reads {@code vfx.size-scale} and {@code vfx.density} (0.3 - 1.5 and 0.5 - 3) of the config. */
+    public static void configure(org.bukkit.configuration.file.FileConfiguration config) {
+        sizeScale = Math.max(0.3, Math.min(1.5, config.getDouble("vfx.size-scale", 0.65)));
+        density = Math.max(0.5, Math.min(3.0, config.getDouble("vfx.density", 1.6)));
+    }
+
+    private static double size(double asked) {
+        return Math.max(0.3, asked * sizeScale);
+    }
+
+    private static int count(int asked, int max) {
+        return (int) Math.max(4, Math.min(max, Math.round(asked * density)));
+    }
+
     private final ParticleFx.Sink sink;
     private final int step;
     private final boolean active;
@@ -70,7 +91,7 @@ public final class Fx {
     /** One dust particle at ({@code x}, {@code y}, {@code z}) of the color at {@code t} of {@code gradient}. */
     public void dust(double x, double y, double z, Gradient gradient, double t, double size) {
         if (!active) return;
-        sink.spawnParticle(Particle.REDSTONE, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(t, size));
+        sink.spawnParticle(Particle.REDSTONE, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(t, size(size)));
     }
 
     /** Any particle (sparks and the like), kept or dropped by the same distance culling. */
@@ -101,15 +122,16 @@ public final class Fx {
         double dz = to.getZ() - from.getZ();
         double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (length < 1.0E-6) return;
-        int points = Math.max(1, (int) Math.ceil(length / spacing));
+        int points = Math.max(1, (int) Math.ceil(length / spacing * density));
+        double fineSize = size(size);
         for (int index = 0; index <= points; index += step) {
             double along = index / (double) points;
             double t = Curves.lerp(t0, t1, Curves.expOut(along, curve));
             double x = from.getX() + dx * along;
             double y = from.getY() + dy * along;
             double z = from.getZ() + dz * along;
-            sink.spawnParticle(Particle.REDSTONE, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(t, size));
-            if (spark != null && index % sparkEvery == 0) sink.spawnParticle(spark, x, y, z, 1, 0.02, 0.02, 0.02, 0.0);
+            sink.spawnParticle(Particle.REDSTONE, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(t, fineSize));
+            if (spark != null && index % Math.max(1, Math.round(sparkEvery * density)) == 0) sink.spawnParticle(spark, x, y, z, 1, 0.02, 0.02, 0.02, 0.0);
         }
     }
 
@@ -125,24 +147,28 @@ public final class Fx {
      */
     public void ring(Location center, Vector u, Vector v, double radius, int count, Gradient gradient, double t, double spread, double size) {
         if (!active) return;
+        count = count(count, MAX_RING);
         float[] circle = Shapes.circle(count);
+        double fineSize = size(size);
         for (int index = 0; index < count; index += step) {
             double c = circle[index * 2] * radius;
             double s = circle[index * 2 + 1] * radius;
             double colorT = spread == 0.0 ? t : t + spread * Curves.triangle(index / (double) count);
             sink.spawnParticle(Particle.REDSTONE, center.getX() + u.getX() * c + v.getX() * s, center.getY() + u.getY() * c + v.getY() * s,
-                    center.getZ() + u.getZ() * c + v.getZ() * s, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(colorT, size));
+                    center.getZ() + u.getZ() * c + v.getZ() * s, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(colorT, fineSize));
         }
     }
 
     /** A ring flat on the ground (horizontal), at the height of {@code center}. */
     public void flatRing(Location center, double radius, int count, Gradient gradient, double t, double spread, double size) {
         if (!active) return;
+        count = count(count, MAX_RING);
         float[] circle = Shapes.circle(count);
+        double fineSize = size(size);
         for (int index = 0; index < count; index += step) {
             double colorT = spread == 0.0 ? t : t + spread * Curves.triangle(index / (double) count);
             sink.spawnParticle(Particle.REDSTONE, center.getX() + circle[index * 2] * radius, center.getY(), center.getZ() + circle[index * 2 + 1] * radius,
-                    1, 0.0, 0.0, 0.0, 0.0, gradient.dust(colorT, size));
+                    1, 0.0, 0.0, 0.0, 0.0, gradient.dust(colorT, fineSize));
         }
     }
 
@@ -154,6 +180,8 @@ public final class Fx {
     public void spiral(Location center, Vector u, Vector v, Vector normal, double r0, double r1, double turns, double phase, double lift,
                        int count, Gradient gradient, double size) {
         if (!active) return;
+        count = count(count, MAX_RING);
+        double fineSize = size(size);
         double ratio = r1 / Math.max(1.0E-6, r0);
         for (int index = 0; index < count; index += step) {
             double s = count == 1 ? 0.0 : index / (double) (count - 1);
@@ -164,7 +192,7 @@ public final class Fx {
             double rise = lift * s;
             sink.spawnParticle(Particle.REDSTONE, center.getX() + u.getX() * c + v.getX() * sn + normal.getX() * rise,
                     center.getY() + u.getY() * c + v.getY() * sn + normal.getY() * rise,
-                    center.getZ() + u.getZ() * c + v.getZ() * sn + normal.getZ() * rise, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(s, size));
+                    center.getZ() + u.getZ() * c + v.getZ() * sn + normal.getZ() * rise, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(s, fineSize));
         }
     }
 
@@ -174,6 +202,8 @@ public final class Fx {
      */
     public void sphereShell(Location center, double radius, double turn, int count, Gradient gradient, double size) {
         if (!active) return;
+        count = count(count, MAX_SPHERE);
+        double fineSize = size(size);
         float[] sphere = Shapes.sphere(count);
         double c = Trig.cos(turn);
         double s = Trig.sin(turn);
@@ -182,7 +212,7 @@ public final class Fx {
             double y = sphere[index * 3 + 1];
             double z = sphere[index * 3 + 2];
             sink.spawnParticle(Particle.REDSTONE, center.getX() + (x * c - z * s) * radius, center.getY() + y * radius, center.getZ() + (x * s + z * c) * radius,
-                    1, 0.0, 0.0, 0.0, 0.0, gradient.dust(y * 0.5 + 0.5, size));
+                    1, 0.0, 0.0, 0.0, 0.0, gradient.dust(y * 0.5 + 0.5, fineSize));
         }
     }
 
@@ -193,6 +223,8 @@ public final class Fx {
      */
     public void disc(Location center, Vector u, Vector v, double radius, int count, Gradient gradient, double curve, double size) {
         if (!active) return;
+        count = count(count, MAX_RING);
+        double fineSize = size(size);
         double golden = Math.PI * (3.0 - Math.sqrt(5.0));
         for (int index = 0; index < count; index += step) {
             double s = Math.sqrt((index + 0.5) / count);
@@ -200,7 +232,7 @@ public final class Fx {
             double c = Trig.cos(angle) * radius * s;
             double sn = Trig.sin(angle) * radius * s;
             sink.spawnParticle(Particle.REDSTONE, center.getX() + u.getX() * c + v.getX() * sn, center.getY() + u.getY() * c + v.getY() * sn,
-                    center.getZ() + u.getZ() * c + v.getZ() * sn, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(Curves.expOut(s, curve), size));
+                    center.getZ() + u.getZ() * c + v.getZ() * sn, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(Curves.expOut(s, curve), fineSize));
         }
     }
 }
