@@ -31,6 +31,7 @@ public final class Palettes {
 
     private static final ConcurrentHashMap<Integer, Gradient> FROM_COLOR = new ConcurrentHashMap<>();
     private static final ConcurrentHashMap<Integer, Gradient> MIXED = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<java.util.List<Integer>, Gradient> TRIPLES = new ConcurrentHashMap<>();
 
     private Palettes() {
     }
@@ -38,6 +39,11 @@ public final class Palettes {
     /** A gradient built from one base color: a deep shade of it, the color itself, a bright core. Made once per color. */
     public static Gradient fromColor(Color base) {
         return FROM_COLOR.computeIfAbsent(base.asRGB(), rgb -> Gradient.of(shade(base, 0.5), base, brighten(base, 0.6)));
+    }
+
+    /** A gradient through three colors, made once for each set of three (a slash's body, edge and core). */
+    public static Gradient triple(Color first, Color second, Color third) {
+        return TRIPLES.computeIfAbsent(java.util.List.of(first.asRGB(), second.asRGB(), third.asRGB()), key -> Gradient.of(first, second, third));
     }
 
     /** The element's gradient with {@code purple} (0 - 1, in steps of 0.1) of purple mixed in. Made once per element and step. */

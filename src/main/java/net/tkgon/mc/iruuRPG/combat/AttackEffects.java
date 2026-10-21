@@ -96,6 +96,13 @@ public final class AttackEffects {
     /** {@code reverseArc}: draw the arc from its other end (roll 180 asks for the same). */
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, boolean reverseArc, double duration, float scale, double delaySeconds, double yawOffset) {
+        cut(attacker, look, forward, drop, side, radius, sweepDegrees, tilt, roll, reverseArc, duration, scale, delaySeconds, yawOffset, SlashVfx.Kind.ARC);
+    }
+
+    /** {@code kind}: the look of the cut: an arc, a teardrop or a straight line. */
+    private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
+                     double sweepDegrees, double tilt, double roll, boolean reverseArc, double duration, float scale, double delaySeconds, double yawOffset,
+                     SlashVfx.Kind kind) {
         Vector f = horizontalForward(attacker);
         Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
         double offsetRadians = Math.toRadians(yawOffset);
@@ -135,7 +142,7 @@ public final class AttackEffects {
                 .add(f.clone().multiply(forward)).add(right.clone().multiply(side)).add(0.0, -drop, 0.0)
                 .subtract(middle);
         drawSlash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw() + yawOffset,
-                tilt, roll, vfxDensity(), reverse), bandRadius, duration, scale, delaySeconds);
+                tilt, roll, vfxDensity(), reverse, kind), bandRadius, duration, scale, delaySeconds);
     }
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
@@ -254,7 +261,7 @@ public final class AttackEffects {
                 tiltShift = 0.0;
             }
             cut(attacker, r, cut.forward(), cut.drop(), cut.side(), cut.radius(), cut.angle(), cut.tilt() + tiltShift,
-                    roll, reverse, cut.duration(), (float) cut.scale(), cut.delay() + extraDelay, yawShift);
+                    roll, reverse, cut.duration(), (float) cut.scale(), cut.delay() + extraDelay, yawShift, SlashVfx.Kind.parse(cut.shape()));
             lastForward = cut.forward();
             number++;
         }
@@ -1326,7 +1333,7 @@ public final class AttackEffects {
     }
 
     private int vfxDensity() {
-        return Math.max(2, plugin.getConfig().getInt("slash-vfx.samples-per-block", 5));
+        return Math.max(2, plugin.getConfig().getInt("slash-vfx.samples-per-block", 8));
     }
 
     /**
@@ -1366,23 +1373,21 @@ public final class AttackEffects {
         double arcLength = shape.radius() * Math.toRadians(shape.sweepDegrees());
         int ticks = Math.max(1, (int) Math.ceil(duration * 20.0));
         int density = shape.samplesPerBlock();
-        while (density > 2 && (arcLength * density + 1) * 9 / ticks > 300) density--;
+        while (density > 2 && (arcLength * density + 1) * 7 / ticks > 300) density--;
         SlashVfx.Shape safe = density == shape.samplesPerBlock() ? shape
-                : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density, shape.reverse());
+                : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density, shape.reverse(), shape.kind());
 
-        SlashVfx.Layer outer = layer(Particle.REDSTONE, look.core, 0.65f * size, 2, half * 2.0, 1);
+        // a ribbon of five fine lines (colored across the band: body in the middle, edge, then core outside; along the arc:
+        // a deep small tail to a bright full head) and one thin bright core line; the particles are smaller than before
+        // and the lines closer, so the slash is a sharp blade and not a smear
+        float fine = (float) plugin.getConfig().getDouble("slash-vfx.particle-size", 0.55);
+        SlashVfx.Layer ribbon = SlashVfx.Layer.ribbon(Palettes.triple(look.body, look.edge, look.core), fine * size, 5, half * 0.5, 0.1, 0.7);
+        SlashVfx.Layer coreLine = SlashVfx.Layer.ribbon(Palettes.fromColor(look.core), fine * 0.8f * size, 1, 0.0, 0.7, 0.0);
         SlashVfx.Layer[] layers = full
                 ? (look.spark == null
-                        ? new SlashVfx.Layer[]{
-                                layer(Particle.REDSTONE, look.body, 0.75f * size, 2, half * 0.4, 1),
-                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 2, half * 1.2, 1),
-                                outer}
-                        : new SlashVfx.Layer[]{
-                                layer(Particle.REDSTONE, look.body, 0.75f * size, 2, half * 0.4, 1),
-                                layer(Particle.REDSTONE, look.edge, 0.7f * size, 2, half * 1.2, 1),
-                                outer,
-                                layer(look.spark, null, 1f, 1, 0.0, 4)})
-                : new SlashVfx.Layer[]{outer};
+                        ? new SlashVfx.Layer[]{ribbon, coreLine}
+                        : new SlashVfx.Layer[]{ribbon, coreLine, layer(look.spark, null, 1f, 1, 0.0, 6)})
+                : new SlashVfx.Layer[]{ribbon};
         SlashVfx.Layer tip = full && look.spark != null ? layer(look.spark, null, 1f, 2, 0.0, 1) : null;
 
         // the slash is drawn a moment later (by one shared task): it keeps the player whose slash it is

@@ -371,6 +371,11 @@ public final class CombatListener implements Listener {
             return;
         }
 
+        // a held right button is one click, not a stream of normal attacks of the combo (the mage's and the ranger's)
+        if ((attackService.isMage(attacker) || attackService.isRanger(attacker)) && attackService.comboAllowed(attacker, weapon)
+                && attackService.heldRangedClick(attacker)) {
+            return;
+        }
         if (!attackService.tryStart(attacker, AttackType.RANGE)) {
             return;
         }

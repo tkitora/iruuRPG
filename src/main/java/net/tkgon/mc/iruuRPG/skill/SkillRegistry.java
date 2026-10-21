@@ -667,9 +667,19 @@ public final class SkillRegistry {
                     number(where, cut, "roll-jitter", 8.0, 0.0, 45.0), number(where, cut, "forward", 1.8, 0.0, 4.0),
                     number(where, cut, "drop", 0.2, -1.0, 1.5), number(where, cut, "duration", 0.12, 0.04, 0.6),
                     number(where, cut, "scale", 1.0, 0.3, 2.5), number(where, cut, "delay", 0.0, 0.0, 0.5),
-                    number(where, cut, "side", 0.0, -2.0, 2.0)));
+                    number(where, cut, "side", 0.0, -2.0, 2.0), cutShape(where, cut.get("shape"))));
         }
         return cuts.isEmpty() ? null : new net.tkgon.mc.iruuRPG.combat.ComboStyle.Stage(cuts, sound, burst);
+    }
+
+    /** The look of a cut: arc (default) / drop (teardrop) / line. */
+    private String cutShape(String where, Object raw) {
+        if (raw == null) return "arc";
+        if (net.tkgon.mc.iruuRPG.combat.SlashVfx.Kind.parse(raw.toString()) == null) {
+            plugin.getLogger().warning("skills: " + where + ": shape '" + raw + "' is unknown (arc / drop / line); arc is used");
+            return "arc";
+        }
+        return raw.toString().trim().toLowerCase(Locale.ROOT);
     }
 
     /** A yaml section or map as a plain map (nested sections too); null for anything else. */
