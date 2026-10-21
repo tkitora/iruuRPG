@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import net.tkgon.mc.iruuRPG.vfx.Fx;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -121,13 +122,19 @@ final class ComboParts {
 
     /** Something that swells for a second at {@code at}, pulling the enemies in, and bursts for {@code rate} within {@code radius} (slowing them by {@code slowPercent}). */
     static void pullBurst(MoveKit kit, Location at, double radius, double rate, double slowPercent) {
+        pullBurst(kit, at, radius, rate, slowPercent, 20);
+    }
+
+    /** The same, swelling for {@code ticks} ticks (at most 50: it stands in the world that long). */
+    static void pullBurst(MoveKit kit, Location at, double radius, double rate, double slowPercent, int ticks) {
+        int life = Math.max(10, Math.min(50, ticks));
         kit.sound(at, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.2f);
-        kit.every(21, age -> {
-            kit.fx(at).sphereShell(at, 0.5 + 1.5 * age / 20.0, age * 0.3, 32, kit.palette(), 1.1);
+        kit.every(life + 1, age -> {
+            kit.fx(at).sphereShell(at, 0.5 + 1.5 * age / (double) life, age * 0.3, 32, kit.palette(), 1.1);
             if (age % 3 == 0) {
                 for (LivingEntity victim : kit.around(at, radius + 1.0)) kit.pull(victim, at, 0.18);
             }
-            if (age == 20) {
+            if (age == life) {
                 kit.burst(at, radius);
                 kit.shockwave(at.clone().add(0.0, -1.2, 0.0), 1.0, radius, 5, 1.2);
                 kit.sound(at, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.9f);
@@ -179,5 +186,120 @@ final class ComboParts {
                 kit.bolt(start, direction, speed, range, rate, end -> kit.burst(end, 0.7));
             });
         }
+    }
+
+    // ---- placed things: a deployed weapon sets things in the world and they stay for a few seconds ------------------------------
+
+    /** A placed lantern drawn at {@code at} (on the ground): a pole of light, an orb on top that swells with {@code pulse} (0 - 1) and a small ring at its foot. */
+    static void standLantern(MoveKit kit, Location at, double height, double pulse) {
+        Fx fx = kit.fx(at);
+        if (!fx.active()) return;
+        for (double y = 0.1; y < height; y += 0.3) fx.dust(at.getX(), at.getY() + y, at.getZ(), kit.palette(), 0.2 + 0.4 * y / height, 0.9);
+        fx.sphereShell(at.clone().add(0.0, height + 0.15, 0.0), 0.25 + 0.12 * pulse, 0.0, 14, kit.palette(), 1.0);
+        fx.flatRing(at.clone().add(0.0, 0.12, 0.0), 0.55, 14, kit.palette(), 0.5, 0.1, 0.9);
+    }
+
+    /** A lantern lobbed to {@code to}: see {@link #placeAt}. */
+    static void place(MoveKit kit, String key, Location to, int life, int every, double radius, double rate, double slowPercent, double healPercent,
+                      Consumer<Location> each) {
+        kit.lob(hand(kit), to, 6, 1.6, land -> placeAt(kit, key, land, life, every, radius, rate, slowPercent, healPercent, each));
+    }
+
+    /**
+     * A lantern standing at {@code at} for {@code life} ticks (at most 60): every {@code every} ticks (a multiple of 2) it pulses: a wave
+     * runs out to {@code radius}, every enemy in it takes a hit of {@code rate} (and is slowed by {@code slowPercent} when above 0), the
+     * player is healed {@code healPercent} when within reach, and {@code each} runs. One of the same {@code key} is replaced.
+     */
+    static void placeAt(MoveKit kit, String key, Location at, int life, int every, double radius, double rate, double slowPercent, double healPercent,
+                        Consumer<Location> each) {
+        kit.sound(at, Sound.BLOCK_CHAIN_PLACE, 0.8f, 1.3f);
+        kit.zone(key, at, life, 2, zone -> {
+            boolean pulse = zone.age() % every == 0;
+            standLantern(kit, at, 1.0, pulse ? 1.0 : 0.0);
+            if (zone.age() % 6 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.12, 0.0), radius, (int) Math.max(18, radius * 8), kit.palette(), 0.35, 0.15, 0.8);
+            if (!pulse) return;
+            kit.sound(at, Sfx.MAGIC, 0.3f, 1.5f);
+            kit.shockwave(at, radius * 0.3, radius, 3, 0.9);
+            for (LivingEntity victim : kit.around(at, radius)) {
+                boolean hit = rate <= 0.0 || kit.hit(victim, rate);
+                if (hit && slowPercent > 0.0) kit.slow(victim, slowPercent, 1.5);
+            }
+            if (healPercent > 0.0 && kit.player.getLocation().distanceSquared(at) <= (radius + 1.5) * (radius + 1.5)) kit.heal(healPercent);
+            if (each != null) each.accept(at);
+        }, zone -> kit.shockwave(at, radius * 0.8, radius, 2, 0.8));
+    }
+
+    /** A turret lobbed to {@code to}: see {@link #turretAt}. */
+    static void turret(MoveKit kit, String key, Location to, int life, int every, double range, double rate, Consumer<LivingEntity> onShot) {
+        kit.lob(hand(kit), to, 6, 1.6, land -> turretAt(kit, key, land, life, every, range, rate, onShot));
+    }
+
+    /** A lantern standing at {@code at} for {@code life} ticks that, every {@code every} ticks (a multiple of 2), shoots the nearest enemy within {@code range} for {@code rate}. */
+    static void turretAt(MoveKit kit, String key, Location at, int life, int every, double range, double rate, Consumer<LivingEntity> onShot) {
+        kit.sound(at, Sound.BLOCK_CHAIN_PLACE, 0.8f, 1.3f);
+        kit.zone(key, at, life, 2, zone -> {
+            boolean fire = zone.age() % every == 0;
+            standLantern(kit, at, 1.2, fire ? 1.0 : 0.0);
+            if (!fire) return;
+            LivingEntity nearest = null;
+            double best = range * range;
+            for (LivingEntity victim : kit.around(at, range)) {
+                double distance = victim.getLocation().distanceSquared(at);
+                if (distance < best) {
+                    best = distance;
+                    nearest = victim;
+                }
+            }
+            if (nearest == null) return;
+            Location top = at.clone().add(0.0, 1.35, 0.0);
+            Location chest = nearest.getLocation().add(0.0, nearest.getHeight() * 0.5, 0.0);
+            kit.line(top, chest, 0.2, 1.0, 1.1);
+            kit.burst(chest, 0.7);
+            kit.sound(top, Sfx.MAGIC, 0.35f, 1.9f);
+            if (kit.hit(nearest, rate) && onShot != null) onShot.accept(nearest);
+        }, zone -> kit.shockwave(at, 0.6, 1.6, 2, 0.8));
+    }
+
+    /** A bomb lobbed to {@code to}: see {@link #bombAt}. */
+    static void bomb(MoveKit kit, String key, Location to, int fuse, double radius, double rate, double knock) {
+        kit.lob(hand(kit), to, 6, 1.6, land -> bombAt(kit, key, land, fuse, radius, rate, knock));
+    }
+
+    /** A bomb that sits at {@code at} for {@code fuse} ticks (at most 60), its orb swelling and its reach shown, and then goes off: {@code rate} within {@code radius}, a push of {@code knock} (0 = none). */
+    static void bombAt(MoveKit kit, String key, Location at, int fuse, double radius, double rate, double knock) {
+        kit.sound(at, Sound.ENTITY_TNT_PRIMED, 0.7f, 1.2f);
+        kit.zone(key, at, fuse, 2, zone -> {
+            standLantern(kit, at, 0.5, zone.progress());
+            if (zone.age() % 4 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.12, 0.0), radius * (0.6 + 0.4 * zone.progress()), (int) Math.max(18, radius * 8), kit.palette(), 0.3 + 0.6 * zone.progress(), 0.15, 0.9);
+        }, zone -> {
+            kit.burst(at.clone().add(0.0, 0.4, 0.0), radius);
+            kit.shockwave(at, 1.0, radius, 4, 1.1);
+            kit.sound(at, Sound.ENTITY_GENERIC_EXPLODE, 0.9f, 1.2f);
+            for (LivingEntity victim : kit.around(at, radius)) {
+                if (kit.hit(victim, rate) && knock > 0.0) kit.push(victim, at.toVector(), knock, knock * 0.5);
+            }
+        });
+    }
+
+    /**
+     * A beacon standing at {@code at} for {@code life} ticks (at most 60) that makes things fall onto the ground within {@code radius}
+     * round it, one every {@code every} ticks (a multiple of 2), each hitting for {@code rate} within 1.4 blocks.
+     */
+    static void rainBeacon(MoveKit kit, String key, Location at, int life, int every, double radius, double rate, Sfx sound) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        kit.sound(at, Sound.BLOCK_BEACON_ACTIVATE, 0.6f, 1.7f);
+        kit.zone(key, at, life, 2, zone -> {
+            for (double y = 0.0; y < 3.0; y += 0.4) kit.fx(at).dust(at.getX(), at.getY() + y, at.getZ(), kit.palette(), 0.3 + 0.5 * y / 3.0, 1.0);
+            if (zone.age() % 6 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.12, 0.0), radius, (int) Math.max(24, radius * 9), kit.palette(), 0.4, 0.15, 0.8);
+            if (zone.age() % every != 0) return;
+            double angle = random.nextDouble(Math.PI * 2.0);
+            double distance = Math.sqrt(random.nextDouble()) * radius;
+            Location spot = kit.ground(at.clone().add(Math.cos(angle) * distance, 0.0, Math.sin(angle) * distance));
+            Location from = spot.clone().add(random.nextDouble(-1.0, 1.0), 8.0, random.nextDouble(-1.0, 1.0));
+            kit.line(from, spot, 0.2, 1.0, 1.1);
+            kit.burst(spot.clone().add(0.0, 0.2, 0.0), 0.8);
+            kit.sound(spot, sound, 0.4f, 1.3f);
+            kit.hitAll(kit.around(spot, 1.4), rate);
+        }, null);
     }
 }
