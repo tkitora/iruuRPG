@@ -41,6 +41,44 @@ public final class RangerVfx {
         }
     }
 
+    /**
+     * The aura of the enhanced state for {@code player}: the strands and ring of {@link #aura(World, Location, int)}, a halo over the head, two wings of
+     * light that beat behind the shoulders, and streaks of light behind when the ranger is moving.
+     */
+    public static void aura(Player player, int tick) {
+        World world = player.getWorld();
+        Location base = player.getLocation();
+        aura(world, base, tick);
+        Fx fx = Fx.of(ParticleFx.owner(), world, base);
+        if (!fx.active()) return;
+        // the halo
+        Location head = base.clone().add(0.0, player.getHeight() + 0.45, 0.0);
+        fx.flatRing(head, 0.4, 18, SkillFx.INSTINCT, 0.9, 0.0, 1.0);
+        // the wings: five feathers each, fanned from the shoulder, flapping
+        double yaw = Math.toRadians(base.getYaw());
+        Vector back = new Vector(Math.sin(yaw), 0.0, -Math.cos(yaw));
+        Vector right = new Vector(-Math.cos(yaw), 0.0, -Math.sin(yaw));
+        double flap = 0.28 * Trig.sin(tick * 0.28);
+        for (int side = -1; side <= 1; side += 2) {
+            Location anchor = base.clone().add(0.0, 1.35, 0.0).add(back.clone().multiply(0.25)).add(right.clone().multiply(0.25 * side));
+            for (int feather = 0; feather < 5; feather++) {
+                double angle = Math.toRadians(15.0 + 20.0 * feather) + flap;
+                Vector direction = right.clone().multiply(side * Trig.cos(angle)).add(new Vector(0.0, Trig.sin(angle), 0.0)).add(back.clone().multiply(0.45)).normalize();
+                double length = 0.7 + 0.28 * (4 - Math.abs(feather - 1.5));
+                fx.line(anchor, anchor.clone().add(direction.multiply(length)), SkillFx.INSTINCT, 0.2 + 0.1 * feather, 1.0, 0.0, 0.9, 0.18, null, 1);
+            }
+        }
+        // streaks behind while moving
+        Vector velocity = player.getVelocity().setY(0.0);
+        if (velocity.lengthSquared() > 0.006) {
+            Vector trail = velocity.clone().normalize().multiply(-2.2);
+            for (int line = 0; line < 3; line++) {
+                Location from = base.clone().add(0.0, 0.6 + 0.5 * line, 0.0).add(right.clone().multiply((line - 1) * 0.35));
+                fx.line(from, from.clone().add(trail), SkillFx.INSTINCT, 1.0, 0.0, 2.0, 0.9, 0.3, null, 1);
+            }
+        }
+    }
+
     /** The burst when the enhanced state starts: three shock rings, a column of light and a flash. */
     public static void activation(World world, Location base) {
         Player owner = ParticleFx.owner();
@@ -49,6 +87,15 @@ public final class RangerVfx {
         }
         SkillFx.column(owner, base, 3.5, 0.5, SkillFx.INSTINCT);
         SkillFx.burst(owner, base.clone().add(0.0, 1.0, 0.0), 2.0, SkillFx.INSTINCT);
+        // a crown of spikes of light round the ranger and a spiral that climbs
+        Fx fx = Fx.of(owner, world, base);
+        for (int index = 0; index < 8; index++) {
+            double angle = Math.PI * 2.0 * index / 8.0;
+            Location foot = base.clone().add(Trig.cos(angle) * 2.4, 0.0, Trig.sin(angle) * 2.4);
+            fx.line(foot, foot.clone().add(0.0, 3.6, 0.0), SkillFx.INSTINCT, 0.3, 1.0, 1.5, 1.0, 0.45, null, 1);
+        }
+        SkillFx.helix(owner, base, new Vector(0.0, 1.0, 0.0), 0.0, 4.5, 4.5, 1.0, SkillFx.INSTINCT);
+        SkillFx.helix(owner, base, new Vector(0.0, 1.0, 0.0), 0.0, 4.5, 4.5, 1.0, SkillFx.INSTINCT, Math.PI);
         ParticleFx.to(world).spawnParticle(Particle.FLASH, base.clone().add(0.0, 1.0, 0.0), 1);
     }
 

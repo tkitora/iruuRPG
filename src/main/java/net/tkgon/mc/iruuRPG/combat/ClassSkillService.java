@@ -42,10 +42,6 @@ public final class ClassSkillService {
     public static final String METEOR = "meteor";
     public static final String METEOR_UPGRADE = "meteor_upgrade";
 
-    private static final Particle.DustOptions BOLT_CORE = new Particle.DustOptions(Color.fromRGB(255, 244, 150), 1.5f);
-    private static final Particle.DustOptions BOLT_GLOW = new Particle.DustOptions(Color.fromRGB(255, 214, 20), 1.1f);
-    private static final Particle.DustOptions BIG_BOLT_CORE = new Particle.DustOptions(Color.fromRGB(255, 255, 215), 2.2f);
-    private static final Particle.DustOptions BIG_BOLT_GLOW = new Particle.DustOptions(Color.fromRGB(255, 200, 0), 1.7f);
     private static final double BOLT_HEIGHT = 14.0;
     private static final int BOLT_FLASHES = 3;
     private static final long BOLT_FLASH_INTERVAL_TICKS = 2L;
@@ -113,7 +109,7 @@ public final class ClassSkillService {
     /** What the skill needs before it may spend MP/cooldown; null means the skill has no combat effect yet. */
     public Precheck precheck(Player player, ClassSkillDefinition skill) {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
-            return precheckWarriorStrike(player, skill);
+            return precheckSanctuary(player);
         }
         if (ICE_LANCE.equalsIgnoreCase(skill.id()) || METEOR.equalsIgnoreCase(skill.id())) {
             return precheckIceLance(player);
@@ -143,32 +139,26 @@ public final class ClassSkillService {
             return;
         }
         if (precheck.weapon() == null) return;
-        // the assassin's class skill gives status effects with every hit; every other class skill, once per enemy
-        if (SATSUJIN.equalsIgnoreCase(skill.id())) {
-            int repeats = (int) Math.round(skill.values().getOrDefault("upgrade-repeats", 9.0));
-            int interval = (int) Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-interval-ticks", 3.0)));
-            attackService.statusUnlimited(player, 4 + (repeats + 1) * interval + 10);
-        } else {
-            attackService.beginAttack(player);
-        }
+        // the assassin's frenzy gives status effects with every hit (for as long as it lasts); every other class skill, once per enemy
+        if (!SATSUJIN.equalsIgnoreCase(skill.id())) attackService.beginAttack(player);
         if (isGeneral(skill)) {
             executeGeneral(player, skill, precheck.weapon());
             return;
         }
-        if (precheck.target() != null && WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
-            warriorStrike(player, skill, precheck.target(), precheck.weapon());
+        if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
+            warriorSurge(player, skill, precheck.weapon());
         } else if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
             iceLance(player, skill, precheck.weapon());
         } else if (METEOR.equalsIgnoreCase(skill.id())) {
             meteor.cast(player, skill.values(), precheck.weapon(), classService.hasSkill(profileManager.getOrCreate(player), METEOR_UPGRADE));
         } else if (SANCTUARY.equalsIgnoreCase(skill.id())) {
             sanctuary(player, skill, precheck.weapon());
-        } else if (SATSUJIN.equalsIgnoreCase(skill.id()) && precheck.target() != null) {
-            satsujin(player, skill, precheck.target(), precheck.weapon());
+        } else if (SATSUJIN.equalsIgnoreCase(skill.id())) {
+            satsujin(player, skill);
         }
     }
 
-    private Precheck precheckWarriorStrike(Player player, ClassSkillDefinition skill) {
+    private Precheck precheckSatsujin(Player player, ClassSkillDefinition skill) {
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
         if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) {
             return Precheck.rejected("近接武器を持っていないと使えません。");
@@ -177,34 +167,7 @@ public final class ClassSkillService {
             attackService.sendLevelRequirement(player, weapon);
             return Precheck.rejected(null);
         }
-
-        double range = skill.values().getOrDefault("range", 6.0);
-        LivingEntity target = findTarget(player, range);
-        if (target == null) {
-            return Precheck.rejected("前方に対象がいません。");
-        }
-        return Precheck.ready(target, weapon);
-    }
-
-    private Precheck precheckSatsujin(Player player, ClassSkillDefinition skill) {
-        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
-        if (weapon == null || !weapon.isWeaponLike()) {
-            return Precheck.rejected("武器を持っていないと使えません。");
-        }
-        if (!attackService.canUseItem(player, weapon)) {
-            attackService.sendLevelRequirement(player, weapon);
-            return Precheck.rejected(null);
-        }
-        if (classEffectService == null) return Precheck.rejected("対象がいません。");
-
-        LivingEntity target = classEffectService.lastTarget(player, skill.values().getOrDefault("target-memory-seconds", 15.0));
-        if (target == null) {
-            return Precheck.rejected("最後に攻撃した敵がいません。");
-        }
-        if (target.getLocation().distance(player.getLocation()) > skill.values().getOrDefault("max-distance", 40.0)) {
-            return Precheck.rejected("対象が遠すぎます。");
-        }
-        return Precheck.ready(target, weapon);
+        return Precheck.ready(null, weapon);
     }
 
     private Precheck precheckSanctuary(Player player) {
@@ -249,49 +212,96 @@ public final class ClassSkillService {
         return !DeployService.isDeployEntity(living) && !living.isDead() && attackService.isAttackTarget(living, player);
     }
 
-    private void warriorStrike(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon) {
-        boolean upgraded = classService.hasSkill(profileManager.getOrCreate(player), WARRIOR_STRIKE_UPGRADE);
-        if (!upgraded) {
-            strikeHit(player, skill, target, weapon, skill.values().getOrDefault("damage-rate", 3.0), false, 0.0);
-            return;
-        }
-
-        // The upgrade also scales the damage with the health lost when the skill is cast (1 + missing share x
-        // class-effects.warrior.missing-hp-damage) and gives this one cast a life steal (class-effects.warrior.strike-lifesteal)
+    /**
+     * The warrior's surge: for some seconds (8; 12 when upgraded) the warrior is wrapped in lightning. Every damage they deal gives back a share as
+     * health (8%; 14% when upgraded: {@link ClassEffectService#activateSurge}), and every {@code bolt-interval-ticks} ticks a bolt falls on the nearest enemy within
+     * {@code bolt-range} blocks (the weapon's damage times {@code bolt-rate}), so the surge makes damage by itself and the damage heals.
+     */
+    private void warriorSurge(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
         PlayerProfile profile = profileManager.getOrCreate(player);
-        double missing = profile.maxHp() <= 0.0 ? 0.0 : Math.max(0.0, Math.min(1.0, 1.0 - profile.currentHp() / profile.maxHp()));
-        double scale = 1.0 + missing * Math.max(0.0, plugin.getConfig().getDouble("class-effects.warrior.missing-hp-damage", 1.0));
-        double lifesteal = Math.max(0.0, plugin.getConfig().getDouble("class-effects.warrior.strike-lifesteal", 0.005));
+        boolean upgraded = classService.hasSkill(profile, WARRIOR_STRIKE_UPGRADE);
+        double baseSeconds = upgraded ? skill.values().getOrDefault("upgrade-duration-seconds", 12.0) : skill.values().getOrDefault("duration-seconds", 8.0);
+        PlayerProfile snapshot = attackService.snapshotAttacker(player);
+        double seconds = baseSeconds * Math.max(0.1, 1.0 + snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.DURATION) / 100.0);
+        double lifesteal = upgraded ? skill.values().getOrDefault("upgrade-lifesteal", 0.14) : skill.values().getOrDefault("lifesteal", 0.08);
+        double boltRate = upgraded ? skill.values().getOrDefault("upgrade-bolt-rate", 0.9) : skill.values().getOrDefault("bolt-rate", 0.6);
+        int interval = (int) Math.max(4L, Math.round(skill.values().getOrDefault("bolt-interval-ticks", 14.0)));
+        double range = skill.values().getOrDefault("bolt-range", 7.0);
+        if (classEffectService == null) return;
+        classEffectService.activateSurge(player, seconds, upgraded ? 2 : 1, lifesteal);
 
-        // Upgrade: two-stage hit. The second bolt hits harder and looks bigger.
-        double firstRate = skill.values().getOrDefault("upgrade-first-rate", 2.5);
-        double secondRate = skill.values().getOrDefault("upgrade-second-rate", 4.0);
-        long delay = Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-delay-ticks", 8.0)));
-        strikeHit(player, skill, target, weapon, firstRate * scale, false, lifesteal);
-        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            if (!player.isOnline() || target.isDead() || !target.isValid()) return;
-            strikeHit(player, skill, target, weapon, secondRate * scale, true, lifesteal);
-        }, delay);
+        World world = player.getWorld();
+        Location base = player.getLocation();
+        world.playSound(base, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.9f, 1.3f);
+        world.playSound(base, Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.9f);
+        // it opens with a crown of bolts round the warrior and two rings of light on the ground
+        for (int index = 0; index < 4; index++) {
+            double angle = Math.PI * 0.5 * index + Math.PI * 0.25;
+            Location head = base.clone().add(Math.cos(angle) * 2.2, 1.0, Math.sin(angle) * 2.2);
+            SkillFx.bolt(player, head.clone().add(0.0, 9.0, 0.0), head, 9, 0.8, SkillFx.LIGHTNING, false);
+        }
+        SkillFx.groundRing(player, base, 2.4, SkillFx.LIGHTNING, 0.7, 1.2);
+        SkillFx.groundRing(player, base, 3.6, SkillFx.LIGHTNING, 0.9, 1.2);
+        SkillFx.burst(player, base.clone().add(0.0, 1.0, 0.0), 2.4, SkillFx.LIGHTNING);
+
+        int total = (int) Math.round(seconds * 20.0);
+        new SafeTask(plugin) {
+            private int tick;
+
+            @Override
+            protected void tick() {
+                ParticleFx.mark(player);
+                if (tick >= total || !player.isOnline() || player.isDead() || classEffectService.surgeLevel(player) == 0) {
+                    classEffectService.endSurge(player);
+                    cancel();
+                    return;
+                }
+                drawSurgeAura(player, tick);
+                if (tick > 0 && tick % interval == 0) {
+                    LivingEntity target = nearestEnemy(player, range);
+                    if (target != null) strikeHit(player, skill, target, weapon, boltRate, upgraded, 0.0, skill.values().getOrDefault("bolt-splash-share", 0.2), false);
+                }
+                tick += 2;
+            }
+        }.runTaskTimer(plugin, 0L, 2L);
     }
 
-    private void strikeHit(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon, double rate, boolean big, double lifesteal) {
+    /** Lightning turning round the warrior's body (two strands up the length of it) and a crackle of sparks. */
+    private void drawSurgeAura(Player player, int tick) {
+        Location feet = player.getLocation();
+        Vector up = new Vector(0.0, 1.0, 0.0);
+        SkillFx.helix(player, feet, up, 0.0, 2.2, 2.2, 0.75, SkillFx.LIGHTNING, tick * 0.35);
+        if (tick % 6 == 0) {
+            SkillFx.groundRing(player, feet, 1.4, SkillFx.LIGHTNING, 0.6, 1.0);
+            ParticleFx.to(player.getWorld()).spawnParticle(Particle.ELECTRIC_SPARK, feet.clone().add(0.0, 1.0, 0.0), 3, 0.5, 0.7, 0.5, 0.2);
+        }
+    }
+
+    private LivingEntity nearestEnemy(Player player, double range) {
+        LivingEntity best = null;
+        double bestDistance = range * range;
+        for (Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), range, range, range)) {
+            if (!isValidTarget(player, entity)) continue;
+            double distance = entity.getLocation().distanceSquared(player.getLocation());
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = (LivingEntity) entity;
+            }
+        }
+        return best;
+    }
+
+    private void strikeHit(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon, double rate, boolean big, double lifesteal, double splashShare, boolean loud) {
         AttackService.AttackDamage attack = attackService.calculateDamage(player, target, weapon);
         double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
         boolean critical = attack.result().critical();
 
-        playLightning(target.getEyeLocation(), target.getLocation(), big);
-        if (!attackService.applyDirectDamage(player, target, damage, weapon, critical)) {
-            player.sendMessage("[iruuRPG] " + skill.name() + "はダメージを与えられませんでした。");
-            return;
-        }
-        if (damage <= 0.0) {
-            player.sendMessage("[iruuRPG] " + skill.name() + "のダメージが0です。武器と対象を確認してください。");
-        }
+        playLightning(target.getEyeLocation(), target.getLocation(), big, loud);
+        if (!attackService.applyDirectDamage(player, target, damage, weapon, critical)) return;
 
         if (lifesteal > 0.0) attackService.healPlayer(player, damage * lifesteal);
         // the thunder spreads: the enemies round the target take a share of the strike and are stunned for a moment (a strong slow)
         double splashRadius = skill.values().getOrDefault("splash-radius", 3.5) * (big ? 1.3 : 1.0);
-        double splashShare = skill.values().getOrDefault("splash-share", 0.33);
         if (splashRadius > 0.0 && splashShare > 0.0) {
             for (org.bukkit.entity.Entity entity : target.getWorld().getNearbyEntities(target.getLocation(), splashRadius, splashRadius, splashRadius)) {
                 if (!isValidTarget(player, entity) || entity.equals(target)) continue;
@@ -305,18 +315,17 @@ public final class ClassSkillService {
                 }
             }
         }
-        attackService.sendDamageDebug(player, AttackType.MELEE, target, damage, critical, false);
-        // Melee area passive (if unlocked) also splashes each hit at the usual area rate.
-        attackService.applyAreaDamage(player, target, damage, AttackType.MELEE, weapon);
+        attackService.sendDamageDebug(player, weapon.attackType() == AttackType.RANGE ? AttackType.RANGE : AttackType.MELEE, target, damage, critical, false);
     }
 
     /** A lightning bolt drawn with yellow dust particles, striking the head from above. */
-    private void playLightning(Location head, Location feet, boolean big) {
+    private void playLightning(Location head, Location feet, boolean big, boolean loud) {
         World world = head.getWorld();
         if (world == null) return;
 
-        world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, big ? 1.0f : 0.7f, big ? 1.2f : 1.6f);
-        world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, big ? 1.0f : 0.8f, big ? 0.9f : 1.2f);
+        float volume = loud ? 1.0f : 0.45f;
+        world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, volume * (big ? 1.0f : 0.7f), big ? 1.2f : 1.6f);
+        world.playSound(head, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, volume * (big ? 1.0f : 0.8f), big ? 0.9f : 1.2f);
 
         Player fxOwner = ParticleFx.owner();
         new SafeTask(plugin) {
@@ -353,184 +362,70 @@ public final class ClassSkillService {
 
     // ---- satsujin (assassin) --------------------------------------------------------
 
-    private static final Particle.DustOptions SATSUJIN_TRAIL = new Particle.DustOptions(Color.fromRGB(255, 130, 20), 1.4f);
-
     /**
-     * Teleports to the enemy hit last, stuns it (confusion 100) and attacks once as a normal attack
-     * (no normal attack cooldown). Upgrade: keeps repeating the same attack, up to 9 more times, until it dies.
+     * The assassin's frenzy: for some seconds (8; 12 when upgraded) the assassin's combo is stronger (see {@link AssassinMeleeCombo}): the blows hit harder,
+     * the normal attacks come faster, an enemy out of reach is blinked to, a shadow cuts again after every normal attack, heavy 0 has no cooldown, and the status
+     * effects (confusion) land with every hit. A rush of shadow opens it, and the assassin is wrapped in it until it ends.
      */
-    private void satsujin(Player player, ClassSkillDefinition skill, LivingEntity target, RpgItemDefinition weapon) {
-        Location from = player.getLocation().clone();
-        Location behind = target.getLocation().clone();
-        Vector away = behind.getDirection().setY(0);
-        if (away.lengthSquared() < 1.0E-6) away = new Vector(0, 0, 1);
-        behind.subtract(away.normalize().multiply(1.2));
-        behind.setDirection(target.getLocation().toVector().subtract(behind.toVector()));
-        player.teleport(behind);
-        playTeleportTrail(from, behind);
-
-        if (statusEffectService != null) {
-            statusEffectService.addConfusion(target, skill.values().getOrDefault("confusion", 100.0), player.getUniqueId());
-            // the confusion spreads to the enemies round the target (half as strong)
-            double spreadRadius = skill.values().getOrDefault("spread-radius", 3.0);
-            double spreadConfusion = skill.values().getOrDefault("spread-confusion", 50.0);
-            if (spreadRadius > 0.0 && spreadConfusion > 0.0) {
-                for (org.bukkit.entity.Entity entity : target.getWorld().getNearbyEntities(target.getLocation(), spreadRadius, spreadRadius, spreadRadius)) {
-                    if (!isValidTarget(player, entity) || entity.equals(target)) continue;
-                    statusEffectService.addConfusion((LivingEntity) entity, spreadConfusion, player.getUniqueId());
-                }
-            }
-        }
-        normalAttack(player, target, weapon);
-
+    private void satsujin(Player player, ClassSkillDefinition skill) {
         boolean upgraded = classService.hasSkill(profileManager.getOrCreate(player), SATSUJIN_UPGRADE);
-        if (!upgraded) {
-            new SafeTask(plugin) {
-                @Override
-                protected void tick() {
-                    ParticleFx.mark(player);
-                    cancel();
-                    kickAway(player, target, skill);
-                }
-            }.runTaskLater(plugin, 4L);
-            return;
+        double baseSeconds = upgraded ? skill.values().getOrDefault("upgrade-duration-seconds", 12.0) : skill.values().getOrDefault("duration-seconds", 8.0);
+        PlayerProfile snapshot = attackService.snapshotAttacker(player);
+        double seconds = baseSeconds * Math.max(0.1, 1.0 + snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.DURATION) / 100.0);
+        if (classEffectService == null) return;
+        classEffectService.activateFrenzy(player, seconds, upgraded ? 2 : 1);
+        int total = (int) Math.round(seconds * 20.0);
+        attackService.statusUnlimited(player, total + 10);
+
+        World world = player.getWorld();
+        Location base = player.getLocation();
+        world.playSound(base, Sound.ENTITY_ENDERMAN_TELEPORT, 0.9f, 0.7f);
+        world.playSound(base, Sound.ENTITY_WITHER_SHOOT, 0.35f, 1.8f);
+        world.playSound(base, Sound.BLOCK_BEACON_ACTIVATE, 0.6f, 0.7f);
+        Player owner = ParticleFx.owner();
+        SkillFx.column(owner, base, 3.2, 0.9, SkillFx.SHADOW);
+        for (int ring = 1; ring <= 3; ring++) {
+            double r = 1.2 + ring * 1.1;
+            int which = ring;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(owner, base, r, SkillFx.SHADOW, 1.0 - 0.2 * which, 1.2), ring - 1);
+        }
+        // afterimages of the assassin standing round
+        net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, base);
+        for (int image = 0; image < 6; image++) {
+            double angle = Math.PI * 2.0 * image / 6.0;
+            fx.sphereShell(base.clone().add(Math.cos(angle) * 1.8, 1.0, Math.sin(angle) * 1.8), 0.5, image * 0.6, 22, SkillFx.SHADOW, 1.0);
         }
 
-        int repeats = (int) Math.round(skill.values().getOrDefault("upgrade-repeats", 9.0));
-        long interval = Math.max(1L, Math.round(skill.values().getOrDefault("upgrade-interval-ticks", 3.0)));
         new SafeTask(plugin) {
-            private int done;
+            private int tick;
+            private Location lastImage = base.clone();
 
             @Override
             protected void tick() {
                 ParticleFx.mark(player);
-                if (done >= repeats || !player.isOnline() || target.isDead() || !target.isValid()) {
+                if (tick >= total || !player.isOnline() || player.isDead() || classEffectService.frenzyLevel(player) == 0) {
+                    classEffectService.endFrenzy(player);
+                    if (player.isOnline()) player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.5f, 1.6f);
                     cancel();
-                    kickAway(player, target, skill);
                     return;
                 }
-                normalAttack(player, target, weapon);
-                done++;
-            }
-        }.runTaskTimer(plugin, interval, interval);
-    }
-
-    /**
-     * The finish of the satsujin: the assassin kicks the enemy (if it is still alive) away along the line between
-     * them, and springs off it backwards and up, away from the enemy. The pushes are the `kick-*` values of the skill.
-     */
-    private void kickAway(Player player, LivingEntity target, ClassSkillDefinition skill) {
-        if (!player.isOnline() || player.isDead() || target.isDead() || !target.isValid()) return;
-        if (!player.getWorld().equals(target.getWorld())) return;
-
-        Vector forward = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
-        if (forward.lengthSquared() < 1.0E-6) forward = player.getLocation().getDirection().setY(0.0);
-        if (forward.lengthSquared() < 1.0E-6) forward = new Vector(0.0, 0.0, 1.0);
-        forward.normalize();
-
-        double enemyPower = skill.values().getOrDefault("kick-enemy-power", 1.2);
-        double enemyLift = skill.values().getOrDefault("kick-enemy-lift", 0.35);
-        double selfPower = skill.values().getOrDefault("kick-self-power", 1.0);
-        double selfLift = skill.values().getOrDefault("kick-self-lift", 0.6);
-        if (enemyPower > 0.0 || enemyLift > 0.0) {
-            target.setVelocity(forward.clone().multiply(enemyPower).setY(enemyLift));
-        }
-        if (selfPower > 0.0 || selfLift > 0.0) {
-            player.setFallDistance(0.0f);
-            player.setVelocity(forward.clone().multiply(-selfPower).setY(selfLift));
-        }
-
-        World world = target.getWorld();
-        Location hit = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
-        world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 1.0f, 0.9f);
-        world.playSound(hit, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.8f, 1.3f);
-        ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, hit.clone().subtract(forward.clone().multiply(0.4)), 2, 0.3, 0.2, 0.3, 0.0);
-        ParticleFx.to(world).spawnParticle(Particle.CRIT, hit, 18, 0.35, 0.3, 0.35, 0.35);
-        Player kickOwner = ParticleFx.owner();
-        SkillFx.burst(kickOwner, hit, 2.2, SkillFx.SHADOW);
-        // a streak from the enemy back toward where the assassin is flung, and a ring of shadow
-        SkillFx.trail(kickOwner, hit, hit.clone().add(forward.clone().multiply(-2.4)).add(0.0, 0.6, 0.0), SkillFx.SHADOW, 1.3);
-        SkillFx.groundRing(kickOwner, target.getLocation(), 3.2, SkillFx.SHADOW, 0.7, 1.2);
-        // the kick shakes the enemies round the target: a share of the normal attack and a slow
-        double shockRadius = skill.values().getOrDefault("kick-shock-radius", 3.0);
-        double shockRate = skill.values().getOrDefault("kick-shock-rate", 0.8);
-        if (shockRadius > 0.0 && shockRate > 0.0) {
-            RpgItemDefinition held = attackService.weaponInMainHand(player);
-            for (org.bukkit.entity.Entity entity : world.getNearbyEntities(target.getLocation(), shockRadius, shockRadius, shockRadius)) {
-                if (!isValidTarget(player, entity) || entity.equals(target) || held == null) continue;
-                LivingEntity near = (LivingEntity) entity;
-                AttackService.AttackDamage around = attackService.calculateDamage(player, near, held);
-                double shock = Math.round(around.result().damage() * shockRate * 10.0) / 10.0;
-                if (attackService.applyDirectDamage(player, near, shock, held, false) && statusEffectService != null && near.isValid() && !near.isDead()) {
-                    statusEffectService.applyTimedSlow(near, 50.0, 2000L, player.getUniqueId());
+                Location feet = player.getLocation();
+                // wisps of shadow climbing round the body, and the shape the assassin had a moment ago left behind
+                SkillFx.helix(owner, feet, new Vector(0.0, 1.0, 0.0), 0.0, 2.0, 2.0, 0.7, SkillFx.SHADOW, -tick * 0.4);
+                if (tick % 6 == 0) {
+                    net.tkgon.mc.iruuRPG.vfx.Fx image = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, player.getWorld(), lastImage);
+                    image.sphereShell(lastImage.clone().add(0.0, 1.0, 0.0), 0.45, 0.0, 18, SkillFx.SHADOW, 0.9);
+                    lastImage = feet.clone();
+                    SkillFx.groundRing(owner, feet, 1.5, SkillFx.SHADOW, 0.6, 1.0);
                 }
+                tick += 2;
             }
-        }
-    }
-
-    /** One normal attack with the held weapon, without spending the attack cooldown. */
-    private void normalAttack(Player player, LivingEntity target, RpgItemDefinition mainWeapon) {
-        // it counts as a normal attack: a dual-wielding assassin's hands alternate (and may strike together) here too
-        AttackService.MeleeHand hand = mainWeapon.attackType() == AttackType.MELEE
-                ? attackService.nextMeleeHand(player, mainWeapon)
-                : new AttackService.MeleeHand(mainWeapon, null, false, null, null, false);
-        RpgItemDefinition weapon = hand.weapon();
-        AttackService.AttackDamage attack = attackService.calculateMeleeDamage(player, target, hand);
-        double damage = attack.result().damage();
-        boolean critical = attack.result().critical();
-        AttackType type = weapon.attackType();
-        if (hand.offHand()) attackService.swingOffHand(player);
-        if (hand.doubleStrike()) attackService.doubleStrikeHit(player, target, hand);
-        boolean applied;
-        if (type == AttackType.RANGE) {
-            applied = attackService.applyRangeDamage(player, target, damage, weapon, critical);
-            if (applied) attackService.playRangeImpact(player, target.getLocation().add(0, target.getHeight() * 0.5, 0), weapon);
-        } else {
-            applied = attackService.applyDirectDamage(player, target, damage, weapon, critical);
-            if (applied && type == AttackType.MELEE) {
-                attackService.playMeleeImpact(player, target);
-                attackService.playMeleeSlash(player, weapon);
-            }
-        }
-        if (!applied) return;
-
-        attackService.sendDamageDebug(player, type, target, damage, critical, false);
-        if (type == AttackType.MELEE || type == AttackType.RANGE) {
-            attackService.applyAreaDamage(player, target, damage, type, weapon);
-        }
-    }
-
-    private void playTeleportTrail(Location from, Location to) {
-        World world = to.getWorld();
-        if (world == null) return;
-
-        world.playSound(from, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.5f);
-        world.playSound(to, Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 1.2f);
-        Vector step = to.toVector().subtract(from.toVector());
-        double length = step.length();
-        if (length < 1.0E-6) return;
-
-        // a streak from where the assassin was to where it is (deep at the start, bright at the end) and afterimages along it
-        Player owner = ParticleFx.owner();
-        Location a = from.clone().add(0, 1.0, 0);
-        Location b = to.clone().add(0, 1.0, 0);
-        SkillFx.trail(owner, a, b, SkillFx.SHADOW, 1.4);
-        SkillFx.trail(owner, a.clone().add(0.0, 0.4, 0.0), b.clone().add(0.0, 0.4, 0.0), SkillFx.SHADOW, 1.0);
-        net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, a);
-        for (int image = 0; image < 5; image++) {
-            double share = (image + 1) / 6.0;
-            Location at = a.clone().add(b.toVector().subtract(a.toVector()).multiply(share));
-            fx.sphereShell(at, 0.55, image * 0.7, 24, SkillFx.SHADOW, 1.0);
-        }
-        SkillFx.burst(owner, b, 1.6, SkillFx.SHADOW);
-        ParticleFx.to(world).spawnParticle(Particle.SWEEP_ATTACK, to.clone().add(0, 1.0, 0), 3, 0.4, 0.3, 0.4, 0.0);
+        }.runTaskTimer(plugin, 0L, 2L);
     }
 
     // ---- sanctuary (healer) --------------------------------------------------------
 
     private static final UUID NO_KNOCKBACK_ID = UUID.fromString("6c0b1c7e-5d54-4b7a-9d83-2f6a1d9e0a11");
-    private static final Particle.DustOptions SANCTUARY_RING = new Particle.DustOptions(Color.fromRGB(90, 230, 120), 1.3f);
-    private static final Particle.DustOptions SANCTUARY_LIGHT = new Particle.DustOptions(Color.fromRGB(200, 255, 210), 1.0f);
 
     /**
      * A healing area (radius 7). Every second it heals allies in it by the damage the held weapon would deal
@@ -582,7 +477,16 @@ public final class ClassSkillService {
                 if (tick % 20 == 0 && !finished) {
                     for (Player ally : alliesIn(center, radius)) {
                         attackService.healPlayerBy(player, ally, healPerSecond);
+                        // a column of light rises round each one healed
+                        SkillFx.column(player, ally.getLocation(), 2.4, 0.6, SkillFx.HOLY);
                     }
+                    for (int wave = 1; wave <= 4; wave++) {
+                        double r = radius * wave / 4.0;
+                        int which = wave;
+                        plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(player, center, r, SkillFx.HOLY, 0.5 + 0.1 * which, 1.1), wave);
+                    }
+                    world.playSound(center, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.6f);
+                    world.playSound(center, Sound.ENTITY_ALLAY_ITEM_GIVEN, 0.5f, 1.4f);
                     // the enemies inside are weighed down (a slow of 25% for as long as they stay)
                     double enemySlow = skill.values().getOrDefault("enemy-slow-percent", 25.0);
                     if (enemySlow > 0.0 && statusEffectService != null) {
@@ -605,7 +509,7 @@ public final class ClassSkillService {
                     cancel();
                     return;
                 }
-                if (tick % 5 == 0) drawSanctuary(world, center, radius, tick);
+                if (tick % 5 == 0) drawSanctuary(player, world, center, radius, tick);
                 tick += 5;
             }
         }.runTaskTimer(plugin, 0L, 5L);
@@ -670,7 +574,7 @@ public final class ClassSkillService {
         }
         world.playSound(state.center, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.9f);
         world.playSound(state.center, Sound.ENTITY_PLAYER_LEVELUP, 0.8f, 1.5f);
-        for (int ring = 1; ring <= 3; ring++) drawSanctuary(world, state.center, state.radius * ring / 3.0, ring * 12);
+        for (int ring = 1; ring <= 3; ring++) drawSanctuary(player, world, state.center, state.radius * ring / 3.0, ring * 12);
         ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, state.center.clone().add(0.0, 1.0, 0.0), 40, state.radius * 0.4, 0.8, state.radius * 0.4, 0.0);
         return true;
     }
@@ -707,17 +611,43 @@ public final class ClassSkillService {
         });
     }
 
-    private void drawSanctuary(World world, Location center, double radius, int tick) {
+    private static final Vector GROUND_X = new Vector(1.0, 0.0, 0.0);
+    private static final Vector GROUND_Z = new Vector(0.0, 0.0, 1.0);
+
+    private void drawSanctuary(Player caster, World world, Location center, double radius, int tick) {
+        Player owner = ParticleFx.owner();
         // a dome of light over the sanctuary (the upper half of a turning shell), a ring at its foot and motes rising inside
-        SkillFx.dome(ParticleFx.owner(), center, radius, tick, SkillFx.HOLY);
+        SkillFx.dome(owner, center, radius, tick, SkillFx.HOLY);
         ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 0.6, 0), 2, radius / 3.0, 0.3, radius / 3.0, 0.0);
+        // two magic circles on the ground turning against each other
+        Location ground = center.clone().add(0.0, 0.12, 0.0);
+        SkillFx.circle(owner, ground, GROUND_X, GROUND_Z, radius * 0.92, tick, SkillFx.HOLY);
+        SkillFx.circle(owner, ground.clone().add(0.0, 0.02, 0.0), GROUND_X, GROUND_Z, radius * 0.55, -tick, SkillFx.HOLY);
+        net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, center);
+        if (!fx.active()) return;
+        // six thin pillars of light at the rim, brighter toward the top
+        for (int index = 0; index < 6; index++) {
+            double angle = Math.PI * 2.0 * index / 6.0 + tick * 0.01;
+            Location base = center.clone().add(Math.cos(angle) * radius * 0.96, 0.0, Math.sin(angle) * radius * 0.96);
+            fx.line(base, base.clone().add(0.0, 4.5, 0.0), SkillFx.HOLY, 0.3, 1.0, 1.5, 0.9, 0.5, null, 1);
+        }
+        // motes of light drifting up from the ground inside
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int mote = 0; mote < 8; mote++) {
+            double angle = random.nextDouble(Math.PI * 2.0);
+            double distance = Math.sqrt(random.nextDouble()) * radius * 0.9;
+            fx.dust(center.getX() + Math.cos(angle) * distance, center.getY() + random.nextDouble(0.2, 2.6), center.getZ() + Math.sin(angle) * distance, SkillFx.HOLY, random.nextDouble(0.5, 1.0), 1.2);
+        }
+        // a halo turning over the head of the one who cast it
+        if (caster.isOnline() && caster.getWorld().equals(world)) {
+            Location head = caster.getLocation().add(0.0, caster.getHeight() + 0.5, 0.0);
+            net.tkgon.mc.iruuRPG.vfx.Fx haloFx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, head);
+            haloFx.flatRing(head, 0.45, 20, SkillFx.HOLY, 0.7 + 0.3 * Math.sin(tick * 0.2), 0.0, 1.0);
+        }
     }
 
     // ---- ice lance (mage) ---------------------------------------------------
 
-    private static final Particle.DustOptions ICE_CORE = new Particle.DustOptions(Color.fromRGB(200, 240, 255), 1.6f);
-    private static final Particle.DustOptions ICE_GLOW = new Particle.DustOptions(Color.fromRGB(60, 140, 255), 1.2f);
-    private static final Particle.DustOptions ICE_FROST = new Particle.DustOptions(Color.fromRGB(150, 205, 255), 1.0f);
     private static final int LANCE_TICKS = 5;
 
     /** Pierces everything on a straight line, slows (or freezes, when upgraded) whatever it hits. */

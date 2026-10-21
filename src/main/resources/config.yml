@@ -229,6 +229,9 @@ class-effects:
     laceration-scale: 1.0
     # 本能開放の発動中に付く移動速度上昇のレベル (1 = 移動速度上昇 I、0 でなし)
     instinct-speed-level: 1
+  assassin:
+    # SATUJIN (コンボ強化) の間、通常攻撃に足される攻撃速度 (%)
+    frenzy-attack-speed: 40
   healer:
     # 回復→敵ダメージの範囲(ブロック)
     pulse-radius: 7

@@ -1,14 +1,15 @@
 # クラススキル定義: アサシンの「SATUJIN」(解放ノード4 / ホットキー F)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 3
+version: 4
 #
-# 最後に攻撃した敵の背後へ瞬間移動し、混乱を100与え、持っている武器で通常攻撃を1回行う
-# (通常攻撃のクールタイムは発生しない)。
-# 強化(解放ノード8)を解放済みなら、同じ攻撃を最大9回、対象が死ぬまで繰り返す。
-# 最後に、敵がまだ生きていれば蹴り飛ばす: 敵は前へ、自分は斜め後ろ (後ろと上) へ跳ね飛ぶ。
-#
-# 強化: 瞬間移動の軌跡に残像が残る。対象の周囲 spread-radius ブロックの敵にも混乱 spread-confusion が広がる。
-# 最後の蹴りは着地点に衝撃が走り、周囲 kick-shock-radius ブロックの敵に威力の kick-shock-rate 倍 (通常攻撃基準) のダメージと、2 秒の鈍足。
+# 1回の発動ではなく、効果時間のあいだ続く「コンボ強化」になった (近接武器が必要):
+#   - 技のダメージが 20% 増える (強化後は 35%)。
+#   - 通常攻撃が速くなる (class-effects.assassin.frenzy-attack-speed、攻撃速度 +40%)。
+#   - 通常攻撃の前に、届かない敵のところへ自動で瞬間移動する。
+#   - 通常攻撃のたびに、少しあとに「影」が周囲を 40% で斬る (一時的な範囲攻撃)。
+#   - 強攻撃0のクールタイムがなくなる。
+#   - 状態異常 (混乱など) が、当たるたびに入る (通常は1回の攻撃につき1回)。
+# 強化(解放ノード8)を解放済みなら、効果時間と上がり幅が大きくなる。
 
 id: satsujin
 name: "SATUJIN"
@@ -20,28 +21,10 @@ cost: 40
 cooldown: 20
 
 description:
-  - "最後に攻撃した敵の背後へ瞬間移動し、混乱を与えて攻撃する。"
-  - "通常攻撃のクールタイムは発生しない。"
-  - "最後に敵を蹴り飛ばし、自分は斜め後ろへ跳ね飛ぶ。"
+  - "影をまとう。8秒間、アサシンのコンボが強くなる。"
+  - "技が強く・速くなり、通常攻撃のたびに瞬間移動と影の追撃が出る。"
 
 values:
-  # target-memory-seconds: 最後に攻撃した敵を覚えている時間(秒)
-  target-memory-seconds: 15
-  # max-distance: 移動できる最大距離(ブロック)
-  max-distance: 40
-  # confusion: 与える混乱の量 (100で行動停止)
-  confusion: 100
-  # upgrade-repeats: 強化後に追加で繰り返す回数 / upgrade-interval-ticks: その間隔(tick)
-  upgrade-repeats: 9
-  upgrade-interval-ticks: 3
-  # 最後の蹴り: 敵の飛ぶ強さ / 敵の浮く強さ / 自分の後ろへの強さ / 自分の上への強さ (0にすると、その動きはなし)
-  kick-enemy-power: 1.2
-  kick-enemy-lift: 0.35
-  kick-self-power: 1.0
-  kick-self-lift: 0.6
-  # 混乱の広がり: 範囲(ブロック) / 混乱の量 (0 でなし)
-  spread-radius: 3.0
-  spread-confusion: 50
-  # 蹴りの衝撃: 範囲(ブロック) / 威力の倍率 (0 でなし)
-  kick-shock-radius: 3.0
-  kick-shock-rate: 0.8
+  # duration-seconds: 効果時間(秒) / upgrade-duration-seconds: 強化後 (「効果時間」ステータスが乗る)
+  duration-seconds: 8
+  upgrade-duration-seconds: 12

@@ -11,7 +11,7 @@
 # 数値は design/class-redesign-2026-10-09.md の1SPあたり表と、ステータス解放の配分に基づく。
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 9
+version: 10
 
 id: warrior
 name: "戦士🗡"
@@ -145,9 +145,8 @@ milestones:
   - node_name: "武神の一撃・極"
     icon: END_CRYSTAL
     description:
-      - "武神の一撃が2段階の雷になり、威力と演出が増す。"
-      - "発動したときの減った体力の分だけ、武神の一撃のダメージが増える。"
-      - "この一撃だけ、与えたダメージの0.5%を吸血する。"
+      - "武神の一撃の効果時間が12秒になり、回復の割合と雷の威力が増す。"
+      - "雷と演出が大きくなる。"
     node_type: passive
     effect_type: skill
     name: warrior_strike_upgrade

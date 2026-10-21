@@ -5,7 +5,7 @@
 # (白・緑の属性ダメージの減少量と、保護の減少量は仮置き)
 
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 13
+version: 14
 
 id: assassin
 name: "アサシン⚔"
@@ -152,7 +152,7 @@ milestones:
   - node_name: "SATUJIN・極"
     icon: END_CRYSTAL
     description:
-      - "同じ攻撃を最大9回、対象が倒れるまで繰り返す。"
+      - "SATUJINの効果時間が12秒になり、技の強化の幅が大きくなる。"
     node_type: passive
     effect_type: skill
     name: satsujin_upgrade

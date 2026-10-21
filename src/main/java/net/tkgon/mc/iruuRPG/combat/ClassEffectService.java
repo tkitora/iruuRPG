@@ -87,6 +87,7 @@ public final class ClassEffectService {
         if (statuses) giftedOnHit(attacker, victim, weapon, profile, snapshot);
         if (attackService != null) attackService.rangerHit(attacker, victim, weapon);
         assassinOnHit(attacker, victim, weapon, damage, profile, statuses);
+        surgeOnHit(attacker, damage);
         if (statuses) mageOnHit(attacker, victim, damage, profile);
     }
 
@@ -239,6 +240,59 @@ public final class ClassEffectService {
         ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0, 1.0, 0), 6, 0.6, 0.6, 0.6, 0.0);
     }
 
+    // ---- the assassin's frenzy (SATUJIN) and the warrior's surge (武神の一撃): states that last a few seconds --------------------------------
+
+    /** {until (ms), level (1 normal, 2 upgraded)} of each assassin's frenzy. */
+    private final Map<UUID, long[]> frenzy = new HashMap<>();
+    /** {until (ms), level, share of the damage dealt that comes back as health} of each warrior's surge. */
+    private final Map<UUID, double[]> surge = new HashMap<>();
+
+    /** The frenzy: for {@code seconds} the assassin's combo is stronger (see {@link AssassinMeleeCombo}). */
+    public void activateFrenzy(Player player, double seconds, int level) {
+        frenzy.put(player.getUniqueId(), new long[]{System.currentTimeMillis() + Math.round(seconds * 1000.0), level});
+    }
+
+    /** 0 when the assassin is not in a frenzy, else its level (1, or 2 when upgraded). */
+    public int frenzyLevel(Player player) {
+        long[] now = frenzy.get(player.getUniqueId());
+        if (now == null) return 0;
+        if (now[0] < System.currentTimeMillis()) {
+            frenzy.remove(player.getUniqueId());
+            return 0;
+        }
+        return (int) now[1];
+    }
+
+    public void endFrenzy(Player player) {
+        frenzy.remove(player.getUniqueId());
+    }
+
+    /** The surge: for {@code seconds} the warrior gets back {@code lifesteal} of every damage they deal. */
+    public void activateSurge(Player player, double seconds, int level, double lifesteal) {
+        surge.put(player.getUniqueId(), new double[]{System.currentTimeMillis() + Math.round(seconds * 1000.0), level, lifesteal});
+    }
+
+    public int surgeLevel(Player player) {
+        double[] now = surge.get(player.getUniqueId());
+        if (now == null) return 0;
+        if (now[0] < System.currentTimeMillis()) {
+            surge.remove(player.getUniqueId());
+            return 0;
+        }
+        return (int) now[1];
+    }
+
+    public void endSurge(Player player) {
+        surge.remove(player.getUniqueId());
+    }
+
+    /** The warrior's surge: part of the damage dealt flows back as health. */
+    private void surgeOnHit(Player attacker, double damage) {
+        if (attackService == null || damage <= 0.0 || surgeLevel(attacker) == 0) return;
+        double share = surge.get(attacker.getUniqueId())[2];
+        if (share > 0.0) attackService.healPlayer(attacker, damage * share);
+    }
+
     // ---- instinct release (gifted active skill) --------------------------------
 
     public void activateInstinct(Player player, double seconds) {
@@ -287,7 +341,7 @@ public final class ClassEffectService {
                     cancel();
                     return;
                 }
-                RangerVfx.aura(player.getWorld(), player.getLocation(), tick);
+                RangerVfx.aura(player, tick);
                 tick += 2;
             }
         }.runTaskTimer(plugin, 0L, 2L);
