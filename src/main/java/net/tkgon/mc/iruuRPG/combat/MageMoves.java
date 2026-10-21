@@ -4,6 +4,11 @@ import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.skill.SkillRegistry;
 import net.tkgon.mc.iruuRPG.skill.SkillRunner;
 import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.vfx.Curves;
+import net.tkgon.mc.iruuRPG.vfx.Fx;
+import net.tkgon.mc.iruuRPG.vfx.Gradient;
+import net.tkgon.mc.iruuRPG.vfx.Palettes;
+import net.tkgon.mc.iruuRPG.vfx.Trig;
 import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
@@ -45,8 +50,9 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class MageMoves {
 
-    private static final Color PURPLE = Color.fromRGB(176, 96, 255);
-    private static final Color DEEP_PURPLE = Color.fromRGB(120, 50, 210);
+    private static final Vector X_AXIS = new Vector(1.0, 0.0, 0.0);
+    private static final Vector Y_AXIS = new Vector(0.0, 1.0, 0.0);
+    private static final Vector Z_AXIS = new Vector(0.0, 0.0, 1.0);
 
     /** A heavy attack that can be triggered again by heavy 0, until {@code until}, {@code uses} more times. */
     private static final class Pending {
@@ -103,13 +109,6 @@ public final class MageMoves {
         };
     }
 
-    /** A color of {@code element} and purple: {@code purple} is the share of purple (0 - 1). */
-    private static Color pick(Element element, double purple) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        if (random.nextDouble() < purple) return random.nextBoolean() ? PURPLE : DEEP_PURPLE;
-        return elementColor(element);
-    }
-
     // ---- helpers ---------------------------------------------------------------------------------------------------------
 
     private Vector[] basis(Player player) {
@@ -153,22 +152,17 @@ public final class MageMoves {
         else plugin.getServer().getScheduler().runTaskLater(plugin, action, ticks);
     }
 
+    /** One point of dust in the element's color mixed with purple (a color picked along its gradient). */
     private void dust(Player player, World world, Location at, Element element, double purple, float size) {
-        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(pick(element, purple), size));
+        Fx.of(player, world, at).dust(at.getX(), at.getY(), at.getZ(), Palettes.mixed(element, purple), ThreadLocalRandom.current().nextDouble(0.3, 1.0), size);
     }
 
-    /** A line of light between two points in the weapon's element and purple. */
+    /**
+     * A line of light between two points: the color goes from a deep shade (the tail) to the bright core (the head), quickly
+     * at first, in the element's color mixed with purple. A spark every third point.
+     */
     private void line(Player player, World world, Location from, Location to, Element element, double purple, float size) {
-        Vector path = to.toVector().subtract(from.toVector());
-        double length = path.length();
-        if (length < 1.0E-6) return;
-        Vector direction = path.normalize();
-        int points = Math.max(1, (int) Math.ceil(length / 0.3));
-        for (int index = 0; index <= points; index++) {
-            Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            dust(player, world, point, element, purple, size);
-            if (index % 3 == 0) ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, point, 1, 0.03, 0.03, 0.03, 0.0);
-        }
+        Fx.of(player, world, from).line(from, to, Palettes.mixed(element, purple), 0.2, 1.0, 2.5, size, 0.3, Particle.END_ROD, 3);
     }
 
     // ---- normal attacks ----------------------------------------------------------------------------------------------------
@@ -260,13 +254,15 @@ public final class MageMoves {
         World world = center.getWorld();
         if (world == null) return;
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        // two rings that open and sparks thrown out, a little turned each time
+        // two rings that open (each a little turned, the color going round them) and sparks thrown out
+        Fx fx = Fx.of(player, world, center);
+        Gradient gradient = Palettes.mixed(weapon.element(), purple);
         for (int ring = 0; ring < 2; ring++) {
-            for (int index = 0; index < 24; index++) {
-                double angle = Math.PI * 2.0 * index / 24.0 + repeat * 0.4 + ring * 0.13;
-                Location point = center.clone().add(Math.cos(angle) * radius * (0.55 + 0.3 * ring), 0.2 + 0.25 * ring, Math.sin(angle) * radius * (0.55 + 0.3 * ring));
-                dust(player, world, point, weapon.element(), purple, 1.4f);
-            }
+            double turn = repeat * 0.4 + ring * 0.13;
+            Vector u = new Vector(Trig.cos(turn), 0.0, Trig.sin(turn));
+            Vector v = new Vector(-Trig.sin(turn), 0.0, Trig.cos(turn));
+            double r = radius * (0.55 + 0.3 * ring);
+            fx.ring(center.clone().add(0.0, 0.2 + 0.25 * ring, 0.0), u, v, r, 24, gradient, 0.35 + 0.3 * ring, 0.6, 1.4);
         }
         ParticleFx.to(player, world).spawnParticle(Particle.PORTAL, center, 30, radius * 0.3, 0.6, radius * 0.3, 0.8);
         ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, center, 18, radius * 0.3, 0.5, radius * 0.3, 0.14);
@@ -291,16 +287,15 @@ public final class MageMoves {
                     cancel();
                     return;
                 }
+                // two arms, each a logarithmic spiral (the radius grows exponentially) rising and turning opposite ways
+                Fx fx = Fx.of(player, world, center);
+                Gradient gradient = Palettes.mixed(weapon.element(), 0.85);
+                Location base = center.clone().add(0.0, 0.1, 0.0);
                 for (int arm = 0; arm < 2; arm++) {
                     double direction = arm == 0 ? 1.0 : -1.0;
-                    for (int step = 0; step < 8; step++) {
-                        double along = step / 7.0;
-                        double angle = direction * (tick * 0.7 + along * Math.PI * 2.0) + arm * Math.PI;
-                        double radius = 0.4 + 1.6 * along;
-                        Location point = center.clone().add(Math.cos(angle) * radius, 0.1 + along * 1.6, Math.sin(angle) * radius);
-                        dust(player, world, point, weapon.element(), 0.85, 1.3f);
-                        if (step % 3 == 0) ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
-                    }
+                    fx.spiral(base, X_AXIS, Z_AXIS, Y_AXIS, 0.4, 2.0, direction, direction * tick * 0.7 + arm * Math.PI, 1.6, 8, gradient, 1.3);
+                    double tip = direction * (tick * 0.7 + Math.PI * 2.0) + arm * Math.PI;
+                    fx.particle(Particle.END_ROD, base.getX() + Trig.cos(tip) * 2.0, base.getY() + 1.6, base.getZ() + Trig.sin(tip) * 2.0, 1, 0.0, 0.0, 0.0, 0.0);
                 }
                 tick++;
             }
@@ -376,10 +371,8 @@ public final class MageMoves {
                         ? result.getHitPosition().toLocation(world)
                         : where[0].clone().add(direction.clone().multiply(speed));
                 // the ball: a small sphere of dust around the middle
-                for (int index = 0; index < 14; index++) {
-                    Vector offset = new Vector(ThreadLocalRandom.current().nextGaussian(), ThreadLocalRandom.current().nextGaussian(), ThreadLocalRandom.current().nextGaussian()).normalize().multiply(0.45);
-                    dust(player, world, next.clone().add(offset), element, 0.75, 1.2f);
-                }
+                Fx fx = Fx.of(player, world, next);
+                fx.sphereShell(next, 0.45, age * 0.5, 22, Palettes.mixed(element, 0.75), 1.2);
                 ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, next, 2, 0.1, 0.1, 0.1, 0.01);
                 where[0] = next;
                 if (result != null) burst.run();
@@ -518,12 +511,19 @@ public final class MageMoves {
 
     private void outline(Player player, World world, Location origin, Vector facing, double near, double far, double angle, Element element) {
         int points = 18;
+        Fx fx = Fx.of(player, world, origin.clone().add(facing.clone().multiply((near + far) / 2.0)));
+        Gradient gradient = Palettes.mixed(element, 0.7);
         for (int index = 0; index <= points; index++) {
             double turn = Math.toRadians(-angle / 2.0 + angle * index / points);
-            Vector direction = facing.clone().rotateAroundY(turn);
-            dust(player, world, origin.clone().add(direction.clone().multiply(near)).add(0.0, 0.1, 0.0), element, 0.7, 1.2f);
-            dust(player, world, origin.clone().add(direction.clone().multiply(far)).add(0.0, 0.1, 0.0), element, 0.7, 1.2f);
-            if (index % 3 == 0) dust(player, world, origin.clone().add(direction.clone().multiply((near + far) / 2.0)).add(0.0, 0.1, 0.0), element, 0.8, 1.0f);
+            double c = Trig.cos(turn);
+            double s = Trig.sin(turn);
+            // the facing direction turned about the vertical axis, worked out from the two numbers
+            double dx = facing.getX() * c - facing.getZ() * s;
+            double dz = facing.getX() * s + facing.getZ() * c;
+            double edge = Curves.triangle(index / (double) points);
+            fx.dust(origin.getX() + dx * near, origin.getY() + 0.1, origin.getZ() + dz * near, gradient, 0.4 + 0.5 * edge, 1.2);
+            fx.dust(origin.getX() + dx * far, origin.getY() + 0.1, origin.getZ() + dz * far, gradient, 0.4 + 0.5 * edge, 1.2);
+            if (index % 3 == 0) fx.dust(origin.getX() + dx * (near + far) / 2.0, origin.getY() + 0.1, origin.getZ() + dz * (near + far) / 2.0, gradient, 1.0, 1.0);
         }
         world.playSound(origin.clone().add(facing.clone().multiply((near + far) / 2.0)), Sound.BLOCK_AMETHYST_BLOCK_CHIME, SoundCategory.PLAYERS, 0.5f, 1.0f);
     }
@@ -547,17 +547,20 @@ public final class MageMoves {
         }
     }
 
-    /** A spike of crystal rising from {@code base}. */
+    /** A spike of crystal rising from {@code base}: dark at the foot, bright at the tip (the color follows the height). */
     private void spike(Player player, World world, Location base, Element element, double height, double purple) {
+        Fx fx = Fx.of(player, world, base);
+        Gradient gradient = Palettes.mixed(element, purple);
         for (double y = 0.0; y <= height; y += 0.25) {
             double width = (1.0 - y / height) * 0.3;
-            dust(player, world, base.clone().add(0.0, y, 0.0), element, purple, (float) (1.0 + width * 2.0));
+            double t = Curves.expOut(y / height, 1.5);
+            fx.dust(base.getX(), base.getY() + y, base.getZ(), gradient, t, 1.0 + width * 2.0);
             if (width > 0.1) {
-                dust(player, world, base.clone().add(width, y, 0.0), element, purple, 1.0f);
-                dust(player, world, base.clone().add(-width, y, 0.0), element, purple, 1.0f);
+                fx.dust(base.getX() + width, base.getY() + y, base.getZ(), gradient, t, 1.0);
+                fx.dust(base.getX() - width, base.getY() + y, base.getZ(), gradient, t, 1.0);
             }
         }
-        ParticleFx.to(player, world).spawnParticle(Particle.CRIT_MAGIC, base.clone().add(0.0, height, 0.0), 2, 0.1, 0.1, 0.1, 0.1);
+        fx.particle(Particle.CRIT_MAGIC, base.getX(), base.getY() + height, base.getZ(), 2, 0.1, 0.1, 0.1, 0.1);
     }
 
     /** Triggered again: each enemy a spike hit is stabbed (20%) from points of air within 2 blocks of it. */
@@ -615,13 +618,8 @@ public final class MageMoves {
                     cancel();
                     return;
                 }
-                // the sphere: a shell of dust turning slowly, with a bright core
-                for (int index = 0; index < 22; index++) {
-                    double yaw = Math.PI * 2.0 * index / 22.0 + age * 0.35;
-                    double pitch = Math.sin(index * 1.7 + age * 0.4) * 1.2;
-                    Location point = center.clone().add(Math.cos(yaw) * Math.cos(pitch), Math.sin(pitch), Math.sin(yaw) * Math.cos(pitch));
-                    dust(player, world, point, element, 0.8, 1.2f);
-                }
+                // the sphere: a baked shell of 32 points turning slowly (dark at the bottom, bright at the top), with a bright core
+                Fx.of(player, world, center).sphereShell(center, 1.0, age * 0.35, 32, Palettes.mixed(element, 0.8), 1.2);
                 ParticleFx.to(player, world).spawnParticle(Particle.PORTAL, center, 6, 0.4, 0.4, 0.4, 0.6);
                 ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, center, 1, 0.1, 0.1, 0.1, 0.0);
                 if (age % 2 == 0) {
@@ -647,18 +645,15 @@ public final class MageMoves {
         double radius = number("ring-radius", 3.0);
         double rate = number("ring-rate", 0.05);
         double pull = number("ring-pull", 0.55);
-        Particle.DustOptions dust = new Particle.DustOptions(elementColor(weapon.element()), 1.5f);
+        Gradient gradient = Palettes.of(weapon.element());
         world.playSound(center, Sound.BLOCK_BEACON_POWER_SELECT, SoundCategory.PLAYERS, 0.8f, 1.9f);
         world.playSound(center, Sound.ENTITY_ILLUSIONER_CAST_SPELL, SoundCategory.PLAYERS, 0.6f, 1.6f);
+        // the ring widens quickly at first and then slowly (an exponential curve), bright at the front and deeper behind
         for (int step = 1; step <= 4; step++) {
-            double r = radius * step / 4.0;
-            later(step - 1, () -> {
-                int points = (int) Math.max(18, r * 12);
-                for (int index = 0; index < points; index++) {
-                    double angle = Math.PI * 2.0 * index / points;
-                    ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, center.clone().add(Math.cos(angle) * r, 0.0, Math.sin(angle) * r), 1, 0.0, 0.0, 0.0, 0.0, dust);
-                }
-            });
+            double r = radius * Curves.expOut(step / 4.0, 2.5);
+            double t = 1.0 - 0.6 * (step - 1) / 3.0;
+            int count = step >= 3 ? 48 : step == 2 ? 32 : 24;
+            later(step - 1, () -> Fx.of(player, world, center).flatRing(center, r, count, gradient, t, 0.2, 1.5));
         }
         for (LivingEntity target : around(player, center, radius)) {
             hit(player, weapon, target, rate);

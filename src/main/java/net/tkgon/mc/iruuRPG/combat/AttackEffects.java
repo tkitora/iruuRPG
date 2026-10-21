@@ -4,6 +4,12 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.vfx.Curves;
+import net.tkgon.mc.iruuRPG.vfx.Fx;
+import net.tkgon.mc.iruuRPG.vfx.Gradient;
+import net.tkgon.mc.iruuRPG.vfx.Palettes;
+import net.tkgon.mc.iruuRPG.vfx.Shapes;
+import net.tkgon.mc.iruuRPG.vfx.Trig;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -556,16 +562,14 @@ public final class AttackEffects {
         if (length <= 1.0E-9) return;
 
         World world = from.getWorld();
-        Vector direction = path.normalize();
-        ParticlePalette palette = palette(element);
-        int points = Math.max(1, (int) Math.ceil(length / 0.3));
-        for (int index = 0; index <= points; index++) {
-            Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            spawnDust(world, point, palette.primary());
-            if (index % 2 == 0) spawnDust(world, point.clone().add(0.0, 0.035, 0.0), palette.secondary());
-            if (index % 4 == 0) spawnDust(world, point.clone().subtract(0.0, 0.025, 0.0), palette.accent());
-            if (index % 3 == 0) spark(world, point, element);
-        }
+        float size = (float) plugin.getConfig().getDouble("combat.effects.particle-size", 0.85);
+        Fx fx = Fx.of(null, world, from);
+        Gradient gradient = Palettes.of(element);
+        // the color goes from a deep shade at the tail to a bright core at the head (quickly at first); a thinner, brighter
+        // core line over the second half; a spark every third point (a point every 0.3 blocks)
+        fx.line(from, to, gradient, 0.15, 1.0, 2.5, size, 0.3, sparkParticle(element), 3);
+        Location coreFrom = from.clone().add(to.toVector().subtract(from.toVector()).multiply(0.5));
+        fx.line(coreFrom, to, gradient, 0.75, 1.0, 0.0, size * 0.75f, 0.6, null, 1);
     }
 
     public void playBoltImpact(Location hitLocation, Element element) {
@@ -585,20 +589,18 @@ public final class AttackEffects {
         World world = hitLocation.getWorld();
         sounds.impact(owner, hitLocation, element);
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        ParticlePalette palette = palette(element);
         int particles = Math.max(1, plugin.getConfig().getInt("combat.effects.range-impact.particles", 12));
         double radius = Math.max(0.05, plugin.getConfig().getDouble("combat.effects.range-impact.radius", 0.45));
+        float size = (float) plugin.getConfig().getDouble("combat.effects.particle-size", 0.85);
+        Fx fx = Fx.of(owner, world, hitLocation);
+        Gradient gradient = Palettes.of(element);
 
+        // bright at the center of the hit, deeper toward the edge (the color follows the distance, curved: log)
         for (int index = 0; index < particles; index++) {
-            Vector offset = randomUnitVector(random).multiply(random.nextDouble(0.12, radius));
-            Location point = hitLocation.clone().add(offset);
-            Particle.DustOptions dust = switch (index % 3) {
-                case 1 -> palette.secondary();
-                case 2 -> palette.accent();
-                default -> palette.primary();
-            };
-
-            spawnDust(world, point, dust);
+            double distance = random.nextDouble(0.12, radius);
+            Vector offset = randomUnitVector(random).multiply(distance);
+            double t = 1.0 - Curves.logOut(distance / radius, 4.0) * 0.8;
+            fx.dust(hitLocation.getX() + offset.getX(), hitLocation.getY() + offset.getY(), hitLocation.getZ() + offset.getZ(), gradient, t, size);
         }
         burst(world, hitLocation, element, 6, 0.15, 0.08);
     }
@@ -1004,26 +1006,18 @@ public final class AttackEffects {
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
-        ParticlePalette palette = palette(weapon.element());
         int points = Math.max(72, plugin.getConfig().getInt("combat.effects.deploy-ring.points", 72));
         double y = plugin.getConfig().getDouble("combat.effects.deploy-ring.height", 0.15);
+        float size = (float) plugin.getConfig().getDouble("combat.effects.particle-size", 0.85);
+        Gradient gradient = Palettes.of(weapon.element());
 
-        for (int index = 0; index < points; index++) {
-            double angle = Math.PI * 2.0 * index / points;
-            Location point = center.clone().add(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
-            Particle.DustOptions dust = switch (index % 3) {
-                case 1 -> palette.secondary();
-                case 2 -> palette.accent();
-                default -> palette.primary();
-            };
-            spawnDust(world, point, dust);
-            if (index % 2 == 0) {
-                spawnDust(world, point, palette.secondary());
-            }
-            if (index % 6 == 0) {
-                spawnDust(world, point, palette.accent());
-                spark(world, point.clone().add(0.0, 0.1, 0.0), weapon.element());
-            }
+        // this ring is redrawn every other tick for as long as a deployed weapon stands: a baked circle, one dust per point
+        // (the color goes round it, bright to deep, with no seam), far away it is thinned out or not drawn at all
+        Fx fx = Fx.of(null, world, center);
+        fx.flatRing(center.clone().add(0.0, y, 0.0), radius, points, gradient, 0.45, 0.5, size * 1.1);
+        float[] circle = Shapes.circle(points);
+        for (int index = 0; index < points; index += 6 * fx.step()) {
+            fx.particle(sparkParticle(weapon.element()), center.getX() + circle[index * 2] * radius, center.getY() + y + 0.1, center.getZ() + circle[index * 2 + 1] * radius, 1, 0.0, 0.0, 0.0, 0.0);
         }
     }
 
@@ -1032,27 +1026,24 @@ public final class AttackEffects {
         if (center == null || center.getWorld() == null) return;
 
         World world = center.getWorld();
-        ParticlePalette palette = palette(weapon.element());
         int points = Math.max(42, plugin.getConfig().getInt("combat.effects.deploy-pulse.points", 42));
         double pulseRadius = Math.max(0.2, radius);
+        float size = (float) plugin.getConfig().getDouble("combat.effects.particle-size", 0.85);
+        Gradient gradient = Palettes.of(weapon.element());
 
-        for (int index = 0; index < points; index++) {
+        // a wavy ring (three crests) from a baked circle; the color follows the height of the wave: deep in the troughs, bright on the crests
+        Fx fx = Fx.of(null, world, center);
+        float[] circle = Shapes.circle(points);
+        for (int index = 0; index < points; index += fx.step()) {
             double angle = Math.PI * 2.0 * index / points;
-            double wave = Math.sin(angle * 3.0) * 0.18;
-            Location point = center.clone().add(Math.cos(angle) * pulseRadius, 0.7 + wave, Math.sin(angle) * pulseRadius);
-            Particle.DustOptions dust = switch (index % 3) {
-                case 1 -> palette.secondary();
-                case 2 -> palette.accent();
-                default -> palette.primary();
-            };
-            spawnDust(world, point, dust);
-            if (index % 2 == 0) {
-                spawnDust(world, point.clone().add(0.0, 0.16, 0.0), palette.secondary());
-            }
-            if (index % 5 == 0) {
-                spawnDust(world, point.clone().subtract(0.0, 0.12, 0.0), palette.accent());
-                spark(world, point, weapon.element());
-            }
+            double wave = Trig.sin(angle * 3.0);
+            double t = 0.55 + wave * 0.45;
+            double x = center.getX() + circle[index * 2] * pulseRadius;
+            double z = center.getZ() + circle[index * 2 + 1] * pulseRadius;
+            double y = center.getY() + 0.7 + wave * 0.18;
+            fx.dust(x, y, z, gradient, t, size);
+            if (index % 2 == 0) fx.dust(x, y + 0.16, z, gradient, Math.min(1.0, t + 0.2), size * 0.85f);
+            if (index % 5 == 0) fx.particle(sparkParticle(weapon.element()), x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
         }
     }
 

@@ -2,6 +2,12 @@ package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.vfx.Curves;
+import net.tkgon.mc.iruuRPG.vfx.Fx;
+import net.tkgon.mc.iruuRPG.vfx.FxAsync;
+import net.tkgon.mc.iruuRPG.vfx.Gradient;
+import net.tkgon.mc.iruuRPG.vfx.Palettes;
+import net.tkgon.mc.iruuRPG.vfx.Trig;
 import org.bukkit.Color;
 import org.bukkit.FluidCollisionMode;
 import org.bukkit.Location;
@@ -205,19 +211,13 @@ public final class RangerMoves {
         return result;
     }
 
-    /** A straight line of dust (and sparks) between two points. */
+    /**
+     * A straight line (and sparks) between two points: the color runs from a deep shade at the start to a bright core at
+     * the end, quickly at first (an exponential curve), so a bolt or an arrow has a tail and a head. Segments of a flying
+     * bolt are drawn one a tick, each with its own tail and head.
+     */
     private void line(Player player, World world, Location from, Location to, Color color, float size, Particle spark, int sparkEvery) {
-        Vector path = to.toVector().subtract(from.toVector());
-        double length = path.length();
-        if (length < 1.0E-6) return;
-        Vector direction = path.normalize();
-        Particle.DustOptions dust = new Particle.DustOptions(color, size);
-        int points = Math.max(1, (int) Math.ceil(length / 0.3));
-        for (int index = 0; index <= points; index++) {
-            Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-            if (spark != null && index % sparkEvery == 0) ParticleFx.to(player, world).spawnParticle(spark, point, 1, 0.02, 0.02, 0.02, 0.0);
-        }
+        Fx.of(player, world, from).line(from, to, Palettes.fromColor(color), 0.15, 1.0, 2.5, size, 0.3, spark, sparkEvery);
     }
 
     // ---- normal attacks -------------------------------------------------------------------------------------------------
@@ -304,38 +304,79 @@ public final class RangerMoves {
         world.playSound(eye, Sound.ENTITY_ARROW_SHOOT, SoundCategory.PLAYERS, 1.0f, 0.9f);
         world.playSound(eye, Sound.ITEM_CROSSBOW_SHOOT, SoundCategory.PLAYERS, 0.5f, 0.8f);
         Location start = eye.clone().add(direction.clone().multiply(0.7)).subtract(0.0, 0.1, 0.0);
-        Particle.DustOptions dust = new Particle.DustOptions(color, 1.5f);
-        Particle.DustOptions white = new Particle.DustOptions(Color.WHITE, 1.1f);
-        // the beam is drawn in four stretches, so it seems to run out of the muzzle
-        for (int part = 0; part < 4; part++) {
-            int which = part;
-            later(which, () -> {
-                if (!player.isOnline()) return;
-                double from = range * which / 4.0;
-                double to = range * (which + 1) / 4.0;
-                for (double along = from; along < to; along += 0.25) {
-                    Location point = start.clone().add(direction.clone().multiply(along));
-                    ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-                    ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.05, 0.05, 0.05, 0.0, white);
-                    if (((int) (along / 0.25)) % 3 == 0) ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, point, 1, 0.0, 0.0, 0.0, 0.0);
-                }
-                // rings round the beam: the piercing look
-                Vector[] axes = basis(player);
-                for (double along = from + 1.0; along < to; along += 2.5) {
-                    Location center = start.clone().add(direction.clone().multiply(along));
-                    for (int index = 0; index < 10; index++) {
-                        double angle = Math.PI * 2.0 * index / 10.0;
-                        Location point = center.clone().add(axes[1].clone().multiply(Math.cos(angle) * 0.6)).add(axes[2].clone().multiply(Math.sin(angle) * 0.6));
-                        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
+        Gradient gradient = Palettes.fromColor(color);
+        Vector[] axes = basis(player);
+        double sx = start.getX(), sy = start.getY(), sz = start.getZ();
+        double dx = direction.getX(), dy = direction.getY(), dz = direction.getZ();
+        double ux = axes[1].getX(), uy = axes[1].getY(), uz = axes[1].getZ();
+        double vx = axes[2].getX(), vy = axes[2].getY(), vz = axes[2].getZ();
+        // the points (x, y, z, color position, kind) are worked out on another thread: they are only arithmetic
+        FxAsync.run(plugin, () -> beamPoints(sx, sy, sz, dx, dy, dz, ux, uy, uz, vx, vy, vz, range), points -> {
+            if (!player.isOnline()) return;
+            int count = points.length / 5;
+            for (int part = 0; part < 4; part++) {
+                int from = count * part / 4;
+                int to = count * (part + 1) / 4;
+                int which = part;
+                // the beam runs out of the muzzle: a stretch a tick
+                later(which, () -> {
+                    if (!player.isOnline()) return;
+                    Fx fx = Fx.of(player, world, sx + dx * range * 0.5, sy + dy * range * 0.5, sz + dz * range * 0.5);
+                    for (int index = from; index < to; index += fx.step()) {
+                        double x = points[index * 5], y = points[index * 5 + 1], z = points[index * 5 + 2], t = points[index * 5 + 3];
+                        int kind = (int) points[index * 5 + 4];
+                        fx.dust(x, y, z, kind == 0 ? Palettes.STEEL : gradient, t, kind == 0 ? 1.0 : 1.5);
+                        if (kind == 0 && index % 12 == 0) fx.particle(Particle.END_ROD, x, y, z, 1, 0.0, 0.0, 0.0, 0.0);
                     }
-                }
-            });
-        }
+                });
+            }
+        });
         if (trace.victim() != null) {
             attackService.hitWithShot(player, weapon, trace.victim(), trace.hitLocation(), step.damageMultiplier() * boost[0]);
         } else {
             attackService.playRangeImpact(player, trace.hitLocation(), weapon);
         }
+    }
+
+    /**
+     * The points of the finisher's beam, worked out from numbers only (it runs off the main thread): a core of light with its
+     * color going from the muzzle outward (kind 0: steel to white, brightest at the start and fading with the log of the
+     * distance), and rings of 10 points round it every 2.5 blocks that widen a little with the distance (kind 1: the color
+     * of the element, from its core shade out to the edge). Five numbers a point: x, y, z, the color position, the kind.
+     */
+    private static float[] beamPoints(double sx, double sy, double sz, double dx, double dy, double dz, double ux, double uy, double uz,
+                                      double vx, double vy, double vz, double range) {
+        int core = (int) Math.ceil(range / 0.25);
+        int rings = (int) Math.max(0, Math.floor((range - 1.0) / 2.5));
+        float[] points = new float[(core * 2 + rings * 10) * 5];
+        int at = 0;
+        for (int index = 0; index < core; index++) {
+            double along = index * 0.25;
+            double t = 1.0 - Curves.logOut(along / range, 6.0) * 0.7;
+            for (int pass = 0; pass < 2; pass++) {
+                double jitter = pass == 0 ? 0.0 : 0.05;
+                points[at++] = (float) (sx + dx * along + (pass == 0 ? 0.0 : ux * jitter));
+                points[at++] = (float) (sy + dy * along + (pass == 0 ? 0.0 : uy * jitter));
+                points[at++] = (float) (sz + dz * along + (pass == 0 ? 0.0 : uz * jitter));
+                points[at++] = (float) (pass == 0 ? t : t * 0.6);
+                points[at++] = 0f;
+            }
+        }
+        for (int ring = 0; ring < rings; ring++) {
+            double along = 1.0 + ring * 2.5;
+            double radius = 0.5 + 0.35 * Curves.expOut(along / range, 3.0);
+            for (int index = 0; index < 10; index++) {
+                double angle = Math.PI * 2.0 * index / 10.0;
+                double c = Trig.cos(angle) * radius;
+                double sn = Trig.sin(angle) * radius;
+                points[at++] = (float) (sx + dx * along + ux * c + vx * sn);
+                points[at++] = (float) (sy + dy * along + uy * c + vy * sn);
+                points[at++] = (float) (sz + dz * along + uz * c + vz * sn);
+                points[at++] = (float) (0.4 + 0.6 * Curves.triangle(index / 10.0));
+                points[at++] = 1f;
+            }
+        }
+        return points;
     }
 
     /**
@@ -541,11 +582,11 @@ public final class RangerMoves {
         if (world == null) return;
         ParticleFx.to(player, world).spawnParticle(Particle.EXPLOSION_NORMAL, at, 6, radius * 0.2, radius * 0.2, radius * 0.2, 0.02);
         ParticleFx.to(player, world).spawnParticle(Particle.FLAME, at, 8, radius * 0.25, radius * 0.25, radius * 0.25, 0.05);
-        Particle.DustOptions dust = new Particle.DustOptions(color(weapon.element()), 1.3f);
-        for (int index = 0; index < 12; index++) {
-            double angle = Math.PI * 2.0 * index / 12.0;
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at.clone().add(Math.cos(angle) * radius * 0.6, 0.0, Math.sin(angle) * radius * 0.6), 1, 0.0, 0.0, 0.0, 0.0, dust);
-        }
+        Fx fx = Fx.of(player, world, at);
+        Gradient gradient = Palettes.fromColor(color(weapon.element()));
+        // two rings that open: the inner one bright and small, the outer one deeper
+        fx.flatRing(at, radius * 0.45, 12, gradient, 0.9, 0.0, 1.3);
+        fx.flatRing(at, radius * 0.7, 16, gradient, 0.3, 0.3, 1.1);
         world.playSound(at, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.45f, 1.7f);
         world.playSound(at, Sound.ENTITY_ARROW_HIT, SoundCategory.PLAYERS, 0.5f, 1.2f);
         for (Entity entity : world.getNearbyEntities(at, radius, radius, radius)) {

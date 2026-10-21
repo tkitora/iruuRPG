@@ -2,6 +2,11 @@ package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.stat.Element;
+import net.tkgon.mc.iruuRPG.vfx.Curves;
+import net.tkgon.mc.iruuRPG.vfx.Fx;
+import net.tkgon.mc.iruuRPG.vfx.Gradient;
+import net.tkgon.mc.iruuRPG.vfx.Palettes;
+import net.tkgon.mc.iruuRPG.vfx.Trig;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -42,7 +47,14 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public final class WarriorMoves {
 
+    /** The crack: near black at the start going to a glowing ember at the far end. */
+    private static final Gradient CRACK = Gradient.of(Color.fromRGB(30, 22, 18), Color.fromRGB(110, 55, 25), Color.fromRGB(255, 150, 50));
+    private static final Vector X_AXIS = new Vector(1.0, 0.0, 0.0);
+    private static final Vector Y_AXIS = new Vector(0.0, 1.0, 0.0);
+    private static final Vector Z_AXIS = new Vector(0.0, 0.0, 1.0);
     private static final Color IRON = Color.fromRGB(215, 220, 230);
+    /** Steel in the middle going to a cool blue at the edge. */
+    private static final Gradient SHIELD = Gradient.of(Color.fromRGB(235, 240, 250), Color.fromRGB(170, 195, 235), Color.fromRGB(95, 150, 255));
 
     /** What a heavy click does right now (instead of heavy 0): set while heavy 2, 3 or 4 can be followed up. */
     private static final class Follow {
@@ -133,34 +145,23 @@ public final class WarriorMoves {
         };
     }
 
+    /** A line of light: the color goes from a deep shade at the start to a bright core at the end, quickly at first. */
     private void line(Player player, World world, Location from, Location to, Color color, float size, Particle spark, int every) {
-        Vector path = to.toVector().subtract(from.toVector());
-        double length = path.length();
-        if (length < 1.0E-6) return;
-        Vector direction = path.normalize();
-        Particle.DustOptions dust = new Particle.DustOptions(color, size);
-        int points = Math.max(1, (int) Math.ceil(length / 0.3));
-        for (int index = 0; index <= points; index++) {
-            Location point = from.clone().add(direction.clone().multiply(length * index / points));
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, dust);
-            if (spark != null && index % every == 0) ParticleFx.to(player, world).spawnParticle(spark, point, 1, 0.03, 0.03, 0.03, 0.0);
-        }
+        Fx.of(player, world, from).line(from, to, Palettes.fromColor(color), 0.2, 1.0, 2.5, size, 0.3, spark, every);
     }
 
-    /** A ring of dust on the ground (or in the air) around {@code center}. */
+    /** A ring of dust on the ground around {@code center}; the color goes round it (no seam where it closes). */
     private void ring(Player player, World world, Location center, double radius, Color color) {
-        Particle.DustOptions dust = new Particle.DustOptions(color, 1.4f);
         int points = (int) Math.max(18, radius * 10);
-        for (int index = 0; index < points; index++) {
-            double angle = Math.PI * 2.0 * index / points;
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, center.clone().add(Math.cos(angle) * radius, 0.15, Math.sin(angle) * radius), 1, 0.0, 0.0, 0.0, 0.0, dust);
-        }
+        Fx.of(player, world, center).flatRing(center.clone().add(0.0, 0.15, 0.0), radius, points, Palettes.fromColor(color), 0.55, 0.45, 1.4);
     }
 
     /** A blow where the player stands or lands: a ring, sparks and a thud. */
     private void impact(Player player, World world, Location at, double radius, RpgItemDefinition weapon, float loudness) {
-        ring(player, world, at, radius, color(weapon.element()));
-        ring(player, world, at, radius * 0.6, IRON);
+        // the outer ring widens fast and ends deep in color, the inner one is steel to white: bright at the center of the blow
+        Fx fx = Fx.of(player, world, at);
+        fx.flatRing(at.clone().add(0.0, 0.15, 0.0), radius, (int) Math.max(18, radius * 10), Palettes.fromColor(color(weapon.element())), 0.5, 0.5, 1.5);
+        fx.flatRing(at.clone().add(0.0, 0.2, 0.0), radius * Curves.expOut(0.6, 2.0), (int) Math.max(14, radius * 7), Palettes.STEEL, 0.7, 0.3, 1.3);
         ParticleFx.to(player, world).spawnParticle(Particle.EXPLOSION_NORMAL, at.clone().add(0.0, 0.3, 0.0), 8, radius * 0.3, 0.2, radius * 0.3, 0.05);
         ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at.clone().add(0.0, 0.5, 0.0), 14, radius * 0.4, 0.3, radius * 0.4, 0.3);
         world.playSound(at, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.PLAYERS, 0.6f * loudness, 1.1f);
@@ -214,13 +215,18 @@ public final class WarriorMoves {
         Color color = color(weapon.element());
         // an arc in the vertical plane in front, from above and behind the head down to the ground in front
         int points = 14;
+        Fx chopFx = Fx.of(player, world, eye.clone().add(facing.clone().multiply(2.0)));
+        Gradient chopGradient = Palettes.fromColor(color);
         for (int index = 0; index <= points; index++) {
             double angle = Math.toRadians(110.0 - 150.0 * index / points);
-            double forward = Math.cos(angle) * 2.8;
-            double height = Math.sin(angle) * 2.8;
+            double forward = Trig.cos(angle) * 2.8;
+            double height = Trig.sin(angle) * 2.8;
             Location at = eye.clone().add(facing.clone().multiply(forward)).add(0.0, height - 0.6, 0.0);
-            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 2, 0.05, 0.05, 0.05, 0.0, new Particle.DustOptions(index % 2 == 0 ? color : IRON, 1.8f));
-            if (index % 2 == 0) ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at, 1, 0.05, 0.05, 0.05, 0.0);
+            // the blade is faint where it starts and bright where it lands (the color follows the swing, fast at first)
+            double t = Curves.expOut(index / (double) points, 2.0);
+            chopFx.dust(at.getX(), at.getY(), at.getZ(), chopGradient, t, 1.8);
+            chopFx.dust(at.getX(), at.getY() + 0.08, at.getZ(), chopGradient, Math.min(1.0, t + 0.15), 1.3);
+            if (index % 2 == 0) chopFx.particle(Particle.CRIT, at.getX(), at.getY(), at.getZ(), 1, 0.05, 0.05, 0.05, 0.0);
         }
         Location ground = player.getLocation().add(facing.clone().multiply(2.6));
         impact(player, world, ground, 2.2, weapon, 1.0f);
@@ -294,14 +300,14 @@ public final class WarriorMoves {
             Location rim = end.clone().add(side.clone().multiply(Math.cos(angle) * spread)).add(up.clone().multiply(Math.sin(angle) * spread));
             line(player, world, start, rim, index % 2 == 0 ? color : IRON, 1.0f, Particle.CRIT, 3);
         }
+        // rings along the cone: the radius grows with the distance, the color goes from deep at the tip to bright at the rim
+        Fx fx = Fx.of(player, world, end);
+        Gradient gradient = Palettes.fromColor(color);
         for (int ring = 1; ring <= 4; ring++) {
             double along = length * ring / 4.0;
             double radius = spread * ring / 4.0;
             Location center = start.clone().add(aim.clone().multiply(along));
-            for (int index = 0; index < 14; index++) {
-                double angle = Math.PI * 2.0 * index / 14.0;
-                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, center.clone().add(side.clone().multiply(Math.cos(angle) * radius)).add(up.clone().multiply(Math.sin(angle) * radius)), 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(color, 1.3f));
-            }
+            fx.ring(center, side, up, radius, 14, gradient, 0.3 + 0.2 * ring, 0.3, 1.3);
         }
         ParticleFx.to(player, world).spawnParticle(Particle.FLASH, end, 1);
         ParticleFx.to(player, world).spawnParticle(Particle.CRIT, end, 14, spread * 0.3, spread * 0.3, spread * 0.3, 0.4);
@@ -407,6 +413,7 @@ public final class WarriorMoves {
                     int count = shields.get(id);
                     Location center = owner.getLocation().add(0.0, 1.1, 0.0);
                     World world = owner.getWorld();
+                    Fx fxShield = Fx.of(owner, world, center);
                     for (int index = 0; index < count; index++) {
                         double angle = shieldTicks * 0.22 + Math.PI * 2.0 * index / count;
                         Vector out = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
@@ -415,8 +422,9 @@ public final class WarriorMoves {
                         // a small plate standing on the circle: a column and a few points across
                         for (double h = -0.35; h <= 0.35; h += 0.17) {
                             for (double w = -0.22; w <= 0.22; w += 0.22) {
-                                ParticleFx.to(owner, world).spawnParticle(Particle.REDSTONE, at.clone().add(tangent.clone().multiply(w)).add(0.0, h, 0.0), 1, 0.0, 0.0, 0.0, 0.0,
-                                        new Particle.DustOptions(Math.abs(w) > 0.1 ? IRON : Color.fromRGB(110, 170, 255), 1.1f));
+                                // the middle of the plate is steel, the edges a cool blue (the color follows the distance from the middle)
+                                Location p = at.clone().add(tangent.clone().multiply(w)).add(0.0, h, 0.0);
+                                fxShield.dust(p.getX(), p.getY(), p.getZ(), SHIELD, Math.min(1.0, Math.abs(w) / 0.22 * 0.6 + Math.abs(h) / 0.35 * 0.4), 1.1);
                             }
                         }
                     }
@@ -494,17 +502,21 @@ public final class WarriorMoves {
                     if (world == null) continue;
                     Vector side = wheel.facing.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
                     Color color = color(wheel.weapon.element());
-                    // a wheel standing on its edge, turning: a rim, spokes and sparks
+                    // a wheel standing on its edge, turning: a rim whose color goes round it, and three spokes (steel to the element at the rim)
                     double turn = wheelTicks * 0.5;
-                    for (int index = 0; index < 20; index++) {
-                        double angle = Math.PI * 2.0 * index / 20.0 + turn;
-                        Location rim = wheel.at.clone().add(wheel.facing.clone().multiply(Math.cos(angle) * reach)).add(0.0, Math.sin(angle) * reach, 0.0);
-                        ParticleFx.to(wheel.owner, world).spawnParticle(Particle.REDSTONE, rim, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(index % 2 == 0 ? color : IRON, 1.4f));
-                    }
+                    Fx fx = Fx.of(wheel.owner, world, wheel.at);
+                    Gradient rimGradient = Palettes.fromColor(color);
+                    Vector up = new Vector(0.0, 1.0, 0.0);
+                    Vector u = wheel.facing.clone().multiply(Trig.cos(turn)).add(up.clone().multiply(Trig.sin(turn)));
+                    Vector v = wheel.facing.clone().multiply(-Trig.sin(turn)).add(up.clone().multiply(Trig.cos(turn)));
+                    fx.ring(wheel.at, u, v, reach, 20, rimGradient, 0.4, 0.6, 1.4);
                     for (int spoke = 0; spoke < 3; spoke++) {
                         double angle = turn + Math.PI * spoke / 3.0;
+                        double c = Trig.cos(angle);
+                        double sn = Trig.sin(angle);
                         for (double r = -reach; r <= reach; r += 0.4) {
-                            ParticleFx.to(wheel.owner, world).spawnParticle(Particle.REDSTONE, wheel.at.clone().add(wheel.facing.clone().multiply(Math.cos(angle) * r)).add(0.0, Math.sin(angle) * r, 0.0), 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(IRON, 0.9f));
+                            fx.dust(wheel.at.getX() + wheel.facing.getX() * c * r, wheel.at.getY() + sn * r, wheel.at.getZ() + wheel.facing.getZ() * c * r,
+                                    Palettes.STEEL, 1.0 - Math.abs(r) / reach * 0.6, 0.9);
                         }
                     }
                     if (wheelTicks % 3 == 0) ParticleFx.to(wheel.owner, world).spawnParticle(Particle.CRIT, wheel.at, 2, reach * 0.5, reach * 0.5, reach * 0.5, 0.1);
@@ -569,16 +581,16 @@ public final class WarriorMoves {
                 }
                 // blades turning round the player
                 Location center = player.getLocation().add(0.0, 1.0, 0.0);
+                Fx fx = Fx.of(player, world, center);
+                Gradient bladeGradient = Palettes.fromColor(color);
                 for (int arm = 0; arm < 2; arm++) {
                     double base = age * 0.8 + arm * Math.PI;
-                    for (int step = 0; step < 9; step++) {
-                        double angle = base - step * 0.1;
-                        for (double r = radius - 0.9; r <= radius; r += 0.45) {
-                            Location at = center.clone().add(Math.cos(angle) * r, Math.sin(age * 0.5 + arm) * 0.25, Math.sin(angle) * r);
-                            ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(step < 2 ? IRON : color, 1.5f));
-                        }
-                    }
-                    ParticleFx.to(player, world).spawnParticle(Particle.SWEEP_ATTACK, center.clone().add(Math.cos(base) * (radius - 0.3), 0.0, Math.sin(base) * (radius - 0.3)), 1, 0.0, 0.0, 0.0, 0.0);
+                    // a blade is an arc that trails behind its tip: its radius grows a little toward the tip (exponentially), the color
+                    // goes from deep at the tail to bright at the tip
+                    Location level = center.clone().add(0.0, Math.sin(age * 0.5 + arm) * 0.25, 0.0);
+                    fx.spiral(level, X_AXIS, Z_AXIS, Y_AXIS, radius * 0.8, radius, -0.15, base - 0.9, 0.0, 9, bladeGradient, 1.5);
+                    fx.spiral(level, X_AXIS, Z_AXIS, Y_AXIS, radius * 0.64, radius * 0.8, -0.15, base - 0.9, 0.0, 7, bladeGradient, 1.3);
+                    fx.particle(Particle.SWEEP_ATTACK, center.getX() + Trig.cos(base) * (radius - 0.3), center.getY(), center.getZ() + Trig.sin(base) * (radius - 0.3), 1, 0.0, 0.0, 0.0, 0.0);
                 }
                 if (age % 4 == 0) world.playSound(center, Sound.ENTITY_PLAYER_ATTACK_SWEEP, SoundCategory.PLAYERS, 0.7f, 0.9f);
                 if (age % every == 0) {
@@ -606,12 +618,15 @@ public final class WarriorMoves {
         // the uppercut: an arc rising in front from low to high, with sparks thrown up after it
         Location base = player.getLocation().add(0.0, 0.2, 0.0);
         Color color = color(weapon.element());
+        Gradient upGradient = Palettes.fromColor(color);
         for (int index = 0; index <= 14; index++) {
             double angle = Math.toRadians(-20.0 + 110.0 * index / 14.0);
             Location at = base.clone().add(facing.clone().multiply(Math.cos(angle) * 2.6)).add(0.0, 1.0 + Math.sin(angle) * 2.6, 0.0);
+            double t = Curves.expOut(index / 14.0, 2.0);
             later(index / 5, () -> {
-                ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 2, 0.05, 0.05, 0.05, 0.0, new Particle.DustOptions(color, 1.8f));
-                ParticleFx.to(player, world).spawnParticle(Particle.CRIT, at, 1, 0.05, 0.05, 0.05, 0.1);
+                Fx fx = Fx.of(player, world, at);
+                fx.dust(at.getX(), at.getY(), at.getZ(), upGradient, t, 1.8);
+                fx.particle(Particle.CRIT, at.getX(), at.getY(), at.getZ(), 1, 0.05, 0.05, 0.05, 0.1);
             });
         }
         ParticleFx.to(player, world).spawnParticle(Particle.CLOUD, base.clone().add(facing.clone().multiply(1.5)), 10, 0.8, 0.1, 0.8, 0.05);
@@ -754,12 +769,16 @@ public final class WarriorMoves {
             double to = length * (step + 1) / 6.0;
             later(step, () -> {
                 if (!player.isOnline()) return;
+                Fx fx = Fx.of(player, world, start.clone().add(facing.clone().multiply((from + to) / 2.0)));
                 for (double along = from; along < to; along += 0.4) {
                     for (int fork = -1; fork <= 1; fork++) {
                         double offset = fork * width * 0.3 * (along / length) + random.nextDouble(-0.15, 0.15);
-                        Location at = start.clone().add(facing.clone().multiply(along)).add(side.clone().multiply(offset)).add(0.0, 0.1, 0.0);
-                        ParticleFx.to(player, world).spawnParticle(Particle.BLOCK_CRACK, at, 6, 0.15, 0.1, 0.15, 0.2, material.createBlockData());
-                        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(Color.fromRGB(40, 30, 25), 1.6f));
+                        double x = start.getX() + facing.getX() * along + side.getX() * offset;
+                        double y = start.getY() + 0.1;
+                        double z = start.getZ() + facing.getZ() * along + side.getZ() * offset;
+                        fx.particle(Particle.BLOCK_CRACK, x, y, z, 6, 0.15, 0.1, 0.15, 0.2, material.createBlockData());
+                        // near black in the crack, glowing hotter toward the far end (the color follows the distance, exponentially)
+                        fx.dust(x, y, z, CRACK, Curves.expIn(along / length, 2.0), 1.6);
                     }
                 }
                 Location mid = start.clone().add(facing.clone().multiply((from + to) / 2.0));
@@ -794,6 +813,7 @@ public final class WarriorMoves {
         double rate = number("charge-rate", 1.6);
         Vector side = facing.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
         Color color = color(weapon.element());
+        Gradient chargeGradient = Gradient.of(Color.fromRGB(240, 245, 255), color);
         java.util.Set<UUID> struck = new java.util.HashSet<>();
         chargingUntil.put(player.getUniqueId(), System.currentTimeMillis() + (ticks + 6) * 50L);
         ClickSignals.lockLeft(player, ticks + 2);
@@ -813,14 +833,8 @@ public final class WarriorMoves {
                 player.setVelocity(facing.clone().multiply(power).setY(Math.min(0.0, player.getVelocity().getY())));
                 // a big shield in front: a disc standing across the way
                 Location front = player.getLocation().add(facing.clone().multiply(1.6)).add(0.0, 1.1, 0.0);
-                for (int ring = 0; ring < 3; ring++) {
-                    double r = 0.6 + ring * 0.5;
-                    for (int index = 0; index < 14 + ring * 6; index++) {
-                        double angle = Math.PI * 2.0 * index / (14 + ring * 6);
-                        Location at = front.clone().add(side.clone().multiply(Math.cos(angle) * r)).add(0.0, Math.sin(angle) * r * 1.1, 0.0);
-                        ParticleFx.to(player, world).spawnParticle(Particle.REDSTONE, at, 1, 0.0, 0.0, 0.0, 0.0, new Particle.DustOptions(ring == 2 ? color : IRON, 1.5f));
-                    }
-                }
+                // a filled disc (points spread by the golden angle: no gaps), steel in the middle going to the element at the rim
+                Fx.of(player, world, front).disc(front, side, Y_AXIS, 1.6, 42, chargeGradient, 1.5, 1.5);
                 ParticleFx.to(player, world).spawnParticle(Particle.CLOUD, player.getLocation().add(0.0, 0.2, 0.0), 3, 0.3, 0.05, 0.3, 0.02);
                 for (LivingEntity target : around(player, front, 2.2)) {
                     Vector to = target.getLocation().toVector().subtract(player.getLocation().toVector());
