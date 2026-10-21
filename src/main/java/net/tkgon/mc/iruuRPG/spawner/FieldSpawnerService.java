@@ -41,6 +41,9 @@ public final class FieldSpawnerService implements Listener {
     /** Scoreboard tag of every mob a field spawner made (so leftovers of a crash can be swept). */
     public static final String TAG = "iruurpg_field_spawn";
 
+    /** The version of spawners.yml (2: the default reaction distance is 48). */
+    private static final int FORMAT = 2;
+
     private final JavaPlugin plugin;
     private final RpgMobService mobService;
     private final RpgMobRegistry mobRegistry;
@@ -91,8 +94,9 @@ public final class FieldSpawnerService implements Listener {
         return plugin.getConfig().getBoolean("field-spawner.enabled", true);
     }
 
+    /** How close a player has to come for a new spawner to react (the key is new: older servers still have trigger-radius: 24). */
     public int defaultRadius() {
-        return (int) number("trigger-radius", 24);
+        return (int) number("default-radius", 48);
     }
 
     // ---- editing the list -----------------------------------------------------------------------------------------
@@ -260,6 +264,7 @@ public final class FieldSpawnerService implements Listener {
         YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
         ConfigurationSection section = yaml.getConfigurationSection("spawners");
         if (section == null) return;
+        boolean raise = yaml.getInt("format", 1) < FORMAT;
         for (String id : section.getKeys(false)) {
             ConfigurationSection entry = section.getConfigurationSection(id);
             if (entry == null || entry.getString("world") == null || entry.getString("mob") == null) continue;
@@ -269,13 +274,17 @@ public final class FieldSpawnerService implements Listener {
             spawner.min(entry.getInt("min", 1));
             spawner.maxAlive(entry.getInt("max-alive", 2));
             spawner.radius(entry.getInt("radius", defaultRadius()));
+            // format 2: the reaction distance became wider by default; spawners saved before get at least the new default once
+            if (raise) spawner.radius(Math.max(spawner.radius(), defaultRadius()));
             spawners.put(id, spawner);
         }
         plugin.getLogger().info("field spawners: " + spawners.size());
+        if (raise) save();
     }
 
     public void save() {
         YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("format", FORMAT);
         for (FieldSpawner spawner : spawners.values()) {
             String base = "spawners." + spawner.id() + ".";
             yaml.set(base + "world", spawner.worldName());

@@ -258,7 +258,7 @@ public final class FieldSpawnerEditor implements Listener {
         if (!(event.getWhoClicked() instanceof Player player) || !editing(player)) return;
         event.setCancelled(true);
         if (event.getView().getTopInventory().getHolder() instanceof Picker picker) onPick(player, picker, event.getRawSlot());
-        if (event.getView().getTopInventory().getHolder() instanceof Setup setup) onSetup(player, setup, event.getRawSlot(), event.getClick().isRightClick());
+        if (event.getView().getTopInventory().getHolder() instanceof Setup setup) onSetup(player, setup, event.getRawSlot(), event.getClick().isRightClick(), event.getClick().isShiftClick());
     }
 
     @EventHandler(priority = EventPriority.LOW)
@@ -536,7 +536,7 @@ public final class FieldSpawnerEditor implements Listener {
         valueRow(inventory, SLOT_MIN, Material.RABBIT_FOOT, "一度に湧く数 (最小)", spawner.min(), "体", "左クリック +1 / 右クリック -1");
         valueRow(inventory, SLOT_MAX, Material.RABBIT_HIDE, "一度に湧く数 (最大)", spawner.max(), "体", "左クリック +1 / 右クリック -1");
         valueRow(inventory, SLOT_ALIVE, Material.SKELETON_SKULL, "同時に生きられる数", spawner.maxAlive(), "体", "左クリック +1 / 右クリック -1");
-        valueRow(inventory, SLOT_RADIUS, Material.ENDER_EYE, "反応する距離", spawner.radius(), "ブロック", "左クリック +4 / 右クリック -4");
+        valueRow(inventory, SLOT_RADIUS, Material.ENDER_EYE, "反応する距離", spawner.radius(), "ブロック", "左クリック +4 / 右クリック -4 / Shift で ±16 (" + FieldSpawner.MIN_RADIUS + "〜" + FieldSpawner.MAX_RADIUS + ")");
         inventory.setItem(SLOT_DELETE, button(Material.BARRIER, "このスポナーを消す", NamedTextColor.RED, List.of()));
         inventory.setItem(SLOT_CLOSE, button(Material.ARROW, "閉じる", NamedTextColor.GRAY, List.of()));
         ItemStack frame = button(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
@@ -549,7 +549,7 @@ public final class FieldSpawnerEditor implements Listener {
         inventory.setItem(slot, button(icon, name + ": " + value + unit, NamedTextColor.AQUA, List.of(text(how, NamedTextColor.GRAY))));
     }
 
-    private void onSetup(Player player, Setup holder, int slot, boolean rightClick) {
+    private void onSetup(Player player, Setup holder, int slot, boolean rightClick, boolean shift) {
         FieldSpawner spawner = service.find(holder.spawnerId).orElse(null);
         Session session = sessions.get(player.getUniqueId());
         if (spawner == null || session == null) {
@@ -568,7 +568,7 @@ public final class FieldSpawnerEditor implements Listener {
             case SLOT_MIN -> spawner.min(spawner.min() + step);
             case SLOT_MAX -> spawner.max(spawner.max() + step);
             case SLOT_ALIVE -> spawner.maxAlive(spawner.maxAlive() + step);
-            case SLOT_RADIUS -> spawner.radius(spawner.radius() + step * 4);
+            case SLOT_RADIUS -> spawner.radius(spawner.radius() + step * (shift ? 16 : 4));
             case SLOT_DELETE -> {
                 player.closeInventory();
                 service.remove(spawner);

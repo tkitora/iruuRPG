@@ -21,6 +21,9 @@ public final class FieldSpawner {
     private int max;
     /** How many of its mobs can be alive at the same time. */
     private int maxAlive;
+    public static final int MIN_RADIUS = 8;
+    public static final int MAX_RADIUS = 128;
+
     /** A player this close (blocks) makes it spawn. */
     private int radius;
 
@@ -100,7 +103,7 @@ public final class FieldSpawner {
     }
 
     public void radius(int value) {
-        radius = Math.max(8, Math.min(64, value));
+        radius = Math.max(MIN_RADIUS, Math.min(MAX_RADIUS, value));
     }
 
     public int aliveCount() {
