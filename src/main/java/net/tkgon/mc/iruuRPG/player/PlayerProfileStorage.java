@@ -94,7 +94,7 @@ public final class PlayerProfileStorage {
     }
 
     private PlayerProfile createDefaultProfile(UUID uuid) {
-        double defaultMaxHp = plugin.getConfig().getDouble("player.default-max-hp", 20.0);
+        double defaultMaxHp = plugin.getConfig().getDouble("player.initial-max-hp", 200.0);
         double defaultHpRegen = plugin.getConfig().getDouble("player.default-hp-regen-per-3s", 1.0);
         double defaultMaxMp = plugin.getConfig().getDouble("player.default-max-mp", 20.0);
         double defaultMpRegen = plugin.getConfig().getDouble("player.default-mp-regen-per-3s", 5.0);
