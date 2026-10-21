@@ -162,44 +162,31 @@ combat:
       charge-ticks: 12
       charge-power: 1.1
       charge-rate: 1.6
-    # レンジャーのコンボ (クラス id は gifted)。通常攻撃は遠距離武器の右クリックで、1・2 高速の矢、3 高速の3連射 (40%×3)、
-    # 4 扇形の3方向 (35%×3)、5 至近距離の散弾 (近接武器の左クリック、40%×3。近接以外・敵なしは空振りで数だけ進む)、6 強力な一撃 (100%)。
-    # 強攻撃は、その武器の通常攻撃ではない方のクリック (遠距離・設置は左、近接は右)。0 後ろにジャンプ (固有ct 5秒) /
-    # 1 扇形の矢 (70度・半径5・30%) / 2 後ろに跳んでワイヤー2本 (40%×2) / 3 最大3回跳ね返る矢 (当たるたびに小さな爆発) /
-    # 4 視点の5ブロック先の周り (半径4) に矢の雨 (60%)。
-    # 3つの攻撃のループ: 近接が当たる→次の遠距離通常が +10%・弾が速い / 遠距離が当たる→設置武器から周囲に2% / 設置のダメージ→近接 +10% (5秒)。
+    # レンジャーの3つの攻撃のループ (近接→遠距離→設置)。近接が当たる→次の遠距離攻撃が +10%・矢が速い (10秒) /
+    # 遠距離が当たる→設置武器から周囲に2% / 設置のダメージ→近接 +10% (5秒)。
     ranger:
-      window-ticks: 44                            # 通常攻撃の間隔。武器を持ち替える分、ほかより長い
-      normal-gap-ticks: 8                         # 通常攻撃と次の通常攻撃の最短の間隔
-      heavy-cooldown-ticks: [100, 0, 0, 0, 0]
-      heavy-damage-multiplier: [0.0, 0.3, 0.4, 0.5, 0.6]   # 1は扇形、2はワイヤー1本ごと、3は矢が敵に当たったとき、4は矢1本ごと
-      hit-rate: [1.0, 1.0, 0.4, 0.35, 0.4, 1.0]   # 通常1〜6: 1発ごとの倍率
-      range-boost-percent: 10                     # 近接が当たったあとの遠距離通常: ダメージ+% / 弾速の倍率 / 有効な秒数
+      range-boost-percent: 10                     # 近接が当たったあとの遠距離攻撃: ダメージ+% / 矢の速さの倍率 / 有効な秒数
       range-boost-speed: 1.5
       range-boost-seconds: 10
       melee-boost-percent: 10                     # 設置のダメージのあとの近接: ダメージ+% / 有効な秒数
       melee-boost-seconds: 5
       resonance-rate: 0.02                        # 遠距離が当たったときの設置武器の共鳴: 倍率 / 続けて起きる最短のtick数
       resonance-gap-ticks: 4
-      fan-angle: 14.0                             # 通常4: 3方向の間の角度
-      close-radius: 3.5                           # 通常5: 敵がこの距離にいると当たる / 正面の角度 (片側)
-      close-half-angle: 80.0
-      back-jump-power: 1.0                        # 強攻撃0: 後ろに跳ぶ強さ / 上に跳ぶ強さ
-      back-jump-up-power: 0.55
-      fan-radius: 5.0                             # 強攻撃1: 扇形の半径と角度
-      fan-arrow-angle: 70.0
-      hop-back-power: 0.8                         # 強攻撃2: 後ろに跳ぶ強さ / 上に跳ぶ強さ / ワイヤーの長さ
-      hop-up-power: 0.75
-      wire-length: 8.0
-      ricochet-bounces: 3                         # 強攻撃3: 跳ね返る回数 / 矢の速さ (ブロック/tick) / 飛ぶ最長tick数 / 爆発の半径と倍率
-      ricochet-speed: 2.2
-      ricochet-ticks: 40
-      blast-radius: 2.2
-      blast-rate: 0.3
-      rain-forward: 5.0                           # 強攻撃4: 視点の何ブロック先を中心にするか / 雨の半径 / 矢の数 / 降らせるtick数
-      rain-radius: 4.0
-      rain-arrows: 20
-      rain-ticks: 10
+    # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃0〜4 (通常をN回出したあとが強攻撃N)。
+    # 近接は左クリックが通常・右クリックが強攻撃、遠距離と設置は右クリックが通常・左クリックが強攻撃。
+    # 作りは同じで、plan 名 (cleric_melee / ranger_deploy / ranger_range) の下に次のキーを書くと数値を変えられる:
+    #   hit-rate: [5つ]               通常1〜5の1ヒットの倍率 / hit-counts: [5つ] 通常1〜5のヒット数
+    #   heavy-damage-multiplier: [5つ] 強攻撃0〜4の倍率 (意味は技ごと) / heavy-cooldown-ticks: [5つ] 強攻撃0〜4のクールタイム
+    #   window-ticks: 通常攻撃の間隔 / normal-gap-ticks: 通常攻撃と次の最短の間隔
+    # 設置・持続するもの (地面の陣・罠・壁など) は、必ず3秒以内に消え、同じ技をもう一度出すと前のは消える (2周目に残らない)。
+    # 設置武器のコンボの通常攻撃の間隔 (tick、攻撃速度で短くなる):
+    deploy-normal-ticks: 14
+    cleric_melee:
+      normal-gap-ticks: 10
+    ranger_deploy:
+      normal-gap-ticks: 10
+    ranger_range:
+      normal-gap-ticks: 8
   # 武器 (アイテム) のスキルの発動: 近接も遠距離も Shift+右クリック。movement-plain: true にすると、移動スキル (dash / teleport) は右クリックだけで出る
   skill-trigger:
     melee-sneak: true
