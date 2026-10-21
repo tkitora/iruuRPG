@@ -194,11 +194,7 @@ public final class CombatListener implements Listener {
     /** Uses the right-click of the weapon in hand (manual skill, or ranged / deploy attack). False when it has none. */
     private boolean useWeaponRightClick(Player player, RpgItemDefinition weapon) {
         if (itemSkillService.handleManualUse(player, weapon)) return true;
-        // an assassin's right click with a melee weapon is a heavy attack (the number of normal attacks thrown so far)
-        if (attackService.tryHeavy(player, weapon)) return true;
-        // and a warrior's
-        if (attackService.tryWarriorHeavy(player, weapon)) return true;
-        // the other classes' combos with a melee weapon
+        // a class's combo with a melee weapon: the right click is a heavy attack (the number of normal attacks thrown so far)
         if (attackService.tryComboHeavy(player, weapon, true)) return true;
         if (!isRangedRightClickWeapon(weapon)) return false;
 
@@ -246,18 +242,10 @@ public final class CombatListener implements Listener {
         }
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
-        // the other classes' combos with a melee weapon
+        // a class's combo with a melee weapon
         if (attackService.comboNormal(attacker, weapon)) return;
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
         if (step == null) return;
-        if (step.heavy() && step.assassin()) {
-            attackService.performHeavy(attacker, weapon, step);
-            return;
-        }
-        if (step.warrior() && step.stage() >= 4) {
-            attackService.warriorNormal(attacker, weapon, step);
-            return;
-        }
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         if (hand.offHand()) attackService.swingOffHand(attacker);
         attackService.playMeleeSlash(attacker, hand.weapon(), step);
@@ -288,14 +276,6 @@ public final class CombatListener implements Listener {
         if (attackService.comboNormal(attacker, weapon)) return;
         net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
         if (step == null) return;
-        if (step.heavy() && step.assassin()) {
-            attackService.performHeavy(attacker, weapon, step);
-            return;
-        }
-        if (step.warrior() && step.stage() >= 4) {
-            attackService.warriorNormal(attacker, weapon, step);
-            return;
-        }
         // a dual-wielding assassin hits with one hand and then the other
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         RpgItemDefinition used = hand.weapon();

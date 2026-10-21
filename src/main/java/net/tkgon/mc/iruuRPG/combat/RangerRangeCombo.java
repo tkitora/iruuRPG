@@ -9,11 +9,13 @@ import org.bukkit.util.Vector;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * The ranger's combo with a ranged weapon (the reworked one): many hands, and things that are planted. Arrows are fast. A
- * melee hit of the ranger makes the next arrow stronger and faster (the loop). Normal: 1 two arrows (55% x2), 2 three arrows (40% x3),
- * 3 a piercing arrow (120% on all in the line), 4 a fan of five arrows (28% x5), 5 a great arrow that bursts (100% and 50%). Heavy: 0 an arrow
- * that plants a trap for 2.7 s (130%, slows), 1 an arrow that bounces twice (40% x3), 2 three spike traps planted round the aim (40% each, 2.7 s),
- * 3 four homing arrows (35% x4), 4 a rain of arrows on the aim (12% x12).
+ * The ranger's combo with a ranged weapon (the bow): arrows, and crowd control with them. An arrow of the ranger marks the enemy it hits for 5 s: the ranger's melee
+ * and deployed weapons hit a marked enemy for 20% more (the loop with the other weapons). A melee hit makes the next arrow stronger and faster. Every
+ * normal attack holds the enemies in some way. Normal: 1 two arrows (55% x2, each slows a little), 2 three arrows (40% x3, slow a little), 3 a piercing arrow
+ * (120% on all in the line, which cannot move for 1.2 s), 4 a fan of five arrows (28% x5, pushes the enemies apart), 5 a great arrow that bursts (100% and 50%
+ * round it, and draws the enemies together). Heavy: 0 a backstep shot (the ranger hops back, nothing can hurt for 4 ticks, 130% and slows 50%), 1 an arrow that
+ * bounces twice (40% x3), 2 a net arrow (40% and a net round the hit that holds all in it, slows 70% for 2.5 s), 3 four homing arrows (35% x4), 4 a rain of arrows
+ * on the aim (12% x12).
  */
 public final class RangerRangeCombo implements ClassCombo {
 
@@ -22,6 +24,11 @@ public final class RangerRangeCombo implements ClassCombo {
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
             new double[]{0.55, 0.4, 1.2, 0.28, 1.0}, new int[]{2, 3, 1, 5, 1},
             new double[]{1.3, 0.4, 0.4, 0.35, 0.12}, new int[]{100, 0, 0, 0, 0}, 40);
+
+    /** What an arrow that ended at {@code end} does to the enemies within {@code radius} of it: slows them. */
+    private void slowAt(MoveKit kit, Location end, double radius, double percent, double seconds) {
+        for (LivingEntity victim : kit.around(end, radius)) kit.slow(victim, percent, seconds);
+    }
 
     @Override
     public String classId() {
@@ -65,7 +72,7 @@ public final class RangerRangeCombo implements ClassCombo {
                     double side = index == 0 ? 0.3 : -0.3;
                     kit.later(index, () -> {
                         Location start = muzzle(kit, side, -0.1);
-                        kit.arrow(start, toward(kit, start), rate, speed, null);
+                        kit.arrow(start, toward(kit, start), rate, speed, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -79,7 +86,7 @@ public final class RangerRangeCombo implements ClassCombo {
                         if (which > 0) {
                             direction.add(axes[1].clone().multiply(random.nextDouble(-0.07, 0.07))).add(axes[2].clone().multiply(random.nextDouble(-0.05, 0.05))).normalize();
                         }
-                        kit.arrow(start, direction, rate, speed * 1.1, null);
+                        kit.arrow(start, direction, rate, speed * 1.1, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -97,7 +104,9 @@ public final class RangerRangeCombo implements ClassCombo {
                     Location at = start.clone().add(direction.clone().multiply(2.0 + ring * 2.6));
                     kit.fx(at).ring(at, axes[1], axes[2], 0.5 + 0.05 * ring, 14, kit.palette(), 0.5, 0.4, 1.0);
                 }
-                for (LivingEntity target : kit.corridor(start, direction, range, 0.9)) kit.hit(target, rate);
+                for (LivingEntity target : kit.corridor(start, direction, range, 0.9)) {
+                    if (kit.hit(target, rate)) kit.slow(target, 90.0, 1.2);
+                }
             }
             case 4 -> {
                 // a fan of five arrows
@@ -105,7 +114,9 @@ public final class RangerRangeCombo implements ClassCombo {
                 for (int index = 0; index < hits; index++) {
                     double turn = Math.toRadians((index - 2) * 10.0);
                     Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
-                    kit.later(index / 3, () -> kit.arrow(start.clone(), direction, rate, speed, null));
+                    kit.later(index / 3, () -> kit.arrow(start.clone(), direction, rate, speed, end -> {
+                        for (LivingEntity victim : kit.around(end, 1.3)) kit.push(victim, kit.player.getLocation().toVector(), 0.3, 0.1);
+                    }));
                 }
             }
             default -> {
@@ -116,7 +127,9 @@ public final class RangerRangeCombo implements ClassCombo {
                     kit.burst(end, 2.6);
                     kit.shockwave(end, 0.8, 2.6, 3, 1.0);
                     kit.sound(end, Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 1.5f);
-                    kit.hitAll(kit.around(end, 2.4), rate * 0.5);
+                    for (LivingEntity victim : kit.around(end, 2.4)) {
+                        if (kit.hit(victim, rate * 0.5)) kit.pull(victim, end, 0.35);
+                    }
                 });
             }
         }
@@ -131,31 +144,18 @@ public final class RangerRangeCombo implements ClassCombo {
         Vector[] axes = kit.axes();
         switch (step.heavyIndex()) {
             case 0 -> {
-                // an arrow into the ground at the aim: a trap that waits for 2.7 s and goes off when an enemy comes within 1.8 blocks
+                // a backstep shot: the ranger hops back (nothing can hurt for 4 ticks) and looses an arrow at the aim that slows what it hits
                 Location start = muzzle(kit, 0.0, -0.1);
-                Location aim = kit.ground(kit.aim());
-                boolean[] set = {false};
-                kit.arrow(start, aim.toVector().add(new Vector(0.0, 0.3, 0.0)).subtract(start.toVector()).normalize(), 0.0, 2.0, end -> {
-                    Location trap = kit.ground(end);
-                    kit.sound(trap, Sound.BLOCK_TRIPWIRE_ATTACH, 0.9f, 0.7f);
-                    kit.zone("ranger_trap", trap, 55, 3, zone -> {
-                        kit.fx(trap).flatRing(trap.clone().add(0.0, 0.1, 0.0), 1.7, 28, kit.palette(), 0.4, 0.4, 0.9);
-                        kit.fx(trap).sphereShell(trap.clone().add(0.0, 0.35, 0.0), 0.3, zone.age() * 0.2, 14, kit.palette(), 0.9);
-                        if (!kit.around(trap, 1.8).isEmpty()) {
-                            set[0] = true;
-                            zone.stop();
-                        }
-                    }, zone -> {
-                        if (!set[0]) return;
-                        kit.burst(trap.clone().add(0.0, 0.3, 0.0), 3.0);
-                        kit.shockwave(trap, 1.0, 3.0, 4, 1.0);
-                        kit.sound(trap, Sound.ENTITY_GENERIC_EXPLODE, 0.8f, 1.3f);
-                        for (LivingEntity victim : kit.around(trap, 3.0)) {
-                            if (kit.hit(victim, rate)) kit.slow(victim, 50.0, 2.0);
-                        }
-                    });
+                Vector direction = toward(kit, start);
+                kit.invulnerable(4);
+                kit.hopBack(0.9, 0.3);
+                kit.sound(feet, Sound.ENTITY_ARROW_SHOOT, 1.0f, 0.9f);
+                kit.arrow(start, direction, 0.0, 2.0, end -> {
+                    kit.burst(end, 1.4);
+                    for (LivingEntity victim : kit.around(end, 1.5)) {
+                        if (kit.hit(victim, rate)) kit.slow(victim, 50.0, 2.0);
+                    }
                 });
-                kit.hopBack(0.6, 0.25);
             }
             case 1 -> {
                 Location start = muzzle(kit, 0.0, -0.1);
@@ -163,29 +163,26 @@ public final class RangerRangeCombo implements ClassCombo {
                 kit.ricochet(start, toward(kit, start), 2, 2.0, 40, rate, end -> kit.burst(end, 1.2));
             }
             case 2 -> {
-                // three spike traps round the aim
-                Location aim = kit.ground(kit.aim());
-                boolean[] used = new boolean[3];
-                kit.sound(feet, Sound.BLOCK_CHAIN_PLACE, 1.0f, 1.2f);
-                Location[] spots = new Location[3];
-                for (int index = 0; index < 3; index++) {
-                    double angle = Math.PI * 2.0 * index / 3.0 + 0.5;
-                    spots[index] = kit.ground(aim.clone().add(Math.cos(angle) * 2.0, 0.0, Math.sin(angle) * 2.0));
-                }
-                kit.zone("ranger_spikes", aim, 55, 3, zone -> {
-                    for (int index = 0; index < 3; index++) {
-                        if (used[index]) continue;
-                        Location spot = spots[index];
-                        kit.fx(spot).flatRing(spot.clone().add(0.0, 0.1, 0.0), 1.1, 20, kit.palette(), 0.4, 0.4, 0.9);
-                        if (kit.around(spot, 1.3).isEmpty()) continue;
-                        used[index] = true;
-                        kit.burst(spot.clone().add(0.0, 0.3, 0.0), 1.6);
-                        kit.sound(spot, Sound.ENTITY_ARROW_HIT, 0.9f, 0.8f);
-                        for (LivingEntity victim : kit.around(spot, 1.5)) {
-                            if (kit.hit(victim, rate)) kit.lift(victim, 0.45);
-                        }
+                // a net arrow: where it ends a net opens (a ring with its threads) and holds what is in it for a second and a half
+                Location start = muzzle(kit, 0.0, -0.1);
+                kit.sound(start, Sound.ENTITY_ARROW_SHOOT, 1.0f, 1.2f);
+                kit.arrow(start, toward(kit, start), rate, 2.0, end -> {
+                    Location net = kit.ground(end);
+                    kit.sound(net, Sfx.WIND_BURST, 0.8f, 1.4f);
+                    for (LivingEntity victim : kit.around(net, 3.0)) {
+                        if (kit.hit(victim, rate)) kit.slow(victim, 70.0, 2.5);
                     }
-                }, null);
+                    kit.zone("ranger_net", net, 30, 2, zone -> {
+                        double r = 3.0;
+                        kit.fx(net).flatRing(net.clone().add(0.0, 0.15, 0.0), r, 48, kit.palette(), 0.5, 0.1, 1.0);
+                        kit.fx(net).flatRing(net.clone().add(0.0, 0.15, 0.0), r * 0.5, 28, kit.palette(), 0.7, 0.1, 1.0);
+                        for (int thread = 0; thread < 8; thread++) {
+                            double angle = Math.PI * 2.0 * thread / 8.0;
+                            Location edge = net.clone().add(Math.cos(angle) * r, 0.15, Math.sin(angle) * r);
+                            kit.fx(net).line(net.clone().add(0.0, 0.15, 0.0), edge, kit.palette(), 0.4, 0.8, 0.0, 0.9, 0.35, null, 1);
+                        }
+                    }, null);
+                });
             }
             case 3 -> {
                 kit.sound(feet, Sound.ENTITY_ARROW_SHOOT, 1.0f, 1.3f);

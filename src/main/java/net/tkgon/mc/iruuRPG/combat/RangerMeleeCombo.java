@@ -9,7 +9,7 @@ import org.bukkit.util.Vector;
 /**
  * The ranger's combo with a melee weapon (a hunting knife): quick, mobile, setting up the next shot. A melee hit powers up the ranger's next
  * ranged attack (the loop). Normal: 1 two quick stabs (55% x2), 2 three cuts (40% x3), 3 a lunge (120%), 4 a flurry (28% x5), 5 a leap onto
- * the target (150%). Heavy: 0 a backstep that scatters caltrops for 2.5 s (25% a pulse, slows), 1 a low sweep all round (120%), 2 three
+ * the target (150%). The lunge (3) and the leap (5) leave the ranger unhurtable while they go; after the blow the ranger steps back. Heavy: 0 a backstep that scatters caltrops for 2.5 s (25% a pulse, slows), 1 a low sweep all round (120%), 2 three
  * thrown knives (40% x3), 3 a cut that pins (130%, slows 60%), 4 a run through the line (150% on all in the way).
  */
 public final class RangerMeleeCombo extends BaseCombo {
@@ -51,10 +51,15 @@ public final class RangerMeleeCombo extends BaseCombo {
                 }
             }
             case 3 -> {
+                // a lunge: nothing can hurt the ranger for 5 ticks of the dash, which ends at the first enemy it touches; after the cut, a backstep
+                LivingEntity ahead = kit.nearest(6.0, 45.0);
+                Vector heading = ahead == null ? facing : ahead.getLocation().toVector().subtract(feet.toVector());
                 kit.sound(feet, Sfx.METAL, 0.9f, 1.2f);
-                kit.dash(facing, 1.0, 4, end -> {
+                kit.invulnerable(5);
+                kit.dashToContact(heading, 1.0, 5, 1.6, (end, touched) -> {
                     kit.slash("drop", 2.6, 130.0, 25.0, 0.0, 1.8, 0.3, 0.0, 1.2, 0.14, 0.0);
                     kit.hitAll(kit.cone(3.2, 60.0), rate);
+                    if (touched != null) kit.later(2L, () -> kit.hopBack(0.8, 0.25));
                 });
             }
             case 4 -> {
@@ -68,14 +73,20 @@ public final class RangerMeleeCombo extends BaseCombo {
                 kit.sound(feet, Sfx.WIND, 0.9f, 1.8f);
             }
             default -> {
-                // the finisher: a leap onto the target
+                // the finisher: a leap onto the target (nothing can hurt the ranger in the air); after the blow, a backstep
+                kit.invulnerable(16);
                 kit.leap(facing, 0.8, 0.55, land -> {
                     kit.shockwave(land, 1.0, 3.4, 4, 1.1);
                     kit.slash("drop", 2.8, 150.0, 8.0, 0.0, 1.8, 0.4, 0.0, 1.3, 0.16, 0.0);
                     kit.sound(land, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.6f);
+                    boolean struck = false;
                     for (LivingEntity target : kit.around(land, 3.4)) {
-                        if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.5, 0.3);
+                        if (kit.hit(target, rate)) {
+                            kit.push(target, land.toVector(), 0.5, 0.3);
+                            struck = true;
+                        }
                     }
+                    if (struck) kit.later(2L, () -> kit.hopBack(0.7, 0.3));
                 });
             }
         }
@@ -128,6 +139,7 @@ public final class RangerMeleeCombo extends BaseCombo {
                 Location from = feet.clone().add(0.0, 1.0, 0.0);
                 kit.line(from, from.clone().add(facing.clone().multiply(7.0)), 0.2, 1.0, 1.5);
                 kit.hitAll(kit.corridor(from, facing, 7.0, 1.6), rate);
+                kit.invulnerable(8);
                 kit.dash(facing, 1.4, 5, end -> kit.shockwave(end, 0.8, 2.6, 3, 1.0));
             }
         }

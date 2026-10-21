@@ -205,6 +205,130 @@ public final class MoveKit {
         attack.slow(target, percent, Math.round(seconds * 1000.0), player.getUniqueId());
     }
 
+    // ---- hands, guard and blinks ---------------------------------------------------------------------------------------------------
+
+    /** The hand the next cut is struck with: an assassin with a weapon in each hand (固有0) strikes with them in turn; anybody else with the main hand. */
+    public AttackService.MeleeHand nextHand() {
+        return attack.nextSlashHand(player, weapon);
+    }
+
+    /** One hit of {@code rate} times the damage of {@code hand}'s weapon (and of the other hand's when the double strike fires). */
+    public boolean hitHand(AttackService.MeleeHand hand, LivingEntity target, double rate) {
+        if (!attack.strike(player, target, hand, rate)) return false;
+        if (hand.doubleStrike()) attack.doubleStrikeHit(player, target, hand);
+        return true;
+    }
+
+    /** The damage the player takes is cut by {@code share} (1.0 = none at all) for {@code ticks} ticks. */
+    public void guard(double share, int ticks) {
+        if (attack.guard() != null) attack.guard().grant(player, share, ticks);
+    }
+
+    /** No damage at all for {@code ticks} ticks (a dash through enemies). */
+    public void invulnerable(int ticks) {
+        guard(1.0, ticks);
+    }
+
+    /** One more shield turning round the player (the warrior's), up to the number a bulwark gives. */
+    public void addShield() {
+        if (attack.guard() != null) attack.guard().addShield(player);
+    }
+
+    /** All the shields of a bulwark. */
+    public void bulwark() {
+        if (attack.guard() != null) attack.guard().gainShields(player);
+    }
+
+    public int shields() {
+        return attack.guard() == null ? 0 : attack.guard().shieldCount(player);
+    }
+
+    public void confuse(LivingEntity target, double amount) {
+        attack.confuse(target, amount, player.getUniqueId());
+    }
+
+    /** The enemy the player aims at within {@code range}, else the nearest one within {@code range} and {@code halfAngle} degrees of where the player faces; null when none. */
+    public LivingEntity nearest(double range, double halfAngle) {
+        LivingEntity aimed = aimed();
+        if (aimed != null && aimed.getLocation().distanceSquared(player.getLocation()) <= range * range) return aimed;
+        LivingEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        Vector facing = facing();
+        for (LivingEntity target : around(player.getLocation(), range)) {
+            Vector to = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
+            if (to.lengthSquared() > 1.0 && Math.toDegrees(facing.angle(to)) > halfAngle) continue;
+            double distance = target.getLocation().distanceSquared(player.getLocation());
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = target;
+            }
+        }
+        return best;
+    }
+
+    private static boolean standable(Location at) {
+        return at.getBlock().isPassable() && at.clone().add(0.0, 1.0, 0.0).getBlock().isPassable();
+    }
+
+    /** A place {@code distance} blocks behind {@code target} (the other side from where it faces) where the player can stand; the target's own spot when there is none. */
+    public Location behind(LivingEntity target, double distance) {
+        Vector away = target.getLocation().getDirection().setY(0.0);
+        if (away.lengthSquared() < 1.0E-6) away = target.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
+        if (away.lengthSquared() < 1.0E-6) away = facing();
+        away.normalize();
+        for (double d = distance; d >= 0.8; d -= 0.5) {
+            Location spot = target.getLocation().clone().subtract(away.clone().multiply(d));
+            if (standable(spot)) return spot;
+        }
+        return target.getLocation().clone();
+    }
+
+    /** Moves the player to {@code to} at once, facing {@code face} (when not null), with a streak of the palette between the two places and a puff at both. */
+    public void blink(Location to, LivingEntity face) {
+        Location from = player.getLocation();
+        Location dest = to.clone();
+        if (face != null) {
+            Vector look = face.getLocation().add(0.0, face.getHeight() * 0.5, 0.0).toVector().subtract(dest.clone().add(0.0, 1.6, 0.0).toVector());
+            if (look.lengthSquared() > 1.0E-6) dest.setDirection(look);
+        } else {
+            dest.setYaw(from.getYaw());
+            dest.setPitch(from.getPitch());
+        }
+        line(from.clone().add(0.0, 1.0, 0.0), dest.clone().add(0.0, 1.0, 0.0), 0.2, 1.0, 1.3);
+        burst(from.clone().add(0.0, 1.0, 0.0), 0.9);
+        player.setFallDistance(0.0f);
+        player.teleport(dest);
+        burst(dest.clone().add(0.0, 1.0, 0.0), 0.9);
+        Sfx.MAGIC_DARK.play(dest, 0.5f, 1.8f);
+    }
+
+    /**
+     * A dash along {@code heading} that stops at the first enemy within {@code reach} blocks of the player (a contact) or after
+     * {@code ticks} ticks; {@code end} gets the place and the enemy touched (null when there was none).
+     */
+    public void dashToContact(Vector heading, double power, int ticks, double reach, java.util.function.BiConsumer<Location, LivingEntity> end) {
+        Vector flat = heading.clone().setY(0.0).normalize();
+        every(ticks + 1, age -> {
+            player.setFallDistance(0.0f);
+            LivingEntity touched = null;
+            double best = Double.MAX_VALUE;
+            for (LivingEntity target : around(player.getLocation(), reach)) {
+                double distance = target.getLocation().distanceSquared(player.getLocation());
+                if (distance < best) {
+                    best = distance;
+                    touched = target;
+                }
+            }
+            if (touched != null || age >= ticks) {
+                player.setVelocity(new Vector(0.0, Math.min(0.0, player.getVelocity().getY()), 0.0));
+                if (end != null) end.accept(player.getLocation(), touched);
+                return true;
+            }
+            player.setVelocity(flat.clone().multiply(power).setY(Math.min(0.0, player.getVelocity().getY())));
+            return false;
+        });
+    }
+
     // ---- movement -------------------------------------------------------------------------------------------------------------
 
     /** A dash along {@code direction}: {@code power} a tick for {@code ticks} ticks, then {@code end} (at the spot where it ended). */

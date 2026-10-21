@@ -3,15 +3,19 @@ package net.tkgon.mc.iruuRPG.combat;
 import net.tkgon.mc.iruuRPG.vfx.Palettes;
 import net.tkgon.mc.iruuRPG.vfx.Trig;
 import org.bukkit.Location;
-import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * The mage's combo with a melee weapon (a spell blade): magic poured into the blade. Normal: 1 two quick magic cuts (60% x2), 2 a crossing pair of
- * cuts (50% x2), 3 a rune strike (120%, a rune bursts), 4 three bolts shot from the blade (35% x3), 5 a nova of the blade (150%).
- * Heavy: 0 a blink forward through the enemies (100% on all in the way), 1 a rune circle on the ground for 2.5 s (25% a pulse), 2 a wave of
- * magic along the ground (130%), 3 a drain (110%, heals 3%), 4 a storm of blades for 1 s (18% x8).
+ * The mage's combo with a melee weapon (a spell blade): the mage does not swing it, the mage commands floating swords (see {@link Blades}). Normal: 1 two swords
+ * sweep across the front one after the other (60% x2), 2 two swords cross at the aim (50% each), 3 three swords seek the nearest enemies (40% each),
+ * 4 four swords turn round the mage for 2 s and lunge at the enemies close by (7% a lunge, every 8 ticks), 5 five swords gather above the aimed enemy and fall on it
+ * (30% each). Heavy: 0 four swords turn round the mage for 2 s in a wider ring (6% a lunge every 10 ticks; its own cooldown of 6 s), 1 a fan of five swords (24%
+ * each), 2 a great sword charges for 0.4 s and pierces the line ahead (130% on all in it), 3 four seeking swords (35% each), 4 a storm of six swords turning round
+ * the aim for 1.2 s (20% on all round every 4 ticks, draws them in).
  */
 public final class MageMeleeCombo extends BaseCombo {
 
@@ -19,73 +23,89 @@ public final class MageMeleeCombo extends BaseCombo {
 
     public MageMeleeCombo() {
         super("mage", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{0.6, 0.5, 1.2, 0.35, 1.5}, new int[]{2, 2, 1, 3, 1},
-                new double[]{1.0, 0.25, 1.3, 1.1, 0.18}, new int[]{120, 0, 0, 0, 0}, 40));
+                new double[]{0.6, 0.5, 0.4, 0.07, 0.3}, new int[]{2, 2, 3, 1, 5},
+                new double[]{0.06, 0.24, 1.3, 0.35, 0.2}, new int[]{120, 0, 0, 0, 0}, 40));
+    }
+
+    /** A sword that sweeps across the front of the mage, from one side to the other (3 ticks), cutting what is in the cone at the middle. */
+    private void sweep(MoveKit kit, boolean leftToRight, double rate) {
+        Location feet = kit.player.getLocation();
+        Vector facing = kit.facing();
+        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
+        kit.sound(feet, Sfx.WIND, 0.6f, leftToRight ? 1.5f : 1.8f);
+        kit.slash("arc", 2.4, 130.0, 35.0, leftToRight ? 180.0 : 0.0, 1.9, 0.4, 0.0, 1.0, 0.09, 0.0);
+        for (int step = 0; step < 4; step++) {
+            double angle = Math.toRadians((leftToRight ? -1.0 : 1.0) * (60.0 - 40.0 * step));
+            int which = step;
+            kit.later(step, () -> {
+                Location at = kit.player.getLocation().add(0.0, 1.2, 0.0)
+                        .add(facing.clone().multiply(Math.cos(angle) * 1.9)).add(right.clone().multiply(Math.sin(angle) * 1.9));
+                Vector point = facing.clone().multiply(Math.cos(angle)).add(right.clone().multiply(Math.sin(angle)));
+                Blades.draw(kit, at, point, 1.1);
+                if (which == 2) kit.hitAll(kit.cone(3.4, 65.0), rate);
+            });
+        }
     }
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
         kit.palette(Palettes.mixed(kit.weapon.element(), 0.6));
         double rate = step.damageMultiplier();
-        int hits = step.extraHits() + 1;
+        int count = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
+        Vector facing = kit.facing();
+        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
         switch (step.stage()) {
             case 1 -> {
-                for (int index = 0; index < hits; index++) {
-                    int which = index;
-                    kit.later(index * 2L, () -> {
-                        kit.slash("arc", 2.3, 130.0, 40.0, which % 2 == 0 ? 0.0 : 180.0, 2.0, 0.3, 0.0, 1.0, 0.1, 0.0);
-                        kit.sound(feet, Sfx.MAGIC, 0.5f, 1.6f + which * 0.1f);
-                        kit.hitAll(kit.cone(3.2, 65.0), rate);
-                    });
-                }
+                sweep(kit, true, rate);
+                kit.later(3L, () -> sweep(kit, false, rate));
             }
             case 2 -> {
-                for (int index = 0; index < hits; index++) {
-                    int which = index;
-                    kit.later(index, () -> {
-                        kit.slash("line", 2.6, 120.0, 0.0, which == 0 ? 50.0 : -50.0, 2.0, 0.3, 0.0, 1.1, 0.1, 0.0);
-                        kit.sound(feet, Sfx.WIND, 0.7f, 1.4f);
-                        kit.hitAll(kit.cone(3.3, 70.0), rate);
-                    });
+                // two swords from the upper sides cross at the aim
+                Location aim = kit.aim();
+                Location mid = kit.eye().add(kit.eye().getDirection().multiply(Math.min(5.0, kit.eye().distance(aim))));
+                for (int side = -1; side <= 1; side += 2) {
+                    Location start = kit.player.getLocation().add(0.0, 1.9, 0.0).add(right.clone().multiply(side * 1.1)).add(facing.clone().multiply(0.6));
+                    Vector toward = mid.toVector().subtract(start.toVector());
+                    Blades.fly(kit, start, toward, 1.5, 7.0, rate, null);
                 }
             }
             case 3 -> {
-                kit.slash("drop", 2.6, 130.0, 15.0, 0.0, 2.0, 0.2, 0.0, 1.3, 0.14, 0.0);
-                kit.sound(feet, Sfx.METAL, 1.0f, 1.0f);
-                Location rune = feet.clone().add(kit.facing().multiply(2.6));
-                kit.hitAll(kit.cone(3.4, 55.0), rate);
-                // a rune where the blade struck: it shows, then bursts
-                Location at = kit.ground(rune);
-                for (int tick = 0; tick < 6; tick++) {
-                    double r = 1.6 - 0.8 * tick / 5.0;
-                    kit.later(tick, () -> kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), r, 32, kit.palette(), 0.5, 0.3, 1.0));
-                }
-                kit.later(6, () -> {
-                    kit.burst(at.clone().add(0.0, 0.3, 0.0), 2.0);
-                    kit.sound(at, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.8f, 1.2f);
-                });
-            }
-            case 4 -> {
-                Vector facing = kit.facing();
-                for (int index = 0; index < hits; index++) {
-                    double side = (index - 1) * 0.5;
-                    Location start = kit.eye().add(facing.clone().multiply(0.9)).add(new Vector(-facing.getZ() * side, -0.4, facing.getX() * side));
-                    kit.later(index, () -> {
-                        kit.sound(start, Sfx.MAGIC, 0.6f, 1.8f);
-                        kit.bolt(start, facing, 1.6, 7.0, rate, end -> kit.burst(end, 0.9));
-                    });
+                // three swords seek the nearest enemies in front (or fly on straight when there are none)
+                List<LivingEntity> targets = new ArrayList<>(kit.cone(9.0, 70.0));
+                targets.sort((a, b) -> Double.compare(a.getLocation().distanceSquared(feet), b.getLocation().distanceSquared(feet)));
+                for (int index = 0; index < count; index++) {
+                    double side = (index - (count - 1) / 2.0) * 0.8;
+                    Location start = kit.player.getLocation().add(0.0, 1.7, 0.0).add(right.clone().multiply(side)).add(facing.clone().multiply(0.5));
+                    Vector heading = targets.isEmpty() ? facing.clone().add(right.clone().multiply(side * 0.2))
+                            : targets.get(index % targets.size()).getLocation().add(0.0, 1.0, 0.0).toVector().subtract(start.toVector());
+                    kit.later(index, () -> Blades.seek(kit, start, heading.clone().add(new Vector(0.0, 0.25, 0.0)), 1.3, 30, 10.0, rate, null));
                 }
             }
+            case 4 -> Blades.orbit(kit, "mage_blades", 4, 40, 1.5, 3.4, 8, rate);
             default -> {
-                // the finisher: the blade lets everything go in a nova
-                kit.slash("arc", 3.0, 200.0, 70.0, 0.0, 1.6, 0.4, 0.0, 1.4, 0.16, 0.0);
-                kit.shockwave(feet, 1.0, 4.2, 5, 1.2);
-                kit.sound(feet, Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.4f);
-                kit.sound(feet, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0f, 0.9f);
-                kit.fx(feet).sphereShell(feet.clone().add(0.0, 1.0, 0.0), 1.8, 0.0, 48, kit.palette(), 1.0);
-                for (LivingEntity target : kit.around(feet, 4.2)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.8, 0.3);
+                // five swords gather above the aimed enemy, then fall on it
+                LivingEntity target = kit.nearest(10.0, 70.0);
+                Location above = target == null ? ComboParts.target(kit).add(0.0, 1.0, 0.0) : target.getLocation();
+                kit.sound(above, Sfx.MAGIC, 0.9f, 1.2f);
+                for (int index = 0; index < count; index++) {
+                    double angle = Math.PI * 2.0 * index / count;
+                    Location top = above.clone().add(Trig.cos(angle) * 1.2, 6.0, Trig.sin(angle) * 1.2);
+                    for (int hover = 0; hover < 5; hover++) kit.later(hover, () -> Blades.draw(kit, top, new Vector(0.0, -1.0, 0.0), 1.2));
+                    kit.later(6L + index, () -> {
+                        Location hit = target != null && target.isValid() && !target.isDead() ? target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0) : above.clone().add(0.0, 0.5, 0.0);
+                        for (int fall = 0; fall < 3; fall++) {
+                            double t = (fall + 1) / 3.0;
+                            Location at = top.clone().add(hit.toVector().subtract(top.toVector()).multiply(t - 0.34));
+                            kit.later(fall, () -> Blades.draw(kit, at, new Vector(0.0, -1.0, 0.0), 1.2));
+                        }
+                        kit.later(2L, () -> {
+                            kit.burst(hit, 1.1);
+                            kit.sound(hit, Sfx.CRACK, 0.6f, 1.5f);
+                            if (target != null) kit.hit(target, rate);
+                            else kit.hitAll(kit.around(hit, 1.6), rate);
+                        });
+                    });
                 }
             }
         }
@@ -97,75 +117,71 @@ public final class MageMeleeCombo extends BaseCombo {
         double rate = step.damageMultiplier();
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
+        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
         switch (step.heavyIndex()) {
-            case 0 -> {
-                // a blink forward 6 blocks: everything on the way is cut as the mage passes
-                Location from = feet.clone();
-                Location to = from.clone().add(facing.clone().multiply(6.0));
-                Location safe = kit.ground(to);
-                kit.sound(from, Sound.ENTITY_ENDERMAN_TELEPORT, 0.9f, 1.5f);
-                kit.fx(from).sphereShell(from.clone().add(0.0, 1.0, 0.0), 0.8, 0.0, 32, kit.palette(), 1.0);
-                kit.hitAll(kit.corridor(from.clone().add(0.0, 1.0, 0.0), facing, 6.0, 1.4), rate);
-                kit.line(from.clone().add(0.0, 1.0, 0.0), to.clone().add(0.0, 1.0, 0.0), 0.2, 1.0, 1.3);
-                if (safe.getBlock().isPassable() && safe.clone().add(0.0, 1.0, 0.0).getBlock().isPassable()) {
-                    safe.setYaw(from.getYaw());
-                    safe.setPitch(from.getPitch());
-                    kit.player.teleport(safe);
-                    kit.player.setFallDistance(0.0f);
-                }
-                kit.fx(kit.player.getLocation()).sphereShell(kit.player.getLocation().add(0.0, 1.0, 0.0), 0.8, 0.0, 32, kit.palette(), 1.0);
-                kit.sound(kit.player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.9f, 1.2f);
-            }
+            case 0 -> Blades.orbit(kit, "mage_blade_ring", 4, 50, 2.6, 3.8, 10, rate);
             case 1 -> {
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sound.BLOCK_BEACON_ACTIVATE, 0.9f, 1.6f);
-                ComboParts.sigil(kit, "mage_runes", at, 3.5, rate, 50, 10, ignored -> {
-                    for (int arm = 0; arm < 3; arm++) {
-                        double angle = Math.PI * 2.0 * arm / 3.0 + kit.player.getTicksLived() * 0.1;
-                        kit.fx(at).dust(at.getX() + Trig.cos(angle) * 2.2, at.getY() + 0.2, at.getZ() + Trig.sin(angle) * 2.2, kit.palette(), 1.0, 1.4);
-                    }
-                });
+                // a fan of five swords
+                Vector aimed = kit.axes()[0];
+                for (int index = 0; index < 5; index++) {
+                    double turn = Math.toRadians((index - 2) * 14.0);
+                    Vector heading = aimed.clone().multiply(Math.cos(turn)).add(kit.axes()[1].clone().multiply(Math.sin(turn))).normalize();
+                    Location start = kit.player.getLocation().add(0.0, 1.5, 0.0).add(heading.clone().multiply(0.8));
+                    kit.later(index / 2, () -> Blades.fly(kit, start, heading, 1.4, 8.0, rate, null));
+                }
             }
             case 2 -> {
-                // a wave of magic running along the ground, widening
-                kit.slash("line", 3.4, 100.0, 0.0, 0.0, 1.8, 0.2, 0.0, 1.4, 0.14, 0.0);
-                kit.sound(feet, Sfx.MAGIC, 1.0f, 1.2f);
-                for (int index = 1; index <= 8; index++) {
-                    double along = index;
-                    kit.later(index - 1, () -> {
-                        Location at = feet.clone().add(facing.clone().multiply(along)).add(0.0, 0.3, 0.0);
-                        kit.fx(at).flatRing(at, 0.9 + along * 0.18, 24, kit.palette(), 0.3 + 0.08 * along, 0.3, 1.0);
+                // a great sword: it hangs before the mage for 0.4 s, growing bright, then runs through the line ahead
+                Vector aimed = kit.axes()[0];
+                Location base = kit.eye().add(aimed.clone().multiply(1.2)).subtract(0.0, 0.3, 0.0);
+                kit.sound(feet, Sfx.MAGIC, 1.0f, 0.8f);
+                for (int tick = 0; tick < 8; tick++) {
+                    int which = tick;
+                    kit.later(tick, () -> {
+                        Blades.draw(kit, base, aimed, 1.6 + 0.1 * which);
+                        kit.fx(base).ring(base.clone().add(aimed.clone().multiply(0.8)), kit.axes()[1], kit.axes()[2], 1.2 - 0.1 * which, 18, kit.palette(), 0.5, 0.2, 1.0);
                     });
                 }
-                for (LivingEntity target : kit.corridor(feet.clone().add(0.0, 0.5, 0.0), facing, 8.0, 1.8)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.6, 0.25);
-                }
+                kit.later(8L, () -> {
+                    Location end = base.clone().add(aimed.clone().multiply(9.0));
+                    kit.line(base, end, 0.2, 1.0, 1.6);
+                    kit.line(base.clone().add(0.0, 0.08, 0.0), end.clone().add(0.0, 0.08, 0.0), 0.7, 1.0, 1.1);
+                    Blades.draw(kit, end.clone().subtract(aimed.clone().multiply(2.0)), aimed, 2.0);
+                    kit.sound(base, Sfx.WIND_BURST, 1.0f, 1.0f);
+                    kit.hitAll(kit.corridor(base, aimed, 9.0, 1.2), rate);
+                });
             }
             case 3 -> {
-                // a drain: the cone is cut and its life flows to the mage
-                kit.slash("drop", 2.8, 140.0, 30.0, 0.0, 2.0, 0.3, 0.0, 1.3, 0.16, 0.0);
-                kit.sound(feet, Sfx.MAGIC_DARK, 0.9f, 1.4f);
-                int hit = 0;
-                for (LivingEntity target : kit.cone(3.8, 60.0)) {
-                    if (!kit.hit(target, rate)) continue;
-                    hit++;
-                    Location to = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
-                    kit.line(to, kit.player.getEyeLocation().subtract(0.0, 0.4, 0.0), 0.9, 0.2, 1.0);
+                // four seeking swords
+                List<LivingEntity> targets = new ArrayList<>(kit.cone(10.0, 90.0));
+                targets.sort((a, b) -> Double.compare(a.getLocation().distanceSquared(feet), b.getLocation().distanceSquared(feet)));
+                for (int index = 0; index < 4; index++) {
+                    double side = (index - 1.5) * 0.7;
+                    Location start = kit.player.getLocation().add(0.0, 1.8, 0.0).add(right.clone().multiply(side));
+                    Vector heading = targets.isEmpty() ? facing.clone().add(right.clone().multiply(side * 0.3))
+                            : targets.get(index % targets.size()).getLocation().add(0.0, 1.0, 0.0).toVector().subtract(start.toVector());
+                    kit.later(index, () -> Blades.seek(kit, start, heading.clone().add(new Vector(0.0, 0.3, 0.0)), 1.3, 36, 12.0, rate, null));
                 }
-                if (hit > 0) kit.heal(3.0);
             }
             default -> {
-                // a storm of blades: they turn round the mage for a second
-                kit.sound(feet, Sfx.WIND, 1.0f, 0.7f);
-                kit.every(21, age -> {
-                    Location center = kit.player.getLocation().add(0.0, 1.0, 0.0);
-                    for (int arm = 0; arm < 4; arm++) {
-                        double base = age * 0.8 + arm * Math.PI / 2.0;
-                        kit.fx(center).spiral(center, new Vector(1, 0, 0), new Vector(0, 0, 1), new Vector(0, 1, 0), 2.2, 3.4, -0.17, base - 0.9, 0.3, 9, kit.palette(), 1.3);
+                // a storm of six swords round the aim for 1.2 s: everyone in it is cut every 4 ticks and drawn in
+                Location center = ComboParts.target(kit);
+                kit.sound(center, Sfx.MAGIC, 1.0f, 0.9f);
+                kit.zone("mage_blade_storm", center, 24, 2, zone -> {
+                    Location mid = center.clone().add(0.0, 1.2, 0.0);
+                    for (int index = 0; index < 6; index++) {
+                        double angle = zone.age() * 0.5 + Math.PI * 2.0 * index / 6.0;
+                        double c = Trig.cos(angle);
+                        double s = Trig.sin(angle);
+                        Blades.draw(kit, mid.clone().add(c * 2.4, (index % 3) * 0.3 - 0.3, s * 2.4), new Vector(-s, 0.0, c), 1.0);
                     }
-                    if (age % 3 == 0 && age > 0) kit.hitAll(kit.around(kit.player.getLocation(), 3.5), rate);
-                    return false;
-                });
+                    if (zone.age() % 4 == 0) {
+                        kit.sound(center, Sfx.WIND, 0.4f, 1.5f);
+                        for (LivingEntity victim : kit.around(center, 3.2)) {
+                            if (kit.hit(victim, rate)) kit.pull(victim, center, 0.15);
+                        }
+                    }
+                }, zone -> kit.shockwave(center, 1.0, 3.2, 3, 1.0));
             }
         }
     }

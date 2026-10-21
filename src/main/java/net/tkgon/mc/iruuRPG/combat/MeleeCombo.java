@@ -12,20 +12,16 @@ import java.util.UUID;
  * within {@code window-ticks} of the one before) end with the finisher, the last light, which hits harder. A shift +
  * left click is a heavy attack, thrown after the lights done so far; it ends the chain.
  *
- * <p>Two plans: the usual one (any class) has one kind of heavy attack that hits harder after more lights and takes
- * longer to recover from. The assassin plan ({@link #ASSASSIN}) has five lights (the fifth is the finisher, three
- * hits of 60%) and five heavy attacks, 0 - 4: a right click after the lights thrown so far (none for heavy 0) throws
- * one and ends the chain. A shift + left click is an ordinary light attack. (Each heavy attack can have a cooldown of
- * its own; they are off for now.)
+ * <p>Two kinds of plan: the usual one (a weapon that is not a class's favorite) has one kind of heavy attack that hits
+ * harder after more lights and takes longer to recover from. The plans of the combos ({@link ComboSpec}, registered with
+ * {@link #register}) have five normal and five heavy attacks, 0 - 4: the other click after the normal attacks thrown so far
+ * (none for heavy 0) throws one and ends the chain. The mage's ranged plan ({@link #MAGE}) is the same in an older form.
  */
 public final class MeleeCombo {
 
     public static final String USUAL = "";
-    public static final String ASSASSIN = "assassin";
     /** The mage's plan: the same chain on the ranged weapon (a right click is a normal attack, a left click a heavy one). */
     public static final String MAGE = "mage";
-    /** The warrior's plan: five normal attacks on a melee weapon (the fourth and fifth depend on a jump) and heavy attacks 0 - 4. */
-    public static final String WARRIOR = "warrior";
 
     public enum Kind { LIGHT, HEAVY, FINISHER }
 
@@ -55,16 +51,8 @@ public final class MeleeCombo {
             return kind == Kind.FINISHER;
         }
 
-        public boolean assassin() {
-            return ASSASSIN.equals(plan);
-        }
-
         public boolean mage() {
             return MAGE.equals(plan);
-        }
-
-        public boolean warrior() {
-            return WARRIOR.equals(plan);
         }
 
         public int visual() {
@@ -75,9 +63,8 @@ public final class MeleeCombo {
         }
     }
 
-    private static final int ASSASSIN_LIGHTS = 5;
-    private static final int ASSASSIN_HEAVIES = 5;
-    private static final int WARRIOR_LIGHTS = 5;
+    private static final int LIGHTS = 5;
+    private static final int HEAVIES = 5;
 
     private final JavaPlugin plugin;
     /** The combos described by a {@link ComboSpec} (the newer ones), by plan. */
@@ -140,27 +127,21 @@ public final class MeleeCombo {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
         ComboSpec spec = specs.get(plan);
         if (spec != null) return nextSpec(player, spec);
-        if (WARRIOR.equals(plan)) return nextWarrior(player);
-        if (ASSASSIN.equals(plan) || MAGE.equals(plan)) return nextMulti(player, plan);
+        if (MAGE.equals(plan)) return nextMulti(player, plan);
         return nextUsual(player, heavy);
     }
 
     /**
-     * The heavy attack of the assassin plan for a right click: number 0 when no light was thrown (or the chain ran
-     * out), else the number of lights thrown so far. Null while that heavy attack cools down. The chain starts over.
+     * The heavy attack of {@code plan} for the heavy click: number 0 when no light was thrown (or the chain ran out), else the number
+     * of lights thrown so far. Null while that heavy attack cools down. The chain starts over.
      */
-    public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown) {
-        return heavyByClick(player, skipHeavyZeroCooldown, ASSASSIN);
-    }
-
-    /** Same for the plan {@code plan} (the mage's heavy attacks are the left click). */
     public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return null;
         long now = System.currentTimeMillis();
         long[] state = chain(player, plan);
         int done = now - state[1] > window(plan) ? 0 : (int) state[0];
-        int index = Math.min(done, ASSASSIN_HEAVIES - 1);
-        // heavy 0 right after heavy 2's hop is heavy 3, which has no cooldown of heavy 0's
+        int index = Math.min(done, HEAVIES - 1);
+        // (the mage's heavy 0 right after a heavy that can be followed up is that follow-up, which has no cooldown of heavy 0's)
         Step step = heavy(player, plan, index, index == 0 && skipHeavyZeroCooldown);
         if (step != null) {
             state[0] = 0L;
@@ -170,17 +151,10 @@ public final class MeleeCombo {
         return step;
     }
 
-    /** The damage multiplier configured for heavy attack {@code index} of the assassin plan. */
-    public double heavyMultiplier(int index) {
-        return heavyMultiplier(ASSASSIN, index);
-    }
-
     public double heavyMultiplier(String plan, int index) {
         ComboSpec spec = specs.get(plan);
         if (spec != null) return listed(plan + ".heavy-damage-multiplier", index, spec.heavyRates()[Math.max(0, Math.min(4, index))], 0, 20);
-        double[] defaults = MAGE.equals(plan) ? new double[]{0.0, 0.6, 0.15, 0.6, 0.1}
-                : WARRIOR.equals(plan) ? new double[]{0.0, 0.3, 0.04, 0.7, 1.2}
-                : new double[]{0.0, 0.3, 0.4, 0.6, 0.07};
+        double[] defaults = new double[]{0.0, 0.6, 0.15, 0.6, 0.1};
         return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
     }
 
@@ -233,60 +207,37 @@ public final class MeleeCombo {
         // the heavy attacks of these plans are the other click (see heavyByClick): the normal click is always a light attack
         state[1] = now;
         int stage = done + 1;
-        shown(player, plan, Math.min(stage, ASSASSIN_LIGHTS));
-        if (stage >= ASSASSIN_LIGHTS) {
+        shown(player, plan, Math.min(stage, LIGHTS));
+        if (stage >= LIGHTS) {
             state[0] = 0L;
             // the finisher: 3 hits of 60% in front
             double rate = listed(plan + ".multi-hit-rate", 2, 0.6, 0.05, 3.0);
             int hits = (int) listed(plan + ".multi-hit-counts", 2, 3, 1, 10);
-            return new Step(Kind.FINISHER, ASSASSIN_LIGHTS, rate, 0, plan, 0, hits - 1, 1.0,
+            return new Step(Kind.FINISHER, LIGHTS, rate, 0, plan, 0, hits - 1, 1.0,
                     number(plan + ".finisher-area-radius", 3.0, 1.0, 8.0));
         }
         state[0] = stage;
         if (stage == 3 || stage == 4) {
             // several hits in front: the third light is 3 hits of 40%, the fourth 4 hits of 30%
             int which = stage - 3;
-            double[] defaults = MAGE.equals(plan) ? new double[]{0.3, 0.3} : new double[]{0.4, 0.3};
+            double[] defaults = new double[]{0.3, 0.3};
             double rate = listed(plan + ".multi-hit-rate", which, defaults[which], 0.05, 2.0);
             int hits = (int) listed(plan + ".multi-hit-counts", which, new double[]{3, 4}[which], 2, 10);
             return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, hits - 1, 1.0);
         }
         // the mage's first two lights are bolts of their own strength (50% and 80%)
-        double rate = MAGE.equals(plan) ? listed(plan + ".light-rate", stage - 1, new double[]{0.5, 0.8}[Math.min(1, stage - 1)], 0.05, 3.0) : 1.0;
+        double rate = listed(plan + ".light-rate", stage - 1, new double[]{0.5, 0.8}[Math.min(1, stage - 1)], 0.05, 3.0);
         return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, 0, 1.0);
     }
 
-    /**
-     * The next normal attack of the warrior's chain: 1 and 2 slashes of 90%, 3 a sideways slash of 120%, 4 a thrust of
-     * 100% (a chop of 150% in the air), 5 the finisher (a sweep of 100%, or a thrust of 150% after the chop). The
-     * special rates of 4 and 5 are the warrior moves' own settings.
-     */
-    private Step nextWarrior(Player player) {
-        long now = System.currentTimeMillis();
-        long[] state = chain(player, WARRIOR);
-        int done = now - state[1] > window(WARRIOR) ? 0 : (int) state[0];
-        state[1] = now;
-        int stage = done + 1;
-        shown(player, WARRIOR, Math.min(stage, WARRIOR_LIGHTS));
-        double[] defaults = {0.9, 0.9, 1.2, 1.0, 1.0};
-        double rate = listed("warrior.hit-rate", Math.min(stage, WARRIOR_LIGHTS) - 1, defaults[Math.min(stage, WARRIOR_LIGHTS) - 1], 0.05, 5.0);
-        if (stage >= WARRIOR_LIGHTS) {
-            state[0] = 0L;
-            return new Step(Kind.FINISHER, WARRIOR_LIGHTS, rate, 0, WARRIOR, 0, 0, 1.0);
-        }
-        state[0] = stage;
-        return new Step(Kind.LIGHT, stage, rate, 0, WARRIOR, 0, 0, 1.0);
-    }
-
-    /** Heavy attack {@code index} of the assassin plan, or null while its own cooldown runs. */
+    /** Heavy attack {@code index} of {@code plan}, or null while its own cooldown runs. */
     private Step heavy(Player player, String plan, int index, boolean skipCooldown) {
         long now = System.currentTimeMillis();
-        long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId() + "|" + plan, ignored -> new long[ASSASSIN_HEAVIES]);
+        long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId() + "|" + plan, ignored -> new long[HEAVIES]);
         if (!skipCooldown) {
             if (ready[index] > now) return null;
             ComboSpec spec = specs.get(plan);
-            double[] defaults = MAGE.equals(plan) ? new double[]{60, 0, 0, 0, 0}
-                    : WARRIOR.equals(plan) ? new double[]{300, 0, 0, 0, 0} : new double[]{80, 0, 0, 0, 0};
+            double[] defaults = new double[]{60, 0, 0, 0, 0};
             if (spec != null) {
                 for (int at = 0; at < 5; at++) defaults[at] = spec.heavyCooldownTicks()[at];
             }
