@@ -174,7 +174,10 @@ combat:
       resonance-gap-ticks: 4
     # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃0〜4 (通常をN回出したあとが強攻撃N)。
     # 近接は左クリックが通常・右クリックが強攻撃、遠距離と設置は右クリックが通常・左クリックが強攻撃。
-    # 作りは同じで、plan 名 (cleric_melee / ranger_deploy / ranger_range) の下に次のキーを書くと数値を変えられる:
+    # plan 名: cleric_melee / cleric_range / cleric_deploy、ranger_melee / ranger_range / ranger_deploy、mage_melee / mage_deploy (遠距離のメイジは mage)、
+    #          assassin_range / assassin_deploy (近接のアサシンは assassin)、warrior_range / warrior_deploy (近接の戦士は warrior)。
+    # どのクラスがどの武器でコンボを出すか (得意) は、アイテムの classes: と、武器の種類ごとの既定値で決まる。
+    # 作りは同じで、plan 名の下に次のキーを書くと数値を変えられる:
     #   hit-rate: [5つ]               通常1〜5の1ヒットの倍率 / hit-counts: [5つ] 通常1〜5のヒット数
     #   heavy-damage-multiplier: [5つ] 強攻撃0〜4の倍率 (意味は技ごと) / heavy-cooldown-ticks: [5つ] 強攻撃0〜4のクールタイム
     #   window-ticks: 通常攻撃の間隔 / normal-gap-ticks: 通常攻撃と次の最短の間隔
