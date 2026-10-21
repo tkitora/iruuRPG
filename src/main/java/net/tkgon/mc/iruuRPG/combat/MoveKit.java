@@ -229,6 +229,11 @@ public final class MoveKit {
         guard(1.0, ticks);
     }
 
+    /** 0 normally; during the assassin's frenzy (SATUJIN) its level: 1, or 2 when upgraded. */
+    public int frenzy() {
+        return attack.assassinFrenzy(player);
+    }
+
     /** One more shield turning round the player (the warrior's), up to the number a bulwark gives. */
     public void addShield() {
         if (attack.guard() != null) attack.guard().addShield(player);

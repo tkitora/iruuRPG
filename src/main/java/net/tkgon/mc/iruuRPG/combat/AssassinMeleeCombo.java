@@ -19,6 +19,10 @@ import java.util.List;
  * for 8 ticks, 100% on all in the way), 1 a chain blink (blinks behind the nearest enemy, three cuts of 40%), 2 a blade storm (a spin for 1.2 s, 16% every
  * 3 ticks on everyone round, takes 40% less damage meanwhile), 3 a crossing step (through the enemy ahead and back across, 60% on all in the way each time),
  * 4 a phantom execution (afterimages, then a blink behind the nearest enemy: 150% and confusion).
+ *
+ * <p>The class skill (SATUJIN, F) puts the assassin in a frenzy for some seconds: the blows are 20% stronger (35% when upgraded), the normal attacks come faster,
+ * an enemy out of reach is blinked to before a normal attack, every normal attack is followed by the cut of a shadow round the assassin (40%), heavy 0 has no cooldown,
+ * and the status effects (confusion) land with every hit.
  */
 public final class AssassinMeleeCombo extends BaseCombo {
 
@@ -38,10 +42,42 @@ public final class AssassinMeleeCombo extends BaseCombo {
         return hit;
     }
 
+    /** How much stronger the blows are in a frenzy (SATUJIN): 1 when there is none. */
+    private static double boost(int frenzy) {
+        return frenzy >= 2 ? 1.35 : frenzy == 1 ? 1.2 : 1.0;
+    }
+
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
+        int frenzy = kit.frenzy();
+        if (frenzy == 0) {
+            normalBody(kit, step, 1.0);
+            return;
+        }
+        // in a frenzy every blow is stronger, the assassin first blinks to an enemy that is out of reach (the blinking moves do it anyway),
+        // and a shadow of the assassin cuts again a moment later round the place it stands
+        double boost = boost(frenzy);
+        int stage = step.stage();
+        LivingEntity far = stage == 3 || stage == 5 ? null : kit.nearest(9.0, 90.0);
+        if (far != null && far.getLocation().distanceSquared(kit.player.getLocation()) > 6.25) {
+            kit.blink(kit.behind(far, 1.6), far);
+            kit.later(1L, () -> normalBody(kit, step, boost));
+        } else {
+            normalBody(kit, step, boost);
+        }
+        double afterimage = step.damageMultiplier() * 0.4 * boost;
+        kit.later(5L, () -> {
+            Location at = kit.player.getLocation();
+            kit.fx(at).sphereShell(at.clone().add(0.0, 1.0, 0.0), 0.6, 0.0, 22, kit.palette(), 1.0);
+            kit.slash("arc", 2.6, 300.0, 70.0, 0.0, 0.4, 0.5, 0.0, 1.0, 0.07, 0.0);
+            kit.sound(at, Sfx.WIND, 0.35f, 1.7f);
+            cut(kit, kit.around(at, 3.2), afterimage);
+        });
+    }
+
+    private void normalBody(MoveKit kit, MeleeCombo.Step step, double boost) {
         kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
-        double rate = step.damageMultiplier();
+        double rate = step.damageMultiplier() * boost;
         int hits = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
@@ -134,7 +170,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
         kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
-        double rate = step.damageMultiplier();
+        double rate = step.damageMultiplier() * boost(kit.frenzy());
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {

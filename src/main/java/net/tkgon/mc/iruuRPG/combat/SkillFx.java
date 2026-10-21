@@ -121,6 +121,11 @@ final class SkillFx {
      * at the end of the line ({@code length}); with a thin bright core on the axis.
      */
     static void helix(Player owner, Location start, Vector direction, double from, double to, double length, double radius, Gradient gradient) {
+        helix(owner, start, direction, from, to, length, radius, gradient, 0.0);
+    }
+
+    /** The same turned by {@code phase} radians (to make it turn round over time). */
+    static void helix(Player owner, Location start, Vector direction, double from, double to, double length, double radius, Gradient gradient, double phase) {
         Fx fx = Fx.of(owner, start.getWorld(), start.clone().add(direction.clone().multiply((from + to) / 2.0)));
         if (!fx.active()) return;
         Vector side = direction.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
@@ -129,7 +134,7 @@ final class SkillFx {
         Vector up = side.clone().crossProduct(direction).normalize();
         for (double distance = from; distance < to; distance += 0.18) {
             double t = Curves.expOut(distance / length, 1.5);
-            double angle = distance * 2.6;
+            double angle = distance * 2.6 + phase;
             for (int strand = 0; strand < 2; strand++) {
                 double a = angle + strand * Math.PI;
                 double c = Trig.cos(a) * radius;

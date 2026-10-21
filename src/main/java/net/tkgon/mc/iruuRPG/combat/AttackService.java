@@ -312,7 +312,8 @@ public final class AttackService {
             return true;
         }
         ClassCombo combo = classComboFor(attacker, weapon);
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, combo.spec().plan());
+        // (in a frenzy the assassin's heavy 0 has no cooldown)
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, assassinFrenzy(attacker) > 0 && "assassin".equals(equipmentService.classIdOf(attacker)), combo.spec().plan());
         if (step == null) {
             attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
@@ -1452,6 +1453,11 @@ public final class AttackService {
         return Math.max(0.2, Math.min(1.0, 1.0 - attackSpeed / 100.0));
     }
 
+    /** 0 when the assassin is not in a frenzy (SATUJIN), else its level; see {@link ClassEffectService#activateFrenzy}. */
+    public int assassinFrenzy(Player player) {
+        return classEffectService == null ? 0 : classEffectService.frenzyLevel(player);
+    }
+
     private int effectiveCooldownTicks(Player player, AttackType attackType) {
         int baseTicks = attackCooldowns.cooldownTicks(attackType);
         if (baseTicks <= 0 || attackType == AttackType.SPECIAL) return baseTicks;
@@ -1459,6 +1465,10 @@ public final class AttackService {
 
         PlayerProfile profile = equipmentService.recalculate(player);
         double attackSpeed = profile.finalStats().get(StatType.ATTACK_SPEED);
+        // in a frenzy the assassin's normal attacks come faster (class-effects.assassin.frenzy-attack-speed, in % of attack speed)
+        if (attackType == AttackType.MELEE && assassinFrenzy(player) > 0) {
+            attackSpeed += plugin.getConfig().getDouble("class-effects.assassin.frenzy-attack-speed", 40.0);
+        }
         double multiplier = Math.max(0.1, 1.0 + attackSpeed / 100.0);
         int minTicks = Math.max(1, plugin.getConfig().getInt("combat.min-cooldown-ticks", 1));
         return Math.max(minTicks, (int) Math.round(baseTicks / multiplier));

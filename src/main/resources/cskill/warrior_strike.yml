@@ -1,14 +1,14 @@
 # クラススキル定義: 戦士の「武神の一撃」(解放ノード4 / ホットキー F)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 #
-# 前方の敵の頭上へ、黄色い粉のパーティクルで描いた雷を落とす。
-# 近接武器(MELEE)を持っているときだけ使える。
-# 近接範囲攻撃化(解放ノード2)を解放済みなら、周囲の敵にも範囲率(65%)で当たる。
-# 強化(解放ノード7「武神の一撃・極」)を解放済みなら2段階ヒットになる。
-#
-# 雷が落ちた場所に、衝撃が広がる: 周囲 splash-radius ブロック (2段目は ×1.3) の敵に、
-# 威力の splash-share 倍の範囲ダメージ と、1.5 秒の強い鈍足。
+# 稲妻をまとい、効果時間のあいだ「与えたダメージで回復する」状態になる (単体に雷を落とすスキルから変わった):
+#   - 戦士が与えるダメージ (通常攻撃・コンボ・雷のすべて) の lifesteal の割合が、体力として戻る。
+#   - bolt-interval-ticks ごとに、bolt-range ブロック以内でいちばん近い敵へ雷が落ちる
+#     (威力は武器のダメージ × bolt-rate。周囲 splash-radius ブロックの敵に bolt-splash-share 倍の範囲ダメージと、1.5 秒の強い鈍足)。
+#   雷そのもののダメージが出て、そのダメージでも回復する。
+# 武器を持っているときに使える (近接でも遠距離でも)。効果時間には「効果時間」ステータスが乗る。
+# 強化(解放ノード8「武神の一撃・極」)を解放済みなら、効果時間・吸血・雷の威力が上がり、演出も大きくなる。
 
 id: warrior_strike
 name: "武神の一撃"
@@ -20,19 +20,21 @@ cost: 30
 cooldown: 20
 
 description:
-  - "前方の敵の脳天へ、黄色い雷を落とす。"
-  - "通常攻撃の数倍のダメージ。近接武器が必要。"
+  - "稲妻をまとう。8秒間、与えたダメージの一部が体力として戻る。"
+  - "近くの敵へ雷が落ち続け、その雷のダメージでも回復する。"
 
 values:
-  # range: 対象を探す距離(ブロック)
-  range: 6.0
-  # damage-rate: 通常攻撃ダメージに対する倍率
-  damage-rate: 3.0
-  # 強化(2段階ヒット)時の1段目・2段目の倍率。2段目は演出も大きくなる (合計6.5倍)
-  upgrade-first-rate: 2.5
-  upgrade-second-rate: 4.0
-  # 1段目から2段目までの間隔(tick。20tick=1秒)
-  upgrade-delay-ticks: 8
-  # 落雷の衝撃: 範囲(ブロック) / 与える割合
+  # duration-seconds: 効果時間(秒) / upgrade-duration-seconds: 強化後
+  duration-seconds: 8
+  upgrade-duration-seconds: 12
+  # lifesteal: 与えたダメージのうち体力として戻る割合 (0.08 = 8%) / upgrade-lifesteal: 強化後
+  lifesteal: 0.08
+  upgrade-lifesteal: 0.14
+  # 雷: 落ちる間隔(tick。20tick=1秒) / 狙う距離(ブロック) / 武器のダメージに対する倍率 (強化後は upgrade-bolt-rate)
+  bolt-interval-ticks: 14
+  bolt-range: 7
+  bolt-rate: 0.6
+  upgrade-bolt-rate: 0.9
+  # 雷の衝撃: 範囲(ブロック) / 与える割合
   splash-radius: 3.5
-  splash-share: 0.33
+  bolt-splash-share: 0.2
