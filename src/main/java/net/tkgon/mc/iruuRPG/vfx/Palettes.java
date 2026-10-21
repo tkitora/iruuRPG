@@ -20,6 +20,9 @@ public final class Palettes {
     /** Iron: dark steel through light steel to white. */
     public static final Gradient STEEL = Gradient.of(Color.fromRGB(120, 130, 150), Color.fromRGB(215, 222, 235), Color.fromRGB(255, 255, 255));
 
+    /** Gold: deep gold through gold to a pale glow (the cleric's light). */
+    public static final Gradient GOLD = Gradient.of(Color.fromRGB(150, 100, 20), Color.fromRGB(255, 215, 90), Color.fromRGB(255, 248, 200));
+
     static {
         for (Element element : Element.values()) {
             Color base = base(element);

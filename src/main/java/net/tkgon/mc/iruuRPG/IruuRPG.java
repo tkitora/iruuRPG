@@ -251,6 +251,9 @@ public final class IruuRPG extends JavaPlugin {
         this.rangerMoves = new net.tkgon.mc.iruuRPG.combat.RangerMoves(this, attackService, attackEffects);
         this.rangerMoves.setDeployService(deployService);
         this.attackService.setRangerMoves(rangerMoves);
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.ClericMeleeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerDeployCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerRangeCombo());
         this.attackService.setWarriorMoves(new net.tkgon.mc.iruuRPG.combat.WarriorMoves(this, attackService, attackEffects));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
@@ -352,6 +355,9 @@ public final class IruuRPG extends JavaPlugin {
     public void onDisable() {
         if (dungeonEditor != null) {
             dungeonEditor.shutdown();
+        }
+        if (attackService != null) {
+            attackService.shutdownCombos();
         }
         if (attackService != null && attackService.warriorMoves() != null) {
             attackService.warriorMoves().shutdown();

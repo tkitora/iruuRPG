@@ -121,7 +121,9 @@ public final class AttackService {
     public int comboStage(Player attacker, AttackType type) {
         if (type == AttackType.MELEE) return meleeCombo.currentStage(attacker, comboPlan(attacker));
         if (type == AttackType.RANGE && isMage(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.MAGE);
-        if (type == AttackType.RANGE && isRanger(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.RANGER);
+        // the generic combos (see ClassCombo): the chain of the class's combo with this kind of weapon
+        ClassCombo combo = classCombos.get(equipmentService.classIdOf(attacker) + "|" + type);
+        if (combo != null) return meleeCombo.currentStage(attacker, combo.spec().plan());
         return 0;
     }
 
@@ -247,6 +249,90 @@ public final class AttackService {
         return true;
     }
 
+    // ---- the combos of a class with a kind of weapon (the generic ones: see ClassCombo) ------------------------------------------
+
+    private final Map<String, ClassCombo> classCombos = new HashMap<>();
+    private MoveKit.Zones comboZones;
+    private final Map<UUID, Integer> lastClassHeavyTick = new HashMap<>();
+
+    /** Adds the combo of a class with a kind of weapon (its plan's numbers are registered with the chain). */
+    public void registerCombo(ClassCombo combo) {
+        if (comboZones == null) comboZones = new MoveKit.Zones(plugin);
+        classCombos.put(combo.classId() + "|" + combo.type(), combo);
+        meleeCombo.register(combo.spec());
+    }
+
+    public void shutdownCombos() {
+        if (comboZones != null) comboZones.shutdown();
+    }
+
+    public void forgetComboZones(UUID player) {
+        if (comboZones != null) comboZones.clear(player);
+    }
+
+    private ClassCombo classComboFor(Player attacker, RpgItemDefinition weapon) {
+        if (weapon == null || !weapon.marked() || classCombos.isEmpty()) return null;
+        return classCombos.get(equipmentService.classIdOf(attacker) + "|" + weapon.attackType());
+    }
+
+    /** True when the weapon in hand brings a (generic) combo of the player's class: a favorite weapon with such a combo. */
+    public boolean hasClassCombo(Player attacker, RpgItemDefinition weapon) {
+        return classComboFor(attacker, weapon) != null && comboOn() && comboAllowed(attacker, weapon);
+    }
+
+    private MoveKit kit(Player attacker, RpgItemDefinition weapon) {
+        return new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
+    }
+
+    /** Normal attack {@code n} of the class's combo with this weapon: the melee left click, or the right click with a ranged / deployed one. */
+    public boolean comboNormal(Player attacker, RpgItemDefinition weapon) {
+        if (!hasClassCombo(attacker, weapon)) return false;
+        ClassCombo combo = classComboFor(attacker, weapon);
+        MeleeCombo.Step step = meleeCombo.next(attacker, false, combo.spec().plan());
+        beginAttack(attacker);
+        attackCooldowns.ensureAtLeast(attacker, weapon.attackType(), (int) plugin.getConfig().getLong("combat.combo." + combo.spec().plan() + ".normal-gap-ticks", 10L));
+        combo.normal(kit(attacker, weapon), step);
+        return true;
+    }
+
+    /** Starts the cooldown of a normal attack of a deployed weapon's combo (the pace follows the attack speed, as a melee attack's does). */
+    public boolean tryStartDeployCombo(Player attacker) {
+        if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) return false;
+        int base = (int) plugin.getConfig().getLong("combat.combo.deploy-normal-ticks", 14L);
+        PlayerProfile profile = equipmentService.recalculate(attacker);
+        double multiplier = Math.max(0.1, 1.0 + profile.finalStats().get(StatType.ATTACK_SPEED) / 100.0);
+        int ticks = Math.max(Math.max(1, plugin.getConfig().getInt("combat.min-cooldown-ticks", 1)), (int) Math.round(base / multiplier));
+        return attackCooldowns.tryStart(attacker, AttackType.DEPLOY, ticks);
+    }
+
+    /**
+     * A heavy attack of the class's combo: the other click than the weapon's normal one (melee: the right click, ranged and
+     * deployed: the left click). True when the click was used, also while heavy 0 cools down.
+     */
+    public boolean tryComboHeavy(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
+        if (!hasClassCombo(attacker, weapon)) return false;
+        boolean melee = weapon.attackType() == AttackType.MELEE;
+        if (melee != rightClick) return false;
+        if (rightClick && attacker.isSneaking()) return false;
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer last = lastClassHeavyTick.put(attacker.getUniqueId(), tick);
+        if (last != null && (rightClick ? tick - last <= HELD_CLICK_TICKS : last == tick)) return true;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return true;
+        }
+        ClassCombo combo = classComboFor(attacker, weapon);
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, combo.spec().plan());
+        if (step == null) {
+            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            return true;
+        }
+        beginAttack(attacker);
+        combo.heavy(kit(attacker, weapon), step);
+        if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+        return true;
+    }
+
     // ---- the warrior ------------------------------------------------------------------------------------------------------
 
     private WarriorMoves warriorMoves;
@@ -305,6 +391,11 @@ public final class AttackService {
         this.rangerMoves = rangerMoves;
     }
 
+    /** The ranger's loop: {damage multiplier, speed multiplier} for its next ranged attack (1, 1 when none is waiting); takes it. */
+    public double[] takeRangeBoost(Player player) {
+        return rangerMoves == null || !isRanger(player) ? new double[]{1.0, 1.0} : rangerMoves.takeRangeBoostPublic(player);
+    }
+
     public RangerMoves rangerMoves() {
         return rangerMoves;
     }
@@ -315,61 +406,6 @@ public final class AttackService {
 
     private boolean comboOn() {
         return plugin.getConfig().getBoolean("combat.combo.enabled", true);
-    }
-
-    /** The normal attack (a right click) of a ranger with a ranged weapon: the next step of the ranger's combo. */
-    public boolean rangerNormal(Player attacker, RpgItemDefinition weapon) {
-        if (!isRanger(attacker) || weapon.attackType() != AttackType.RANGE || !comboOn() || !comboAllowed(attacker, weapon)) return false;
-        MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
-        beginAttack(attacker);
-        attackCooldowns.ensureAtLeast(attacker, AttackType.RANGE, (int) plugin.getConfig().getLong("combat.combo.ranger.normal-gap-ticks", 8L));
-        rangerMoves.normal(attacker, weapon, step);
-        return true;
-    }
-
-    /**
-     * The left click of a ranger with a melee weapon, when the next normal attack of the ranger's combo is the fifth
-     * (the close-range burst): it is thrown instead of an ordinary melee attack. False for every other click.
-     */
-    public boolean rangerMeleeStep(Player attacker, RpgItemDefinition weapon) {
-        if (!isRanger(attacker) || weapon.attackType() != AttackType.MELEE || attacker.isSneaking() || !comboOn()) return false;
-        if (meleeCombo.done(attacker, MeleeCombo.RANGER) != 4) return false;
-        MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.RANGER);
-        beginAttack(attacker);
-        rangerMoves.closeBurst(attacker, weapon, step);
-        return true;
-    }
-
-    /**
-     * A ranger's heavy attack: the other click than the weapon's normal one (a ranged or deployed weapon: the left click;
-     * a melee weapon: the right click). The number is how many normal attacks were thrown so far. True when the click
-     * was used, also while heavy 0 cools down.
-     */
-    public boolean tryRangerHeavy(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
-        if (weapon == null || !weapon.isWeaponLike() || !isRanger(attacker) || !comboOn()) return false;
-        boolean melee = weapon.attackType() == AttackType.MELEE;
-        if (melee != rightClick) return false;
-        // (the ranger's chain goes through its melee weapon whatever its color: the fifth normal attack and the heavy
-        // attacks thrown with it; a ranged or deployed weapon has to be yellow to the ranger)
-        if (!melee && !comboAllowed(attacker, weapon)) return false;
-        if (rightClick && attacker.isSneaking()) return false;
-        int tick = org.bukkit.Bukkit.getCurrentTick();
-        Integer last = lastRangerHeavyTick.put(attacker.getUniqueId(), tick);
-        // one click arrives through several events in the same tick; a held right button sends it again every 4 ticks
-        if (last != null && (rightClick ? tick - last <= HELD_CLICK_TICKS : last == tick)) return true;
-        if (!canUseItem(attacker, weapon)) {
-            sendLevelRequirement(attacker, weapon);
-            return true;
-        }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, MeleeCombo.RANGER);
-        if (step == null) {
-            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
-            return true;
-        }
-        beginAttack(attacker);
-        rangerMoves.heavy(attacker, weapon, step);
-        if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
-        return true;
     }
 
     /** Called after each hit of a player: a ranger's hits power up the next kind of attack (see {@link RangerMoves}). */
@@ -608,9 +644,10 @@ public final class AttackService {
     }
 
     /** True when this hit may give {@code victim} status effects: the first hit of the attack on it (a deployed weapon's pulses always may). */
-    private boolean statusAllowed(Player attacker, LivingEntity victim, RpgItemDefinition weapon) {
+    private boolean statusAllowed(Player attacker, LivingEntity victim, RpgItemDefinition weapon, PlayerProfile snapshot) {
         if (attacker == null) return true;
-        if (weapon != null && weapon.attackType() == AttackType.DEPLOY) return true;
+        // a deployed weapon's own pulses (they come with the snapshot taken when it was put) are not an attack of the player
+        if (snapshot != null) return true;
         Integer until = statusUnlimitedUntil.get(attacker.getUniqueId());
         if (until != null && org.bukkit.Bukkit.getCurrentTick() <= until) return true;
         return statusGiven.computeIfAbsent(attacker.getUniqueId(), ignored -> new java.util.HashSet<>()).add(victim.getUniqueId());
@@ -956,7 +993,7 @@ public final class AttackService {
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
-            boolean statuses = statusAllowed(attacker, victim, weapon);
+            boolean statuses = statusAllowed(attacker, victim, weapon, snapshot);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             if (classEffectService != null) {
                 classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
@@ -1025,7 +1062,7 @@ public final class AttackService {
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         if (applied && hasRemainingHealth(victim)) {
             attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
-            boolean statuses = statusAllowed(attacker, victim, weapon);
+            boolean statuses = statusAllowed(attacker, victim, weapon, snapshot);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             if (classEffectService != null) {
                 classEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
