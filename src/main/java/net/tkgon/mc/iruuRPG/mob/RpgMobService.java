@@ -2,6 +2,7 @@ package net.tkgon.mc.iruuRPG.mob;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.tkgon.mc.iruuRPG.combat.StatusEffectService;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
@@ -1234,7 +1235,8 @@ public final class RpgMobService {
         }
 
         PlayerProfile profile = runtime.profile();
-        Component name = Component.text(runtime.definition().name(), NamedTextColor.RED)
+        Component name = attackTag(runtime)
+                .append(Component.text(runtime.definition().name(), NamedTextColor.RED))
                 .append(Component.text(" Lv" + runtime.definition().level(), NamedTextColor.YELLOW))
                 .append(Component.text(" ", NamedTextColor.GRAY))
                 .append(Component.text(format(profile.currentHp()), NamedTextColor.YELLOW))
@@ -1245,6 +1247,45 @@ public final class RpgMobService {
         entity.customName(name);
         entity.setCustomNameVisible(true);
         updateStatusDisplay(entity);
+    }
+
+    /**
+     * "[物・近] " before a mob's name: physical / magic and melee / ranged at a glance. It follows what the mob really
+     * does: the kind of its weapon (without a weapon, the plain physical hit), "ranged" when the mob shoots (a
+     * ranged: section) or its weapon is a ranged one. Empty when mob.attack-tags is off.
+     */
+    private Component attackTag(MobRuntime runtime) {
+        if (!plugin.getConfig().getBoolean("mob.attack-tags", true)) return Component.empty();
+
+        RpgMobDefinition definition = runtime.definition();
+        net.tkgon.mc.iruuRPG.item.RpgItemDefinition weapon = null;
+        net.tkgon.mc.iruuRPG.mob.MobEquipmentItem hand = definition.equipment().get(EquipmentSlot.HAND);
+        if (hand != null && hand.hasItem()) {
+            weapon = itemRegistry.find(hand.itemId()).filter(net.tkgon.mc.iruuRPG.item.RpgItemDefinition::isWeaponLike).orElse(null);
+        }
+        net.tkgon.mc.iruuRPG.combat.DamageKind kind = weapon == null ? net.tkgon.mc.iruuRPG.combat.DamageKind.PHYSICAL : weapon.damageKind();
+        net.tkgon.mc.iruuRPG.combat.AttackType type = weapon == null ? net.tkgon.mc.iruuRPG.combat.AttackType.MELEE : weapon.attackType();
+        if (definition.ranged() != null) type = net.tkgon.mc.iruuRPG.combat.AttackType.RANGE;
+
+        Component kindMark = switch (kind) {
+            case PHYSICAL -> Component.text("物", NamedTextColor.RED);
+            case MAGIC -> Component.text("魔", TextColor.color(0x5599FF));
+            case SPECIAL -> Component.text("特", NamedTextColor.LIGHT_PURPLE);
+            default -> null;
+        };
+        Component typeMark = switch (type) {
+            case MELEE -> Component.text("近", NamedTextColor.GOLD);
+            case RANGE -> Component.text("遠", NamedTextColor.GREEN);
+            case DEPLOY -> Component.text("設", NamedTextColor.AQUA);
+            default -> null;
+        };
+        if (kindMark == null && typeMark == null) return Component.empty();
+
+        Component tag = Component.text("[", NamedTextColor.DARK_GRAY);
+        if (kindMark != null) tag = tag.append(kindMark);
+        if (kindMark != null && typeMark != null) tag = tag.append(Component.text("・", NamedTextColor.GRAY));
+        if (typeMark != null) tag = tag.append(typeMark);
+        return tag.append(Component.text("] ", NamedTextColor.DARK_GRAY));
     }
 
     private void updateStatusDisplay(LivingEntity entity) {

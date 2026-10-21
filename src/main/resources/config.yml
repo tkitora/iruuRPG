@@ -18,6 +18,7 @@ mob:
   default-max-mp: 1.0
   vanilla-health-proxy: 20.0
   spawn-distance: 3.0
+  attack-tags: true          # 敵の名前の前に [物・近] のように、物理/魔法と近接/遠距離を出す
   target-range: 24.0
   player-damage-multiplier: 0.10
   status-display:
