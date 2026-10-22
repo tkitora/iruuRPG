@@ -33,6 +33,8 @@ public final class ClickSignals implements Listener {
 
     private static JavaPlugin plugin;
     private static final Map<UUID, Integer> LAST_RIGHT_TICK = new ConcurrentHashMap<>();
+    /** The tick of the last right click on a block (RIGHT_CLICK_BLOCK). */
+    private static final Map<UUID, Integer> LAST_RIGHT_BLOCK_TICK = new ConcurrentHashMap<>();
     /** The right click before the last one (a held button repeats: two clicks close together mean it is held). */
     private static final Map<UUID, Integer> PREV_RIGHT_TICK = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> OFF_SWING_SENT = new ConcurrentHashMap<>();
@@ -53,6 +55,7 @@ public final class ClickSignals implements Listener {
         if (action == Action.RIGHT_CLICK_AIR || action == Action.RIGHT_CLICK_BLOCK) {
             Integer before = LAST_RIGHT_TICK.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
             if (before != null) PREV_RIGHT_TICK.put(event.getPlayer().getUniqueId(), before);
+            if (action == Action.RIGHT_CLICK_BLOCK) LAST_RIGHT_BLOCK_TICK.put(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
         }
     }
 
@@ -67,6 +70,7 @@ public final class ClickSignals implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         UUID id = event.getPlayer().getUniqueId();
         LAST_RIGHT_TICK.remove(id);
+        LAST_RIGHT_BLOCK_TICK.remove(id);
         PREV_RIGHT_TICK.remove(id);
         OFF_SWING_SENT.remove(id);
         OFF_SWING_SEEN.remove(id);
@@ -94,6 +98,10 @@ public final class ClickSignals implements Listener {
         UUID id = player.getUniqueId();
         Integer locked = LEFT_LOCKED_UNTIL_TICK.get(id);
         if (locked != null && now < locked) return false;
+        // A right click on a block (a melee weapon's heavy attack, a held button) is followed by arm swings of the
+        // client and the plugin (the off hand's) for a while; none of them is a press of the left button.
+        Integer onBlock = LAST_RIGHT_BLOCK_TICK.get(id);
+        if (onBlock != null && now - onBlock <= blockLockTicks()) return false;
         Integer right = LAST_RIGHT_TICK.get(id);
         if (right == null) return true;
         int since = now - right;
@@ -101,6 +109,11 @@ public final class ClickSignals implements Listener {
         if (since > RIGHT_HELD_TICKS) return true;
         Integer before = PREV_RIGHT_TICK.get(id);
         return before == null || right - before > RIGHT_HELD_TICKS;
+    }
+
+    /** combat.right-click-block-left-lock-ticks: how long after a right click on a block no left click counts (default 10). */
+    private static int blockLockTicks() {
+        return plugin == null ? 10 : Math.max(0, plugin.getConfig().getInt("combat.right-click-block-left-lock-ticks", 10));
     }
 
     private static boolean offSwingRecentlySent(Player player) {
