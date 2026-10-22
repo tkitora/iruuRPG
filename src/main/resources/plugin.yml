@@ -33,6 +33,10 @@ commands:
     description: Plays a skill from skills/*.yml (or a template) so you can look at it (admins)
     usage: /skilltest <id> [self|dummy|mine] [element]
     permission: iruurpg.admin
+  vfx:
+    description: "Look at the light flow particle effects (admins): list, help <id>, test <id> <x> <y> <z> <seconds> [args]"
+    usage: /vfx <list|help|test>
+    permission: iruurpg.admin
   storage:
     description: Opens your storage (admins; players use the ender chests around the world)
     usage: /storage
