@@ -132,29 +132,38 @@ public final class TreeVoxelizer {
         }
     }
 
-    /** Ragged clumps of leaves at the leaf places of the skeleton, thinned by the leaf density. */
+    /**
+     * Clouds of leaves at the leaf places of the skeleton, the way a builder makes them: solid masses (not blocks scattered at random), the outline moved in
+     * and out by a smooth noise so the surface has bumps and dents, a flatter underside than top, a few holes inside (the fewer the higher the leaf density),
+     * and now and then a block hanging below. Neighbouring clouds join into one canopy.
+     */
     private void fillLeaves(TreeSkeleton skeleton, TreeSettings settings, Random random) {
         double leaf = settings.get(TreeSettings.Key.LEAF_RADIUS);
         if (leaf < 0.4) return;
-        double density = settings.get(TreeSettings.Key.LEAF_DENSITY);
+        double holes = (1.0 - settings.get(TreeSettings.Key.LEAF_DENSITY)) * 0.35;
+        long seed = random.nextLong();
         for (double[] place : skeleton.leaves) {
-            double radius = leaf * place[3] * (0.8 + 0.3 * random.nextDouble());
-            double vertical = Math.max(0.5, radius * place[4]);
+            double radius = leaf * place[3] * (0.92 + 0.16 * random.nextDouble());
+            double vertical = Math.max(0.6, radius * place[4]);
             int bx = (int) Math.round(place[0]);
             int by = (int) Math.floor(place[1]);
             int bz = (int) Math.round(place[2]);
-            int reach = (int) Math.ceil(radius) + 1;
+            int reach = (int) Math.ceil(radius) + 2;
             for (int x = bx - reach; x <= bx + reach; x++) {
                 for (int y = by - reach; y <= by + reach; y++) {
                     for (int z = bz - reach; z <= bz + reach; z++) {
                         double dx = (x - place[0]) / radius;
                         double dy = (y + 0.5 - place[1]) / vertical;
                         double dz = (z - place[2]) / radius;
-                        // the edge of the clump moves in and out from block to block
-                        double edge = 1.0 + 0.45 * roughness(x * 1.7, y * 1.3, z * 1.9);
-                        if (dx * dx + dy * dy + dz * dz > edge) continue;
-                        if (random.nextDouble() > density) continue;
+                        // a flatter underside: below the middle the cloud ends sooner
+                        if (dy < 0.0) dy *= 1.35;
+                        double distance = dx * dx + dy * dy + dz * dz;
+                        double edge = 1.0 + 0.55 * TreeNoise.value(x * 0.55, y * 0.55, z * 0.55, seed);
+                        if (distance > edge) continue;
+                        if (distance < 0.55 && random.nextDouble() < holes) continue;
                         put(x, y, z, TreePart.LEAF);
+                        // a leaf now and then hangs from the underside
+                        if (dy < -0.55 && distance > 0.6 && random.nextDouble() < 0.1) put(x, y - 1, z, TreePart.LEAF);
                     }
                 }
             }

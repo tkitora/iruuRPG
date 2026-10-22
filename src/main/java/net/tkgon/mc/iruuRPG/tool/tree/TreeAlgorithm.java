@@ -14,7 +14,8 @@ public interface TreeAlgorithm {
             case "lsystem" -> new LSystemAlgorithm();
             case "colonization" -> new ColonizationAlgorithm();
             case "conifer" -> new ConiferAlgorithm();
-            default -> new ParametricAlgorithm();
+            case "parametric" -> new ParametricAlgorithm();
+            default -> new BuilderAlgorithm();
         };
     }
 

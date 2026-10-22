@@ -338,7 +338,8 @@ public final class TreeTool implements Listener {
             case "lsystem" -> "L-system (Honda 型)";
             case "colonization" -> "空間コロニー化";
             case "conifer" -> "針葉樹 (輪生)";
-            default -> "パラメトリック (Weber-Penn 型)";
+            case "parametric" -> "パラメトリック (Weber-Penn 型)";
+            default -> "建築向け (ブロック風)";
         };
     }
 

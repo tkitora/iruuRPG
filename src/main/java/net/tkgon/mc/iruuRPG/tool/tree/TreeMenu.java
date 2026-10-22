@@ -113,7 +113,8 @@ public final class TreeMenu implements Listener {
         }
 
         inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + TreeTool.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
-                text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型。標準)", NamedTextColor.GRAY),
+                text("建築向け: 段のある幹、少数の太い枝、大きな葉のかたまり (標準)", NamedTextColor.GRAY),
+                text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型)", NamedTextColor.GRAY),
                 text("針葉樹: 幹のまわりに輪になって枝が出る、円錐形 (pinegen 型)", NamedTextColor.GRAY),
                 text("空間コロニー化: 樹冠の中の目標点へ枝が伸びる (自然な不規則さ)", NamedTextColor.GRAY),
                 text("L-system: Honda 型の分岐規則の繰り返し (規則的な形)", NamedTextColor.GRAY),
