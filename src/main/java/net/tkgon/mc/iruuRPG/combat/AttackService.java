@@ -197,7 +197,18 @@ public final class AttackService {
     public boolean heldRangedClick(Player attacker) {
         int tick = org.bukkit.Bukkit.getCurrentTick();
         Integer last = lastRangedClickTick.put(attacker.getUniqueId(), tick);
+        // combat.hold-right-click (default true): a held right button keeps attacking, at the pace of the cooldowns
+        if (holdRightClick()) return false;
         return last != null && tick - last <= HELD_CLICK_TICKS;
+    }
+
+    /**
+     * Whether a held right button repeats the attacks the right click makes (the ranged / deployed normal attack, the
+     * melee weapon's heavy attack): the client sends the click again every 4 ticks, and each one is a press as long as the
+     * attack's own cooldown is over. Off: a held button is one click (the first of a series).
+     */
+    public boolean holdRightClick() {
+        return plugin.getConfig().getBoolean("combat.hold-right-click", true);
     }
 
     private final Map<UUID, Integer> lastRangedClickTick = new HashMap<>();
@@ -327,7 +338,9 @@ public final class AttackService {
         if (rightClick && attacker.isSneaking()) return false;
         int tick = org.bukkit.Bukkit.getCurrentTick();
         Integer last = lastClassHeavyTick.put(attacker.getUniqueId(), tick);
-        if (last != null && (rightClick ? tick - last <= HELD_CLICK_TICKS : last == tick)) return true;
+        // one click arrives through several events in a tick; a held right button repeats every 4 ticks (a press each when holding is on)
+        boolean held = rightClick && last != null && tick - last <= HELD_CLICK_TICKS;
+        if (last != null && (rightClick && !holdRightClick() ? tick - last <= HELD_CLICK_TICKS : last == tick)) return true;
         if (!canUseItem(attacker, weapon)) {
             sendLevelRequirement(attacker, weapon);
             return true;
@@ -337,7 +350,8 @@ public final class AttackService {
         // (in a frenzy the assassin's heavy 0 has no cooldown)
         MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, assassinFrenzy(attacker) > 0 && "assassin".equals(equipmentService.classIdOf(attacker)), combo.spec().plan());
         if (step == null) {
-            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+            // (a held button waits for the cooldown without a "no" sound at every repeat)
+            if (!held) attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
             return true;
         }
         beginAttack(attacker);

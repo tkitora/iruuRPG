@@ -34,6 +34,11 @@ mob:
 combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
+  # 右クリックの長押し: true なら、押しっぱなしの右クリック (クライアントが4tickごとに送り直す) で、右クリックの攻撃
+  # (遠距離・設置の通常攻撃、近接の強攻撃) を連続して出せる。間隔は、それぞれのクールタイムのまま。左クリックは、押しっぱなしでも1回しか届かない
+  hold-right-click: true
+  # ブロックを右クリックしてから、この tick の間は、左クリック (通常攻撃) として数えない (右クリックのあとの腕振りが、通常攻撃になるのを防ぐ)
+  right-click-block-left-lock-ticks: 10
   # レンジャーの狙撃の足元の魔法陣: 本人にどれだけ見えるか (%)。他の人には、すべて見える。0 で、本人には透明
   sniper:
     circle-own-percent: 20
