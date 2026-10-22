@@ -446,6 +446,13 @@ public final class IruuRPG extends JavaPlugin {
             skillTestCommand.setTabCompleter(skillTest);
         }
 
+        PluginCommand vfxCommand = getCommand("vfx");
+        if (vfxCommand != null) {
+            net.tkgon.mc.iruuRPG.command.VfxCommand vfx = new net.tkgon.mc.iruuRPG.command.VfxCommand(this);
+            vfxCommand.setExecutor(vfx);
+            vfxCommand.setTabCompleter(vfx);
+        }
+
         PluginCommand storageCommand = getCommand("storage");
         if (storageCommand != null) {
             storageCommand.setExecutor((sender, command, label, args) -> {
