@@ -156,10 +156,15 @@ public final class ClassService {
     public void applyClassStats(Player player, PlayerProfile profile) {
         ensureProfile(profile);
         int level = Math.max(0, profile.level());
-        StatSet stats = commonGrowth().scaled(level);
+        StatSet common = commonGrowth();
+        StatSet stats = common.scaled(level);
         ElementStatSet elements = new ElementStatSet();
 
         ClassDefinition definition = currentClass(profile).orElse(null);
+        // A player starts at level 1 with exactly the initial max HP (player.initial-max-hp): the HP growth counts
+        // from level 2 on, so one level of it (the common one and the class's) is taken back.
+        double firstLevelHp = common.get(StatType.MAX_HP) + (definition == null ? 0.0 : definition.growth().get(StatType.MAX_HP));
+        if (level >= 1) stats.add(StatType.MAX_HP, -firstLevelHp);
         if (definition != null) {
             stats.addAll(definition.growth().scaled(level));
             elements.addAll(definition.growthElements().scaled(level));

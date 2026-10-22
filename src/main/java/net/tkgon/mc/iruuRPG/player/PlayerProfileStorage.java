@@ -12,6 +12,9 @@ import java.util.logging.Level;
 
 public final class PlayerProfileStorage {
 
+    /** The version of how the base max HP is stored (2: the initial HP is player.initial-max-hp). */
+    private static final int HP_FORMAT = 2;
+
     private final JavaPlugin plugin;
     private final File playerFolder;
 
@@ -46,8 +49,15 @@ public final class PlayerProfileStorage {
             }
         }
 
+        // base-hp-format 2: the initial HP became player.initial-max-hp (200); a player saved before gets it once
+        boolean raiseHp = yaml.getInt("base-hp-format", 1) < HP_FORMAT;
+        double initialHp = plugin.getConfig().getDouble("player.initial-max-hp", 200.0);
+        if (raiseHp && profile.baseStats().get(StatType.MAX_HP) < initialHp) {
+            profile.baseStats().set(StatType.MAX_HP, initialHp);
+        }
+
         profile.recalculate();
-        profile.setCurrentHp(yaml.getDouble("current-hp", profile.maxHp()));
+        profile.setCurrentHp(raiseHp ? profile.maxHp() : yaml.getDouble("current-hp", profile.maxHp()));
         profile.setCurrentMp(yaml.getDouble("current-mp", profile.maxMp()));
         return profile;
     }
@@ -56,6 +66,7 @@ public final class PlayerProfileStorage {
         File file = file(profile.uuid());
         YamlConfiguration yaml = new YamlConfiguration();
 
+        yaml.set("base-hp-format", HP_FORMAT);
         yaml.set("level", profile.level());
         yaml.set("xp", profile.xp());
         yaml.set("current-hp", profile.currentHp());
