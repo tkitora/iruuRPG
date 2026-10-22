@@ -637,7 +637,8 @@ public final class MoveKit {
     public void arrowShot(Location start, Vector direction, double rate, double speedScale, Consumer<Location> onEnd) {
         effects.playArrowLaunch(player, start);
         Vector heading = direction.clone().normalize();
-        // the ring of light at the muzzle
+        // the ring of light at the muzzle: four rings opening one after the other. Everyone else sees all four; the shooter sees only
+        // the outermost one, so the rings do not stand in front of their own aim.
         Vector u = heading.clone().crossProduct(Y);
         if (u.lengthSquared() < 1.0E-6) u = X.clone();
         u.normalize();
@@ -646,7 +647,11 @@ public final class MoveKit {
         Location ringAt = start.clone().add(heading.clone().multiply(0.5));
         for (int step = 0; step < 4; step++) {
             int which = step;
-            later(step, () -> fx(ringAt).ring(ringAt.clone().add(heading.clone().multiply(0.15 * which)), ringU, v, 0.3 + 0.32 * which, 20, palette, 0.9 - 0.18 * which, 0.1, 1.0));
+            later(step, () -> {
+                Fx ring = fx(ringAt);
+                if (which < 3) ring = ring.exceptOwner();
+                ring.ring(ringAt.clone().add(heading.clone().multiply(0.15 * which)), ringU, v, 0.3 + 0.32 * which, 20, palette, 0.9 - 0.18 * which, 0.1, 1.0);
+            });
         }
         double speed = Math.max(0.5, attack.projectileSpeed(player) * speedScale / 20.0);
         double range = attack.rangeDistance(player);
