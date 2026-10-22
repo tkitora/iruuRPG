@@ -12,7 +12,7 @@ import java.util.Map;
  */
 public final class TreeSettings {
 
-    public static final List<String> ALGORITHMS = List.of("parametric", "conifer", "colonization", "lsystem");
+    public static final List<String> ALGORITHMS = List.of("builder", "conifer", "parametric", "colonization", "lsystem");
     public static final List<String> CROWNS = List.of("ellipsoid", "cone", "umbrella", "columnar");
 
     /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
@@ -91,7 +91,7 @@ public final class TreeSettings {
     }
 
     private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8};
-    private String algorithm = "parametric";
+    private String algorithm = "builder";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */
     private long seed;
@@ -137,7 +137,7 @@ public final class TreeSettings {
     }
 
     public void setAlgorithm(String algorithm) {
-        this.algorithm = ALGORITHMS.contains(algorithm) ? algorithm : "parametric";
+        this.algorithm = ALGORITHMS.contains(algorithm) ? algorithm : "builder";
     }
 
     public void cycleAlgorithm() {
