@@ -237,8 +237,8 @@ public final class MageMoves {
         World world = player.getWorld();
         world.playSound(center, Sound.ENTITY_PLAYER_ATTACK_STRONG, SoundCategory.PLAYERS, 1.0f, 1.0f);
         world.playSound(center, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, SoundCategory.PLAYERS, 1.2f, 1.2f);
-        world.playSound(center, Sound.ENTITY_ILLUSIONER_CAST_SPELL, SoundCategory.PLAYERS, 0.9f, 1.1f);
-        world.playSound(center, Sound.ENTITY_EVOKER_PREPARE_SUMMON, SoundCategory.PLAYERS, 0.6f, 1.4f);
+        Sfx.MAGIC.play(center, 0.9f, 1.1f);
+        Sfx.MAGIC.play(center, 0.6f, 1.4f);
         vortexes(player, center, weapon);
         for (int index = 0; index < hits; index++) {
             int repeat = index;
@@ -347,8 +347,8 @@ public final class MageMoves {
         int life = (int) Math.max(1, Math.round(number("orb-seconds", 0.6) * 20.0));
         double radius = number("orb-radius", 2.5);
         Element element = weapon.element();
-        world.playSound(start, Sound.ENTITY_EVOKER_CAST_SPELL, SoundCategory.PLAYERS, 1.0f, 1.3f);
-        world.playSound(start, Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, SoundCategory.PLAYERS, 0.7f, 1.2f);
+        Sfx.MAGIC.play(start, 1.0f, 1.3f);
+        Sfx.MAGIC.play(start, 0.7f, 1.2f);
         SafeTask[] holder = new SafeTask[1];
         Location[] where = {start.clone()};
         boolean[] done = {false};
@@ -395,7 +395,7 @@ public final class MageMoves {
         Vector facing = facing(player);
         Vector right = facing.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
         Location behind = player.getEyeLocation().subtract(facing.clone().multiply(1.3)).add(0.0, 0.3, 0.0);
-        world.playSound(behind, Sound.ENTITY_EVOKER_PREPARE_ATTACK, SoundCategory.PLAYERS, 0.9f, 1.4f);
+        Sfx.MAGIC.play(behind, 0.9f, 1.4f);
         long gap = (long) number("multi-hit-gap-ticks", 1.0);
         for (int index = 0; index < count; index++) {
             double side = (index - (count - 1) / 2.0) * 0.7 * size;
@@ -490,7 +490,7 @@ public final class MageMoves {
         long stage = (long) number("spike-stage-ticks", 3.0);
         long delay = (long) number("spike-delay-ticks", 8.0);
         Set<LivingEntity> struck = new LinkedHashSet<>();
-        world.playSound(origin, Sound.ENTITY_EVOKER_PREPARE_SUMMON, SoundCategory.PLAYERS, 1.0f, 1.2f);
+        Sfx.MAGIC.play(origin, 1.0f, 1.2f);
         for (int zone = 0; zone < 3; zone++) {
             int which = zone;
             later(stage * which, () -> {
@@ -612,7 +612,7 @@ public final class MageMoves {
         Element element = weapon.element();
         long millis = life * 50L;
         boolean[] gone = {false};
-        world.playSound(center, Sound.ENTITY_ILLUSIONER_PREPARE_BLINDNESS, SoundCategory.PLAYERS, 1.0f, 0.8f);
+        Sfx.MAGIC.play(center, 1.0f, 0.8f);
         world.playSound(center, Sound.BLOCK_BEACON_ACTIVATE, SoundCategory.PLAYERS, 0.7f, 1.7f);
         new SafeTask(plugin) {
             private int age;
@@ -653,7 +653,7 @@ public final class MageMoves {
         double pull = number("ring-pull", 0.55);
         Gradient gradient = Palettes.of(weapon.element());
         world.playSound(center, Sound.BLOCK_BEACON_POWER_SELECT, SoundCategory.PLAYERS, 0.8f, 1.9f);
-        world.playSound(center, Sound.ENTITY_ILLUSIONER_CAST_SPELL, SoundCategory.PLAYERS, 0.6f, 1.6f);
+        Sfx.MAGIC.play(center, 0.6f, 1.6f);
         // the ring widens quickly at first and then slowly (an exponential curve), bright at the front and deeper behind
         for (int step = 1; step <= 4; step++) {
             double r = radius * Curves.expOut(step / 4.0, 2.5);

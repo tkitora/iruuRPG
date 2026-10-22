@@ -12,18 +12,19 @@ import java.util.List;
 
 /**
  * The cleric's combo with a melee weapon (a mace): prayer and judgment. Blows that also heal a little (a heal makes the
- * cleric's pulse hit the enemies around). Normal: 1 an overhead smash (80%), 2 two quick cuts (45% x2), 3 a holy ring around
- * (85%, heals 2%), 4 a thrust of light (45% x2), 5 a leaping slam (110%, heals 5%). Heavy: 0 a sanctuary under the feet for 2.5 s (15%
- * a pulse, heals 1% a pulse), 1 a hammer wave ahead (90%), 2 a spinning prayer (about 100%, heals 3%), 3 a pillar of light at the aim (100%),
- * 4 a wide sanctuary ring (80%, slows 40%, heals 6%). The blows push little (the cleric's damage is not meant to come from knocking enemies about).
+ * cleric's pulse hit the enemies around). Normal: 1 an overhead smash (68%), 2 two quick cuts (38% x2), 3 a holy ring around
+ * (72%, heals 2%), 4 a thrust of light (38% x2), 5 a leaping slam (94%, heals 5%). Heavy: 0 a sanctuary under the feet for 2.5 s (13%
+ * a pulse, heals 1% a pulse), 1 a hammer wave ahead (77%, it does not push), 2 a spinning prayer (about 85%, heals 3%), 3 a pillar of light at the aim (85%),
+ * 4 a wide sanctuary ring (68%, slows 40%, heals 6%). The blows push little (the cleric's damage is not meant to come from knocking enemies about). All numbers are 15% under
+ * the earlier ones.
  */
 public final class ClericMeleeCombo implements ClassCombo {
 
     static final String PLAN = "cleric_melee";
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
-            new double[]{0.8, 0.45, 0.85, 0.45, 1.1}, new int[]{1, 2, 1, 2, 1},
-            new double[]{0.15, 0.9, 0.14, 1.0, 0.8}, new int[]{160, 0, 0, 0, 0}, 40);
+            new double[]{0.68, 0.38, 0.72, 0.38, 0.94}, new int[]{1, 2, 1, 2, 1},
+            new double[]{0.13, 0.77, 0.12, 0.85, 0.68}, new int[]{160, 0, 0, 0, 0}, 40);
 
     @Override
     public String classId() {
@@ -131,9 +132,8 @@ public final class ClericMeleeCombo implements ClassCombo {
                         kit.fx(at).flatRing(at, 0.9 + along * 0.12, 20, kit.palette(), 0.4 + 0.1 * along, 0.3, 1.1);
                     });
                 }
-                for (LivingEntity target : kit.corridor(feet.clone().add(0.0, 0.5, 0.0), facing, 6.0, 1.5)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.45, 0.1);
-                }
+                // (the hammer wave no longer throws what it hits)
+                kit.hitAll(kit.corridor(feet.clone().add(0.0, 0.5, 0.0), facing, 6.0, 1.5), rate);
             }
             case 2 -> {
                 // a spinning prayer: arcs of light turn round the cleric, a hit every 3 ticks

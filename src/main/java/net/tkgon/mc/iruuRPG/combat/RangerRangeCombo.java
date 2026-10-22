@@ -72,7 +72,7 @@ public final class RangerRangeCombo implements ClassCombo {
                     double side = index == 0 ? 0.3 : -0.3;
                     kit.later(index, () -> {
                         Location start = muzzle(kit, side, -0.1);
-                        kit.arrow(start, toward(kit, start), rate, speed, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
+                        kit.arrowShot(start, toward(kit, start), rate, speed, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -86,7 +86,7 @@ public final class RangerRangeCombo implements ClassCombo {
                         if (which > 0) {
                             direction.add(axes[1].clone().multiply(random.nextDouble(-0.07, 0.07))).add(axes[2].clone().multiply(random.nextDouble(-0.05, 0.05))).normalize();
                         }
-                        kit.arrow(start, direction, rate, speed * 1.1, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
+                        kit.arrowShot(start, direction, rate, speed * 1.1, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -114,7 +114,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 for (int index = 0; index < hits; index++) {
                     double turn = Math.toRadians((index - 2) * 10.0);
                     Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
-                    kit.later(index / 3, () -> kit.arrow(start.clone(), direction, rate, speed, end -> {
+                    kit.later(index / 3, () -> kit.arrowShot(start.clone(), direction, rate, speed, end -> {
                         for (LivingEntity victim : kit.around(end, 1.3)) kit.push(victim, kit.player.getLocation().toVector(), 0.3, 0.1);
                     }));
                 }
@@ -123,7 +123,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 // the finisher: a great arrow that bursts where it ends
                 Location start = muzzle(kit, 0.0, -0.1);
                 kit.sound(start, Sound.ENTITY_ARROW_SHOOT, 1.0f, 0.7f);
-                kit.arrow(start, toward(kit, start), rate, speed * 0.9, end -> {
+                kit.arrowShot(start, toward(kit, start), rate, speed * 0.9, end -> {
                     kit.burst(end, 2.6);
                     kit.shockwave(end, 0.8, 2.6, 3, 1.0);
                     kit.sound(end, Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 1.5f);
@@ -150,7 +150,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 kit.invulnerable(4);
                 kit.hopBack(0.9, 0.3);
                 kit.sound(feet, Sound.ENTITY_ARROW_SHOOT, 1.0f, 0.9f);
-                kit.arrow(start, direction, 0.0, 2.0, end -> {
+                kit.arrowShot(start, direction, 0.0, 2.0, end -> {
                     kit.burst(end, 1.4);
                     for (LivingEntity victim : kit.around(end, 1.5)) {
                         if (kit.hit(victim, rate)) kit.slow(victim, 50.0, 2.0);
@@ -166,7 +166,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 // a net arrow: where it ends a net opens (a ring with its threads) and holds what is in it for a second and a half
                 Location start = muzzle(kit, 0.0, -0.1);
                 kit.sound(start, Sound.ENTITY_ARROW_SHOOT, 1.0f, 1.2f);
-                kit.arrow(start, toward(kit, start), rate, 2.0, end -> {
+                kit.arrowShot(start, toward(kit, start), rate, 2.0, end -> {
                     Location net = kit.ground(end);
                     kit.sound(net, Sfx.WIND_BURST, 0.8f, 1.4f);
                     for (LivingEntity victim : kit.around(net, 3.0)) {

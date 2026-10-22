@@ -18,8 +18,8 @@ public final class RangerMeleeCombo extends BaseCombo {
 
     public RangerMeleeCombo() {
         super("gifted", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{0.55, 0.4, 1.2, 0.28, 1.5}, new int[]{2, 3, 1, 5, 1},
-                new double[]{0.25, 1.2, 0.4, 1.3, 1.5}, new int[]{100, 0, 0, 0, 0}, 40));
+                new double[]{0.47, 0.34, 1.02, 0.24, 1.28}, new int[]{2, 3, 1, 5, 1},
+                new double[]{0.21, 1.02, 0.34, 1.1, 1.28}, new int[]{100, 0, 0, 0, 0}, 40));
     }
 
     @Override

@@ -30,7 +30,7 @@ public final class ClericDeployCombo extends BaseCombo {
         double rate = step.damageMultiplier();
         int count = step.extraHits() + 1;
         Location target = ComboParts.target(kit);
-        Vector right = kit.axes()[1];
+        Vector right = kit.originRight();
         switch (step.stage()) {
             case 1 -> ComboParts.place(kit, "cleric_n1", target, 50, 10, 3.0, rate, 0.0, 0.6, null);
             case 2 -> {
@@ -42,10 +42,10 @@ public final class ClericDeployCombo extends BaseCombo {
             }
             case 3 -> ComboParts.place(kit, "cleric_n3", target, 55, 10, 3.5, rate, 0.0, 1.5, null);
             case 4 -> {
-                Vector line = target.toVector().subtract(kit.player.getLocation().toVector()).setY(0.0);
-                if (line.lengthSquared() < 1.0) line = kit.facing().multiply(6.0);
+                Vector line = target.toVector().subtract(kit.origin().toVector()).setY(0.0);
+                if (line.lengthSquared() < 1.0) line = kit.originFacing().multiply(6.0);
                 for (int index = 0; index < count; index++) {
-                    Location ground = kit.ground(kit.player.getLocation().add(line.clone().multiply(0.3 + 0.35 * index)));
+                    Location ground = kit.ground(kit.origin().add(line.clone().multiply(0.3 + 0.35 * index)));
                     String key = "cleric_n4_" + index;
                     kit.later(index * 2L, () -> ComboParts.placeAt(kit, key, ground, 44, 14, 2.0, rate, 0.0, 0.5, null));
                 }
@@ -67,7 +67,7 @@ public final class ClericDeployCombo extends BaseCombo {
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
         kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.GOLD, 0.45));
         double rate = step.damageMultiplier();
-        Location feet = kit.player.getLocation();
+        Location feet = kit.origin();
         Location target = ComboParts.target(kit);
         switch (step.heavyIndex()) {
             case 0 -> {
@@ -77,7 +77,7 @@ public final class ClericDeployCombo extends BaseCombo {
             }
             case 1 -> {
                 // four lanterns set down one after the other running ahead
-                Vector facing = kit.facing();
+                Vector facing = kit.originFacing();
                 kit.sound(feet, Sfx.WIND, 0.9f, 0.8f);
                 for (int index = 1; index <= 4; index++) {
                     Location at = kit.ground(feet.clone().add(facing.clone().multiply(2.0 * index)));

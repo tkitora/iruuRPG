@@ -423,6 +423,67 @@ public final class ClassSkillService {
         }.runTaskTimer(plugin, 0L, 2L);
     }
 
+    /**
+     * The item swap key pressed again during the frenzy: it ends, and clones strike every enemy hurt during it, giving back a share ({@code echo-share}, 10%) of what the
+     * assassin dealt to that enemy (up to the 8 hurt most), split among three clones each, drawn in high quality. True when the press was used here (also when it is too early).
+     */
+    private boolean frenzyEcho(Player player, ClassSkillDefinition skill) {
+        if (classEffectService == null || classEffectService.frenzyLevel(player) == 0) return false;
+        double delay = skill.values().getOrDefault("recast-delay-seconds", 1.5);
+        long elapsed = classEffectService.frenzyElapsedMillis(player);
+        if (elapsed < delay * 1000.0) {
+            player.sendMessage("[iruuRPG] SATUJINの再発動まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - elapsed / 1000.0) + "秒");
+            return true;
+        }
+        java.util.Map<UUID, Double> dealt = classEffectService.takeFrenzyDamage(player);
+        classEffectService.endFrenzy(player);
+        double share = skill.values().getOrDefault("echo-share", 0.10);
+        List<java.util.Map.Entry<UUID, Double>> order = new ArrayList<>(dealt.entrySet());
+        order.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+        World world = player.getWorld();
+        world.playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.8f, 0.6f);
+        world.playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 0.4f, 1.9f);
+        int victims = 0;
+        double total = 0.0;
+        Player owner = ParticleFx.owner();
+        for (java.util.Map.Entry<UUID, Double> entry : order) {
+            if (victims >= 8) break;
+            Entity entity = org.bukkit.Bukkit.getEntity(entry.getKey());
+            if (!(entity instanceof LivingEntity victim) || victim.isDead() || !victim.isValid() || !victim.getWorld().equals(world)) continue;
+            if (victim.getLocation().distanceSquared(player.getLocation()) > 48.0 * 48.0) continue;
+            double amount = Math.round(entry.getValue() * share * 10.0) / 10.0;
+            if (amount <= 0.0) continue;
+            int slot = victims++;
+            total += amount;
+            double part = amount / 3.0;
+            double base = ThreadLocalRandom.current().nextDouble(Math.PI * 2.0);
+            for (int clone = 0; clone < 3; clone++) {
+                double angle = base + Math.PI * 2.0 * clone / 3.0;
+                long start = slot * 2L + clone * 3L;
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    Clones.strike(plugin, player, SkillFx.SHADOW, () -> victim.isValid() && !victim.isDead() ? victim.getLocation() : null, angle, 2, 3, true, blow -> {
+                        if (!victim.isValid() || victim.isDead()) return;
+                        classEffectService.setEchoing(player, true);
+                        try {
+                            attackService.applyExtraDamage(player, victim, Math.round(part / 2.0 * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.ORANGE);
+                        } finally {
+                            classEffectService.setEchoing(player, false);
+                        }
+                        Location at = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+                        SkillFx.burst(owner, at, 1.3, SkillFx.SHADOW);
+                        world.playSound(at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.6f, 0.7f);
+                    });
+                }, start);
+            }
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (victim.isValid()) SkillFx.groundRing(owner, victim.getLocation(), 2.8, SkillFx.SHADOW, 0.9, 1.3);
+            }, slot * 2L + 12L);
+        }
+        player.sendMessage("[iruuRPG] SATUJINの残響: " + victims + "体に、与えたダメージの" + Math.round(share * 100.0) + "%を返しました (合計 " + Math.round(total) + ")。");
+        return true;
+    }
+
     // ---- sanctuary (healer) --------------------------------------------------------
 
     private static final UUID NO_KNOCKBACK_ID = UUID.fromString("6c0b1c7e-5d54-4b7a-9d83-2f6a1d9e0a11");
@@ -547,6 +608,7 @@ public final class ClassSkillService {
      */
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
+        if (SATSUJIN.equalsIgnoreCase(skill.id())) return frenzyEcho(player, skill);
         if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;
         SanctuaryState state = sanctuaries.get(player.getUniqueId());
         if (state == null || state.ended) return false;
