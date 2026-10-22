@@ -34,6 +34,9 @@ mob:
 combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
+  # レンジャーの狙撃の足元の魔法陣: 本人にどれだけ見えるか (%)。他の人には、すべて見える。0 で、本人には透明
+  sniper:
+    circle-own-percent: 20
   # 近接の弱・強コンボ: 左クリックが弱、Shiftを押しながら左クリックが強。弱を light-count 回つなげた最後が「最終段」
   combo:
     enabled: true
