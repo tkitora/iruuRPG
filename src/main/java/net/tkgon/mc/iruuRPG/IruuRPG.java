@@ -137,6 +137,7 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonMenu dungeonMenu;
     private DungeonEditor dungeonEditor;
     private net.tkgon.mc.iruuRPG.combat.RangerMoves rangerMoves;
+    private net.tkgon.mc.iruuRPG.tools.brush.BrushModule brushModule;
     private FieldSpawnerService fieldSpawnerService;
     private FieldSpawnerEditor fieldSpawnerEditor;
     private RewardChestMenu rewardChestMenu;
@@ -369,6 +370,7 @@ public final class IruuRPG extends JavaPlugin {
         if (attackService != null) {
             attackService.shutdownCombos();
         }
+        if (brushModule != null) brushModule.stop();
         if (attackService != null && attackService.guard() != null) {
             attackService.guard().shutdown();
         }
@@ -462,6 +464,9 @@ public final class IruuRPG extends JavaPlugin {
             vfxCommand.setExecutor(vfx);
             vfxCommand.setTabCompleter(vfx);
         }
+
+        // the brush tool for builders: it lives in tools/brush and nothing else knows about it
+        this.brushModule = net.tkgon.mc.iruuRPG.tools.brush.BrushModule.start(this);
 
         PluginCommand storageCommand = getCommand("storage");
         if (storageCommand != null) {

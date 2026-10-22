@@ -490,3 +490,18 @@ treetool:
     branch: ORANGE_WOOL
     twig: YELLOW_WOOL
     leaf: GREEN_WOOL
+
+# ペイントブラシ (/ibrush)。建築用のツールで、ゲームの処理とは別 (tools/brush)。描画は FastAsyncWorldEdit 経由なので //undo で戻せる
+brush:
+  # 半径の上限 (大きいと重い)
+  max-radius: 32
+  # 1回で変えるブロック数の上限 (超えたら途中で止める)
+  max-blocks: 120000
+  # 見ている先のブロックを探す距離
+  range: 120
+  # 右クリックの長押しで続けて使うときの最短の間隔 (tick)
+  cooldown-ticks: 4
+  # プレビューで見せるブロック数の上限と、見せている時間 (tick)。プレビューは本人にだけ見え、世界は変わらない
+  preview-blocks: 1500
+  preview-ticks: 80
+
