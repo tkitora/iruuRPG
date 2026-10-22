@@ -2,6 +2,7 @@ name: iruuRPG
 version: '${version}'
 main: net.tkgon.mc.iruuRPG.IruuRPG
 api-version: '1.20'
+softdepend: [FastAsyncWorldEdit, WorldEdit]
 commands:
   iruurpg:
     description: iruuRPG admin and debug command
@@ -42,6 +43,12 @@ commands:
   vfx:
     description: "Look at the light flow particle effects (admins): list, help <id>, test <id> <x> <y> <z> <seconds> [args]"
     usage: /vfx <list|help|test>
+    permission: iruurpg.admin
+  ibrush:
+    description: "Painting brush for builders (admins): gives the brush item, opens its menu, undo"
+    usage: /ibrush [give|menu|off|undo|use|preview]
+    aliases:
+      - irubrush
     permission: iruurpg.admin
   storage:
     description: Opens your storage (admins; players use the ender chests around the world)
