@@ -297,6 +297,7 @@ public final class ClassEffectService {
     public void endFrenzy(Player player) {
         frenzy.remove(player.getUniqueId());
         frenzyDamage.remove(player.getUniqueId());
+        AssassinClones.endEffect(player);
     }
 
     /** The surge: for {@code seconds} the warrior gets back {@code lifesteal} of every damage they deal. */

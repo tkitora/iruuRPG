@@ -1,6 +1,7 @@
 package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.vfx.Palettes;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
@@ -16,7 +17,8 @@ import java.util.List;
  * <p>Normal: 1 a fang cross (two cuts, 50% x2), 2 a step in (a dash that stops at the first enemy it touches, then two cuts, 60% x2), 3 a shadow clone (a clone steps in from
  * behind the nearest enemy and strikes, 130%, confuses a little), 4 whirling blades (a spin of 4 cuts, 25% each on everyone round, 12 ticks), 5 an execution (two clones
  * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a shadow dash (6 blocks, nothing can hurt the assassin for 8 ticks,
- * 100% on all in the way), 1 a chain of clones (three clones strike the nearest enemy one after the other, 40% each), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
+ * 100% on all in the way), 1 a grey clone (it only stands in front of the assassin for 12 s, two at most; the first heavy attack after one was made, other than heavy 1, is made by the clones too,
+ * once, for 30% of its damage; while the item swap skill lasts heavy 1 throws three knives to the front instead), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
  * everyone round, takes 40% less damage meanwhile), 3 crossing clones (two clones run through the line ahead from both ends, 60% on all in the way each), 4 a phantom execution
  * (afterimages, then three clones close on the nearest enemy: 50% each and confusion).
  *
@@ -42,6 +44,20 @@ public final class AssassinMeleeCombo extends BaseCombo {
         return hit;
     }
 
+    /** The colours of the slashes while the item swap skill lasts: dark red, bright red, a hot core. */
+    private static final java.util.List<Color> RED_BLACK_SLASH = java.util.List.of(Color.fromRGB(90, 0, 8), Color.fromRGB(230, 25, 30), Color.fromRGB(255, 120, 100));
+
+    /** The look of the combo: steel and the weapon's element, or (during the item swap skill) red and black, in the dust and in the slashes. */
+    private static void look(MoveKit kit) {
+        if (kit.frenzy() > 0) {
+            kit.palette(Clones.RED_BLACK);
+            kit.slashColors(RED_BLACK_SLASH);
+        } else {
+            kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
+            kit.slashColors(null);
+        }
+    }
+
     /** How much stronger the blows are in a frenzy (SATUJIN): 1 when there is none. */
     private static double boost(int frenzy) {
         return frenzy >= 2 ? 1.35 : frenzy == 1 ? 1.2 : 1.0;
@@ -50,6 +66,8 @@ public final class AssassinMeleeCombo extends BaseCombo {
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
         int frenzy = kit.frenzy();
+        // the clones of the item swap skill copy this attack
+        if (frenzy > 0) AssassinClones.copyAttack(kit);
         if (frenzy == 0) {
             normalBody(kit, step, 1.0);
             return;
@@ -76,7 +94,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
     }
 
     private void normalBody(MoveKit kit, MeleeCombo.Step step, double boost) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
+        look(kit);
         double rate = step.damageMultiplier() * boost;
         int hits = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
@@ -173,8 +191,12 @@ public final class AssassinMeleeCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
-        double rate = step.damageMultiplier() * boost(kit.frenzy());
+        look(kit);
+        int frenzy = kit.frenzy();
+        double rate = step.damageMultiplier() * boost(frenzy);
+        if (frenzy > 0) AssassinClones.copyAttack(kit);
+        // the first heavy attack after a clone was made (other than heavy 1) is made by the clones too, once, for 30% of its damage
+        if (step.heavyIndex() != 1 && AssassinClones.takeMimic(kit.player)) AssassinClones.mimic(kit, step.heavyIndex(), rate);
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {
@@ -191,23 +213,24 @@ public final class AssassinMeleeCombo extends BaseCombo {
                 });
             }
             case 1 -> {
-                // a chain of clones: three of them strike the nearest enemy one after the other
-                LivingEntity target = kit.nearest(9.0, 80.0);
-                if (target == null) {
-                    kit.sound(feet, Sfx.WIND, 0.8f, 1.0f);
-                    kit.slash("arc", 2.6, 150.0, 40.0, 0.0, 1.9, 0.4, 0.0, 1.1, 0.1, 0.0);
-                    cut(kit, kit.cone(3.0, 70.0), rate);
+                if (frenzy > 0) {
+                    // while the item swap skill lasts it throws knives instead, to the front and a little to each side
+                    kit.sound(feet, Sfx.WIND, 0.8f, 1.5f);
+                    Vector[] axes = kit.axes();
+                    for (int index = -1; index <= 1; index++) {
+                        double turn = Math.toRadians(22.0 * index);
+                        Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
+                        Location start = kit.eye().add(direction.clone().multiply(0.9)).subtract(0.0, 0.4, 0.0);
+                        Blades.fly(kit, start, direction, 1.5, 12.0, rate, null);
+                    }
                     return;
                 }
-                double behind = kit.behindAngle(target);
-                for (int index = 0; index < 3; index++) {
-                    int which = index;
-                    kit.later(index * 3L, () -> kit.clone(target, behind + (which - 1) * Math.toRadians(70.0), 1, 1, false, blow -> {
-                        kit.slash(which == 1 ? "line" : "arc", 2.2, 120.0, 25.0 + which * 20.0, which % 2 == 0 ? 0.0 : 180.0, 1.7, 0.4, 0.0, 1.0, 0.07, 0.0);
-                        kit.sound(target.getLocation(), Sfx.WIND, 0.6f, 1.5f + which * 0.15f);
-                        kit.hitHand(kit.nextHand(), target, rate);
-                    }));
-                }
+                // a grey clone stands in front of the assassin: nothing else (it is a clone for the next heavy attack to be copied by); two at most
+                Location at = kit.ground(feet.clone().add(facing.clone().multiply(2.5)));
+                double yaw = Math.toDegrees(Math.atan2(-facing.getX(), facing.getZ()));
+                int life = (int) Math.round(kit.number(PLAN, "clone-seconds", 12.0) * 20.0);
+                AssassinClones.standOne(kit, at, yaw, life);
+                kit.sound(at, Sfx.WIND, 0.6f, 1.6f);
             }
             case 2 -> {
                 // a blade storm: a spin for 1.2 s that hits everyone round every 3 ticks, and takes 40% off what the assassin suffers
@@ -263,14 +286,14 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     }
                     double behind = kit.behindAngle(target);
                     boolean[] confused = {false};
-                    for (int index = 0; index < 3; index++) {
+                    for (int index = 0; index < 2; index++) {
                         int which = index;
-                        kit.later(index * 2L, () -> kit.clone(target, behind + (which - 1) * Math.toRadians(80.0), 1, 1, false, blow -> {
+                        kit.later(index * 2L, () -> kit.clone(target, behind + (which == 0 ? -1 : 1) * Math.toRadians(80.0), 1, 1, false, blow -> {
                             Location at = target.getLocation();
                             kit.slash("drop", 3.0, 170.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.18, 0.0);
                             kit.shockwave(at, 0.8, 3.2, 4, 1.1);
                             kit.sound(at, Sfx.WIND_BURST, 0.9f, 1.1f);
-                            if (kit.hitHand(kit.nextHand(), target, rate / 3.0) && !confused[0]) {
+                            if (kit.hitHand(kit.nextHand(), target, rate / 2.0) && !confused[0]) {
                                 confused[0] = true;
                                 kit.confuse(target, 100.0);
                             }

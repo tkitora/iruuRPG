@@ -4,11 +4,13 @@ import net.tkgon.mc.iruuRPG.combat.clone.CloneBody;
 import net.tkgon.mc.iruuRPG.vfx.Fx;
 import net.tkgon.mc.iruuRPG.vfx.Gradient;
 import net.tkgon.mc.iruuRPG.vfx.Trig;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
@@ -20,6 +22,25 @@ import java.util.function.Supplier;
  */
 final class Clones {
 
+    /** The grey of a ghost (the clones of the heavy attack): pale and see-through where the figure is drawn in dust. */
+    static final Gradient GHOST = Gradient.of(Color.fromRGB(78, 80, 88), Color.fromRGB(176, 178, 186));
+    /** Red and black: the colours of everything the assassin does while the item swap skill lasts. */
+    static final Gradient RED_BLACK = Gradient.of(Color.fromRGB(12, 0, 0), Color.fromRGB(150, 10, 16), Color.fromRGB(255, 58, 46));
+
+    /**
+     * How a clone looks: the gradient of its dust (trail, figure when it is not an entity, cuts), the outline of its body, whether it is drawn in high quality, and whether
+     * its blows are drawn as straight horizontal lines (the slashes of the item swap's echo) instead of arcs.
+     */
+    record Look(Gradient gradient, CloneBody.Tint tint, boolean quality, boolean lineCuts) {
+        static Look ghost() {
+            return new Look(GHOST, CloneBody.Tint.GRAY, false, false);
+        }
+
+        static Look swap(boolean lineCuts) {
+            return new Look(RED_BLACK, CloneBody.Tint.RED, true, lineCuts);
+        }
+    }
+
     private static final int APPEAR = 3;
     private static final int RUN = 4;
     private static final int FADE = 4;
@@ -27,11 +48,18 @@ final class Clones {
     private Clones() {
     }
 
+    /** The plugin stops: the standing clones go. */
+    static void shutdown() {
+        AssassinClones.shutdown();
+    }
+
     /**
      * A clone that comes at the target from {@code angle} (radians round it), swings {@code hits} times {@code gap} ticks apart, and goes. {@code targetAt} gives the
      * place of the target each tick (the last place is kept if it returns null); {@code onHit} gets the number of the swing at the moment of its blow.
      */
-    static void strike(JavaPlugin plugin, Player owner, Gradient gradient, Supplier<Location> targetAt, double angle, int hits, int gap, boolean quality, IntConsumer onHit) {
+    static void strike(JavaPlugin plugin, Player owner, Look look, Supplier<Location> targetAt, double angle, int hits, int gap, IntConsumer onHit, Runnable onEnd) {
+        Gradient gradient = look.gradient();
+        boolean quality = look.quality();
         Location first = targetAt.get();
         if (first == null || first.getWorld() == null) return;
         World world = first.getWorld();
@@ -51,6 +79,7 @@ final class Clones {
                 if (tick >= total || !owner.isOnline()) {
                     if (body != null) body.remove();
                     cancel();
+                    if (onEnd != null) onEnd.run();
                     return;
                 }
                 Location now = targetAt.get();
@@ -72,7 +101,8 @@ final class Clones {
                 if (tick >= total - FADE) fade = (total - tick) / (double) FADE;
                 double x = last.getX() + dirX * distance;
                 double z = last.getZ() + dirZ * distance;
-                double yaw = Math.atan2(-dirX, -dirZ);
+                // the clone faces the target (Minecraft's yaw: 0 is south, the facing is (-sin, cos))
+                double yaw = Math.atan2(dirX, -dirZ);
                 // the swing: the arm comes down over two ticks from the moment of each blow
                 double pose = 0.0;
                 int sinceStart = tick - swingStart;
@@ -83,20 +113,21 @@ final class Clones {
                     if (into == 0 && index >= swung && index < hits) {
                         swung = index + 1;
                         onHit.accept(index);
-                        cut(owner, gradient, last, dirX, dirZ, index, quality);
+                        if (look.lineCuts()) lineCut(owner, gradient, last, ThreadLocalRandom.current().nextDouble(Math.PI), quality);
+                        else cut(owner, gradient, last, dirX, dirZ, index, quality);
                         if (body != null) body.swing();
                     }
                 }
                 if (!bodyTried) {
                     bodyTried = true;
                     Location at = new Location(world, x, last.getY(), z, (float) Math.toDegrees(yaw), 0.0f);
-                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner));
+                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner), look.tint());
                 }
                 if (body != null) {
                     body.moveTo(x, last.getY(), z, Math.toDegrees(yaw));
                     trail(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality);
                 } else {
-                    figure(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality);
+                    figure(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality, look.tint() == CloneBody.Tint.GRAY);
                 }
                 tick++;
             }
@@ -107,10 +138,13 @@ final class Clones {
      * A clone that runs from {@code from} to {@code to} in {@code ticks} ticks (a dash through enemies); {@code onStep} gets the tick (0 - ticks - 1), which the caller
      * can use to hit what the clone passes.
      */
-    static void run(JavaPlugin plugin, Player owner, Gradient gradient, Location from, Location to, int ticks, boolean quality, IntConsumer onStep) {
+    static void run(JavaPlugin plugin, Player owner, Look look, Location from, Location to, int ticks, IntConsumer onStep, Runnable onEnd) {
         World world = from.getWorld();
         if (world == null) return;
-        double yaw = Math.atan2(-(to.getX() - from.getX()), -(to.getZ() - from.getZ()));
+        Gradient gradient = look.gradient();
+        boolean quality = look.quality();
+        // facing the way it runs
+        double yaw = Math.atan2(-(to.getX() - from.getX()), to.getZ() - from.getZ());
         new SafeTask(plugin) {
             private int tick;
             private CloneBody body;
@@ -122,6 +156,7 @@ final class Clones {
                 if (tick >= ticks + FADE || !owner.isOnline()) {
                     if (body != null) body.remove();
                     cancel();
+                    if (onEnd != null) onEnd.run();
                     return;
                 }
                 double t = Math.min(1.0, (tick + 1) / (double) ticks);
@@ -134,13 +169,13 @@ final class Clones {
                 if (!bodyTried) {
                     bodyTried = true;
                     Location at = new Location(world, x, y, z, (float) Math.toDegrees(yaw), 0.0f);
-                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner));
+                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner), look.tint());
                 }
                 if (body != null) {
                     body.moveTo(x, y, z, Math.toDegrees(yaw));
                     trail(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality);
                 } else {
-                    figure(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality);
+                    figure(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality, look.tint() == CloneBody.Tint.GRAY);
                 }
                 tick++;
             }
@@ -164,12 +199,35 @@ final class Clones {
     }
 
     /**
+     * A blow drawn as one straight horizontal line through the target at {@code yaw} (the slashes of the item swap's echo): a long thin streak, bright at the middle, with a
+     * glint where it crosses the target.
+     */
+    static void lineCut(Player owner, Gradient gradient, Location target, double yaw, boolean quality) {
+        Fx fx = Fx.of(owner, target.getWorld(), target);
+        if (!fx.active()) return;
+        double dx = Math.cos(yaw);
+        double dz = Math.sin(yaw);
+        double y = target.getY() + 1.0;
+        Location from = new Location(target.getWorld(), target.getX() - dx * 2.6, y, target.getZ() - dz * 2.6);
+        Location to = new Location(target.getWorld(), target.getX() + dx * 2.6, y, target.getZ() + dz * 2.6);
+        fx.line(from, to, gradient, 0.2, 1.0, 0.0, quality ? 1.3 : 1.1, 0.12, null, 1);
+        fx.line(from.clone().add(0.0, 0.1, 0.0), to.clone().add(0.0, 0.1, 0.0), gradient, 0.6, 0.9, 0.0, 0.8, 0.2, null, 1);
+        fx.dust(target.getX(), y, target.getZ(), gradient, 1.0, 2.0);
+    }
+
+    /**
      * One frame of the figure at ({@code x}, {@code y}, {@code z}) turned {@code yaw} (the way it faces): {@code pose} 0 is the guard, 1 the blade fully down; {@code fade}
      * 0 - 1 takes the brightness down.
      */
     static void figure(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality) {
+        figure(owner, gradient, world, x, y, z, yaw, pose, fade, quality, false);
+    }
+
+    /** The same; {@code ghost} draws it sparser and fainter, grey and see-through. */
+    static void figure(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality, boolean ghost) {
         Fx fx = Fx.of(owner, world, x, y, z);
         if (!fx.active()) return;
+        if (ghost) fade *= 0.65;
         double fx0 = -Math.sin(yaw);
         double fz0 = Math.cos(yaw);
         double rx = -Math.cos(yaw);
@@ -180,7 +238,7 @@ final class Clones {
         Location head = new Location(world, x, y + 1.72, z);
         fx.sphereShell(head, 0.2, 0.0, quality ? 26 : 16, gradient, size * 0.9);
         // body: two edges and the line down the middle, the shoulders across
-        double step = quality ? 0.1 : 0.16;
+        double step = ghost ? 0.26 : quality ? 0.1 : 0.16;
         for (double h = 0.85; h <= 1.45; h += step) {
             double t = bright * (0.3 + 0.5 * (h - 0.85) / 0.6);
             fx.dust(x + rx * 0.17, y + h, z + rz * 0.17, gradient, t, size);

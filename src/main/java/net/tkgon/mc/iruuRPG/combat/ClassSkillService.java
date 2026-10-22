@@ -376,6 +376,8 @@ public final class ClassSkillService {
         classEffectService.activateFrenzy(player, seconds, upgraded ? 2 : 1);
         int total = (int) Math.round(seconds * 20.0);
         attackService.statusUnlimited(player, total + 10);
+        // every clone that stood is destroyed, and three are flung forward; each copies the next two attacks
+        attackService.assassinSwapClones(player, attackService.weaponInMainHand(player), total);
 
         World world = player.getWorld();
         Location base = player.getLocation();
@@ -383,17 +385,17 @@ public final class ClassSkillService {
         world.playSound(base, Sound.ENTITY_WITHER_SHOOT, 0.35f, 1.8f);
         world.playSound(base, Sound.BLOCK_BEACON_ACTIVATE, 0.6f, 0.7f);
         Player owner = ParticleFx.owner();
-        SkillFx.column(owner, base, 3.2, 0.9, SkillFx.SHADOW);
+        SkillFx.column(owner, base, 3.2, 0.9, Clones.RED_BLACK);
         for (int ring = 1; ring <= 3; ring++) {
             double r = 1.2 + ring * 1.1;
             int which = ring;
-            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(owner, base, r, SkillFx.SHADOW, 1.0 - 0.2 * which, 1.2), ring - 1);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(owner, base, r, Clones.RED_BLACK, 1.0 - 0.2 * which, 1.2), ring - 1);
         }
         // afterimages of the assassin standing round
         net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, base);
         for (int image = 0; image < 6; image++) {
             double angle = Math.PI * 2.0 * image / 6.0;
-            fx.sphereShell(base.clone().add(Math.cos(angle) * 1.8, 1.0, Math.sin(angle) * 1.8), 0.5, image * 0.6, 22, SkillFx.SHADOW, 1.0);
+            fx.sphereShell(base.clone().add(Math.cos(angle) * 1.8, 1.0, Math.sin(angle) * 1.8), 0.5, image * 0.6, 22, Clones.RED_BLACK, 1.0);
         }
 
         new SafeTask(plugin) {
@@ -411,12 +413,12 @@ public final class ClassSkillService {
                 }
                 Location feet = player.getLocation();
                 // wisps of shadow climbing round the body, and the shape the assassin had a moment ago left behind
-                SkillFx.helix(owner, feet, new Vector(0.0, 1.0, 0.0), 0.0, 2.0, 2.0, 0.7, SkillFx.SHADOW, -tick * 0.4);
+                SkillFx.helix(owner, feet, new Vector(0.0, 1.0, 0.0), 0.0, 2.0, 2.0, 0.7, Clones.RED_BLACK, -tick * 0.4);
                 if (tick % 6 == 0) {
                     net.tkgon.mc.iruuRPG.vfx.Fx image = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, player.getWorld(), lastImage);
-                    image.sphereShell(lastImage.clone().add(0.0, 1.0, 0.0), 0.45, 0.0, 18, SkillFx.SHADOW, 0.9);
+                    image.sphereShell(lastImage.clone().add(0.0, 1.0, 0.0), 0.45, 0.0, 18, Clones.RED_BLACK, 0.9);
                     lastImage = feet.clone();
-                    SkillFx.groundRing(owner, feet, 1.5, SkillFx.SHADOW, 0.6, 1.0);
+                    SkillFx.groundRing(owner, feet, 1.5, Clones.RED_BLACK, 0.6, 1.0);
                 }
                 tick += 2;
             }
@@ -424,8 +426,9 @@ public final class ClassSkillService {
     }
 
     /**
-     * The item swap key pressed again during the frenzy: it ends, and clones strike every enemy hurt during it, giving back a share ({@code echo-share}, 10%) of what the
-     * assassin dealt to that enemy (up to the 8 hurt most), split among three clones each, drawn in high quality. True when the press was used here (also when it is too early).
+     * The item swap key pressed again during the frenzy: it ends, the clones go, and each enemy that a clone hurt at least once is struck in two parts, with the echo of what
+     * the assassin dealt to it ({@code echo-share}, 10%): 30% of it in a run of six straight horizontal slashes at random angles, and then 70% in one wide, thin slash
+     * across the enemy (broadside to the assassin). At most the 8 enemies hurt most. True when the press was used here (also when it is too early).
      */
     private boolean frenzyEcho(Player player, ClassSkillDefinition skill) {
         if (classEffectService == null || classEffectService.frenzyLevel(player) == 0) return false;
@@ -435,6 +438,7 @@ public final class ClassSkillService {
             player.sendMessage("[iruuRPG] SATUJINの再発動まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - elapsed / 1000.0) + "秒");
             return true;
         }
+        java.util.Set<UUID> hurtByClones = new java.util.HashSet<>(AssassinClones.hurtByClones(player));
         java.util.Map<UUID, Double> dealt = classEffectService.takeFrenzyDamage(player);
         classEffectService.endFrenzy(player);
         double share = skill.values().getOrDefault("echo-share", 0.10);
@@ -445,43 +449,68 @@ public final class ClassSkillService {
         world.playSound(player.getLocation(), Sound.ENTITY_WITHER_SHOOT, 0.4f, 1.9f);
         int victims = 0;
         double total = 0.0;
-        Player owner = ParticleFx.owner();
+        final int slashes = 6;
         for (java.util.Map.Entry<UUID, Double> entry : order) {
             if (victims >= 8) break;
+            if (!hurtByClones.contains(entry.getKey())) continue;
             Entity entity = org.bukkit.Bukkit.getEntity(entry.getKey());
             if (!(entity instanceof LivingEntity victim) || victim.isDead() || !victim.isValid() || !victim.getWorld().equals(world)) continue;
             if (victim.getLocation().distanceSquared(player.getLocation()) > 48.0 * 48.0) continue;
-            double amount = Math.round(entry.getValue() * share * 10.0) / 10.0;
-            if (amount <= 0.0) continue;
+            double budget = entry.getValue() * share;
+            if (budget <= 0.0) continue;
             int slot = victims++;
-            total += amount;
-            double part = amount / 3.0;
-            double base = ThreadLocalRandom.current().nextDouble(Math.PI * 2.0);
-            for (int clone = 0; clone < 3; clone++) {
-                double angle = base + Math.PI * 2.0 * clone / 3.0;
-                long start = slot * 2L + clone * 3L;
-                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                    if (!player.isOnline()) return;
-                    Clones.strike(plugin, player, SkillFx.SHADOW, () -> victim.isValid() && !victim.isDead() ? victim.getLocation() : null, angle, 2, 3, true, blow -> {
-                        if (!victim.isValid() || victim.isDead()) return;
-                        classEffectService.setEchoing(player, true);
-                        try {
-                            attackService.applyExtraDamage(player, victim, Math.round(part / 2.0 * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.ORANGE);
-                        } finally {
-                            classEffectService.setEchoing(player, false);
-                        }
-                        Location at = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
-                        SkillFx.burst(owner, at, 1.3, SkillFx.SHADOW);
-                        world.playSound(at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.6f, 0.7f);
-                    });
-                }, start);
-            }
+            total += budget;
+            double part = Math.round(budget * 0.3 / slashes * 10.0) / 10.0;
+            double finish = Math.round(budget * 0.7 * 10.0) / 10.0;
+            long start = slot * 2L;
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-                if (victim.isValid()) SkillFx.groundRing(owner, victim.getLocation(), 2.8, SkillFx.SHADOW, 0.9, 1.3);
-            }, slot * 2L + 12L);
+                if (!player.isOnline()) return;
+                double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2.0);
+                Clones.strike(plugin, player, Clones.Look.swap(true), () -> victim.isValid() && !victim.isDead() ? victim.getLocation() : null, angle, slashes, 2, blow -> {
+                    if (!victim.isValid() || victim.isDead()) return;
+                    echoDamage(player, victim, part);
+                    world.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.8f + 0.08f * blow);
+                }, null);
+            }, start);
+            // after the run: one wide, thin slash broadside to the assassin
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline() || !victim.isValid() || victim.isDead()) return;
+                wideSlash(player, victim);
+                echoDamage(player, victim, finish);
+            }, start + 22L);
         }
-        player.sendMessage("[iruuRPG] SATUJINの残響: " + victims + "体に、与えたダメージの" + Math.round(share * 100.0) + "%を返しました (合計 " + Math.round(total) + ")。");
+        player.sendMessage("[iruuRPG] SATUJINの残響: 分身が傷つけた" + victims + "体に、与えたダメージの" + Math.round(share * 100.0) + "%を返しました (合計 " + Math.round(total) + ")。");
         return true;
+    }
+
+    private void echoDamage(Player player, LivingEntity victim, double amount) {
+        if (amount <= 0.0) return;
+        classEffectService.setEchoing(player, true);
+        try {
+            attackService.applyExtraDamage(player, victim, amount, net.tkgon.mc.iruuRPG.stat.Element.ORANGE);
+        } finally {
+            classEffectService.setEchoing(player, false);
+        }
+    }
+
+    /** One wide, thin slash through the enemy, at right angles to the line from the assassin: fourteen blocks of red and black at the height of its chest. */
+    private void wideSlash(Player player, LivingEntity victim) {
+        Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+        Vector away = chest.toVector().subtract(player.getLocation().toVector()).setY(0.0);
+        if (away.lengthSquared() < 1.0E-6) away = player.getLocation().getDirection().setY(0.0);
+        away.normalize();
+        Vector side = new Vector(-away.getZ(), 0.0, away.getX()).multiply(7.0);
+        Player owner = ParticleFx.owner();
+        net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, chest.getWorld(), chest);
+        Location from = chest.clone().subtract(side);
+        Location to = chest.clone().add(side);
+        fx.line(from, to, Clones.RED_BLACK, 0.1, 1.0, 0.0, 1.4, 0.08, null, 1);
+        fx.line(from.clone().add(0.0, 0.08, 0.0), to.clone().add(0.0, 0.08, 0.0), Clones.RED_BLACK, 0.6, 1.0, 0.0, 1.0, 0.12, null, 1);
+        fx.line(from.clone().subtract(0.0, 0.08, 0.0), to.clone().subtract(0.0, 0.08, 0.0), Clones.RED_BLACK, 0.4, 0.8, 0.0, 1.0, 0.12, null, 1);
+        fx.dust(chest.getX(), chest.getY(), chest.getZ(), Clones.RED_BLACK, 1.0, 2.4);
+        SkillFx.burst(owner, chest, 1.8, Clones.RED_BLACK);
+        chest.getWorld().playSound(chest, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.6f);
+        chest.getWorld().playSound(chest, Sound.ENTITY_WITHER_BREAK_BLOCK, 0.3f, 1.8f);
     }
 
     // ---- sanctuary (healer) --------------------------------------------------------

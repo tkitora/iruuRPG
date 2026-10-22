@@ -342,17 +342,44 @@ public final class MoveKit {
         return Math.atan2(-facing.getZ(), -facing.getX());
     }
 
-    /**
-     * A clone of the player steps in to {@code target} from {@code angle} (radians round it), swings {@code hits} times {@code gap} ticks apart and goes: for each blow
-     * {@code onHit} gets its number (the caller does the damage). The player does not move.
-     */
-    public void clone(LivingEntity target, double angle, int hits, int gap, boolean quality, java.util.function.IntConsumer onHit) {
-        Clones.strike(plugin, player, palette, () -> target.isValid() && !target.isDead() ? target.getLocation() : null, angle, hits, gap, quality, onHit);
+    JavaPlugin plugin() {
+        return plugin;
     }
 
-    /** A clone that runs from {@code from} to {@code to} in {@code ticks} ticks; {@code onStep} gets each tick. */
+    /**
+     * A clone of the player steps in to {@code target} from {@code angle} (radians round it), turns to it, swings {@code hits} times {@code gap} ticks apart and goes: for each blow
+     * {@code onHit} gets its number (the caller does the damage). The player does not move. The assassin can have two clones at a time (the standing ones count): when there is
+     * no room the blows land at once with no figure. The clone is red and black while the item swap skill lasts, grey otherwise.
+     */
+    public void clone(LivingEntity target, double angle, int hits, int gap, boolean quality, java.util.function.IntConsumer onHit) {
+        if (!AssassinClones.beginTransient(player)) {
+            for (int index = 0; index < hits; index++) {
+                int which = index;
+                later(3L + (long) index * gap, () -> onHit.accept(which));
+            }
+            return;
+        }
+        Clones.Look look = AssassinClones.lookFor(player, attack.assassinFrenzy(player) > 0);
+        Clones.strike(plugin, player, look, () -> target.isValid() && !target.isDead() ? target.getLocation() : null, angle, hits, gap, onHit, () -> AssassinClones.endTransient(player));
+    }
+
+    /** A clone that runs from {@code from} to {@code to} in {@code ticks} ticks; {@code onStep} gets each tick (no figure when two clones exist already: the steps still come). */
     public void cloneRun(Location from, Location to, int ticks, java.util.function.IntConsumer onStep) {
-        Clones.run(plugin, player, palette, from, to, ticks, false, onStep);
+        if (!AssassinClones.beginTransient(player)) {
+            for (int tick = 0; tick < ticks; tick++) {
+                int which = tick;
+                later(which, () -> onStep.accept(which));
+            }
+            return;
+        }
+        Clones.run(plugin, player, AssassinClones.lookFor(player, attack.assassinFrenzy(player) > 0), from, to, ticks, onStep, () -> AssassinClones.endTransient(player));
+    }
+
+    /** The colours the slashes of this kit are drawn in (null: the weapon's own). Set by the combos that change their look. */
+    private java.util.List<org.bukkit.Color> slashColors;
+
+    void slashColors(java.util.List<org.bukkit.Color> colors) {
+        this.slashColors = colors;
     }
 
     /**
@@ -761,7 +788,8 @@ public final class MoveKit {
     public void slash(String kind, double radius, double angle, double tilt, double roll, double forward, double drop, double side,
                       double scale, double duration, double delay) {
         ComboStyle.Cut cut = new ComboStyle.Cut(radius, angle, tilt, roll, 0.0, forward, drop, duration, scale, delay, side, kind);
-        effects.playStyledSlash(player, weapon, new ComboStyle.Stage(List.of(cut), "swing", 0), null, 0);
+        net.tkgon.mc.iruuRPG.skill.SkillLook look = slashColors == null ? null : new net.tkgon.mc.iruuRPG.skill.SkillLook(slashColors, null, 1.0, 1.0, null);
+        effects.playStyledSlash(player, weapon, new ComboStyle.Stage(List.of(cut), "swing", 0), look, 0);
     }
 
     public void sound(Location at, Sound sound, float volume, float pitch) {

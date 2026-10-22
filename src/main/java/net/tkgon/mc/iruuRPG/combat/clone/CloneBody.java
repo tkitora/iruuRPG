@@ -25,11 +25,18 @@ public interface CloneBody {
         return !Failure.happened && plugin.getConfig().getBoolean("combat.clone-entity", true);
     }
 
-    /** A clone of {@code owner} at {@code at}, shown to the players {@code visibleTo} accepts within {@code range}; null when it cannot be made. */
+    /** The outline of the clone: none, grey (a ghost: the clones of the heavy attack) or dark red (the clones of the item swap skill). */
+    enum Tint { NONE, GRAY, RED }
+
     static CloneBody entity(JavaPlugin plugin, Player owner, Location at, double range, Predicate<Player> visibleTo) {
+        return entity(plugin, owner, at, range, visibleTo, Tint.NONE);
+    }
+
+    /** A clone of {@code owner} at {@code at}, shown to the players {@code visibleTo} accepts within {@code range}; null when it cannot be made. */
+    static CloneBody entity(JavaPlugin plugin, Player owner, Location at, double range, Predicate<Player> visibleTo, Tint tint) {
         if (!enabled(plugin)) return null;
         try {
-            CloneEntity entity = new CloneEntity(owner, at, range, visibleTo);
+            CloneEntity entity = new CloneEntity(owner, at, range, visibleTo, tint);
             return new CloneBody() {
                 @Override
                 public void moveTo(double x, double y, double z, double yawDegrees) {
