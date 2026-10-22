@@ -43,7 +43,15 @@ public final class ColonizationAlgorithm implements TreeAlgorithm {
         // the bare trunk
         int parent = -1;
         int steps = (int) Math.ceil(bareTop / STEP);
-        for (int step = 0; step <= steps; step++) parent = skeleton.add(0.0, Math.min(bareTop, step * STEP), 0.0, parent);
+        // the trunk sways a little (the curve setting) instead of standing as a straight post
+        double curve = settings.get(TreeSettings.Key.CURVE);
+        double swayPhase = random.nextDouble() * Math.PI * 2.0;
+        double swayDirection = random.nextDouble() * Math.PI * 2.0;
+        for (int step = 0; step <= steps; step++) {
+            double y = Math.min(bareTop, step * STEP);
+            double sway = curve * 0.9 * Math.sin(y * 0.28 + swayPhase) * Math.min(1.0, y / 3.0);
+            parent = skeleton.add(Math.cos(swayDirection) * sway, y, Math.sin(swayDirection) * sway, parent);
+        }
         // the lower trunk does not branch: the nearest-node search skips nodes lower than this
         double minBranchY = bareTop * 0.6;
         double influence = Math.max(top, reach * 2.0) * 1.3;
@@ -102,6 +110,8 @@ public final class ColonizationAlgorithm implements TreeAlgorithm {
             compare(skeleton, attractors, alive, nearest, nearestDistance, before, minBranchY);
         }
         skeleton.computeRadii(settings.get(TreeSettings.Key.TRUNK_RADIUS), 0.5, 0.45);
+        TreeAlgorithm.taperBareTrunk(skeleton, steps, settings.get(TreeSettings.Key.TAPER));
+        TreeAlgorithm.leafAtTips(skeleton, settings.get(TreeSettings.Key.LEAF_FLATNESS), random);
         TreeAlgorithm.addRoots(skeleton, settings, random);
         return skeleton;
     }
@@ -131,6 +141,7 @@ public final class ColonizationAlgorithm implements TreeAlgorithm {
     private static List<double[]> scatter(String crown, double reach, double crownBase, double top, double crownHeight, double domeRadius, double density, Random random) {
         double volume = switch (crown) {
             case "cone" -> Math.PI * reach * reach * crownHeight / 3.0;
+            case "columnar" -> Math.PI * Math.pow(reach * 0.55, 2) * crownHeight;
             case "umbrella" -> 4.0 / 3.0 * Math.PI * reach * reach * domeRadius;
             default -> 4.0 / 3.0 * Math.PI * reach * reach * crownHeight / 2.0;
         };
@@ -152,6 +163,7 @@ public final class ColonizationAlgorithm implements TreeAlgorithm {
                     double allowed = reach * Math.pow(Math.max(0.0, 1.0 - fraction), 0.9);
                     yield horizontal <= allowed * allowed;
                 }
+                case "columnar" -> horizontal <= Math.pow(reach * 0.55, 2);
                 case "umbrella" -> {
                     double dy = (y - centreY) / domeRadius;
                     yield horizontal / (reach * reach) + dy * dy <= 1.0;

@@ -93,6 +93,8 @@ public final class LSystemAlgorithm implements TreeAlgorithm {
         }
         fit(skeleton, settings);
         skeleton.computeRadii(settings.get(TreeSettings.Key.TRUNK_RADIUS), 0.5, 0.45);
+        TreeAlgorithm.taperBareTrunk(skeleton, 1, settings.get(TreeSettings.Key.TAPER));
+        TreeAlgorithm.leafAtTips(skeleton, settings.get(TreeSettings.Key.LEAF_FLATNESS), random);
         TreeAlgorithm.addRoots(skeleton, settings, random);
         return skeleton;
     }
@@ -123,7 +125,7 @@ public final class LSystemAlgorithm implements TreeAlgorithm {
         double scaleOut = TreeAlgorithm.reachOut(settings) / maxOut;
         List<TreeSkeleton.Node> scaled = new ArrayList<>(skeleton.nodes.size());
         for (TreeSkeleton.Node node : skeleton.nodes) {
-            TreeSkeleton.Node copy = new TreeSkeleton.Node(node.x * scaleOut, Math.max(0.0, node.y * scaleUp), node.z * scaleOut, node.parent);
+            TreeSkeleton.Node copy = new TreeSkeleton.Node(node.x * scaleOut, Math.max(0.0, node.y * scaleUp), node.z * scaleOut, node.parent, node.level);
             copy.children = node.children;
             scaled.add(copy);
         }
