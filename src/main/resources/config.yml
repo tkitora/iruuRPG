@@ -109,6 +109,8 @@ combat:
     arrow-gravity: 0.02
     # 設置武器のコンボの通常攻撃の間隔 (tick、攻撃速度で短くなる):
     deploy-normal-ticks: 14
+    assassin_melee:
+      clone-seconds: 12                           # 強攻撃1のクローンが立っている秒数 (最大2体)
     cleric_melee:
       normal-gap-ticks: 10
     warrior_melee:

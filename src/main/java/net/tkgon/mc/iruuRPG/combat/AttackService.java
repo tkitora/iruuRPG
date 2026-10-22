@@ -264,6 +264,7 @@ public final class AttackService {
     }
 
     public void shutdownCombos() {
+        AssassinClones.shutdown();
         if (comboZones != null) comboZones.shutdown();
     }
 
@@ -1487,6 +1488,11 @@ public final class AttackService {
         if (!hasSkill(player, ATTACK_SPEED_COOLDOWN_SKILL)) return 1.0;
         double attackSpeed = equipmentService.recalculate(player).finalStats().get(StatType.ATTACK_SPEED);
         return Math.max(0.2, Math.min(1.0, 1.0 - attackSpeed / 100.0));
+    }
+
+    /** The item swap skill of the assassin: its clones (see {@link AssassinClones#launchSwap}) for {@code lifeTicks} ticks. */
+    public void assassinSwapClones(Player attacker, RpgItemDefinition weapon, int lifeTicks) {
+        AssassinClones.launchSwap(kit(attacker, weapon), lifeTicks);
     }
 
     /** 0 when the assassin is not in a frenzy (SATUJIN), else its level; see {@link ClassEffectService#activateFrenzy}. */

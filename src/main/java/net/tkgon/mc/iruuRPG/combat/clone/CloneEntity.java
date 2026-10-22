@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.combat.clone;
 import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import com.mojang.datafixers.util.Pair;
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.protocol.Packet;
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket;
 import net.minecraft.network.protocol.game.ClientboundAnimatePacket;
@@ -63,6 +64,11 @@ public final class CloneEntity {
      * {@code range} blocks).
      */
     public CloneEntity(org.bukkit.entity.Player owner, Location at, double range, Predicate<org.bukkit.entity.Player> visibleTo) {
+        this(owner, at, range, visibleTo, CloneBody.Tint.NONE);
+    }
+
+    /** The same with an outline: a glow the colour of {@code tint} (grey for a ghost, red for the clones of the item swap skill). */
+    public CloneEntity(org.bukkit.entity.Player owner, Location at, double range, Predicate<org.bukkit.entity.Player> visibleTo, CloneBody.Tint tint) {
         World world = at.getWorld();
         ServerLevel level = ((CraftWorld) world).getHandle();
         this.uuid = UUID.randomUUID();
@@ -88,12 +94,15 @@ public final class CloneEntity {
         npc.setYHeadRot(at.getYaw());
         // every part of the skin (cape, jacket, sleeves, pants, hat)
         npc.getEntityData().set(Player.DATA_PLAYER_MODE_CUSTOMISATION, (byte) 0x7F);
+        if (tint != CloneBody.Tint.NONE) npc.setGlowingTag(true);
         copyEquipment(owner);
 
         this.teamName = "iruurpg_clone_" + TEAMS.get();
         this.team = new PlayerTeam(new Scoreboard(), teamName);
         team.setNameTagVisibility(Team.Visibility.NEVER);
         team.setCollisionRule(Team.CollisionRule.NEVER);
+        if (tint == CloneBody.Tint.GRAY) team.setColor(ChatFormatting.GRAY);
+        else if (tint == CloneBody.Tint.RED) team.setColor(ChatFormatting.DARK_RED);
 
         double rangeSquared = range * range;
         for (org.bukkit.entity.Player viewer : world.getPlayers()) {
