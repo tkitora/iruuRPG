@@ -265,19 +265,40 @@ public final class AttackService {
         return classCombos.get(equipmentService.classIdOf(attacker) + "|" + weapon.attackType());
     }
 
+    /** The internal id of the player's class (gifted, healer, mage, warrior, assassin; "" when none). */
+    public String classIdOf(Player player) {
+        return equipmentService.classIdOf(player);
+    }
+
     /** True when the weapon in hand brings a (generic) combo of the player's class: a favorite weapon with such a combo. */
     public boolean hasClassCombo(Player attacker, RpgItemDefinition weapon) {
         return classComboFor(attacker, weapon) != null && comboOn() && comboAllowed(attacker, weapon);
     }
 
+    /** Where each player's running combo began, and the way they faced (placed things are put round that place). */
+    private final Map<UUID, Object[]> chainOrigins = new HashMap<>();
+
     private MoveKit kit(Player attacker, RpgItemDefinition weapon) {
-        return new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
+        MoveKit kit = new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
+        Object[] origin = chainOrigins.get(attacker.getUniqueId());
+        if (origin != null) kit.anchor((Location) origin[0], (org.bukkit.util.Vector) origin[1]);
+        return kit;
+    }
+
+    /** A chain that starts now (nothing thrown before it) begins where the player stands. */
+    private void startChainIfFresh(Player attacker, String plan) {
+        if (meleeCombo.done(attacker, plan) == 0) {
+            org.bukkit.util.Vector facing = attacker.getLocation().getDirection().setY(0.0);
+            if (facing.lengthSquared() < 1.0E-6) facing = new org.bukkit.util.Vector(0.0, 0.0, 1.0);
+            chainOrigins.put(attacker.getUniqueId(), new Object[]{attacker.getLocation().clone(), facing.normalize()});
+        }
     }
 
     /** Normal attack {@code n} of the class's combo with this weapon: the melee left click, or the right click with a ranged / deployed one. */
     public boolean comboNormal(Player attacker, RpgItemDefinition weapon) {
         if (!hasClassCombo(attacker, weapon)) return false;
         ClassCombo combo = classComboFor(attacker, weapon);
+        startChainIfFresh(attacker, combo.spec().plan());
         MeleeCombo.Step step = meleeCombo.next(attacker, false, combo.spec().plan());
         beginAttack(attacker);
         attackCooldowns.ensureAtLeast(attacker, weapon.attackType(), (int) plugin.getConfig().getLong("combat.combo." + combo.spec().plan() + ".normal-gap-ticks", 10L));
@@ -312,6 +333,7 @@ public final class AttackService {
             return true;
         }
         ClassCombo combo = classComboFor(attacker, weapon);
+        startChainIfFresh(attacker, combo.spec().plan());
         // (in a frenzy the assassin's heavy 0 has no cooldown)
         MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, assassinFrenzy(attacker) > 0 && "assassin".equals(equipmentService.classIdOf(attacker)), combo.spec().plan());
         if (step == null) {

@@ -8,21 +8,21 @@ import org.bukkit.util.Vector;
 import java.util.List;
 
 /**
- * The assassin's combo with melee weapons: mobility joined to skill. Every cut is struck with the hand whose turn it is (the two
- * weapons of 固有0 take turns). The reach is short (under 3 blocks), the hits few; what the assassin has is the way to the enemy and
- * the way out: a step that closes the gap, a blink behind the target, and then one enemy takes the whole of it. For a moment the other
- * way: the whirling blades hit everyone round the assassin. Always available with a favorite weapon (no node needed).
+ * The assassin's combo with melee weapons: mobility joined to skill. Every cut is struck with the hand whose turn it is (the two weapons of 固有0 take turns). The reach
+ * is short (under 3 blocks), the hits few; what the assassin has is the way to the enemy and the way out: a step that closes the gap, and clones that step in to an enemy from
+ * behind and strike for the assassin, so one enemy takes the whole of it. For a moment the other way: the whirling blades hit everyone round the assassin. The assassin never
+ * teleports in the combo (a teleport throws the camera): the clones do the reaching. Always available with a favorite weapon (no node needed).
  *
- * <p>Normal: 1 a fang cross (two cuts, 50% x2), 2 a step in (a dash that stops at the first enemy it touches, then two cuts, 60% x2), 3 a shadow step
- * (a blink behind the nearest enemy and a backstab, 130%, confuses a little), 4 whirling blades (a spin of 4 cuts, 25% each on everyone round, 12 ticks),
- * 5 an execution (a blink behind the aim, 150% on it and 40% on the others near). Heavy: 0 a shadow dash (6 blocks, nothing can hurt the assassin
- * for 8 ticks, 100% on all in the way), 1 a chain blink (blinks behind the nearest enemy, three cuts of 40%), 2 a blade storm (a spin for 1.2 s, 16% every
- * 3 ticks on everyone round, takes 40% less damage meanwhile), 3 a crossing step (through the enemy ahead and back across, 60% on all in the way each time),
- * 4 a phantom execution (afterimages, then a blink behind the nearest enemy: 150% and confusion).
+ * <p>Normal: 1 a fang cross (two cuts, 50% x2), 2 a step in (a dash that stops at the first enemy it touches, then two cuts, 60% x2), 3 a shadow clone (a clone steps in from
+ * behind the nearest enemy and strikes, 130%, confuses a little), 4 whirling blades (a spin of 4 cuts, 25% each on everyone round, 12 ticks), 5 an execution (two clones
+ * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a shadow dash (6 blocks, nothing can hurt the assassin for 8 ticks,
+ * 100% on all in the way), 1 a chain of clones (three clones strike the nearest enemy one after the other, 40% each), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
+ * everyone round, takes 40% less damage meanwhile), 3 crossing clones (two clones run through the line ahead from both ends, 60% on all in the way each), 4 a phantom execution
+ * (afterimages, then three clones close on the nearest enemy: 50% each and confusion).
  *
- * <p>The class skill (SATUJIN, F) puts the assassin in a frenzy for some seconds: the blows are 20% stronger (35% when upgraded), the normal attacks come faster,
- * an enemy out of reach is blinked to before a normal attack, every normal attack is followed by the cut of a shadow round the assassin (40%), heavy 0 has no cooldown,
- * and the status effects (confusion) land with every hit.
+ * <p>The class skill (SATUJIN, F) puts the assassin in a frenzy for some seconds: the blows are 20% stronger (35% when upgraded), the normal attacks come faster, a clone
+ * strikes an enemy that is out of reach before a normal attack, every normal attack is followed by the cut of a shadow round the assassin (40%), heavy 0 has no cooldown, and the
+ * status effects (confusion) land with every hit.
  */
 public final class AssassinMeleeCombo extends BaseCombo {
 
@@ -54,17 +54,17 @@ public final class AssassinMeleeCombo extends BaseCombo {
             normalBody(kit, step, 1.0);
             return;
         }
-        // in a frenzy every blow is stronger, the assassin first blinks to an enemy that is out of reach (the blinking moves do it anyway),
-        // and a shadow of the assassin cuts again a moment later round the place it stands
+        // in a frenzy every blow is stronger; a clone strikes an enemy that is out of reach first; and a shadow of the assassin cuts again a moment later round the place it stands
         double boost = boost(frenzy);
         int stage = step.stage();
         LivingEntity far = stage == 3 || stage == 5 ? null : kit.nearest(9.0, 90.0);
         if (far != null && far.getLocation().distanceSquared(kit.player.getLocation()) > 6.25) {
-            kit.blink(kit.behind(far, 1.6), far);
-            kit.later(1L, () -> normalBody(kit, step, boost));
-        } else {
-            normalBody(kit, step, boost);
+            double reach = step.damageMultiplier() * 0.35 * boost;
+            kit.clone(far, kit.behindAngle(far), 1, 1, false, index -> {
+                if (far.isValid() && !far.isDead()) kit.hitHand(kit.nextHand(), far, reach);
+            });
         }
+        normalBody(kit, step, boost);
         double afterimage = step.damageMultiplier() * 0.4 * boost;
         kit.later(5L, () -> {
             Location at = kit.player.getLocation();
@@ -103,14 +103,14 @@ public final class AssassinMeleeCombo extends BaseCombo {
                         int which = index;
                         kit.later(index * 2L, () -> {
                             kit.slash(which == 0 ? "drop" : "line", 2.3, 120.0, 30.0 + which * 25.0, which == 0 ? 0.0 : 180.0, 1.9, 0.4, 0.0, 1.05, 0.09, 0.0);
-                            kit.sound(end, Sfx.CRACK, 0.5f, 1.5f);
+                            kit.sound(end, Sfx.WIND_BURST, 0.5f, 1.5f);
                             cut(kit, kit.cone(2.9, 65.0), rate);
                         });
                     }
                 });
             }
             case 3 -> {
-                // a shadow step: behind the nearest enemy, and a backstab
+                // a shadow clone: it steps in from behind the nearest enemy and strikes; the assassin stays where they are
                 LivingEntity target = kit.nearest(8.0, 60.0);
                 if (target == null) {
                     kit.invulnerable(3);
@@ -120,12 +120,11 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     });
                     return;
                 }
-                kit.blink(kit.behind(target, 1.3), target);
-                kit.later(2L, () -> {
+                kit.sound(feet, Sfx.WIND, 0.6f, 1.2f);
+                kit.clone(target, kit.behindAngle(target), 1, 1, false, index -> {
                     kit.slash("drop", 2.4, 130.0, 20.0, 0.0, 1.8, 0.4, 0.0, 1.2, 0.1, 0.0);
-                    kit.sound(target.getLocation(), Sfx.CRACK, 0.8f, 1.2f);
-                    AttackService.MeleeHand hand = kit.nextHand();
-                    if (kit.hitHand(hand, target, rate)) kit.confuse(target, 30.0);
+                    kit.sound(target.getLocation(), Sfx.WIND_BURST, 0.8f, 1.2f);
+                    if (kit.hitHand(kit.nextHand(), target, rate)) kit.confuse(target, 30.0);
                 });
             }
             case 4 -> {
@@ -141,7 +140,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
                 }
             }
             default -> {
-                // an execution: behind the aimed enemy (or the nearest), 150% on it and a part of that on the others near
+                // an execution: two clones strike the aimed enemy from both sides, the assassin cuts the others near it
                 LivingEntity target = kit.nearest(9.0, 70.0);
                 if (target == null) {
                     kit.leap(facing, 0.6, 0.4, land -> {
@@ -151,14 +150,19 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     });
                     return;
                 }
-                kit.blink(kit.behind(target, 1.2), target);
-                kit.later(2L, () -> {
+                double behind = kit.behindAngle(target);
+                for (int side = -1; side <= 1; side += 2) {
+                    kit.clone(target, behind + side * Math.toRadians(95.0), 1, 1, false, index -> {
+                        Location at = target.getLocation();
+                        kit.slash("drop", 2.8, 160.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.35, 0.16, 0.0);
+                        kit.sound(at, Sfx.WIND_BURST, 0.7f, 1.3f);
+                        kit.hitHand(kit.nextHand(), target, rate * 0.5);
+                    });
+                }
+                kit.later(7L, () -> {
                     Location at = target.getLocation();
-                    kit.slash("drop", 2.8, 160.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.35, 0.16, 0.0);
                     kit.shockwave(at, 0.8, 2.8, 3, 1.0);
-                    kit.sound(at, Sfx.METAL_HEAVY, 0.7f, 1.3f);
                     AttackService.MeleeHand hand = kit.nextHand();
-                    kit.hitHand(hand, target, rate);
                     for (LivingEntity other : kit.around(at, 2.8)) {
                         if (!other.equals(target)) kit.hitHand(hand, other, rate * 0.4);
                     }
@@ -187,7 +191,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
                 });
             }
             case 1 -> {
-                // a chain blink: behind the nearest enemy, three quick cuts
+                // a chain of clones: three of them strike the nearest enemy one after the other
                 LivingEntity target = kit.nearest(9.0, 80.0);
                 if (target == null) {
                     kit.sound(feet, Sfx.WIND, 0.8f, 1.0f);
@@ -195,15 +199,14 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     cut(kit, kit.cone(3.0, 70.0), rate);
                     return;
                 }
-                kit.blink(kit.behind(target, 1.3), target);
+                double behind = kit.behindAngle(target);
                 for (int index = 0; index < 3; index++) {
                     int which = index;
-                    kit.later(2L + index * 2L, () -> {
+                    kit.later(index * 3L, () -> kit.clone(target, behind + (which - 1) * Math.toRadians(70.0), 1, 1, false, blow -> {
                         kit.slash(which == 1 ? "line" : "arc", 2.2, 120.0, 25.0 + which * 20.0, which % 2 == 0 ? 0.0 : 180.0, 1.7, 0.4, 0.0, 1.0, 0.07, 0.0);
-                        kit.sound(target.getLocation(), Sfx.CRACK, 0.5f, 1.5f + which * 0.15f);
-                        AttackService.MeleeHand hand = kit.nextHand();
-                        kit.hitHand(hand, target, rate);
-                    });
+                        kit.sound(target.getLocation(), Sfx.WIND, 0.6f, 1.5f + which * 0.15f);
+                        kit.hitHand(kit.nextHand(), target, rate);
+                    }));
                 }
             }
             case 2 -> {
@@ -222,31 +225,32 @@ public final class AssassinMeleeCombo extends BaseCombo {
                 });
             }
             case 3 -> {
-                // a crossing step: through the enemy ahead to its far side, cutting all in the way, then back across
+                // crossing clones: two of them run through the line ahead from both ends, cutting everything on the way
                 LivingEntity target = kit.nearest(8.0, 70.0);
                 Vector heading = target == null ? facing : target.getLocation().toVector().subtract(feet.toVector()).setY(0.0).normalize();
                 double length = target == null ? 5.0 : Math.min(8.0, target.getLocation().distance(feet) + 2.5);
                 Location from = feet.clone().add(0.0, 1.0, 0.0);
-                kit.invulnerable(10);
+                Location near = feet.clone();
+                Location far = feet.clone().add(heading.clone().multiply(length));
                 kit.sound(feet, Sfx.WIND_BURST, 0.9f, 1.3f);
                 kit.line(from, from.clone().add(heading.clone().multiply(length)), 0.2, 1.0, 1.4);
-                cut(kit, kit.corridor(from, heading, length, 1.4), rate);
-                Location far = feet.clone().add(heading.clone().multiply(length));
-                kit.blink(standable(kit, far), null);
-                kit.later(5L, () -> {
-                    Location here = kit.player.getLocation().add(0.0, 1.0, 0.0);
-                    Vector back = heading.clone().multiply(-1.0);
-                    kit.line(here, here.clone().add(back.clone().multiply(length)), 0.2, 1.0, 1.4);
-                    kit.sound(here, Sfx.CRACK, 0.6f, 1.4f);
-                    cut(kit, kit.corridor(here, back, length, 1.4), rate);
-                    kit.blink(standable(kit, feet), null);
+                kit.cloneRun(near, far, 5, tick -> {
+                    if (tick == 2) cut(kit, kit.corridor(from, heading, length, 1.4), rate);
+                });
+                kit.later(4L, () -> {
+                    kit.cloneRun(far, near, 5, tick -> {
+                        if (tick == 2) {
+                            kit.sound(far, Sfx.WIND, 0.6f, 1.4f);
+                            cut(kit, kit.corridor(from.clone().add(heading.clone().multiply(length)), heading.clone().multiply(-1.0), length, 1.4), rate);
+                        }
+                    });
                 });
             }
             default -> {
-                // a phantom execution: afterimages gather, then a blink behind the nearest enemy and one great cut
+                // a phantom execution: afterimages gather, then three clones close on the nearest enemy
                 LivingEntity target = kit.nearest(12.0, 90.0);
                 kit.invulnerable(10);
-                kit.sound(feet, Sfx.MAGIC_DARK, 0.8f, 0.9f);
+                kit.sound(feet, Sfx.WIND_BURST, 0.8f, 0.9f);
                 for (int index = 0; index < 3; index++) {
                     int which = index;
                     kit.later(index * 2L, () -> kit.fx(kit.player.getLocation()).sphereShell(kit.player.getLocation().add(0.0, 1.0, 0.0), 0.5 + 0.25 * which, which * 0.8, 20, kit.palette(), 1.0));
@@ -257,24 +261,23 @@ public final class AssassinMeleeCombo extends BaseCombo {
                         cut(kit, kit.cone(3.2, 70.0), rate * 0.6);
                         return;
                     }
-                    kit.blink(kit.behind(target, 1.2), target);
-                    kit.later(2L, () -> {
-                        Location at = target.getLocation();
-                        kit.slash("drop", 3.0, 170.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.18, 0.0);
-                        kit.shockwave(at, 0.8, 3.2, 4, 1.1);
-                        kit.sound(at, Sfx.METAL_HEAVY, 0.9f, 1.1f);
-                        AttackService.MeleeHand hand = kit.nextHand();
-                        if (kit.hitHand(hand, target, rate)) kit.confuse(target, 100.0);
-                    });
+                    double behind = kit.behindAngle(target);
+                    boolean[] confused = {false};
+                    for (int index = 0; index < 3; index++) {
+                        int which = index;
+                        kit.later(index * 2L, () -> kit.clone(target, behind + (which - 1) * Math.toRadians(80.0), 1, 1, false, blow -> {
+                            Location at = target.getLocation();
+                            kit.slash("drop", 3.0, 170.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.18, 0.0);
+                            kit.shockwave(at, 0.8, 3.2, 4, 1.1);
+                            kit.sound(at, Sfx.WIND_BURST, 0.9f, 1.1f);
+                            if (kit.hitHand(kit.nextHand(), target, rate / 3.0) && !confused[0]) {
+                                confused[0] = true;
+                                kit.confuse(target, 100.0);
+                            }
+                        }));
+                    }
                 });
             }
         }
-    }
-
-    /** A spot the assassin can stand on at or near {@code at}: the spot itself when its two blocks are free, else one block up. */
-    private Location standable(MoveKit kit, Location at) {
-        Location spot = at.clone();
-        if (!spot.getBlock().isPassable() || !spot.clone().add(0.0, 1.0, 0.0).getBlock().isPassable()) spot.add(0.0, 1.0, 0.0);
-        return spot;
     }
 }

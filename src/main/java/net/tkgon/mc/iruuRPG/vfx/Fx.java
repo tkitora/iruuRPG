@@ -30,15 +30,17 @@ public final class Fx {
     /** A lone point (a mote, a spark of dust: where the particles are few) is drawn at this fraction: close to the original size so it can be seen; {@code vfx.sparse-size-scale}. */
     private static volatile double sparseScale = 0.95;
     /** Points per block of a line and points of a ring / spiral / sphere / disc are this many times the number asked for; {@code vfx.density}. */
-    private static volatile double density = 2.2;
-    private static final int MAX_RING = 240;
-    private static final int MAX_SPHERE = 200;
+    private static volatile double density = 2.2 * 1.35;
+    /** The points of every shape are packed this much closer than the setting says (the gaps between the particles were too wide). */
+    private static final double DENSITY_BOOST = 1.35;
+    private static final int MAX_RING = 320;
+    private static final int MAX_SPHERE = 260;
 
     /** Reads {@code vfx.size-scale} and {@code vfx.density} (0.3 - 1.5 and 0.5 - 3) of the config. */
     public static void configure(org.bukkit.configuration.file.FileConfiguration config) {
         sizeScale = Math.max(0.3, Math.min(1.5, config.getDouble("vfx.size-scale", 0.8)));
         sparseScale = Math.max(0.3, Math.min(1.5, config.getDouble("vfx.sparse-size-scale", 0.95)));
-        density = Math.max(0.5, Math.min(3.0, config.getDouble("vfx.density", 2.2)));
+        density = Math.max(0.5, Math.min(3.0, config.getDouble("vfx.density", 2.2))) * DENSITY_BOOST;
     }
 
     private static double size(double asked) {

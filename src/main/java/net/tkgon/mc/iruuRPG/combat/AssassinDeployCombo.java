@@ -33,7 +33,7 @@ public final class AssassinDeployCombo extends BaseCombo {
         double rate = step.damageMultiplier();
         int count = step.extraHits() + 1;
         Location target = ComboParts.target(kit);
-        Vector right = kit.axes()[1];
+        Vector right = kit.originRight();
         switch (step.stage()) {
             case 1 -> ComboParts.place(kit, "assassin_n1", target, 50, 10, 3.0, rate, 25.0, 0.0, here -> smoke(kit, here, 3.0));
             case 2 -> {
@@ -45,10 +45,10 @@ public final class AssassinDeployCombo extends BaseCombo {
             }
             case 3 -> ComboParts.mine(kit, "assassin_mine", target, 2.0, 3.4, rate, 45.0);
             case 4 -> {
-                Vector line = target.toVector().subtract(kit.player.getLocation().toVector()).setY(0.0);
-                if (line.lengthSquared() < 1.0) line = kit.facing().multiply(6.0);
+                Vector line = target.toVector().subtract(kit.origin().toVector()).setY(0.0);
+                if (line.lengthSquared() < 1.0) line = kit.originFacing().multiply(6.0);
                 for (int index = 0; index < count; index++) {
-                    Location ground = kit.ground(kit.player.getLocation().add(line.clone().multiply(0.3 + 0.35 * index)));
+                    Location ground = kit.ground(kit.origin().add(line.clone().multiply(0.3 + 0.35 * index)));
                     String key = "assassin_n4_" + index;
                     kit.later(index * 2L, () -> ComboParts.placeAt(kit, key, ground, 44, 14, 2.0, rate, 30.0, 0.0, here -> smoke(kit, here, 2.0)));
                 }
@@ -61,7 +61,7 @@ public final class AssassinDeployCombo extends BaseCombo {
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
         kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.4));
         double rate = step.damageMultiplier();
-        Location feet = kit.player.getLocation();
+        Location feet = kit.origin();
         Location target = ComboParts.target(kit);
         switch (step.heavyIndex()) {
             case 0 -> {
@@ -75,7 +75,7 @@ public final class AssassinDeployCombo extends BaseCombo {
             case 1 -> ComboParts.bomb(kit, "assassin_decoy", target, 36, 3.2, rate, 0.0);
             case 2 -> {
                 Vector toward = target.toVector().subtract(feet.toVector()).setY(0.0);
-                Vector facing = toward.lengthSquared() < 1.0 ? kit.facing() : toward.normalize();
+                Vector facing = toward.lengthSquared() < 1.0 ? kit.originFacing() : toward.normalize();
                 for (int index = 0; index < 3; index++) {
                     Location spot = kit.ground(feet.clone().add(facing.clone().multiply(3.0 + 2.5 * index)));
                     kit.later(index * 2L, () -> ComboParts.mine(kit, "assassin_mines_" + spot.getBlockX() + "_" + spot.getBlockZ(), spot, 1.8, 2.8, rate, 0.0));

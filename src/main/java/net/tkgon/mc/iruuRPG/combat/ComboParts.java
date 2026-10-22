@@ -21,13 +21,24 @@ final class ComboParts {
     private ComboParts() {
     }
 
-    /** Where the player aims, no further than {@link #REACH} blocks, on the ground. */
+    /**
+     * The middle of what a placed-thing combo puts down: a few blocks ahead of where the combo began (not of where the player stands now, nor where they aim),
+     * leaned toward the aim by up to 3 blocks so the player can still choose the side, on the ground.
+     */
     static Location target(MoveKit kit) {
+        Location origin = kit.origin();
+        Vector facing = kit.originFacing();
+        Location centre = origin.clone().add(facing.multiply(3.0));
         Location aim = kit.aim();
-        Location from = kit.player.getLocation();
-        Vector away = aim.toVector().subtract(from.toVector());
-        if (away.length() > REACH) aim = from.clone().add(away.normalize().multiply(REACH));
-        return kit.ground(aim);
+        Vector lean = aim.toVector().subtract(centre.toVector()).setY(0.0);
+        if (lean.length() > 3.0) lean = lean.normalize().multiply(3.0);
+        return kit.ground(centre.add(lean));
+    }
+
+    /** A light that comes down on the spot where something is set (nothing is thrown from the player's hand). */
+    static void appear(MoveKit kit, Location at) {
+        kit.line(at.clone().add(0.0, 5.0, 0.0), at.clone().add(0.0, 0.3, 0.0), 0.2, 1.0, 1.2);
+        kit.burst(at.clone().add(0.0, 0.3, 0.0), 0.9);
     }
 
     /** Where a thrown or conjured thing leaves the player's hand. */
@@ -57,8 +68,9 @@ final class ComboParts {
      */
     static void mine(MoveKit kit, String key, Location to, double trigger, double radius, double rate, double slowPercent) {
         boolean[] set = {false};
-        kit.lob(hand(kit), to, 8, 1.5, land -> {
-            Location mine = land.clone();
+        appear(kit, to);
+        kit.later(2L, () -> {
+            Location mine = to.clone();
             kit.sound(mine, Sound.BLOCK_TRIPWIRE_ATTACH, 0.9f, 0.8f);
             kit.zone(key, mine, 55, 3, zone -> {
                 orb(kit, mine.clone().add(0.0, 0.4, 0.0), 0.3);
@@ -202,7 +214,8 @@ final class ComboParts {
     /** A lantern lobbed to {@code to}: see {@link #placeAt}. */
     static void place(MoveKit kit, String key, Location to, int life, int every, double radius, double rate, double slowPercent, double healPercent,
                       Consumer<Location> each) {
-        kit.lob(hand(kit), to, 6, 1.6, land -> placeAt(kit, key, land, life, every, radius, rate, slowPercent, healPercent, each));
+        appear(kit, to);
+        kit.later(2L, () -> placeAt(kit, key, to, life, every, radius, rate, slowPercent, healPercent, each));
     }
 
     /**
@@ -231,7 +244,8 @@ final class ComboParts {
 
     /** A turret lobbed to {@code to}: see {@link #turretAt}. */
     static void turret(MoveKit kit, String key, Location to, int life, int every, double range, double rate, Consumer<LivingEntity> onShot) {
-        kit.lob(hand(kit), to, 6, 1.6, land -> turretAt(kit, key, land, life, every, range, rate, onShot));
+        appear(kit, to);
+        kit.later(2L, () -> turretAt(kit, key, to, life, every, range, rate, onShot));
     }
 
     /** A lantern standing at {@code at} for {@code life} ticks that, every {@code every} ticks (a multiple of 2), shoots the nearest enemy within {@code range} for {@code rate}. */
@@ -262,7 +276,8 @@ final class ComboParts {
 
     /** A bomb lobbed to {@code to}: see {@link #bombAt}. */
     static void bomb(MoveKit kit, String key, Location to, int fuse, double radius, double rate, double knock) {
-        kit.lob(hand(kit), to, 6, 1.6, land -> bombAt(kit, key, land, fuse, radius, rate, knock));
+        appear(kit, to);
+        kit.later(2L, () -> bombAt(kit, key, to, fuse, radius, rate, knock));
     }
 
     /** A bomb that sits at {@code at} for {@code fuse} ticks (at most 60), its orb swelling and its reach shown, and then goes off: {@code rate} within {@code radius}, a push of {@code knock} (0 = none). */

@@ -88,6 +88,7 @@ public final class ClassEffectService {
         if (attackService != null) attackService.rangerHit(attacker, victim, weapon);
         assassinOnHit(attacker, victim, weapon, damage, profile, statuses);
         surgeOnHit(attacker, damage);
+        frenzyOnHit(attacker, victim, damage);
         if (statuses) mageOnHit(attacker, victim, damage, profile);
     }
 
@@ -247,9 +248,39 @@ public final class ClassEffectService {
     /** {until (ms), level, share of the damage dealt that comes back as health} of each warrior's surge. */
     private final Map<UUID, double[]> surge = new HashMap<>();
 
+    /** What each assassin dealt to each enemy during the frenzy (the item swap key, pressed again, gives back a share of it). */
+    private final Map<UUID, Map<UUID, Double>> frenzyDamage = new HashMap<>();
+    private final Map<UUID, Long> frenzyStarted = new HashMap<>();
+    /** Assassins whose echo damage is being dealt right now (it is not counted again). */
+    private final java.util.Set<UUID> echoing = new java.util.HashSet<>();
+
     /** The frenzy: for {@code seconds} the assassin's combo is stronger (see {@link AssassinMeleeCombo}). */
     public void activateFrenzy(Player player, double seconds, int level) {
         frenzy.put(player.getUniqueId(), new long[]{System.currentTimeMillis() + Math.round(seconds * 1000.0), level});
+        frenzyDamage.put(player.getUniqueId(), new HashMap<>());
+        frenzyStarted.put(player.getUniqueId(), System.currentTimeMillis());
+    }
+
+    public long frenzyElapsedMillis(Player player) {
+        Long started = frenzyStarted.get(player.getUniqueId());
+        return started == null ? 0L : System.currentTimeMillis() - started;
+    }
+
+    /** The damage dealt to each enemy since the frenzy began; forgets it. */
+    public Map<UUID, Double> takeFrenzyDamage(Player player) {
+        Map<UUID, Double> dealt = frenzyDamage.remove(player.getUniqueId());
+        return dealt == null ? new HashMap<>() : dealt;
+    }
+
+    public void setEchoing(Player player, boolean on) {
+        if (on) echoing.add(player.getUniqueId());
+        else echoing.remove(player.getUniqueId());
+    }
+
+    private void frenzyOnHit(Player attacker, LivingEntity victim, double damage) {
+        if (damage <= 0.0 || echoing.contains(attacker.getUniqueId()) || frenzyLevel(attacker) == 0) return;
+        Map<UUID, Double> dealt = frenzyDamage.get(attacker.getUniqueId());
+        if (dealt != null) dealt.merge(victim.getUniqueId(), damage, Double::sum);
     }
 
     /** 0 when the assassin is not in a frenzy, else its level (1, or 2 when upgraded). */
@@ -265,6 +296,7 @@ public final class ClassEffectService {
 
     public void endFrenzy(Player player) {
         frenzy.remove(player.getUniqueId());
+        frenzyDamage.remove(player.getUniqueId());
     }
 
     /** The surge: for {@code seconds} the warrior gets back {@code lifesteal} of every damage they deal. */
