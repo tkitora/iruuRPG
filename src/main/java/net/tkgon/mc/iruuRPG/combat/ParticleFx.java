@@ -54,10 +54,25 @@ public final class ParticleFx {
     public static final class Sink {
         private final Player owner;
         private final World world;
+        /** The share (0..1) of these particles the owner sees; everyone else sees all (the owner's own settings apply on top). */
+        private final double ownerShare;
 
         private Sink(Player owner, World world) {
+            this(owner, world, 1.0);
+        }
+
+        private Sink(Player owner, World world, double ownerShare) {
             this.owner = owner;
             this.world = world;
+            this.ownerShare = ownerShare;
+        }
+
+        /**
+         * The same sink, but the owner of the effect sees only {@code share} of the particles (0 = none, 1 = all), so an
+         * effect around the player does not block their own view while others still see all of it.
+         */
+        public Sink dimOwner(double share) {
+            return new Sink(owner, world, Math.max(0.0, Math.min(1.0, share)));
         }
 
         public void spawnParticle(Particle particle, Location at, int count) {
@@ -103,7 +118,8 @@ public final class ParticleFx {
         private <T> void send(Particle particle, double x, double y, double z, int count, double ox, double oy, double oz,
                               double extra, T data, boolean force) {
             ParticleSettings current = settings;
-            if (current == null || !current.anyCustom()) {
+            boolean dimmed = owner != null && ownerShare < 1.0;
+            if (!dimmed && (current == null || !current.anyCustom())) {
                 world.spawnParticle(particle, x, y, z, count, ox, oy, oz, extra, data, force);
                 return;
             }
@@ -116,8 +132,10 @@ public final class ParticleFx {
                 double dy = where.getY() - y;
                 double dz = where.getZ() - z;
                 if (dx * dx + dy * dy + dz * dz > rangeSquared) continue;
-                if (owner != null && !viewer.getUniqueId().equals(owner.getUniqueId()) && current.hideOthers(viewer)) continue;
-                int percent = current.percent(viewer);
+                boolean isOwner = owner != null && viewer.getUniqueId().equals(owner.getUniqueId());
+                if (owner != null && !isOwner && current != null && current.hideOthers(viewer)) continue;
+                int percent = current == null ? 100 : current.percent(viewer);
+                if (isOwner && ownerShare < 1.0) percent = (int) Math.round(percent * ownerShare);
                 if (percent <= 0) continue;
                 int shown = count;
                 if (percent < 100) {
