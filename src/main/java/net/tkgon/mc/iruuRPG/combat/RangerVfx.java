@@ -107,13 +107,8 @@ public final class RangerVfx {
         return new Vector[]{u, v};
     }
 
-    /**
-     * A magic circle under the sniper: two turning rings with spokes (one frame; {@code charge} 0..1 brightens it). Everyone but
-     * the sniper sees all of it; the sniper sees only the outer ring, so the circle does not get in the way of their aim.
-     */
-    public static void sniperCircle(org.bukkit.entity.Player owner, World world, Location feet, int tick, double charge) {
-        ParticleFx.Sink others = ParticleFx.to(owner, world).exceptOwner();
-        ParticleFx.Sink mine = ParticleFx.to(owner, world).onlyOwner();
+    /** A magic circle under the sniper: two turning rings with spokes (one frame; {@code charge} 0..1 brightens it). */
+    public static void sniperCircle(World world, Location feet, int tick, double charge) {
         double turn = tick * 0.08;
         for (int ring = 0; ring < 2; ring++) {
             double radius = ring == 0 ? 1.3 : 2.0;
@@ -121,19 +116,17 @@ public final class RangerVfx {
             for (int index = 0; index < points; index++) {
                 double angle = Math.PI * 2.0 * index / points + (ring == 0 ? turn : -turn);
                 Location point = feet.clone().add(Math.cos(angle) * radius, 0.05, Math.sin(angle) * radius);
-                org.bukkit.Particle.DustOptions color = index % 2 == 0 ? GOLD : ICE;
-                others.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, color, true);
-                if (ring == 1) mine.spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, color, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, point, 1, 0.0, 0.0, 0.0, 0.0, index % 2 == 0 ? GOLD : ICE, true);
             }
         }
         for (int spoke = 0; spoke < 4; spoke++) {
             double angle = turn + spoke * Math.PI / 2.0;
             for (double r = 0.3; r < 2.0; r += 0.45) {
-                others.spawnParticle(Particle.REDSTONE, feet.clone().add(Math.cos(angle) * r, 0.05, Math.sin(angle) * r), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
+                ParticleFx.to(world).spawnParticle(Particle.REDSTONE, feet.clone().add(Math.cos(angle) * r, 0.05, Math.sin(angle) * r), 1, 0.0, 0.0, 0.0, 0.0, WHITE, true);
             }
         }
         if (charge > 0.0 && tick % 2 == 0) {
-            others.spawnParticle(Particle.END_ROD, feet.clone().add(0.0, 0.1, 0.0), 1 + (int) (charge * 3), 1.0, 0.05, 1.0, 0.03);
+            ParticleFx.to(world).spawnParticle(Particle.END_ROD, feet.clone().add(0.0, 0.1, 0.0), 1 + (int) (charge * 3), 1.0, 0.05, 1.0, 0.03);
         }
     }
 

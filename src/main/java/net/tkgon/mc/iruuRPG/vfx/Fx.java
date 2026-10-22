@@ -86,6 +86,11 @@ public final class Fx {
         return active;
     }
 
+    /** The same effect, but everyone except its owner sees it. */
+    public Fx exceptOwner() {
+        return active ? new Fx(sink.exceptOwner(), step, true) : this;
+    }
+
     /** 1 normally, 2 for a far effect: how many of the points to step over in a loop of one's own. */
     public int step() {
         return step;
