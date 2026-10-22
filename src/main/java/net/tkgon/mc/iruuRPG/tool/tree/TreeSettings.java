@@ -1,0 +1,197 @@
+package net.tkgon.mc.iruuRPG.tool.tree;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+/**
+ * The settings of one tree: the numbers (kept in an array by {@link Key}, so the menu, the command and the yaml all read them the same way), the
+ * algorithm, the shape of the crown and the seed. {@link #clamp} keeps every value in its range. The maximum height and width are the size of
+ * the box the whole tree (leaves included) is kept inside.
+ */
+public final class TreeSettings {
+
+    public static final List<String> ALGORITHMS = List.of("colonization", "lsystem");
+    public static final List<String> CROWNS = List.of("ellipsoid", "cone", "umbrella");
+
+    /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
+    public enum Key {
+        HEIGHT("height", "高さ (最大)", 6, 80, 1, 5, "木全体 (葉を含む) の高さの上限 (ブロック)"),
+        WIDTH("width", "幅 (最大)", 4, 60, 1, 5, "木全体 (葉を含む) の幅の上限 (ブロック。南北・東西とも)"),
+        TRUNK_RADIUS("trunk-radius", "幹の太さ", 0.5, 5.0, 0.1, 0.5, "根元の幹の半径 (ブロック)。枝は分かれるごとに細くなる"),
+        TRUNK_RATIO("trunk-ratio", "枝のない幹の割合", 0.15, 0.7, 0.05, 0.1, "高さのうち、枝が出る前の幹の割合"),
+        DENSITY("density", "枝の多さ", 0.2, 3.0, 0.1, 0.5, "大きいほど枝が多く、密になる (樹冠の中の目標点の密度)"),
+        DROOP("droop", "枝の垂れ", -0.5, 0.8, 0.05, 0.2, "枝が下へ垂れる向き (負だと上へ伸びる)"),
+        LEAF_RADIUS("leaf-radius", "葉の大きさ", 0.0, 5.0, 0.25, 1.0, "枝の先にできる葉のかたまりの半径 (0 で葉なし)"),
+        LEAF_DENSITY("leaf-density", "葉の密度", 0.2, 1.0, 0.05, 0.2, "かたまりの中を葉で埋める割合"),
+        ROOTS("roots", "根の数", 0, 8, 1, 2, "地面に張り出す根の数");
+
+        private final String id;
+        private final String label;
+        private final double min;
+        private final double max;
+        private final double step;
+        private final double bigStep;
+        private final String description;
+
+        Key(String id, String label, double min, double max, double step, double bigStep, String description) {
+            this.id = id;
+            this.label = label;
+            this.min = min;
+            this.max = max;
+            this.step = step;
+            this.bigStep = bigStep;
+            this.description = description;
+        }
+
+        public String id() {
+            return id;
+        }
+
+        public String label() {
+            return label;
+        }
+
+        public double min() {
+            return min;
+        }
+
+        public double max() {
+            return max;
+        }
+
+        public double step() {
+            return step;
+        }
+
+        public double bigStep() {
+            return bigStep;
+        }
+
+        public String description() {
+            return description;
+        }
+
+        public boolean whole() {
+            return step >= 1.0;
+        }
+
+        public static Key byId(String id) {
+            for (Key key : values()) if (key.id.equalsIgnoreCase(id)) return key;
+            return null;
+        }
+    }
+
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4};
+    private String algorithm = "colonization";
+    private String crown = "ellipsoid";
+    /** 0 = a new random tree each time. */
+    private long seed;
+    private String name = "tree";
+
+    public TreeSettings copy() {
+        TreeSettings copy = new TreeSettings();
+        System.arraycopy(values, 0, copy.values, 0, values.length);
+        copy.algorithm = algorithm;
+        copy.crown = crown;
+        copy.seed = seed;
+        copy.name = name;
+        return copy;
+    }
+
+    public double get(Key key) {
+        return values[key.ordinal()];
+    }
+
+    public int getInt(Key key) {
+        return (int) Math.round(values[key.ordinal()]);
+    }
+
+    public void set(Key key, double value) {
+        double clamped = Math.max(key.min, Math.min(key.max, value));
+        values[key.ordinal()] = key.whole() ? Math.round(clamped) : Math.round(clamped * 1000.0) / 1000.0;
+    }
+
+    public void adjust(Key key, double delta) {
+        set(key, get(key) + delta);
+    }
+
+    public int height() {
+        return getInt(Key.HEIGHT);
+    }
+
+    public int width() {
+        return getInt(Key.WIDTH);
+    }
+
+    public String algorithm() {
+        return algorithm;
+    }
+
+    public void setAlgorithm(String algorithm) {
+        this.algorithm = ALGORITHMS.contains(algorithm) ? algorithm : "colonization";
+    }
+
+    public void cycleAlgorithm() {
+        setAlgorithm(ALGORITHMS.get((ALGORITHMS.indexOf(algorithm) + 1) % ALGORITHMS.size()));
+    }
+
+    public String crown() {
+        return crown;
+    }
+
+    public void setCrown(String crown) {
+        this.crown = CROWNS.contains(crown) ? crown : "ellipsoid";
+    }
+
+    public void cycleCrown() {
+        setCrown(CROWNS.get((CROWNS.indexOf(crown) + 1) % CROWNS.size()));
+    }
+
+    public long seed() {
+        return seed;
+    }
+
+    public void setSeed(long seed) {
+        this.seed = Math.max(0L, seed);
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name == null || name.isBlank() ? "tree" : name;
+    }
+
+    /** The name made safe for a file name (letters, digits, - and _), or null when nothing is left of it. */
+    public static String safeName(String name) {
+        if (name == null) return null;
+        String clean = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_-]", "");
+        return clean.isEmpty() || clean.length() > 32 ? null : clean;
+    }
+
+    /** The settings as a map for the yaml. */
+    public Map<String, Object> toMap() {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("algorithm", algorithm);
+        map.put("crown", crown);
+        for (Key key : Key.values()) map.put(key.id, key.whole() ? (Object) getInt(key) : (Object) get(key));
+        map.put("seed", seed);
+        return map;
+    }
+
+    /** Reads the settings from a map (what is missing keeps the default; what is out of range is brought into it). */
+    public static TreeSettings fromMap(Map<String, Object> map, String name) {
+        TreeSettings settings = new TreeSettings();
+        settings.setName(name);
+        if (map.get("algorithm") instanceof String text) settings.setAlgorithm(text);
+        if (map.get("crown") instanceof String text) settings.setCrown(text);
+        for (Key key : Key.values()) {
+            if (map.get(key.id) instanceof Number number) settings.set(key, number.doubleValue());
+        }
+        if (map.get("seed") instanceof Number number) settings.setSeed(number.longValue());
+        return settings;
+    }
+}

@@ -469,3 +469,24 @@ hud:
   # (アイテムのクールダウン表示は、武器のスキルだけ。スキルのクールタイムはゲージには出さない)
   # auto = どれかの通常攻撃がクールタイム中か、ダメージを与えていて DPS が 0 でない間 (終わって1.5秒まで) だけ出す (ふだんは HP / MP / DEF / Lv / XP の表示)、always = いつも出す、off = 出さない
   cooldown-gauges: auto
+
+# 木の生成ツール (/treetool)。木は部位ごとの色違いのウールで作る (あとから手動で本物のブロックに変える)
+treetool:
+  # 1本の木のブロック数の上限 (超えたら作らない)
+  max-blocks: 60000
+  # 1tickに置くブロック数 (置くのは少しずつ。多いと一瞬重くなる)
+  blocks-per-tick: 4000
+  # 元に戻せる木の数 (プレイヤーごと)
+  undo-steps: 5
+  # true にすると、地形など固いブロックも置き換える。false は空気と草花だけ
+  replace-solid: false
+  # メニューで設定できる高さと幅の上限
+  max-height: 80
+  max-width: 60
+  # 部位ごとのブロック
+  materials:
+    trunk: BROWN_WOOL
+    root: BLACK_WOOL
+    branch: ORANGE_WOOL
+    twig: YELLOW_WOOL
+    leaf: GREEN_WOOL

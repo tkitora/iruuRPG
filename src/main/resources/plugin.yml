@@ -33,6 +33,12 @@ commands:
     description: Plays a skill from skills/*.yml (or a template) so you can look at it (admins)
     usage: /skilltest <id> [self|dummy|mine] [element]
     permission: iruurpg.admin
+  treetool:
+    description: "Procedural tree tool (admins): gives the placement tool; set, save, load, undo"
+    usage: /treetool [give|off|menu|set|info|save|load|list|delete|undo|generate]
+    aliases:
+      - ptree
+    permission: iruurpg.admin
   storage:
     description: Opens your storage (admins; players use the ender chests around the world)
     usage: /storage
