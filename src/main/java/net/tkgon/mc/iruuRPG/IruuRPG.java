@@ -649,6 +649,7 @@ public final class IruuRPG extends JavaPlugin {
         );
         this.classSkillListener = new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard);
         getServer().getPluginManager().registerEvents(classSkillListener, this);
+        getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.listener.FrenzyCageListener(this, classEffectService), this);
     }
 
     private void setMenuItemHidden(Player player, boolean hidden) {

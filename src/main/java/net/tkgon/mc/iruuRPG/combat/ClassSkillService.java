@@ -365,7 +365,8 @@ public final class ClassSkillService {
     /**
      * The assassin's frenzy: for some seconds (8; 12 when upgraded) the assassin's combo is stronger (see {@link AssassinMeleeCombo}): the blows hit harder,
      * the normal attacks come faster, an enemy out of reach is blinked to, a shadow cuts again after every normal attack, and the status
-     * effects (confusion) land with every hit. A rush of shadow opens it, and the assassin is wrapped in it until it ends.
+     * effects (confusion) land with every hit. A rush of shadow opens it, and the assassin is wrapped in it until it ends. The assassin cannot go farther than 15 blocks from
+     * where it began ({@link net.tkgon.mc.iruuRPG.listener.FrenzyCageListener}), and heavy 0 is a dash instead of a clone.
      */
     private void satsujin(Player player, ClassSkillDefinition skill) {
         boolean upgraded = classService.hasSkill(profileManager.getOrCreate(player), SATSUJIN_UPGRADE);
@@ -419,6 +420,21 @@ public final class ClassSkillService {
                     image.sphereShell(lastImage.clone().add(0.0, 1.0, 0.0), 0.45, 0.0, 18, Clones.RED_BLACK, 0.9);
                     lastImage = feet.clone();
                     SkillFx.groundRing(owner, feet, 1.5, Clones.RED_BLACK, 0.6, 1.0);
+                }
+                // the edge of the circle the assassin cannot leave shows when it is close
+                double radius = plugin.getConfig().getDouble("class-effects.assassin.frenzy-radius", 15.0);
+                double dx = feet.getX() - base.getX();
+                double dz = feet.getZ() - base.getZ();
+                if (Math.hypot(dx, dz) > radius - 4.0) {
+                    double angle = Math.atan2(dz, dx);
+                    net.tkgon.mc.iruuRPG.vfx.Fx edge = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, player.getWorld(), feet);
+                    for (int index = -7; index <= 7; index++) {
+                        double a = angle + index * 0.045;
+                        double fade = 1.0 - Math.abs(index) / 8.0;
+                        for (double height : new double[]{0.2, 1.0, 1.8}) {
+                            edge.dust(base.getX() + Math.cos(a) * radius, feet.getY() + height, base.getZ() + Math.sin(a) * radius, Clones.RED_BLACK, 0.4 + 0.6 * fade, 1.2);
+                        }
+                    }
                 }
                 tick += 2;
             }
