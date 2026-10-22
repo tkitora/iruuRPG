@@ -31,6 +31,15 @@ public final class RpgMobListener implements Listener {
 
     @EventHandler
     public void onCombust(EntityCombustEvent event) {
+        // sunlight is a plain combust event (fire and lava come from a block, an attacker's flame from an entity):
+        // no RPG mob burns in the sun, whatever its fire-proof flag says
+        boolean plain = !(event instanceof org.bukkit.event.entity.EntityCombustByBlockEvent)
+                && !(event instanceof org.bukkit.event.entity.EntityCombustByEntityEvent);
+        if (plain && mobService.isRpgMob(event.getEntity())) {
+            event.setCancelled(true);
+            event.getEntity().setFireTicks(0);
+            return;
+        }
         if (!mobService.isFireProof(event.getEntity())) return;
 
         event.setCancelled(true);
