@@ -29,6 +29,13 @@ public final class ParticleFx {
         settings = particleSettings;
     }
 
+    /** False when {@code viewer} chose not to see the effects of other players and {@code owner} is another player (a clone entity follows it too). */
+    public static boolean canSee(Player viewer, Player owner) {
+        ParticleSettings current = settings;
+        if (current == null || owner == null || viewer.getUniqueId().equals(owner.getUniqueId())) return true;
+        return !current.hideOthers(viewer);
+    }
+
     /** The effects drawn in this tick (without an owner given) belong to {@code owner}. */
     public static void mark(Player owner) {
         markedOwner = owner;
