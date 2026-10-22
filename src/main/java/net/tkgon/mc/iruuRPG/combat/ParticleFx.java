@@ -50,29 +50,33 @@ public final class ParticleFx {
         return new Sink(owner != null ? owner : owner(), world);
     }
 
+    private enum Audience { EVERYONE, ONLY_OWNER, EXCEPT_OWNER }
+
     /** The same calls as {@code World#spawnParticle}, so a call site only changes its receiver. */
     public static final class Sink {
         private final Player owner;
         private final World world;
-        /** The share (0..1) of these particles the owner sees; everyone else sees all (the owner's own settings apply on top). */
-        private final double ownerShare;
+        /** Who these particles go to (the owner of the effect, or everyone except them). Without an owner it is always everyone. */
+        private final Audience audience;
 
         private Sink(Player owner, World world) {
-            this(owner, world, 1.0);
+            this(owner, world, Audience.EVERYONE);
         }
 
-        private Sink(Player owner, World world, double ownerShare) {
+        private Sink(Player owner, World world, Audience audience) {
             this.owner = owner;
             this.world = world;
-            this.ownerShare = ownerShare;
+            this.audience = audience;
         }
 
-        /**
-         * The same sink, but the owner of the effect sees only {@code share} of the particles (0 = none, 1 = all), so an
-         * effect around the player does not block their own view while others still see all of it.
-         */
-        public Sink dimOwner(double share) {
-            return new Sink(owner, world, Math.max(0.0, Math.min(1.0, share)));
+        /** The same sink, but only the owner of the effect sees these particles. */
+        public Sink onlyOwner() {
+            return new Sink(owner, world, Audience.ONLY_OWNER);
+        }
+
+        /** The same sink, but everyone except the owner of the effect sees these particles. */
+        public Sink exceptOwner() {
+            return new Sink(owner, world, Audience.EXCEPT_OWNER);
         }
 
         public void spawnParticle(Particle particle, Location at, int count) {
@@ -118,8 +122,8 @@ public final class ParticleFx {
         private <T> void send(Particle particle, double x, double y, double z, int count, double ox, double oy, double oz,
                               double extra, T data, boolean force) {
             ParticleSettings current = settings;
-            boolean dimmed = owner != null && ownerShare < 1.0;
-            if (!dimmed && (current == null || !current.anyCustom())) {
+            boolean split = owner != null && audience != Audience.EVERYONE;
+            if (!split && (current == null || !current.anyCustom())) {
                 world.spawnParticle(particle, x, y, z, count, ox, oy, oz, extra, data, force);
                 return;
             }
@@ -133,9 +137,10 @@ public final class ParticleFx {
                 double dz = where.getZ() - z;
                 if (dx * dx + dy * dy + dz * dz > rangeSquared) continue;
                 boolean isOwner = owner != null && viewer.getUniqueId().equals(owner.getUniqueId());
+                if (split && audience == Audience.ONLY_OWNER && !isOwner) continue;
+                if (split && audience == Audience.EXCEPT_OWNER && isOwner) continue;
                 if (owner != null && !isOwner && current != null && current.hideOthers(viewer)) continue;
                 int percent = current == null ? 100 : current.percent(viewer);
-                if (isOwner && ownerShare < 1.0) percent = (int) Math.round(percent * ownerShare);
                 if (percent <= 0) continue;
                 int shown = count;
                 if (percent < 100) {

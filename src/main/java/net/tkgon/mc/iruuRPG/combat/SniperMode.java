@@ -156,8 +156,7 @@ public final class SniperMode implements Listener {
                     player.setFallDistance(0.0f);
                     if (state.age % 2 == 0) {
                         double charge = state.chargeAge < 0 || state.chargeTicks <= 0 ? 0.0 : Math.min(1.0, (double) state.chargeAge / state.chargeTicks);
-                        RangerVfx.sniperCircle(player, player.getWorld(), player.getLocation().add(0.0, -0.9, 0.0), state.age, charge,
-                                plugin.getConfig().getDouble("combat.sniper.circle-own-percent", 20.0) / 100.0);
+                        RangerVfx.sniperCircle(player, player.getWorld(), player.getLocation().add(0.0, -0.9, 0.0), state.age, charge);
                     }
                     if (state.chargeAge >= 0) {
                         chargeTick(player, state);
