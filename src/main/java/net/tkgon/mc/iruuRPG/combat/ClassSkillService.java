@@ -364,7 +364,7 @@ public final class ClassSkillService {
 
     /**
      * The assassin's frenzy: for some seconds (8; 12 when upgraded) the assassin's combo is stronger (see {@link AssassinMeleeCombo}): the blows hit harder,
-     * the normal attacks come faster, an enemy out of reach is blinked to, a shadow cuts again after every normal attack, heavy 0 has no cooldown, and the status
+     * the normal attacks come faster, an enemy out of reach is blinked to, a shadow cuts again after every normal attack, and the status
      * effects (confusion) land with every hit. A rush of shadow opens it, and the assassin is wrapped in it until it ends.
      */
     private void satsujin(Player player, ClassSkillDefinition skill) {
@@ -376,7 +376,7 @@ public final class ClassSkillService {
         classEffectService.activateFrenzy(player, seconds, upgraded ? 2 : 1);
         int total = (int) Math.round(seconds * 20.0);
         attackService.statusUnlimited(player, total + 10);
-        // every clone that stood is destroyed, and three are flung forward; each copies the next two attacks
+        // every clone that stood is destroyed, and three are flung forward; each copies the next five attacks
         attackService.assassinSwapClones(player, attackService.weaponInMainHand(player), total);
 
         World world = player.getWorld();

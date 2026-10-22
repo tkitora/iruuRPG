@@ -29,15 +29,25 @@ final class Clones {
 
     /**
      * How a clone looks: the gradient of its dust (trail, figure when it is not an entity, cuts), the outline of its body, whether it is drawn in high quality, and whether
-     * its blows are drawn as straight horizontal lines (the slashes of the item swap's echo) instead of arcs.
+     * its blows are drawn as straight horizontal lines (the slashes of the item swap's echo) instead of arcs. {@code scale} under 1 draws the figure of particles at that
+     * size, with no entity and no glow (the server cannot scale a player entity): the clones that only come for a blow of the combo.
      */
-    record Look(Gradient gradient, CloneBody.Tint tint, boolean quality, boolean lineCuts) {
+    record Look(Gradient gradient, CloneBody.Tint tint, boolean quality, boolean lineCuts, double scale) {
         static Look ghost() {
-            return new Look(GHOST, CloneBody.Tint.GRAY, false, false);
+            return new Look(GHOST, CloneBody.Tint.GRAY, false, false, 1.0);
         }
 
         static Look swap(boolean lineCuts) {
-            return new Look(RED_BLACK, CloneBody.Tint.RED, true, lineCuts);
+            return new Look(RED_BLACK, CloneBody.Tint.RED, true, lineCuts, 1.0);
+        }
+
+        /** A clone that comes for a blow of the combo: small, no glow; red and black while the item swap skill lasts, grey otherwise. */
+        static Look effect(boolean swapSkillOn, double scale) {
+            return new Look(swapSkillOn ? RED_BLACK : GHOST, CloneBody.Tint.NONE, swapSkillOn, false, scale);
+        }
+
+        boolean drawnAsParticles() {
+            return scale < 1.0;
         }
     }
 
@@ -121,13 +131,13 @@ final class Clones {
                 if (!bodyTried) {
                     bodyTried = true;
                     Location at = new Location(world, x, last.getY(), z, (float) Math.toDegrees(yaw), 0.0f);
-                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner), look.tint());
+                    if (!look.drawnAsParticles()) body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner), look.tint());
                 }
                 if (body != null) {
                     body.moveTo(x, last.getY(), z, Math.toDegrees(yaw));
-                    trail(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality);
+                    trail(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality, 1.0);
                 } else {
-                    figure(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality, look.tint() == CloneBody.Tint.GRAY);
+                    figure(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality, look.tint() == CloneBody.Tint.GRAY || gradient == GHOST, look.scale());
                 }
                 tick++;
             }
@@ -169,13 +179,13 @@ final class Clones {
                 if (!bodyTried) {
                     bodyTried = true;
                     Location at = new Location(world, x, y, z, (float) Math.toDegrees(yaw), 0.0f);
-                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner), look.tint());
+                    if (!look.drawnAsParticles()) body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner), look.tint());
                 }
                 if (body != null) {
                     body.moveTo(x, y, z, Math.toDegrees(yaw));
-                    trail(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality);
+                    trail(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality, 1.0);
                 } else {
-                    figure(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality, look.tint() == CloneBody.Tint.GRAY);
+                    figure(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality, look.tint() == CloneBody.Tint.GRAY || gradient == GHOST, look.scale());
                 }
                 tick++;
             }
@@ -220,74 +230,85 @@ final class Clones {
      * 0 - 1 takes the brightness down.
      */
     static void figure(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality) {
-        figure(owner, gradient, world, x, y, z, yaw, pose, fade, quality, false);
+        figure(owner, gradient, world, x, y, z, yaw, pose, fade, quality, false, 1.0);
     }
 
     /** The same; {@code ghost} draws it sparser and fainter, grey and see-through. */
     static void figure(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality, boolean ghost) {
+        figure(owner, gradient, world, x, y, z, yaw, pose, fade, quality, ghost, 1.0);
+    }
+
+    /** The same at {@code scale} of the size of the assassin (0.7: small). */
+    static void figure(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality, boolean ghost, double scale) {
         Fx fx = Fx.of(owner, world, x, y, z);
         if (!fx.active()) return;
         if (ghost) fade *= 0.65;
+        double k = scale;
         double fx0 = -Math.sin(yaw);
         double fz0 = Math.cos(yaw);
         double rx = -Math.cos(yaw);
         double rz = -Math.sin(yaw);
         double bright = 0.25 + 0.75 * fade;
-        double size = (quality ? 1.15 : 1.0) * (0.7 + 0.3 * fade);
+        double size = (quality ? 1.15 : 1.0) * (0.7 + 0.3 * fade) * (0.5 + 0.5 * k);
         // head
-        Location head = new Location(world, x, y + 1.72, z);
-        fx.sphereShell(head, 0.2, 0.0, quality ? 26 : 16, gradient, size * 0.9);
+        Location head = new Location(world, x, y + 1.72 * k, z);
+        fx.sphereShell(head, 0.2 * k, 0.0, quality ? 26 : 16, gradient, size * 0.9);
         // body: two edges and the line down the middle, the shoulders across
-        double step = ghost ? 0.26 : quality ? 0.1 : 0.16;
-        for (double h = 0.85; h <= 1.45; h += step) {
-            double t = bright * (0.3 + 0.5 * (h - 0.85) / 0.6);
-            fx.dust(x + rx * 0.17, y + h, z + rz * 0.17, gradient, t, size);
-            fx.dust(x - rx * 0.17, y + h, z - rz * 0.17, gradient, t, size);
+        double step = (ghost ? 0.26 : quality ? 0.1 : 0.16) * k;
+        for (double h = 0.85 * k; h <= 1.45 * k; h += step) {
+            double t = bright * (0.3 + 0.5 * (h / k - 0.85) / 0.6);
+            fx.dust(x + rx * 0.17 * k, y + h, z + rz * 0.17 * k, gradient, t, size);
+            fx.dust(x - rx * 0.17 * k, y + h, z - rz * 0.17 * k, gradient, t, size);
             if (quality) fx.dust(x, y + h, z, gradient, t * 0.8, size);
         }
         // legs: one a step forward when the blade comes down
-        double stride = 0.1 + 0.35 * pose;
-        fx.line(new Location(world, x + rx * 0.12, y + 0.85, z + rz * 0.12), new Location(world, x + rx * 0.16 + fx0 * stride, y, z + rz * 0.16 + fz0 * stride), gradient, 0.2 * bright, 0.7 * bright, 0.0, size, step, null, 1);
-        fx.line(new Location(world, x - rx * 0.12, y + 0.85, z - rz * 0.12), new Location(world, x - rx * 0.16 - fx0 * stride * 0.5, y, z - rz * 0.16 - fz0 * stride * 0.5), gradient, 0.2 * bright, 0.7 * bright, 0.0, size, step, null, 1);
+        double stride = (0.1 + 0.35 * pose) * k;
+        fx.line(new Location(world, x + rx * 0.12 * k, y + 0.85 * k, z + rz * 0.12 * k), new Location(world, x + rx * 0.16 * k + fx0 * stride, y, z + rz * 0.16 * k + fz0 * stride), gradient, 0.2 * bright, 0.7 * bright, 0.0, size, step, null, 1);
+        fx.line(new Location(world, x - rx * 0.12 * k, y + 0.85 * k, z - rz * 0.12 * k), new Location(world, x - rx * 0.16 * k - fx0 * stride * 0.5, y, z - rz * 0.16 * k - fz0 * stride * 0.5), gradient, 0.2 * bright, 0.7 * bright, 0.0, size, step, null, 1);
         // the arm with the blade: raised at first, coming down and forward as the pose rises
-        double shoulderX = x + rx * 0.3;
-        double shoulderZ = z + rz * 0.3;
-        double handX = shoulderX + fx0 * (0.1 + 0.6 * pose) + rx * 0.1;
-        double handY = y + 1.45 + 0.5 - 1.0 * pose;
-        double handZ = shoulderZ + fz0 * (0.1 + 0.6 * pose) + rz * 0.1;
-        fx.line(new Location(world, shoulderX, y + 1.45, shoulderZ), new Location(world, handX, handY, handZ), gradient, 0.4 * bright, 0.8 * bright, 0.0, size, step, null, 1);
-        double bladeX = fx0 * (0.9 + 0.5 * pose);
-        double bladeY = 0.9 * (1.0 - pose) + (-0.3) * pose;
-        double bladeZ = fz0 * (0.9 + 0.5 * pose);
+        double shoulderX = x + rx * 0.3 * k;
+        double shoulderZ = z + rz * 0.3 * k;
+        double handX = shoulderX + fx0 * (0.1 + 0.6 * pose) * k + rx * 0.1 * k;
+        double handY = y + (1.45 + 0.5 - 1.0 * pose) * k;
+        double handZ = shoulderZ + fz0 * (0.1 + 0.6 * pose) * k + rz * 0.1 * k;
+        fx.line(new Location(world, shoulderX, y + 1.45 * k, shoulderZ), new Location(world, handX, handY, handZ), gradient, 0.4 * bright, 0.8 * bright, 0.0, size, step, null, 1);
+        double bladeX = fx0 * (0.9 + 0.5 * pose) * k;
+        double bladeY = (0.9 * (1.0 - pose) + (-0.3) * pose) * k;
+        double bladeZ = fz0 * (0.9 + 0.5 * pose) * k;
         fx.line(new Location(world, handX, handY, handZ), new Location(world, handX + bladeX, handY + bladeY, handZ + bladeZ), gradient, 0.7 * bright, 1.0, 0.0, size * 1.1, step, null, 1);
         // the other arm hangs
-        fx.line(new Location(world, x - rx * 0.3, y + 1.45, z - rz * 0.3), new Location(world, x - rx * 0.36 + fx0 * 0.1, y + 0.9, z - rz * 0.36 + fz0 * 0.1), gradient, 0.3 * bright, 0.6 * bright, 0.0, size, step, null, 1);
-        trail(owner, gradient, world, x, y, z, yaw, pose, fade, quality);
+        fx.line(new Location(world, x - rx * 0.3 * k, y + 1.45 * k, z - rz * 0.3 * k), new Location(world, x - rx * 0.36 * k + fx0 * 0.1 * k, y + 0.9 * k, z - rz * 0.36 * k + fz0 * 0.1 * k), gradient, 0.3 * bright, 0.6 * bright, 0.0, size, step, null, 1);
+        trail(owner, gradient, world, x, y, z, yaw, pose, fade, quality, k);
     }
 
     /** The trail of shadow behind a clone (long lines streaming back, and with quality afterimages of the head): the part drawn also when the body is an entity. */
     static void trail(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality) {
+        trail(owner, gradient, world, x, y, z, yaw, pose, fade, quality, 1.0);
+    }
+
+    static void trail(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality, double scale) {
         Fx fx = Fx.of(owner, world, x, y, z);
         if (!fx.active()) return;
+        double k = scale;
         double fx0 = -Math.sin(yaw);
         double fz0 = Math.cos(yaw);
         double rx = -Math.cos(yaw);
         double rz = -Math.sin(yaw);
         double bright = 0.25 + 0.75 * fade;
-        double size = (quality ? 1.15 : 1.0) * (0.7 + 0.3 * fade);
-        double step = quality ? 0.1 : 0.16;
+        double size = (quality ? 1.15 : 1.0) * (0.7 + 0.3 * fade) * (0.5 + 0.5 * k);
+        double step = (quality ? 0.1 : 0.16) * k;
         // a trail of shadow behind: long lines streaming back (and, with quality, afterimages of the head)
         int streams = quality ? 5 : 3;
         for (int stream = 0; stream < streams; stream++) {
-            double spread = (stream - (streams - 1) / 2.0) * 0.18;
-            double h = 1.2 + 0.1 * stream;
+            double spread = (stream - (streams - 1) / 2.0) * 0.18 * k;
+            double h = (1.2 + 0.1 * stream) * k;
             Location from = new Location(world, x + rx * spread, y + h, z + rz * spread);
-            Location to = new Location(world, x + rx * spread - fx0 * (0.9 + 0.3 * pose), y + h - 0.35, z + rz * spread - fz0 * (0.9 + 0.3 * pose));
+            Location to = new Location(world, x + rx * spread - fx0 * (0.9 + 0.3 * pose) * k, y + h - 0.35 * k, z + rz * spread - fz0 * (0.9 + 0.3 * pose) * k);
             fx.line(from, to, gradient, 0.5 * bright, 0.05, 1.5, size * 0.8, step * 1.5, null, 1);
         }
         if (quality) {
             for (int image = 1; image <= 2; image++) {
-                fx.sphereShell(new Location(world, x - fx0 * 0.45 * image, y + 1.72, z - fz0 * 0.45 * image), 0.2 - 0.04 * image, 0.0, 14, gradient, size * (0.8 - 0.2 * image));
+                fx.sphereShell(new Location(world, x - fx0 * 0.45 * image * k, y + 1.72 * k, z - fz0 * 0.45 * image * k), (0.2 - 0.04 * image) * k, 0.0, 14, gradient, size * (0.8 - 0.2 * image));
             }
         }
     }

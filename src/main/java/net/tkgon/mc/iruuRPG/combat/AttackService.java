@@ -348,8 +348,13 @@ public final class AttackService {
         }
         ClassCombo combo = classComboFor(attacker, weapon);
         startChainIfFresh(attacker, combo.spec().plan());
-        // (in a frenzy the assassin's heavy 0 has no cooldown)
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, assassinFrenzy(attacker) > 0 && "assassin".equals(equipmentService.classIdOf(attacker)), combo.spec().plan());
+        // the assassin's heavy click with no normal attack since heavy 0 is its re-activation (one more clone, then the charge) while its clones stand
+        if (AssassinMeleeCombo.PLAN.equals(combo.spec().plan()) && meleeCombo.done(attacker, combo.spec().plan()) == 0 && AssassinClones.canRecast(attacker)) {
+            beginAttack(attacker);
+            AssassinClones.recast(kit(attacker, weapon), assassinFrenzy(attacker) >= 2 ? 1.35 : assassinFrenzy(attacker) == 1 ? 1.2 : 1.0);
+            return true;
+        }
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, combo.spec().plan());
         if (step == null) {
             // (a held button waits for the cooldown without a "no" sound at every repeat)
             if (!held) attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
@@ -1279,6 +1284,8 @@ public final class AttackService {
         // an invulnerable moment, a guard and the warrior's shields cut the damage (shields break)
         if (guard != null) damage = guard.absorb(player, damage);
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);
+        // during the item swap skill a blow of 40% of the assassin's life or more is taken by the clones of the skill (all destroyed) and nullified
+        if (assassinFrenzy(player) > 0 && AssassinClones.sacrifice(player, finalDamage, profile.maxHp(), plugin.getConfig().getDouble("combat.combo.assassin_melee.swap-guard-share", 0.4))) return;
         profile.setCurrentHp(profile.currentHp() - finalDamage);
 
         if (profile.currentHp() <= 0.0 && !player.isDead()) {
