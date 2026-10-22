@@ -6,11 +6,13 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * Turns a skeleton into blocks: every branch is walked in steps of 0.4 block and a ball of its radius is filled at each step, the part chosen by the
- * thickness (a trunk from 60% of the trunk's radius, a branch from 30% of it (0.52 at least), a twig the rest); leaves are filled blobs at the ends of the twigs, with gaps
- * by the leaf density; roots are balls along their paths. Where two parts meet the stronger stays ({@link TreePart#priority}). Blocks outside the box of
- * the settings are dropped, so the height and the width are a hard limit. Coordinates of a block: x and z from the block the tree stands on, y up from its
- * bottom (a block with integer coordinates (x, y, z) is centred on (x, y + 0.5, z)).
+ * Turns a skeleton into blocks: every branch is walked in steps of 0.4 block and a ball of its radius is filled at each step. The part comes from the level of the
+ * stem (trunk, branch, twig; for a skeleton without levels, from the thickness). So a trunk does not come out as a square post, its radius is changed on the way:
+ * it flares out near the ground (the flare setting), has a rough bark (a small change of the radius from place to place), and a ball only takes the blocks well
+ * inside its radius, which keeps the corners off a thick stem. Leaves are clumps at the leaf places of the skeleton: ragged ellipsoids (the edge moved in and out
+ * from block to block) thinned by the leaf density. Roots are balls along their paths. Where two parts meet the stronger stays ({@link TreePart#priority}).
+ * Blocks outside the box of the settings are dropped, so the height and the width are a hard limit. Coordinates of a block: x and z from the block the tree
+ * stands on, y up from its bottom (a block with integer coordinates (x, y, z) is centred on (x, y + 0.5, z)).
  */
 public final class TreeVoxelizer {
 
@@ -56,7 +58,9 @@ public final class TreeVoxelizer {
         put(bx, by, bz, part);
         if (radius < 0.55) return;
         int reach = (int) Math.ceil(radius);
-        double limit = radius * radius;
+        // only blocks well inside the radius: the corner of a 3 x 3 stays off a stem 1.5 thick
+        double inside = radius >= 0.9 ? radius * 0.93 : radius;
+        double limit = inside * inside;
         for (int x = bx - reach; x <= bx + reach; x++) {
             for (int y = by - reach; y <= by + reach; y++) {
                 for (int z = bz - reach; z <= bz + reach; z++) {
@@ -69,13 +73,19 @@ public final class TreeVoxelizer {
         }
     }
 
+    private static double roughness(double x, double y, double z) {
+        return 0.5 * (Math.sin(x * 2.3 + y * 1.1) + Math.sin(z * 1.9 - y * 2.7 + 1.3));
+    }
+
     private void fillWood(TreeSkeleton skeleton, TreeSettings settings) {
         double trunk = settings.get(TreeSettings.Key.TRUNK_RADIUS);
+        double flare = settings.get(TreeSettings.Key.FLARE);
+        double flareHeight = Math.max(2.0, trunk * 3.0);
         List<TreeSkeleton.Node> nodes = skeleton.nodes;
         for (int index = 0; index < nodes.size(); index++) {
             TreeSkeleton.Node node = nodes.get(index);
             if (node.parent < 0) {
-                ball(node.x, node.y, node.z, node.radius, TreePart.TRUNK);
+                ball(node.x, node.y, node.z, node.radius * (1.0 + flare), TreePart.TRUNK);
                 continue;
             }
             TreeSkeleton.Node parent = nodes.get(node.parent);
@@ -87,8 +97,21 @@ public final class TreeVoxelizer {
             for (int step = 0; step <= steps; step++) {
                 double t = step / (double) steps;
                 double radius = parent.radius + (node.radius - parent.radius) * t;
-                TreePart part = radius >= trunk * 0.6 ? TreePart.TRUNK : radius >= Math.max(0.52, trunk * 0.3) ? TreePart.BRANCH : TreePart.TWIG;
-                ball(parent.x + dx * t, parent.y + dy * t, parent.z + dz * t, radius, part);
+                double x = parent.x + dx * t;
+                double y = parent.y + dy * t;
+                double z = parent.z + dz * t;
+                TreePart part;
+                if (node.level >= 0) {
+                    part = node.level == 0 ? TreePart.TRUNK : node.level == 1 || (node.level == 2 && radius >= 0.55) ? TreePart.BRANCH : TreePart.TWIG;
+                } else {
+                    part = radius >= trunk * 0.6 ? TreePart.TRUNK : radius >= Math.max(0.52, trunk * 0.3) ? TreePart.BRANCH : TreePart.TWIG;
+                }
+                if (part == TreePart.TRUNK) {
+                    // flare near the ground, rough bark
+                    double low = Math.max(0.0, 1.0 - y / flareHeight);
+                    radius *= (1.0 + flare * low * low) * (1.0 + 0.12 * roughness(x, y, z));
+                }
+                ball(x, y, z, radius, part);
             }
         }
     }
@@ -109,27 +132,27 @@ public final class TreeVoxelizer {
         }
     }
 
-    /** Leaf blobs at every end of a branch, and at a share of the thin branches before them. */
+    /** Ragged clumps of leaves at the leaf places of the skeleton, thinned by the leaf density. */
     private void fillLeaves(TreeSkeleton skeleton, TreeSettings settings, Random random) {
         double leaf = settings.get(TreeSettings.Key.LEAF_RADIUS);
         if (leaf < 0.4) return;
         double density = settings.get(TreeSettings.Key.LEAF_DENSITY);
-        for (TreeSkeleton.Node node : skeleton.nodes) {
-            boolean tip = node.children == 0;
-            if (!tip && !(node.radius <= 0.6 && random.nextDouble() < 0.45)) continue;
-            double radius = leaf * (0.8 + 0.3 * random.nextDouble());
-            double vertical = radius * 0.8;
-            int bx = (int) Math.round(node.x);
-            int by = (int) Math.floor(node.y);
-            int bz = (int) Math.round(node.z);
-            int reach = (int) Math.ceil(radius);
+        for (double[] place : skeleton.leaves) {
+            double radius = leaf * place[3] * (0.8 + 0.3 * random.nextDouble());
+            double vertical = Math.max(0.5, radius * place[4]);
+            int bx = (int) Math.round(place[0]);
+            int by = (int) Math.floor(place[1]);
+            int bz = (int) Math.round(place[2]);
+            int reach = (int) Math.ceil(radius) + 1;
             for (int x = bx - reach; x <= bx + reach; x++) {
                 for (int y = by - reach; y <= by + reach; y++) {
                     for (int z = bz - reach; z <= bz + reach; z++) {
-                        double dx = (x - node.x) / radius;
-                        double dy = (y + 0.5 - node.y) / vertical;
-                        double dz = (z - node.z) / radius;
-                        if (dx * dx + dy * dy + dz * dz > 1.0) continue;
+                        double dx = (x - place[0]) / radius;
+                        double dy = (y + 0.5 - place[1]) / vertical;
+                        double dz = (z - place[2]) / radius;
+                        // the edge of the clump moves in and out from block to block
+                        double edge = 1.0 + 0.45 * roughness(x * 1.7, y * 1.3, z * 1.9);
+                        if (dx * dx + dy * dy + dz * dz > edge) continue;
                         if (random.nextDouble() > density) continue;
                         put(x, y, z, TreePart.LEAF);
                     }

@@ -12,8 +12,8 @@ import java.util.Map;
  */
 public final class TreeSettings {
 
-    public static final List<String> ALGORITHMS = List.of("colonization", "lsystem");
-    public static final List<String> CROWNS = List.of("ellipsoid", "cone", "umbrella");
+    public static final List<String> ALGORITHMS = List.of("parametric", "conifer", "colonization", "lsystem");
+    public static final List<String> CROWNS = List.of("ellipsoid", "cone", "umbrella", "columnar");
 
     /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
     public enum Key {
@@ -25,7 +25,14 @@ public final class TreeSettings {
         DROOP("droop", "枝の垂れ", -0.5, 0.8, 0.05, 0.2, "枝が下へ垂れる向き (負だと上へ伸びる)"),
         LEAF_RADIUS("leaf-radius", "葉の大きさ", 0.0, 5.0, 0.25, 1.0, "枝の先にできる葉のかたまりの半径 (0 で葉なし)"),
         LEAF_DENSITY("leaf-density", "葉の密度", 0.2, 1.0, 0.05, 0.2, "かたまりの中を葉で埋める割合"),
-        ROOTS("roots", "根の数", 0, 8, 1, 2, "地面に張り出す根の数");
+        ROOTS("roots", "根の数", 0, 8, 1, 2, "地面に張り出す根の数"),
+        BRANCH_ANGLE("branch-angle", "枝の開き角", 20, 110, 5, 15, "幹から枝が出る角度 (度。90で水平、小さいほど上向き)"),
+        BRANCHES("branches", "太い枝の数", 3, 40, 1, 5, "幹から出る一番太い枝の数 (パラメトリック・針葉樹)"),
+        LEVELS("levels", "枝分かれの段数", 1, 3, 1, 1, "枝がさらに枝を出す段数 (1 = 幹と枝だけ、3 = 小枝まで)"),
+        CURVE("curve", "曲がり", 0.0, 1.0, 0.05, 0.2, "幹と枝のうねり・傾き (0 でまっすぐ)"),
+        TAPER("taper", "先細り", 0.2, 1.0, 0.05, 0.2, "幹が先へ向かって細くなる度合い (1 で先端まで細る)"),
+        FLARE("flare", "根元の広がり", 0.0, 2.0, 0.1, 0.5, "地面に近い幹の太くなり方"),
+        LEAF_FLATNESS("leaf-flatness", "葉の厚み", 0.3, 1.3, 0.05, 0.2, "葉のかたまりの縦と横の比 (小さいほど平たい)");
 
         private final String id;
         private final String label;
@@ -83,8 +90,8 @@ public final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4};
-    private String algorithm = "colonization";
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8};
+    private String algorithm = "parametric";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */
     private long seed;
@@ -130,7 +137,7 @@ public final class TreeSettings {
     }
 
     public void setAlgorithm(String algorithm) {
-        this.algorithm = ALGORITHMS.contains(algorithm) ? algorithm : "colonization";
+        this.algorithm = ALGORITHMS.contains(algorithm) ? algorithm : "parametric";
     }
 
     public void cycleAlgorithm() {

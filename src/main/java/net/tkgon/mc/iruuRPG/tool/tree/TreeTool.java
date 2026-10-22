@@ -199,7 +199,7 @@ public final class TreeTool implements Listener {
         long seed = settings.seed() != 0L ? settings.seed() : new Random().nextLong() & Long.MAX_VALUE;
         Location base = session.base.clone();
         session.busy = true;
-        player.sendMessage(PREFIX + "木を作っています… (" + (settings.algorithm().equals("lsystem") ? "L-system" : "空間コロニー化") + ", 高さ " + settings.height() + " 幅 " + settings.width() + ")");
+        player.sendMessage(PREFIX + "木を作っています… (" + algorithmLabel(settings.algorithm()) + ", 高さ " + settings.height() + " 幅 " + settings.width() + ")");
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks;
             try {
@@ -334,13 +334,19 @@ public final class TreeTool implements Listener {
 
     /** The word the tool is called by in messages, for the menu and the command. */
     public static String algorithmLabel(String algorithm) {
-        return "lsystem".equals(algorithm) ? "L-system (Honda 型)" : "空間コロニー化";
+        return switch (algorithm) {
+            case "lsystem" -> "L-system (Honda 型)";
+            case "colonization" -> "空間コロニー化";
+            case "conifer" -> "針葉樹 (輪生)";
+            default -> "パラメトリック (Weber-Penn 型)";
+        };
     }
 
     public static String crownLabel(String crown) {
         return switch (crown.toLowerCase(Locale.ROOT)) {
             case "cone" -> "円錐 (針葉樹)";
             case "umbrella" -> "傘 (平らなドーム)";
+            case "columnar" -> "円柱 (細長い)";
             default -> "楕円体";
         };
     }

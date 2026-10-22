@@ -31,15 +31,17 @@ import java.util.Random;
 public final class TreeMenu implements Listener {
 
     private static final int SIZE = 54;
-    private static final int[] KEY_SLOTS = {10, 11, 12, 13, 14, 15, 16, 19, 20};
+    private static final int[] KEY_SLOTS = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25, 28, 29};
     private static final Material[] KEY_ICONS = {
             Material.LADDER, Material.LEAD, Material.OAK_LOG, Material.STICK, Material.VINE, Material.WEEPING_VINES,
-            Material.OAK_LEAVES, Material.AZALEA_LEAVES, Material.MANGROVE_ROOTS};
-    private static final int ALGORITHM = 22;
-    private static final int CROWN = 23;
-    private static final int SEED = 24;
-    private static final int INFO = 28;
-    private static final int[] LEGEND_SLOTS = {30, 31, 32, 33, 34};
+            Material.OAK_LEAVES, Material.AZALEA_LEAVES, Material.MANGROVE_ROOTS,
+            Material.BAMBOO, Material.OAK_FENCE, Material.FERN, Material.CHAIN, Material.STRIPPED_OAK_LOG, Material.DARK_OAK_LOG,
+            Material.FLOWERING_AZALEA_LEAVES};
+    private static final int ALGORITHM = 30;
+    private static final int CROWN = 31;
+    private static final int SEED = 32;
+    private static final int INFO = 33;
+    private static final int[] LEGEND_SLOTS = {38, 39, 40, 41, 42};
     private static final int CLOSE = 45;
     private static final int LOAD = 47;
     private static final int SAVE = 48;
@@ -111,12 +113,14 @@ public final class TreeMenu implements Listener {
         }
 
         inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + TreeTool.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
-                text("空間コロニー化: 樹冠の中に目標点をばらまき、枝がそこへ伸びる (自然な形)", NamedTextColor.GRAY),
-                text("L-system: Honda 型の分岐規則を繰り返す (規則的な形)", NamedTextColor.GRAY),
+                text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型。標準)", NamedTextColor.GRAY),
+                text("針葉樹: 幹のまわりに輪になって枝が出る、円錐形 (pinegen 型)", NamedTextColor.GRAY),
+                text("空間コロニー化: 樹冠の中の目標点へ枝が伸びる (自然な不規則さ)", NamedTextColor.GRAY),
+                text("L-system: Honda 型の分岐規則の繰り返し (規則的な形)", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
         inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: " + TreeTool.crownLabel(settings.crown()), NamedTextColor.AQUA, List.of(
-                text("枝が埋める空間の形 (空間コロニー化のとき)", NamedTextColor.GRAY),
-                text("楕円体 / 円錐 (針葉樹) / 傘 (平らなドーム)", NamedTextColor.GRAY),
+                text("枝の長さの分布・枝が埋める空間の形 (L-system 以外)", NamedTextColor.GRAY),
+                text("楕円体 / 円錐 / 傘 (高いところの枝が長い) / 円柱", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
         inventory.setItem(SEED, item(Material.WHEAT_SEEDS, "シード: " + (settings.seed() == 0L ? "毎回ランダム" : Long.toString(settings.seed())), NamedTextColor.AQUA, List.of(
                 text("同じシードと設定なら、同じ木ができる", NamedTextColor.GRAY),
