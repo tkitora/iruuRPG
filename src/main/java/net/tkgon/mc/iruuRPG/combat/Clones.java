@@ -1,5 +1,6 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import net.tkgon.mc.iruuRPG.combat.clone.CloneBody;
 import net.tkgon.mc.iruuRPG.vfx.Fx;
 import net.tkgon.mc.iruuRPG.vfx.Gradient;
 import net.tkgon.mc.iruuRPG.vfx.Trig;
@@ -40,11 +41,15 @@ final class Clones {
             private int tick;
             private Location last = first.clone();
             private int swung;
+            /** The clone as an entity with the owner's skin (null: the figure of particles). */
+            private CloneBody body;
+            private boolean bodyTried;
 
             @Override
             protected void tick() {
                 ParticleFx.mark(owner);
                 if (tick >= total || !owner.isOnline()) {
+                    if (body != null) body.remove();
                     cancel();
                     return;
                 }
@@ -79,9 +84,20 @@ final class Clones {
                         swung = index + 1;
                         onHit.accept(index);
                         cut(owner, gradient, last, dirX, dirZ, index, quality);
+                        if (body != null) body.swing();
                     }
                 }
-                figure(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality);
+                if (!bodyTried) {
+                    bodyTried = true;
+                    Location at = new Location(world, x, last.getY(), z, (float) Math.toDegrees(yaw), 0.0f);
+                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner));
+                }
+                if (body != null) {
+                    body.moveTo(x, last.getY(), z, Math.toDegrees(yaw));
+                    trail(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality);
+                } else {
+                    figure(owner, gradient, world, x, last.getY(), z, yaw, pose, fade, quality);
+                }
                 tick++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -97,11 +113,14 @@ final class Clones {
         double yaw = Math.atan2(-(to.getX() - from.getX()), -(to.getZ() - from.getZ()));
         new SafeTask(plugin) {
             private int tick;
+            private CloneBody body;
+            private boolean bodyTried;
 
             @Override
             protected void tick() {
                 ParticleFx.mark(owner);
                 if (tick >= ticks + FADE || !owner.isOnline()) {
+                    if (body != null) body.remove();
                     cancel();
                     return;
                 }
@@ -112,7 +131,17 @@ final class Clones {
                 double z = from.getZ() + (to.getZ() - from.getZ()) * eased;
                 double fade = tick < ticks ? Math.min(1.0, (tick + 1) / 2.0) : (ticks + FADE - tick) / (double) FADE;
                 if (tick < ticks) onStep.accept(tick);
-                figure(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality);
+                if (!bodyTried) {
+                    bodyTried = true;
+                    Location at = new Location(world, x, y, z, (float) Math.toDegrees(yaw), 0.0f);
+                    body = CloneBody.entity(plugin, owner, at, 64.0, viewer -> ParticleFx.canSee(viewer, owner));
+                }
+                if (body != null) {
+                    body.moveTo(x, y, z, Math.toDegrees(yaw));
+                    trail(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality);
+                } else {
+                    figure(owner, gradient, world, x, y, z, yaw, tick < ticks ? 0.8 : 0.3, fade, quality);
+                }
                 tick++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -175,6 +204,20 @@ final class Clones {
         fx.line(new Location(world, handX, handY, handZ), new Location(world, handX + bladeX, handY + bladeY, handZ + bladeZ), gradient, 0.7 * bright, 1.0, 0.0, size * 1.1, step, null, 1);
         // the other arm hangs
         fx.line(new Location(world, x - rx * 0.3, y + 1.45, z - rz * 0.3), new Location(world, x - rx * 0.36 + fx0 * 0.1, y + 0.9, z - rz * 0.36 + fz0 * 0.1), gradient, 0.3 * bright, 0.6 * bright, 0.0, size, step, null, 1);
+        trail(owner, gradient, world, x, y, z, yaw, pose, fade, quality);
+    }
+
+    /** The trail of shadow behind a clone (long lines streaming back, and with quality afterimages of the head): the part drawn also when the body is an entity. */
+    static void trail(Player owner, Gradient gradient, World world, double x, double y, double z, double yaw, double pose, double fade, boolean quality) {
+        Fx fx = Fx.of(owner, world, x, y, z);
+        if (!fx.active()) return;
+        double fx0 = -Math.sin(yaw);
+        double fz0 = Math.cos(yaw);
+        double rx = -Math.cos(yaw);
+        double rz = -Math.sin(yaw);
+        double bright = 0.25 + 0.75 * fade;
+        double size = (quality ? 1.15 : 1.0) * (0.7 + 0.3 * fade);
+        double step = quality ? 0.1 : 0.16;
         // a trail of shadow behind: long lines streaming back (and, with quality, afterimages of the head)
         int streams = quality ? 5 : 3;
         for (int stream = 0; stream < streams; stream++) {

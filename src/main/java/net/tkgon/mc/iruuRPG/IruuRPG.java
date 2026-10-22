@@ -364,6 +364,7 @@ public final class IruuRPG extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        net.tkgon.mc.iruuRPG.combat.clone.CloneBody.removeAll();
         if (dungeonEditor != null) {
             dungeonEditor.shutdown();
         }
