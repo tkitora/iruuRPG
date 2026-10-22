@@ -887,6 +887,10 @@ public final class RpgMobService {
         entity.setPersistent(definition.persistent());
         entity.setRemoveWhenFarAway(definition.removeWhenFarAway());
         entity.setFireTicks(0);
+        // undead do not burn in the sun (the fire-proof flag is only for fire and lava)
+        if (entity instanceof org.bukkit.entity.Zombie zombie) zombie.setShouldBurnInDay(false);
+        if (entity instanceof org.bukkit.entity.AbstractSkeleton skeleton) skeleton.setShouldBurnInDay(false);
+        if (entity instanceof org.bukkit.entity.Phantom phantom) phantom.setShouldBurnInDay(false);
         if (definition.ai()) configureDriven(entity);
 
         if (entity instanceof Ageable ageable) {
