@@ -1,11 +1,11 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 /** A way of growing the skeleton of a tree from its settings. Pure arithmetic (no server calls), so it can run off the main thread. */
-public interface TreeAlgorithm {
+interface TreeAlgorithm {
 
     TreeSkeleton grow(TreeSettings settings, Random random);
 

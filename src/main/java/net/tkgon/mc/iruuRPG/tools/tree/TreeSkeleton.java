@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -8,7 +8,7 @@ import java.util.List;
  * paths and the places leaves hang. Coordinates are in blocks from the middle of the bottom of the block the tree stands on; y is up. Nodes are always added
  * after the node they grow from, so a pass from the last to the first reaches every child before its parent.
  */
-public final class TreeSkeleton {
+final class TreeSkeleton {
 
     /** One point of the skeleton. {@code level}: 0 trunk, 1 a branch off the trunk, 2 and more the branches off branches; -1 when the algorithm does not say (the thickness decides). */
     public static final class Node {

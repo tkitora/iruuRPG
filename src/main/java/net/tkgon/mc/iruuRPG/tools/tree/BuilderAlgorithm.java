@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,7 +16,7 @@ import java.util.Random;
  * </ul>
  * The size of a cloud is 1.5 times the leaf radius of the settings. The box of the settings counts the clouds: the branches stop that far from its edge.
  */
-public final class BuilderAlgorithm implements TreeAlgorithm {
+final class BuilderAlgorithm implements TreeAlgorithm {
 
     private static final double GOLDEN = Math.toRadians(137.5);
     private static final double CLOUD = 1.5;

@@ -485,10 +485,14 @@ hud:
 treetool:
   # 1本の木のブロック数の上限 (超えたら作らない)
   max-blocks: 60000
-  # 1tickに置くブロック数 (置くのは少しずつ。多いと一瞬重くなる)
+  # 1tickに調べて置くブロック数 (少しずつ。多いと一瞬重くなる)
   blocks-per-tick: 4000
-  # 元に戻せる木の数 (プレイヤーごと)
-  undo-steps: 5
+  # (木は FastAsyncWorldEdit 経由で置くので、//undo と //redo で戻せる)
+  # プレビュー (ガラスの木): 設定を最後に変えてから反映するまでの tick (15 = 0.75秒。変えるたびに数え直す)
+  preview-delay-ticks: 15
+  # プレビューで1tickに送るブロック数 / プレビューする木のブロック数の上限 (超えたら見せない)
+  preview-blocks-per-tick: 3000
+  preview-max-blocks: 40000
   # true にすると、地形など固いブロックも置き換える。false は空気と草花だけ
   replace-solid: false
   # メニューで設定できる高さと幅の上限

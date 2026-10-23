@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -10,7 +10,7 @@ import java.util.Random;
  * cone, spreading nearly level and drooping, the tips curling up; short twigs leave each branch in turns on both sides, and needles (flattened clumps of leaves)
  * hang along the branches and twigs.
  */
-public final class ConiferAlgorithm implements TreeAlgorithm {
+final class ConiferAlgorithm implements TreeAlgorithm {
 
     @Override
     public TreeSkeleton grow(TreeSettings settings, Random random) {

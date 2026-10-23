@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -10,7 +10,7 @@ import java.util.Map;
  * algorithm, the shape of the crown and the seed. {@link #clamp} keeps every value in its range. The maximum height and width are the size of
  * the box the whole tree (leaves included) is kept inside.
  */
-public final class TreeSettings {
+final class TreeSettings {
 
     public static final List<String> ALGORITHMS = List.of("builder", "conifer", "parametric", "colonization", "lsystem");
     public static final List<String> CROWNS = List.of("ellipsoid", "cone", "umbrella", "columnar");
@@ -32,7 +32,10 @@ public final class TreeSettings {
         CURVE("curve", "曲がり", 0.0, 1.0, 0.05, 0.2, "幹と枝のうねり・傾き (0 でまっすぐ)"),
         TAPER("taper", "先細り", 0.2, 1.0, 0.05, 0.2, "幹が先へ向かって細くなる度合い (1 で先端まで細る)"),
         FLARE("flare", "根元の広がり", 0.0, 2.0, 0.1, 0.5, "地面に近い幹の太くなり方"),
-        LEAF_FLATNESS("leaf-flatness", "葉の厚み", 0.3, 1.3, 0.05, 0.2, "葉のかたまりの縦と横の比 (小さいほど平たい)");
+        LEAF_FLATNESS("leaf-flatness", "葉の厚み", 0.3, 1.3, 0.05, 0.2, "葉のかたまりの縦と横の比 (小さいほど平たい)"),
+        TRUNK_FORKS("trunk-forks", "幹の分岐数", 0, 3, 1, 1, "幹が途中で分かれる本数 (0 = 分かれない。針葉樹は分かれない)"),
+        FORK_HEIGHT("fork-height", "分岐の高さ", 0.2, 0.9, 0.05, 0.1, "幹が分かれる高さ (幹の高さに対する割合)"),
+        FORK_ANGLE("fork-angle", "分岐の開き角", 10, 60, 2, 10, "分かれた幹が、真上から外へ開く角度 (度)");
 
         private final String id;
         private final String label;
@@ -90,7 +93,7 @@ public final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8};
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28};
     private String algorithm = "builder";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */

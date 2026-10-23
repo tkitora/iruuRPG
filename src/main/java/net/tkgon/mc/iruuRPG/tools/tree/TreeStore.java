@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Map;
 
 /** The settings of trees saved by name, one yaml file each in {@code plugins/iruuRPG/treetools/}. */
-public final class TreeStore {
+final class TreeStore {
 
     private final JavaPlugin plugin;
 

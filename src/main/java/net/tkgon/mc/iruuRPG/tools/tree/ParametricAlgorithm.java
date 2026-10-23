@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -12,7 +12,7 @@ import java.util.Random;
  * (or down, by the droop setting) a little each step. Leaves hang on the last level. The result is the usual forked, layered tree, and the numbers of the
  * settings (angle, count, levels, curve, taper, flare) are the ones such tools have.
  */
-public final class ParametricAlgorithm implements TreeAlgorithm {
+final class ParametricAlgorithm implements TreeAlgorithm {
 
     private static final double GOLDEN = Math.toRadians(137.5);
 

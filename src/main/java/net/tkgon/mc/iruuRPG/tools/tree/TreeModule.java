@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -16,6 +16,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
@@ -24,9 +25,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
@@ -36,67 +35,98 @@ import java.util.Random;
 import java.util.UUID;
 
 /**
- * The procedural tree tool (admins). {@code /treetool} gives a placement tool (a sapling); clicking a block with it opens the settings menu
- * ({@link TreeMenu}) for a tree standing on that block; the menu starts the generation. The skeleton of the tree is grown and turned into blocks off
- * the main thread ({@link TreeAlgorithm}, {@link TreeVoxelizer}: arithmetic only), then the blocks are put in the world a few thousand a tick, bottom
- * first. Every part of the tree is a wool of its own colour ({@link TreePart}) to be changed into real blocks by hand. Only air and plants are
- * replaced (not terrain), unless the config says otherwise, and the last few trees can be taken back.
+ * The procedural tree tool (admins). {@code /treetool} gives a placement tool (a sapling); clicking a block with it opens the settings menu ({@link TreeMenu}) for a tree
+ * standing on that block. The menu can turn the preview on ({@link TreePreview}: the tree as stained glass, to that player alone, following the settings), and starts the
+ * generation: the skeleton of the tree is grown and turned into blocks off the main thread ({@link TreeGenerator}), and the blocks are put in the world through
+ * FastAsyncWorldEdit in the player's own edit session ({@link TreeWorldEdit}), so {@code //undo} and {@code //redo} take the whole tree back and put it again. Every part of
+ * the tree is a wool of its own colour ({@link TreePart}) to be changed into real blocks by hand. Only air and plants are replaced (not terrain), unless the config says
+ * otherwise. Like the brush this is a tool, not game logic: it lives in this package, has its own command, item and listeners, and the rest of the plugin only starts it.
  */
-public final class TreeTool implements Listener {
+public final class TreeModule implements Listener {
 
-    private static final String PREFIX = "[木] ";
-
-    /** What one player has in hand: the settings being edited, where the tree would stand and the trees that can be taken back. */
-    public static final class Session {
-        public TreeSettings settings = new TreeSettings();
-        public Location base;
-        boolean busy;
-        final Deque<List<Undo>> undo = new ArrayDeque<>();
-    }
-
-    private record Undo(int x, int y, int z, BlockData old) {
-    }
+    static final String PREFIX = "[木] ";
 
     private final JavaPlugin plugin;
     private final NamespacedKey toolKey;
     private final TreeStore store;
     private final TreeMenu menu;
-    private final Map<UUID, Session> sessions = new HashMap<>();
+    private final TreePreview preview;
+    private final boolean worldEdit;
+    private final Map<UUID, TreeSession> sessions = new HashMap<>();
 
-    public TreeTool(JavaPlugin plugin) {
+    /** Starts the tree tool: registers its listeners and its command. Never throws: a failure is logged and the tool is simply not there. */
+    public static TreeModule start(JavaPlugin plugin) {
+        try {
+            TreeModule module = new TreeModule(plugin);
+            plugin.getServer().getPluginManager().registerEvents(module, plugin);
+            plugin.getServer().getPluginManager().registerEvents(module.menu, plugin);
+            org.bukkit.command.PluginCommand command = plugin.getCommand("treetool");
+            if (command != null) {
+                TreeCommand handler = new TreeCommand(module);
+                command.setExecutor(handler);
+                command.setTabCompleter(handler);
+            }
+            return module;
+        } catch (RuntimeException | LinkageError exception) {
+            plugin.getLogger().warning("Tree tool not started: " + exception);
+            return null;
+        }
+    }
+
+    private TreeModule(JavaPlugin plugin) {
         this.plugin = plugin;
         this.toolKey = new NamespacedKey(plugin, "tree_tool");
         this.store = new TreeStore(plugin);
         this.menu = new TreeMenu(this);
+        this.preview = new TreePreview(this);
+        this.worldEdit = plugin.getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit")
+                || plugin.getServer().getPluginManager().isPluginEnabled("WorldEdit");
+        if (!worldEdit) plugin.getLogger().warning("Tree tool: WorldEdit / FastAsyncWorldEdit is not there, trees cannot be undone.");
     }
 
-    public JavaPlugin plugin() {
+    /** The plugin stops: every preview is taken back and no task is left. */
+    public void stop() {
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
+            if (sessions.containsKey(player.getUniqueId())) preview.drop(player);
+        }
+    }
+
+    JavaPlugin plugin() {
         return plugin;
     }
 
-    public TreeStore store() {
+    TreeStore store() {
         return store;
     }
 
-    public TreeMenu menu() {
+    TreeMenu menu() {
         return menu;
     }
 
-    public Session session(Player player) {
-        return sessions.computeIfAbsent(player.getUniqueId(), ignored -> new Session());
+    TreePreview preview() {
+        return preview;
+    }
+
+    TreeSession session(Player player) {
+        return sessions.computeIfAbsent(player.getUniqueId(), ignored -> new TreeSession());
+    }
+
+    /** A setting or the place changed: the preview, when it is on, follows after its wait. */
+    void changed(Player player) {
+        preview.touch(player);
     }
 
     // ---- config ---------------------------------------------------------------------------------------------------------
 
     /** The material of a part: {@code treetool.materials.<part>} of the config, else its wool. */
-    public Material material(TreePart part) {
+    Material material(TreePart part) {
         String name = plugin.getConfig().getString("treetool.materials." + part.key(), part.defaultMaterial().name());
         Material material = name == null ? null : Material.matchMaterial(name);
         return material != null && material.isBlock() ? material : part.defaultMaterial();
     }
 
     /** Keeps the settings inside the height and width the config allows. */
-    public void limit(TreeSettings settings) {
+    void limit(TreeSettings settings) {
         int maxHeight = plugin.getConfig().getInt("treetool.max-height", 80);
         int maxWidth = plugin.getConfig().getInt("treetool.max-width", 60);
         if (settings.height() > maxHeight) settings.set(TreeSettings.Key.HEIGHT, maxHeight);
@@ -105,7 +135,7 @@ public final class TreeTool implements Listener {
 
     // ---- the tool item ----------------------------------------------------------------------------------------------------
 
-    public ItemStack toolItem() {
+    ItemStack toolItem() {
         ItemStack item = new ItemStack(Material.OAK_SAPLING);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("木の配置ツール", NamedTextColor.GREEN, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
@@ -113,6 +143,8 @@ public final class TreeTool implements Listener {
                 text("ブロックをクリック: その上に立てる木の設定画面を開く", NamedTextColor.GRAY),
                 text("空中を右クリック: 前回の場所の設定画面を開く", NamedTextColor.GRAY),
                 text("設定画面の「生成」で、部位ごとのウールで木を作る", NamedTextColor.GRAY),
+                text("設定画面の「プレビュー」で、あなたにだけ見えるガラスの木を確かめられる", NamedTextColor.GRAY),
+                text("作った木は //undo で戻せる", NamedTextColor.GRAY),
                 text("/treetool off でこのツールを消す", NamedTextColor.DARK_GRAY)));
         meta.getPersistentDataContainer().set(toolKey, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
@@ -123,12 +155,12 @@ public final class TreeTool implements Listener {
         return Component.text(text, color).decoration(TextDecoration.ITALIC, false);
     }
 
-    public boolean isTool(ItemStack item) {
+    boolean isTool(ItemStack item) {
         if (item == null || item.getType() != Material.OAK_SAPLING || !item.hasItemMeta()) return false;
         return item.getItemMeta().getPersistentDataContainer().has(toolKey, PersistentDataType.BYTE);
     }
 
-    public void give(Player player) {
+    void give(Player player) {
         for (ItemStack item : player.getInventory().getContents()) {
             if (isTool(item)) {
                 player.sendMessage(PREFIX + "もう持っています。ブロックをクリックすると設定画面が開きます。");
@@ -139,7 +171,8 @@ public final class TreeTool implements Listener {
         player.sendMessage(PREFIX + "木の配置ツールを渡しました。ブロックをクリックすると、その上に立てる木の設定画面が開きます。");
     }
 
-    public void take(Player player) {
+    void take(Player player) {
+        preview.off(player, false);
         int removed = 0;
         ItemStack[] contents = player.getInventory().getContents();
         for (int slot = 0; slot < contents.length; slot++) {
@@ -160,12 +193,13 @@ public final class TreeTool implements Listener {
             player.sendMessage(PREFIX + "このツールは管理者だけが使えます。");
             return;
         }
-        Session session = session(player);
+        TreeSession session = session(player);
         Action action = event.getAction();
         if (action == Action.RIGHT_CLICK_BLOCK || action == Action.LEFT_CLICK_BLOCK) {
             Block clicked = event.getClickedBlock();
             if (clicked == null) return;
             session.base = clicked.getRelative(BlockFace.UP).getLocation();
+            changed(player);
             menu.open(player);
         } else if (action == Action.RIGHT_CLICK_AIR) {
             if (session.base == null) {
@@ -178,14 +212,21 @@ public final class TreeTool implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        preview.drop(event.getPlayer());
         sessions.remove(event.getPlayer().getUniqueId());
+    }
+
+    @EventHandler
+    public void onWorldChange(PlayerChangedWorldEvent event) {
+        TreeSession session = sessions.get(event.getPlayer().getUniqueId());
+        if (session != null && session.preview) preview.off(event.getPlayer(), true);
     }
 
     // ---- generating ---------------------------------------------------------------------------------------------------------
 
     /** Grows the tree of the player's settings on their base block and puts it in the world. */
-    public void generate(Player player) {
-        Session session = session(player);
+    void generate(Player player) {
+        TreeSession session = session(player);
         if (session.base == null || session.base.getWorld() == null) {
             player.sendMessage(PREFIX + "木を立てたいブロックをクリックしてください。");
             return;
@@ -196,16 +237,24 @@ public final class TreeTool implements Listener {
         }
         TreeSettings settings = session.settings.copy();
         limit(settings);
+        // (with the preview on the seed is fixed: the tree put in the world is the one that was shown)
         long seed = settings.seed() != 0L ? settings.seed() : new Random().nextLong() & Long.MAX_VALUE;
         Location base = session.base.clone();
+        boolean wasPreview = session.preview;
+        if (wasPreview) preview.off(player, false);
         session.busy = true;
         player.sendMessage(PREFIX + "木を作っています… (" + algorithmLabel(settings.algorithm()) + ", 高さ " + settings.height() + " 幅 " + settings.width() + ")");
+        TreeGround ground;
+        try {
+            ground = TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+        } catch (RuntimeException exception) {
+            ground = null;
+        }
+        TreeGround terrain = ground;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks;
             try {
-                Random random = new Random(seed);
-                TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
-                blocks = TreeVoxelizer.voxelize(skeleton, settings, random);
+                blocks = TreeGenerator.build(settings, seed, terrain);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("tree generation failed: " + exception);
                 Bukkit.getScheduler().runTask(plugin, () -> {
@@ -219,7 +268,11 @@ public final class TreeTool implements Listener {
         });
     }
 
-    private void place(Player player, Session session, Location base, Map<Long, TreePart> blocks, long seed) {
+    /**
+     * Puts the blocks in the world. The blocks that can be replaced are found a few thousand a tick (reading the world is the part that must stay on the main thread), then
+     * all of them go through one WorldEdit edit session of the player, so that one //undo takes the tree back. Without WorldEdit they are set directly, as they are found.
+     */
+    private void place(Player player, TreeSession session, Location base, Map<Long, TreePart> blocks, long seed) {
         int cap = plugin.getConfig().getInt("treetool.max-blocks", 60000);
         if (blocks.size() > cap) {
             session.busy = false;
@@ -234,16 +287,16 @@ public final class TreeTool implements Listener {
             int x = Integer.compare(TreeVoxelizer.unpackX(a), TreeVoxelizer.unpackX(b));
             return x != 0 ? x : Integer.compare(TreeVoxelizer.unpackZ(a), TreeVoxelizer.unpackZ(b));
         });
-        Map<TreePart, Material> materials = new EnumMap<>(TreePart.class);
-        for (TreePart part : TreePart.values()) materials.put(part, material(part));
+        Map<TreePart, BlockData> materials = new EnumMap<>(TreePart.class);
+        for (TreePart part : TreePart.values()) materials.put(part, material(part).createBlockData());
         boolean replaceSolid = plugin.getConfig().getBoolean("treetool.replace-solid", false);
         int perTick = Math.max(200, plugin.getConfig().getInt("treetool.blocks-per-tick", 4000));
-        int undoSteps = Math.max(0, plugin.getConfig().getInt("treetool.undo-steps", 5));
-        List<Undo> undo = new ArrayList<>();
+        List<TreeWorldEdit.Change> changes = new ArrayList<>();
         Map<TreePart, Integer> counts = new EnumMap<>(TreePart.class);
 
         new BukkitRunnable() {
             private int next;
+            private int direct;
 
             @Override
             public void run() {
@@ -255,12 +308,17 @@ public final class TreeTool implements Listener {
                         int y = base.getBlockY() + TreeVoxelizer.unpackY(key);
                         int z = base.getBlockZ() + TreeVoxelizer.unpackZ(key);
                         if (y < world.getMinHeight() || y >= world.getMaxHeight()) continue;
+                        if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
                         Block block = world.getBlockAt(x, y, z);
                         if (!replaceable(block, replaceSolid)) continue;
                         TreePart part = blocks.get(key);
-                        undo.add(new Undo(x, y, z, block.getBlockData()));
-                        block.setType(materials.get(part), false);
                         counts.merge(part, 1, Integer::sum);
+                        if (worldEdit) {
+                            changes.add(new TreeWorldEdit.Change(x, y, z, materials.get(part)));
+                        } else {
+                            block.setBlockData(materials.get(part), false);
+                            direct++;
+                        }
                     }
                     if (next >= order.size()) {
                         cancel();
@@ -275,22 +333,30 @@ public final class TreeTool implements Listener {
             }
 
             private void finish() {
-                session.busy = false;
-                if (undoSteps > 0 && !undo.isEmpty()) {
-                    session.undo.push(undo);
-                    while (session.undo.size() > undoSteps) session.undo.removeLast();
+                int count = direct;
+                boolean undoable = worldEdit;
+                if (worldEdit) {
+                    try {
+                        count = TreeWorldEdit.apply(player, world, changes);
+                    } catch (RuntimeException | LinkageError exception) {
+                        plugin.getLogger().warning("Tree: WorldEdit failed, putting the tree without undo: " + exception);
+                        for (TreeWorldEdit.Change change : changes) world.getBlockAt(change.x(), change.y(), change.z()).setBlockData(change.data(), false);
+                        count = changes.size();
+                        undoable = false;
+                    }
                 }
-                StringBuilder text = new StringBuilder(PREFIX + "できました (" + undo.size() + "ブロック, seed " + seed + "): ");
+                session.busy = false;
+                StringBuilder text = new StringBuilder(PREFIX + "できました (" + count + "ブロック, seed " + seed + "): ");
                 for (TreePart part : TreePart.values()) {
                     text.append(part.label()).append(' ').append(counts.getOrDefault(part, 0)).append("  ");
                 }
                 player.sendMessage(text.toString().trim());
-                player.sendMessage(PREFIX + "気に入らなければ /treetool undo (メニューの「元に戻す」)。seed を固定すると同じ木になります。");
+                player.sendMessage(PREFIX + (undoable ? "気に入らなければ //undo (やり直しは //redo)。" : "WorldEdit がないので戻せません。") + "seed を固定すると同じ木になります。");
             }
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    private static boolean replaceable(Block block, boolean replaceSolid) {
+    static boolean replaceable(Block block, boolean replaceSolid) {
         Material type = block.getType();
         if (type == Material.BEDROCK || type == Material.BARRIER) return false;
         if (replaceSolid) return true;
@@ -298,42 +364,25 @@ public final class TreeTool implements Listener {
         return type.isAir() || block.isReplaceable();
     }
 
-    /** Takes back the last tree of the player. */
-    public void undo(Player player) {
-        Session session = session(player);
-        if (session.busy) {
-            player.sendMessage(PREFIX + "木を作っている間は戻せません。");
+    /** Takes the last edit of the player back: the same as //undo (a tree, or a stroke of the brush). */
+    void undo(Player player) {
+        if (!worldEdit) {
+            player.sendMessage(PREFIX + "WorldEdit がないので戻せません。");
             return;
         }
-        List<Undo> last = session.undo.poll();
-        if (last == null) {
-            player.sendMessage(PREFIX + "戻せる木がありません。");
-            return;
-        }
-        World world = player.getWorld();
-        session.busy = true;
-        int perTick = Math.max(200, plugin.getConfig().getInt("treetool.blocks-per-tick", 4000));
-        new BukkitRunnable() {
-            private int index = last.size() - 1;
+        player.performCommand("/undo");
+    }
 
-            @Override
-            public void run() {
-                int stop = Math.max(-1, index - perTick);
-                for (; index > stop; index--) {
-                    Undo entry = last.get(index);
-                    world.getBlockAt(entry.x(), entry.y(), entry.z()).setBlockData(entry.old(), false);
-                }
-                if (index < 0) {
-                    cancel();
-                    session.busy = false;
-                    player.sendMessage(PREFIX + "戻しました (" + last.size() + "ブロック)。");
-                }
-            }
-        }.runTaskTimer(plugin, 0L, 1L);
+    void redo(Player player) {
+        if (!worldEdit) {
+            player.sendMessage(PREFIX + "WorldEdit がないので使えません。");
+            return;
+        }
+        player.performCommand("/redo");
     }
 
     /** The word the tool is called by in messages, for the menu and the command. */
-    public static String algorithmLabel(String algorithm) {
+    static String algorithmLabel(String algorithm) {
         return switch (algorithm) {
             case "lsystem" -> "L-system (Honda 型)";
             case "colonization" -> "空間コロニー化";
@@ -343,7 +392,7 @@ public final class TreeTool implements Listener {
         };
     }
 
-    public static String crownLabel(String crown) {
+    static String crownLabel(String crown) {
         return switch (crown.toLowerCase(Locale.ROOT)) {
             case "cone" -> "円錐 (針葉樹)";
             case "umbrella" -> "傘 (平らなドーム)";
