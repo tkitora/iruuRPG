@@ -86,7 +86,7 @@ public final class RangerDeployCombo implements ClassCombo {
             case 1 -> {
                 // a cage: eight lanterns in a ring round the aim; what is inside is cut and slowed
                 kit.sound(target, Sound.BLOCK_CHAIN_PLACE, 1.0f, 0.8f);
-                kit.zone("ranger_cage", target, 50, 4, zone -> {
+                kit.zone("ranger_cage", target, kit.linger(50), 4, zone -> {
                     boolean pulse = zone.age() % 12 == 0;
                     for (int index = 0; index < 8; index++) {
                         double angle = Math.PI * 2.0 * index / 8.0;
@@ -106,7 +106,7 @@ public final class RangerDeployCombo implements ClassCombo {
                 Vector side = new Vector(-forward.getZ(), 0.0, forward.getX());
                 Location middle = kit.ground(feet.clone().add(forward.clone().multiply(4.5)));
                 kit.sound(feet, Sound.BLOCK_CHAIN_PLACE, 1.0f, 0.8f);
-                kit.zone("ranger_wall", middle, 50, 4, zone -> {
+                kit.zone("ranger_wall", middle, kit.linger(50), 4, zone -> {
                     boolean pulse = zone.age() % 8 == 0;
                     for (int index = -2; index <= 2; index++) {
                         Location at = middle.clone().add(side.clone().multiply(index * 1.6));

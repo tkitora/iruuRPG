@@ -72,7 +72,7 @@ final class ComboParts {
         kit.later(2L, () -> {
             Location mine = to.clone();
             kit.sound(mine, Sound.BLOCK_TRIPWIRE_ATTACH, 0.9f, 0.8f);
-            kit.zone(key, mine, 55, 3, zone -> {
+            kit.zone(key, mine, kit.linger(55), 3, zone -> {
                 orb(kit, mine.clone().add(0.0, 0.4, 0.0), 0.3);
                 kit.fx(mine).flatRing(mine.clone().add(0.0, 0.1, 0.0), trigger - 0.1, 28, kit.palette(), 0.3, 0.3, 0.9);
                 if (!kit.around(mine, trigger).isEmpty()) {
@@ -96,7 +96,7 @@ final class ComboParts {
 
     /** A sigil on the ground at {@code at} for {@code life} ticks (at most 60): every {@code period} ticks it hits what stands in {@code radius}. {@code each} runs each pulse. */
     static void sigil(MoveKit kit, String key, Location at, double radius, double rate, int life, int period, Consumer<Location> each) {
-        kit.zone(key, at, life, period, zone -> {
+        kit.zone(key, at, kit.linger(life), period, zone -> {
             kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), radius, 56, kit.palette(), 0.5 + 0.4 * (1.0 - zone.progress()), 0.4, 1.0);
             kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), radius * 0.62, 36, kit.palette(), 0.8, 0.4, 1.0);
             kit.hitAll(kit.around(at, radius), rate);
@@ -226,7 +226,7 @@ final class ComboParts {
     static void placeAt(MoveKit kit, String key, Location at, int life, int every, double radius, double rate, double slowPercent, double healPercent,
                         Consumer<Location> each) {
         kit.sound(at, Sound.BLOCK_CHAIN_PLACE, 0.8f, 1.3f);
-        kit.zone(key, at, life, 2, zone -> {
+        kit.zone(key, at, kit.linger(life), 2, zone -> {
             boolean pulse = zone.age() % every == 0;
             standLantern(kit, at, 1.0, pulse ? 1.0 : 0.0);
             if (zone.age() % 6 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.12, 0.0), radius, (int) Math.max(18, radius * 8), kit.palette(), 0.35, 0.15, 0.8);
@@ -251,7 +251,7 @@ final class ComboParts {
     /** A lantern standing at {@code at} for {@code life} ticks that, every {@code every} ticks (a multiple of 2), shoots the nearest enemy within {@code range} for {@code rate}. */
     static void turretAt(MoveKit kit, String key, Location at, int life, int every, double range, double rate, Consumer<LivingEntity> onShot) {
         kit.sound(at, Sound.BLOCK_CHAIN_PLACE, 0.8f, 1.3f);
-        kit.zone(key, at, life, 2, zone -> {
+        kit.zone(key, at, kit.linger(life), 2, zone -> {
             boolean fire = zone.age() % every == 0;
             standLantern(kit, at, 1.2, fire ? 1.0 : 0.0);
             if (!fire) return;
@@ -303,7 +303,7 @@ final class ComboParts {
     static void rainBeacon(MoveKit kit, String key, Location at, int life, int every, double radius, double rate, Sfx sound) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         kit.sound(at, Sound.BLOCK_BEACON_ACTIVATE, 0.6f, 1.7f);
-        kit.zone(key, at, life, 2, zone -> {
+        kit.zone(key, at, kit.linger(life), 2, zone -> {
             for (double y = 0.0; y < 3.0; y += 0.4) kit.fx(at).dust(at.getX(), at.getY() + y, at.getZ(), kit.palette(), 0.3 + 0.5 * y / 3.0, 1.0);
             if (zone.age() % 6 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.12, 0.0), radius, (int) Math.max(24, radius * 9), kit.palette(), 0.4, 0.15, 0.8);
             if (zone.age() % every != 0) return;

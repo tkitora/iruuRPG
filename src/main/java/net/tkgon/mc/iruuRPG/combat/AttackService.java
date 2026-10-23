@@ -358,7 +358,10 @@ public final class AttackService {
         }
         DeployHold.Hold hold = holds().active(attacker);
         if (attacker.isSneaking()) {
-            attacker.sendMessage(holds().remove(attacker) ? "[iruuRPG] 設置を削除しました (クールタイムはそのままです)。" : "[iruuRPG] 削除する設置がありません。");
+            boolean removed = holds().remove(attacker);
+            // (what was set down at the placement goes with it)
+            if (removed && comboZones != null) comboZones.clear(attacker.getUniqueId());
+            attacker.sendMessage(removed ? "[iruuRPG] 設置を削除しました (置いた罠も消え、クールタイムはそのままです)。" : "[iruuRPG] 削除する設置がありません。");
             return;
         }
         if (hold == null) {
@@ -383,6 +386,9 @@ public final class AttackService {
     private MoveKit kitAt(Player attacker, RpgItemDefinition weapon, Location origin, org.bukkit.util.Vector facing) {
         MoveKit kit = new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
         kit.anchor(origin, facing);
+        // what is set down at the placement stays as long as the placement does
+        DeployHold.Hold hold = holds().active(attacker);
+        if (hold != null) kit.holdTicks((int) Math.max(0L, (hold.endsAt - System.currentTimeMillis()) / 50L));
         return kit;
     }
 

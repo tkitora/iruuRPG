@@ -347,6 +347,21 @@ public final class MoveKit {
         return attack.frenzyCenter(player);
     }
 
+    /** Ticks left of the placement of a deployed weapon this kit works for (0 when it does not work for one). */
+    private int holdTicks;
+
+    void holdTicks(int ticks) {
+        this.holdTicks = Math.max(0, ticks);
+    }
+
+    /**
+     * The life of something that is set down and stays (a trap, a lantern, a mine, a sigil): the life the combo gives it, or, when the attack is made at the placement of a
+     * deployed weapon, as long as the placement still lasts (the zones keep their own rhythm; only the time they are there grows).
+     */
+    int linger(int lifeTicks) {
+        return holdTicks > 0 ? Math.max(lifeTicks, holdTicks) : lifeTicks;
+    }
+
     JavaPlugin plugin() {
         return plugin;
     }
@@ -859,8 +874,8 @@ public final class MoveKit {
     /** Zones that stand for a time, kept by one task. */
     public static final class Zones {
 
-        /** The longest life of anything a combo puts in the world (3 seconds: less than a round of a combo). */
-        public static final int MAX_TICKS = 60;
+        /** The longest life of anything a combo puts in the world: 35 s, which a placement of a deployed weapon with a long effect time can ask for (the rest last 3 s or less). */
+        public static final int MAX_TICKS = 700;
 
         public static final class Zone {
             public final Player owner;
