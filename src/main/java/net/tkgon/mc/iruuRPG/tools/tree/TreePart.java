@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import org.bukkit.Material;
 
@@ -7,7 +7,7 @@ import org.bukkit.Material;
  * afterwards: log, leaves, ...). The lower the {@code priority}, the stronger the part where two meet. The materials can be changed in the config
  * under {@code treetool.materials}.
  */
-public enum TreePart {
+enum TreePart {
 
     TRUNK("trunk", "幹", 0, Material.BROWN_WOOL),
     ROOT("root", "根", 1, Material.BLACK_WOOL),

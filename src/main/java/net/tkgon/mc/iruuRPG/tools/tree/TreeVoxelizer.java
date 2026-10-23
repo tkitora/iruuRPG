@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.HashMap;
 import java.util.List;
@@ -14,7 +14,7 @@ import java.util.Random;
  * Blocks outside the box of the settings are dropped, so the height and the width are a hard limit. Coordinates of a block: x and z from the block the tree
  * stands on, y up from its bottom (a block with integer coordinates (x, y, z) is centred on (x, y + 0.5, z)).
  */
-public final class TreeVoxelizer {
+final class TreeVoxelizer {
 
     private final Map<Long, TreePart> blocks = new HashMap<>();
 
@@ -36,9 +36,14 @@ public final class TreeVoxelizer {
 
     /** The blocks of the tree: the part of every block, by {@link #pack}ed position. */
     public static Map<Long, TreePart> voxelize(TreeSkeleton skeleton, TreeSettings settings, Random random) {
+        return voxelize(skeleton, settings, random, null);
+    }
+
+    /** The same on {@code ground} (null: flat, no terrain known): the roots lie on the terrain where there is some. */
+    public static Map<Long, TreePart> voxelize(TreeSkeleton skeleton, TreeSettings settings, Random random, TreeGround ground) {
         TreeVoxelizer voxelizer = new TreeVoxelizer();
         voxelizer.fillWood(skeleton, settings);
-        voxelizer.fillRoots(skeleton);
+        voxelizer.fillRoots(skeleton, ground);
         voxelizer.fillLeaves(skeleton, settings, random);
         voxelizer.clip(settings);
         return voxelizer.blocks;
@@ -116,7 +121,11 @@ public final class TreeVoxelizer {
         }
     }
 
-    private void fillRoots(TreeSkeleton skeleton) {
+    /**
+     * The roots are balls along their paths; where the terrain is known, each ball is set on the surface under it (centre just above the top solid block, so the root lies
+     * on the ground and follows its slope) as long as the surface is within 5 blocks of where the path was; elsewhere the path stays as it was.
+     */
+    private void fillRoots(TreeSkeleton skeleton, TreeGround ground) {
         for (TreeSkeleton.RootPath path : skeleton.roots) {
             List<double[]> points = path.points();
             for (int index = 1; index < points.size(); index++) {
@@ -126,7 +135,14 @@ public final class TreeVoxelizer {
                 int steps = Math.max(1, (int) Math.ceil(length / 0.4));
                 for (int step = 0; step <= steps; step++) {
                     double t = step / (double) steps;
-                    ball(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t, TreePart.ROOT);
+                    double x = a[0] + (b[0] - a[0]) * t;
+                    double y = a[1] + (b[1] - a[1]) * t;
+                    double z = a[2] + (b[2] - a[2]) * t;
+                    if (ground != null) {
+                        int top = ground.top((int) Math.round(x), (int) Math.round(z));
+                        if (top != TreeGround.NONE && Math.abs(top + 1.0 - y) <= 5.0) y = top + 1.15;
+                    }
+                    ball(x, y, z, a[3] + (b[3] - a[3]) * t, TreePart.ROOT);
                 }
             }
         }
@@ -170,7 +186,7 @@ public final class TreeVoxelizer {
         }
     }
 
-    /** Drops what is outside the box: the height, and half the width each way from the middle of the trunk (and nothing deeper than 2 blocks into the ground). */
+    /** Drops what is outside the box: the height, and half the width each way from the middle of the trunk (and nothing deeper than 6 blocks into the ground: the roots follow the terrain down). */
     private void clip(TreeSettings settings) {
         int height = settings.height();
         double half = settings.width() / 2.0;
@@ -178,7 +194,7 @@ public final class TreeVoxelizer {
             int x = unpackX(key);
             int y = unpackY(key);
             int z = unpackZ(key);
-            return y < -2 || y >= height || Math.abs(x) > half || Math.abs(z) > half;
+            return y < -6 || y >= height || Math.abs(x) > half || Math.abs(z) > half;
         });
     }
 }

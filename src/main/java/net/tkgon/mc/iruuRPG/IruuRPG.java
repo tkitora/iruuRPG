@@ -138,6 +138,7 @@ public final class IruuRPG extends JavaPlugin {
     private DungeonEditor dungeonEditor;
     private net.tkgon.mc.iruuRPG.combat.RangerMoves rangerMoves;
     private net.tkgon.mc.iruuRPG.tools.brush.BrushModule brushModule;
+    private net.tkgon.mc.iruuRPG.tools.tree.TreeModule treeModule;
     private FieldSpawnerService fieldSpawnerService;
     private FieldSpawnerEditor fieldSpawnerEditor;
     private RewardChestMenu rewardChestMenu;
@@ -372,6 +373,7 @@ public final class IruuRPG extends JavaPlugin {
             attackService.shutdownCombos();
         }
         if (brushModule != null) brushModule.stop();
+        if (treeModule != null) treeModule.stop();
         if (attackService != null && attackService.guard() != null) {
             attackService.guard().shutdown();
         }
@@ -449,15 +451,8 @@ public final class IruuRPG extends JavaPlugin {
             skillTestCommand.setTabCompleter(skillTest);
         }
 
-        net.tkgon.mc.iruuRPG.tool.tree.TreeTool treeTool = new net.tkgon.mc.iruuRPG.tool.tree.TreeTool(this);
-        getServer().getPluginManager().registerEvents(treeTool, this);
-        getServer().getPluginManager().registerEvents(treeTool.menu(), this);
-        PluginCommand treeCommand = getCommand("treetool");
-        if (treeCommand != null) {
-            net.tkgon.mc.iruuRPG.tool.tree.TreeCommand tree = new net.tkgon.mc.iruuRPG.tool.tree.TreeCommand(treeTool);
-            treeCommand.setExecutor(tree);
-            treeCommand.setTabCompleter(tree);
-        }
+        // the tree tool for builders: it lives in tools/tree (like the brush) and nothing else knows about it
+        this.treeModule = net.tkgon.mc.iruuRPG.tools.tree.TreeModule.start(this);
 
         PluginCommand vfxCommand = getCommand("vfx");
         if (vfxCommand != null) {

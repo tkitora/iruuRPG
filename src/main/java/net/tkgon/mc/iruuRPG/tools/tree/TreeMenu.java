@@ -1,0 +1,354 @@
+package net.tkgon.mc.iruuRPG.tools.tree;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.gui.MenuHolder;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.ClickType;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
+import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.jetbrains.annotations.NotNull;
+
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Random;
+
+/**
+ * The settings screen of the tree tool, in pages by what is being set: the basics (place, algorithm, crown, seed, size), the trunk and roots, the branches and the leaves. A
+ * row of tabs on top moves between the pages, and the bottom row (close, preview, generate, undo and redo) is the same on all of them. Every number is a button (left click
+ * up, right click down, shift for bigger steps); every change is passed to the preview, which follows it after its wait. Settings cannot be saved from here (a stray click
+ * must not overwrite a saved tree): saving is {@code /treetool save <name>}; loading is here.
+ */
+final class TreeMenu implements Listener {
+
+    private static final int SIZE = 54;
+    /** Where the settings of a page go. */
+    private static final int[] GRID = {19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34};
+
+    // the bottom row (the same on every page)
+    private static final int CLOSE = 45;
+    private static final int PREVIEW = 47;
+    private static final int GENERATE = 49;
+    private static final int UNDO = 51;
+    private static final int REDO = 52;
+
+    // the basic page
+    private static final int INFO = 10;
+    private static final int ALGORITHM = 12;
+    private static final int CROWN = 13;
+    private static final int SEED = 14;
+    private static final int LOAD = 16;
+    private static final int RESET = 25;
+    private static final int[] LEGEND_SLOTS = {37, 38, 39, 40, 41};
+
+    /** The pages: the slot of the tab, its icon and name, and the numbers it holds. */
+    enum Page {
+        BASIC(2, Material.OAK_SAPLING, "基本", new TreeSettings.Key[]{TreeSettings.Key.HEIGHT, TreeSettings.Key.WIDTH}),
+        TRUNK(3, Material.OAK_LOG, "幹・根", new TreeSettings.Key[]{TreeSettings.Key.TRUNK_RADIUS, TreeSettings.Key.TAPER, TreeSettings.Key.FLARE, TreeSettings.Key.CURVE,
+                TreeSettings.Key.TRUNK_RATIO, TreeSettings.Key.ROOTS, TreeSettings.Key.TRUNK_FORKS, TreeSettings.Key.FORK_HEIGHT, TreeSettings.Key.FORK_ANGLE}),
+        BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{TreeSettings.Key.BRANCHES, TreeSettings.Key.LEVELS, TreeSettings.Key.DENSITY, TreeSettings.Key.BRANCH_ANGLE,
+                TreeSettings.Key.DROOP}),
+        LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS});
+
+        final int tab;
+        final Material icon;
+        final String label;
+        final TreeSettings.Key[] keys;
+
+        Page(int tab, Material icon, String label, TreeSettings.Key[] keys) {
+            this.tab = tab;
+            this.icon = icon;
+            this.label = label;
+            this.keys = keys;
+        }
+    }
+
+    private static final Map<TreeSettings.Key, Material> ICONS = new EnumMap<>(TreeSettings.Key.class);
+
+    static {
+        ICONS.put(TreeSettings.Key.HEIGHT, Material.LADDER);
+        ICONS.put(TreeSettings.Key.WIDTH, Material.LEAD);
+        ICONS.put(TreeSettings.Key.TRUNK_RADIUS, Material.OAK_LOG);
+        ICONS.put(TreeSettings.Key.TRUNK_RATIO, Material.STRIPPED_OAK_LOG);
+        ICONS.put(TreeSettings.Key.DENSITY, Material.STICK);
+        ICONS.put(TreeSettings.Key.DROOP, Material.WEEPING_VINES);
+        ICONS.put(TreeSettings.Key.LEAF_RADIUS, Material.OAK_LEAVES);
+        ICONS.put(TreeSettings.Key.LEAF_DENSITY, Material.AZALEA_LEAVES);
+        ICONS.put(TreeSettings.Key.ROOTS, Material.MANGROVE_ROOTS);
+        ICONS.put(TreeSettings.Key.BRANCH_ANGLE, Material.BAMBOO);
+        ICONS.put(TreeSettings.Key.BRANCHES, Material.OAK_FENCE);
+        ICONS.put(TreeSettings.Key.LEVELS, Material.FERN);
+        ICONS.put(TreeSettings.Key.CURVE, Material.CHAIN);
+        ICONS.put(TreeSettings.Key.TAPER, Material.CARROT_ON_A_STICK);
+        ICONS.put(TreeSettings.Key.FLARE, Material.DARK_OAK_LOG);
+        ICONS.put(TreeSettings.Key.LEAF_FLATNESS, Material.FLOWERING_AZALEA_LEAVES);
+        ICONS.put(TreeSettings.Key.TRUNK_FORKS, Material.JUNGLE_LOG);
+        ICONS.put(TreeSettings.Key.FORK_HEIGHT, Material.SPRUCE_LOG);
+        ICONS.put(TreeSettings.Key.FORK_ANGLE, Material.ACACIA_LOG);
+    }
+
+    private final TreeModule tool;
+
+    TreeMenu(TreeModule tool) {
+        this.tool = tool;
+    }
+
+    private static final class Holder implements MenuHolder {
+        private Inventory inventory;
+        private Page page = Page.BASIC;
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    void open(Player player) {
+        Holder holder = new Holder();
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("木の生成ツール"));
+        holder.inventory = inventory;
+        render(player, holder);
+        player.openInventory(inventory);
+    }
+
+    private static Component text(String text, NamedTextColor color) {
+        return Component.text(text, color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    private static ItemStack item(Material material, String name, NamedTextColor color, List<Component> lore) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text(name, color).decoration(TextDecoration.ITALIC, false));
+            meta.lore(lore);
+            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private static String number(TreeSettings.Key key, double value) {
+        return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
+    }
+
+    private void render(Player player, Holder holder) {
+        Inventory inventory = holder.inventory;
+        TreeSession session = tool.session(player);
+        TreeSettings settings = session.settings;
+        Page page = holder.page;
+        inventory.clear();
+        ItemStack frame = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
+        for (int slot = 0; slot < SIZE; slot++) {
+            if (slot < 9 || slot >= 45 || slot % 9 == 0 || slot % 9 == 8) inventory.setItem(slot, frame);
+        }
+        // the tabs
+        for (Page tab : Page.values()) {
+            boolean here = tab == page;
+            ItemStack icon = item(tab.icon, (here ? "▶ " : "") + tab.label, here ? NamedTextColor.GOLD : NamedTextColor.WHITE, List.of(
+                    text(here ? "いま開いているページ" : "クリックで開く", NamedTextColor.GRAY)));
+            if (here) {
+                ItemMeta meta = icon.getItemMeta();
+                meta.addEnchant(org.bukkit.enchantments.Enchantment.LUCK, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+                icon.setItemMeta(meta);
+            }
+            inventory.setItem(tab.tab, icon);
+        }
+
+        if (page == Page.BASIC) renderBasic(player, inventory, session, settings);
+        else inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
+                text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
+                text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
+                text("プレビュー中は、変えて 0.75 秒後に木が変わる", NamedTextColor.GRAY))));
+
+        for (int index = 0; index < page.keys.length; index++) {
+            TreeSettings.Key key = page.keys[index];
+            List<Component> lore = new ArrayList<>();
+            lore.add(text(key.description(), NamedTextColor.GRAY));
+            lore.add(text("現在: " + number(key, settings.get(key)) + "  (" + number(key, key.min()) + " 〜 " + number(key, key.max()) + ")", NamedTextColor.WHITE));
+            lore.add(text("左クリック +" + number(key, key.step()) + " / 右クリック -" + number(key, key.step()), NamedTextColor.YELLOW));
+            lore.add(text("Shift で " + number(key, key.bigStep()) + " ずつ", NamedTextColor.YELLOW));
+            inventory.setItem(GRID[index], item(ICONS.getOrDefault(key, Material.PAPER), key.label() + ": " + number(key, settings.get(key)), NamedTextColor.GREEN, lore));
+        }
+
+        // the bottom row, the same on every page
+        inventory.setItem(CLOSE, item(Material.ARROW, "閉じる", NamedTextColor.YELLOW, List.of()));
+        boolean on = session.preview;
+        inventory.setItem(PREVIEW, item(on ? Material.LIME_STAINED_GLASS : Material.GRAY_STAINED_GLASS, "プレビュー: " + (on ? "オン" : "オフ"), on ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                text("オンにすると、木が部位ごとの色のガラスで見える (あなたにだけ)", NamedTextColor.GRAY),
+                text("シードを固定して、設定の変更が0.75秒後に反映される", NamedTextColor.GRAY),
+                text("重い設定のとき前の処理が終わっていなければ、その回は見送る", NamedTextColor.GRAY),
+                text("クリックで切り替え", NamedTextColor.YELLOW))));
+        inventory.setItem(GENERATE, item(Material.LIME_WOOL, "生成する", NamedTextColor.GREEN, List.of(
+                text("この設定の木を、決めた場所に作る", NamedTextColor.GRAY),
+                text("高さ " + settings.height() + " / 幅 " + settings.width() + " の箱の中に収まる", NamedTextColor.GRAY),
+                text("空気と草花だけを置き換える", NamedTextColor.GRAY),
+                text("クリックで生成 (作った木は //undo で戻せる)", NamedTextColor.YELLOW))));
+        inventory.setItem(UNDO, item(Material.BARRIER, "元に戻す (//undo)", NamedTextColor.RED, List.of(
+                text("直前の編集を戻す。木もブラシも、FAWE の履歴で戻る", NamedTextColor.GRAY))));
+        inventory.setItem(REDO, item(Material.SPECTRAL_ARROW, "やり直し (//redo)", NamedTextColor.AQUA, List.of(
+                text("戻した編集をもう一度行う", NamedTextColor.GRAY))));
+    }
+
+    private void renderBasic(Player player, Inventory inventory, TreeSession session, TreeSettings settings) {
+        Location base = session.base;
+        inventory.setItem(INFO, item(Material.COMPASS, "木を立てる場所", NamedTextColor.GOLD, List.of(
+                text(base == null ? "まだ決まっていません (ブロックをクリック)" : base.getWorld().getName() + " " + base.getBlockX() + ", " + base.getBlockY() + ", " + base.getBlockZ(), NamedTextColor.WHITE),
+                text("クリックしたブロックの真上が、幹の根元", NamedTextColor.GRAY),
+                text("根は、地面があればそれに沿う", NamedTextColor.GRAY))));
+        inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + TreeModule.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
+                text("建築向け: 段のある幹、少数の太い枝、大きな葉のかたまり (標準)", NamedTextColor.GRAY),
+                text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型)", NamedTextColor.GRAY),
+                text("針葉樹: 幹のまわりに輪になって枝が出る、円錐形 (pinegen 型)", NamedTextColor.GRAY),
+                text("空間コロニー化: 樹冠の中の目標点へ枝が伸びる (自然な不規則さ)", NamedTextColor.GRAY),
+                text("L-system: Honda 型の分岐規則の繰り返し (規則的な形)", NamedTextColor.GRAY),
+                text("クリックで切り替え", NamedTextColor.YELLOW))));
+        inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: " + TreeModule.crownLabel(settings.crown()), NamedTextColor.AQUA, List.of(
+                text("枝の長さの分布・枝が埋める空間の形 (L-system 以外)", NamedTextColor.GRAY),
+                text("楕円体 / 円錐 / 傘 (高いところの枝が長い) / 円柱", NamedTextColor.GRAY),
+                text("クリックで切り替え", NamedTextColor.YELLOW))));
+        inventory.setItem(SEED, item(Material.WHEAT_SEEDS, "シード: " + (settings.seed() == 0L ? "毎回ランダム" : Long.toString(settings.seed())) + (session.preview ? " (プレビュー中は固定)" : ""), NamedTextColor.AQUA, List.of(
+                text("同じシードと設定なら、同じ木ができる", NamedTextColor.GRAY),
+                text("左クリック: 新しい番号に固定", NamedTextColor.YELLOW),
+                text("右クリック: 毎回ランダムに戻す (プレビュー中は、新しい番号で固定)", NamedTextColor.YELLOW))));
+        List<String> saved = tool.store().list();
+        List<Component> loadLore = new ArrayList<>();
+        loadLore.add(text("保存した木の設定を読み込む (" + saved.size() + "件)", NamedTextColor.GRAY));
+        for (int index = 0; index < Math.min(8, saved.size()); index++) {
+            loadLore.add(text((saved.get(index).equals(settings.name()) ? "▶ " : "  ") + saved.get(index), NamedTextColor.WHITE));
+        }
+        loadLore.add(text("左クリック: 次へ / 右クリック: 前へ (その場で読み込む)", NamedTextColor.YELLOW));
+        inventory.setItem(LOAD, item(Material.BOOKSHELF, "読み込み", NamedTextColor.AQUA, loadLore));
+        inventory.setItem(RESET, item(Material.TNT, "設定を初期値に戻す", NamedTextColor.RED, List.of(
+                text("数字・アルゴリズム・樹冠・シードを初期値にする", NamedTextColor.GRAY),
+                text("(保存は、誤クリックを防ぐため画面からはできません: /treetool save <名前>)", NamedTextColor.DARK_GRAY))));
+        TreePart[] parts = TreePart.values();
+        for (int index = 0; index < parts.length; index++) {
+            inventory.setItem(LEGEND_SLOTS[index], item(tool.material(parts[index]), parts[index].label(), NamedTextColor.WHITE, List.of(
+                    text("このウールで作る (あとで手動で本物のブロックに変える)", NamedTextColor.GRAY),
+                    text("プレビューでは、同じ色のガラス", NamedTextColor.GRAY))));
+        }
+    }
+
+    @EventHandler
+    public void onClick(InventoryClickEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof Holder holder)) return;
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != holder.inventory) return;
+        TreeSession session = tool.session(player);
+        TreeSettings settings = session.settings;
+        int slot = event.getSlot();
+        ClickType click = event.getClick();
+        boolean left = click == ClickType.LEFT || click == ClickType.SHIFT_LEFT;
+        boolean right = click == ClickType.RIGHT || click == ClickType.SHIFT_RIGHT;
+        boolean big = click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
+        if (!left && !right) return;
+
+        for (Page tab : Page.values()) {
+            if (tab.tab == slot) {
+                holder.page = tab;
+                render(player, holder);
+                return;
+            }
+        }
+        for (int index = 0; index < holder.page.keys.length; index++) {
+            if (GRID[index] != slot) continue;
+            TreeSettings.Key key = holder.page.keys[index];
+            settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
+            tool.limit(settings);
+            tool.changed(player);
+            render(player, holder);
+            return;
+        }
+        switch (slot) {
+            case PREVIEW -> tool.preview().toggle(player);
+            case GENERATE -> {
+                player.closeInventory();
+                tool.generate(player);
+                return;
+            }
+            case UNDO -> {
+                player.closeInventory();
+                tool.undo(player);
+                return;
+            }
+            case REDO -> {
+                player.closeInventory();
+                tool.redo(player);
+                return;
+            }
+            case CLOSE -> {
+                player.closeInventory();
+                return;
+            }
+            default -> {
+                if (holder.page != Page.BASIC) return;
+                if (!basicClick(player, session, settings, slot, left)) return;
+                tool.changed(player);
+            }
+        }
+        render(player, holder);
+    }
+
+    /** A click on a button of the basic page; false when it was none. */
+    private boolean basicClick(Player player, TreeSession session, TreeSettings settings, int slot, boolean left) {
+        switch (slot) {
+            case ALGORITHM -> settings.cycleAlgorithm();
+            case CROWN -> settings.cycleCrown();
+            case SEED -> {
+                // (with the preview on the seed is never "random": the right click gives a new fixed one then)
+                if (left || session.preview) {
+                    settings.setSeed(1 + (new Random().nextLong() & 0xFFFFFFL));
+                    session.autoSeed = false;
+                } else {
+                    settings.setSeed(0L);
+                }
+            }
+            case LOAD -> {
+                List<String> saved = tool.store().list();
+                if (saved.isEmpty()) {
+                    player.sendMessage("[木] 保存した設定がありません。/treetool save <名前> で保存できます。");
+                    return false;
+                }
+                int current = saved.indexOf(settings.name());
+                int next = Math.floorMod(current + (left ? 1 : -1), saved.size());
+                TreeSettings loaded = tool.store().load(saved.get(next));
+                if (loaded == null) {
+                    player.sendMessage("[木] 読み込めませんでした: " + saved.get(next));
+                    return false;
+                }
+                tool.limit(loaded);
+                session.settings = loaded;
+                session.autoSeed = false;
+            }
+            case RESET -> {
+                TreeSettings fresh = new TreeSettings();
+                fresh.setName(settings.name());
+                session.settings = fresh;
+                session.autoSeed = false;
+            }
+            default -> {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @EventHandler
+    public void onDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof Holder) event.setCancelled(true);
+    }
+}

@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -12,14 +12,14 @@ import java.util.List;
 import java.util.Locale;
 
 /** {@code /treetool}: the tool, and the settings by command (for exact values and for saving under a name). */
-public final class TreeCommand implements TabExecutor {
+final class TreeCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "generate");
+    private static final List<String> SUBS = List.of("give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate");
 
-    private final TreeTool tool;
+    private final TreeModule tool;
 
-    public TreeCommand(TreeTool tool) {
+    TreeCommand(TreeModule tool) {
         this.tool = tool;
     }
 
@@ -30,7 +30,7 @@ public final class TreeCommand implements TabExecutor {
             return true;
         }
         String sub = args.length == 0 ? "give" : args[0].toLowerCase(Locale.ROOT);
-        TreeTool.Session session = tool.session(player);
+        TreeSession session = tool.session(player);
         switch (sub) {
             case "give", "on" -> tool.give(player);
             case "off", "remove" -> tool.take(player);
@@ -40,6 +40,8 @@ public final class TreeCommand implements TabExecutor {
             }
             case "generate" -> tool.generate(player);
             case "undo" -> tool.undo(player);
+            case "redo" -> tool.redo(player);
+            case "preview" -> tool.preview().toggle(player);
             case "info" -> info(player, session.settings);
             case "set" -> set(player, session.settings, args);
             case "save" -> save(player, session.settings, args);
@@ -53,7 +55,7 @@ public final class TreeCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/treetool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/treetool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|generate]");
+            default -> player.sendMessage(PREFIX + "/treetool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate]");
         }
         return true;
     }
@@ -111,6 +113,7 @@ public final class TreeCommand implements TabExecutor {
                 tool.limit(settings);
             }
         }
+        tool.changed(player);
         player.sendMessage(PREFIX + "設定しました: " + item + " = " + value);
     }
 
@@ -130,7 +133,7 @@ public final class TreeCommand implements TabExecutor {
         player.sendMessage(PREFIX + (tool.store().save(name, settings) ? "保存しました: " + name : "保存できませんでした (ログを見てください)。"));
     }
 
-    private void load(Player player, TreeTool.Session session, String[] args) {
+    private void load(Player player, TreeSession session, String[] args) {
         String name = args.length > 1 ? TreeSettings.safeName(args[1]) : null;
         if (name == null) {
             player.sendMessage(PREFIX + "/treetool load <名前>  (/treetool list で一覧)");
@@ -143,6 +146,8 @@ public final class TreeCommand implements TabExecutor {
         }
         tool.limit(loaded);
         session.settings = loaded;
+        session.autoSeed = false;
+        tool.changed(player);
         player.sendMessage(PREFIX + "読み込みました: " + name + " (/treetool info で中身)");
     }
 

@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -15,7 +15,7 @@ import java.util.Random;
  * <p>Cost: each attractor remembers its nearest node and is compared only with the nodes made since, so the whole run is attractors x nodes,
  * not attractors x nodes x rounds.
  */
-public final class ColonizationAlgorithm implements TreeAlgorithm {
+final class ColonizationAlgorithm implements TreeAlgorithm {
 
     private static final double STEP = 1.0;
     private static final double KILL = 1.3;

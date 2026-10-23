@@ -36,7 +36,7 @@ commands:
     permission: iruurpg.admin
   treetool:
     description: "Procedural tree tool (admins): gives the placement tool; set, save, load, undo"
-    usage: /treetool [give|off|menu|set|info|save|load|list|delete|undo|generate]
+    usage: /treetool [give|off|menu|set|info|save|load|list|delete|undo|redo|preview|generate]
     aliases:
       - ptree
     permission: iruurpg.admin

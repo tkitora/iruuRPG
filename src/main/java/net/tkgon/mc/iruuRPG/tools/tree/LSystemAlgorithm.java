@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tool.tree;
+package net.tkgon.mc.iruuRPG.tools.tree;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -15,7 +15,7 @@ import java.util.Random;
  * ratios, angles and the divergence are drawn near typical values (and the density and droop settings move them), so no two trees are alike. The
  * result is scaled to fit inside the height and width of the settings.
  */
-public final class LSystemAlgorithm implements TreeAlgorithm {
+final class LSystemAlgorithm implements TreeAlgorithm {
 
     private record Module(char symbol, double length, double width) {
     }
