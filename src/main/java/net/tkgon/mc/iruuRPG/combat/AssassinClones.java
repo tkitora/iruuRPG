@@ -19,12 +19,13 @@ import java.util.UUID;
 /**
  * The clones that stay (the others, which step in for a blow and go, are in {@link Clones}). Two kinds:
  * <ul>
- *   <li>the grey clone that the assassin's heavy attack 1 makes in front of the assassin: it only stands there (no attack). At most two exist at a time (a third takes the place of
- *       the oldest; the short-lived clones that strike for a blow count against the two as well and are not made when there is no room). The first heavy attack after a clone
- *       was made, other than heavy 1, is made by the clones too, once, for 30% of its damage ({@link #mimic});</li>
+ *   <li>the grey clone that the assassin's heavy attack 0 makes in front of the assassin (cooldown 8 s): it stands there for 2.5 s and goes. The heavy click again (up to twice, with no
+ *       normal attack between) is a re-activation of it: the first makes one more clone, the second sends the clones charging forward ({@link #recast}), 15% each, and they go.
+ *       At most two exist at a time (a third takes the place of the oldest; the short-lived clones that strike for a blow count against the two as well and are not made when there
+ *       is no room). The first heavy attack after a clone was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage ({@link #mimic});</li>
  *   <li>the three clones of the item swap skill (red outline, red and black): they are flung forward when the skill starts (all other clones are destroyed), and copy the
- *       assassin's next two attacks, each copy a hit of 5% of the weapon's damage ({@link #copyAttack}); after the second the clone is destroyed. They do not count against the two, and
- *       end with the skill.</li>
+ *       assassin's next five attacks, each copy a hit of 5% of the weapon's damage ({@link #copyAttack}); after the last the clone is destroyed. They do not count against the two, and
+ *       end with the skill. A blow of 40% of the assassin's life or more that lands while any remain destroys them all and is nullified ({@link #sacrifice}).</li>
  * </ul>
  * Every clone faces the enemy it attacks. Each enemy a clone has hurt is remembered for the echo of the skill's second press.
  */
@@ -49,6 +50,8 @@ final class AssassinClones {
         int slideTicks;
         int slideAge;
         double pose;
+        /** Where it was made from (to look for the enemy it faces); null for none. */
+        MoveKit kit;
 
         Ghost(Player owner, boolean swap, Clones.Look look, Location pos, double yawDegrees, int life, int copies) {
             this.owner = owner;
@@ -65,6 +68,10 @@ final class AssassinClones {
     private static final Map<UUID, Boolean> MIMIC = new HashMap<>();
     private static final Map<UUID, Set<UUID>> DAMAGED = new HashMap<>();
     private static final Map<UUID, Integer> TRANSIENT = new HashMap<>();
+    /** {the re-activations of heavy 0 used (0 - 1), the tick of the last press} of each owner whose clones stand. */
+    private static final Map<UUID, int[]> CAST = new HashMap<>();
+    /** The least ticks between a press of heavy 0 and its re-activation (a held button must not press twice). */
+    private static final int RECAST_GAP = 6;
     private static SafeTask task;
 
     private AssassinClones() {
@@ -89,9 +96,12 @@ final class AssassinClones {
         TRANSIENT.merge(owner.getUniqueId(), -1, (a, b) -> Math.max(0, a + b));
     }
 
-    /** The gradient of the clones of the moment: red and black during the item swap skill, grey otherwise. */
-    static Clones.Look lookFor(Player owner, boolean swapSkillOn) {
-        return swapSkillOn ? Clones.Look.swap(false) : Clones.Look.ghost();
+    /**
+     * The look of a clone that only comes for a blow of the combo: small ({@code effect-clone-scale}, 0.7) and with no glow, red and black during the item swap skill,
+     * grey otherwise. The clones that stand (heavy 0) and those of the item swap skill keep their size and outline.
+     */
+    static Clones.Look lookFor(MoveKit kit, boolean swapSkillOn) {
+        return Clones.Look.effect(swapSkillOn, Math.max(0.2, Math.min(1.0, kit.number(AssassinMeleeCombo.PLAN, "effect-clone-scale", 0.7))));
     }
 
     // ---- making them ---------------------------------------------------------------------------------------------------------------
@@ -122,7 +132,7 @@ final class AssassinClones {
         }
     }
 
-    /** The grey clone of heavy attack 1: stands at {@code at} facing {@code yawDegrees}; the oldest of two is taken away when there are two already. */
+    /** The grey clone of heavy attack 0: stands at {@code at} facing {@code yawDegrees}; the oldest of two is taken away when there are two already. */
     static Ghost standOne(MoveKit kit, Location at, double yawDegrees, int lifeTicks) {
         Player owner = kit.player;
         List<Ghost> list = GHOSTS.computeIfAbsent(owner.getUniqueId(), id -> new ArrayList<>());
@@ -134,6 +144,7 @@ final class AssassinClones {
             list.remove(oldest);
         }
         Ghost ghost = new Ghost(owner, false, Clones.Look.ghost(), at, yawDegrees, lifeTicks, 0);
+        ghost.kit = kit;
         list.add(ghost);
         MIMIC.put(owner.getUniqueId(), true);
         ensureTask(kit.plugin());
@@ -143,7 +154,7 @@ final class AssassinClones {
 
     /**
      * The skill's clones: every clone that stands is destroyed, and three are flung forward (to the front, and 32 degrees each side, six blocks) for {@code lifeTicks}; each
-     * copies the next two attacks.
+     * copies the next {@code swap-copies} (5) attacks.
      */
     static void launchSwap(MoveKit kit, int lifeTicks) {
         Player owner = kit.player;
@@ -151,11 +162,12 @@ final class AssassinClones {
         List<Ghost> list = GHOSTS.computeIfAbsent(owner.getUniqueId(), id -> new ArrayList<>());
         Vector facing = kit.facing();
         Location base = owner.getLocation();
+        int copies = (int) Math.round(Math.max(1.0, Math.min(10.0, kit.number(AssassinMeleeCombo.PLAN, "swap-copies", 5.0))));
         for (int index = -1; index <= 1; index++) {
             double turn = Math.toRadians(32.0 * index);
             Vector direction = new Vector(facing.getX() * Math.cos(turn) - facing.getZ() * Math.sin(turn), 0.0, facing.getX() * Math.sin(turn) + facing.getZ() * Math.cos(turn));
             Location target = kit.ground(base.clone().add(direction.clone().multiply(6.5)));
-            Ghost ghost = new Ghost(owner, true, Clones.Look.swap(false), base, Math.toDegrees(Math.atan2(-direction.getX(), direction.getZ())), lifeTicks, 2);
+            Ghost ghost = new Ghost(owner, true, Clones.Look.swap(false), base, Math.toDegrees(Math.atan2(-direction.getX(), direction.getZ())), lifeTicks, copies);
             ghost.slideFrom = base.clone();
             ghost.slideTo = target;
             ghost.slideTicks = 8;
@@ -209,8 +221,8 @@ final class AssassinClones {
     }
 
     /**
-     * The standing clones make heavy attack {@code index} too (once), each for 30% of {@code rate} a hit: 0 runs six blocks ahead along its way, 2 spins for 1.2 s, 3 runs through
-     * the line ahead and back, 4 strikes the nearest enemy.
+     * The standing clones make heavy attack {@code index} (2 - 4) too (once), each for 30% of {@code rate} a hit: 2 spins for 1.2 s, 3 runs through the line ahead and back, 4
+     * strikes the nearest enemy.
      */
     static void mimic(MoveKit kit, int index, double rate) {
         double part = rate * 0.3;
@@ -218,23 +230,6 @@ final class AssassinClones {
             if (ghost.swap || ghost.leaving >= 0) continue;
             kit.sound(ghost.pos, Sfx.WIND, 0.5f, 1.4f);
             switch (index) {
-                case 0 -> {
-                    LivingEntity target = nearest(kit, ghost.pos, 9.0);
-                    Vector heading = target != null ? target.getLocation().toVector().subtract(ghost.pos.toVector()).setY(0.0) : kit.facing();
-                    if (heading.lengthSquared() < 1.0E-6) heading = kit.facing();
-                    Vector direction = heading.normalize();
-                    face(ghost, ghost.pos.clone().add(direction));
-                    Location from = ghost.pos.clone().add(0.0, 1.0, 0.0);
-                    ghost.slideFrom = ghost.pos.clone();
-                    ghost.slideTo = kit.ground(ghost.pos.clone().add(direction.clone().multiply(6.0)));
-                    ghost.slideTicks = 6;
-                    ghost.slideAge = 0;
-                    kit.line(from, from.clone().add(direction.clone().multiply(6.0)), 0.2, 1.0, 1.2);
-                    kit.later(3L, () -> {
-                        swing(ghost);
-                        for (LivingEntity victim : kit.corridor(from, direction, 6.5, 1.3)) cloneHit(kit, ghost, victim, part);
-                    });
-                }
                 case 2 -> kit.every(25, age -> {
                     if (ghost.leaving >= 0) return true;
                     if (age % 3 == 0) {
@@ -282,10 +277,11 @@ final class AssassinClones {
 
     /**
      * The swing of an attack of the assassin during the item swap skill, copied: each of its clones that still has copies left strikes the enemy nearest to it within ten
-     * blocks (turning to it) for 5% of the weapon's damage; with the second copy the clone is destroyed.
+     * blocks (turning to it) for 5% of the weapon's damage ({@code swap-copy-rate}); with the last copy (the fifth) the clone is destroyed.
      */
     static void copyAttack(MoveKit kit) {
         int delay = 1;
+        double rate = kit.number(AssassinMeleeCombo.PLAN, "swap-copy-rate", 0.05);
         for (Ghost ghost : new ArrayList<>(GHOSTS.getOrDefault(kit.player.getUniqueId(), List.of()))) {
             if (!ghost.swap || ghost.copies <= 0 || ghost.leaving >= 0 || ghost.age < 8) continue;
             LivingEntity target = nearest(kit, ghost.pos, 10.0);
@@ -293,12 +289,116 @@ final class AssassinClones {
             ghost.copies--;
             kit.later(delay++, () -> {
                 if (ghost.leaving >= 0 || !target.isValid() || target.isDead()) return;
-                cloneHit(kit, ghost, target, 0.05);
+                cloneHit(kit, ghost, target, rate);
                 Clones.lineCut(kit.player, ghost.look.gradient(), target.getLocation(), Math.random() * Math.PI, true);
                 kit.sound(ghost.pos, Sfx.WIND, 0.5f, 1.8f);
                 if (ghost.copies <= 0) ghost.leaving = 6;
             });
         }
+    }
+
+    // ---- the re-activations of heavy 0 ------------------------------------------------------------------------------------------------
+
+    /** Heavy 0 was made: its clone stands, and the heavy click can be pressed again, twice. */
+    static void beginCast(MoveKit kit) {
+        CAST.put(kit.player.getUniqueId(), new int[]{0, org.bukkit.Bukkit.getCurrentTick()});
+    }
+
+    private static List<Ghost> standingOnes(Player owner) {
+        List<Ghost> found = new ArrayList<>();
+        for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) if (!ghost.swap && ghost.leaving < 0) found.add(ghost);
+        return found;
+    }
+
+    /** True when the heavy click is a re-activation of heavy 0 now: a clone of it still stands, and less than two were pressed. */
+    static boolean canRecast(Player owner) {
+        int[] cast = CAST.get(owner.getUniqueId());
+        if (cast == null) return false;
+        if (cast[0] >= 2 || standingOnes(owner).isEmpty()) {
+            CAST.remove(owner.getUniqueId());
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * The re-activation: the first makes one more clone (to the side of the first), the second sends every standing clone charging forward (6 blocks at the nearest enemy, or ahead),
+     * {@code clone-charge-rate} (15%) of {@code boost} times the weapon's damage to everyone on its way, and they go. A press too soon after the last does nothing (and is used up).
+     */
+    static void recast(MoveKit kit, double boost) {
+        Player owner = kit.player;
+        int[] cast = CAST.get(owner.getUniqueId());
+        if (cast == null) return;
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        if (now - cast[1] < RECAST_GAP) return;
+        cast[1] = now;
+        cast[0]++;
+        if (cast[0] >= 2) CAST.remove(owner.getUniqueId());
+        if (cast[0] == 1) {
+            Vector facing = kit.facing();
+            double turn = Math.toRadians(-38.0);
+            Vector side = new Vector(facing.getX() * Math.cos(turn) - facing.getZ() * Math.sin(turn), 0.0, facing.getX() * Math.sin(turn) + facing.getZ() * Math.cos(turn));
+            Location at = kit.ground(owner.getLocation().add(side.multiply(2.5)));
+            double yaw = Math.toDegrees(Math.atan2(-facing.getX(), facing.getZ()));
+            standOne(kit, at, yaw, (int) Math.round(kit.number(AssassinMeleeCombo.PLAN, "stand-clone-seconds", 2.5) * 20.0));
+            // (the second clone does not start the "copy the next heavy attack" over: it was already on)
+            return;
+        }
+        charge(kit, kit.number(AssassinMeleeCombo.PLAN, "clone-charge-rate", 0.15) * boost);
+    }
+
+    /** Every standing clone runs six blocks toward the nearest enemy (ahead when there is none) and cuts everyone in its way for {@code rate}; then it goes. */
+    private static void charge(MoveKit kit, double rate) {
+        for (Ghost ghost : standingOnes(kit.player)) {
+            kit.sound(ghost.pos, Sfx.WIND_BURST, 0.6f, 1.3f);
+            LivingEntity target = nearest(kit, ghost.pos, 9.0);
+            Vector heading = target != null ? target.getLocation().toVector().subtract(ghost.pos.toVector()).setY(0.0) : kit.facing();
+            if (heading.lengthSquared() < 1.0E-6) heading = kit.facing();
+            Vector direction = heading.normalize();
+            face(ghost, ghost.pos.clone().add(direction));
+            Location from = ghost.pos.clone().add(0.0, 1.0, 0.0);
+            ghost.kit = null;
+            ghost.slideFrom = ghost.pos.clone();
+            ghost.slideTo = kit.ground(ghost.pos.clone().add(direction.clone().multiply(6.0)));
+            ghost.slideTicks = 6;
+            ghost.slideAge = 0;
+            kit.line(from, from.clone().add(direction.clone().multiply(6.0)), 0.2, 1.0, 1.2);
+            kit.later(3L, () -> {
+                swing(ghost);
+                for (LivingEntity victim : kit.corridor(from, direction, 6.5, 1.3)) cloneHit(kit, ghost, victim, rate);
+            });
+            kit.later(7L, () -> {
+                if (ghost.leaving < 0) ghost.leaving = 6;
+            });
+        }
+    }
+
+    // ---- the clones take the blow ------------------------------------------------------------------------------------------------------------
+
+    /**
+     * A blow of {@code damage} is about to land on the assassin during the item swap skill: when it is {@code swap-guard-share} (40%) of their life or more and clones of the skill
+     * remain, they are all destroyed and the blow is nullified. True when that happened (the caller does not apply the damage).
+     */
+    static boolean sacrifice(Player owner, double damage, double maxHp, double share) {
+        if (damage < maxHp * share || maxHp <= 0.0) return false;
+        List<Ghost> list = GHOSTS.get(owner.getUniqueId());
+        if (list == null) return false;
+        boolean any = false;
+        for (Ghost ghost : new ArrayList<>(list)) {
+            if (!ghost.swap || ghost.leaving >= 0) continue;
+            any = true;
+            remove(ghost, true);
+            list.remove(ghost);
+        }
+        if (list.isEmpty()) GHOSTS.remove(owner.getUniqueId());
+        if (!any) return false;
+        Location at = owner.getLocation();
+        owner.getWorld().playSound(at, org.bukkit.Sound.ENTITY_ENDERMAN_TELEPORT, org.bukkit.SoundCategory.PLAYERS, 0.8f, 1.5f);
+        owner.getWorld().playSound(at, org.bukkit.Sound.ITEM_SHIELD_BREAK, org.bukkit.SoundCategory.PLAYERS, 0.8f, 0.8f);
+        Fx fx = Fx.of(owner, at.getWorld(), at);
+        fx.sphereShell(at.clone().add(0.0, 1.0, 0.0), 1.1, 0.0, 30, Clones.RED_BLACK, 1.2);
+        fx.flatRing(at.clone().add(0.0, 0.1, 0.0), 1.6, 30, Clones.RED_BLACK, 0.8, 0.2, 1.1);
+        return true;
     }
 
     // ---- what they are, for the echo ------------------------------------------------------------------------------------------------
@@ -315,6 +415,7 @@ final class AssassinClones {
         if (list != null) for (Ghost ghost : list) remove(ghost, true);
         MIMIC.remove(owner.getUniqueId());
         TRANSIENT.remove(owner.getUniqueId());
+        CAST.remove(owner.getUniqueId());
     }
 
     /** The item swap skill ends: its clones go, and the enemies they hurt are forgotten. */
@@ -336,6 +437,7 @@ final class AssassinClones {
         for (List<Ghost> list : GHOSTS.values()) for (Ghost ghost : list) remove(ghost, false);
         GHOSTS.clear();
         MIMIC.clear();
+        CAST.clear();
         DAMAGED.clear();
         TRANSIENT.clear();
         if (task != null) task.cancel();
@@ -365,6 +467,11 @@ final class AssassinClones {
                             ghost.slideFrom.getY() + (ghost.slideTo.getY() - ghost.slideFrom.getY()) * eased, ghost.slideFrom.getZ() + (ghost.slideTo.getZ() - ghost.slideFrom.getZ()) * eased);
                 }
                 ghost.pose = Math.max(0.0, ghost.pose - 0.5);
+                // a standing clone turns to the nearest enemy
+                if (ghost.kit != null && !ghost.swap && ghost.leaving < 0 && ghost.age % 4 == 0) {
+                    LivingEntity enemy = nearest(ghost.kit, ghost.pos, 12.0);
+                    if (enemy != null) face(ghost, enemy.getLocation());
+                }
                 double fade = ghost.leaving >= 0 ? Math.max(0.1, ghost.leaving / 6.0) : Math.min(1.0, ghost.age / 6.0);
                 if (!ghost.bodyTried) {
                     ghost.bodyTried = true;

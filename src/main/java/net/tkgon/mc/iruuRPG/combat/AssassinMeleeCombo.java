@@ -16,15 +16,16 @@ import java.util.List;
  *
  * <p>Normal: 1 a fang cross (two cuts, 50% x2), 2 a step in (a dash that stops at the first enemy it touches, then two cuts, 60% x2), 3 a shadow clone (a clone steps in from
  * behind the nearest enemy and strikes, 130%, confuses a little), 4 whirling blades (a spin of 4 cuts, 25% each on everyone round, 12 ticks), 5 an execution (two clones
- * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a shadow dash (6 blocks, nothing can hurt the assassin for 8 ticks,
- * 100% on all in the way), 1 a grey clone (it only stands in front of the assassin for 12 s, two at most; the first heavy attack after one was made, other than heavy 1, is made by the clones too,
- * once, for 30% of its damage; while the item swap skill lasts heavy 1 throws three knives to the front instead), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
+ * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a grey clone (it only stands in front of the assassin for 2.5 s;
+ * cooldown 8 s, also while the item swap skill lasts; the heavy click again, up to twice, makes one more clone and then sends the clones charging forward, 15% each; the first heavy attack
+ * after one was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage), 1 a shuriken that bounces up to three times, half the damage lost at each bounce
+ * (three of them in the item swap skill), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
  * everyone round, takes 40% less damage meanwhile), 3 crossing clones (two clones run through the line ahead from both ends, 60% on all in the way each), 4 a phantom execution
  * (afterimages, then three clones close on the nearest enemy: 50% each and confusion).
  *
  * <p>The class skill (SATUJIN, F) puts the assassin in a frenzy for some seconds: the blows are 20% stronger (35% when upgraded), the normal attacks come faster, a clone
- * strikes an enemy that is out of reach before a normal attack, every normal attack is followed by the cut of a shadow round the assassin (40%), heavy 0 has no cooldown, and the
- * status effects (confusion) land with every hit.
+ * strikes an enemy that is out of reach before a normal attack, every normal attack is followed by the cut of a shadow round the assassin (40%), and the status effects
+ * (confusion) land with every hit.
  */
 public final class AssassinMeleeCombo extends BaseCombo {
 
@@ -33,7 +34,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
     public AssassinMeleeCombo() {
         super("assassin", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.5, 0.6, 1.3, 0.25, 1.5}, new int[]{2, 2, 1, 4, 1},
-                new double[]{1.0, 0.4, 0.16, 0.6, 1.5}, new int[]{100, 0, 0, 0, 0}, 36));
+                new double[]{1.0, 1.0, 0.16, 0.6, 1.5}, new int[]{160, 0, 0, 0, 0}, 36));
     }
 
     /** One cut at {@code rate} on everyone in {@code targets}, struck with the hand whose turn it is. */
@@ -111,12 +112,12 @@ public final class AssassinMeleeCombo extends BaseCombo {
                 }
             }
             case 2 -> {
-                // a step in: the dash ends at the first enemy it touches (a moment nothing can hurt the assassin), then two cuts
+                // a step in: a short step (not a dash) that ends at the first enemy it touches (a moment nothing can hurt the assassin), then two cuts
                 LivingEntity ahead = kit.nearest(7.0, 45.0);
                 Vector heading = ahead == null ? facing : ahead.getLocation().toVector().subtract(feet.toVector());
-                kit.invulnerable(5);
+                kit.invulnerable(3);
                 kit.sound(feet, Sfx.WIND, 0.7f, 1.3f);
-                kit.dashToContact(heading, 1.0, 5, 1.7, (end, touched) -> {
+                kit.dashToContact(heading, kit.number(PLAN, "step-dash-power", 0.5), 3, 1.7, (end, touched) -> {
                     for (int index = 0; index < hits; index++) {
                         int which = index;
                         kit.later(index * 2L, () -> {
@@ -195,42 +196,33 @@ public final class AssassinMeleeCombo extends BaseCombo {
         int frenzy = kit.frenzy();
         double rate = step.damageMultiplier() * boost(frenzy);
         if (frenzy > 0) AssassinClones.copyAttack(kit);
-        // the first heavy attack after a clone was made (other than heavy 1) is made by the clones too, once, for 30% of its damage
-        if (step.heavyIndex() != 1 && AssassinClones.takeMimic(kit.player)) AssassinClones.mimic(kit, step.heavyIndex(), rate);
+        // the first heavy attack after a clone was made (other than heavy 0 and 1) is made by the clones too, once, for 30% of its damage
+        if (step.heavyIndex() >= 2 && AssassinClones.takeMimic(kit.player)) AssassinClones.mimic(kit, step.heavyIndex(), rate);
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {
             case 0 -> {
-                // a shadow dash: six blocks through the enemies; nothing can hurt the assassin for 8 ticks
-                Location from = feet.clone().add(0.0, 1.0, 0.0);
-                List<LivingEntity> inWay = kit.corridor(from, facing, 6.5, 1.3);
-                kit.invulnerable(8);
-                kit.sound(feet, Sfx.WIND_BURST, 0.9f, 1.2f);
-                kit.line(from, from.clone().add(facing.clone().multiply(6.0)), 0.2, 1.0, 1.4);
-                kit.dash(facing, 1.2, 5, end -> {
-                    kit.shockwave(end, 0.8, 2.4, 3, 1.0);
-                    cut(kit, inWay, rate);
-                });
-            }
-            case 1 -> {
-                if (frenzy > 0) {
-                    // while the item swap skill lasts it throws knives instead, to the front and a little to each side
-                    kit.sound(feet, Sfx.WIND, 0.8f, 1.5f);
-                    Vector[] axes = kit.axes();
-                    for (int index = -1; index <= 1; index++) {
-                        double turn = Math.toRadians(22.0 * index);
-                        Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
-                        Location start = kit.eye().add(direction.clone().multiply(0.9)).subtract(0.0, 0.4, 0.0);
-                        Blades.fly(kit, start, direction, 1.5, 12.0, rate, null);
-                    }
-                    return;
-                }
-                // a grey clone stands in front of the assassin: nothing else (it is a clone for the next heavy attack to be copied by); two at most
+                // a grey clone stands in front of the assassin (2.5 s): the heavy click again makes one more, and again sends them charging; nothing else (cooldown 8 s, also in a frenzy)
                 Location at = kit.ground(feet.clone().add(facing.clone().multiply(2.5)));
                 double yaw = Math.toDegrees(Math.atan2(-facing.getX(), facing.getZ()));
-                int life = (int) Math.round(kit.number(PLAN, "clone-seconds", 12.0) * 20.0);
+                int life = (int) Math.round(kit.number(PLAN, "stand-clone-seconds", 2.5) * 20.0);
                 AssassinClones.standOne(kit, at, yaw, life);
+                AssassinClones.beginCast(kit);
                 kit.sound(at, Sfx.WIND, 0.6f, 1.6f);
+            }
+            case 1 -> {
+                // a shuriken that bounces up to three times (off blocks, and from enemy to enemy), losing half of its damage at each bounce; in a frenzy three fly, to the front and a little to each side
+                kit.sound(feet, Sfx.WIND, 0.8f, 1.5f);
+                int bounces = (int) Math.round(kit.number(PLAN, "shuriken-bounces", 3.0));
+                double decay = Math.max(0.0, Math.min(0.95, kit.number(PLAN, "shuriken-decay", 0.5)));
+                Vector[] axes = kit.axes();
+                int count = frenzy > 0 ? 3 : 1;
+                for (int index = 0; index < count; index++) {
+                    double turn = Math.toRadians(count == 1 ? 0.0 : 22.0 * (index - 1));
+                    Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
+                    Location start = kit.eye().add(direction.clone().multiply(0.9)).subtract(0.0, 0.4, 0.0);
+                    Blades.bounce(kit, start, direction, 1.4, bounces, decay, rate);
+                }
             }
             case 2 -> {
                 // a blade storm: a spin for 1.2 s that hits everyone round every 3 ticks, and takes 40% off what the assassin suffers

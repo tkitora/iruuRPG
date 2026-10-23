@@ -349,7 +349,7 @@ public final class MoveKit {
     /**
      * A clone of the player steps in to {@code target} from {@code angle} (radians round it), turns to it, swings {@code hits} times {@code gap} ticks apart and goes: for each blow
      * {@code onHit} gets its number (the caller does the damage). The player does not move. The assassin can have two clones at a time (the standing ones count): when there is
-     * no room the blows land at once with no figure. The clone is red and black while the item swap skill lasts, grey otherwise.
+     * no room the blows land at once with no figure. The clone is small and has no glow (the standing clones and those of the item swap skill are full-size); red and black while the item swap skill lasts, grey otherwise.
      */
     public void clone(LivingEntity target, double angle, int hits, int gap, boolean quality, java.util.function.IntConsumer onHit) {
         if (!AssassinClones.beginTransient(player)) {
@@ -359,7 +359,7 @@ public final class MoveKit {
             }
             return;
         }
-        Clones.Look look = AssassinClones.lookFor(player, attack.assassinFrenzy(player) > 0);
+        Clones.Look look = AssassinClones.lookFor(this, attack.assassinFrenzy(player) > 0);
         Clones.strike(plugin, player, look, () -> target.isValid() && !target.isDead() ? target.getLocation() : null, angle, hits, gap, onHit, () -> AssassinClones.endTransient(player));
     }
 
@@ -372,7 +372,7 @@ public final class MoveKit {
             }
             return;
         }
-        Clones.run(plugin, player, AssassinClones.lookFor(player, attack.assassinFrenzy(player) > 0), from, to, ticks, onStep, () -> AssassinClones.endTransient(player));
+        Clones.run(plugin, player, AssassinClones.lookFor(this, attack.assassinFrenzy(player) > 0), from, to, ticks, onStep, () -> AssassinClones.endTransient(player));
     }
 
     /** The colours the slashes of this kit are drawn in (null: the weapon's own). Set by the combos that change their look. */

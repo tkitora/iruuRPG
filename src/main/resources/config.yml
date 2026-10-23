@@ -110,7 +110,15 @@ combat:
     # 設置武器のコンボの通常攻撃の間隔 (tick、攻撃速度で短くなる):
     deploy-normal-ticks: 14
     assassin_melee:
-      clone-seconds: 12                           # 強攻撃1のクローンが立っている秒数 (最大2体)
+      stand-clone-seconds: 2.5                    # 強攻撃0のクローンが立っている秒数 (最大2体。強攻撃0のクールタイムは8秒)
+      clone-charge-rate: 0.15                     # 強攻撃0の2度目の再発動: クローンが突進して与える1体あたりの倍率 (武器ダメージ比)
+      effect-clone-scale: 0.7                     # コンボ演出で出るクローン (立つクローン・アイテムスワップのクローン以外) の大きさ。光る縁取りは付かない (1未満は粒子の姿で描く)
+      step-dash-power: 0.5                        # 通常攻撃2の踏み込みの強さ (3 tick)
+      shuriken-bounces: 3                         # 強攻撃1の手裏剣が跳ね返る回数
+      shuriken-decay: 0.5                         # 手裏剣が跳ね返るたびに減るダメージの割合
+      swap-copies: 5                              # アイテムスワップのクローンがコピーする攻撃の回数
+      swap-copy-rate: 0.05                        # クローンのコピー1回の倍率 (武器ダメージの5%)
+      swap-guard-share: 0.4                       # アイテムスワップ中、一撃で最大体力のこの割合以上のダメージを受けると、クローンがすべて壊れてそのダメージを無効にする
     cleric_melee:
       normal-gap-ticks: 10
     warrior_melee:
