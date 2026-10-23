@@ -149,6 +149,11 @@ final class BlockColors {
      * _PLANKS) is preferred. With a {@code suffix} (_STAIRS, _SLAB, _WALL) only blocks that have that shape are considered.
      */
     static Material darker(Material from, double amount, Set<Material> allowed, String suffix) {
+        return darker(from, amount, allowed, suffix, Set.of());
+    }
+
+    /** The same, never choosing a block of {@code blocked} (the blacklist). */
+    static Material darker(Material from, double amount, Set<Material> allowed, String suffix, Set<Material> blocked) {
         int source = rgb(from);
         int r = (int) (((source >> 16) & 0xFF) * (1.0 - amount));
         int g = (int) (((source >> 8) & 0xFF) * (1.0 - amount));
@@ -163,7 +168,7 @@ final class BlockColors {
         Iterable<Material> candidates = allowed == null || allowed.isEmpty() ? RGB.keySet() : allowed;
         for (Material candidate : candidates) {
             Integer rgb = RGB.get(candidate);
-            if (rgb == null || candidate == from) continue;
+            if (rgb == null || candidate == from || blocked.contains(candidate)) continue;
             // only a darker block can be chosen
             if (brightness(rgb) >= brightness(source) - 5.0) continue;
             double saturation = saturation(rgb);
@@ -189,6 +194,25 @@ final class BlockColors {
         return best;
     }
 
+    /** The colour between two (as 0xRRGGBB) at {@code t} (0 - 1). */
+    static int mix(int from, int to, double t) {
+        double c = Math.max(0.0, Math.min(1.0, t));
+        int r = (int) Math.round(((from >> 16) & 0xFF) * (1.0 - c) + ((to >> 16) & 0xFF) * c);
+        int g = (int) Math.round(((from >> 8) & 0xFF) * (1.0 - c) + ((to >> 8) & 0xFF) * c);
+        int b = (int) Math.round((from & 0xFF) * (1.0 - c) + (to & 0xFF) * c);
+        return (r << 16) | (g << 8) | b;
+    }
+
+    /** How far apart two colours look (a weighted distance of the channels; the same measure the block search uses). */
+    static double colorDistance(int a, int b) {
+        return distance(a, (b >> 16) & 0xFF, (b >> 8) & 0xFF, b & 0xFF);
+    }
+
+    /** Whether the block is dyed on purpose (concrete, wool, terracotta in a colour) rather than natural. */
+    static boolean isDyed(Material material) {
+        return dyed(material.name());
+    }
+
     private static boolean dyed(String name) {
         return name.endsWith("_CONCRETE") || name.endsWith("_WOOL") || (name.endsWith("_TERRACOTTA") && !name.equals("TERRACOTTA"));
     }
@@ -206,6 +230,20 @@ final class BlockColors {
         double dg = g1 - g2;
         double db = b1 - b2;
         return (2.0 + meanRed / 256.0) * dr * dr + 4.0 * dg * dg + (2.0 + (255.0 - meanRed) / 256.0) * db * db;
+    }
+
+    /** The hue of a colour in degrees (0 for a grey). */
+    static double hueOf(int rgb) {
+        return hue(rgb);
+    }
+
+    /** The saturation of a colour, 0 (grey) to 1. */
+    static double saturationOf(int rgb) {
+        return saturation(rgb);
+    }
+
+    static double hueGapOf(double a, double b) {
+        return hueGap(a, b);
     }
 
     private static double hue(int rgb) {

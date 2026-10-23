@@ -30,14 +30,13 @@ final class BrushEngine {
     private BrushEngine() {
     }
 
-    static Result compute(World world, int cx, int cy, int cz, BrushSettings s, int cap) {
+    static Result compute(World world, int cx, int cy, int cz, BrushSettings s, int cap, Set<Material> blacklist) {
         SurfaceProbe probe = new SurfaceProbe(world, s.sunVector(), s.castShadows);
         Map<Long, Change> changes = new LinkedHashMap<>();
         Random random = new Random();
         String note = switch (s.mode) {
-            case PAINT -> paint(probe, cx, cy, cz, s, random, changes, cap);
-            case AUTO_SHADE -> shade(probe, cx, cy, cz, s, random, changes, cap);
-            default -> terraform(probe, cx, cy, cz, s, random, changes, cap);
+            case PAINT -> paint(probe, cx, cy, cz, s, random, changes, cap, blacklist);
+            case AUTO_SHADE -> shade(probe, cx, cy, cz, s, random, changes, cap, blacklist);
         };
         return new Result(new ArrayList<>(changes.values()), note);
     }
@@ -66,10 +65,27 @@ final class BrushEngine {
             if (in == s.angleMaskInvert) return false;
         }
         if (s.shadeMaskOn) {
-            boolean shaded = probe.shade(x, y, z) >= 0.35;
+            boolean shaded = s.toonSteps > 1 ? band(s, probe.shade(x, y, z)) >= s.shadeBand : probe.shade(x, y, z) >= 0.35;
             if (shaded == s.shadeMaskInvert) return false;
         }
         return true;
+    }
+
+    /** The toon band of a shade (0 - 1): 0 for the lit, up to {@code toonSteps - 1} for the darkest. */
+    private static int band(BrushSettings s, double shade) {
+        return Math.min(s.toonSteps - 1, (int) Math.floor(Math.max(0.0, Math.min(1.0, shade)) * s.toonSteps));
+    }
+
+    /** The shade as the brush uses it: smooth, or (toon) cut into steps with the same darkness all through a band. */
+    private static double bandedShade(BrushSettings s, double shade) {
+        if (s.toonSteps <= 1) return shade;
+        int band = band(s, shade);
+        return band == 0 ? 0.0 : band / (double) (s.toonSteps - 1);
+    }
+
+    /** Whether the selection (when there is one) lets the brush work at the place. */
+    private static boolean inSelection(BrushSettings s, int x, int y, int z) {
+        return s.selection == null || s.selection.contains(x, y, z);
     }
 
     private static double noise(double x, double y, double z) {
@@ -129,13 +145,27 @@ final class BrushEngine {
 
     // ---- paint ----------------------------------------------------------------------------------------------------------------
 
-    private static String paint(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap) {
-        if (s.pattern.isEmpty()) return "模様 (パターン) のブロックがありません。メニューの「模様」で足してください。";
+    /** Where along the gradient (0 - 1) the place is, by the axis of the settings. */
+    private static double gradientPosition(BrushSettings s, int dx, int dy, int dz, double distance, int x, int y, int z) {
+        double r = Math.max(0.5, s.radius);
+        return switch (s.gradientAxis) {
+            case RADIAL -> distance;
+            case VERTICAL -> (dy + r) / (2.0 * r);
+            case DIRECTIONAL -> (dx * s.facing.getX() + dz * s.facing.getZ() + r) / (2.0 * r);
+            case NOISE -> noise(x / s.noiseScale, y / s.noiseScale, z / s.noiseScale);
+        };
+    }
+
+    private static String paint(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap, Set<Material> blacklist) {
+        boolean gradient = s.patternMode == BrushSettings.PatternMode.GRADIENT;
+        List<Material> ramp = gradient ? Gradients.ramp(s.gradientFrom, s.gradientTo, s.gradientSteps, blacklist) : List.of();
+        if (!gradient && s.pattern.isEmpty()) return "模様 (パターン) のブロックがありません。メニューの「模様」で足してください。";
         int r = s.radius;
+        BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = -r; dy <= r; dy++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    double distance = s.shape.distance(dx, dy, dz, r);
+                    double distance = volume.distance(dx, dy, dz);
                     if (distance > 1.0) continue;
                     int x = cx + dx;
                     int y = cy + dy;
@@ -143,9 +173,24 @@ final class BrushEngine {
                     Material type = probe.type(x, y, z);
                     if (!paintable(type)) continue;
                     if (s.surfaceOnly && !probe.exposed(x, y, z)) continue;
-                    if (random.nextDouble() > s.strength * weight(s, distance)) continue;
+                    if (!inSelection(s, x, y, z)) continue;
+                    if (random.nextDouble() > s.strength * weight(s, distance) * volume.density(distance)) continue;
                     if (!passes(s, probe, x, y, z, type)) continue;
-                    Material material = pick(s, x, y, z, random);
+                    Material material;
+                    if (gradient) {
+                        double t = gradientPosition(s, dx, dy, dz, distance, x, y, z) + (random.nextDouble() - 0.5) * s.dither * 2.0 / Math.max(1, ramp.size() - 1);
+                        if (s.additive && BlockColors.known(BlockColors.baseOf(type) != null ? BlockColors.baseOf(type) : type)) {
+                            // painting again moves the colour that is there on toward the gradient's colour, a share at a time
+                            Material current = BlockColors.baseOf(type) != null ? BlockColors.baseOf(type) : type;
+                            int moved = BlockColors.mix(BlockColors.rgb(current), Gradients.colorAt(ramp, t), s.additiveRate * weight(s, distance));
+                            material = Gradients.nearest(ramp, moved);
+                            if (material == current) continue;
+                        } else {
+                            material = Gradients.at(ramp, t);
+                        }
+                    } else {
+                        material = pick(s, x, y, z, random);
+                    }
                     if (material == null) continue;
                     BlockData data = restyle(probe.world().getBlockAt(x, y, z).getBlockData(), material);
                     if (data == null) continue;
@@ -159,17 +204,18 @@ final class BrushEngine {
 
     // ---- auto shade -----------------------------------------------------------------------------------------------------------
 
-    private static String shade(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap) {
+    private static String shade(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap, Set<Material> blacklist) {
         Set<Material> allowed = new java.util.HashSet<>();
         for (Material material : s.patternMaterials()) {
             Material base = BlockColors.baseOf(material);
             if (base != null) allowed.add(base);
         }
         int r = s.radius;
+        BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = -r; dy <= r; dy++) {
                 for (int dz = -r; dz <= r; dz++) {
-                    double distance = s.shape.distance(dx, dy, dz, r);
+                    double distance = volume.distance(dx, dy, dz);
                     if (distance > 1.0) continue;
                     int x = cx + dx;
                     int y = cy + dy;
@@ -177,11 +223,12 @@ final class BrushEngine {
                     Material type = probe.type(x, y, z);
                     Material base = BlockColors.baseOf(type);
                     if (base == null || !probe.exposed(x, y, z)) continue;
-                    double shade = probe.shade(x, y, z);
+                    if (!inSelection(s, x, y, z)) continue;
+                    double shade = bandedShade(s, probe.shade(x, y, z));
                     if (shade < 0.15) continue;
-                    if (random.nextDouble() > weight(s, distance)) continue;
+                    if (random.nextDouble() > weight(s, distance) * volume.density(distance)) continue;
                     if (!passes(s, probe, x, y, z, type)) continue;
-                    Material darker = BlockColors.darker(base, shade * s.shadeDepth, allowed, BlockColors.suffixOf(type));
+                    Material darker = BlockColors.darker(base, shade * s.shadeDepth, allowed, BlockColors.suffixOf(type), blacklist);
                     if (darker == base) continue;
                     BlockData data = restyle(probe.world().getBlockAt(x, y, z).getBlockData(), darker);
                     if (data == null) continue;
@@ -191,98 +238,5 @@ final class BrushEngine {
             }
         }
         return null;
-    }
-
-    // ---- terraform ------------------------------------------------------------------------------------------------------------
-
-    private static boolean ground(SurfaceProbe probe, int x, int y, int z) {
-        Material type = probe.type(x, y, z);
-        return type.isSolid() && !type.isAir() && !Tag.LEAVES.isTagged(type) && !Tag.LOGS.isTagged(type);
-    }
-
-    /** The y of the highest block of ground in the column within {@code reach} of {@code y}, or Integer.MIN_VALUE when there is none. */
-    private static int surface(SurfaceProbe probe, int x, int z, int y, int reach) {
-        for (int at = y + reach; at >= y - reach; at--) if (ground(probe, x, at, z)) return at;
-        return Integer.MIN_VALUE;
-    }
-
-    private static boolean grassy(Material type) {
-        return type == Material.GRASS_BLOCK || type == Material.PODZOL || type == Material.MYCELIUM || type == Material.DIRT_PATH
-                || type == Material.CRIMSON_NYLIUM || type == Material.WARPED_NYLIUM;
-    }
-
-    private static String terraform(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap) {
-        int r = s.radius;
-        int reach = r + 4;
-        // the heights of the columns, a ring wider than the brush for smoothing
-        Map<Long, Integer> heights = new HashMap<>();
-        for (int dx = -r - 1; dx <= r + 1; dx++) {
-            for (int dz = -r - 1; dz <= r + 1; dz++) {
-                heights.put(SurfaceProbe.pack(cx + dx, 0, cz + dz), surface(probe, cx + dx, cz + dz, cy, reach));
-            }
-        }
-        for (int dx = -r; dx <= r; dx++) {
-            for (int dz = -r; dz <= r; dz++) {
-                double distance = Math.sqrt(dx * dx + dz * dz) / Math.max(0.5, r);
-                if (distance > 1.0) continue;
-                int x = cx + dx;
-                int z = cz + dz;
-                int height = heights.get(SurfaceProbe.pack(x, 0, z));
-                if (height == Integer.MIN_VALUE) continue;
-                double w = weight(s, distance);
-                int target = switch (s.mode) {
-                    case RAISE -> height + (int) Math.round(s.height * w);
-                    case LOWER -> height - (int) Math.round(s.height * w);
-                    case SMOOTH -> {
-                        double sum = 0.0;
-                        int count = 0;
-                        for (int ox = -1; ox <= 1; ox++) {
-                            for (int oz = -1; oz <= 1; oz++) {
-                                Integer neighbour = heights.get(SurfaceProbe.pack(x + ox, 0, z + oz));
-                                if (neighbour == null || neighbour == Integer.MIN_VALUE) continue;
-                                sum += neighbour;
-                                count++;
-                            }
-                        }
-                        double average = count == 0 ? height : sum / count;
-                        yield (int) Math.round(height + (average - height) * Math.min(1.0, w * (0.4 + 0.6 * s.strength)));
-                    }
-                    default -> (int) Math.round(height + (cy - height) * w);
-                };
-                if (target == height) continue;
-                if (!adjustColumn(probe, s, random, changes, x, z, height, target)) continue;
-                if (changes.size() >= cap) return "変更が多すぎるので途中で止めました (" + cap + "ブロック)。";
-            }
-        }
-        return null;
-    }
-
-    private static boolean adjustColumn(SurfaceProbe probe, BrushSettings s, Random random, Map<Long, Change> changes, int x, int z, int height, int target) {
-        Material top = probe.type(x, height, z);
-        Material below = probe.solid(x, height - 1, z) ? probe.type(x, height - 1, z) : top;
-        Material fill = grassy(top) ? (grassy(below) ? Material.DIRT : below) : below;
-        if (target > height) {
-            for (int y = height + 1; y <= target; y++) {
-                if (probe.solid(x, y, z)) return false;
-                Material material;
-                if (!s.pattern.isEmpty()) material = pick(s, x, y, z, random);
-                else material = y == target ? top : fill;
-                if (material == null) material = top;
-                put(changes, x, y, z, material.createBlockData());
-            }
-            // the old top is covered: it becomes the filling under it
-            if (s.pattern.isEmpty() && grassy(top)) put(changes, x, height, z, fill.createBlockData());
-            return true;
-        }
-        for (int y = height; y > target; y--) put(changes, x, y, z, Material.AIR.createBlockData());
-        // plants standing on the old top fall with it
-        if (!probe.solid(x, height + 1, z) && !probe.type(x, height + 1, z).isAir()) put(changes, x, height + 1, z, Material.AIR.createBlockData());
-        // the new top has the surface of the old one
-        if (s.pattern.isEmpty() && grassy(top) && probe.solid(x, target, z)) put(changes, x, target, z, top.createBlockData());
-        else if (!s.pattern.isEmpty() && probe.solid(x, target, z)) {
-            Material material = pick(s, x, target, z, random);
-            if (material != null) put(changes, x, target, z, material.createBlockData());
-        }
-        return true;
     }
 }

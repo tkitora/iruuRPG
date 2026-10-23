@@ -45,8 +45,8 @@ commands:
     usage: /vfx <list|help|test>
     permission: iruurpg.admin
   ibrush:
-    description: "Painting brush for builders (admins): gives the brush item, opens its menu, undo"
-    usage: /ibrush [give|menu|off|undo|use|preview]
+    description: "Painting brush for builders (admins): gives the brush item, opens its menu, settings by command, presets, blacklist, undo/redo. /ibrush help for the arguments"
+    usage: /ibrush [help|give|menu|off|undo|redo|use|peek|preview|set|preset|blacklist]
     aliases:
       - irubrush
     permission: iruurpg.admin

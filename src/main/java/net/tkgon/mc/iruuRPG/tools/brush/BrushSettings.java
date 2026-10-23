@@ -22,12 +22,51 @@ final class BrushSettings {
         }
     }
 
+    /** How the blocks painted are chosen: by weight from the list, or along a gradient between two blocks. */
+    enum PatternMode { RANDOM, GRADIENT }
+
+    /** What the place along the gradient (0 - 1) comes from. */
+    enum GradientAxis {
+        RADIAL("中心から縁へ", "ブラシの中心が最初のブロック、縁が最後のブロック"),
+        VERTICAL("下から上へ", "ブラシの下が最初のブロック、上が最後のブロック"),
+        DIRECTIONAL("向きに沿って", "使ったときに向いていた方向に、手前から奥へ"),
+        NOISE("ノイズ", "滑らかなノイズで斑にする");
+
+        final String label;
+        final String description;
+
+        GradientAxis(String label, String description) {
+            this.label = label;
+            this.description = description;
+        }
+    }
+
     BrushMode mode = BrushMode.PAINT;
     BrushShape shape = BrushShape.SPHERE;
     int radius = 6;
-    /** Paint: the share of the blocks in the brush that are painted at the centre (0.1 - 1). Terraform: the height in blocks at the centre (1 - 12). */
+    /** The share of the blocks in the brush that are painted at the centre (0.1 - 1). */
     double strength = 1.0;
-    int height = 2;
+    PatternMode patternMode = PatternMode.RANDOM;
+    Material gradientFrom = Material.STONE;
+    Material gradientTo = Material.DEEPSLATE;
+    int gradientSteps = 4;
+    GradientAxis gradientAxis = GradientAxis.RADIAL;
+    /** How much the gradient is broken up from block to block (0 = clean bands, 1 = very grainy). */
+    double dither = 0.25;
+    /** Painting again on a place moves its colour further along the gradient instead of replacing it. */
+    boolean additive;
+    /** How far one application moves a block's colour toward the gradient (0.1 - 1). */
+    double additiveRate = 0.5;
+    /** Toon shading: the number of bands the shade is cut into (0 = smooth, 2 - 6). */
+    int toonSteps;
+    /** With toon steps on and the shade mask on: the least band (1 = the lightest shadow) that passes. */
+    int shadeBand = 1;
+    /** The horizontal direction the player faces when the brush is used (for a gradient along it); set by the module. */
+    org.bukkit.util.Vector facing = new Vector(0.0, 0.0, 1.0);
+    /** The selection the brush is held to (null: none); set by the module from the player's selection tool. */
+    Selection selection;
+    /** Counts every change of a setting, so the live preview can tell when to start over. */
+    int revision;
     /** 0 = the whole brush is the same, 1 = the effect fades to nothing at the edge. */
     double falloff = 0.3;
     boolean surfaceOnly = true;
