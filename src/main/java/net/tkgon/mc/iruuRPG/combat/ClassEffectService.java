@@ -251,6 +251,8 @@ public final class ClassEffectService {
     /** What each assassin dealt to each enemy during the frenzy (the item swap key, pressed again, gives back a share of it). */
     private final Map<UUID, Map<UUID, Double>> frenzyDamage = new HashMap<>();
     private final Map<UUID, Long> frenzyStarted = new HashMap<>();
+    /** Where each assassin's frenzy began: the assassin cannot go farther from it than {@code class-effects.assassin.frenzy-radius} while it lasts. */
+    private final Map<UUID, org.bukkit.Location> frenzyOrigin = new HashMap<>();
     /** Assassins whose echo damage is being dealt right now (it is not counted again). */
     private final java.util.Set<UUID> echoing = new java.util.HashSet<>();
 
@@ -259,6 +261,16 @@ public final class ClassEffectService {
         frenzy.put(player.getUniqueId(), new long[]{System.currentTimeMillis() + Math.round(seconds * 1000.0), level});
         frenzyDamage.put(player.getUniqueId(), new HashMap<>());
         frenzyStarted.put(player.getUniqueId(), System.currentTimeMillis());
+        frenzyOrigin.put(player.getUniqueId(), player.getLocation().clone());
+    }
+
+    /** The place the frenzy began, while it lasts (null when there is no frenzy). */
+    public org.bukkit.Location frenzyCenter(Player player) {
+        if (frenzyLevel(player) == 0) {
+            frenzyOrigin.remove(player.getUniqueId());
+            return null;
+        }
+        return frenzyOrigin.get(player.getUniqueId());
     }
 
     public long frenzyElapsedMillis(Player player) {
@@ -297,6 +309,7 @@ public final class ClassEffectService {
     public void endFrenzy(Player player) {
         frenzy.remove(player.getUniqueId());
         frenzyDamage.remove(player.getUniqueId());
+        frenzyOrigin.remove(player.getUniqueId());
         AssassinClones.endEffect(player);
     }
 

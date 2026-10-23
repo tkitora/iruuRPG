@@ -328,6 +328,10 @@ public final class AttackService {
         return attackCooldowns.tryStart(attacker, AttackType.DEPLOY, ticks);
     }
 
+    /** The cooldown of the assassin's heavy 0 (a dash) during the item swap skill. */
+    private static final int SWAP_DASH_COOLDOWN_TICKS = 2;
+    private final Map<UUID, Integer> swapDashReady = new HashMap<>();
+
     /**
      * A heavy attack of the class's combo: the other click than the weapon's normal one (melee: the right click, ranged and
      * deployed: the left click). True when the click was used, also while heavy 0 cools down.
@@ -354,7 +358,14 @@ public final class AttackService {
             AssassinClones.recast(kit(attacker, weapon), assassinFrenzy(attacker) >= 2 ? 1.35 : assassinFrenzy(attacker) == 1 ? 1.2 : 1.0);
             return true;
         }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, false, combo.spec().plan());
+        // during the item swap skill the assassin's heavy 0 is a dash with a cooldown of 2 ticks of its own (the clone's cooldown of 8 s neither waits nor starts)
+        boolean swapDash = AssassinMeleeCombo.PLAN.equals(combo.spec().plan()) && assassinFrenzy(attacker) > 0 && meleeCombo.done(attacker, combo.spec().plan()) == 0;
+        if (swapDash) {
+            Integer ready = swapDashReady.get(attacker.getUniqueId());
+            if (ready != null && tick < ready) return true;
+            swapDashReady.put(attacker.getUniqueId(), tick + SWAP_DASH_COOLDOWN_TICKS);
+        }
+        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, swapDash, combo.spec().plan());
         if (step == null) {
             // (a held button waits for the cooldown without a "no" sound at every repeat)
             if (!held) attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);

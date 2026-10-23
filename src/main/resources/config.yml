@@ -119,6 +119,9 @@ combat:
       swap-copies: 5                              # アイテムスワップのクローンがコピーする攻撃の回数
       swap-copy-rate: 0.05                        # クローンのコピー1回の倍率 (武器ダメージの5%)
       swap-guard-share: 0.4                       # アイテムスワップ中、一撃で最大体力のこの割合以上のダメージを受けると、クローンがすべて壊れてそのダメージを無効にする
+      swap-dash-power: 1.2                        # アイテムスワップ中の強攻撃0 (前方ダッシュ) の強さ (1 tick あたり)
+      swap-dash-ticks: 5                          # そのダッシュの長さ (tick)
+      swap-dash-rate: 0.03                        # そのダッシュが移動地点に与える倍率 (武器ダメージの3%。クールタイムは2 tick)
     cleric_melee:
       normal-gap-ticks: 10
     warrior_melee:
@@ -251,6 +254,8 @@ class-effects:
   assassin:
     # SATUJIN (コンボ強化) の間、通常攻撃に足される攻撃速度 (%)
     frenzy-attack-speed: 40
+    # SATUJIN の間、発動した場所からこの半径 (ブロック) より外には出られない
+    frenzy-radius: 15
   healer:
     # 回復→敵ダメージの範囲(ブロック)
     pulse-radius: 7
