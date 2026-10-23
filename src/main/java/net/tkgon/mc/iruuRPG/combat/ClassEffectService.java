@@ -278,6 +278,11 @@ public final class ClassEffectService {
         return started == null ? 0L : System.currentTimeMillis() - started;
     }
 
+    /** True while the damage record of the frenzy is kept: it is taken by the echo, so this is false once the echo (pressed or automatic) has run. */
+    public boolean hasFrenzyRecord(Player player) {
+        return frenzyDamage.containsKey(player.getUniqueId());
+    }
+
     /** The damage dealt to each enemy since the frenzy began; forgets it. */
     public Map<UUID, Double> takeFrenzyDamage(Player player) {
         Map<UUID, Double> dealt = frenzyDamage.remove(player.getUniqueId());

@@ -365,7 +365,7 @@ public final class ClassSkillService {
     /**
      * The assassin's frenzy: for some seconds (8; 12 when upgraded) the assassin's combo is stronger (see {@link AssassinMeleeCombo}): the blows hit harder,
      * the normal attacks come faster, an enemy out of reach is blinked to, a shadow cuts again after every normal attack, and the status
-     * effects (confusion) land with every hit. A rush of shadow opens it, and the assassin is wrapped in it until it ends. The assassin cannot go farther than 15 blocks from
+     * effects (confusion) land with every hit. A rush of shadow opens it, and the assassin is wrapped in it until it ends. The assassin cannot go farther than 12 blocks from
      * where it began ({@link net.tkgon.mc.iruuRPG.listener.FrenzyCageListener}), and heavy 0 is a dash instead of a clone.
      */
     private void satsujin(Player player, ClassSkillDefinition skill) {
@@ -407,7 +407,9 @@ public final class ClassSkillService {
             protected void tick() {
                 ParticleFx.mark(player);
                 if (tick >= total || !player.isOnline() || player.isDead() || classEffectService.frenzyLevel(player) == 0) {
-                    classEffectService.endFrenzy(player);
+                    // the time ran out (the echo was not pressed): it comes by itself
+                    if (player.isOnline() && !player.isDead() && classEffectService.hasFrenzyRecord(player)) echo(player, skill);
+                    else classEffectService.endFrenzy(player);
                     if (player.isOnline()) player.getWorld().playSound(player.getLocation(), Sound.ENTITY_ENDERMAN_TELEPORT, 0.5f, 1.6f);
                     cancel();
                     return;
@@ -422,7 +424,7 @@ public final class ClassSkillService {
                     SkillFx.groundRing(owner, feet, 1.5, Clones.RED_BLACK, 0.6, 1.0);
                 }
                 // the edge of the circle the assassin cannot leave shows when it is close
-                double radius = plugin.getConfig().getDouble("class-effects.assassin.frenzy-radius", 15.0);
+                double radius = plugin.getConfig().getDouble("class-effects.assassin.frenzy-radius", 12.0);
                 double dx = feet.getX() - base.getX();
                 double dz = feet.getZ() - base.getZ();
                 if (Math.hypot(dx, dz) > radius - 4.0) {
@@ -442,7 +444,7 @@ public final class ClassSkillService {
     }
 
     /**
-     * The item swap key pressed again during the frenzy: it ends, the clones go, and each enemy that a clone hurt at least once is struck in two parts, with the echo of what
+     * The item swap key pressed again during the frenzy (or the time of the frenzy running out: the same comes by itself): it ends, the clones go, and each enemy that a clone hurt at least once is struck in two parts, with the echo of what
      * the assassin dealt to it ({@code echo-share}, 10%): 30% of it in a run of six straight horizontal slashes at random angles, and then 70% in one wide, thin slash
      * across the enemy (broadside to the assassin). At most the 8 enemies hurt most. True when the press was used here (also when it is too early).
      */
@@ -454,6 +456,12 @@ public final class ClassSkillService {
             player.sendMessage("[iruuRPG] SATUJINの再発動まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - elapsed / 1000.0) + "秒");
             return true;
         }
+        echo(player, skill);
+        return true;
+    }
+
+    /** The echo itself (see {@link #frenzyEcho}): the press and the end of the time both come here. It ends the frenzy and takes away the clones. */
+    private void echo(Player player, ClassSkillDefinition skill) {
         java.util.Set<UUID> hurtByClones = new java.util.HashSet<>(AssassinClones.hurtByClones(player));
         java.util.Map<UUID, Double> dealt = classEffectService.takeFrenzyDamage(player);
         classEffectService.endFrenzy(player);
@@ -496,7 +504,6 @@ public final class ClassSkillService {
             }, start + 22L);
         }
         player.sendMessage("[iruuRPG] SATUJINの残響: 分身が傷つけた" + victims + "体に、与えたダメージの" + Math.round(share * 100.0) + "%を返しました (合計 " + Math.round(total) + ")。");
-        return true;
     }
 
     private void echoDamage(Player player, LivingEntity victim, double amount) {

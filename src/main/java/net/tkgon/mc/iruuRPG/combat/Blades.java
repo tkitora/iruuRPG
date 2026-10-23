@@ -74,9 +74,10 @@ final class Blades {
     /**
      * A shuriken (a spinning cross of four blades) that flies from {@code start} along {@code dir}, {@code speed} blocks a tick, and bounces up to {@code bounces} times: off a
      * block (it turns as light does) and off an enemy it hits (it turns to the nearest other enemy within 9 blocks, else it flies back, a little aside). It hits an enemy it touches for
-     * {@code rate}; after each bounce the damage is {@code decay} (0.5) less than before. It ends at the contact after the last bounce, or after 55 ticks.
+     * {@code rate}; after each bounce the damage is {@code decay} (0.5) less than before. It ends at the contact after the last bounce, or when it has flown {@code range}
+     * blocks in all. Drawn to be seen: a bright orb with a thick streak behind it.
      */
-    static void bounce(MoveKit kit, Location start, Vector dir, double speed, int bounces, double decay, double rate) {
+    static void bounce(MoveKit kit, Location start, Vector dir, double speed, int bounces, double decay, double rate, double range) {
         World world = start.getWorld();
         Location[] position = {start.clone()};
         Vector[] heading = {dir.clone().normalize()};
@@ -84,11 +85,17 @@ final class Blades {
         double[] power = {rate};
         UUID[] last = {null};
         kit.sound(start, Sfx.WIND, 0.5f, 1.8f);
-        kit.every(55, age -> {
+        double[] flown = {0.0};
+        kit.every((int) Math.ceil(range / speed) + 6, age -> {
+            if (flown[0] >= range) {
+                kit.burst(position[0], 0.6);
+                return true;
+            }
             Vector flight = heading[0].clone().multiply(speed);
             RayTraceResult wall = world.rayTraceBlocks(position[0], heading[0], speed, FluidCollisionMode.NEVER, true);
             Location next = wall != null && wall.getHitPosition() != null ? wall.getHitPosition().toLocation(world) : position[0].clone().add(flight);
-            star(kit, position[0], heading[0], age);
+            orb(kit, position[0], next);
+            flown[0] += position[0].distance(next);
             LivingEntity touched = null;
             double best = Double.MAX_VALUE;
             for (LivingEntity victim : kit.around(next, 1.1)) {
@@ -146,20 +153,13 @@ final class Blades {
         });
     }
 
-    /** One frame of a shuriken at {@code at}: two crossed blades, turning with {@code age}, facing the way it flies. */
-    private static void star(MoveKit kit, Location at, Vector heading, int age) {
-        Fx fx = kit.fx(at);
+    /** One frame of the shuriken, from {@code from} to {@code to}: a thick bright streak along the way it went, and a bright orb at its head. */
+    private static void orb(MoveKit kit, Location from, Location to) {
+        Fx fx = kit.fx(to);
         if (!fx.active()) return;
-        Vector u = heading.clone().crossProduct(Y);
-        if (u.lengthSquared() < 1.0E-6) u = new Vector(1.0, 0.0, 0.0);
-        u.normalize();
-        Vector v = heading.clone().crossProduct(u).normalize();
-        for (int arm = 0; arm < 2; arm++) {
-            double angle = age * 0.9 + arm * Math.PI / 2.0;
-            Vector out = u.clone().multiply(Math.cos(angle)).add(v.clone().multiply(Math.sin(angle))).multiply(0.45);
-            fx.line(at.clone().subtract(out), at.clone().add(out), kit.palette(), 0.4, 1.0, 0.8, 1.1, 0.1, null, 1);
-        }
-        fx.dust(at.getX(), at.getY(), at.getZ(), kit.palette(), 1.0, 1.3);
+        fx.line(from, to, kit.palette(), 0.3, 1.0, 0.5, 1.9, 0.1, null, 1);
+        fx.sphereShell(to, 0.3, 0.0, 18, kit.palette(), 1.6);
+        fx.dust(to.getX(), to.getY(), to.getZ(), kit.palette(), 1.0, 2.4);
     }
 
     /** A blade that bends toward the nearest enemy within {@code seek} blocks after 3 ticks: one hit of {@code rate} on the first it touches. */

@@ -10,7 +10,7 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * While the assassin's item swap skill (SATUJIN) lasts, the assassin cannot go out of a circle of {@code class-effects.assassin.frenzy-radius} blocks (15) round the place the
+ * While the assassin's item swap skill (SATUJIN) lasts, the assassin cannot go out of a circle of {@code class-effects.assassin.frenzy-radius} blocks (12) round the place the
  * skill was used: a step that would cross it ends on the edge (the way a world border holds). Only the horizontal distance counts; the view is not touched.
  */
 public final class FrenzyCageListener implements Listener {
@@ -30,7 +30,7 @@ public final class FrenzyCageListener implements Listener {
         if (center == null) return;
         Location to = event.getTo();
         if (to == null || to.getWorld() != center.getWorld()) return;
-        double radius = plugin.getConfig().getDouble("class-effects.assassin.frenzy-radius", 15.0);
+        double radius = plugin.getConfig().getDouble("class-effects.assassin.frenzy-radius", 12.0);
         double dx = to.getX() - center.getX();
         double dz = to.getZ() - center.getZ();
         double distanceSquared = dx * dx + dz * dz;

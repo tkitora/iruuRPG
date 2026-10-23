@@ -16,9 +16,9 @@ import java.util.List;
  *
  * <p>Normal: 1 a fang cross (two cuts, 50% x2), 2 a step in (a dash that stops at the first enemy it touches, then two cuts, 60% x2), 3 a shadow clone (a clone steps in from
  * behind the nearest enemy and strikes, 130%, confuses a little), 4 whirling blades (a spin of 4 cuts, 25% each on everyone round, 12 ticks), 5 an execution (two clones
- * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a grey clone (it only stands in front of the assassin for 2.5 s;
- * cooldown 8 s; during the item swap skill it is a flat dash to the front instead, 3% to everyone along the way, cooldown 2 ticks; the heavy click again, up to twice, makes one more clone and then sends the clones charging forward, 15% each; the first heavy attack
- * after one was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage), 1 a shuriken that bounces up to three times, half the damage lost at each bounce
+ * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a grey clone (it is flung the way the assassin faces and stands there for 4.5 s;
+ * cooldown 8 s; during the item swap skill it is a flat dash to the front instead (the clones of the skill follow it, once in half a second), 3% to everyone along the way, cooldown 2 ticks; the heavy click again, up to twice, makes one more clone and then sends the clones charging forward, 15% each; the first heavy attack
+ * after one was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage), 1 a shuriken (a bright orb with a thick streak, 12 blocks in all) that bounces up to three times, half the damage lost at each bounce
  * (three of them in the item swap skill), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
  * everyone round, takes 40% less damage meanwhile), 3 crossing clones (two clones run through the line ahead from both ends, 60% on all in the way each), 4 a phantom execution
  * (afterimages, then three clones close on the nearest enemy: 50% each and confusion).
@@ -203,6 +203,8 @@ public final class AssassinMeleeCombo extends BaseCombo {
         double rate = kit.number(PLAN, "swap-dash-rate", 0.03);
         kit.sound(feet, Sfx.WIND_BURST, 0.7f, 1.4f);
         kit.line(from, from.clone().add(facing.clone().multiply(power * ticks)), 0.2, 1.0, 1.4);
+        // the clones of the skill go the same way (once in half a second)
+        AssassinClones.followDash(kit, facing.clone().multiply(power * ticks));
         kit.dash(facing, power, ticks, end -> {
             double length = Math.hypot(end.getX() - feet.getX(), end.getZ() - feet.getZ()) + 0.5;
             kit.shockwave(end, 0.8, 2.0, 3, 1.0);
@@ -227,10 +229,10 @@ public final class AssassinMeleeCombo extends BaseCombo {
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {
             case 0 -> {
-                // a grey clone stands in front of the assassin (2.5 s): the heavy click again makes one more, and again sends them charging; nothing else (cooldown 8 s)
-                Location at = kit.ground(feet.clone().add(facing.clone().multiply(2.5)));
+                // a grey clone is flung the way the assassin faces and stands there (4.5 s): the heavy click again makes one more, and again sends them charging; nothing else (cooldown 8 s)
+                Location at = kit.ground(feet.clone().add(facing.clone().multiply(kit.number(PLAN, "stand-clone-distance", 5.0))));
                 double yaw = Math.toDegrees(Math.atan2(-facing.getX(), facing.getZ()));
-                int life = (int) Math.round(kit.number(PLAN, "stand-clone-seconds", 2.5) * 20.0);
+                int life = (int) Math.round(kit.number(PLAN, "stand-clone-seconds", 4.5) * 20.0);
                 AssassinClones.standOne(kit, at, yaw, life);
                 AssassinClones.beginCast(kit);
                 kit.sound(at, Sfx.WIND, 0.6f, 1.6f);
@@ -246,7 +248,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     double turn = Math.toRadians(count == 1 ? 0.0 : 22.0 * (index - 1));
                     Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
                     Location start = kit.eye().add(direction.clone().multiply(0.9)).subtract(0.0, 0.4, 0.0);
-                    Blades.bounce(kit, start, direction, 1.4, bounces, decay, rate);
+                    Blades.bounce(kit, start, direction, 1.2, bounces, decay, rate, kit.number(PLAN, "shuriken-range", 12.0));
                 }
             }
             case 2 -> {
