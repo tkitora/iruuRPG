@@ -24,7 +24,7 @@ import java.util.UUID;
  *       At most two exist at a time (a third takes the place of the oldest; the short-lived clones that strike for a blow count against the two as well and are not made when there
  *       is no room). The first heavy attack after a clone was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage ({@link #mimic});</li>
  *   <li>the three clones of the item swap skill (red outline, red and black): they are flung forward when the skill starts (all other clones are destroyed), and copy the
- *       assassin's next five attacks, each copy a hit of 5% of the weapon's damage ({@link #copyAttack}); after the last the clone is destroyed. They do not count against the two, and
+ *       assassin's next ten attacks (a normal or a heavy one; for heavy 1 each clone throws a shuriken), each copy a hit of 5% of the weapon's damage ({@link #copyAttack}); after the last the clone is destroyed. They do not count against the two, and
  *       end with the skill. A blow of 40% of the assassin's life or more that lands while any remain destroys them all and is nullified ({@link #sacrifice}).</li>
  * </ul>
  * Every clone faces the enemy it attacks. Each enemy a clone has hurt is remembered for the echo of the skill's second press.
@@ -287,7 +287,7 @@ final class AssassinClones {
      * The swing of an attack of the assassin during the item swap skill, copied: each of its clones that still has copies left strikes the enemy nearest to it within ten
      * blocks (turning to it) for 5% of the weapon's damage ({@code swap-copy-rate}); with the last copy (the tenth) the clone is destroyed.
      */
-    static void copyAttack(MoveKit kit) {
+    static void copyAttack(MoveKit kit, int heavyIndex) {
         int delay = 1;
         double rate = kit.number(AssassinMeleeCombo.PLAN, "swap-copy-rate", 0.05);
         for (Ghost ghost : new ArrayList<>(GHOSTS.getOrDefault(kit.player.getUniqueId(), List.of()))) {
@@ -297,6 +297,22 @@ final class AssassinClones {
             ghost.copies--;
             kit.later(delay++, () -> {
                 if (ghost.leaving >= 0 || !target.isValid() || target.isDead()) return;
+                if (heavyIndex == 1) {
+                    // heavy 1: the clone throws a shuriken of its own at the enemy (it bounces like the assassin's)
+                    face(ghost, target.getLocation());
+                    swing(ghost);
+                    Location from = ghost.pos.clone().add(0.0, 1.2, 0.0);
+                    Vector toward = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0).toVector().subtract(from.toVector());
+                    if (toward.lengthSquared() > 1.0E-6) {
+                        Blades.bounce(kit, from.add(toward.clone().normalize().multiply(0.6)), toward, kit.number(AssassinMeleeCombo.PLAN, "shuriken-speed", 2.0),
+                                (int) Math.round(kit.number(AssassinMeleeCombo.PLAN, "shuriken-bounces", 3.0)), Math.max(0.0, Math.min(0.95, kit.number(AssassinMeleeCombo.PLAN, "shuriken-decay", 0.5))),
+                                rate, kit.number(AssassinMeleeCombo.PLAN, "shuriken-range", 12.0),
+                                victim -> DAMAGED.computeIfAbsent(kit.player.getUniqueId(), id -> new HashSet<>()).add(victim.getUniqueId()));
+                    }
+                    kit.sound(ghost.pos, Sfx.WIND, 0.5f, 1.8f);
+                    if (ghost.copies <= 0) ghost.leaving = 6;
+                    return;
+                }
                 cloneHit(kit, ghost, target, rate);
                 Clones.lineCut(kit.player, ghost.look.gradient(), target.getLocation(), Math.random() * Math.PI, true);
                 kit.sound(ghost.pos, Sfx.WIND, 0.5f, 1.8f);

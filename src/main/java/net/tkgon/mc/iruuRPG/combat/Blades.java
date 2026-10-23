@@ -78,6 +78,11 @@ final class Blades {
      * blocks in all. Drawn to be seen: a bright orb with a thick streak behind it.
      */
     static void bounce(MoveKit kit, Location start, Vector dir, double speed, int bounces, double decay, double rate, double range) {
+        bounce(kit, start, dir, speed, bounces, decay, rate, range, null);
+    }
+
+    /** The same; {@code onHit} (when not null) is told of every enemy the shuriken hurts. */
+    static void bounce(MoveKit kit, Location start, Vector dir, double speed, int bounces, double decay, double rate, double range, Consumer<LivingEntity> onHit) {
         World world = start.getWorld();
         Location[] position = {start.clone()};
         Vector[] heading = {dir.clone().normalize()};
@@ -94,20 +99,28 @@ final class Blades {
             Vector flight = heading[0].clone().multiply(speed);
             RayTraceResult wall = world.rayTraceBlocks(position[0], heading[0], speed, FluidCollisionMode.NEVER, true);
             Location next = wall != null && wall.getHitPosition() != null ? wall.getHitPosition().toLocation(world) : position[0].clone().add(flight);
-            orb(kit, position[0], next);
-            flown[0] += position[0].distance(next);
+            // (it flies fast, so the way is walked in steps of under a block and the first enemy touched stops it)
             LivingEntity touched = null;
-            double best = Double.MAX_VALUE;
-            for (LivingEntity victim : kit.around(next, 1.1)) {
-                if (victim.getUniqueId().equals(last[0])) continue;
-                double distance = victim.getLocation().distanceSquared(next);
-                if (distance < best) {
-                    best = distance;
-                    touched = victim;
+            double segment = position[0].distance(next);
+            int steps = Math.max(1, (int) Math.ceil(segment / 0.9));
+            for (int step = 1; step <= steps && touched == null; step++) {
+                Location point = position[0].clone().add(next.clone().subtract(position[0]).toVector().multiply(step / (double) steps));
+                double best = Double.MAX_VALUE;
+                for (LivingEntity victim : kit.around(point, 1.1)) {
+                    if (victim.getUniqueId().equals(last[0])) continue;
+                    double distance = victim.getLocation().distanceSquared(point);
+                    if (distance < best) {
+                        best = distance;
+                        touched = victim;
+                        next = point;
+                    }
                 }
             }
+            orb(kit, position[0], next);
+            flown[0] += position[0].distance(next);
             if (touched != null) {
                 kit.hit(touched, power[0]);
+                if (onHit != null) onHit.accept(touched);
                 kit.burst(next, 0.7);
                 kit.sound(next, Sfx.CRACK, 0.4f, 1.7f);
                 if (done[0] >= bounces) return true;
@@ -153,13 +166,13 @@ final class Blades {
         });
     }
 
-    /** One frame of the shuriken, from {@code from} to {@code to}: a thick bright streak along the way it went, and a bright orb at its head. */
+    /** One frame of the shuriken, from {@code from} to {@code to}: a thin bright streak along the way it went, and a small bright head. */
     private static void orb(MoveKit kit, Location from, Location to) {
         Fx fx = kit.fx(to);
         if (!fx.active()) return;
-        fx.line(from, to, kit.palette(), 0.3, 1.0, 0.5, 1.9, 0.1, null, 1);
-        fx.sphereShell(to, 0.3, 0.0, 18, kit.palette(), 1.6);
-        fx.dust(to.getX(), to.getY(), to.getZ(), kit.palette(), 1.0, 2.4);
+        fx.line(from, to, kit.palette(), 0.45, 1.0, 0.5, 1.0, 0.07, null, 1);
+        fx.sphereShell(to, 0.16, 0.0, 10, kit.palette(), 1.2);
+        fx.dust(to.getX(), to.getY(), to.getZ(), kit.palette(), 1.0, 1.6);
     }
 
     /** A blade that bends toward the nearest enemy within {@code seek} blocks after 3 ticks: one hit of {@code rate} on the first it touches. */
