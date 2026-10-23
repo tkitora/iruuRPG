@@ -23,6 +23,8 @@ final class SurfaceProbe {
     private final Map<Long, Material> types = new HashMap<>();
     private final Map<Long, Vector> normals = new HashMap<>();
     private final Map<Long, Double> shades = new HashMap<>();
+    private final Map<Long, Double> ambients = new HashMap<>();
+    private final Map<Long, Double> curvatures = new HashMap<>();
 
     SurfaceProbe(World world, Vector sun, boolean castShadows) {
         this.world = world;
@@ -78,6 +80,54 @@ final class SurfaceProbe {
     /** The angle of the surface from the flat in degrees: 0 for ground, 90 for a wall, more for an overhang. */
     double angle(int x, int y, int z) {
         return Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, normal(x, y, z).getY()))));
+    }
+
+    /** The share of the sky round the surface block that is closed off by solid blocks (0 = open, 1 = shut in): rays over the hemisphere of the normal, 3 blocks each, near blocks counting more. */
+    double ambient(int x, int y, int z) {
+        return ambients.computeIfAbsent(pack(x, y, z), key -> {
+            Vector normal = normal(x, y, z);
+            double blocked = 0.0;
+            double total = 0.0;
+            int points = 24;
+            double golden = Math.PI * (3.0 - Math.sqrt(5.0));
+            for (int index = 0; index < points; index++) {
+                double dy = 1.0 - 2.0 * (index + 0.5) / points;
+                double ring = Math.sqrt(Math.max(0.0, 1.0 - dy * dy));
+                double angle = golden * index;
+                double dx = Math.cos(angle) * ring;
+                double dz = Math.sin(angle) * ring;
+                if (dx * normal.getX() + dy * normal.getY() + dz * normal.getZ() < 0.15) continue;
+                total += 1.0;
+                for (int step = 1; step <= 3; step++) {
+                    if (solid((int) Math.round(x + dx * step), (int) Math.round(y + dy * step), (int) Math.round(z + dz * step))) {
+                        blocked += 1.0 / step;
+                        break;
+                    }
+                }
+            }
+            return total <= 0.0 ? 0.0 : Math.min(1.0, blocked / total * 1.6);
+        });
+    }
+
+    /**
+     * How much the surface block bulges (positive, a ridge or a corner) or sinks (negative, a crevice or an inner corner), -1 to 1: a flat surface has half of the box round it
+     * solid; less than half is a bulge, more is a hollow.
+     */
+    double curvature(int x, int y, int z) {
+        return curvatures.computeIfAbsent(pack(x, y, z), key -> {
+            int solid = 0;
+            int count = 0;
+            for (int dx = -2; dx <= 2; dx++) {
+                for (int dy = -2; dy <= 2; dy++) {
+                    for (int dz = -2; dz <= 2; dz++) {
+                        if (dx == 0 && dy == 0 && dz == 0) continue;
+                        count++;
+                        if (solid(x + dx, y + dy, z + dz)) solid++;
+                    }
+                }
+            }
+            return Math.max(-1.0, Math.min(1.0, (0.5 - solid / (double) count) * 3.0));
+        });
     }
 
     /** 0 = in the sun, 1 = in full shade. */

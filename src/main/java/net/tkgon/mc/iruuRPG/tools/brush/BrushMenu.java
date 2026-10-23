@@ -485,7 +485,62 @@ final class BrushMenu implements Listener {
             s.shadeBand = Math.max(1, Math.min(Math.max(1, s.toonSteps - 1), s.shadeBand));
             refresh(p, Page.SUN);
         });
+        // the other sources of the shade
+        put(holder, GRID[11], item(Material.SUNFLOWER, "光(太陽): " + onOff(s.lightOn), NamedTextColor.AQUA, List.of("太陽の向きと、遮る物による影", "オフにすると、下の源 (AO・曲率・ノイズ・セル) だけで影を決める", "クリックで切り替え")), (p, c) -> {
+            s.lightOn = !s.lightOn;
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[12], item(Material.COAL, "アンビエント(AO): " + onOff(s.ambientOn), NamedTextColor.AQUA, List.of("まわりを囲まれた所 (くぼみ・隅・壁ぎわ) ほど暗くする", "太陽とは別の影", "クリックで切り替え")), (p, c) -> {
+            s.ambientOn = !s.ambientOn;
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[13], item(Material.CHARCOAL, "AOの強さ: " + Math.round(s.ambientStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.ambientStrength = Math.max(0.1, Math.min(1.0, s.ambientStrength + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[18], item(Material.STONE_PICKAXE, "曲率(岩肌): " + onOff(s.curvatureOn), NamedTextColor.AQUA, List.of("地形の凹凸で影をつける (岩肌の表現に)", "凹み (割れ目) を暗くするか、出っぱり (稜線) を暗くするかを選べる", "クリックで切り替え")), (p, c) -> {
+            s.curvatureOn = !s.curvatureOn;
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[19], item(Material.IRON_PICKAXE, "曲率の向き: " + (s.curvatureConvex ? "出っぱりを暗く" : "凹みを暗く"), NamedTextColor.AQUA, List.of("凹み: 割れ目・隅に影 / 出っぱり: 稜線・角に影 (すり減った感じ)", "クリックで切り替え")), (p, c) -> {
+            s.curvatureConvex = !s.curvatureConvex;
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[20], item(Material.FLINT, "曲率の強さ: " + Math.round(s.curvatureStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.curvatureStrength = Math.max(0.1, Math.min(1.0, s.curvatureStrength + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[21], item(Material.AMETHYST_SHARD, "ノイズ: " + onOff(s.noiseShadeOn), NamedTextColor.AQUA, List.of("滑らかなノイズで、斑に影をつける (汚れ・むらの表現に)", "クリックで切り替え")), (p, c) -> {
+            s.noiseShadeOn = !s.noiseShadeOn;
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[22], item(Material.REDSTONE, "ノイズの強さ: " + Math.round(s.noiseShadeStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.noiseShadeStrength = Math.max(0.1, Math.min(1.0, s.noiseShadeStrength + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[23], item(Material.COMPARATOR, "ノイズの大きさ: " + s.noiseShadeScale, NamedTextColor.AQUA, List.of("斑の塊の大きさ (大きいほど大きな塊)", "左クリック +0.5 / 右クリック -0.5")), (p, c) -> {
+            s.noiseShadeScale = Math.max(1.0, Math.min(16.0, s.noiseShadeScale + (left(c) ? 0.5 : -0.5)));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[24], item(Material.HONEYCOMB, "セル: " + onOff(s.cellOn), NamedTextColor.AQUA, List.of("細胞状 (ボロノイ) の模様で影をつける (ひび・石畳・鱗の表現に)", "クリックで切り替え")), (p, c) -> {
+            s.cellOn = !s.cellOn;
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[25], item(Material.GLOWSTONE_DUST, "セルの強さ: " + Math.round(s.cellStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.cellStrength = Math.max(0.1, Math.min(1.0, s.cellStrength + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[26], item(Material.HONEYCOMB_BLOCK, "セルの大きさ: " + s.cellSize, NamedTextColor.AQUA, List.of("1つのセルのおよその大きさ (ブロック)", "左クリック +1 / 右クリック -1")), (p, c) -> {
+            s.cellSize = Math.max(2.0, Math.min(20.0, s.cellSize + (left(c) ? 1.0 : -1.0)));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[27], item(Material.COBBLESTONE_WALL, "セルの影: " + (s.cellEdges ? "境目" : "セルごと"), NamedTextColor.AQUA, List.of("境目: セルの境目を暗くする (ひび割れ風) / セルごと: 1つおきのセルを暗くする", "クリックで切り替え")), (p, c) -> {
+            s.cellEdges = !s.cellEdges;
+            refresh(p, Page.SUN);
+        });
         put(holder, GRID[17], item(Material.BOOK, "つかいかた", NamedTextColor.GOLD, List.of(
+                "影の源は足し合わさる (光・AO・曲率・ノイズ・セル)。陰影のマスクにも効く",
+                "選択ツールの画面の「選択範囲に自動陰影」で、選んだ範囲全体にも使える",
                 "基本のページで「自動陰影」を選び、ブラシを影にしたい所に使う",
                 "太陽と反対側を向いた面や、遮られた面が、いまの色から",
                 "自動で暗いブロックになる (階段・ハーフ・壁も形を保つ)",
@@ -542,6 +597,11 @@ final class BrushMenu implements Listener {
             refresh(p, Page.SELECT);
         });
         put(holder, GRID[9], item(Material.BLAZE_ROD, "選択ツールをもらう", NamedTextColor.GOLD, List.of("持っていなければ、選択ツールのアイテムを渡す")), (p, c) -> tool.give(p));
+        put(holder, GRID[11], item(Material.BLACK_DYE, "選択範囲に自動陰影", NamedTextColor.GREEN, List.of("選んだ範囲全体に、いまの陰影の設定 (光・AO・曲率・ノイズ・セル・トゥーン) を適用する",
+                "模様のブロックが入っていれば、その中からだけ選ぶ / //undo で戻せる", "反転中は使えない")), (p, c) -> {
+            p.closeInventory();
+            tool.shade(p);
+        });
         put(holder, GRID[10], item(Material.BOOK, "いまの選択", NamedTextColor.GOLD, List.of(
                 state.selection == null ? "選んでいません" : state.selection.blocks.size() + "ブロック" + (inverted ? " (反転中)" : ""),
                 state.job != null ? "探している途中です…" : "")), null);

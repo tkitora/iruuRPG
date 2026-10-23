@@ -368,6 +368,41 @@ final class SelectionTool implements Listener {
         if (state.show) ensureDisplay();
     }
 
+    // ---- shading the whole selection ------------------------------------------------------------------------------------------------
+
+    /** Applies the automatic shade (with every source switched on in the settings) to every selected surface block, in one edit (one //undo). Not available while inverted. */
+    void shade(Player player) {
+        State state = state(player);
+        BlockSelection selection = state.selection;
+        if (selection == null || selection.blocks.isEmpty()) {
+            player.sendMessage(PREFIX + "まだ何も選んでいません。");
+            return;
+        }
+        if (selection.inverted) {
+            player.sendMessage(PREFIX + "反転中は使えません。反転を戻してください。");
+            return;
+        }
+        World world = player.getWorld();
+        if (!selection.world.equals(world.getUID())) {
+            player.sendMessage(PREFIX + "選択は別のワールドにあります。");
+            return;
+        }
+        BrushSettings settings = module.settings(player);
+        SurfaceProbe probe = new SurfaceProbe(world, settings.sunVector(), settings.castShadows);
+        Set<Material> allowed = BrushEngine.shadePalette(settings);
+        List<BrushEngine.Change> changes = new ArrayList<>();
+        for (long key : selection.blocks) {
+            BrushEngine.Change change = BrushEngine.shadeOne(probe, settings, BlockSelection.unpackX(key), BlockSelection.unpackY(key), BlockSelection.unpackZ(key), allowed, module.store().blacklist());
+            if (change != null) changes.add(change);
+        }
+        if (changes.isEmpty()) {
+            player.sendMessage(PREFIX + "変わる所がありません (影の源・陰影のマスクを見直してください)。");
+            return;
+        }
+        int count = module.draw(player, world, changes);
+        player.sendMessage(PREFIX + "選択範囲に自動陰影を適用しました: " + count + "ブロック (//undo で戻せます)。");
+    }
+
     // ---- blending ------------------------------------------------------------------------------------------------------------------
 
     /**
