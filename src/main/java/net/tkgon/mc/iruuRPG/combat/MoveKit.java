@@ -342,6 +342,11 @@ public final class MoveKit {
         return Math.atan2(-facing.getZ(), -facing.getX());
     }
 
+    /** The place the item swap skill was used, while it lasts (null otherwise). */
+    Location frenzyCenter() {
+        return attack.frenzyCenter(player);
+    }
+
     JavaPlugin plugin() {
         return plugin;
     }

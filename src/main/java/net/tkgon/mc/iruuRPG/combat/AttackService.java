@@ -1513,6 +1513,11 @@ public final class AttackService {
         AssassinClones.launchSwap(kit(attacker, weapon), lifeTicks);
     }
 
+    /** The place the assassin's item swap skill was used, while it lasts (null otherwise). */
+    public Location frenzyCenter(Player player) {
+        return classEffectService == null ? null : classEffectService.frenzyCenter(player);
+    }
+
     /** 0 when the assassin is not in a frenzy (SATUJIN), else its level; see {@link ClassEffectService#activateFrenzy}. */
     public int assassinFrenzy(Player player) {
         return classEffectService == null ? 0 : classEffectService.frenzyLevel(player);
