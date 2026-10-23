@@ -51,7 +51,7 @@ public final class WarriorDeployCombo extends BaseCombo {
             default -> {
                 // a banner is planted at the aim: it stands for 2.7 s and every 11 ticks a wave pushes what is near it out
                 kit.sound(target, Sound.BLOCK_CHAIN_PLACE, 1.0f, 0.7f);
-                kit.zone("warrior_banner", target, 55, 2, zone -> {
+                kit.zone("warrior_banner", target, kit.linger(55), 2, zone -> {
                     boolean pulse = zone.age() % 11 == 0;
                     for (double y = 0.0; y <= 3.0; y += 0.4) kit.fx(target).dust(target.getX(), target.getY() + y, target.getZ(), kit.palette(), 0.3 + 0.7 * y / 3.0, 1.2);
                     kit.fx(target).sphereShell(target.clone().add(0.0, 3.2, 0.0), 0.3 + (pulse ? 0.15 : 0.0), 0.0, 14, kit.palette(), 1.0);
@@ -86,7 +86,7 @@ public final class WarriorDeployCombo extends BaseCombo {
                 // a fault line ahead: the ground stays cracked for 2 s and what is on it is struck again and again
                 kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.6f);
                 Location from = feet.clone().add(0.0, 0.5, 0.0);
-                kit.zone("warrior_fault", feet, 40, 4, zone -> {
+                kit.zone("warrior_fault", feet, kit.linger(40), 4, zone -> {
                     boolean pulse = zone.age() % 8 == 0;
                     for (int along = 1; along <= 8; along++) {
                         Location at = feet.clone().add(facing.clone().multiply(along * 1.1)).add(0.0, 0.2, 0.0);
@@ -104,7 +104,7 @@ public final class WarriorDeployCombo extends BaseCombo {
                 Vector side = new Vector(-facing.getZ(), 0.0, facing.getX());
                 Location middle = kit.ground(feet.clone().add(facing.clone().multiply(4.5)));
                 kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 1.0f);
-                kit.zone("warrior_barricade", middle, 50, 4, zone -> {
+                kit.zone("warrior_barricade", middle, kit.linger(50), 4, zone -> {
                     boolean pulse = zone.age() % 8 == 0;
                     for (int index = -2; index <= 2; index++) {
                         Location at = middle.clone().add(side.clone().multiply(index * 1.6));
