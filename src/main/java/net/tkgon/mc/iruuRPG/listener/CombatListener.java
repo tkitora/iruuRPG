@@ -222,8 +222,14 @@ public final class CombatListener implements Listener {
             net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryMageHeavy(attacker, weapon));
             return;
         }
-        if ((weapon.attackType() == AttackType.RANGE || weapon.attackType() == AttackType.DEPLOY) && attackService.hasClassCombo(attacker, weapon)) {
-            // the left click with a ranged or deployed weapon of a class that has a combo with it is a heavy attack
+        if (weapon.attackType() == AttackType.DEPLOY && attackService.hasClassCombo(attacker, weapon)) {
+            // a deployed weapon's combo: the left click is the heavy attack of the placement (once), and sneaking with it takes the placement away
+            event.setCancelled(true);
+            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.deployLeft(attacker, weapon));
+            return;
+        }
+        if (weapon.attackType() == AttackType.RANGE && attackService.hasClassCombo(attacker, weapon)) {
+            // the left click with a ranged weapon of a class that has a combo with it is a heavy attack
             event.setCancelled(true);
             net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryComboHeavy(attacker, weapon, false));
             return;
@@ -347,7 +353,7 @@ public final class CombatListener implements Listener {
             // a class with a combo with a deployed weapon: the normal attacks of the combo (at the pace of the attack speed)
             if (attackService.hasClassCombo(attacker, weapon)) {
                 if (attackService.heldRangedClick(attacker) || !attackService.tryStartDeployCombo(attacker)) return;
-                attackService.comboNormal(attacker, weapon);
+                attackService.deployClick(attacker, weapon);
                 return;
             }
             if (!attackService.tryStart(attacker, AttackType.DEPLOY)) {

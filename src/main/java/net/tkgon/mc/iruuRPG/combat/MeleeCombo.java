@@ -111,6 +111,22 @@ public final class MeleeCombo {
     }
 
     /** The i-th number of a list setting (the last one is used for the ones missing), or {@code fallback}. */
+    /** Attack {@code stage} (1 - 5) of {@code plan} as a step, without touching the chain: a deployed weapon's placement makes its attacks in an order of its own. */
+    public Step stageStep(String plan, int stage) {
+        ComboSpec spec = specs.get(plan);
+        if (spec == null) return Step.PLAIN;
+        int at = Math.max(1, Math.min(5, stage)) - 1;
+        double rate = listed(plan + ".hit-rate", at, spec.rates()[at], 0.02, 5.0);
+        int extra = (int) Math.max(0, listed(plan + ".hit-counts", at, spec.hits()[at], 1, 20) - 1);
+        return new Step(at == 4 ? Kind.FINISHER : Kind.LIGHT, at + 1, rate, 0, plan, 0, extra, 1.0);
+    }
+
+    /** Heavy attack {@code index} (0 - 4) of {@code plan} as a step, with no cooldown of its own (the placement allows it once). */
+    public Step heavyStep(String plan, int index) {
+        int at = Math.max(0, Math.min(HEAVIES - 1, index));
+        return new Step(Kind.HEAVY, at, heavyMultiplier(plan, at), 0, plan, at, 0, 1.0);
+    }
+
     private double listed(String key, int index, double fallback, double min, double max) {
         java.util.List<?> list = plugin.getConfig().getList("combat.combo." + key);
         if (list == null || list.isEmpty()) return fallback;
