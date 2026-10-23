@@ -53,7 +53,7 @@ final class BrushEngine {
         return 1.0 - s.falloff * smooth(distance);
     }
 
-    private static boolean passes(BrushSettings s, SurfaceProbe probe, int x, int y, int z, Material type) {
+    static boolean passes(BrushSettings s, SurfaceProbe probe, int x, int y, int z, Material type) {
         if (s.blockMaskOn) {
             Material base = BlockColors.baseOf(type);
             boolean in = s.blockMask.contains(type) || (base != null && s.blockMask.contains(base));
@@ -65,7 +65,7 @@ final class BrushEngine {
             if (in == s.angleMaskInvert) return false;
         }
         if (s.shadeMaskOn) {
-            boolean shaded = s.toonSteps > 1 ? band(s, probe.shade(x, y, z)) >= s.shadeBand : probe.shade(x, y, z) >= 0.35;
+            boolean shaded = s.toonSteps > 1 ? band(s, totalShade(probe, s, x, y, z)) >= s.shadeBand : totalShade(probe, s, x, y, z) >= 0.35;
             if (shaded == s.shadeMaskInvert) return false;
         }
         return true;
@@ -77,7 +77,7 @@ final class BrushEngine {
     }
 
     /** The shade as the brush uses it: smooth, or (toon) cut into steps with the same darkness all through a band. */
-    private static double bandedShade(BrushSettings s, double shade) {
+    static double bandedShade(BrushSettings s, double shade) {
         if (s.toonSteps <= 1) return shade;
         int band = band(s, shade);
         return band == 0 ? 0.0 : band / (double) (s.toonSteps - 1);
@@ -86,6 +86,26 @@ final class BrushEngine {
     /** Whether the selection (when there is one) lets the brush work at the place. */
     private static boolean inSelection(BrushSettings s, int x, int y, int z) {
         return s.selection == null || s.selection.contains(x, y, z);
+    }
+
+    /** The shade of the place from every source switched on, 0 - 1: the light, the ambient occlusion, the curvature, the noise and the cells added up. */
+    static double totalShade(SurfaceProbe probe, BrushSettings s, int x, int y, int z) {
+        double shade = s.lightOn ? probe.shade(x, y, z) : 0.0;
+        if (s.ambientOn) shade += s.ambientStrength * probe.ambient(x, y, z);
+        if (s.curvatureOn) {
+            double curvature = probe.curvature(x, y, z);
+            shade += s.curvatureStrength * Math.max(0.0, s.curvatureConvex ? curvature : -curvature);
+        }
+        if (s.noiseShadeOn) {
+            double n = Procedural.noise(x / s.noiseShadeScale, y / s.noiseShadeScale, z / s.noiseShadeScale);
+            shade += s.noiseShadeStrength * Math.max(0.0, Math.min(1.0, (n - 0.45) * 2.5));
+        }
+        if (s.cellOn) {
+            double[] cell = Procedural.cell(x + 0.5, y + 0.5, z + 0.5, s.cellSize);
+            double amount = s.cellEdges ? 1.0 - Math.min(1.0, (cell[1] - cell[0]) / 0.18) : (cell[2] > 0.5 ? 1.0 : 0.0);
+            shade += s.cellStrength * amount;
+        }
+        return Math.max(0.0, Math.min(1.0, shade));
     }
 
     private static double noise(double x, double y, double z) {
@@ -205,12 +225,32 @@ final class BrushEngine {
 
     // ---- auto shade -----------------------------------------------------------------------------------------------------------
 
-    private static String shade(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap, Set<Material> blacklist) {
+    /** The blocks the automatic shade may choose from: the pattern's, or (when there is none) any. */
+    static Set<Material> shadePalette(BrushSettings s) {
         Set<Material> allowed = new java.util.HashSet<>();
         for (Material material : s.patternMaterials()) {
             Material base = BlockColors.baseOf(material);
             if (base != null) allowed.add(base);
         }
+        return allowed;
+    }
+
+    /** The change the automatic shade makes at one block (null when it stays as it is): used for a whole selection at once. */
+    static Change shadeOne(SurfaceProbe probe, BrushSettings s, int x, int y, int z, Set<Material> allowed, Set<Material> blacklist) {
+        Material type = probe.type(x, y, z);
+        Material base = BlockColors.baseOf(type);
+        if (base == null || !probe.exposed(x, y, z)) return null;
+        double shade = bandedShade(s, totalShade(probe, s, x, y, z));
+        if (shade < 0.15) return null;
+        if (!passes(s, probe, x, y, z, type)) return null;
+        Material darker = BlockColors.darker(base, shade * s.shadeDepth, allowed, BlockColors.suffixOf(type), blacklist);
+        if (darker == base) return null;
+        BlockData data = restyle(probe.world().getBlockAt(x, y, z).getBlockData(), darker);
+        return data == null ? null : new Change(x, y, z, data);
+    }
+
+    private static String shade(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap, Set<Material> blacklist) {
+        Set<Material> allowed = shadePalette(s);
         int r = s.radius;
         BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
         for (int dx = -r; dx <= r; dx++) {
@@ -225,7 +265,7 @@ final class BrushEngine {
                     Material base = BlockColors.baseOf(type);
                     if (base == null || !probe.exposed(x, y, z)) continue;
                     if (!inSelection(s, x, y, z)) continue;
-                    double shade = bandedShade(s, probe.shade(x, y, z));
+                    double shade = bandedShade(s, totalShade(probe, s, x, y, z));
                     if (shade < 0.15) continue;
                     if (random.nextDouble() > weight(s, distance) * volume.density(distance)) continue;
                     if (!passes(s, probe, x, y, z, type)) continue;

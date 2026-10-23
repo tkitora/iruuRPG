@@ -17,7 +17,7 @@ final class BrushCommand implements TabExecutor {
 
     private static final String PREFIX = BrushModule.PREFIX;
     private static final List<String> SUBS = List.of("help", "give", "menu", "off", "undo", "redo", "use", "peek", "preview", "set", "preset", "blacklist", "select");
-    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "axis", "additive", "toon", "depth", "sun");
+    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell");
 
     private final BrushModule module;
 
@@ -38,7 +38,7 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set <項目> <値>           設定を数値や名前で直接変える (項目は /ibrush help set)",
             "/ibrush preset list|apply <名前>|save <名前>   グラデーションのプリセット",
             "/ibrush blacklist list|add [ブロック]|remove <ブロック>|save   グラデーション・自動陰影で使わないブロック",
-            "/ibrush select give|fuzzy|adjacent|invert|clear|show|blend|threshold <0〜100>|radius <1〜64>|info   選択ツール (help select で詳しく)");
+            "/ibrush select give|fuzzy|adjacent|invert|clear|show|blend|shade|threshold <0〜100>|radius <1〜64>|info   選択ツール (help select で詳しく)");
 
     private static final List<String> HELP_SET = List.of(
             "/ibrush set mode <paint|shade>            塗る / 自動陰影",
@@ -54,7 +54,12 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set additive <on|off>             加算 (上乗せ)",
             "/ibrush set toon <0|2〜6>                 トゥーン調の段数 (0 でオフ)",
             "/ibrush set depth <10〜80>                陰の濃さ (%)",
-            "/ibrush set sun <方位> <高さ>              太陽 (0=北 90=東、高さ 5〜90)");
+            "/ibrush set sun <方位> <高さ>              太陽 (0=北 90=東、高さ 5〜90)",
+            "/ibrush set light <on|off>                光(太陽)の影",
+            "/ibrush set ao <on|off|10〜100>           アンビエント(AO)。数字は強さ(%)で、オンにもなる",
+            "/ibrush set curvature <on|off|convex|concave|10〜100>   曲率 (convex=出っぱりを暗く / concave=凹みを暗く / 数字=強さ)",
+            "/ibrush set shadenoise <on|off|10〜100>   ノイズの影",
+            "/ibrush set cell <on|off|edges|cells|10〜100>   セルの影 (edges=境目 / cells=セルごと / 数字=強さ)");
 
     private static final List<String> HELP_SELECT = List.of(
             "/ibrush select give                選択ツールを受け取る (右クリック=選ぶ / Shift+右=足す / 左=設定画面)",
@@ -65,6 +70,7 @@ final class BrushCommand implements TabExecutor {
             "/ibrush select clear               選択を解除",
             "/ibrush select show                選択の縁の表示のオン/オフ",
             "/ibrush select blend               選択範囲の色をぼかす (//undo で戻せる)",
+            "/ibrush select shade               選択範囲に自動陰影 (光・AO・曲率・ノイズ・セル・トゥーンの設定で) を適用する",
             "/ibrush select limit <on|off>      ブラシを選択範囲に限るか",
             "/ibrush select info                いまの選択の大きさと設定");
 
@@ -98,6 +104,7 @@ final class BrushCommand implements TabExecutor {
                     player.sendMessage(PREFIX + "選択の表示: " + (state.show ? "オン" : "オフ"));
                 }
                 case "blend" -> tool.blend(player);
+                case "shade" -> tool.shade(player);
                 case "limit" -> {
                     Boolean on = flag(args[2]);
                     if (on == null) throw new NumberFormatException();
@@ -180,6 +187,22 @@ final class BrushCommand implements TabExecutor {
         };
     }
 
+    /** "on" / "off" as a flag; anything else is a mistake. */
+    private static boolean onOff(String text) {
+        Boolean on = flag(text);
+        if (on == null) throw new NumberFormatException();
+        return on;
+    }
+
+    /** A number 10 - 100 as a share 0.1 - 1 (null when it is not a number). */
+    private static Double percent(String text) {
+        try {
+            return Math.max(0.1, Math.min(1.0, Double.parseDouble(text) / 100.0));
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+    }
+
     private static Material block(Player player, String[] args, int index) {
         Material material = args.length > index ? Material.matchMaterial(args[index]) : player.getInventory().getItemInMainHand().getType();
         return material != null && material.isBlock() && material.isItem() && !material.isAir() ? material : null;
@@ -239,6 +262,37 @@ final class BrushCommand implements TabExecutor {
                 case "toon" -> {
                     int steps = Integer.parseInt(value);
                     s.toonSteps = steps < 2 ? 0 : Math.min(6, steps);
+                }
+                case "light" -> s.lightOn = onOff(value);
+                case "ao" -> {
+                    Double strength = percent(value);
+                    s.ambientOn = strength != null ? true : onOff(value);
+                    if (strength != null) s.ambientStrength = strength;
+                }
+                case "curvature" -> {
+                    Double strength = percent(value);
+                    if (value.equals("convex")) s.curvatureConvex = true;
+                    if (value.equals("concave")) s.curvatureConvex = false;
+                    if (value.equals("convex") || value.equals("concave")) s.curvatureOn = true;
+                    else if (strength != null) {
+                        s.curvatureOn = true;
+                        s.curvatureStrength = strength;
+                    } else s.curvatureOn = onOff(value);
+                }
+                case "shadenoise" -> {
+                    Double strength = percent(value);
+                    s.noiseShadeOn = strength != null ? true : onOff(value);
+                    if (strength != null) s.noiseShadeStrength = strength;
+                }
+                case "cell" -> {
+                    Double strength = percent(value);
+                    if (value.equals("edges") || value.equals("cells")) {
+                        s.cellEdges = value.equals("edges");
+                        s.cellOn = true;
+                    } else if (strength != null) {
+                        s.cellOn = true;
+                        s.cellStrength = strength;
+                    } else s.cellOn = onOff(value);
                 }
                 case "depth" -> s.shadeDepth = Math.max(0.1, Math.min(0.8, Double.parseDouble(value) / 100.0));
                 case "sun" -> {
@@ -346,7 +400,7 @@ final class BrushCommand implements TabExecutor {
                 }
                 case "preset" -> options.addAll(List.of("list", "apply", "save"));
                 case "blacklist" -> options.addAll(List.of("list", "add", "remove", "save"));
-                case "select" -> options.addAll(List.of("give", "fuzzy", "adjacent", "threshold", "radius", "invert", "clear", "show", "blend", "limit", "info"));
+                case "select" -> options.addAll(List.of("give", "fuzzy", "adjacent", "threshold", "radius", "invert", "clear", "show", "blend", "shade", "limit", "info"));
                 default -> {
                 }
             }

@@ -64,6 +64,23 @@ final class BrushSettings {
     int shadeBand = 1;
     /** The horizontal direction the player faces when the brush is used (for a gradient along it); set by the module. */
     org.bukkit.util.Vector facing = new Vector(0.0, 0.0, 1.0);
+    // the sources of the shade besides the light: ambient occlusion, curvature, noise and cells (each can be on or off; they add up, 0 - 1 in all)
+    boolean lightOn = true;
+    boolean ambientOn;
+    double ambientStrength = 0.6;
+    boolean curvatureOn;
+    /** true: the ridges and edges (convex) are darkened; false: the crevices (concave). */
+    boolean curvatureConvex;
+    double curvatureStrength = 0.6;
+    boolean noiseShadeOn;
+    double noiseShadeStrength = 0.5;
+    double noiseShadeScale = 4.0;
+    boolean cellOn;
+    double cellStrength = 0.5;
+    double cellSize = 5.0;
+    /** true: the borders of the cells are darkened; false: every other cell is darkened as a whole. */
+    boolean cellEdges = true;
+
     /** The selection the brush is held to (null: none); set by the module from the player's selection tool. */
     Selection selection;
     /** Counts every change of a setting, so the live preview can tell when to start over. */
