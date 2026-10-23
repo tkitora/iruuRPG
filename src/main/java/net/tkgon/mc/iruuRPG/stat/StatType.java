@@ -46,7 +46,9 @@ public enum StatType {
     DECAY("decay", "Decay"),
     LACERATION("laceration", "Laceration"),
     CONFUSION("confusion", "Confusion"),
-    EXPLOSION("explosion", "Explosion");
+    EXPLOSION("explosion", "Explosion"),
+    /** 気絶: the chance (%) that a hit stuns the target for a moment (combat.status-effects.stun-ticks), once in a while per target (stun-immunity-ticks). */
+    STUN("stun", "Stun %");
 
     private static final Map<String, StatType> BY_KEY = new HashMap<>();
 

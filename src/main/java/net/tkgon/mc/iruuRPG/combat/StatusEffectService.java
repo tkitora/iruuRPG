@@ -145,6 +145,7 @@ public final class StatusEffectService {
         applyTimedStack(decayEffects, target, StatusEffectType.DECAY, stats.get(StatType.DECAY), DECAY_DURATION_MILLIS, sourceId);
         applyConfusionStack(target, stats.get(StatType.CONFUSION), durationMillis(attackerProfile, "duration-ticks", 100), sourceId);
         applyExplosion(target, stats.get(StatType.EXPLOSION), sourceId);
+        applyStun(target, stats.get(StatType.STUN), durationMillis(attackerProfile, "stun-ticks", 30), sourceId);
         refreshDisplay(target);
     }
 
@@ -223,6 +224,11 @@ public final class StatusEffectService {
             line = appendStatus(line, visible++, StatusEffectType.CONFUSION, compact(confusion.value()) + "/" + remainingSeconds(confusion, now) + "s");
         }
 
+        ActiveEffect stunned = active(entity, StatusEffectType.STUN);
+        if (stunned != null) {
+            line = appendStatus(line, visible++, StatusEffectType.STUN, remainingSeconds(stunned, now) + "s");
+        }
+
         ExplosionEffect explosion = explosionEffects.get(entity.getUniqueId());
         if (explosion != null && !explosion.expired(now) && explosion.stacks() > 0) {
             line = appendStatus(line, visible++, StatusEffectType.EXPLOSION, explosion.stacks() + "/" + EXPLOSION_TRIGGER_STACKS);
@@ -244,6 +250,7 @@ public final class StatusEffectService {
         if (timedTotal(corrosionEffects.get(entity.getUniqueId()), now) > EPSILON) visible++;
         if (timedTotal(decayEffects.get(entity.getUniqueId()), now) > EPSILON) visible++;
         if (active(entity, StatusEffectType.CONFUSION) != null) visible++;
+        if (active(entity, StatusEffectType.STUN) != null) visible++;
 
         ExplosionEffect explosion = explosionEffects.get(entity.getUniqueId());
         if (explosion != null && !explosion.expired(now) && explosion.stacks() > 0) visible++;
@@ -535,14 +542,37 @@ public final class StatusEffectService {
         }
     }
 
+    /** When each target may be stunned again (a stun is followed by a short time it cannot be stunned in). */
+    private final Map<UUID, Long> stunImmuneUntil = new HashMap<>();
+
+    /**
+     * The stun stat (気絶): {@code chance} percent that this hit stuns the target for {@code durationMillis} (the config's stun-ticks, longer with the effect time stat). A target
+     * that is stunned, or was stunned within stun-immunity-ticks (5 s), is not stunned again, so a fast weapon cannot hold anything down for good.
+     */
+    private void applyStun(LivingEntity target, double chance, long durationMillis, UUID sourceId) {
+        if (chance <= EPSILON || isShielded(target) || isStunned(target)) return;
+        long now = System.currentTimeMillis();
+        Long immune = stunImmuneUntil.get(target.getUniqueId());
+        if (immune != null && immune > now) return;
+        if (ThreadLocalRandom.current().nextDouble() * 100.0 >= Math.min(100.0, chance)) return;
+        long end = stun(target, durationMillis);
+        long immunity = Math.max(0, plugin.getConfig().getInt("combat.status-effects.stun-immunity-ticks", 100)) * 50L;
+        stunImmuneUntil.put(target.getUniqueId(), end + immunity);
+        singleEffects.computeIfAbsent(target.getUniqueId(), ignored -> new EnumMap<>(StatusEffectType.class))
+                .put(StatusEffectType.STUN, new ActiveEffect(StatusEffectType.STUN, 1.0, end, sourceId));
+    }
+
     private boolean isStunned(Entity entity) {
         Long until = stunUntil.get(entity.getUniqueId());
         return until != null && until > System.currentTimeMillis();
     }
 
     private long stun(LivingEntity target) {
-        long ticks = Math.max(1, plugin.getConfig().getInt("combat.status-effects.confusion-stun-ticks", 40));
-        long end = System.currentTimeMillis() + ticks * 50L;
+        return stun(target, Math.max(1, plugin.getConfig().getInt("combat.status-effects.confusion-stun-ticks", 40)) * 50L);
+    }
+
+    private long stun(LivingEntity target, long durationMillis) {
+        long end = System.currentTimeMillis() + durationMillis;
         stunUntil.put(target.getUniqueId(), end);
         if (target instanceof Mob mob) {
             mob.setTarget(null);
@@ -717,7 +747,7 @@ public final class StatusEffectService {
             case MAGIC_AMPLIFY -> ParticleFx.to(world).spawnParticle(Particle.SPELL_WITCH, center, 5, 0.28, 0.35, 0.28, 0.02);
             case PROTECTION -> ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 5, 0.35, 0.45, 0.35, 0.0,
                     new Particle.DustOptions(Color.fromRGB(55, 120, 255), 0.85f));
-            case LACERATION -> {
+            case LACERATION, STUN -> {
             }
         }
     }
@@ -801,6 +831,7 @@ public final class StatusEffectService {
         decayEffects.remove(id);
         explosionEffects.remove(id);
         stunUntil.remove(id);
+        stunImmuneUntil.remove(id);
         if (living != null) {
             restoreAware(living);
             removeSlowAttribute(living);

@@ -11,7 +11,8 @@ public enum StatusEffectType {
     DECAY("☠", NamedTextColor.GRAY, true),
     LACERATION("✧", NamedTextColor.DARK_RED, false),
     CONFUSION("❖", NamedTextColor.LIGHT_PURPLE, true),
-    EXPLOSION("✷", NamedTextColor.GOLD, true);
+    EXPLOSION("✷", NamedTextColor.GOLD, true),
+    STUN("✦", NamedTextColor.YELLOW, true);
 
     private final String icon;
     private final NamedTextColor color;

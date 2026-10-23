@@ -395,6 +395,7 @@ public final class RpgItemFactory {
             case LACERATION -> new StatDisplay("裂傷", NamedTextColor.DARK_RED, false);
             case CONFUSION -> new StatDisplay("混乱", NamedTextColor.LIGHT_PURPLE, false);
             case EXPLOSION -> new StatDisplay("爆破", NamedTextColor.GOLD, false);
+            case STUN -> new StatDisplay("気絶", NamedTextColor.YELLOW, true);
         };
     }
 

@@ -110,7 +110,8 @@ public final class StatsMenu implements Listener {
                 StatType.DECAY,
                 StatType.LACERATION,
                 StatType.CONFUSION,
-                StatType.EXPLOSION
+                StatType.EXPLOSION,
+                StatType.STUN
         )));
         inventory.setItem(34, category(Material.BOOK, "内訳", NamedTextColor.WHITE, sourceLines(profile)));
 
@@ -352,6 +353,7 @@ public final class StatsMenu implements Listener {
             case LACERATION -> "裂傷";
             case CONFUSION -> "混乱";
             case EXPLOSION -> "爆破";
+            case STUN -> "気絶";
         };
     }
 
