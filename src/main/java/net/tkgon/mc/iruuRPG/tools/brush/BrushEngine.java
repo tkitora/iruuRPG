@@ -126,7 +126,7 @@ final class BrushEngine {
     }
 
     /** The data of {@code target} in the shape of {@code original} (a stair stays a stair, a slab a slab); null when {@code target} has no such shape. */
-    private static BlockData restyle(BlockData original, Material target) {
+    static BlockData restyle(BlockData original, Material target) {
         String suffix = BlockColors.suffixOf(original.getMaterial());
         if (suffix.isEmpty()) return target.createBlockData();
         Material base = BlockColors.baseOf(target);
@@ -153,6 +153,7 @@ final class BrushEngine {
             case VERTICAL -> (dy + r) / (2.0 * r);
             case DIRECTIONAL -> (dx * s.facing.getX() + dz * s.facing.getZ() + r) / (2.0 * r);
             case NOISE -> noise(x / s.noiseScale, y / s.noiseScale, z / s.noiseScale);
+            case STROKE -> s.strokeT;
         };
     }
 
