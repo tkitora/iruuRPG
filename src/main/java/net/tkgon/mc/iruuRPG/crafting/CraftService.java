@@ -271,7 +271,7 @@ public final class CraftService implements Listener {
             Map.entry("stability", 20.0), Map.entry("duration", 20.0), Map.entry("attack-speed", 20.0), Map.entry("move-speed", 50.0),
             Map.entry("defense", 2000.0), Map.entry("physical-resist", 100.0), Map.entry("magic-resist", 100.0),
             Map.entry("damage-reduction", 20.0), Map.entry("special-damage", 2000.0),
-            Map.entry("absorb-percent", 5.0), Map.entry("slow-percent", 30.0),
+            Map.entry("absorb-percent", 5.0), Map.entry("slow-percent", 30.0), Map.entry("stun", 20.0),
             Map.entry("element-damage", 2000.0), Map.entry("element-damage-percent", 15.0), Map.entry("element-resist", 20.0));
 
     /** The largest value of a stat at craft level {@code maxLevel}, as shown to the player (resists in percent). */

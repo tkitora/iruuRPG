@@ -41,7 +41,8 @@ public final class StatLabels {
             Map.entry(StatType.DECAY, "腐敗"),
             Map.entry(StatType.LACERATION, "裂傷"),
             Map.entry(StatType.CONFUSION, "混乱"),
-            Map.entry(StatType.EXPLOSION, "爆破")
+            Map.entry(StatType.EXPLOSION, "爆破"),
+            Map.entry(StatType.STUN, "気絶")
     );
 
     /** Resists are stored as fractions (0.01 = 1%) and shown as percent. */
@@ -95,7 +96,7 @@ public final class StatLabels {
         return switch (type) {
             case STRENGTH_PERCENT, MAGIC_PERCENT, MELEE_DAMAGE_PERCENT, RANGE_DAMAGE_PERCENT, DEPLOY_DAMAGE_PERCENT,
                  CRIT_DAMAGE, CRIT_CHANCE, MAGIC_OVERLOAD, STABILITY, ATTACK_SPEED, MOVE_SPEED,
-                 PROTECTION, PHYSICAL_RESIST, MAGIC_RESIST, DAMAGE_REDUCTION, ABSORB_PERCENT, SLOW_PERCENT -> true;
+                 PROTECTION, PHYSICAL_RESIST, MAGIC_RESIST, DAMAGE_REDUCTION, ABSORB_PERCENT, SLOW_PERCENT, STUN -> true;
             default -> false;
         };
     }

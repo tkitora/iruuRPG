@@ -162,6 +162,9 @@ combat:
     explosion-radius: 3.0
     # 混乱: 100までスタックし、満タンでこのtick数だけ行動不能 (40 = 2秒)
     confusion-stun-ticks: 40
+    # 気絶 (stun のステータス = 1回の攻撃で気絶させる確率%): 気絶する tick 数 (30 = 1.5秒。効果時間で延びる) と、同じ相手を続けて気絶させない免疫の tick 数 (100 = 5秒)
+    stun-ticks: 30
+    stun-immunity-ticks: 100
   cooldown-ticks:
     melee: 14
     range: 10
