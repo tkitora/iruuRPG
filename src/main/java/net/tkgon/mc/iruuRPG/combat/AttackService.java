@@ -264,6 +264,7 @@ public final class AttackService {
     }
 
     public void shutdownCombos() {
+        if (deployHold != null) deployHold.shutdown();
         AssassinClones.shutdown();
         if (comboZones != null) comboZones.shutdown();
     }
@@ -289,6 +290,101 @@ public final class AttackService {
 
     /** Where each player's running combo began, and the way they faced (placed things are put round that place). */
     private final Map<UUID, Object[]> chainOrigins = new HashMap<>();
+
+    // ---- the placement of a deployed weapon's combo (see DeployHold) -------------------------------------------------------------------
+
+    private DeployHold deployHold;
+
+    private DeployHold holds() {
+        if (deployHold == null) deployHold = new DeployHold(plugin);
+        return deployHold;
+    }
+
+    /** The cooldown after a placement, in ticks: 10 s ({@code combat.combo.deploy-hold.cooldown-seconds}), shortened by a cooldown reduction (there is no such stat yet: 0). */
+    public int deployCooldownTicks(Player player) {
+        double seconds = plugin.getConfig().getDouble("combat.combo.deploy-hold.cooldown-seconds", 10.0);
+        return (int) Math.max(1, Math.round(seconds * 20.0 * (1.0 - Math.max(0.0, Math.min(0.8, cooldownReduction(player))))));
+    }
+
+    /** A share (0 - 0.8) the cooldowns are shorter by. Nothing gives one yet; this is where it will be read from. */
+    private double cooldownReduction(Player player) {
+        return 0.0;
+    }
+
+    /** How long a placement stays, in ticks: 10 s ({@code combat.combo.deploy-hold.life-seconds}) lengthened by the effect time stat (a share, like the skills'). */
+    private int deployLifeTicks(Player player) {
+        double seconds = plugin.getConfig().getDouble("combat.combo.deploy-hold.life-seconds", 10.0);
+        double duration = equipmentService.recalculate(player).finalStats().get(StatType.DURATION);
+        return (int) Math.max(20, Math.round(seconds * 20.0 * Math.max(0.1, 1.0 + duration / 100.0)));
+    }
+
+    /**
+     * The right click with a deployed weapon of a class that has a combo with it: the first one sets the placement here (and starts the cooldown, with the item's grey overlay);
+     * each one makes the next attack of the combo at that place, 1 to 5 and then 1 again. Nothing new can be set while the cooldown runs.
+     */
+    public void deployClick(Player attacker, RpgItemDefinition weapon) {
+        if (!hasClassCombo(attacker, weapon)) return;
+        ClassCombo combo = classComboFor(attacker, weapon);
+        DeployHold.Hold hold = holds().active(attacker);
+        if (hold == null) {
+            long left = holds().cooldownMillis(attacker);
+            if (left > 0L) {
+                attacker.sendMessage("[iruuRPG] 設置のクールタイム中です (あと" + String.format(java.util.Locale.ROOT, "%.1f", left / 1000.0) + "秒)。");
+                return;
+            }
+            org.bukkit.util.Vector facing = attacker.getLocation().getDirection().setY(0.0);
+            if (facing.lengthSquared() < 1.0E-6) facing = new org.bukkit.util.Vector(0.0, 0.0, 1.0);
+            int cooldown = deployCooldownTicks(attacker);
+            Location spot = attacker.getLocation().clone();
+            hold = holds().create(attacker, spot, facing.normalize(), deployLifeTicks(attacker), cooldown, kit(attacker, weapon).palette());
+            showItemCooldown(attacker, AttackType.DEPLOY, cooldown);
+            attacker.getWorld().playSound(spot, org.bukkit.Sound.BLOCK_BEACON_ACTIVATE, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.8f);
+        }
+        hold.stage = hold.stage >= 5 ? 1 : hold.stage + 1;
+        MeleeCombo.Step step = meleeCombo.stageStep(combo.spec().plan(), hold.stage);
+        beginAttack(attacker);
+        combo.normal(kitAt(attacker, weapon, hold.spot, hold.facing), step);
+    }
+
+    /**
+     * The left click with a deployed weapon of a class that has a combo with it: the heavy attack, made at the placement, once for each placement (which heavy attack it
+     * is follows the attack of the combo made last); sneaking with it takes the placement away. The cooldown stays either way.
+     */
+    public void deployLeft(Player attacker, RpgItemDefinition weapon) {
+        if (!hasClassCombo(attacker, weapon)) return;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return;
+        }
+        DeployHold.Hold hold = holds().active(attacker);
+        if (attacker.isSneaking()) {
+            attacker.sendMessage(holds().remove(attacker) ? "[iruuRPG] 設置を削除しました (クールタイムはそのままです)。" : "[iruuRPG] 削除する設置がありません。");
+            return;
+        }
+        if (hold == null) {
+            attacker.sendMessage("[iruuRPG] 設置がありません。右クリックで設置してください。");
+            return;
+        }
+        if (hold.heavyUsed) {
+            attacker.sendMessage("[iruuRPG] この設置の強攻撃はもう使いました。");
+            return;
+        }
+        hold.heavyUsed = true;
+        ClassCombo combo = classComboFor(attacker, weapon);
+        MeleeCombo.Step step = meleeCombo.heavyStep(combo.spec().plan(), Math.min(4, hold.stage));
+        beginAttack(attacker);
+        combo.heavy(kitAt(attacker, weapon, hold.spot, hold.facing), step);
+    }
+
+    public void forgetDeployHold(UUID player) {
+        holds().forget(player);
+    }
+
+    private MoveKit kitAt(Player attacker, RpgItemDefinition weapon, Location origin, org.bukkit.util.Vector facing) {
+        MoveKit kit = new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
+        kit.anchor(origin, facing);
+        return kit;
+    }
 
     private MoveKit kit(Player attacker, RpgItemDefinition weapon) {
         MoveKit kit = new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
