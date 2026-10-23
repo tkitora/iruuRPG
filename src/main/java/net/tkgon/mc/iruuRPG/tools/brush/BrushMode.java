@@ -2,15 +2,11 @@ package net.tkgon.mc.iruuRPG.tools.brush;
 
 import org.bukkit.Material;
 
-/** What the brush does where it is used. */
+/** What the brush does where it is used. (Raising, lowering, smoothing and flattening the ground are left to WorldEdit.) */
 enum BrushMode {
 
-    PAINT("塗る", Material.PAINTING, "模様 (パターン) のブロックで、範囲内の表面のブロックを置き換える"),
-    AUTO_SHADE("自動陰影", Material.BLACK_DYE, "太陽の反対側や影になる面を、いまの色から自動で暗いブロックにする"),
-    RAISE("盛る", Material.DIRT, "地面を盛り上げる (高さは強さ)"),
-    LOWER("削る", Material.IRON_SHOVEL, "地面を削り下げる (高さは強さ)"),
-    SMOOTH("なだらか", Material.SNOWBALL, "凸凹をならして滑らかにする"),
-    FLATTEN("平らに", Material.SMOOTH_STONE_SLAB, "クリックした高さに地面をそろえる");
+    PAINT("塗る", Material.PAINTING, "模様 (パターン / グラデーション) のブロックで、範囲内の表面のブロックを置き換える"),
+    AUTO_SHADE("自動陰影", Material.BLACK_DYE, "太陽の反対側や影になる面を、いまの色から自動で暗いブロックにする");
 
     private final String label;
     private final Material icon;
@@ -32,9 +28,5 @@ enum BrushMode {
 
     String description() {
         return description;
-    }
-
-    boolean terraform() {
-        return this == RAISE || this == LOWER || this == SMOOTH || this == FLATTEN;
     }
 }

@@ -532,4 +532,7 @@ brush:
   # プレビューで見せるブロック数の上限と、見せている時間 (tick)。プレビューは本人にだけ見え、世界は変わらない
   preview-blocks: 1500
   preview-ticks: 80
+  # 追従プレビュー (/ibrush preview): 設定を変えるか見ている所が動いてから更新するまでの tick (15 = 0.75秒) と、使える半径の上限
+  preview-delay-ticks: 15
+  preview-max-radius: 16
 

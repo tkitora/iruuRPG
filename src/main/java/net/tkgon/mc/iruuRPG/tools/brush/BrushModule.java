@@ -35,13 +35,15 @@ import java.util.UUID;
  */
 public final class BrushModule implements Listener {
 
-    private static final String PREFIX = "[ブラシ] ";
+    static final String PREFIX = "[ブラシ] ";
 
     private final JavaPlugin plugin;
     private final NamespacedKey toolKey;
     private final Map<UUID, BrushSettings> settings = new HashMap<>();
     private final Map<UUID, Integer> lastUse = new HashMap<>();
     private final BrushPreview preview;
+    private final BrushLivePreview livePreview;
+    private final BrushStore store;
     private final BrushMenu menu;
     private final boolean worldEdit;
 
@@ -68,6 +70,8 @@ public final class BrushModule implements Listener {
         this.plugin = plugin;
         this.toolKey = new NamespacedKey(plugin, "brush_tool");
         this.preview = new BrushPreview(plugin);
+        this.store = new BrushStore(plugin);
+        this.livePreview = new BrushLivePreview(this);
         this.worldEdit = plugin.getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit")
                 || plugin.getServer().getPluginManager().isPluginEnabled("WorldEdit");
         this.menu = new BrushMenu(this);
@@ -75,7 +79,26 @@ public final class BrushModule implements Listener {
     }
 
     public void stop() {
+        livePreview.shutdown();
         preview.clearAll();
+    }
+
+    BrushStore store() {
+        return store;
+    }
+
+    BrushPreview preview() {
+        return preview;
+    }
+
+    BrushLivePreview livePreview() {
+        return livePreview;
+    }
+
+    /** A setting changed: the live preview, if it is on, starts over after its wait. */
+    void changed(Player player) {
+        settings(player).revision++;
+        livePreview.touch(player);
     }
 
     JavaPlugin plugin() {
@@ -165,12 +188,13 @@ public final class BrushModule implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        livePreview.off(event.getPlayer(), false);
         preview.clear(event.getPlayer());
         settings.remove(event.getPlayer().getUniqueId());
         lastUse.remove(event.getPlayer().getUniqueId());
     }
 
-    private Block target(Player player) {
+    Block target(Player player) {
         double range = Math.max(8.0, Math.min(256.0, plugin.getConfig().getDouble("brush.range", 120.0)));
         RayTraceResult hit = player.rayTraceBlocks(range, FluidCollisionMode.NEVER);
         return hit == null ? null : hit.getHitBlock();
@@ -184,8 +208,7 @@ public final class BrushModule implements Listener {
             return;
         }
         BrushSettings s = settings(player);
-        int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
-        BrushEngine.Result result = BrushEngine.compute(block.getWorld(), block.getX(), block.getY(), block.getZ(), s, cap);
+        BrushEngine.Result result = evaluate(player, block, Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000)));
         if (result.changes().isEmpty()) {
             player.sendMessage(PREFIX + (result.note() != null ? result.note() : "変わるブロックがありません (範囲・マスク・模様を見直してください)。"));
             return;
@@ -212,6 +235,14 @@ public final class BrushModule implements Listener {
         if (result.note() != null) player.sendMessage(PREFIX + result.note());
     }
 
+    /** What one use at {@code block} would change, with the facing of the player, the selection and the blacklist put in. */
+    BrushEngine.Result evaluate(Player player, Block block, int cap) {
+        BrushSettings s = settings(player);
+        org.bukkit.util.Vector look = player.getLocation().getDirection().setY(0.0);
+        s.facing = look.lengthSquared() < 1.0E-6 ? new org.bukkit.util.Vector(0.0, 0.0, 1.0) : look.normalize();
+        return BrushEngine.compute(block.getWorld(), block.getX(), block.getY(), block.getZ(), s, cap, store.blacklist());
+    }
+
     private int drawDirect(org.bukkit.World world, List<BrushEngine.Change> changes) {
         int count = 0;
         for (BrushEngine.Change change : changes) {
@@ -230,8 +261,21 @@ public final class BrushModule implements Listener {
         player.performCommand("/undo");
     }
 
+    void redo(Player player) {
+        if (!worldEdit) {
+            player.sendMessage(PREFIX + "WorldEdit がないので使えません。");
+            return;
+        }
+        preview.clear(player);
+        player.performCommand("/redo");
+    }
+
     void menuOpen(Player player) {
         menu.open(player, BrushMenu.Page.MAIN);
+    }
+
+    void menuOpen(Player player, BrushMenu.Page page) {
+        menu.open(player, page);
     }
 
     boolean hasWorldEdit() {
