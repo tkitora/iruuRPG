@@ -16,7 +16,7 @@ import java.util.Locale;
 final class BrushCommand implements TabExecutor {
 
     private static final String PREFIX = BrushModule.PREFIX;
-    private static final List<String> SUBS = List.of("help", "give", "menu", "off", "undo", "redo", "use", "peek", "preview", "set", "preset", "blacklist");
+    private static final List<String> SUBS = List.of("help", "give", "menu", "off", "undo", "redo", "use", "peek", "preview", "set", "preset", "blacklist", "select");
     private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "axis", "additive", "toon", "depth", "sun");
 
     private final BrushModule module;
@@ -37,7 +37,8 @@ final class BrushCommand implements TabExecutor {
             "/ibrush undo | redo              直前の編集の取り消し/やり直し (//undo, //redo と同じ)",
             "/ibrush set <項目> <値>           設定を数値や名前で直接変える (項目は /ibrush help set)",
             "/ibrush preset list|apply <名前>|save <名前>   グラデーションのプリセット",
-            "/ibrush blacklist list|add [ブロック]|remove <ブロック>|save   グラデーション・自動陰影で使わないブロック");
+            "/ibrush blacklist list|add [ブロック]|remove <ブロック>|save   グラデーション・自動陰影で使わないブロック",
+            "/ibrush select give|fuzzy|adjacent|invert|clear|show|blend|threshold <0〜100>|radius <1〜64>|info   選択ツール (help select で詳しく)");
 
     private static final List<String> HELP_SET = List.of(
             "/ibrush set mode <paint|shade>            塗る / 自動陰影",
@@ -54,6 +55,62 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set toon <0|2〜6>                 トゥーン調の段数 (0 でオフ)",
             "/ibrush set depth <10〜80>                陰の濃さ (%)",
             "/ibrush set sun <方位> <高さ>              太陽 (0=北 90=東、高さ 5〜90)");
+
+    private static final List<String> HELP_SELECT = List.of(
+            "/ibrush select give                選択ツールを受け取る (右クリック=選ぶ / Shift+右=足す / 左=設定画面)",
+            "/ibrush select fuzzy | adjacent    選び方: 似た色 / 同じブロックでつながった所",
+            "/ibrush select threshold <0〜100>  ファジーのしきい値 (大きいほど色が離れていても選ぶ)",
+            "/ibrush select radius <1〜64>      クリックした所から探す半径",
+            "/ibrush select invert              選択を反転 (ブラシは外側だけに効く。計算は増えない)",
+            "/ibrush select clear               選択を解除",
+            "/ibrush select show                選択の縁の表示のオン/オフ",
+            "/ibrush select blend               選択範囲の色をぼかす (//undo で戻せる)",
+            "/ibrush select limit <on|off>      ブラシを選択範囲に限るか",
+            "/ibrush select info                いまの選択の大きさと設定");
+
+    private void select(Player player, String[] args) {
+        String action = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "info";
+        SelectionTool tool = module.selection();
+        SelectionTool.State state = tool.state(player);
+        try {
+            switch (action) {
+                case "give" -> tool.give(player);
+                case "fuzzy" -> {
+                    state.mode = SelectionTool.Mode.FUZZY;
+                    player.sendMessage(PREFIX + "選び方: ファジー (似た色)");
+                }
+                case "adjacent" -> {
+                    state.mode = SelectionTool.Mode.ADJACENT;
+                    player.sendMessage(PREFIX + "選び方: 隣接 (同じブロック)");
+                }
+                case "threshold" -> {
+                    state.threshold = Math.max(0, Math.min(100, Integer.parseInt(args[2])));
+                    player.sendMessage(PREFIX + "しきい値: " + state.threshold);
+                }
+                case "radius" -> {
+                    state.radius = Math.max(1, Math.min(tool.maxRadius(), Integer.parseInt(args[2])));
+                    player.sendMessage(PREFIX + "半径: " + state.radius);
+                }
+                case "invert" -> tool.invert(player);
+                case "clear" -> tool.clear(player);
+                case "show" -> {
+                    tool.toggleShow(player);
+                    player.sendMessage(PREFIX + "選択の表示: " + (state.show ? "オン" : "オフ"));
+                }
+                case "blend" -> tool.blend(player);
+                case "limit" -> {
+                    Boolean on = flag(args[2]);
+                    if (on == null) throw new NumberFormatException();
+                    state.limitBrush = on;
+                    player.sendMessage(PREFIX + "ブラシを選択に限る: " + (on ? "オン" : "オフ"));
+                }
+                default -> player.sendMessage(PREFIX + state.mode.label + " / しきい値 " + state.threshold + " / 半径 " + state.radius + " / "
+                        + (state.selection == null ? "選択なし" : state.selection.blocks.size() + "ブロック" + (state.selection.inverted ? " (反転中)" : "")));
+            }
+        } catch (NumberFormatException | ArrayIndexOutOfBoundsException exception) {
+            help(player, new String[]{"help", "select"});
+        }
+    }
 
     private static String shapeNames() {
         List<String> names = new ArrayList<>();
@@ -83,6 +140,7 @@ final class BrushCommand implements TabExecutor {
             case "set" -> set(player, args);
             case "preset" -> preset(player, args);
             case "blacklist" -> blacklist(player, args);
+            case "select" -> select(player, args);
             default -> help(player, args);
         }
         return true;
@@ -93,6 +151,8 @@ final class BrushCommand implements TabExecutor {
         List<String> lines = new ArrayList<>();
         if (topic.equals("set")) {
             lines.addAll(HELP_SET);
+        } else if (topic.equals("select")) {
+            lines.addAll(HELP_SELECT);
         } else if (topic.isEmpty() || topic.equals("help")) {
             lines.addAll(HELP);
             lines.add("ブラシを持って: 右クリック=使う / Shift+右クリック=1回だけプレビュー / 左クリック=設定画面");
@@ -286,6 +346,7 @@ final class BrushCommand implements TabExecutor {
                 }
                 case "preset" -> options.addAll(List.of("list", "apply", "save"));
                 case "blacklist" -> options.addAll(List.of("list", "add", "remove", "save"));
+                case "select" -> options.addAll(List.of("give", "fuzzy", "adjacent", "threshold", "radius", "invert", "clear", "show", "blend", "limit", "info"));
                 default -> {
                 }
             }

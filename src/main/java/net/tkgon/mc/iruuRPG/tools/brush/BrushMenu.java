@@ -38,7 +38,8 @@ final class BrushMenu implements Listener {
         PATTERN(3, Material.WHITE_CONCRETE, "模様", "模様"),
         MASK(4, Material.HOPPER, "マスク", "マスク"),
         SUN(5, Material.SUNFLOWER, "陰影", "太陽と陰影"),
-        BLACKLIST(6, Material.BARRIER, "ブラックリスト", "ブラックリスト");
+        BLACKLIST(6, Material.BARRIER, "ブラックリスト", "ブラックリスト"),
+        SELECT(7, Material.BLAZE_ROD, "選択", "選択ツール");
 
         final int tab;
         final Material icon;
@@ -188,6 +189,7 @@ final class BrushMenu implements Listener {
             case MASK -> mask(holder, s);
             case SUN -> sun(holder, s);
             case BLACKLIST -> blacklist(holder);
+            case SELECT -> select(holder, player);
         }
     }
 
@@ -494,6 +496,55 @@ final class BrushMenu implements Listener {
         s.sunAzimuth = azimuth;
         s.sunElevation = elevation;
         refresh(player, Page.SUN);
+    }
+
+    // ---- selection --------------------------------------------------------------------------------------------------------------
+
+    private void select(Holder holder, Player player) {
+        SelectionTool tool = module.selection();
+        SelectionTool.State state = tool.state(player);
+        put(holder, GRID[0], item(Material.COMPASS, "選び方: " + state.mode.label, NamedTextColor.GOLD, List.of(state.mode.description, "クリックで切り替え (選択ツールで右クリックすると選ぶ)")), (p, c) -> {
+            SelectionTool.Mode[] all = SelectionTool.Mode.values();
+            state.mode = all[(state.mode.ordinal() + 1) % all.length];
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[1], item(Material.COMPARATOR, "しきい値 (ファジー): " + state.threshold, NamedTextColor.AQUA, List.of("大きいほど、色が離れたブロックまで選ぶ (0〜100)", "左クリック +5 / 右クリック -5 (Shift で 10)")), (p, c) -> {
+            state.threshold = Math.max(0, Math.min(100, state.threshold + (left(c) ? 1 : -1) * (big(c) ? 10 : 5)));
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[2], item(Material.SPYGLASS, "半径: " + state.radius, NamedTextColor.AQUA, List.of("クリックした所から、ここまでの範囲だけ探す (最大 " + tool.maxRadius() + ")", "左クリック +4 / 右クリック -4 (Shift で 16)")), (p, c) -> {
+            state.radius = Math.max(1, Math.min(tool.maxRadius(), state.radius + (left(c) ? 1 : -1) * (big(c) ? 16 : 4)));
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[3], item(Material.GRASS_BLOCK, "表面だけ (隣接): " + onOff(state.surfaceOnly), NamedTextColor.AQUA, List.of("オン: 空気に触れているブロックだけ選ぶ (ファジーはいつも表面だけ)", "クリックで切り替え")), (p, c) -> {
+            state.surfaceOnly = !state.surfaceOnly;
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[4], item(Material.SPECTRAL_ARROW, "選択を表示: " + onOff(state.show), NamedTextColor.AQUA, List.of("選んだ範囲の縁を、近くだけ粒子で見せる (あなたにだけ)", "水色=選択 / 橙=反転中", "クリックで切り替え")), (p, c) -> {
+            tool.toggleShow(p);
+            refresh(p, Page.SELECT);
+        });
+        boolean inverted = state.selection != null && state.selection.inverted;
+        put(holder, GRID[5], item(Material.ENDER_EYE, "選択を反転: " + onOff(inverted), NamedTextColor.AQUA, List.of("オン: ブラシは、選んだ所の「外」だけに効く", "反転しても計算は増えない", "クリックで切り替え")), (p, c) -> {
+            tool.invert(p);
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[6], item(Material.LAVA_BUCKET, "選択を解除", NamedTextColor.RED, List.of("選んだ範囲を捨てる")), (p, c) -> {
+            tool.clear(p);
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[7], item(Material.SNOWBALL, "色をぼかす", NamedTextColor.GREEN, List.of("選んだ範囲の色を、まわりと平均してなじませる", "範囲の中にあるブロックだけを使う / //undo で戻せる", "反転中は使えない")), (p, c) -> {
+            p.closeInventory();
+            tool.blend(p);
+        });
+        put(holder, GRID[8], item(Material.HOPPER, "ブラシを選択に限る: " + onOff(state.limitBrush), NamedTextColor.AQUA, List.of("オン: ブラシは選んだ範囲の中だけに効く", "クリックで切り替え")), (p, c) -> {
+            state.limitBrush = !state.limitBrush;
+            refresh(p, Page.SELECT);
+        });
+        put(holder, GRID[9], item(Material.BLAZE_ROD, "選択ツールをもらう", NamedTextColor.GOLD, List.of("持っていなければ、選択ツールのアイテムを渡す")), (p, c) -> tool.give(p));
+        put(holder, GRID[10], item(Material.BOOK, "いまの選択", NamedTextColor.GOLD, List.of(
+                state.selection == null ? "選んでいません" : state.selection.blocks.size() + "ブロック" + (inverted ? " (反転中)" : ""),
+                state.job != null ? "探している途中です…" : "")), null);
     }
 
     // ---- blacklist ------------------------------------------------------------------------------------------------------------------

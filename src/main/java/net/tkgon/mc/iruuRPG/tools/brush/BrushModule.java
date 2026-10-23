@@ -20,6 +20,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.RayTraceResult;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,15 @@ public final class BrushModule implements Listener {
     private final BrushPreview preview;
     private final BrushLivePreview livePreview;
     private final BrushStore store;
+    private final SelectionTool selection;
+    private final Map<UUID, Stroke> strokes = new HashMap<>();
+
+    /** The path of a stroke held down: where it was last used and how far it has gone (for the gradient along the stroke and for filling the gap between two uses). */
+    private static final class Stroke {
+        Block last;
+        int tick;
+        double distance;
+    }
     private final BrushMenu menu;
     private final boolean worldEdit;
 
@@ -53,6 +63,7 @@ public final class BrushModule implements Listener {
             BrushModule module = new BrushModule(plugin);
             plugin.getServer().getPluginManager().registerEvents(module, plugin);
             plugin.getServer().getPluginManager().registerEvents(module.menu, plugin);
+            plugin.getServer().getPluginManager().registerEvents(module.selection, plugin);
             org.bukkit.command.PluginCommand command = plugin.getCommand("ibrush");
             if (command != null) {
                 BrushCommand handler = new BrushCommand(module);
@@ -72,6 +83,7 @@ public final class BrushModule implements Listener {
         this.preview = new BrushPreview(plugin);
         this.store = new BrushStore(plugin);
         this.livePreview = new BrushLivePreview(this);
+        this.selection = new SelectionTool(this);
         this.worldEdit = plugin.getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit")
                 || plugin.getServer().getPluginManager().isPluginEnabled("WorldEdit");
         this.menu = new BrushMenu(this);
@@ -79,8 +91,13 @@ public final class BrushModule implements Listener {
     }
 
     public void stop() {
+        selection.stop();
         livePreview.shutdown();
         preview.clearAll();
+    }
+
+    SelectionTool selection() {
+        return selection;
     }
 
     BrushStore store() {
@@ -189,6 +206,7 @@ public final class BrushModule implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         livePreview.off(event.getPlayer(), false);
+        strokes.remove(event.getPlayer().getUniqueId());
         preview.clear(event.getPlayer());
         settings.remove(event.getPlayer().getUniqueId());
         lastUse.remove(event.getPlayer().getUniqueId());
@@ -208,7 +226,8 @@ public final class BrushModule implements Listener {
             return;
         }
         BrushSettings s = settings(player);
-        BrushEngine.Result result = evaluate(player, block, Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000)));
+        int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
+        BrushEngine.Result result = previewOnly ? evaluate(player, block, cap) : stroke(player, block, s, cap);
         if (result.changes().isEmpty()) {
             player.sendMessage(PREFIX + (result.note() != null ? result.note() : "変わるブロックがありません (範囲・マスク・模様を見直してください)。"));
             return;
@@ -220,19 +239,68 @@ public final class BrushModule implements Listener {
             return;
         }
         preview.clear(player);
-        int count;
-        if (worldEdit) {
-            try {
-                count = WorldEditBridge.apply(player, block.getWorld(), result.changes());
-            } catch (RuntimeException | LinkageError exception) {
-                plugin.getLogger().warning("Brush: WorldEdit failed, drawing without undo: " + exception);
-                count = drawDirect(block.getWorld(), result.changes());
-            }
-        } else {
-            count = drawDirect(block.getWorld(), result.changes());
-        }
+        int count = draw(player, block.getWorld(), result.changes());
         player.sendTitle("", "§7" + s.mode.label() + ": " + count + "ブロック" + (worldEdit ? "" : " (undo なし)"), 0, 14, 6);
         if (result.note() != null) player.sendMessage(PREFIX + result.note());
+    }
+
+    /**
+     * One use of the brush, or (when it is held and the block looked at has moved) the whole stretch from the last use to this one: points are laid along the line between
+     * them, no farther apart than 60% of the radius, and the brush is worked out at each, so a fast drag leaves no gaps. With the gradient along the stroke, the place on the
+     * gradient follows the distance travelled since the stroke began.
+     */
+    private BrushEngine.Result stroke(Player player, Block block, BrushSettings s, int cap) {
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        Stroke stroke = strokes.computeIfAbsent(player.getUniqueId(), id -> new Stroke());
+        boolean continuing = stroke.last != null && now - stroke.tick <= Math.max(8, plugin.getConfig().getInt("brush.cooldown-ticks", 4) * 3)
+                && stroke.last.getWorld().equals(block.getWorld()) && stroke.last.getLocation().distanceSquared(block.getLocation()) < 96.0 * 96.0;
+        if (!continuing) {
+            stroke.distance = 0.0;
+            stroke.last = null;
+        }
+        List<Block> points = new ArrayList<>();
+        List<Double> distances = new ArrayList<>();
+        if (stroke.last != null && !stroke.last.equals(block)) {
+            double gap = stroke.last.getLocation().distance(block.getLocation());
+            double step = Math.max(1.0, s.radius * 0.6);
+            int count = (int) Math.min(24, Math.ceil(gap / step));
+            for (int index = 1; index < count; index++) {
+                double t = index / (double) count;
+                int x = (int) Math.round(stroke.last.getX() + (block.getX() - stroke.last.getX()) * t);
+                int z = (int) Math.round(stroke.last.getZ() + (block.getZ() - stroke.last.getZ()) * t);
+                int y = (int) Math.round(stroke.last.getY() + (block.getY() - stroke.last.getY()) * t);
+                points.add(block.getWorld().getBlockAt(x, y, z));
+                distances.add(stroke.distance + gap * t);
+            }
+            stroke.distance += gap;
+        }
+        points.add(block);
+        distances.add(stroke.distance);
+        stroke.last = block;
+        stroke.tick = now;
+        Map<Long, BrushEngine.Change> merged = new java.util.LinkedHashMap<>();
+        String note = null;
+        double length = Math.max(4.0, plugin.getConfig().getDouble("brush.stroke-length", 24.0));
+        for (int index = 0; index < points.size(); index++) {
+            s.strokeT = Math.min(1.0, distances.get(index) / length);
+            BrushEngine.Result part = evaluate(player, points.get(index), cap);
+            if (part.note() != null) note = part.note();
+            for (BrushEngine.Change change : part.changes()) merged.put(SurfaceProbe.pack(change.x(), change.y(), change.z()), change);
+            if (merged.size() >= cap) break;
+        }
+        return new BrushEngine.Result(new ArrayList<>(merged.values()), note);
+    }
+
+    /** Puts the changes in the world as one edit of the player (with undo when WorldEdit is there); returns how many blocks were put. */
+    int draw(Player player, org.bukkit.World world, List<BrushEngine.Change> changes) {
+        if (worldEdit) {
+            try {
+                return WorldEditBridge.apply(player, world, changes);
+            } catch (RuntimeException | LinkageError exception) {
+                plugin.getLogger().warning("Brush: WorldEdit failed, drawing without undo: " + exception);
+            }
+        }
+        return drawDirect(world, changes);
     }
 
     /** What one use at {@code block} would change, with the facing of the player, the selection and the blacklist put in. */
@@ -240,6 +308,7 @@ public final class BrushModule implements Listener {
         BrushSettings s = settings(player);
         org.bukkit.util.Vector look = player.getLocation().getDirection().setY(0.0);
         s.facing = look.lengthSquared() < 1.0E-6 ? new org.bukkit.util.Vector(0.0, 0.0, 1.0) : look.normalize();
+        s.selection = selection.active(player);
         return BrushEngine.compute(block.getWorld(), block.getX(), block.getY(), block.getZ(), s, cap, store.blacklist());
     }
 

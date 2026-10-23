@@ -30,7 +30,8 @@ final class BrushSettings {
         RADIAL("中心から縁へ", "ブラシの中心が最初のブロック、縁が最後のブロック"),
         VERTICAL("下から上へ", "ブラシの下が最初のブロック、上が最後のブロック"),
         DIRECTIONAL("向きに沿って", "使ったときに向いていた方向に、手前から奥へ"),
-        NOISE("ノイズ", "滑らかなノイズで斑にする");
+        NOISE("ノイズ", "滑らかなノイズで斑にする"),
+        STROKE("なぞった線に沿って", "右クリックを押したままなぞると、なぞった長さに沿って最初→最後のブロックになる");
 
         final String label;
         final String description;
@@ -67,6 +68,8 @@ final class BrushSettings {
     Selection selection;
     /** Counts every change of a setting, so the live preview can tell when to start over. */
     int revision;
+    /** Where on the gradient (0 - 1) the stroke is now, for the gradient along the stroke; set by the module. */
+    double strokeT;
     /** 0 = the whole brush is the same, 1 = the effect fades to nothing at the edge. */
     double falloff = 0.3;
     boolean surfaceOnly = true;

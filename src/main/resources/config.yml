@@ -537,4 +537,13 @@ brush:
   # 追従プレビュー (/ibrush preview): 設定を変えるか見ている所が動いてから更新するまでの tick (15 = 0.75秒) と、使える半径の上限
   preview-delay-ticks: 15
   preview-max-radius: 16
+  # 右クリックを押したままなぞるとき、グラデーション「なぞった線に沿って」が最初→最後になるまでの長さ (ブロック)
+  stroke-length: 24
+  # 選択ツール (別のアイテム)。探すのは少しずつ (1tickに調べるブロック数)、表示は縁だけを近くの粒子で
+  selection:
+    max-radius: 64
+    max-blocks: 300000
+    blocks-per-tick: 20000
+    display-range: 20
+    display-particles: 800
 
