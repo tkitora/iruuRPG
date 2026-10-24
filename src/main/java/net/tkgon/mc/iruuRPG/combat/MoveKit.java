@@ -269,9 +269,16 @@ public final class MoveKit {
     // ---- hands, guard and blinks ---------------------------------------------------------------------------------------------------
 
     /** The hand the next cut is struck with: an assassin with a weapon in each hand (固有0) strikes with them in turn; anybody else with the main hand. */
+    private boolean offHandVisuals;
+
+    /** Turns on the look of a cut with the off hand (see {@link #nextHand}); off unless a combo asks for it. */
+    void offHandVisuals(boolean on) {
+        this.offHandVisuals = on;
+    }
+
     public AttackService.MeleeHand nextHand() {
         AttackService.MeleeHand hand = attack.nextSlashHand(player, weapon);
-        if (hand.offHand()) offHandFlourish();
+        if (hand.offHand() && offHandVisuals) offHandFlourish();
         return hand;
     }
 
@@ -281,8 +288,9 @@ public final class MoveKit {
      */
     private void offHandFlourish() {
         attack.swingOffHand(player);
-        slash("arc", 2.4, 110.0, 38.0, 20.0, 1.7, 0.4, 0.0, 1.0, 0.07, 0.0);
-        slash("arc", 2.4, 110.0, -38.0, 200.0, 1.7, 0.5, 0.0, 1.0, 0.07, 0.05);
+        // (about a right angle apart, but not exactly a cross)
+        slash("arc", 2.4, 110.0, 43.0, 0.0, 1.7, 0.4, 0.0, 1.0, 0.07, 0.0);
+        slash("arc", 2.4, 110.0, -43.0, 180.0, 1.7, 0.5, 0.0, 1.0, 0.07, 0.05);
         sound(player.getLocation(), Sfx.WIND, 0.4f, 1.9f);
     }
 

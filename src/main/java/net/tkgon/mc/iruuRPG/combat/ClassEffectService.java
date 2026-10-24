@@ -88,6 +88,7 @@ public final class ClassEffectService {
         if (attackService != null) attackService.rangerHit(attacker, victim, weapon);
         assassinOnHit(attacker, victim, weapon, damage, profile, statuses);
         surgeOnHit(attacker, damage);
+        surgeChainOnHit(attacker, victim);
         frenzyOnHit(attacker, victim, damage);
         if (statuses) mageOnHit(attacker, victim, damage, profile);
     }
@@ -335,6 +336,34 @@ public final class ClassEffectService {
 
     public void endSurge(Player player) {
         surge.remove(player.getUniqueId());
+        surgeChains.remove(player.getUniqueId());
+        surgeChainAt.remove(player.getUniqueId());
+    }
+
+    /** What the surge does when the warrior hits an enemy: a chain of lightning that leaves it (set by the skill, gone when the surge ends). */
+    private final Map<UUID, java.util.function.Consumer<LivingEntity>> surgeChains = new HashMap<>();
+    private final Map<UUID, Long> surgeChainAt = new HashMap<>();
+    private final java.util.Set<UUID> chaining = new java.util.HashSet<>();
+
+    public void setSurgeChain(Player player, java.util.function.Consumer<LivingEntity> chain) {
+        surgeChains.put(player.getUniqueId(), chain);
+    }
+
+    /** Whether the warrior's own lightning is hitting right now (its hits do not start a chain again). */
+    public void setChaining(Player player, boolean on) {
+        if (on) chaining.add(player.getUniqueId());
+        else chaining.remove(player.getUniqueId());
+    }
+
+    /** A hit during the surge starts the chain of lightning from the enemy hit, at most once in {@code chain-interval-ticks} (the surge's {@code bolt-interval-ticks}). */
+    private void surgeChainOnHit(Player attacker, LivingEntity victim) {
+        java.util.function.Consumer<LivingEntity> chain = surgeChains.get(attacker.getUniqueId());
+        if (chain == null || surgeLevel(attacker) == 0 || chaining.contains(attacker.getUniqueId()) || echoing.contains(attacker.getUniqueId())) return;
+        long now = System.currentTimeMillis();
+        Long last = surgeChainAt.get(attacker.getUniqueId());
+        if (last != null && now - last < 350L) return;
+        surgeChainAt.put(attacker.getUniqueId(), now);
+        chain.accept(victim);
     }
 
     /** The warrior's surge: part of the damage dealt flows back as health. */

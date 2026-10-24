@@ -483,6 +483,11 @@ public final class AttackService {
             return true;
         }
         beginAttack(attacker);
+        // the cooldown of heavy 0 shows as the grey overlay of the weapon (it blocks nothing: the normal attacks go on)
+        if (step.heavyIndex() == 0 && !swapDash && weapon.attackType() != AttackType.DEPLOY) {
+            int cooldown = meleeCombo.heavyCooldownTicks(combo.spec().plan(), 0);
+            if (cooldown > 0) attacker.setCooldown(weapon.material(), cooldown);
+        }
         combo.heavy(kit(attacker, weapon), step);
         if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
         return true;

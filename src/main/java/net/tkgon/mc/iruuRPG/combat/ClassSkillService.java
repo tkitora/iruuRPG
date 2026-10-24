@@ -214,8 +214,8 @@ public final class ClassSkillService {
 
     /**
      * The warrior's surge: for some seconds (8; 12 when upgraded) the warrior is wrapped in lightning. Every damage they deal gives back a share as
-     * health (8%; 14% when upgraded: {@link ClassEffectService#activateSurge}), and every {@code bolt-interval-ticks} ticks a bolt falls on the nearest enemy within
-     * {@code bolt-range} blocks (the weapon's damage times {@code bolt-rate}), so the surge makes damage by itself and the damage heals.
+     * health (8%; 14% when upgraded: {@link ClassEffectService#activateSurge}), and every enemy the warrior hits sends a chain of lightning on to the ones near it
+     * ({@link #chainLightning}), so the surge adds damage to the warrior's blows and the damage heals.
      */
     private void warriorSurge(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
         PlayerProfile profile = profileManager.getOrCreate(player);
@@ -225,10 +225,10 @@ public final class ClassSkillService {
         double seconds = baseSeconds * Math.max(0.1, 1.0 + snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.DURATION) / 100.0);
         double lifesteal = upgraded ? skill.values().getOrDefault("upgrade-lifesteal", 0.14) : skill.values().getOrDefault("lifesteal", 0.08);
         double boltRate = upgraded ? skill.values().getOrDefault("upgrade-bolt-rate", 0.9) : skill.values().getOrDefault("bolt-rate", 0.6);
-        int interval = (int) Math.max(4L, Math.round(skill.values().getOrDefault("bolt-interval-ticks", 14.0)));
-        double range = skill.values().getOrDefault("bolt-range", 7.0);
         if (classEffectService == null) return;
         classEffectService.activateSurge(player, seconds, upgraded ? 2 : 1, lifesteal);
+        // the lightning is no longer called down by itself: every enemy the warrior hits sends a chain of lightning on to the ones near it
+        classEffectService.setSurgeChain(player, first -> chainLightning(player, skill, weapon, first, boltRate, upgraded));
 
         World world = player.getWorld();
         Location base = player.getLocation();
@@ -257,10 +257,6 @@ public final class ClassSkillService {
                     return;
                 }
                 drawSurgeAura(player, tick);
-                if (tick > 0 && tick % interval == 0) {
-                    LivingEntity target = nearestEnemy(player, range);
-                    if (target != null) strikeHit(player, skill, target, weapon, boltRate, upgraded, 0.0, skill.values().getOrDefault("bolt-splash-share", 0.2), false);
-                }
                 tick += 2;
             }
         }.runTaskTimer(plugin, 0L, 2L);
@@ -275,6 +271,55 @@ public final class ClassSkillService {
             SkillFx.groundRing(player, feet, 1.4, SkillFx.LIGHTNING, 0.6, 1.0);
             ParticleFx.to(player.getWorld()).spawnParticle(Particle.ELECTRIC_SPARK, feet.clone().add(0.0, 1.0, 0.0), 3, 0.5, 0.7, 0.5, 0.2);
         }
+    }
+
+    /**
+     * Chain lightning from the enemy the warrior just hit: it jumps to the nearest enemy within {@code chain-range} blocks (6) that it has not touched, up to 3 times (4 when
+     * upgraded), two ticks between jumps, each jump {@code chain-decay} (75%) as strong as the one before; the first is {@code rate} times the weapon's damage. The hits
+     * of the chain are the warrior's, so they give back health as the other hits do, but they do not start another chain.
+     */
+    private void chainLightning(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon, LivingEntity first, double rate, boolean upgraded) {
+        if (first == null || !first.isValid()) return;
+        int jumps = upgraded ? 4 : 3;
+        double range = skill.values().getOrDefault("chain-range", 6.0);
+        double decay = skill.values().getOrDefault("chain-decay", 0.75);
+        java.util.Set<UUID> touched = new java.util.HashSet<>();
+        touched.add(first.getUniqueId());
+        SkillFx.burst(ParticleFx.owner(), first.getLocation().add(0.0, first.getHeight() * 0.5, 0.0), 1.2, SkillFx.LIGHTNING);
+        chainStep(player, weapon, first, touched, jumps, range, decay, rate, upgraded, 0);
+    }
+
+    private void chainStep(Player player, RpgItemDefinition weapon, LivingEntity from, java.util.Set<UUID> touched, int left, double range, double decay, double rate, boolean big, int jump) {
+        if (left <= 0 || !player.isOnline()) return;
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            LivingEntity best = null;
+            double bestDistance = range * range;
+            Location center = from.getLocation().add(0.0, from.getHeight() * 0.5, 0.0);
+            for (Entity entity : from.getWorld().getNearbyEntities(center, range, range, range)) {
+                if (!isValidTarget(player, entity) || touched.contains(entity.getUniqueId())) continue;
+                double distance = entity.getLocation().distanceSquared(center);
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = (LivingEntity) entity;
+                }
+            }
+            if (best == null) return;
+            touched.add(best.getUniqueId());
+            Location to = best.getLocation().add(0.0, best.getHeight() * 0.5, 0.0);
+            // an arc of lightning from one enemy to the next, a zigzag between them with a flash at each end
+            SkillFx.trail(ParticleFx.owner(), center, to, SkillFx.LIGHTNING, 1.2);
+            player.getWorld().playSound(to, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.35f, 1.5f + 0.1f * jump);
+            SkillFx.burst(ParticleFx.owner(), to, 0.9, SkillFx.LIGHTNING);
+            classEffectService.setChaining(player, true);
+            try {
+                AttackService.AttackDamage attack = attackService.calculateDamage(player, best, weapon);
+                double damage = Math.round(attack.result().damage() * rate * Math.pow(decay, jump + 1) * 10.0) / 10.0;
+                attackService.applyDirectDamage(player, best, damage, weapon, false);
+            } finally {
+                classEffectService.setChaining(player, false);
+            }
+            chainStep(player, weapon, best, touched, left - 1, range, decay, rate, big, jump + 1);
+        }, 2L);
     }
 
     private LivingEntity nearestEnemy(Player player, double range) {
