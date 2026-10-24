@@ -402,7 +402,7 @@ public final class AttackService {
         return kit;
     }
 
-    private MoveKit kit(Player attacker, RpgItemDefinition weapon) {
+    MoveKit kit(Player attacker, RpgItemDefinition weapon) {
         MoveKit kit = new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
         Object[] origin = chainOrigins.get(attacker.getUniqueId());
         if (origin != null) kit.anchor((Location) origin[0], (org.bukkit.util.Vector) origin[1]);
