@@ -27,7 +27,7 @@ public final class MageMeleeCombo extends BaseCombo {
 
     public MageMeleeCombo() {
         super("mage", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{0.45, 0.7, 0.33, 1.1, 1.25}, new int[]{2, 1, 3, 1, 1},
+                new double[]{0.29, 0.79, 0.32, 1.18, 1.38}, new int[]{2, 1, 3, 1, 1},
                 new double[]{0.1, 0.2, 0.36, 1.1, 1.25}, new int[]{120, 0, 0, 0, 0}, 40));
     }
 

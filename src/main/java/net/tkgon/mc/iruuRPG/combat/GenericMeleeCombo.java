@@ -18,7 +18,7 @@ public final class GenericMeleeCombo extends BaseCombo {
 
     public GenericMeleeCombo() {
         super("*", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{0.4, 0.5, 0.6, 0.7, 1.2}, new int[]{1, 1, 1, 2, 1},
+                new double[]{0.4, 0.54, 0.68, 0.81, 0.95}, new int[]{1, 1, 1, 2, 1},
                 new double[]{0.5, 0.6, 0.7, 1.0, 1.4}, new int[]{60, 0, 0, 0, 0}, 36));
     }
 

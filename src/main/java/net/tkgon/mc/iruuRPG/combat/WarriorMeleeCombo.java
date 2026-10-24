@@ -23,7 +23,7 @@ public final class WarriorMeleeCombo extends BaseCombo {
 
     public WarriorMeleeCombo() {
         super("warrior", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{1.0, 0.7, 1.1, 1.3, 1.5}, new int[]{1, 1, 1, 1, 1},
+                new double[]{0.67, 0.89, 1.12, 1.34, 1.56}, new int[]{1, 1, 1, 1, 1},
                 new double[]{0.0, 0.6, 0.24, 1.5, 0.8}, new int[]{240, 0, 0, 0, 0}, 40));
     }
 
