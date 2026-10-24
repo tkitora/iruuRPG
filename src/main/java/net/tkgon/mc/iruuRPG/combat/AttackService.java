@@ -247,6 +247,7 @@ public final class AttackService {
             return true;
         }
         beginAttack(attacker);
+        showHeavyCooldown(attacker, weapon, MeleeCombo.MAGE, step);
         mageMoves.heavy(attacker, weapon, step);
         return true;
     }
@@ -443,6 +444,13 @@ public final class AttackService {
     private static final int SWAP_DASH_COOLDOWN_TICKS = 2;
     private final Map<UUID, Integer> swapDashReady = new HashMap<>();
 
+    /** The cooldown of heavy 0 shows as the grey overlay of the weapon (it blocks nothing: the normal attacks go on); a deployed weapon already shows the cooldown of its placement. */
+    private void showHeavyCooldown(Player attacker, RpgItemDefinition weapon, String plan, MeleeCombo.Step step) {
+        if (step.heavyIndex() != 0 || weapon.attackType() == AttackType.DEPLOY) return;
+        int cooldown = meleeCombo.heavyCooldownTicks(plan, 0);
+        if (cooldown > 0) attacker.setCooldown(weapon.material(), cooldown);
+    }
+
     /**
      * A heavy attack of the class's combo: the other click than the weapon's normal one (melee: the right click, ranged and
      * deployed: the left click). True when the click was used, also while heavy 0 cools down.
@@ -483,11 +491,7 @@ public final class AttackService {
             return true;
         }
         beginAttack(attacker);
-        // the cooldown of heavy 0 shows as the grey overlay of the weapon (it blocks nothing: the normal attacks go on)
-        if (step.heavyIndex() == 0 && !swapDash && weapon.attackType() != AttackType.DEPLOY) {
-            int cooldown = meleeCombo.heavyCooldownTicks(combo.spec().plan(), 0);
-            if (cooldown > 0) attacker.setCooldown(weapon.material(), cooldown);
-        }
+        if (!swapDash) showHeavyCooldown(attacker, weapon, combo.spec().plan(), step);
         combo.heavy(kit(attacker, weapon), step);
         if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
         return true;
