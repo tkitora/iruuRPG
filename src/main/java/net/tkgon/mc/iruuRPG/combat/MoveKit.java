@@ -639,20 +639,37 @@ public final class MoveKit {
      * at each block (where it turned). Drawn as the bolts are.
      */
     public void ricochet(Location start, Vector direction, int bounces, double speed, int maxTicks, double rate, Consumer<Location> onBounce) {
+        ricochet(start, direction, bounces, speed, maxTicks, rate, 0.0, onBounce);
+    }
+
+    /**
+     * The same with {@code gravity} (blocks a tick, 0 = a straight line): the shot flies in a parabola, is aimed over so that it comes down near where the player looks, and
+     * loses a fifth of its speed at each bounce.
+     */
+    public void ricochet(Location start, Vector direction, int bounces, double speed, int maxTicks, double rate, double gravity, Consumer<Location> onBounce) {
         World world = start.getWorld();
         Location[] position = {start.clone()};
-        Vector[] heading = {direction.clone().normalize()};
+        Vector heading0 = direction.clone().normalize();
+        Vector[] velocity = {heading0.clone().multiply(speed)};
+        if (gravity > 0.0) {
+            double flight = Math.max(1.0, Math.min(start.distance(aim()), speed * maxTicks * 0.5)) / speed;
+            velocity[0] = heading0.clone().multiply(speed).add(new Vector(0.0, 0.5 * gravity * flight, 0.0));
+            velocity[0].multiply(speed / velocity[0].length());
+        }
         int[] left = {bounces};
         double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6) * 0.6;
         every(maxTicks, age -> {
             ParticleFx.mark(player);
-            RayTraceResult result = world.rayTrace(position[0], heading[0], speed, FluidCollisionMode.NEVER, true, raySize,
+            double length = velocity[0].length();
+            Vector heading = velocity[0].clone().normalize();
+            RayTraceResult result = world.rayTrace(position[0], heading, length, FluidCollisionMode.NEVER, true, raySize,
                     entity -> attack.isAttackTarget(entity, player));
             Location next = result != null && result.getHitPosition() != null ? result.getHitPosition().toLocation(world)
-                    : position[0].clone().add(heading[0].clone().multiply(speed));
+                    : position[0].clone().add(velocity[0]);
             line(position[0], next, 0.2, 1.0, 1.1);
             if (result == null) {
                 position[0] = next;
+                velocity[0].setY(velocity[0].getY() - gravity);
                 return false;
             }
             if (result.getHitEntity() instanceof LivingEntity victim) {
@@ -664,7 +681,8 @@ public final class MoveKit {
             if (left[0] <= 0 || result.getHitBlockFace() == null) return true;
             left[0]--;
             Vector normal = result.getHitBlockFace().getDirection();
-            heading[0] = heading[0].clone().subtract(normal.clone().multiply(2.0 * heading[0].dot(normal))).normalize();
+            velocity[0] = velocity[0].clone().subtract(normal.clone().multiply(2.0 * velocity[0].dot(normal)));
+            if (gravity > 0.0) velocity[0].multiply(0.8);
             position[0] = next.clone().add(normal.clone().multiply(0.15));
             return false;
         });
@@ -709,11 +727,13 @@ public final class MoveKit {
         }
         double speed = Math.max(0.5, attack.projectileSpeed(player) * speedScale / 20.0);
         double range = attack.rangeDistance(player);
-        double gravity = plugin.getConfig().getDouble("combat.combo.arrow-gravity", 0.02) * Math.max(0.2, weight);
+        // (the drop is scaled by arrow-drop-scale so that it can be seen, and the aim is raised for only arrow-aim-compensation of it: an arrow falls below the point looked at at long range)
+        double gravity = plugin.getConfig().getDouble("combat.combo.arrow-gravity", 0.02) * plugin.getConfig().getDouble("combat.combo.arrow-drop-scale", 2.5) * Math.max(0.2, weight);
+        double compensation = plugin.getConfig().getDouble("combat.combo.arrow-aim-compensation", 0.6);
         // aim high enough to come down on the point looked at
         double distance = Math.max(1.0, Math.min(range, start.distance(aim())));
         double flight = distance / speed;
-        Vector velocity = heading.clone().multiply(distance).add(new Vector(0.0, 0.5 * gravity * flight * flight, 0.0)).normalize().multiply(speed);
+        Vector velocity = heading.clone().multiply(distance).add(new Vector(0.0, 0.5 * gravity * flight * flight * compensation, 0.0)).normalize().multiply(speed);
         World world = start.getWorld();
         double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6) * 0.7;
         boolean ranger = "gifted".equals(attack.classIdOf(player));

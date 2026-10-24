@@ -41,7 +41,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * sigils for 0.4 s and then go off (4 hits), 5 a burst of magic (3 hits of 60%) with two vortexes of light turning opposite ways. Runs of more than one effect are
  * a tick apart and each a little turned from the one before. Between two normal attacks there is a least delay.
  *
- * <p>Heavy attacks (left click, the number of normal attacks so far): 1 a ball of magic flying ahead that bursts for 60%,
+ * <p>Heavy attacks (left click, the number of normal attacks so far): 1 a ball of magic flying ahead that bursts for 60% when it hits something or is triggered again,
  * 2 three homing bolts conjured behind the player (15% each), 3 three fan-shaped areas, one beyond the other, that erupt
  * in spikes after 8 ticks (60%), 4 a sphere ahead that slows the enemies close to it (30%) and hurts them every 2 ticks (10%).
  * Heavy 0 does nothing of its own: while a heavy attack can be reactivated it triggers that (1 bursts the ball at once,
@@ -91,6 +91,11 @@ public final class MageMoves {
             return false;
         }
         return true;
+    }
+
+    /** The class of the player changed (or they left): nothing is left to trigger again. */
+    public void forget(UUID id) {
+        pending.remove(id);
     }
 
     private void offer(Player player, long millis, int uses, Runnable action) {
@@ -414,14 +419,15 @@ public final class MageMoves {
         }
     }
 
-    // 1: a ball of magic that bursts on the first thing it meets, after 0.6 seconds, or when triggered again
+    // 1: a ball of magic that bursts on the first thing it meets or when triggered again (it goes out after 4 seconds without a burst)
     private void orb(Player player, RpgItemDefinition weapon, double rate) {
         World world = player.getWorld();
         Vector[] axes = basis(player);
         Location start = player.getEyeLocation().add(axes[0].clone().multiply(0.9)).subtract(0.0, 0.2, 0.0);
         Vector direction = axes[0].clone();
         double speed = number("orb-speed", 1.0);
-        int life = (int) Math.max(1, Math.round(number("orb-seconds", 0.6) * 20.0));
+        // the ball flies until it meets something or is triggered again; if it does neither within orb-seconds it goes out without bursting
+        int life = (int) Math.max(1, Math.round(number("orb-fly-seconds", 4.0) * 20.0));
         double radius = number("orb-radius", 2.5);
         Element element = weapon.element();
         Sfx.MAGIC.play(start, 1.0f, 1.3f);
@@ -446,7 +452,9 @@ public final class MageMoves {
                     return;
                 }
                 if (age++ >= life) {
-                    burst.run();
+                    done[0] = true;
+                    ParticleFx.to(player, world).spawnParticle(Particle.END_ROD, where[0], 8, 0.3, 0.3, 0.3, 0.05);
+                    cancel();
                     return;
                 }
                 RayTraceResult result = world.rayTrace(where[0], direction, speed, FluidCollisionMode.NEVER, true, 0.5,

@@ -25,7 +25,7 @@ public final class AssassinDeployCombo extends BaseCombo {
     }
 
     private void smoke(MoveKit kit, Location at, double radius) {
-        kit.fx(at).particle(org.bukkit.Particle.CAMPFIRE_COSY_SMOKE, at.getX(), at.getY() + 0.5, at.getZ(), 5, radius * 0.4, 0.3, radius * 0.4, 0.01);
+        kit.fx(at).particle(org.bukkit.Particle.CAMPFIRE_COSY_SMOKE, at.getX(), at.getY() + 0.5, at.getZ(), 2, radius * 0.4, 0.3, radius * 0.4, 0.01);
     }
 
     /**
@@ -35,9 +35,10 @@ public final class AssassinDeployCombo extends BaseCombo {
     private void canister(MoveKit kit, String key, Location at, double radius, double rate, int knifeEvery, double slowPercent, int life) {
         kit.sound(at, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.6f, 0.7f);
         kit.zone(key, at, kit.linger(life), 2, zone -> {
-            smoke(kit, at, radius);
+            // (the smoke and the ring are drawn sparingly: a cloud that was too thick to see through)
+            if (zone.age() % 6 == 0) smoke(kit, at, radius);
             if (zone.age() % 10 == 0) {
-                kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), radius, (int) Math.max(18, radius * 8), kit.palette(), 0.3, 0.2, 0.9);
+                if (zone.age() % 20 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), radius, (int) Math.max(14, radius * 5), kit.palette(), 0.3, 0.2, 0.9);
                 for (LivingEntity victim : kit.around(at, radius)) {
                     if (kit.hit(victim, rate * 0.6) && slowPercent > 0.0) kit.slow(victim, slowPercent, 1.5);
                 }

@@ -23,7 +23,7 @@ import java.util.UUID;
  * What keeps a player from taking damage for a while, in the order {@link #absorb} applies it: a moment of invulnerability
  * ({@link #invulnerable}: the ranger's dash), a guard that cuts the damage by a share for a few ticks ({@link #grant}: the
  * warrior's blows), and the shields turning round the player ({@link #gainShields}: the warrior's bulwark; each damage takes one and
- * is cut by 70%, they last 10 seconds at most). All of it runs out by itself.
+ * is cut by 40%, they last 10 seconds at most). All of it runs out by itself.
  */
 public final class Guard {
 
@@ -108,7 +108,7 @@ public final class Guard {
 
     /**
      * Damage {@code player} is about to take, after the guard and the shields: nothing in a moment of invulnerability; cut by the
-     * guard's share; and with a shield up cut by 70% more and the shield is lost. Returns the damage to take.
+     * guard's share; and with a shield up cut by 40% more and the shield is lost. Returns the damage to take.
      */
     public double absorb(Player player, double damage) {
         if (damage <= 0.0) return damage;
@@ -129,7 +129,7 @@ public final class Guard {
         else shields.put(player.getUniqueId(), count - 1);
         world.playSound(player.getLocation(), Sound.ITEM_SHIELD_BREAK, SoundCategory.PLAYERS, 0.9f, 1.2f);
         ParticleFx.to(player, world).spawnParticle(Particle.CRIT, player.getLocation().add(0.0, 1.0, 0.0), 14, 0.5, 0.5, 0.5, 0.3);
-        return damage * (1.0 - number("shield-reduction", 0.7));
+        return damage * (1.0 - number("shield-cut", 0.4));
     }
 
     private boolean shieldExpired(Player player) {
