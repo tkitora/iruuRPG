@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -40,7 +40,14 @@ final class TreeSettings {
         BRANCH_THICKNESS("branch-thickness", "枝の太さ", 0.4, 2.0, 0.05, 0.2, "枝全体の太さの倍率 (1 = そのまま。幹は変わらない)"),
         TRUNK_LEAN("trunk-lean", "幹の傾き", 0.0, 1.0, 0.05, 0.2, "幹が上へ行くほど一方へ傾く度合い (0 でまっすぐ)"),
         TRUNK_TWIST("trunk-twist", "幹のねじれ", 0.0, 1.0, 0.05, 0.2, "幹がらせんを描くようにねじれる度合い (0 でねじれなし)"),
-        TRUNK_BULGE("trunk-bulge", "幹のふくらみ", 0.0, 1.0, 0.05, 0.2, "幹の中ほどが太くなる度合い (0 でふくらみなし)");
+        TRUNK_BULGE("trunk-bulge", "幹のふくらみ", 0.0, 1.0, 0.05, 0.2, "幹の中ほどが太くなる度合い (0 でふくらみなし)"),
+        COUNT("count", "数", 1, 24, 1, 4, "岩のかたまり・スパイク・結晶の数 (岩は 1 で1つだけ)"),
+        ROUGHNESS("roughness", "荒さ", 0.0, 1.0, 0.05, 0.2, "輪郭のでこぼこ (0 でなめらか、1 でごつごつ)"),
+        LAYERS("layers", "層の数", 0, 10, 1, 2, "横縞の層の数。層ごとに明るい岩・暗い岩が交互に入る (0 で層なし)"),
+        MOSS("moss", "苔", 0.0, 1.0, 0.05, 0.2, "上を向いた面に苔がつく量"),
+        SPIKE_TAPER("spike-taper", "先の細さ", 0.4, 3.0, 0.1, 0.5, "スパイク・結晶が先へ向かって細くなる度合い (大きいほど針のように尖る)"),
+        SPREAD("spread", "傾きのばらつき", 0.0, 1.0, 0.05, 0.2, "スパイク・結晶が外へ傾く度合い (0 でまっすぐ上)"),
+        HANGING("hanging", "逆さ (つらら)", 0, 1, 1, 1, "1 にすると上下が逆になる (上から垂れ下がるスパイク)");
 
         private final String id;
         private final String label;
@@ -98,7 +105,8 @@ final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0};
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 0};
+    private ProcKind kind = ProcKind.TREE;
     private String algorithm = "builder";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */
@@ -108,6 +116,7 @@ final class TreeSettings {
     public TreeSettings copy() {
         TreeSettings copy = new TreeSettings();
         System.arraycopy(values, 0, copy.values, 0, values.length);
+        copy.kind = kind;
         copy.algorithm = algorithm;
         copy.crown = crown;
         copy.seed = seed;
@@ -138,6 +147,17 @@ final class TreeSettings {
 
     public int width() {
         return getInt(Key.WIDTH);
+    }
+
+    ProcKind kind() {
+        return kind;
+    }
+
+    /** Changes what is made, and sets the numbers a fresh object of that kind starts from. */
+    void setKind(ProcKind kind) {
+        if (kind == null || kind == this.kind) return;
+        this.kind = kind;
+        kind.applyDefaults(this);
     }
 
     public String algorithm() {
@@ -190,6 +210,7 @@ final class TreeSettings {
     /** The settings as a map for the yaml. */
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<>();
+        map.put("kind", kind.name().toLowerCase(Locale.ROOT));
         map.put("algorithm", algorithm);
         map.put("crown", crown);
         for (Key key : Key.values()) map.put(key.id, key.whole() ? (Object) getInt(key) : (Object) get(key));
@@ -201,6 +222,7 @@ final class TreeSettings {
     public static TreeSettings fromMap(Map<String, Object> map, String name) {
         TreeSettings settings = new TreeSettings();
         settings.setName(name);
+        if (map.get("kind") instanceof String text && ProcKind.byId(text) != null) settings.kind = ProcKind.byId(text);
         if (map.get("algorithm") instanceof String text) settings.setAlgorithm(text);
         if (map.get("crown") instanceof String text) settings.setCrown(text);
         for (Key key : Key.values()) {

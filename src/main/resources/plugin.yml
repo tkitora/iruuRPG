@@ -34,11 +34,13 @@ commands:
     description: Plays a skill from skills/*.yml (or a template) so you can look at it (admins)
     usage: /skilltest <id> [self|dummy|mine] [element]
     permission: iruurpg.admin
-  treetool:
-    description: "Procedural tree tool (admins): gives the placement tool; set, save, load, undo"
-    usage: /treetool [give|off|menu|set|info|save|load|list|delete|undo|redo|preview|generate]
+  proceduraltool:
+    description: "Procedural tool (admins): trees, rocks, spikes, crystals, columns, arches. Gives the tool; set, save, load, undo"
+    usage: /proceduraltool [give|off|menu|kind|set|info|save|load|list|delete|undo|redo|preview|generate]
     aliases:
+      - treetool
       - ptree
+      - ptool
     permission: iruurpg.admin
   vfx:
     description: "Look at the light flow particle effects (admins): list, help <id>, test <id> <x> <y> <z> <seconds> [args]"

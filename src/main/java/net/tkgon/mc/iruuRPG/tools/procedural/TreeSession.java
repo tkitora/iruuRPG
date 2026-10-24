@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -13,6 +13,8 @@ final class TreeSession {
 
     public TreeSettings settings = new TreeSettings();
     public Location base;
+    /** The block that was clicked (the place of an object is next to it: above, or below for one that hangs). */
+    Location clicked;
     /** A tree is being put in the world. */
     boolean busy;
 

@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
@@ -32,7 +32,7 @@ import java.util.Random;
  * up, right click down, shift for bigger steps); every change is passed to the preview, which follows it after its wait. Settings cannot be saved from here (a stray click
  * must not overwrite a saved tree): saving is {@code /treetool save <name>}; loading is here.
  */
-final class TreeMenu implements Listener {
+final class ProceduralMenu implements Listener {
 
     private static final int SIZE = 54;
     /** Where the settings of a page go. */
@@ -47,6 +47,7 @@ final class TreeMenu implements Listener {
 
     // the basic page
     private static final int INFO = 10;
+    private static final int KIND = 11;
     private static final int ALGORITHM = 12;
     private static final int CROWN = 13;
     private static final int SEED = 14;
@@ -62,7 +63,9 @@ final class TreeMenu implements Listener {
                 TreeSettings.Key.TRUNK_LEAN, TreeSettings.Key.TRUNK_TWIST, TreeSettings.Key.TRUNK_BULGE}),
         BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{TreeSettings.Key.BRANCHES, TreeSettings.Key.LEVELS, TreeSettings.Key.DENSITY, TreeSettings.Key.BRANCH_ANGLE,
                 TreeSettings.Key.DROOP, TreeSettings.Key.BRANCH_LENGTH, TreeSettings.Key.BRANCH_THICKNESS}),
-        LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS});
+        LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS}),
+        /** The settings of everything that is not a tree (which of them depends on the kind). */
+        SHAPE(3, Material.COBBLESTONE, "形", new TreeSettings.Key[]{});
 
         final int tab;
         final Material icon;
@@ -74,6 +77,29 @@ final class TreeMenu implements Listener {
             this.icon = icon;
             this.label = label;
             this.keys = keys;
+        }
+
+        /** Whether the page is there for this kind: a tree has the four pages of a tree, the rest have the basics and their shape. */
+        boolean shownFor(ProcKind kind) {
+            return switch (this) {
+                case BASIC -> true;
+                case SHAPE -> !kind.tree();
+                default -> kind.tree();
+            };
+        }
+
+        /** The numbers of the page for this kind. */
+        TreeSettings.Key[] keysFor(ProcKind kind) {
+            if (this != SHAPE) return keys;
+            return switch (kind) {
+                case ROCK -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS, TreeSettings.Key.MOSS};
+                case SPIKE -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.SPIKE_TAPER, TreeSettings.Key.SPREAD, TreeSettings.Key.CURVE,
+                        TreeSettings.Key.LAYERS, TreeSettings.Key.HANGING};
+                case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.SPIKE_TAPER, TreeSettings.Key.SPREAD, TreeSettings.Key.HANGING};
+                case COLUMNS -> new TreeSettings.Key[]{TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS};
+                case ARCH -> new TreeSettings.Key[]{TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS, TreeSettings.Key.MOSS};
+                default -> new TreeSettings.Key[]{};
+            };
         }
     }
 
@@ -106,9 +132,9 @@ final class TreeMenu implements Listener {
         ICONS.put(TreeSettings.Key.TRUNK_BULGE, Material.MUDDY_MANGROVE_ROOTS);
     }
 
-    private final TreeModule tool;
+    private final ProceduralModule tool;
 
-    TreeMenu(TreeModule tool) {
+    ProceduralMenu(ProceduralModule tool) {
         this.tool = tool;
     }
 
@@ -162,6 +188,7 @@ final class TreeMenu implements Listener {
         }
         // the tabs
         for (Page tab : Page.values()) {
+            if (!tab.shownFor(settings.kind())) continue;
             boolean here = tab == page;
             ItemStack icon = item(tab.icon, (here ? "▶ " : "") + tab.label, here ? NamedTextColor.GOLD : NamedTextColor.WHITE, List.of(
                     text(here ? "いま開いているページ" : "クリックで開く", NamedTextColor.GRAY)));
@@ -211,21 +238,36 @@ final class TreeMenu implements Listener {
 
     private void renderBasic(Player player, Inventory inventory, TreeSession session, TreeSettings settings) {
         Location base = session.base;
-        inventory.setItem(INFO, item(Material.COMPASS, "木を立てる場所", NamedTextColor.GOLD, List.of(
+        ProcKind kind = settings.kind();
+        inventory.setItem(INFO, item(Material.COMPASS, "置く場所", NamedTextColor.GOLD, List.of(
                 text(base == null ? "まだ決まっていません (ブロックをクリック)" : base.getWorld().getName() + " " + base.getBlockX() + ", " + base.getBlockY() + ", " + base.getBlockZ(), NamedTextColor.WHITE),
-                text("クリックしたブロックの真上が、幹の根元", NamedTextColor.GRAY),
-                text("根は、地面があればそれに沿う", NamedTextColor.GRAY))));
-        inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + TreeModule.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
+                text("クリックしたブロックの真上が、足元 (逆さのスパイク・結晶は、クリックしたブロックの真下から垂れる)", NamedTextColor.GRAY),
+                text("木の根・岩の足元は、地面があればそれに沿う", NamedTextColor.GRAY))));
+        // one item for what is made: click for the next, right click for the one before
+        List<Component> kindLore = new ArrayList<>();
+        kindLore.add(text(kind.description(), NamedTextColor.GRAY));
+        for (ProcKind candidate : ProcKind.values()) kindLore.add(text((candidate == kind ? "▶ " : "   ") + candidate.label(), candidate == kind ? NamedTextColor.GOLD : NamedTextColor.WHITE));
+        kindLore.add(text("左クリック: 次の種類 / 右クリック: 前の種類 (種類を変えると、大きさなどがその種類の初期値になる)", NamedTextColor.YELLOW));
+        inventory.setItem(KIND, item(kind.icon(), "作るもの: " + kind.label(), NamedTextColor.GOLD, kindLore));
+        if (kind.tree()) renderTreeChoices(inventory, settings);
+        renderRest(inventory, session, settings);
+    }
+
+    private void renderTreeChoices(Inventory inventory, TreeSettings settings) {
+        inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + ProceduralModule.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
                 text("建築向け: 段のある幹、少数の太い枝、大きな葉のかたまり (標準)", NamedTextColor.GRAY),
                 text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型)", NamedTextColor.GRAY),
                 text("針葉樹: 幹のまわりに輪になって枝が出る、円錐形 (pinegen 型)", NamedTextColor.GRAY),
                 text("空間コロニー化: 樹冠の中の目標点へ枝が伸びる (自然な不規則さ)", NamedTextColor.GRAY),
                 text("L-system: Honda 型の分岐規則の繰り返し (規則的な形)", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
-        inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: " + TreeModule.crownLabel(settings.crown()), NamedTextColor.AQUA, List.of(
+        inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: " + ProceduralModule.crownLabel(settings.crown()), NamedTextColor.AQUA, List.of(
                 text("枝の長さの分布・枝が埋める空間の形 (L-system 以外)", NamedTextColor.GRAY),
                 text("楕円体 / 円錐 / 傘 (高いところの枝が長い) / 円柱", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
+    }
+
+    private void renderRest(Inventory inventory, TreeSession session, TreeSettings settings) {
         inventory.setItem(SEED, item(Material.WHEAT_SEEDS, "シード: " + (settings.seed() == 0L ? "毎回ランダム" : Long.toString(settings.seed())) + (session.preview ? " (プレビュー中は固定)" : ""), NamedTextColor.AQUA, List.of(
                 text("同じシードと設定なら、同じ木ができる", NamedTextColor.GRAY),
                 text("左クリック: 新しい番号に固定", NamedTextColor.YELLOW),
@@ -241,9 +283,9 @@ final class TreeMenu implements Listener {
         inventory.setItem(RESET, item(Material.TNT, "設定を初期値に戻す", NamedTextColor.RED, List.of(
                 text("数字・アルゴリズム・樹冠・シードを初期値にする", NamedTextColor.GRAY),
                 text("(保存は、誤クリックを防ぐため画面からはできません: /treetool save <名前>)", NamedTextColor.DARK_GRAY))));
-        TreePart[] parts = TreePart.values();
-        for (int index = 0; index < parts.length; index++) {
-            inventory.setItem(LEGEND_SLOTS[index], item(tool.material(parts[index]), parts[index].label(), NamedTextColor.WHITE, List.of(
+        List<TreePart> parts = settings.kind().parts();
+        for (int index = 0; index < parts.size() && index < LEGEND_SLOTS.length; index++) {
+            inventory.setItem(LEGEND_SLOTS[index], item(tool.material(parts.get(index)), parts.get(index).label(), NamedTextColor.WHITE, List.of(
                     text("このウールで作る (あとで手動で本物のブロックに変える)", NamedTextColor.GRAY),
                     text("プレビューでは、同じ色のガラス", NamedTextColor.GRAY))));
         }
@@ -264,15 +306,16 @@ final class TreeMenu implements Listener {
         if (!left && !right) return;
 
         for (Page tab : Page.values()) {
-            if (tab.tab == slot) {
+            if (tab.shownFor(settings.kind()) && tab.tab == slot) {
                 holder.page = tab;
                 render(player, holder);
                 return;
             }
         }
-        for (int index = 0; index < holder.page.keys.length; index++) {
+        TreeSettings.Key[] pageKeys = holder.page.keysFor(settings.kind());
+        for (int index = 0; index < pageKeys.length; index++) {
             if (GRID[index] != slot) continue;
-            TreeSettings.Key key = holder.page.keys[index];
+            TreeSettings.Key key = pageKeys[index];
             settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
             tool.limit(settings);
             tool.changed(player);
@@ -303,6 +346,8 @@ final class TreeMenu implements Listener {
             default -> {
                 if (holder.page != Page.BASIC) return;
                 if (!basicClick(player, session, settings, slot, left)) return;
+                // (a new kind has other pages: back to the basics)
+                if (!holder.page.shownFor(settings.kind())) holder.page = Page.BASIC;
                 tool.changed(player);
             }
         }
@@ -312,8 +357,19 @@ final class TreeMenu implements Listener {
     /** A click on a button of the basic page; false when it was none. */
     private boolean basicClick(Player player, TreeSession session, TreeSettings settings, int slot, boolean left) {
         switch (slot) {
-            case ALGORITHM -> settings.cycleAlgorithm();
-            case CROWN -> settings.cycleCrown();
+            case KIND -> {
+                ProcKind[] kinds = ProcKind.values();
+                settings.setKind(kinds[Math.floorMod(settings.kind().ordinal() + (left ? 1 : -1), kinds.length)]);
+                tool.limit(settings);
+            }
+            case ALGORITHM -> {
+                if (!settings.kind().tree()) return false;
+                settings.cycleAlgorithm();
+            }
+            case CROWN -> {
+                if (!settings.kind().tree()) return false;
+                settings.cycleCrown();
+            }
             case SEED -> {
                 // (with the preview on the seed is never "random": the right click gives a new fixed one then)
                 if (left || session.preview) {
@@ -343,6 +399,7 @@ final class TreeMenu implements Listener {
             case RESET -> {
                 TreeSettings fresh = new TreeSettings();
                 fresh.setName(settings.name());
+                fresh.setKind(settings.kind());
                 session.settings = fresh;
                 session.autoSeed = false;
             }

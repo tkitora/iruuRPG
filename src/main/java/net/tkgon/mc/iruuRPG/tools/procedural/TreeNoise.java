@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 /** A small smooth 3D value noise in [-1, 1] (a hashed lattice blended between points), for the rough edges of leaf clouds. */
 final class TreeNoise {
