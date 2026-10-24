@@ -82,7 +82,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                         kit.fx(from.clone().add(facing.clone().multiply(5.2))).particle(Particle.CRIT_MAGIC, from.getX() + facing.getX() * 5.2, from.getY(), from.getZ() + facing.getZ() * 5.2, 6, 0.3, 0.3, 0.3, 0.2);
                         kit.sound(feet, Sfx.WIND_BURST, 0.7f, 1.5f);
                         for (LivingEntity target : kit.corridor(from, facing, 5.2, 1.1)) {
-                            if (kit.hit(target, rate)) kit.pull(target, feet, 0.15);
+                            kit.hit(target, rate);
                         }
                     });
                 }
@@ -166,18 +166,18 @@ public final class ClericMeleeCombo implements ClassCombo {
                     kit.sound(at, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.6f, 1.6f);
                     kit.sound(at, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0f, 0.7f);
                     for (LivingEntity target : kit.around(at, 2.4)) {
-                        if (kit.hit(target, rate)) kit.lift(target, 0.3);
+                        kit.hit(target, rate);
                     }
                 });
             }
             default -> {
-                // a wide sanctuary ring: the enemies in it are slowed, the cleric is healed
+                // a wide sanctuary ring: the enemies in it are hurt, the cleric is healed (nothing holds the enemies: the cleric's combo has no restraint)
                 kit.shockwave(feet, 1.5, 5.2, 6, 1.2);
                 kit.sound(feet, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 1.5f);
                 kit.sound(feet, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 1.0f, 0.9f);
                 List<LivingEntity> inside = kit.around(feet, 5.2);
                 for (LivingEntity target : inside) {
-                    if (kit.hit(target, rate)) kit.slow(target, 40.0, 3.0);
+                    kit.hit(target, rate);
                 }
                 kit.heal(6.0);
                 double spin = Trig.sin(0.0);
