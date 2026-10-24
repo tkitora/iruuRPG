@@ -163,6 +163,7 @@ final class BrushMenu implements Listener {
         inventory.clear();
         holder.actions.clear();
         BrushSettings s = module.settings(player);
+        s.lastPage = holder.page;
         ItemStack frame = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
         for (int slot = 0; slot < SIZE; slot++) {
             if (slot < 9 || slot >= 45 || slot % 9 == 0 || slot % 9 == 8) inventory.setItem(slot, frame);

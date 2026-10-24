@@ -84,10 +84,46 @@ final class TrunkFork {
                 skeleton.nodes.get(parent).radius = startRadius + (endRadius - startRadius) * Math.pow(t, 0.9);
                 made.add(parent);
             }
-            if (!leaves || made.isEmpty()) continue;
+            if (made.isEmpty()) continue;
+            // the branches of this leader (the algorithm made branches on the first trunk only)
+            branchesOn(skeleton, made, settings, random, (forks + 1), reach, top, leaves, leafScale, flatness);
+            if (!leaves) continue;
             int before = skeleton.leaves.size();
             TreeAlgorithm.leafAlong(skeleton, made, 3, flatness, random, 0.85);
             for (int leaf = before; leaf < skeleton.leaves.size(); leaf++) skeleton.leaves.get(leaf)[3] *= leafScale;
+        }
+    }
+
+    private static final double GOLDEN = Math.toRadians(137.5);
+
+    /**
+     * Side branches along a forked trunk, spiralling round it by the golden angle from a quarter of the way up: as many as the branch setting asks, shared between the trunks,
+     * each leaving at the branch angle, shorter toward the top by the crown, with a clump of leaves at its end.
+     */
+    private static void branchesOn(TreeSkeleton skeleton, List<Integer> made, TreeSettings settings, Random random, int trunks, double reach, double top, boolean leaves,
+                                   double leafScale, double flatness) {
+        int levels = settings.getInt(TreeSettings.Key.LEVELS);
+        if (levels < 1 || made.size() < 4) return;
+        int count = Math.max(2, (int) Math.round(settings.getInt(TreeSettings.Key.BRANCHES) * 0.6 / trunks));
+        double elevation = Math.max(Math.toRadians(12.0), Math.toRadians(90.0) - Math.toRadians(settings.get(TreeSettings.Key.BRANCH_ANGLE)));
+        double droop = settings.get(TreeSettings.Key.DROOP);
+        double curve = settings.get(TreeSettings.Key.CURVE);
+        String crown = settings.crown();
+        int first = Math.max(1, (int) Math.round(made.size() * 0.25));
+        double azimuth = random.nextDouble() * Math.PI * 2.0;
+        for (int index = 0; index < count; index++) {
+            double t = (index + 0.3 + random.nextDouble() * 0.5) / count;
+            int at = Math.min(made.size() - 2, first + (int) Math.round(t * (made.size() - 1 - first)));
+            TreeSkeleton.Node node = skeleton.nodes.get(made.get(at));
+            azimuth += GOLDEN + (random.nextDouble() - 0.5) * 0.5;
+            double length = Math.max(2.0, reach * 0.65 * TreeAlgorithm.shape(crown, t) * (0.8 + random.nextDouble() * 0.3));
+            double lift = elevation + (random.nextDouble() - 0.5) * 0.35;
+            double[] direction = {Math.cos(azimuth) * Math.cos(lift), Math.sin(lift), Math.sin(azimuth) * Math.cos(lift)};
+            TreeAlgorithm.Growth growth = new TreeAlgorithm.Growth(curve * 0.08, 0.03 - droop * 0.05, 0.0, top, reach, 0.0);
+            List<Integer> stem = TreeAlgorithm.growStem(skeleton, made.get(at), new double[]{node.x, node.y, node.z}, direction, length, Math.max(0.7, node.radius * 0.5), 0.5, 1, growth, random);
+            if (!leaves || stem.isEmpty()) continue;
+            TreeSkeleton.Node end = skeleton.nodes.get(stem.get(stem.size() - 1));
+            skeleton.leaves.add(new double[]{end.x, end.y, end.z, 1.0 * leafScale * 0.8, flatness});
         }
     }
 }

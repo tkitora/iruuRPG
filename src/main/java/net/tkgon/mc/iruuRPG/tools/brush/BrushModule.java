@@ -205,7 +205,7 @@ public final class BrushModule implements Listener {
         }
         Action action = event.getAction();
         if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) {
-            menu.open(player, BrushMenu.Page.MAIN);
+            menu.open(player, settings(player).lastPage);
             return;
         }
         if (action != Action.RIGHT_CLICK_AIR && action != Action.RIGHT_CLICK_BLOCK) return;
@@ -436,7 +436,7 @@ public final class BrushModule implements Listener {
     }
 
     void menuOpen(Player player) {
-        menu.open(player, BrushMenu.Page.MAIN);
+        menu.open(player, settings(player).lastPage);
     }
 
     void menuOpen(Player player, BrushMenu.Page page) {

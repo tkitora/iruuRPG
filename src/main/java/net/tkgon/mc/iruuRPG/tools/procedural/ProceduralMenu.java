@@ -156,8 +156,16 @@ final class ProceduralMenu implements Listener {
 
     void open(Player player) {
         Holder holder = new Holder();
-        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("木の生成ツール"));
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("プロシージャルツール"));
         holder.inventory = inventory;
+        // (it opens on the page that was open last, when that page is there for what is being made)
+        TreeSession opened = tool.session(player);
+        try {
+            Page last = Page.valueOf(opened.lastPage);
+            if (last.shownFor(opened.settings.kind())) holder.page = last;
+        } catch (IllegalArgumentException ignored) {
+            holder.page = Page.BASIC;
+        }
         render(player, holder);
         player.openInventory(inventory);
     }
@@ -195,6 +203,7 @@ final class ProceduralMenu implements Listener {
         TreeSession session = tool.session(player);
         TreeSettings settings = session.settings;
         Page page = holder.page;
+        session.lastPage = page.name();
         inventory.clear();
         ItemStack frame = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
         for (int slot = 0; slot < SIZE; slot++) {
