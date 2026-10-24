@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -26,10 +26,10 @@ import java.util.Random;
  */
 final class TreePreview {
 
-    private final TreeModule module;
+    private final ProceduralModule module;
     private final JavaPlugin plugin;
 
-    TreePreview(TreeModule module) {
+    TreePreview(ProceduralModule module) {
         this.module = module;
         this.plugin = module.plugin();
     }
@@ -63,12 +63,12 @@ final class TreePreview {
         TreeSession session = module.session(player);
         if (session.preview) return;
         if (session.base == null || session.base.getWorld() == null) {
-            player.sendMessage(TreeModule.PREFIX + "木を立てたいブロックを、ツールでクリックしてから切り替えてください。");
+            player.sendMessage(ProceduralModule.PREFIX + "木を立てたいブロックを、ツールでクリックしてから切り替えてください。");
             return;
         }
         session.preview = true;
         fixSeed(session);
-        player.sendMessage(TreeModule.PREFIX + "プレビューをオンにしました (あなたにだけ見えます)。シードを固定し、設定を変えると " + delay() * 0.05 + " 秒後に反映します。");
+        player.sendMessage(ProceduralModule.PREFIX + "プレビューをオンにしました (あなたにだけ見えます)。シードを固定し、設定を変えると " + delay() * 0.05 + " 秒後に反映します。");
         schedule(player, session, 1L);
     }
 
@@ -83,7 +83,7 @@ final class TreePreview {
             session.autoSeed = false;
             session.settings.setSeed(0L);
         }
-        if (tell && was) player.sendMessage(TreeModule.PREFIX + "プレビューをオフにしました。");
+        if (tell && was) player.sendMessage(ProceduralModule.PREFIX + "プレビューをオフにしました。");
     }
 
     /** A setting (or the place) changed: the preview, if it is on, follows after the wait. */
@@ -188,7 +188,7 @@ final class TreePreview {
         session.shownWorld = world;
         int cap = Math.max(1000, plugin.getConfig().getInt("treetool.preview-max-blocks", 40000));
         if (blocks.size() > cap) {
-            player.sendMessage(TreeModule.PREFIX + "プレビューするにはブロックが多すぎます (" + blocks.size() + " > " + cap + ")。高さ・幅・葉の大きさを小さくしてください。");
+            player.sendMessage(ProceduralModule.PREFIX + "プレビューするにはブロックが多すぎます (" + blocks.size() + " > " + cap + ")。高さ・幅・葉の大きさを小さくしてください。");
             blocks = Map.of();
         }
         Map<TreePart, Material> glasses = new HashMap<>();
@@ -234,7 +234,7 @@ final class TreePreview {
                     int z = keyZ(key);
                     if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
                     Block block = world.getBlockAt(x, keyY(key), z);
-                    if (!TreeModule.replaceable(block, replaceSolid)) {
+                    if (!ProceduralModule.replaceable(block, replaceSolid)) {
                         if (session.shown.remove(key) != null) send(player, world, key, null);
                         continue;
                     }

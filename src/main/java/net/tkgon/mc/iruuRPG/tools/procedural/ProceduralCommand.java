@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -11,15 +11,15 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** {@code /treetool}: the tool, and the settings by command (for exact values and for saving under a name). */
-final class TreeCommand implements TabExecutor {
+/** {@code /proceduraltool}: the tool, and the settings by command (for exact values and for saving under a name). */
+final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate");
+    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate");
 
-    private final TreeModule tool;
+    private final ProceduralModule tool;
 
-    TreeCommand(TreeModule tool) {
+    ProceduralCommand(ProceduralModule tool) {
         this.tool = tool;
     }
 
@@ -32,10 +32,21 @@ final class TreeCommand implements TabExecutor {
         String sub = args.length == 0 ? "give" : args[0].toLowerCase(Locale.ROOT);
         TreeSession session = tool.session(player);
         switch (sub) {
+            case "kind" -> {
+                ProcKind kind = args.length > 1 ? ProcKind.byId(args[1]) : null;
+                if (kind == null) {
+                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|columns|arch>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
+                } else {
+                    session.settings.setKind(kind);
+                    tool.limit(session.settings);
+                    tool.changed(player);
+                    player.sendMessage(PREFIX + "作るもの: " + kind.label() + " (" + kind.description() + ")");
+                }
+            }
             case "give", "on" -> tool.give(player);
             case "off", "remove" -> tool.take(player);
             case "menu" -> {
-                if (session.base == null) player.sendMessage(PREFIX + "木を立てたいブロックを、ツールでクリックしてください。");
+                if (session.base == null) player.sendMessage(PREFIX + "置きたい場所のブロックを、ツールでクリックしてください。");
                 else tool.menu().open(player);
             }
             case "generate" -> tool.generate(player);
@@ -52,16 +63,16 @@ final class TreeCommand implements TabExecutor {
             }
             case "delete" -> {
                 String name = args.length > 1 ? TreeSettings.safeName(args[1]) : null;
-                if (name == null) player.sendMessage(PREFIX + "/treetool delete <名前>");
+                if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/treetool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate]");
         }
         return true;
     }
 
     private void info(Player player, TreeSettings settings) {
-        player.sendMessage(PREFIX + "設定 (" + settings.name() + "): アルゴリズム " + settings.algorithm() + " / 樹冠 " + settings.crown() + " / シード " + (settings.seed() == 0L ? "ランダム" : settings.seed()));
+        player.sendMessage(PREFIX + "設定 (" + settings.name() + "): 作るもの " + settings.kind().name().toLowerCase(Locale.ROOT) + " / アルゴリズム " + settings.algorithm() + " / 樹冠 " + settings.crown() + " / シード " + (settings.seed() == 0L ? "ランダム" : settings.seed()));
         for (TreeSettings.Key key : TreeSettings.Key.values()) {
             player.sendMessage("  " + key.id() + " = " + (key.whole() ? Integer.toString(settings.getInt(key)) : Double.toString(settings.get(key)))
                     + "  (" + key.min() + " 〜 " + key.max() + ") " + key.label());
@@ -70,7 +81,7 @@ final class TreeCommand implements TabExecutor {
 
     private void set(Player player, TreeSettings settings, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(PREFIX + "/treetool set <項目> <値>  項目: algorithm, crown, seed, " + keyIds());
+            player.sendMessage(PREFIX + "/proceduraltool set <項目> <値>  項目: algorithm, crown, seed, " + keyIds());
             return;
         }
         String item = args[1].toLowerCase(Locale.ROOT);
@@ -126,7 +137,7 @@ final class TreeCommand implements TabExecutor {
     private void save(Player player, TreeSettings settings, String[] args) {
         String name = TreeSettings.safeName(args.length > 1 ? args[1] : settings.name());
         if (name == null) {
-            player.sendMessage(PREFIX + "名前は英小文字・数字・- _ の32文字まで: /treetool save <名前>");
+            player.sendMessage(PREFIX + "名前は英小文字・数字・- _ の32文字まで: /proceduraltool save <名前>");
             return;
         }
         settings.setName(name);
@@ -136,7 +147,7 @@ final class TreeCommand implements TabExecutor {
     private void load(Player player, TreeSession session, String[] args) {
         String name = args.length > 1 ? TreeSettings.safeName(args[1]) : null;
         if (name == null) {
-            player.sendMessage(PREFIX + "/treetool load <名前>  (/treetool list で一覧)");
+            player.sendMessage(PREFIX + "/proceduraltool load <名前>  (/proceduraltool list で一覧)");
             return;
         }
         TreeSettings loaded = tool.store().load(name);
@@ -148,7 +159,7 @@ final class TreeCommand implements TabExecutor {
         session.settings = loaded;
         session.autoSeed = false;
         tool.changed(player);
-        player.sendMessage(PREFIX + "読み込みました: " + name + " (/treetool info で中身)");
+        player.sendMessage(PREFIX + "読み込みました: " + name + " (/proceduraltool info で中身)");
     }
 
     @Override
@@ -160,6 +171,8 @@ final class TreeCommand implements TabExecutor {
         } else if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
             options.addAll(List.of("algorithm", "crown", "seed"));
             for (TreeSettings.Key key : TreeSettings.Key.values()) options.add(key.id());
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("kind")) {
+            for (ProcKind kind : ProcKind.values()) options.add(kind.name().toLowerCase(Locale.ROOT));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
             if (args[1].equalsIgnoreCase("algorithm")) options.addAll(TreeSettings.ALGORITHMS);
             else if (args[1].equalsIgnoreCase("crown")) options.addAll(TreeSettings.CROWNS);

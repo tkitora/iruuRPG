@@ -504,7 +504,7 @@ hud:
   # auto = どれかの通常攻撃がクールタイム中か、ダメージを与えていて DPS が 0 でない間 (終わって1.5秒まで) だけ出す (ふだんは HP / MP / DEF / Lv / XP の表示)、always = いつも出す、off = 出さない
   cooldown-gauges: auto
 
-# 木の生成ツール (/treetool)。木は部位ごとの色違いのウールで作る (あとから手動で本物のブロックに変える)
+# プロシージャルツール (/proceduraltool、別名 /treetool)。木・岩・スパイク・結晶・柱状節理・アーチを、部位ごとの色違いのウールで作る (あとから手動で本物のブロックに変える)
 treetool:
   # 1本の木のブロック数の上限 (超えたら作らない)
   max-blocks: 60000
@@ -528,6 +528,13 @@ treetool:
     branch: ORANGE_WOOL
     twig: YELLOW_WOOL
     leaf: GREEN_WOOL
+    # 岩・スパイク・結晶・柱状節理・アーチの部位
+    stone: GRAY_WOOL
+    stone-light: LIGHT_GRAY_WOOL
+    stone-dark: BLUE_WOOL
+    moss: LIME_WOOL
+    crystal: LIGHT_BLUE_WOOL
+    crystal-core: WHITE_WOOL
 
 # ペイントブラシ (/ibrush)。建築用のツールで、ゲームの処理とは別 (tools/brush)。描画は FastAsyncWorldEdit 経由なので //undo で戻せる
 brush:

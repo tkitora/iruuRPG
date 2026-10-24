@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import java.util.Map;
 import java.util.Random;
@@ -11,6 +11,7 @@ final class TreeGenerator {
 
     static Map<Long, TreePart> build(TreeSettings settings, long seed, TreeGround ground) {
         Random random = new Random(seed);
+        if (!settings.kind().tree()) return ProceduralShapes.build(settings.kind(), settings, seed, random, ground);
         TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
         if (!"conifer".equals(settings.algorithm())) TrunkFork.apply(skeleton, settings, random);
         TreeShape.apply(skeleton, settings, random);

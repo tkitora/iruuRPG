@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.bukkit.Location;
 import org.bukkit.Material;

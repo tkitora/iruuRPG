@@ -1,4 +1,4 @@
-package net.tkgon.mc.iruuRPG.tools.tree;
+package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import java.util.ArrayList;
 import java.util.Arrays;
