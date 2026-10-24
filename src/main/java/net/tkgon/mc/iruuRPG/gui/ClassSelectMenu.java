@@ -40,6 +40,12 @@ public final class ClassSelectMenu implements Listener {
     private final PlayerProfileManager profileManager;
     private final PlayerBars playerBars;
     private MainMenu mainMenu;
+    private Consumer<Player> onClassChanged;
+
+    /** What runs when a player picks a class other than the one they had (the effects of the old class end). */
+    public void setOnClassChanged(Consumer<Player> onClassChanged) {
+        this.onClassChanged = onClassChanged;
+    }
 
     public void setMainMenu(MainMenu mainMenu) {
         this.mainMenu = mainMenu;
@@ -105,11 +111,13 @@ public final class ClassSelectMenu implements Listener {
 
         String classId = holder.classIds().get(event.getRawSlot());
         PlayerProfile profile = profileManager.getOrCreate(player);
+        boolean changed = !classId.equals(profile.classId());
         if (!classService.select(profile, classId)) {
             player.sendMessage("[iruuRPG] そのクラスは選べません。");
             return;
         }
 
+        if (changed && onClassChanged != null) onClassChanged.accept(player);
         PlayerProfile refreshed = equipmentService.recalculate(player);
         playerBars.sync(player, refreshed);
         profileManager.save(player);

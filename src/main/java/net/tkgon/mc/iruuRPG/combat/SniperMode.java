@@ -176,6 +176,11 @@ public final class SniperMode implements Listener {
         state.task.runTaskTimer(plugin, 1L, 1L);
     }
 
+    /** The class of the player changed: the sniper mode ends if it is on. */
+    public void reset(Player player) {
+        end(player, "クラス変更");
+    }
+
     private void end(Player player, String reason) {
         State state = states.remove(player.getUniqueId());
         if (state == null) return;

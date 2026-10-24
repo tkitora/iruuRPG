@@ -61,6 +61,10 @@ final class MeteorSkill {
 
     private final Map<java.util.UUID, Recast> recasts = new java.util.HashMap<>();
 
+    void forget(java.util.UUID id) {
+        recasts.remove(id);
+    }
+
     /**
      * Pressing the key again after a cast (from {@code recast-delay-seconds} to {@code recast-window-seconds} after it, once): the finale, one great meteor that falls
      * on the aim (a ring marks the place, the star comes down in 10 ticks) for {@code recast-damage-rate} times the meteor's rate on all within {@code recast-radius};

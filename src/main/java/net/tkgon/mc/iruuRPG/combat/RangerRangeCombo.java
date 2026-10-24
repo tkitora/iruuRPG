@@ -16,7 +16,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * round it, and draws the enemies together). Heavy: 0 a backstep shot (the ranger hops back, nothing can hurt for 4 ticks, 130% and slows 50%), 1 an arrow that
  * bounces twice (40% x3), 2 a net arrow (40% and a net round the hit that holds all in it, slows 70% for 2.5 s), 3 four homing arrows (35% x4), 4 a rain of arrows
  * on the aim (12% x12).
- * The arrows have a weight: the light ones of the first attacks (0.6 - 0.7) fly flat and fast, the great arrow of the fifth (2.4) is slow and falls hard,
+ * The arrows have a weight: the ones of the first attacks (1.0) fall as the config says (the drop is scaled by {@code combat.combo.arrow-drop-scale}, and the aim is raised for only a part of it); the heavy one bounces in a parabola, the great arrow of the fifth (2.4) is slow and falls hard,
  * pushes what it hits and thuds into the ground; the net arrow is heavy too (1.6) (see {@link MoveKit#arrowShot}).
  */
 public final class RangerRangeCombo implements ClassCombo {
@@ -74,7 +74,7 @@ public final class RangerRangeCombo implements ClassCombo {
                     double side = index == 0 ? 0.3 : -0.3;
                     kit.later(index, () -> {
                         Location start = muzzle(kit, side, -0.1);
-                        kit.arrowShot(start, toward(kit, start), rate, speed * 1.1, 0.6, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
+                        kit.arrowShot(start, toward(kit, start), rate, speed, 1.0, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -88,7 +88,7 @@ public final class RangerRangeCombo implements ClassCombo {
                         if (which > 0) {
                             direction.add(axes[1].clone().multiply(random.nextDouble(-0.07, 0.07))).add(axes[2].clone().multiply(random.nextDouble(-0.05, 0.05))).normalize();
                         }
-                        kit.arrowShot(start, direction, rate, speed * 1.15, 0.7, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
+                        kit.arrowShot(start, direction, rate, speed, 1.0, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -162,7 +162,7 @@ public final class RangerRangeCombo implements ClassCombo {
             case 1 -> {
                 Location start = muzzle(kit, 0.0, -0.1);
                 kit.sound(start, Sound.ENTITY_ARROW_SHOOT, 1.0f, 1.1f);
-                kit.ricochet(start, toward(kit, start), 2, 2.0, 40, rate, end -> kit.burst(end, 1.2));
+                kit.ricochet(start, toward(kit, start), 2, 1.6, 50, rate, 0.05, end -> kit.burst(end, 1.2));
             }
             case 2 -> {
                 // a net arrow: where it ends a net opens (a ring with its threads) and holds what is in it for a second and a half

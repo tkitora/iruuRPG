@@ -426,7 +426,7 @@ final class AssassinClones {
     }
 
     /**
-     * The assassin dashed {@code delta} (a vector on the ground) during the item swap skill: every clone of the skill moves the same way, but only once in half a second (a dash
+     * The assassin dashed {@code delta} (a vector on the ground) during the item swap skill: every clone of the skill moves toward the place the assassin looks at, as far as the dash went, but only once in half a second (a dash
      * inside that time moves nothing). A clone does not leave the circle the assassin is held in.
      */
     static void followDash(MoveKit kit, Vector delta) {
@@ -437,9 +437,13 @@ final class AssassinClones {
         Location center = kit.frenzyCenter();
         double radius = kit.plugin().getConfig().getDouble("class-effects.assassin.frenzy-radius", 12.0);
         boolean any = false;
+        Location aim = kit.aim();
         for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) {
             if (!ghost.swap || ghost.leaving >= 0) continue;
-            Location to = ghost.pos.clone().add(delta);
+            // every clone goes toward where the assassin looks (as far as the dash went, and no further than the place looked at)
+            Vector toward = aim.toVector().subtract(ghost.pos.toVector()).setY(0.0);
+            double reach = Math.min(delta.length(), toward.length());
+            Location to = toward.lengthSquared() < 1.0E-6 ? ghost.pos.clone() : ghost.pos.clone().add(toward.normalize().multiply(reach));
             if (center != null && center.getWorld() == to.getWorld()) {
                 double dx = to.getX() - center.getX();
                 double dz = to.getZ() - center.getZ();

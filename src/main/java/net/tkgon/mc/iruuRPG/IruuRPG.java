@@ -296,6 +296,12 @@ public final class IruuRPG extends JavaPlugin {
         this.statsMenu.setMainMenu(mainMenu);
         this.skillTreeMenu.setMainMenu(mainMenu);
         this.classSelectMenu.setMainMenu(mainMenu);
+        this.classSelectMenu.setOnClassChanged(player -> {
+            attackService.clearClassState(player);
+            classEffectService.clearAll(player);
+            classSkillService.clearAll(player);
+            sniperMode.reset(player);
+        });
         this.mainMenuItemService = new MainMenuItemService(this);
         this.settingsMenu = new SettingsMenu(soundSettings, attackEffectsRef.sounds(), mainMenuItemService, particleSettings);
         this.settingsMenu.setMainMenu(mainMenu);

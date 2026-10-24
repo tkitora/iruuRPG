@@ -8,11 +8,11 @@ import org.bukkit.util.Vector;
 /**
  * The warrior's combo with melee weapons: staying power and the weight of one blow. The blows are few and slow, each one a whole stroke on one
  * enemy or a short sweep; between them the warrior is guarded (takes less damage for a few ticks), gets shields from heavy 0 only (three turning round, each
- * cuts a damage by 70% and breaks) and heals a little with the heavy ones, so the fight can go on.
+ * cuts a damage by 40% and breaks) and heals a little with the heavy ones, so the fight can go on.
  *
  * <p>Normal: 1 a cleave (100%, 25% less damage taken for 0.6 s), 2 a shield bash (70%, slows), 3 a wide sweep (110%, 25% less damage taken for
- * 0.6 s), 4 a hammer drop on one enemy (130%, slows hard), 5 an earthbreaker leap (150% on all round where it lands, heals 3%, 40% less damage taken for
- * 0.75 s). Heavy: 0 a bulwark (three shields for 10 s, 40% less damage taken for 2 s; its own cooldown of 18 s; it is the only thing that gives shields), 1 a stomp (60% round, slows),
+ * 0.6 s), 4 a hammer drop on one enemy (130%, slows hard), 5 an earthbreaker (150% on all round, heals 3%, 40% less damage taken for
+ * 0.75 s; no leap). Heavy: 0 a bulwark (three shields for 10 s, 40% less damage taken for 2 s; its own cooldown of 18 s; it is the only thing that gives shields), 1 a stomp (60% round, slows),
  * 2 a whirlwind (a spin for 1 s, 24% every 4 ticks round, 30% less damage taken, heals 1%), 3 a colossus strike (a moment of winding up with 60% less damage
  * taken, then 150% on the enemy ahead and a throw up), 4 a shield rush (a charge of 6 blocks under a 50% guard, 80% on all in the way and a push, 40% more
  * with a shield up).
@@ -70,17 +70,16 @@ public final class WarriorMeleeCombo extends BaseCombo {
                 if (kit.hit(target, rate)) kit.slow(target, 70.0, 1.0);
             }
             default -> {
-                // the finisher: a leap, and an earthbreaker where it lands
+                // the finisher: the earthbreaker, brought down on the spot (no leap)
                 kit.guard(0.4, 15);
-                kit.leap(facing, 0.55, 0.55, land -> {
-                    kit.shockwave(land, 1.0, 3.8, 5, 1.2);
-                    kit.slash("drop", 3.2, 150.0, 5.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.18, 0.0);
-                    kit.sound(land, Sfx.METAL_HEAVY, 1.0f, 0.7f);
-                    for (LivingEntity target : kit.around(land, 3.6)) {
-                        if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.4, 0.2);
-                    }
-                    kit.heal(3.0);
-                });
+                kit.slash("drop", 3.2, 150.0, 5.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.18, 0.0);
+                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.7f);
+                Location land = kit.player.getLocation();
+                kit.shockwave(land, 1.0, 3.8, 5, 1.2);
+                for (LivingEntity target : kit.around(land, 3.6)) {
+                    if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.4, 0.2);
+                }
+                kit.heal(3.0);
             }
         }
     }

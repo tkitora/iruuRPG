@@ -69,7 +69,7 @@ combat:
       burst-radius: 3.5                           # 通常5: 魔力バーストの半径
       reactivate-seconds: 3.0                     # 強攻撃2・3の再発動を受け付ける秒数
       orb-speed: 1.0                              # 強攻撃1: 球の速さ (ブロック/tick) / 持続秒数 / 破裂の半径
-      orb-seconds: 0.6
+      orb-fly-seconds: 4.0                        # 強攻撃1: 球が飛び続ける最長の秒数 (当たるか再発動で破裂。何にも当たらず時間が来たら破裂せず消える)
       orb-radius: 2.5
       homing-speed: 1.3                           # 強攻撃2: 追尾弾の速さ / 敵を探す半径 / 飛ぶ最長tick数 / 再発動の小さい弾の倍率
       homing-radius: 18.0
@@ -92,7 +92,7 @@ combat:
     warrior:
       shield-count: 3
       shield-seconds: 10
-      shield-reduction: 0.7
+      shield-cut: 0.4
     # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃0〜4 (通常をN回出したあとが強攻撃N)。
     # 近接は左クリックが通常・右クリックが強攻撃、遠距離と設置は右クリックが通常・左クリックが強攻撃。
     # plan 名: cleric_melee / cleric_range / cleric_deploy、ranger_melee / ranger_range / ranger_deploy、mage_melee / mage_deploy (遠距離のメイジは mage)、
@@ -107,6 +107,9 @@ combat:
     # 設置武器のコンボは、狙った場所に置いて数秒だけ残る物 (ランタン・罠・爆弾・砲台・旗) が基本。メイジの設置 (ランタン) だけは従来どおり。
     # レンジャーの遠距離の矢が受ける重力 (ブロック/tick^2。0 でまっすぐ飛ぶ)。照準は落ちる分だけ上げて補正される
     arrow-gravity: 0.02
+    # レンジャーの矢: 落ち方に掛ける倍率 / 視線の先に当てるための狙い上げの割合 (1 = 視線の先に届く、小さいほど遠くで下に落ちる)
+    arrow-drop-scale: 2.5
+    arrow-aim-compensation: 0.6
     # 設置武器のコンボの通常攻撃の間隔 (tick、攻撃速度で短くなる):
     deploy-normal-ticks: 14
     # 置いたものから受ける回復の合計は、1秒あたり最大体力のこの割合(%)まで (ランタンを重ねても回復が増えすぎない)

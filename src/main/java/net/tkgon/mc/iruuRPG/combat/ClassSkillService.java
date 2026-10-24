@@ -223,6 +223,8 @@ public final class ClassSkillService {
         double baseSeconds = upgraded ? skill.values().getOrDefault("upgrade-duration-seconds", 12.0) : skill.values().getOrDefault("duration-seconds", 8.0);
         PlayerProfile snapshot = attackService.snapshotAttacker(player);
         double seconds = baseSeconds * Math.max(0.1, 1.0 + snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.DURATION) / 100.0);
+        // whatever the duration stat adds, the surge does not last longer than max-seconds
+        seconds = Math.min(seconds, skill.values().getOrDefault("max-seconds", 5.0));
         double lifesteal = upgraded ? skill.values().getOrDefault("upgrade-lifesteal", 0.14) : skill.values().getOrDefault("lifesteal", 0.08);
         double boltRate = upgraded ? skill.values().getOrDefault("upgrade-bolt-rate", 0.9) : skill.values().getOrDefault("bolt-rate", 0.6);
         if (classEffectService == null) return;
@@ -432,15 +434,15 @@ public final class ClassSkillService {
         world.playSound(base, Sound.BLOCK_BEACON_ACTIVATE, 0.6f, 0.7f);
         Player owner = ParticleFx.owner();
         SkillFx.column(owner, base, 3.2, 0.9, Clones.RED_BLACK);
-        for (int ring = 1; ring <= 3; ring++) {
-            double r = 1.2 + ring * 1.1;
+        for (int ring = 1; ring <= 2; ring++) {
+            double r = 1.2 + ring * 1.6;
             int which = ring;
             plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(owner, base, r, Clones.RED_BLACK, 1.0 - 0.2 * which, 1.2), ring - 1);
         }
         // afterimages of the assassin standing round
         net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, world, base);
-        for (int image = 0; image < 6; image++) {
-            double angle = Math.PI * 2.0 * image / 6.0;
+        for (int image = 0; image < 3; image++) {
+            double angle = Math.PI * 2.0 * image / 3.0;
             fx.sphereShell(base.clone().add(Math.cos(angle) * 1.8, 1.0, Math.sin(angle) * 1.8), 0.5, image * 0.6, 22, Clones.RED_BLACK, 1.0);
         }
 
@@ -461,8 +463,8 @@ public final class ClassSkillService {
                 }
                 Location feet = player.getLocation();
                 // wisps of shadow climbing round the body, and the shape the assassin had a moment ago left behind
-                SkillFx.helix(owner, feet, new Vector(0.0, 1.0, 0.0), 0.0, 2.0, 2.0, 0.7, Clones.RED_BLACK, -tick * 0.4);
-                if (tick % 6 == 0) {
+                if (tick % 6 == 0) SkillFx.helix(owner, feet, new Vector(0.0, 1.0, 0.0), 0.0, 2.0, 2.0, 0.7, Clones.RED_BLACK, -tick * 0.4);
+                if (tick % 12 == 0) {
                     net.tkgon.mc.iruuRPG.vfx.Fx image = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, player.getWorld(), lastImage);
                     image.sphereShell(lastImage.clone().add(0.0, 1.0, 0.0), 0.45, 0.0, 18, Clones.RED_BLACK, 0.9);
                     lastImage = feet.clone();
@@ -472,13 +474,13 @@ public final class ClassSkillService {
                 double radius = plugin.getConfig().getDouble("class-effects.assassin.frenzy-radius", 12.0);
                 double dx = feet.getX() - base.getX();
                 double dz = feet.getZ() - base.getZ();
-                if (Math.hypot(dx, dz) > radius - 4.0) {
+                if (tick % 4 == 0 && Math.hypot(dx, dz) > radius - 4.0) {
                     double angle = Math.atan2(dz, dx);
                     net.tkgon.mc.iruuRPG.vfx.Fx edge = net.tkgon.mc.iruuRPG.vfx.Fx.of(owner, player.getWorld(), feet);
-                    for (int index = -7; index <= 7; index++) {
-                        double a = angle + index * 0.045;
+                    for (int index = -6; index <= 6; index += 2) {
+                        double a = angle + index * 0.05;
                         double fade = 1.0 - Math.abs(index) / 8.0;
-                        for (double height : new double[]{0.2, 1.0, 1.8}) {
+                        for (double height : new double[]{0.4, 1.4}) {
                             edge.dust(base.getX() + Math.cos(a) * radius, feet.getY() + height, base.getZ() + Math.sin(a) * radius, Clones.RED_BLACK, 0.4 + 0.6 * fade, 1.2);
                         }
                     }
@@ -706,6 +708,13 @@ public final class ClassSkillService {
         }
         SkillFx.column(caster, center, 7.0, 2.2, SkillFx.HOLY);
         ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0.0, 1.0, 0.0), 50, radius * 0.4, 0.8, radius * 0.4, 0.0);
+    }
+
+    /** The class of the player changed: the sanctuary they set ends without its bloom, and the re-casts of the other skills are gone. */
+    public void clearAll(Player player) {
+        SanctuaryState state = sanctuaries.remove(player.getUniqueId());
+        if (state != null) state.ended = true;
+        meteor.forget(player.getUniqueId());
     }
 
     /** A sanctuary that is up (for the re-cast of the upgrade). */

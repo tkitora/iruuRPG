@@ -271,6 +271,24 @@ public final class AttackService {
         if (comboZones != null) comboZones.shutdown();
     }
 
+    /**
+     * The class of the player changed: whatever the old class left standing ends at once: the zones and placements of the combos, the clones, the shields and guards,
+     * the chain and the heavy cooldowns, what a heavy attack of the mage could trigger again, and the grey overlays of the weapons.
+     */
+    public void clearClassState(Player player) {
+        UUID id = player.getUniqueId();
+        forgetComboZones(id);
+        if (deployHold != null) deployHold.forget(id);
+        meleeCombo.forget(id);
+        AssassinClones.clearAll(player);
+        if (guard != null) guard.forget(id);
+        if (mageMoves != null) mageMoves.forget(id);
+        swapDashReady.remove(id);
+        for (Material material : Material.values()) {
+            if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);
+        }
+    }
+
     public void forgetComboZones(UUID player) {
         if (comboZones != null) comboZones.clear(player);
     }

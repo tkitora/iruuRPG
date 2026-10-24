@@ -312,6 +312,16 @@ public final class ClassEffectService {
         return (int) now[1];
     }
 
+    /** The class of the player changed: every effect of the old class's skills ends (the frenzy, the surge, the instinct release and what they gave). */
+    public void clearAll(Player player) {
+        endFrenzy(player);
+        endSurge(player);
+        if (instinctUntilMillis.remove(player.getUniqueId()) != null) {
+            instinctStartedMillis.remove(player.getUniqueId());
+            player.removePotionEffect(org.bukkit.potion.PotionEffectType.SPEED);
+        }
+    }
+
     public void endFrenzy(Player player) {
         frenzy.remove(player.getUniqueId());
         frenzyDamage.remove(player.getUniqueId());
