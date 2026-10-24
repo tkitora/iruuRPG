@@ -93,6 +93,11 @@ final class BrushEngine {
         return false;
     }
 
+    /** The radius the brush has now: the setting, smaller along a stroke with a taper. */
+    static int effectiveRadius(BrushSettings s) {
+        return Math.max(1, (int) Math.round(s.radius * s.radiusScale));
+    }
+
     /** The toon band of a shade (0 - 1): 0 for the lit, up to {@code toonSteps - 1} for the darkest. */
     private static int band(BrushSettings s, double shade) {
         return Math.min(s.toonSteps - 1, (int) Math.floor(Math.max(0.0, Math.min(1.0, shade)) * s.toonSteps));
@@ -215,7 +220,7 @@ final class BrushEngine {
         // (the block list is the same for both: laid along the gradient, each block as long a stretch as its weight, or scattered by weight)
         List<Material> ramp = new ArrayList<>();
         for (BrushSettings.Entry entry : s.pattern) ramp.add(entry.material);
-        int r = s.radius;
+        int r = effectiveRadius(s);
         BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = -r; dy <= r; dy++) {
@@ -285,7 +290,7 @@ final class BrushEngine {
 
     private static String shade(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap, Set<Material> blacklist) {
         Set<Material> allowed = shadePalette(s);
-        int r = s.radius;
+        int r = effectiveRadius(s);
         BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = -r; dy <= r; dy++) {

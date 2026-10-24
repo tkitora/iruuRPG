@@ -241,7 +241,7 @@ public final class BrushModule implements Listener {
         }
         BrushSettings s = settings(player);
         int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
-        if (!previewOnly && s.patternMode == BrushSettings.PatternMode.GRADIENT && s.gradientAxis == BrushSettings.GradientAxis.STROKE) {
+        if (!previewOnly && (s.strokeGroup || (s.patternMode == BrushSettings.PatternMode.GRADIENT && s.gradientAxis == BrushSettings.GradientAxis.STROKE))) {
             // the gradient along the stroke is laid when the button is let go, over the whole length of the stroke (0 at its start, 1 at its end)
             collectStroke(player, block, s);
             return;
@@ -275,7 +275,7 @@ public final class BrushModule implements Listener {
         List<Block> added = new ArrayList<>();
         if (path.last != null && !path.last.equals(block)) {
             double gap = path.last.getLocation().distance(block.getLocation());
-            double step = Math.max(1.0, s.radius * 0.6);
+            double step = Math.max(1.0, s.radius * s.strokeSpacing);
             int count = (int) Math.min(24, Math.ceil(gap / step));
             for (int index = 1; index < count; index++) {
                 double t = index / (double) count;
@@ -318,13 +318,24 @@ public final class BrushModule implements Listener {
         int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
         Map<Long, BrushEngine.Change> merged = new java.util.LinkedHashMap<>();
         String note = null;
-        for (int index = 0; index < path.points.size(); index++) {
+        List<Block> points = smoothPath(path.points, s.strokeSmooth);
+        java.util.Random random = new java.util.Random();
+        for (int index = 0; index < points.size(); index++) {
             s.strokeT = path.distance <= 1.0E-6 ? 0.5 : Math.min(1.0, path.distances.get(index) / path.distance);
-            BrushEngine.Result part = evaluate(player, path.points.get(index), cap);
+            // the brush is smaller or larger along the stroke by the taper, and each point may be moved aside a little
+            double along = points.size() <= 1 ? 0.0 : index / (double) (points.size() - 1);
+            s.radiusScale = s.taperStart + (s.taperEnd - s.taperStart) * along;
+            Block at = points.get(index);
+            if (s.strokeScatter > 0.0) {
+                int reach = (int) Math.round(s.radius * s.strokeScatter);
+                at = surfaceNear(at.getWorld(), at.getX() + random.nextInt(2 * reach + 1) - reach, at.getY(), at.getZ() + random.nextInt(2 * reach + 1) - reach);
+            }
+            BrushEngine.Result part = evaluate(player, at, cap);
             if (part.note() != null) note = part.note();
             for (BrushEngine.Change change : part.changes()) merged.put(SurfaceProbe.pack(change.x(), change.y(), change.z()), change);
             if (merged.size() >= cap) break;
         }
+        s.radiusScale = 1.0;
         preview.clear(player);
         if (merged.isEmpty()) {
             player.sendMessage(PREFIX + (note != null ? note : "変わるブロックがありません (範囲・マスク・模様を見直してください)。"));
@@ -333,6 +344,40 @@ public final class BrushModule implements Listener {
         int count = draw(player, path.points.get(0).getWorld(), new ArrayList<>(merged.values()));
         player.sendTitle("", "§7なぞった線: " + count + "ブロック (長さ " + Math.round(path.distance) + ")" + (worldEdit ? "" : " (undo なし)"), 0, 14, 6);
         if (note != null) player.sendMessage(PREFIX + note);
+    }
+
+    /** The path with each point replaced by the average of the points near it (more of them the more smoothing), moved onto the surface; the same number of points. */
+    private List<Block> smoothPath(List<Block> points, double amount) {
+        int window = (int) Math.round(Math.max(0.0, Math.min(1.0, amount)) * 4.0);
+        if (window == 0 || points.size() < 3) return points;
+        List<Block> smoothed = new ArrayList<>();
+        for (int index = 0; index < points.size(); index++) {
+            double x = 0.0;
+            double y = 0.0;
+            double z = 0.0;
+            int count = 0;
+            for (int near = Math.max(0, index - window); near <= Math.min(points.size() - 1, index + window); near++) {
+                x += points.get(near).getX();
+                y += points.get(near).getY();
+                z += points.get(near).getZ();
+                count++;
+            }
+            smoothed.add(surfaceNear(points.get(index).getWorld(), (int) Math.round(x / count), (int) Math.round(y / count), (int) Math.round(z / count)));
+        }
+        return smoothed;
+    }
+
+    /** The block at ({@code x}, {@code z}) nearest in height to {@code y} (within 3) that is solid with room above it; the block at {@code y} when there is none. */
+    private static Block surfaceNear(org.bukkit.World world, int x, int y, int z) {
+        for (int offset = 0; offset <= 3; offset++) {
+            for (int sign = -1; sign <= 1; sign += 2) {
+                int at = y + sign * offset;
+                if (at < world.getMinHeight() + 1 || at >= world.getMaxHeight() - 1) continue;
+                Material type = world.getType(x, at, z);
+                if (type.isSolid() && !type.isAir() && !world.getType(x, at + 1, z).isSolid()) return world.getBlockAt(x, at, z);
+            }
+        }
+        return world.getBlockAt(x, y, z);
     }
 
     private void forgetStroke(UUID id) {
@@ -358,7 +403,7 @@ public final class BrushModule implements Listener {
         List<Double> distances = new ArrayList<>();
         if (stroke.last != null && !stroke.last.equals(block)) {
             double gap = stroke.last.getLocation().distance(block.getLocation());
-            double step = Math.max(1.0, s.radius * 0.6);
+            double step = Math.max(1.0, s.radius * s.strokeSpacing);
             int count = (int) Math.min(24, Math.ceil(gap / step));
             for (int index = 1; index < count; index++) {
                 double t = index / (double) count;

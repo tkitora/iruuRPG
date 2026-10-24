@@ -167,6 +167,23 @@ final class BrushStore {
         presets.add(Gradients.fromSettings(name, s));
     }
 
+    /** Takes a preset made by hand away; false when there is none of that name (the built-in ones cannot be taken away). */
+    boolean removePreset(String name) {
+        return presets.removeIf(preset -> preset.name().equals(name));
+    }
+
+    /** Renames a preset made by hand; false when there is none of the old name or the new name is taken. */
+    boolean renamePreset(String from, String to) {
+        for (Gradients.Preset preset : allPresets()) if (preset.name().equals(to)) return false;
+        for (int index = 0; index < presets.size(); index++) {
+            Gradients.Preset old = presets.get(index);
+            if (!old.name().equals(from)) continue;
+            presets.set(index, old.generated() ? new Gradients.Preset(to, old.from(), old.to(), old.steps()) : Gradients.Preset.manual(to, old.parts(), old.gradient()));
+            return true;
+        }
+        return false;
+    }
+
     /** Adds (or replaces) a preset made from two ends. */
     void addPreset(String name, Material from, Material to, int steps) {
         presets.removeIf(preset -> preset.name().equals(name));
