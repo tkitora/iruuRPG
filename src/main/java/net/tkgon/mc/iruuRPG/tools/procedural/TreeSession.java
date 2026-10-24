@@ -15,6 +15,9 @@ final class TreeSession {
     public Location base;
     /** The block that was clicked (the place of an object is next to it: above, or below for one that hangs). */
     Location clicked;
+    /** The face of the block that was clicked, and the way from the place of the object to the player's eye then: a spike or a crystal grows from that face and points to the player. */
+    org.bukkit.block.BlockFace face = org.bukkit.block.BlockFace.UP;
+    org.bukkit.util.Vector aim;
     /** The page of the menu that was open last (by name): the menu opens on it next time. */
     String lastPage = "BASIC";
     /** A tree is being put in the world. */

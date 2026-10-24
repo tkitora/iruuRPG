@@ -47,7 +47,13 @@ final class TreeSettings {
         MOSS("moss", "苔", 0.0, 1.0, 0.05, 0.2, "上を向いた面に苔がつく量"),
         SPIKE_TAPER("spike-taper", "先の細さ", 0.4, 3.0, 0.1, 0.5, "スパイク・結晶が先へ向かって細くなる度合い (大きいほど針のように尖る)"),
         SPREAD("spread", "傾きのばらつき", 0.0, 1.0, 0.05, 0.2, "スパイク・結晶が外へ傾く度合い (0 でまっすぐ上)"),
-        HANGING("hanging", "逆さ (つらら)", 0, 1, 1, 1, "1 にすると上下が逆になる (上から垂れ下がるスパイク)");
+        SPIKE_SIDES("spike-sides", "スパイクの角の数", 3, 8, 1, 1, "断面の角の数 (3 = 三角、8 = ほぼ丸)。星形のくぼみと組み合わせると筋が出る"),
+        SPIKE_TWIST("spike-twist", "スパイクのねじれ", -3.0, 3.0, 0.1, 0.5, "先まででらせんに何回転ねじれるか (負で逆向き、0 でねじれなし)"),
+        SPIKE_STAR("spike-star", "スパイクの筋の深さ", 0.0, 0.8, 0.05, 0.2, "断面の角の間のくぼみ (0 で滑らかな柱、大きいと星形の鋭い筋)"),
+        CRYSTAL_TIP("crystal-tip", "結晶の先の長さ", 0.1, 0.9, 0.05, 0.1, "結晶の長さのうち、先が尖る部分の割合"),
+        CRYSTAL_FACETS("crystal-facets", "結晶の面の数", 3, 8, 1, 1, "結晶の断面の角の数 (6 で六角柱)"),
+        CRYSTAL_THICK("crystal-thick", "結晶の太さ", 0.4, 2.5, 0.1, 0.3, "結晶の太さの倍率"),
+        CRYSTAL_VARIANCE("crystal-variance", "結晶の長さのばらつき", 0.0, 1.0, 0.05, 0.2, "かたまりの結晶の長さのばらつき (0 でそろう)");
 
         private final String id;
         private final String label;
@@ -105,8 +111,9 @@ final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 0};
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 5, 0.5, 0.25, 0.3, 6, 1.0, 0.5};
     private ProcKind kind = ProcKind.TREE;
+    private String crystalType = "cluster";
     private String algorithm = "builder";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */
@@ -117,6 +124,7 @@ final class TreeSettings {
         TreeSettings copy = new TreeSettings();
         System.arraycopy(values, 0, copy.values, 0, values.length);
         copy.kind = kind;
+        copy.crystalType = crystalType;
         copy.algorithm = algorithm;
         copy.crown = crown;
         copy.seed = seed;
@@ -158,6 +166,21 @@ final class TreeSettings {
         if (kind == null || kind == this.kind) return;
         this.kind = kind;
         kind.applyDefaults(this);
+    }
+
+    /** The way crystals are made: cluster (several round a foot), prism (one large faceted crystal), blades (thin flat shards). */
+    static final List<String> CRYSTAL_TYPES = List.of("cluster", "prism", "blades");
+
+    String crystalType() {
+        return crystalType;
+    }
+
+    void setCrystalType(String type) {
+        this.crystalType = CRYSTAL_TYPES.contains(type) ? type : "cluster";
+    }
+
+    void cycleCrystalType(boolean forward) {
+        setCrystalType(CRYSTAL_TYPES.get(Math.floorMod(CRYSTAL_TYPES.indexOf(crystalType) + (forward ? 1 : -1), CRYSTAL_TYPES.size())));
     }
 
     public String algorithm() {
@@ -211,6 +234,7 @@ final class TreeSettings {
     public Map<String, Object> toMap() {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("kind", kind.name().toLowerCase(Locale.ROOT));
+        map.put("crystal-type", crystalType);
         map.put("algorithm", algorithm);
         map.put("crown", crown);
         for (Key key : Key.values()) map.put(key.id, key.whole() ? (Object) getInt(key) : (Object) get(key));
@@ -223,6 +247,7 @@ final class TreeSettings {
         TreeSettings settings = new TreeSettings();
         settings.setName(name);
         if (map.get("kind") instanceof String text && ProcKind.byId(text) != null) settings.kind = ProcKind.byId(text);
+        if (map.get("crystal-type") instanceof String text) settings.setCrystalType(text);
         if (map.get("algorithm") instanceof String text) settings.setAlgorithm(text);
         if (map.get("crown") instanceof String text) settings.setCrown(text);
         for (Key key : Key.values()) {

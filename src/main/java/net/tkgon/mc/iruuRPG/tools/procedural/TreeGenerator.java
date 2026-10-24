@@ -10,8 +10,13 @@ final class TreeGenerator {
     }
 
     static Map<Long, TreePart> build(TreeSettings settings, long seed, TreeGround ground) {
+        return build(settings, seed, ground, null);
+    }
+
+    /** {@code aim}: the way a spike or a crystal points (null: straight up). */
+    static Map<Long, TreePart> build(TreeSettings settings, long seed, TreeGround ground, org.bukkit.util.Vector aim) {
         Random random = new Random(seed);
-        if (!settings.kind().tree()) return ProceduralShapes.build(settings.kind(), settings, seed, random, ground);
+        if (!settings.kind().tree()) return ProceduralShapes.build(settings.kind(), settings, seed, random, ground, aim);
         TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
         if (!"conifer".equals(settings.algorithm())) TrunkFork.apply(skeleton, settings, random);
         TreeShape.apply(skeleton, settings, random);

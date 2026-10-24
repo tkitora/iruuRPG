@@ -148,12 +148,13 @@ final class TreePreview {
             ground = null;
         }
         TreeGround terrain = ground;
+        org.bukkit.util.Vector aim = session.aim == null ? null : session.aim.clone();
         session.computing = true;
         int job = ++session.job;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks = null;
             try {
-                blocks = TreeGenerator.build(settings, seed, terrain);
+                blocks = TreeGenerator.build(settings, seed, terrain, aim);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("tree preview failed: " + exception);
             }

@@ -93,11 +93,10 @@ final class ProceduralMenu implements Listener {
             if (this != SHAPE) return keys;
             return switch (kind) {
                 case ROCK -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS, TreeSettings.Key.MOSS};
-                case SPIKE -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.SPIKE_TAPER, TreeSettings.Key.SPREAD, TreeSettings.Key.CURVE,
-                        TreeSettings.Key.LAYERS, TreeSettings.Key.HANGING};
-                case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.SPIKE_TAPER, TreeSettings.Key.SPREAD, TreeSettings.Key.HANGING};
-                case COLUMNS -> new TreeSettings.Key[]{TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS};
-                case ARCH -> new TreeSettings.Key[]{TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS, TreeSettings.Key.MOSS};
+                case SPIKE -> new TreeSettings.Key[]{TreeSettings.Key.SPIKE_SIDES, TreeSettings.Key.SPIKE_TWIST, TreeSettings.Key.SPIKE_STAR, TreeSettings.Key.SPIKE_TAPER, TreeSettings.Key.CURVE,
+                        TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS};
+                case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.CRYSTAL_FACETS, TreeSettings.Key.CRYSTAL_TIP, TreeSettings.Key.CRYSTAL_THICK, TreeSettings.Key.CRYSTAL_VARIANCE,
+                        TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
                 default -> new TreeSettings.Key[]{};
             };
         }
@@ -130,6 +129,13 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.TRUNK_LEAN, Material.LEVER);
         ICONS.put(TreeSettings.Key.TRUNK_TWIST, Material.TWISTING_VINES);
         ICONS.put(TreeSettings.Key.TRUNK_BULGE, Material.MUDDY_MANGROVE_ROOTS);
+        ICONS.put(TreeSettings.Key.SPIKE_SIDES, Material.HONEYCOMB);
+        ICONS.put(TreeSettings.Key.SPIKE_TWIST, Material.TWISTING_VINES);
+        ICONS.put(TreeSettings.Key.SPIKE_STAR, Material.NETHER_STAR);
+        ICONS.put(TreeSettings.Key.CRYSTAL_TIP, Material.AMETHYST_SHARD);
+        ICONS.put(TreeSettings.Key.CRYSTAL_FACETS, Material.AMETHYST_BLOCK);
+        ICONS.put(TreeSettings.Key.CRYSTAL_THICK, Material.BUDDING_AMETHYST);
+        ICONS.put(TreeSettings.Key.CRYSTAL_VARIANCE, Material.LARGE_AMETHYST_BUD);
     }
 
     private final ProceduralModule tool;
@@ -180,6 +186,14 @@ final class ProceduralMenu implements Listener {
         return item;
     }
 
+    static String crystalTypeLabel(String type) {
+        return switch (type) {
+            case "prism" -> "大きな1本";
+            case "blades" -> "薄い刃";
+            default -> "かたまり";
+        };
+    }
+
     private static String number(TreeSettings.Key key, double value) {
         return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
     }
@@ -226,6 +240,14 @@ final class ProceduralMenu implements Listener {
             inventory.setItem(GRID[index], item(ICONS.getOrDefault(key, Material.PAPER), key.label() + ": " + number(key, settings.get(key)), NamedTextColor.GREEN, lore));
         }
 
+        if (page == Page.SHAPE && settings.kind() == ProcKind.CRYSTAL) {
+            List<Component> typeLore = new ArrayList<>();
+            typeLore.add(text("かたまり: 岩の足元から、何本かの結晶が外へ広がる", NamedTextColor.GRAY));
+            typeLore.add(text("大きな1本: 面のはっきりした太い結晶が1本", NamedTextColor.GRAY));
+            typeLore.add(text("薄い刃: 平たく細い欠片のかたまり", NamedTextColor.GRAY));
+            typeLore.add(text("左クリック: 次の作り方 / 右クリック: 前の作り方", NamedTextColor.YELLOW));
+            inventory.setItem(GRID[13], item(Material.AMETHYST_CLUSTER, "結晶の作り方: " + crystalTypeLabel(settings.crystalType()), NamedTextColor.GOLD, typeLore));
+        }
         // the bottom row, the same on every page
         inventory.setItem(CLOSE, item(Material.ARROW, "閉じる", NamedTextColor.YELLOW, List.of()));
         boolean on = session.preview;
@@ -327,6 +349,12 @@ final class ProceduralMenu implements Listener {
             TreeSettings.Key key = pageKeys[index];
             settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
             tool.limit(settings);
+            tool.changed(player);
+            render(player, holder);
+            return;
+        }
+        if (holder.page == Page.SHAPE && settings.kind() == ProcKind.CRYSTAL && slot == GRID[13]) {
+            settings.cycleCrystalType(left);
             tool.changed(player);
             render(player, holder);
             return;

@@ -35,7 +35,7 @@ final class ProceduralCommand implements TabExecutor {
             case "kind" -> {
                 ProcKind kind = args.length > 1 ? ProcKind.byId(args[1]) : null;
                 if (kind == null) {
-                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|columns|arch>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
+                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
                 } else {
                     session.settings.setKind(kind);
                     tool.limit(session.settings);

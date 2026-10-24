@@ -35,7 +35,7 @@ commands:
     usage: /skilltest <id> [self|dummy|mine] [element]
     permission: iruurpg.admin
   proceduraltool:
-    description: "Procedural tool (admins): trees, rocks, spikes, crystals, columns, arches. Gives the tool; set, save, load, undo"
+    description: "Procedural tool (admins): trees, rocks, spikes, crystals. Gives the tool; set, save, load, undo"
     usage: /proceduraltool [give|off|menu|kind|set|info|save|load|list|delete|undo|redo|preview|generate]
     aliases:
       - treetool
