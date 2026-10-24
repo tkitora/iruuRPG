@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.combat;
 import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
 import net.tkgon.mc.iruuRPG.hud.PlayerBars;
+import net.tkgon.mc.iruuRPG.item.ClassUse;
 import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
 import net.tkgon.mc.iruuRPG.item.ItemSkillType;
 import net.tkgon.mc.iruuRPG.item.ItemVisualOptions;
@@ -121,8 +122,8 @@ public final class AttackService {
     public int comboStage(Player attacker, AttackType type) {
         if (type == AttackType.RANGE && isMage(attacker)) return meleeCombo.currentStage(attacker, MeleeCombo.MAGE);
         // the generic combos (see ClassCombo): the chain of the class's combo with this kind of weapon
-        ClassCombo combo = classCombos.get(equipmentService.classIdOf(attacker) + "|" + type);
-        if (combo != null) return meleeCombo.currentStage(attacker, combo.spec().plan());
+        ClassCombo combo = classComboFor(attacker, weaponInMainHand(attacker));
+        if (combo != null && combo.type() == type) return meleeCombo.currentStage(attacker, combo.spec().plan());
         if (type == AttackType.MELEE) return meleeCombo.currentStage(attacker, MeleeCombo.USUAL);
         return 0;
     }
@@ -273,9 +274,17 @@ public final class AttackService {
         if (comboZones != null) comboZones.clear(player);
     }
 
+    /**
+     * The combo this weapon gives the player: the class's own combo with this kind of weapon when the weapon is a favorite of the class, the basic combo for the kind of weapon
+     * (sword, staff, turret: the same for every class) when it is only usable, nothing when it is not usable.
+     */
     private ClassCombo classComboFor(Player attacker, RpgItemDefinition weapon) {
         if (weapon == null || !weapon.marked() || classCombos.isEmpty()) return null;
-        return classCombos.get(equipmentService.classIdOf(attacker) + "|" + weapon.attackType());
+        String classId = equipmentService.classIdOf(attacker);
+        ClassUse use = weapon.classUse(classId);
+        if (use == ClassUse.FAVORITE) return classCombos.get(classId + "|" + weapon.attackType());
+        if (use == ClassUse.USABLE) return classCombos.get("*|" + weapon.attackType());
+        return null;
     }
 
     /** The internal id of the player's class (gifted, healer, mage, warrior, assassin; "" when none). */
@@ -285,7 +294,7 @@ public final class AttackService {
 
     /** True when the weapon in hand brings a (generic) combo of the player's class: a favorite weapon with such a combo. */
     public boolean hasClassCombo(Player attacker, RpgItemDefinition weapon) {
-        return classComboFor(attacker, weapon) != null && comboOn() && comboAllowed(attacker, weapon);
+        return classComboFor(attacker, weapon) != null && comboOn();
     }
 
     /** Where each player's running combo began, and the way they faced (placed things are put round that place). */
