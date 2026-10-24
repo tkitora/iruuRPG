@@ -270,7 +270,20 @@ public final class MoveKit {
 
     /** The hand the next cut is struck with: an assassin with a weapon in each hand (固有0) strikes with them in turn; anybody else with the main hand. */
     public AttackService.MeleeHand nextHand() {
-        return attack.nextSlashHand(player, weapon);
+        AttackService.MeleeHand hand = attack.nextSlashHand(player, weapon);
+        if (hand.offHand()) offHandFlourish();
+        return hand;
+    }
+
+    /**
+     * The look of a cut made with the weapon in the off hand (the assassin holding a weapon in each hand): the off arm swings, and two cuts at different angles cross in
+     * front of the assassin, a moment apart, one rising and one falling, in the colours of the combo.
+     */
+    private void offHandFlourish() {
+        attack.swingOffHand(player);
+        slash("arc", 2.4, 110.0, 38.0, 20.0, 1.7, 0.4, 0.0, 1.0, 0.07, 0.0);
+        slash("arc", 2.4, 110.0, -38.0, 200.0, 1.7, 0.5, 0.0, 1.0, 0.07, 0.05);
+        sound(player.getLocation(), Sfx.WIND, 0.4f, 1.9f);
     }
 
     /** One hit of {@code rate} times the damage of {@code hand}'s weapon (and of the other hand's when the double strike fires). */

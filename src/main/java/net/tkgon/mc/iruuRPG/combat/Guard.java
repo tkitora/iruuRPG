@@ -4,6 +4,7 @@ import net.tkgon.mc.iruuRPG.vfx.Fx;
 import net.tkgon.mc.iruuRPG.vfx.Gradient;
 import org.bukkit.Color;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
@@ -14,6 +15,7 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -135,7 +137,47 @@ public final class Guard {
         return until != null && System.currentTimeMillis() > until;
     }
 
+    /** The shields as plates of light blue stained glass floating on a circle round the player, turning with it (display entities, seen by everyone). */
+    private final Map<UUID, List<org.bukkit.entity.BlockDisplay>> plates = new HashMap<>();
+
+    private void showPlates(Player owner, int count) {
+        List<org.bukkit.entity.BlockDisplay> list = plates.computeIfAbsent(owner.getUniqueId(), id -> new ArrayList<>());
+        list.removeIf(display -> !display.isValid());
+        while (list.size() > count) list.remove(list.size() - 1).remove();
+        Location center = owner.getLocation().add(0.0, 1.1, 0.0);
+        while (list.size() < count) {
+            org.bukkit.entity.BlockDisplay display = owner.getWorld().spawn(center, org.bukkit.entity.BlockDisplay.class, spawned -> {
+                spawned.setBlock(Material.LIGHT_BLUE_STAINED_GLASS.createBlockData());
+                spawned.setPersistent(false);
+                spawned.setInvulnerable(true);
+                spawned.setBrightness(new org.bukkit.entity.Display.Brightness(15, 15));
+                spawned.setViewRange(1.0f);
+                spawned.setTeleportDuration(2);
+                spawned.setInterpolationDuration(2);
+            });
+            list.add(display);
+        }
+        for (int index = 0; index < list.size(); index++) {
+            double angle = shieldTicks * 0.22 + Math.PI * 2.0 * index / list.size();
+            Vector out = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
+            org.bukkit.entity.BlockDisplay display = list.get(index);
+            display.teleport(center.clone().add(out.clone().multiply(1.3)));
+            // a thin plate whose flat side faces out; the block is drawn from its corner, so it is moved back by half its size (turned) to stand on the middle
+            org.joml.Quaternionf turn = new org.joml.Quaternionf().rotateY((float) Math.atan2(out.getX(), out.getZ()));
+            org.joml.Vector3f size = new org.joml.Vector3f(0.8f, 1.2f, 0.08f);
+            org.joml.Vector3f shift = new org.joml.Vector3f(size.x * 0.5f, size.y * 0.5f, size.z * 0.5f);
+            turn.transform(shift);
+            display.setTransformation(new org.bukkit.util.Transformation(shift.negate(), turn, size, new org.joml.Quaternionf()));
+        }
+    }
+
+    private void removePlates(UUID id) {
+        List<org.bukkit.entity.BlockDisplay> list = plates.remove(id);
+        if (list != null) for (org.bukkit.entity.BlockDisplay display : list) display.remove();
+    }
+
     private void dropShields(UUID id) {
+        removePlates(id);
         shields.remove(id);
         shieldUntil.remove(id);
     }
@@ -162,23 +204,7 @@ public final class Guard {
                         owner.getWorld().playSound(owner.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, SoundCategory.PLAYERS, 0.6f, 0.8f);
                         continue;
                     }
-                    int count = shields.get(id);
-                    Location center = owner.getLocation().add(0.0, 1.1, 0.0);
-                    World world = owner.getWorld();
-                    Fx fxShield = Fx.of(owner, world, center);
-                    for (int index = 0; index < count; index++) {
-                        double angle = shieldTicks * 0.22 + Math.PI * 2.0 * index / count;
-                        Vector out = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
-                        Location at = center.clone().add(out.clone().multiply(1.3));
-                        Vector tangent = new Vector(-out.getZ(), 0.0, out.getX());
-                        // a small plate standing on the circle: the middle of it is steel, the edges a cool blue
-                        for (double h = -0.35; h <= 0.35; h += 0.12) {
-                            for (double w = -0.24; w <= 0.24; w += 0.12) {
-                                Location p = at.clone().add(tangent.clone().multiply(w)).add(0.0, h, 0.0);
-                                fxShield.dust(p.getX(), p.getY(), p.getZ(), SHIELD, Math.min(1.0, Math.abs(w) / 0.24 * 0.6 + Math.abs(h) / 0.35 * 0.4), 1.1);
-                            }
-                        }
-                    }
+                    showPlates(owner, shields.get(id));
                 }
             }
         };
@@ -193,6 +219,7 @@ public final class Guard {
     public void shutdown() {
         if (shieldTask != null) shieldTask.cancel();
         shieldTask = null;
+        for (UUID id : new ArrayList<>(plates.keySet())) removePlates(id);
         shields.clear();
         shieldUntil.clear();
         guards.clear();

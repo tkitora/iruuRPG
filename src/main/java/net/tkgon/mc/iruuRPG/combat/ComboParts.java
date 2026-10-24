@@ -138,6 +138,26 @@ final class ComboParts {
     }
 
     /** The same, swelling for {@code ticks} ticks (at most 50: it stands in the world that long). */
+    /**
+     * A ball of light that swells for {@code ticks} ticks and bursts: nothing is pulled or held. Every few ticks, while the player stands within the radius, they are
+     * healed {@code healPercent}; the burst hurts everyone in the radius for {@code rate}.
+     */
+    static void swellBurst(MoveKit kit, Location at, double radius, double rate, double healPercent, int ticks) {
+        int life = Math.max(10, Math.min(50, ticks));
+        kit.sound(at, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.4f);
+        kit.every(life + 1, age -> {
+            kit.fx(at).sphereShell(at, 0.5 + 1.5 * age / (double) life, age * 0.3, 32, kit.palette(), 1.1);
+            if (age % 8 == 4 && healPercent > 0.0 && kit.player.getLocation().distanceSquared(at) <= (radius + 1.5) * (radius + 1.5)) kit.heal(healPercent);
+            if (age == life) {
+                kit.burst(at, radius);
+                kit.shockwave(at.clone().add(0.0, -1.2, 0.0), 1.0, radius, 5, 1.2);
+                kit.sound(at, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 1.1f);
+                for (LivingEntity victim : kit.around(at, radius)) kit.hit(victim, rate);
+            }
+            return false;
+        });
+    }
+
     static void pullBurst(MoveKit kit, Location at, double radius, double rate, double slowPercent, int ticks) {
         int life = Math.max(10, Math.min(50, ticks));
         kit.sound(at, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.2f);

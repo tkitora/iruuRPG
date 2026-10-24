@@ -126,7 +126,7 @@ public final class ClericRangeCombo extends BaseCombo {
                     kit.shockwave(target, 1.0, 3.0, 4, 1.1);
                     kit.sound(target, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.6f, 1.6f);
                     for (LivingEntity victim : kit.around(target, 2.4)) {
-                        if (kit.hit(victim, rate)) kit.lift(victim, 0.45);
+                        kit.hit(victim, rate);
                     }
                 });
             }

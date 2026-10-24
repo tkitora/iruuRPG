@@ -10,8 +10,8 @@ import org.bukkit.util.Vector;
  * what is round them. Everything is placed where the cleric aims and ends by itself within 2.5 s; the same kind placed again replaces the old one.
  * Normal: 1 a lantern of mercy (20% a pulse, 5 pulses, heals 0.6%), 2 two small lanterns (15% x4 pulses each), 3 a lantern of prayer (20% x5, a wider
  * reach, heals 1.5% a pulse), 4 three lanterns in a row (13% x3 each, heal 0.5%), 5 six lanterns in a ring round the aim (12% x2 each, heals 3%).
- * Heavy: 0 a sanctuary under the feet (15% a pulse, heals 1%), 1 four lanterns running ahead (20% x3 each), 2 a lantern that swells for 2 s, pulling
- * the enemies in, and bursts (100%, slows), 3 four lanterns round the aim that shoot light at the nearest enemy (7% a shot), 4 a great sanctuary (20% a pulse,
+ * Heavy: 0 a sanctuary under the feet (15% a pulse, heals 1%), 1 four lanterns running ahead (20% x3 each), 2 a lantern that swells for 2 s, healing the cleric
+ * while it does, and bursts (100%; nothing is pulled or held: the cleric has no restraint), 3 four lanterns round the aim that shoot light at the nearest enemy (7% a shot), 4 a great sanctuary (20% a pulse,
  * heals 1.2%).
  */
 public final class ClericDeployCombo extends BaseCombo {
@@ -85,7 +85,7 @@ public final class ClericDeployCombo extends BaseCombo {
                     kit.later(index * 2L, () -> ComboParts.placeAt(kit, key, at, 44, 14, 2.0, rate, 0.0, 0.3, null));
                 }
             }
-            case 2 -> ComboParts.pullBurst(kit, target.clone().add(0.0, 1.5, 0.0), 4.5, rate, 40.0, 40);
+            case 2 -> ComboParts.swellBurst(kit, target.clone().add(0.0, 1.5, 0.0), 4.5, rate, 1.0, 40);
             case 3 -> {
                 // four lanterns round the aim that shoot light at the nearest enemy
                 for (int index = 0; index < 4; index++) {
