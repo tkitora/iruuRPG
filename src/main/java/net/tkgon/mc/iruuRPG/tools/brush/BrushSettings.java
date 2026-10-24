@@ -103,6 +103,17 @@ final class BrushSettings {
     boolean angleMaskInvert;
     int angleMin;
     int angleMax = 45;
+    // height mask: only blocks at or above (or at or below) a height
+    boolean heightMaskOn;
+    int heightValue = 64;
+    /** true: blocks at {@code heightValue} or higher pass; false: at or lower. */
+    boolean heightAbove = true;
+    // "next to a block" mask: only blocks that have one of these blocks directly above them (or, in the other direction, below), within {@code relationReach}
+    boolean relationMaskOn;
+    final Set<Material> relationBlocks = new LinkedHashSet<>();
+    /** true: only blocks under one of the blocks (it is above); false: only blocks on top of one of them (it is below). */
+    boolean relationUnder = true;
+    int relationReach = 12;
     boolean shadeMaskOn;
     /** false: only the shaded surfaces pass; true (inverted): only the lit ones. */
     boolean shadeMaskInvert;
