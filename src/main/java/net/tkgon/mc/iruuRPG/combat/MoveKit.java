@@ -804,6 +804,29 @@ public final class MoveKit {
         heal(allowed);
     }
 
+    private static final java.util.Map<UUID, double[]> ALLY_HEALED = new java.util.HashMap<>();
+
+    /**
+     * Heals the players (the cleric among them) within {@code radius} of {@code center} by {@code percent} of their own maximum life, with the cleric's heal bonuses; one player
+     * is healed by at most {@code combat.combo.ally-heal-cap} percent in a second by this, so that the lights of a staff do not make anyone unkillable.
+     */
+    public void healAllies(Location center, double radius, double percent) {
+        double cap = plugin.getConfig().getDouble("combat.combo.ally-heal-cap", 4.0);
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        for (Player ally : center.getWorld().getPlayers()) {
+            if (ally.isDead() || !ally.isValid() || ally.getLocation().distanceSquared(center) > radius * radius) continue;
+            double[] window = ALLY_HEALED.computeIfAbsent(ally.getUniqueId(), id -> new double[]{now, 0.0});
+            if (now - window[0] >= 20) {
+                window[0] = now;
+                window[1] = 0.0;
+            }
+            double allowed = Math.max(0.0, Math.min(percent, cap - window[1]));
+            if (allowed <= 0.0) continue;
+            window[1] += allowed;
+            attack.healPlayerBy(player, ally, attack.profileForPlayer(ally).maxHp() * allowed / 100.0);
+        }
+    }
+
     public void heal(double percent) {
         PlayerProfile profile = attack.profileForPlayer(player);
         attack.healPlayer(player, profile.maxHp() * percent / 100.0);
