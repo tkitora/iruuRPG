@@ -17,7 +17,7 @@ final class BrushCommand implements TabExecutor {
 
     private static final String PREFIX = BrushModule.PREFIX;
     private static final List<String> SUBS = List.of("help", "give", "menu", "off", "undo", "redo", "use", "peek", "preview", "set", "preset", "blacklist", "select");
-    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "generate", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell");
+    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "generate", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell", "noise", "octaves", "persistence", "contrast", "noiseseed", "aoradius", "aosamples", "aopower", "reverse", "reference", "refdir", "refspan");
 
     private final BrushModule module;
 
@@ -51,7 +51,7 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set from <ブロック> / to <ブロック>   一覧を作る元の2つのブロック (省略すると手に持つブロック)",
             "/ibrush set steps <0〜14>                 一覧を作るときの、間のブロック数",
             "/ibrush set generate                      2つのブロックから一覧を作る (グラデーションになる。ブラックリスト・グラデーション用を使う)",
-            "/ibrush set axis <radial|vertical|directional|noise>   グラデーションの向き",
+            "/ibrush set axis <radial|vertical|directional|noise|stroke|angle|curvature|ambient|light|block>   グラデーションの向き",
             "/ibrush set additive <on|off>             加算 (上乗せ)",
             "/ibrush set toon <0|2〜6>                 トゥーン調の段数 (0 でオフ)",
             "/ibrush set depth <10〜80>                陰の濃さ (%)",
@@ -60,7 +60,13 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set ao <on|off|10〜100>           アンビエント(AO)。数字は強さ(%)で、オンにもなる",
             "/ibrush set curvature <on|off|convex|concave|10〜100>   曲率 (convex=出っぱりを暗く / concave=凹みを暗く / 数字=強さ)",
             "/ibrush set shadenoise <on|off|10〜100>   ノイズの影",
-            "/ibrush set cell <on|off|edges|cells|10〜100>   セルの影 (edges=境目 / cells=セルごと / 数字=強さ)");
+            "/ibrush set cell <on|off|edges|cells|ball|angular|10〜100>   セルの影 (edges=境目 / cells=セルごと / angular=角ばった破片 / 数字=強さ)",
+            "/ibrush set noise <value|perlin|ridged|billow|voronoi|cellular|shard>   ノイズの種類 (模様・グラデーション・影のノイズ共通)",
+            "/ibrush set octaves <1〜5> / persistence <20〜80> / contrast <50〜300> / noiseseed <整数>   ノイズの重ねる回数・細かい層の強さ(%)・コントラスト(%)・番号",
+            "/ibrush set aoradius <1〜6> / aosamples <8〜48> / aopower <40〜300>   AOの届く距離・光線の数・くっきり度(%)",
+            "/ibrush set reverse <on|off>              グラデーションの向きを逆にする",
+            "/ibrush set reference <add|remove|clear> [ブロック]   グラデーションの起点のブロック (axis block)",
+            "/ibrush set refdir <down|up> / refspan <1〜48>   起点からの向きと、最後のブロックになる距離");
 
     private static final List<String> HELP_SELECT = List.of(
             "/ibrush select give                選択ツールを受け取る (右クリック=選ぶ / Shift+右=足す / 左=設定画面)",
@@ -297,9 +303,52 @@ final class BrushCommand implements TabExecutor {
                     s.noiseShadeOn = strength != null ? true : onOff(value);
                     if (strength != null) s.noiseShadeStrength = strength;
                 }
+                case "noise" -> {
+                    Procedural.NoiseType type = null;
+                    for (Procedural.NoiseType candidate : Procedural.NoiseType.values()) if (candidate.name().equalsIgnoreCase(value)) type = candidate;
+                    if (type == null) throw new NumberFormatException();
+                    s.noiseType = type;
+                }
+                case "octaves" -> s.noiseOctaves = Math.max(1, Math.min(5, Integer.parseInt(value)));
+                case "persistence" -> s.noisePersistence = Math.max(0.2, Math.min(0.8, Double.parseDouble(value) / 100.0));
+                case "contrast" -> s.noiseContrast = Math.max(0.5, Math.min(3.0, Double.parseDouble(value) / 100.0));
+                case "noiseseed" -> s.noiseSeed = Integer.parseInt(value);
+                case "aoradius" -> s.aoRadius = Math.max(1, Math.min(6, Integer.parseInt(value)));
+                case "aosamples" -> s.aoSamples = Math.max(8, Math.min(48, Integer.parseInt(value)));
+                case "aopower" -> s.aoPower = Math.max(0.4, Math.min(3.0, Double.parseDouble(value) / 100.0));
+                case "reverse" -> s.gradientReverse = onOff(value);
+                case "refdir" -> {
+                    if (!value.equals("down") && !value.equals("up")) throw new NumberFormatException();
+                    s.referenceDown = value.equals("down");
+                }
+                case "refspan" -> s.referenceSpan = Math.max(1, Math.min(48, Integer.parseInt(value)));
+                case "reference" -> {
+                    switch (value) {
+                        case "clear" -> s.referenceBlocks.clear();
+                        case "add" -> {
+                            Material material = block(player, args, 3);
+                            if (material == null) {
+                                player.sendMessage(PREFIX + "ブロックを指定するか、手に持ってください。");
+                                return;
+                            }
+                            s.referenceBlocks.add(material);
+                        }
+                        case "remove" -> {
+                            Material material = args.length > 3 ? Material.matchMaterial(args[3]) : null;
+                            if (material == null || !s.referenceBlocks.remove(material)) {
+                                player.sendMessage(PREFIX + "リストにありません。");
+                                return;
+                            }
+                        }
+                        default -> throw new NumberFormatException();
+                    }
+                }
                 case "cell" -> {
                     Double strength = percent(value);
-                    if (value.equals("edges") || value.equals("cells")) {
+                    if (value.equals("angular") || value.equals("ball")) {
+                        s.cellAngular = value.equals("angular");
+                        s.cellOn = true;
+                    } else if (value.equals("edges") || value.equals("cells")) {
                         s.cellEdges = value.equals("edges");
                         s.cellOn = true;
                     } else if (strength != null) {
@@ -440,6 +489,12 @@ final class BrushCommand implements TabExecutor {
                     }
                     case "surface", "additive" -> options.addAll(List.of("on", "off"));
                     case "pattern" -> options.addAll(List.of("random", "gradient"));
+                    case "noise" -> {
+                        for (Procedural.NoiseType type : Procedural.NoiseType.values()) options.add(type.name().toLowerCase(Locale.ROOT));
+                    }
+                    case "reverse" -> options.addAll(List.of("on", "off"));
+                    case "refdir" -> options.addAll(List.of("down", "up"));
+                    case "reference" -> options.addAll(List.of("add", "remove", "clear"));
                     case "axis" -> {
                         for (BrushSettings.GradientAxis axis : BrushSettings.GradientAxis.values()) options.add(axis.name().toLowerCase(Locale.ROOT));
                     }

@@ -31,7 +31,7 @@ final class BrushEngine {
     }
 
     static Result compute(World world, int cx, int cy, int cz, BrushSettings s, int cap, Set<Material> shadeBlacklist) {
-        SurfaceProbe probe = new SurfaceProbe(world, s.sunVector(), s.castShadows);
+        SurfaceProbe probe = new SurfaceProbe(world, s);
         Map<Long, Change> changes = new LinkedHashMap<>();
         Random random = new Random();
         String note = switch (s.mode) {
@@ -119,45 +119,24 @@ final class BrushEngine {
             shade += s.curvatureStrength * Math.max(0.0, s.curvatureConvex ? curvature : -curvature);
         }
         if (s.noiseShadeOn) {
-            double n = Procedural.noise(x / s.noiseShadeScale, y / s.noiseShadeScale, z / s.noiseShadeScale);
+            double n = Procedural.sample(s, x + 0.5, y + 0.5, z + 0.5, s.noiseShadeScale);
             shade += s.noiseShadeStrength * Math.max(0.0, Math.min(1.0, (n - 0.45) * 2.5));
         }
         if (s.cellOn) {
-            double[] cell = Procedural.cell(x + 0.5, y + 0.5, z + 0.5, s.cellSize);
+            double[] cell = s.cellAngular
+                    ? Procedural.cellBox((x + 0.5) / s.cellSize, (y + 0.5) / s.cellSize, (z + 0.5) / s.cellSize)
+                    : Procedural.cell(x + 0.5, y + 0.5, z + 0.5, s.cellSize);
             double amount = s.cellEdges ? 1.0 - Math.min(1.0, (cell[1] - cell[0]) / 0.18) : (cell[2] > 0.5 ? 1.0 : 0.0);
             shade += s.cellStrength * amount;
         }
         return Math.max(0.0, Math.min(1.0, shade));
     }
 
-    private static double noise(double x, double y, double z) {
-        int ix = (int) Math.floor(x);
-        int iy = (int) Math.floor(y);
-        int iz = (int) Math.floor(z);
-        double fx = smooth(x - ix);
-        double fy = smooth(y - iy);
-        double fz = smooth(z - iz);
-        double a = lerp(lerp(hash(ix, iy, iz), hash(ix + 1, iy, iz), fx), lerp(hash(ix, iy + 1, iz), hash(ix + 1, iy + 1, iz), fx), fy);
-        double b = lerp(lerp(hash(ix, iy, iz + 1), hash(ix + 1, iy, iz + 1), fx), lerp(hash(ix, iy + 1, iz + 1), hash(ix + 1, iy + 1, iz + 1), fx), fy);
-        return lerp(a, b, fz);
-    }
-
-    private static double lerp(double a, double b, double t) {
-        return a + (b - a) * t;
-    }
-
-    private static double hash(int x, int y, int z) {
-        long h = x * 374761393L + y * 668265263L + z * 2147483647L;
-        h = (h ^ (h >>> 13)) * 1274126177L;
-        h ^= h >>> 16;
-        return (h & 0xFFFFL) / 65535.0;
-    }
-
     /** One block of the pattern for the place: at random by weight, or by a smooth noise (patches instead of speckles) when the noise is on. */
     private static Material pick(BrushSettings s, int x, int y, int z, Random random) {
         int total = s.totalWeight();
         if (total <= 0) return null;
-        double u = s.noise ? Math.max(0.0, Math.min(0.999, 0.5 + 1.1 * (noise(x / s.noiseScale, y / s.noiseScale, z / s.noiseScale) - 0.5))) : random.nextDouble();
+        double u = s.noise ? Math.max(0.0, Math.min(0.999, 0.5 + 1.1 * (Procedural.sample(s, x + 0.5, y + 0.5, z + 0.5, s.noiseScale) - 0.5))) : random.nextDouble();
         double target = u * total;
         double sum = 0.0;
         for (BrushSettings.Entry entry : s.pattern) {
@@ -188,15 +167,46 @@ final class BrushEngine {
     // ---- paint ----------------------------------------------------------------------------------------------------------------
 
     /** Where along the gradient (0 - 1) the place is, by the axis of the settings. */
-    private static double gradientPosition(BrushSettings s, int dx, int dy, int dz, double distance, int x, int y, int z) {
+    private static double gradientPosition(BrushSettings s, SurfaceProbe probe, int dx, int dy, int dz, double distance, int x, int y, int z) {
         double r = Math.max(0.5, s.radius);
-        return switch (s.gradientAxis) {
+        double t = switch (s.gradientAxis) {
             case RADIAL -> distance;
             case VERTICAL -> (dy + r) / (2.0 * r);
             case DIRECTIONAL -> (dx * s.facing.getX() + dz * s.facing.getZ() + r) / (2.0 * r);
-            case NOISE -> noise(x / s.noiseScale, y / s.noiseScale, z / s.noiseScale);
+            case NOISE -> Procedural.sample(s, x + 0.5, y + 0.5, z + 0.5, s.noiseScale);
             case STROKE -> s.strokeT;
+            case ANGLE -> probe.angle(x, y, z) / 90.0;
+            case CURVATURE -> (probe.curvature(x, y, z) + 1.0) / 2.0;
+            case AMBIENT -> probe.ambient(x, y, z);
+            case LIGHT -> probe.shade(x, y, z);
+            case BLOCK -> referenceT(s, probe, x, y, z);
         };
+        t = Math.max(0.0, Math.min(1.0, t));
+        return s.gradientReverse ? 1.0 - t : t;
+    }
+
+    /**
+     * Where the place is along a gradient that starts from a block: how far from the nearest of the starting blocks, in its column or the eight round it, going up when the
+     * gradient goes down from them and the other way round, over the reference span (0 at the block, 1 at the span or when none is found).
+     */
+    private static double referenceT(BrushSettings s, SurfaceProbe probe, int x, int y, int z) {
+        if (s.referenceBlocks.isEmpty()) return 0.0;
+        int step = s.referenceDown ? 1 : -1;
+        int span = Math.max(1, s.referenceSpan);
+        int best = Integer.MAX_VALUE;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int k = 0; k <= span * 2 && k < best; k++) {
+                    Material type = probe.type(x + dx, y + step * k, z + dz);
+                    Material base = BlockColors.baseOf(type);
+                    if (s.referenceBlocks.contains(type) || (base != null && s.referenceBlocks.contains(base))) {
+                        best = k;
+                        break;
+                    }
+                }
+            }
+        }
+        return best == Integer.MAX_VALUE ? 1.0 : Math.min(1.0, best / (double) span);
     }
 
     private static String paint(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap) {
@@ -223,7 +233,7 @@ final class BrushEngine {
                     if (!passes(s, probe, x, y, z, type)) continue;
                     Material material;
                     if (gradient) {
-                        double t = gradientPosition(s, dx, dy, dz, distance, x, y, z) + (random.nextDouble() - 0.5) * s.dither * 2.0 / Math.max(1, ramp.size() - 1);
+                        double t = gradientPosition(s, probe, dx, dy, dz, distance, x, y, z) + (random.nextDouble() - 0.5) * s.dither * 2.0 / Math.max(1, ramp.size() - 1);
                         if (s.additive && BlockColors.known(BlockColors.baseOf(type) != null ? BlockColors.baseOf(type) : type)) {
                             // painting again moves the colour that is there on toward the gradient's colour, a share at a time
                             Material current = BlockColors.baseOf(type) != null ? BlockColors.baseOf(type) : type;
