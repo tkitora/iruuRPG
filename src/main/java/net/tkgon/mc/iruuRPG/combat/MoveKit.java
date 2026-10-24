@@ -784,6 +784,26 @@ public final class MoveKit {
     }
 
     /** Heals the player by {@code percent} of their maximum HP (a heal counts for the cleric's pulse like any other). */
+    private static final java.util.Map<java.util.UUID, double[]> HEALED = new java.util.HashMap<>();
+
+    /**
+     * A heal from something set down: the sum of such heals is held to {@code combat.combo.deploy-heal-cap} (1.5) percent of the maximum health in any second, so lanterns
+     * that stand together do not heal more than one does by much. The heal that would pass the cap is cut to what is left.
+     */
+    public void healCapped(double percent) {
+        double cap = plugin.getConfig().getDouble("combat.combo.deploy-heal-cap", 1.5);
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        double[] window = HEALED.computeIfAbsent(player.getUniqueId(), id -> new double[]{now, 0.0});
+        if (now - window[0] >= 20) {
+            window[0] = now;
+            window[1] = 0.0;
+        }
+        double allowed = Math.max(0.0, Math.min(percent, cap - window[1]));
+        if (allowed <= 0.0) return;
+        window[1] += allowed;
+        heal(allowed);
+    }
+
     public void heal(double percent) {
         PlayerProfile profile = attack.profileForPlayer(player);
         attack.healPlayer(player, profile.maxHp() * percent / 100.0);

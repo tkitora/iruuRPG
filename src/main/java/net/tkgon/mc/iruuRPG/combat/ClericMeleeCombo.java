@@ -49,20 +49,31 @@ public final class ClericMeleeCombo implements ClassCombo {
         Location feet = kit.player.getLocation();
         switch (step.stage()) {
             case 1 -> {
-                kit.slash("drop", 2.6, 120.0, 10.0, 0.0, 2.0, 0.2, 0.0, 1.2, 0.14, 0.0);
+                // a mace smash: the head comes down in front and a ring of light spreads from where it lands (a blunt blow on the ground, not a sweep through the air)
+                Location hit = kit.ground(feet.clone().add(kit.facing().multiply(2.3)));
+                kit.slash("drop", 2.4, 100.0, 5.0, 0.0, 1.9, 0.3, 0.0, 1.1, 0.12, 0.0);
                 kit.sound(feet, Sfx.METAL, 1.0f, 0.8f);
-                for (LivingEntity target : kit.cone(3.4, 55.0)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.2, 0.0);
-                }
-                kit.burst(feet.clone().add(kit.facing().multiply(2.5)).add(0.0, 0.3, 0.0), 1.2);
+                kit.later(2L, () -> {
+                    kit.shockwave(hit, 0.5, 2.4, 3, 1.0);
+                    kit.sound(hit, Sound.BLOCK_BELL_USE, 0.7f, 1.3f);
+                    for (LivingEntity target : kit.around(hit, 2.4)) {
+                        if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.15, 0.0);
+                    }
+                });
             }
             case 2 -> {
+                // two tolls: a pulse of light runs out ahead each time, hitting everything on its way
+                Vector facing = kit.facing();
+                Location from = kit.ground(feet).add(0.0, 0.4, 0.0);
                 for (int index = 0; index < hits; index++) {
                     int which = index;
-                    kit.later(index * 3L, () -> {
-                        kit.slash("arc", 2.3, 130.0, 45.0, which % 2 == 0 ? 0.0 : 180.0, 2.0, 0.3, 0.0, 1.05, 0.1, 0.0);
-                        kit.sound(feet, Sfx.WIND, 0.8f, 1.2f + which * 0.15f);
-                        kit.hitAll(kit.cone(3.2, 70.0), rate);
+                    kit.later(index * 4L, () -> {
+                        kit.sound(feet, Sound.BLOCK_BELL_RESONATE, 0.7f, 1.4f + which * 0.2f);
+                        for (int ring = 0; ring < 4; ring++) {
+                            Location at = from.clone().add(facing.clone().multiply(1.2 + ring * 1.1));
+                            kit.later(ring, () -> kit.shockwave(at, 0.3, 1.3, 2, 0.9));
+                        }
+                        kit.hitAll(kit.corridor(from, facing, 5.0, 1.3), rate);
                     });
                 }
             }

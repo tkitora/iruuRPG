@@ -147,7 +147,7 @@ final class ComboParts {
         kit.sound(at, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.4f);
         kit.every(life + 1, age -> {
             kit.fx(at).sphereShell(at, 0.5 + 1.5 * age / (double) life, age * 0.3, 32, kit.palette(), 1.1);
-            if (age % 8 == 4 && healPercent > 0.0 && kit.player.getLocation().distanceSquared(at) <= (radius + 1.5) * (radius + 1.5)) kit.heal(healPercent);
+            if (age % 8 == 4 && healPercent > 0.0 && kit.player.getLocation().distanceSquared(at) <= (radius + 1.5) * (radius + 1.5)) kit.healCapped(healPercent);
             if (age == life) {
                 kit.burst(at, radius);
                 kit.shockwave(at.clone().add(0.0, -1.2, 0.0), 1.0, radius, 5, 1.2);
@@ -257,7 +257,7 @@ final class ComboParts {
                 boolean hit = rate <= 0.0 || kit.hit(victim, rate);
                 if (hit && slowPercent > 0.0) kit.slow(victim, slowPercent, 1.5);
             }
-            if (healPercent > 0.0 && kit.player.getLocation().distanceSquared(at) <= (radius + 1.5) * (radius + 1.5)) kit.heal(healPercent);
+            if (healPercent > 0.0 && kit.player.getLocation().distanceSquared(at) <= (radius + 1.5) * (radius + 1.5)) kit.healCapped(healPercent);
             if (each != null) each.accept(at);
         }, zone -> kit.shockwave(at, radius * 0.8, radius, 2, 0.8));
     }
