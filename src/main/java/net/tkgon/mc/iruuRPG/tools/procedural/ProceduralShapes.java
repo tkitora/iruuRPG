@@ -1,5 +1,7 @@
 package net.tkgon.mc.iruuRPG.tools.procedural;
 
+import org.bukkit.util.Vector;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -30,21 +32,44 @@ final class ProceduralShapes {
         }
     }
 
-    static Map<Long, TreePart> build(ProcKind kind, TreeSettings s, long seed, Random random, TreeGround ground) {
+    /**
+     * @param aim the way a spike or a crystal points (from the block looked at toward the player's eye), null for straight up; rocks stand on the ground and ignore it
+     */
+    static Map<Long, TreePart> build(ProcKind kind, TreeSettings s, long seed, Random random, TreeGround ground, Vector aim) {
         Blocks blocks = new Blocks();
+        Frame frame = Frame.of(aim);
         switch (kind) {
             case ROCK -> rock(blocks, s, seed, random);
-            case SPIKE -> spikes(blocks, s, seed, random);
-            case CRYSTAL -> crystals(blocks, s, seed, random);
-            case COLUMNS -> columns(blocks, s, seed, random);
-            case ARCH -> arch(blocks, s, seed, random);
+            case SPIKE -> spike(blocks, s, seed, random, frame);
+            case CRYSTAL -> crystals(blocks, s, seed, random, frame);
             default -> {
             }
         }
-        boolean hanging = s.getInt(TreeSettings.Key.HANGING) == 1 && kind != ProcKind.ROCK && kind != ProcKind.COLUMNS && kind != ProcKind.ARCH;
-        if (!hanging) settle(blocks, ground);
-        clip(blocks, s, hanging);
+        // only a rock is set on the ground; a spike or a crystal points where it is aimed, and its tip must not be pulled down to the ground
+        if (kind == ProcKind.ROCK) settle(blocks, ground);
+        clip(blocks, s, kind);
         return blocks.map;
+    }
+
+    /** A frame of three unit vectors: {@code w} is the way the object points, {@code u} and {@code v} across it. */
+    private record Frame(Vector u, Vector v, Vector w) {
+        static Frame of(Vector aim) {
+            Vector w = aim == null || aim.lengthSquared() < 1.0E-6 ? new Vector(0.0, 1.0, 0.0) : aim.clone().normalize();
+            Vector reference = Math.abs(w.getY()) > 0.95 ? new Vector(1.0, 0.0, 0.0) : new Vector(0.0, 1.0, 0.0);
+            Vector u = w.clone().crossProduct(reference).normalize();
+            Vector v = w.clone().crossProduct(u).normalize();
+            return new Frame(u, v, w);
+        }
+
+        /** The place {@code along} the axis and {@code a}, {@code b} across it, as offsets from the middle of the base block. */
+        double[] at(double along, double a, double b) {
+            return new double[]{w.getX() * along + u.getX() * a + v.getX() * b, w.getY() * along + u.getY() * a + v.getY() * b, w.getZ() * along + u.getZ() * a + v.getZ() * b};
+        }
+    }
+
+    /** Puts a block at a point given as an offset from the middle of the base block. */
+    private static void putAt(Blocks blocks, double[] offset, TreePart part) {
+        blocks.put((int) Math.round(offset[0]), (int) Math.round(offset[1]), (int) Math.round(offset[2]), part);
     }
 
     // ---- shared ------------------------------------------------------------------------------------------------------------------
@@ -108,15 +133,16 @@ final class ProceduralShapes {
         }
     }
 
-    private static void clip(Blocks blocks, TreeSettings s, boolean hanging) {
+    private static void clip(Blocks blocks, TreeSettings s, ProcKind kind) {
         int height = s.height();
         double half = s.width() / 2.0 + 1.0;
+        int reach = height + s.width() + 2;
         blocks.map.keySet().removeIf(key -> {
             int x = TreeVoxelizer.unpackX(key);
             int y = TreeVoxelizer.unpackY(key);
             int z = TreeVoxelizer.unpackZ(key);
-            boolean outsideHeight = hanging ? (y > 0 || y < -height) : (y < -6 || y >= height);
-            return outsideHeight || Math.abs(x) > half || Math.abs(z) > half;
+            if (kind == ProcKind.ROCK) return y < -6 || y >= height || Math.abs(x) > half || Math.abs(z) > half;
+            return Math.abs(x) > reach || Math.abs(y) > reach || Math.abs(z) > reach;
         });
     }
 
@@ -163,46 +189,37 @@ final class ProceduralShapes {
         moss(blocks, s, seed);
     }
 
-    // ---- spikes ----------------------------------------------------------------------------------------------------------------------
+    // ---- spike -----------------------------------------------------------------------------------------------------------------------
 
-    /** Tapering columns standing up (or, hanging, down) from the ground, leaning out by the spread, bending by the curve, lighter at the tip and darker at the foot. */
-    private static void spikes(Blocks blocks, TreeSettings s, long seed, Random random) {
-        int count = s.getInt(TreeSettings.Key.COUNT);
-        double height = s.height();
-        double half = s.width() / 2.0;
-        double rough = s.get(TreeSettings.Key.ROUGHNESS);
+    /**
+     * One spike pointing along the frame's axis: its section is a polygon of {@code spike-sides} corners with a star-shaped dip between them ({@code spike-star}), turned a
+     * little more along the length ({@code spike-twist} turns in all, so the ridges spiral), thinning to a point by {@code spike-taper}, bent by the curve and roughened by noise.
+     */
+    private static void spike(Blocks blocks, TreeSettings s, long seed, Random random, Frame frame) {
+        double length = s.height();
+        double base = Math.max(1.0, s.width() * 0.45);
+        int sides = s.getInt(TreeSettings.Key.SPIKE_SIDES);
+        double star = s.get(TreeSettings.Key.SPIKE_STAR);
+        double twist = s.get(TreeSettings.Key.SPIKE_TWIST) * Math.PI * 2.0;
         double taper = s.get(TreeSettings.Key.SPIKE_TAPER);
-        double spread = s.get(TreeSettings.Key.SPREAD);
-        double curve = s.get(TreeSettings.Key.CURVE);
-        boolean hanging = s.getInt(TreeSettings.Key.HANGING) == 1;
-        double scale = Math.sqrt(s.width() / 9.0);
-        for (int index = 0; index < count; index++) {
-            double h = index == 0 ? height : height * (0.3 + 0.6 * random.nextDouble());
-            double base = Math.max(1.0, (1.0 + 1.7 * h / height) * scale * (index == 0 ? 1.0 : 0.85));
-            double angle = random.nextDouble() * Math.PI * 2.0;
-            double distance = index == 0 ? 0.0 : Math.sqrt(random.nextDouble()) * Math.max(1.0, half - base - 1.0);
-            double x0 = Math.cos(angle) * distance;
-            double z0 = Math.sin(angle) * distance;
-            double lean = random.nextDouble() * Math.PI * 2.0;
-            double tilt = spread * 0.55 * random.nextDouble() * (index == 0 ? 0.3 : 1.0);
-            double bend = (random.nextDouble() - 0.5) * curve * 3.0;
-            for (double y = 0.0; y < h; y += 0.5) {
-                double t = y / h;
-                double r = base * Math.pow(1.0 - t, taper);
-                if (r < 0.35 && t < 0.97) r = 0.35;
-                double offset = Math.tan(tilt) * y + bend * Math.sin(t * Math.PI);
-                double cx = x0 + Math.cos(lean) * offset;
-                double cz = z0 + Math.sin(lean) * offset;
-                int reach = (int) Math.ceil(r) + 1;
-                for (int x = (int) Math.floor(cx) - reach; x <= (int) Math.ceil(cx) + reach; x++) {
-                    for (int z = (int) Math.floor(cz) - reach; z <= (int) Math.ceil(cz) + reach; z++) {
-                        double d = Math.hypot(x - cx, z - cz);
-                        double edge = r * (1.0 + rough * 0.5 * TreeNoise.value(x * 0.5, y * 0.5, z * 0.5, seed + index));
-                        if (d > edge) continue;
-                        int yy = (int) Math.floor(y);
-                        TreePart part = s.getInt(TreeSettings.Key.LAYERS) > 0 ? stone(s, t, 0.0) : t < 0.28 ? TreePart.STONE_DARK : t > 0.78 ? TreePart.STONE_LIGHT : TreePart.STONE;
-                        blocks.put(x, hanging ? -yy : yy, z, part);
-                    }
+        double rough = s.get(TreeSettings.Key.ROUGHNESS);
+        double bend = s.get(TreeSettings.Key.CURVE) * length * 0.4;
+        double bendAngle = random.nextDouble() * Math.PI * 2.0;
+        for (double along = 0.0; along <= length; along += 0.3) {
+            double t = along / length;
+            double r = base * Math.pow(Math.max(0.0, 1.0 - t), taper);
+            if (r < 0.45) r = t < 0.97 ? 0.45 : 0.0;
+            double shift = bend * t * t;
+            double turn = twist * t;
+            double reach = r * (1.0 + rough * 0.3);
+            for (double a = -reach; a <= reach; a += 0.4) {
+                for (double b = -reach; b <= reach; b += 0.4) {
+                    double rho = Math.hypot(a, b);
+                    double theta = Math.atan2(b, a) - turn;
+                    double limit = r * (1.0 - star * (0.5 + 0.5 * Math.cos(sides * theta))) * (1.0 + rough * 0.45 * TreeNoise.value(a * 0.6 + along * 0.2, along * 0.5, b * 0.6, seed));
+                    if (rho > limit) continue;
+                    TreePart part = s.getInt(TreeSettings.Key.LAYERS) > 0 ? stone(s, t, 0.0) : t < 0.25 ? TreePart.STONE_DARK : t > 0.75 ? TreePart.STONE_LIGHT : TreePart.STONE;
+                    putAt(blocks, frame.at(along, a + Math.cos(bendAngle) * shift, b + Math.sin(bendAngle) * shift), part);
                 }
             }
         }
@@ -210,121 +227,75 @@ final class ProceduralShapes {
 
     // ---- crystals --------------------------------------------------------------------------------------------------------------------
 
-    /** A cluster of crystals leaving a rock at the foot, one tall and nearly upright and the others leaning out; each is a prism that ends in a point, with a bright core. */
-    private static void crystals(Blocks blocks, TreeSettings s, long seed, Random random) {
-        int count = s.getInt(TreeSettings.Key.COUNT);
-        double height = s.height();
+    /**
+     * Crystals pointing along the frame's axis, made the way {@code crystal-type} says: a {@code cluster} (one along the axis and the rest leaning out of a foot of rock by the
+     * spread), one large {@code prism}, or thin {@code blades}. A crystal is a prism of {@code crystal-facets} sides that ends in a point over the last {@code crystal-tip} of its
+     * length, with a bright core. Nothing is pulled down to the ground: the tips stay where they point.
+     */
+    private static void crystals(Blocks blocks, TreeSettings s, long seed, Random random, Frame frame) {
+        String type = s.crystalType();
+        int count = type.equals("prism") ? 1 : s.getInt(TreeSettings.Key.COUNT);
+        double length = s.height();
+        double thick = s.get(TreeSettings.Key.CRYSTAL_THICK);
         double spread = s.get(TreeSettings.Key.SPREAD);
+        double tip = s.get(TreeSettings.Key.CRYSTAL_TIP);
+        double variance = s.get(TreeSettings.Key.CRYSTAL_VARIANCE);
         double rough = s.get(TreeSettings.Key.ROUGHNESS);
-        double taper = s.get(TreeSettings.Key.SPIKE_TAPER);
-        double scale = Math.sqrt(s.width() / 9.0);
-        boolean hanging = s.getInt(TreeSettings.Key.HANGING) == 1;
+        int facets = s.getInt(TreeSettings.Key.CRYSTAL_FACETS);
+        double scale = Math.sqrt(s.width() / 7.0);
         for (int index = 0; index < count; index++) {
-            double length = index == 0 ? height : height * (0.35 + 0.55 * random.nextDouble());
-            double radius = Math.max(0.9, (1.0 + random.nextDouble() * 0.9) * scale * (index == 0 ? 1.15 : 1.0));
+            boolean first = index == 0;
+            double crystalLength = first ? length : length * (1.0 - variance * (0.15 + 0.6 * random.nextDouble()));
+            double radius = Math.max(0.8, (type.equals("prism") ? 2.2 : 1.1 + random.nextDouble() * 0.8) * scale * thick * (first ? 1.15 : 1.0));
+            boolean blade = type.equals("blades");
+            double aspect = blade ? 2.8 : 1.0;
+            // the way this crystal leans from the axis, as two offsets across it
             double phi = random.nextDouble() * Math.PI * 2.0;
-            double tilt = Math.toRadians(index == 0 ? 8.0 * spread : (14.0 + 62.0 * spread * (0.4 + 0.6 * random.nextDouble())));
-            double dx = Math.sin(tilt) * Math.cos(phi);
-            double dy = Math.cos(tilt);
-            double dz = Math.sin(tilt) * Math.sin(phi);
-            double startAngle = random.nextDouble() * Math.PI * 2.0;
-            double startDistance = index == 0 ? 0.0 : random.nextDouble() * 1.4 * scale;
-            double sx = Math.cos(startAngle) * startDistance;
-            double sz = Math.sin(startAngle) * startDistance;
-            for (double step = 0.0; step <= length; step += 0.4) {
-                double t = step / length;
-                // a straight prism for 62% of its length, then a point
-                double r = t < 0.62 ? radius : radius * Math.pow(Math.max(0.0, 1.0 - (t - 0.62) / 0.38), 0.8 * taper);
-                if (r < 0.3) r = 0.3;
-                double cx = sx + dx * step;
-                double cy = dy * step;
-                double cz = sz + dz * step;
-                int reach = (int) Math.ceil(r) + 1;
-                for (int x = (int) Math.floor(cx) - reach; x <= (int) Math.ceil(cx) + reach; x++) {
-                    for (int y = (int) Math.floor(cy) - reach; y <= (int) Math.ceil(cy) + reach; y++) {
-                        for (int z = (int) Math.floor(cz) - reach; z <= (int) Math.ceil(cz) + reach; z++) {
-                            double d = Math.sqrt((x - cx) * (x - cx) + (y + 0.5 - cy) * (y + 0.5 - cy) + (z - cz) * (z - cz));
-                            double edge = r * (1.0 + rough * 0.35 * TreeNoise.value(x * 0.7, y * 0.7, z * 0.7, seed + index));
-                            if (d > edge || y < 0) continue;
-                            TreePart part = d < r * 0.38 && t > 0.1 && t < 0.88 ? TreePart.CRYSTAL_CORE : TreePart.CRYSTAL;
-                            blocks.put(x, hanging ? -y : y, z, part);
-                        }
+            double tilt = first ? 0.0 : Math.toRadians(12.0 + 60.0 * spread * (0.35 + 0.65 * random.nextDouble()));
+            double leanA = Math.tan(tilt) * Math.cos(phi);
+            double leanB = Math.tan(tilt) * Math.sin(phi);
+            double footAngle = random.nextDouble() * Math.PI * 2.0;
+            double footDistance = first ? 0.0 : random.nextDouble() * 1.3 * scale;
+            double spin = random.nextDouble() * Math.PI;
+            for (double along = 0.0; along <= crystalLength; along += 0.3) {
+                double t = along / crystalLength;
+                double envelope = blade ? Math.max(0.0, 1.0 - t * 0.9) : t < 1.0 - tip ? 1.0 : Math.max(0.0, 1.0 - (t - (1.0 - tip)) / tip);
+                double r = Math.max(blade ? 0.0 : 0.3, radius * envelope);
+                if (r <= 0.0) continue;
+                double centreA = Math.cos(footAngle) * footDistance + leanA * along;
+                double centreB = Math.sin(footAngle) * footDistance + leanB * along;
+                double reach = r * aspect * (1.0 + rough * 0.3);
+                for (double a = -reach; a <= reach; a += 0.4) {
+                    for (double b = -reach; b <= reach; b += 0.4) {
+                        // across the crystal: a polygon of the facets (a regular one: its corners at r, its sides at r * cos(pi / facets)), a blade being long one way and thin the other
+                        double ca = Math.cos(spin);
+                        double sa = Math.sin(spin);
+                        double pa = a * ca + b * sa;
+                        double pb = (-a * sa + b * ca) * aspect;
+                        double rho = Math.hypot(pa, pb);
+                        double theta = Math.atan2(pb, pa);
+                        double sector = Math.PI * 2.0 / facets;
+                        double inside = Math.cos(sector / 2.0) / Math.cos(((theta % sector) + sector) % sector - sector / 2.0);
+                        double limit = r * inside * (1.0 + rough * 0.3 * TreeNoise.value(a * 0.7 + index, along * 0.6, b * 0.7, seed));
+                        if (rho > limit) continue;
+                        TreePart part = rho < r * 0.36 && t > 0.08 && t < 0.9 && !blade ? TreePart.CRYSTAL_CORE : TreePart.CRYSTAL;
+                        putAt(blocks, frame.at(along, centreA + a, centreB + b), part);
                     }
                 }
             }
         }
-        // the rock they come out of
-        double footRadius = Math.max(2.0, s.width() * 0.28);
-        for (int x = (int) -footRadius - 1; x <= footRadius + 1; x++) {
-            for (int z = (int) -footRadius - 1; z <= footRadius + 1; z++) {
-                for (int y = 0; y <= 2; y++) {
-                    double d = Math.sqrt(x * x + z * z) / footRadius + y * 0.42;
-                    double edge = 1.0 + rough * 0.5 * TreeNoise.value(x * 0.5, y * 0.5, z * 0.5, seed + 13);
-                    if (d <= edge) blocks.put(x, hanging ? -y : y, z, TreePart.STONE);
-                }
-            }
-        }
-    }
-
-    // ---- columns ---------------------------------------------------------------------------------------------------------------------
-
-    /** Columns two blocks across on a staggered grid (a hexagonal look), as tall as a noise says and lower toward the edge, with a lighter top. */
-    private static void columns(Blocks blocks, TreeSettings s, long seed, Random random) {
-        double height = s.height();
-        double half = s.width() / 2.0;
-        double rough = s.get(TreeSettings.Key.ROUGHNESS);
-        int rows = (int) Math.ceil(half / 1.8) + 1;
-        for (int j = -rows; j <= rows; j++) {
-            for (int i = -rows; i <= rows; i++) {
-                double cx = i * 2.0 + (Math.floorMod(j, 2) == 1 ? 1.0 : 0.0);
-                double cz = j * 1.8;
-                double distance = Math.hypot(cx, cz);
-                if (distance > half) continue;
-                double fall = 1.0 - Math.pow(distance / half, 2.0) * 0.75;
-                double n = 0.5 + 0.5 * TreeNoise.value(cx * 0.3, 0, cz * 0.3, seed);
-                int h = (int) Math.round(height * fall * (0.3 + 0.7 * n) * (1.0 - rough * 0.25 * random.nextDouble()));
-                if (h < 1) continue;
-                int x0 = (int) Math.floor(cx);
-                int z0 = (int) Math.floor(cz - 0.4);
-                for (int x = x0; x <= x0 + 1; x++) {
-                    for (int z = z0; z <= z0 + 1; z++) {
-                        for (int y = 0; y < h; y++) {
-                            TreePart part = y == h - 1 ? TreePart.STONE_LIGHT : y < h / 3 && s.getInt(TreeSettings.Key.LAYERS) == 0 ? TreePart.STONE_DARK : s.getInt(TreeSettings.Key.LAYERS) > 0 ? stone(s, y / (double) height, 0.0) : TreePart.STONE;
-                            blocks.put(x, y, z, part);
-                        }
+        // the rock they come out of: a low mound across the axis at the foot
+        if (!type.equals("blades") && count > 1) {
+            double footRadius = Math.max(1.8, s.width() * 0.3);
+            for (double a = -footRadius - 1; a <= footRadius + 1; a += 0.5) {
+                for (double b = -footRadius - 1; b <= footRadius + 1; b += 0.5) {
+                    for (double along = -1.0; along <= 1.0; along += 0.5) {
+                        double d = Math.hypot(a, b) / footRadius + Math.abs(along + 0.2) * 0.9;
+                        double edge = 1.0 + rough * 0.6 * TreeNoise.value(a * 0.5, along * 0.5, b * 0.5, seed + 13);
+                        if (d <= edge) putAt(blocks, frame.at(along, a, b), TreePart.STONE);
                     }
                 }
             }
         }
-    }
-
-    // ---- arch ------------------------------------------------------------------------------------------------------------------------
-
-    /** The upper half of an ellipse ring turned a random way, as thick as the width allows, the surface moved in and out by noise, in layers, with moss on top. */
-    private static void arch(Blocks blocks, TreeSettings s, long seed, Random random) {
-        double height = s.height();
-        double a = Math.max(3.0, s.width() / 2.0 - 1.0);
-        double b = Math.max(3.0, height * 0.92);
-        double rough = s.get(TreeSettings.Key.ROUGHNESS);
-        double thick = Math.max(1.4, s.width() * 0.11);
-        double depth = Math.max(2.0, thick * 1.7);
-        double turn = random.nextDouble() * Math.PI;
-        double cos = Math.cos(turn);
-        double sin = Math.sin(turn);
-        int reach = (int) Math.ceil(a + thick) + 2;
-        for (int x = -reach; x <= reach; x++) {
-            for (int z = -reach; z <= reach; z++) {
-                double u = x * cos + z * sin;
-                double v = -x * sin + z * cos;
-                for (int y = 0; y <= (int) Math.ceil(b + thick) + 1; y++) {
-                    double ring = Math.abs(Math.sqrt((u / a) * (u / a) + ((y + 0.5) / b) * ((y + 0.5) / b)) - 1.0) * Math.min(a, b);
-                    double n = TreeNoise.value(x * 0.4, y * 0.4, z * 0.4, seed);
-                    if (ring > thick * 0.5 * (1.0 + rough * 0.6 * n)) continue;
-                    if (Math.abs(v) > depth * 0.5 * (1.0 + rough * 0.5 * TreeNoise.value(x * 0.3, y * 0.3, z * 0.3, seed + 5))) continue;
-                    blocks.put(x, y, z, stone(s, y / Math.max(1.0, b), TreeNoise.value(x * 0.6, y * 0.6, z * 0.6, seed + 7)));
-                }
-            }
-        }
-        moss(blocks, s, seed);
     }
 }

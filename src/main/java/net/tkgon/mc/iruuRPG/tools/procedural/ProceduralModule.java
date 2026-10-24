@@ -117,12 +117,12 @@ public final class ProceduralModule implements Listener {
         preview.touch(player);
     }
 
-    /** The place of the object: above the block clicked, or below it for a spike or crystal made to hang. */
+    /** The place of the object: above the block clicked (a tree, a rock), or on the face that was clicked (a spike or a crystal, which grow out of it toward the player). */
     private static void syncBase(TreeSession session) {
         if (session.clicked == null) return;
-        boolean hanging = !session.settings.kind().tree() && session.settings.getInt(TreeSettings.Key.HANGING) == 1
-                && (session.settings.kind() == ProcKind.SPIKE || session.settings.kind() == ProcKind.CRYSTAL);
-        session.base = session.clicked.clone().add(0.0, hanging ? -1.0 : 1.0, 0.0);
+        boolean pointing = session.settings.kind() == ProcKind.SPIKE || session.settings.kind() == ProcKind.CRYSTAL;
+        BlockFace face = pointing ? session.face : BlockFace.UP;
+        session.base = session.clicked.clone().add(face.getModX(), face.getModY(), face.getModZ());
     }
 
     // ---- config ---------------------------------------------------------------------------------------------------------
@@ -149,7 +149,7 @@ public final class ProceduralModule implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("プロシージャルツール", NamedTextColor.GREEN, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
-                text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶・柱状節理・アーチ) の設定画面を開く", NamedTextColor.GRAY),
+                text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く", NamedTextColor.GRAY),
                 text("空中を右クリック: 前回の場所の設定画面を開く", NamedTextColor.GRAY),
                 text("設定画面の「生成」で、部位ごとのウールで木を作る", NamedTextColor.GRAY),
                 text("設定画面の「プレビュー」で、あなたにだけ見えるガラスの木を確かめられる", NamedTextColor.GRAY),
@@ -177,7 +177,7 @@ public final class ProceduralModule implements Listener {
             }
         }
         player.getInventory().addItem(toolItem()).values().forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
-        player.sendMessage(PREFIX + "プロシージャルツールを渡しました。ブロックをクリックすると、置くもの (木・岩・スパイクなど) の設定画面が開きます。");
+        player.sendMessage(PREFIX + "プロシージャルツールを渡しました。ブロックをクリックすると、置くもの (木・岩・スパイク・結晶) の設定画面が開きます。");
     }
 
     void take(Player player) {
@@ -208,7 +208,12 @@ public final class ProceduralModule implements Listener {
             Block clicked = event.getClickedBlock();
             if (clicked == null) return;
             session.clicked = clicked.getLocation();
+            session.face = event.getBlockFace() == null || event.getBlockFace() == BlockFace.SELF ? BlockFace.UP : event.getBlockFace();
             syncBase(session);
+            if (session.base != null) {
+                org.bukkit.util.Vector toEye = player.getEyeLocation().toVector().subtract(session.base.toVector().add(new org.bukkit.util.Vector(0.5, 0.5, 0.5)));
+                session.aim = toEye.lengthSquared() < 1.0E-6 ? null : toEye.normalize();
+            }
             changed(player);
             menu.open(player);
         } else if (action == Action.RIGHT_CLICK_AIR) {
@@ -261,10 +266,11 @@ public final class ProceduralModule implements Listener {
             ground = null;
         }
         TreeGround terrain = ground;
+        org.bukkit.util.Vector aim = session.aim == null ? null : session.aim.clone();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks;
             try {
-                blocks = TreeGenerator.build(settings, seed, terrain);
+                blocks = TreeGenerator.build(settings, seed, terrain, aim);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("tree generation failed: " + exception);
                 Bukkit.getScheduler().runTask(plugin, () -> {

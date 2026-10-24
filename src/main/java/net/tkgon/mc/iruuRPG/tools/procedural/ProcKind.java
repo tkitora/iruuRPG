@@ -13,10 +13,8 @@ enum ProcKind {
 
     TREE("木", Material.OAK_SAPLING, "幹・枝・葉の木 (アルゴリズムと樹冠の形を選べる)", List.of(TreePart.TRUNK, TreePart.ROOT, TreePart.BRANCH, TreePart.TWIG, TreePart.LEAF)),
     ROCK("岩", Material.COBBLESTONE, "ごつごつした岩。数を増やすと、大小の岩のかたまり。層・苔つき", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK, TreePart.MOSS)),
-    SPIKE("スパイク", Material.POINTED_DRIPSTONE, "地面から生える尖った柱 (石筍・棘・杭)。逆さにするとつらら", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK)),
-    CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "根元から外へ向かって生える結晶のかたまり", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE)),
-    COLUMNS("柱状節理", Material.BASALT, "六角形の柱が並ぶ、玄武岩のような岩場", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK)),
-    ARCH("アーチ", Material.STONE_BRICK_STAIRS, "二本の脚をつなぐ、自然の岩のアーチ", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK, TreePart.MOSS));
+    SPIKE("スパイク", Material.POINTED_DRIPSTONE, "見ているブロックから、こちら(視点)へ向かって生える1本の尖った柱。角の数・ねじれ・筋・先の鋭さを調整できる", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK)),
+    CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "見ているブロックから、こちら(視点)へ向かって生える結晶。かたまり・大きな1本・薄い刃から作り方を選べる", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE));
 
     private final String label;
     private final Material icon;
@@ -68,32 +66,25 @@ enum ProcKind {
             }
             case SPIKE -> {
                 s.set(TreeSettings.Key.HEIGHT, 12);
-                s.set(TreeSettings.Key.WIDTH, 9);
-                s.set(TreeSettings.Key.COUNT, 5);
-                s.set(TreeSettings.Key.ROUGHNESS, 0.3);
-                s.set(TreeSettings.Key.SPIKE_TAPER, 1.2);
-                s.set(TreeSettings.Key.SPREAD, 0.4);
+                s.set(TreeSettings.Key.WIDTH, 5);
+                s.set(TreeSettings.Key.ROUGHNESS, 0.2);
+                s.set(TreeSettings.Key.SPIKE_TAPER, 1.3);
+                s.set(TreeSettings.Key.SPIKE_SIDES, 5);
+                s.set(TreeSettings.Key.SPIKE_TWIST, 0.5);
+                s.set(TreeSettings.Key.SPIKE_STAR, 0.25);
+                s.set(TreeSettings.Key.CURVE, 0.0);
                 s.set(TreeSettings.Key.LAYERS, 0);
             }
             case CRYSTAL -> {
                 s.set(TreeSettings.Key.HEIGHT, 9);
-                s.set(TreeSettings.Key.WIDTH, 9);
-                s.set(TreeSettings.Key.COUNT, 7);
-                s.set(TreeSettings.Key.ROUGHNESS, 0.2);
+                s.set(TreeSettings.Key.WIDTH, 7);
+                s.set(TreeSettings.Key.COUNT, 6);
+                s.set(TreeSettings.Key.ROUGHNESS, 0.15);
                 s.set(TreeSettings.Key.SPREAD, 0.6);
-            }
-            case COLUMNS -> {
-                s.set(TreeSettings.Key.HEIGHT, 8);
-                s.set(TreeSettings.Key.WIDTH, 13);
-                s.set(TreeSettings.Key.ROUGHNESS, 0.3);
-                s.set(TreeSettings.Key.LAYERS, 0);
-            }
-            case ARCH -> {
-                s.set(TreeSettings.Key.HEIGHT, 12);
-                s.set(TreeSettings.Key.WIDTH, 16);
-                s.set(TreeSettings.Key.ROUGHNESS, 0.4);
-                s.set(TreeSettings.Key.LAYERS, 4);
-                s.set(TreeSettings.Key.MOSS, 0.25);
+                s.set(TreeSettings.Key.CRYSTAL_TIP, 0.3);
+                s.set(TreeSettings.Key.CRYSTAL_FACETS, 6);
+                s.set(TreeSettings.Key.CRYSTAL_THICK, 1.0);
+                s.set(TreeSettings.Key.CRYSTAL_VARIANCE, 0.5);
             }
             default -> {
             }
