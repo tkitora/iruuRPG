@@ -48,8 +48,17 @@ tasks.withType(JavaCompile).configureEach {
     }
 }
 
+// which commit and when this jar was built, so that "is the new build the one running?" can be answered from the server (build-info.properties, read by BuildInfo)
+def gitSha = providers.exec { commandLine('git', 'rev-parse', '--short=10', 'HEAD'); ignoreExitValue = true }.standardOutput.asText.map { it.trim() }.orElse('unknown')
+
 processResources {
     def props = [version: version]
+    doFirst {
+        def stamp = new File(layout.buildDirectory.get().asFile, 'generated-build-info')
+        stamp.mkdirs()
+        new File(stamp, 'build-info.properties').text = "commit=${gitSha.get() ?: 'unknown'}\nbuilt=${java.time.OffsetDateTime.now(java.time.ZoneId.of('Asia/Tokyo')).format(java.time.format.DateTimeFormatter.ofPattern('yyyy-MM-dd HH:mm'))}\n"
+    }
+    from(layout.buildDirectory.dir('generated-build-info'))
     inputs.properties props
     filteringCharset 'UTF-8'
     filesMatching('plugin.yml') {
