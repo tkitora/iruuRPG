@@ -77,6 +77,11 @@ public final class MoveKit {
     }
 
     /** Where the combo began (the player's own place when it has not been set). */
+    /** The id of the player's class (assassin, warrior, mage, gifted, healer). */
+    public String classId() {
+        return attack.classIdOf(player);
+    }
+
     public Location origin() {
         return (origin != null ? origin : player.getLocation()).clone();
     }
@@ -676,6 +681,14 @@ public final class MoveKit {
      * its own (30%) at that enemy: the lanterns and the bow work together.
      */
     public void arrowShot(Location start, Vector direction, double rate, double speedScale, Consumer<Location> onEnd) {
+        arrowShot(start, direction, rate, speedScale, 1.0, onEnd);
+    }
+
+    /**
+     * The same with a {@code weight}: gravity pulls a heavy arrow (2.0) down twice as hard as an ordinary one (1.0) and a light one (0.6) less, so the heavy one drops short
+     * if it is not aimed over; one that hits a creature pushes it by its weight, one that hits a block stays stuck in it for a moment (and a heavy one thuds into the ground).
+     */
+    public void arrowShot(Location start, Vector direction, double rate, double speedScale, double weight, Consumer<Location> onEnd) {
         effects.playArrowLaunch(player, start);
         Vector heading = direction.clone().normalize();
         // the ring of light at the muzzle: four rings opening one after the other. Everyone else sees all four; the shooter sees only
@@ -696,7 +709,7 @@ public final class MoveKit {
         }
         double speed = Math.max(0.5, attack.projectileSpeed(player) * speedScale / 20.0);
         double range = attack.rangeDistance(player);
-        double gravity = plugin.getConfig().getDouble("combat.combo.arrow-gravity", 0.02);
+        double gravity = plugin.getConfig().getDouble("combat.combo.arrow-gravity", 0.02) * Math.max(0.2, weight);
         // aim high enough to come down on the point looked at
         double distance = Math.max(1.0, Math.min(range, start.distance(aim())));
         double flight = distance / speed;
@@ -728,7 +741,14 @@ public final class MoveKit {
                 }
             }
             if (result != null) {
-                if (result.getHitEntity() instanceof LivingEntity victim && hit(victim, effectiveRate)) relay(victim, lanterns, rate);
+                if (result.getHitEntity() instanceof LivingEntity victim) {
+                    if (hit(victim, effectiveRate)) {
+                        relay(victim, lanterns, rate);
+                        if (weight > 1.2) push(victim, player.getLocation().toVector(), 0.12 * weight, 0.05);
+                    }
+                } else {
+                    stick(next, direction2, weight);
+                }
                 if (onEnd != null) onEnd.accept(next);
                 return true;
             }
@@ -737,6 +757,17 @@ public final class MoveKit {
             travelled[0] += length;
             return travelled[0] >= range;
         });
+    }
+
+    /** An arrow that ended in a block stays there for a second, drawn as it was flying; a heavy one makes the dust jump and thuds. */
+    private void stick(Location at, Vector heading, double weight) {
+        Vector fixed = heading.clone();
+        for (int tick = 0; tick < 20; tick += 4) later(tick, () -> drawArrow(at, at, fixed));
+        sound(at, Sound.ENTITY_ARROW_HIT, 0.5f, weight > 1.2 ? 0.7f : 1.2f);
+        if (weight > 1.2) {
+            particle(Particle.CAMPFIRE_COSY_SMOKE, at, 3, 0.15, 0.01);
+            sound(at, Sound.BLOCK_ANVIL_LAND, 0.2f, 1.6f);
+        }
     }
 
     /** Every lantern of the ranger within 9 blocks of {@code victim} sends a shot of 30% at it (each once in 8 ticks). */

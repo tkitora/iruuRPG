@@ -376,6 +376,24 @@ public final class ClassEffectService {
     // ---- instinct release (gifted active skill) --------------------------------
 
     public void activateInstinct(Player player, double seconds) {
+        activateInstinct(player, seconds, Map.of());
+    }
+
+    /**
+     * The instinct release is cast: it lasts {@code seconds}. It opens with a wave that pushes the enemies within {@code opening-push-radius} off, and when the time runs
+     * out (a sniper shot or the player leaving ends it without this) it lets go of a volley: {@code release-count} arrows fall from the sky on the nearest enemies within
+     * {@code release-range} blocks, each for {@code release-rate} of the weapon's damage.
+     */
+    public void activateInstinct(Player player, double seconds, Map<String, Double> values) {
+        double pushRadius = values.getOrDefault("opening-push-radius", 4.0);
+        if (pushRadius > 0.0 && attackService != null) {
+            for (org.bukkit.entity.Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), pushRadius, pushRadius, pushRadius)) {
+                if (!(entity instanceof LivingEntity near) || near.isDead() || !attackService.isAttackTarget(near, player)) continue;
+                org.bukkit.util.Vector away = near.getLocation().toVector().subtract(player.getLocation().toVector()).setY(0.0);
+                if (away.lengthSquared() < 1.0E-6) away = new org.bukkit.util.Vector(0.0, 0.0, 1.0);
+                near.setVelocity(near.getVelocity().add(away.normalize().multiply(0.6).setY(0.2)));
+            }
+        }
         instinctUntilMillis.put(player.getUniqueId(), System.currentTimeMillis() + Math.round(seconds * 1000.0));
         instinctStartedMillis.put(player.getUniqueId(), System.currentTimeMillis());
         World world = player.getWorld();
@@ -388,7 +406,42 @@ public final class ClassEffectService {
             player.addPotionEffect(new org.bukkit.potion.PotionEffect(org.bukkit.potion.PotionEffectType.SPEED,
                     (int) Math.round(seconds * 20.0), speedLevel - 1, true, false, true));
         }
-        playAura(player, seconds);
+        playAura(player, seconds, values);
+    }
+
+    /** The volley the instinct lets go of when it runs out (see {@link #activateInstinct(Player, double, Map)}). */
+    private void releaseVolley(Player player, Map<String, Double> values) {
+        if (attackService == null) return;
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null || weapon.attackType() != AttackType.RANGE) return;
+        int count = (int) Math.round(values.getOrDefault("release-count", 5.0));
+        double range = values.getOrDefault("release-range", 32.0);
+        double rate = values.getOrDefault("release-rate", 0.6);
+        if (count <= 0 || rate <= 0.0) return;
+        java.util.List<LivingEntity> targets = new java.util.ArrayList<>();
+        for (org.bukkit.entity.Entity entity : player.getWorld().getNearbyEntities(player.getLocation(), range, range, range)) {
+            if (entity instanceof LivingEntity near && !near.isDead() && attackService.isAttackTarget(near, player)) targets.add(near);
+        }
+        targets.sort(java.util.Comparator.comparingDouble(near -> near.getLocation().distanceSquared(player.getLocation())));
+        World world = player.getWorld();
+        world.playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.8f, 1.5f);
+        int shots = Math.min(count, targets.size());
+        for (int index = 0; index < shots; index++) {
+            LivingEntity victim = targets.get(index);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline() || victim.isDead()) return;
+                ParticleFx.mark(player);
+                Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+                Location from = chest.clone().add(1.0, 14.0, 0.5);
+                net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(player, world, chest);
+                fx.line(from, chest, SkillFx.INSTINCT, 0.2, 1.0, 1.5, 1.4, 0.3, null, 1);
+                SkillFx.burst(player, chest, 1.6, SkillFx.INSTINCT);
+                world.playSound(chest, Sound.ENTITY_ARROW_HIT_PLAYER, 0.5f, 1.4f);
+                AttackService.AttackDamage attack = attackService.calculateDamage(player, victim, weapon);
+                double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
+                attackService.applyRangeDamage(player, victim, damage, weapon, attack.result().critical());
+            }, 3L + index * 2L);
+        }
     }
 
     /** Milliseconds since the instinct release was cast, or -1 when it is not on. */
@@ -409,7 +462,7 @@ public final class ClassEffectService {
     }
 
     /** A white dust halo that circles the player while the instinct lasts. */
-    private void playAura(Player player, double seconds) {
+    private void playAura(Player player, double seconds, Map<String, Double> values) {
         int totalTicks = (int) Math.round(seconds * 20.0);
         new SafeTask(plugin) {
             private int tick;
@@ -418,6 +471,8 @@ public final class ClassEffectService {
             protected void tick() {
                 ParticleFx.mark(player);
                 if (tick >= totalTicks || !player.isOnline() || player.isDead() || !instinctActive(player.getUniqueId())) {
+                    // it ran out (and was not ended by something else): the volley is let go
+                    if (tick >= totalTicks && player.isOnline() && !player.isDead()) releaseVolley(player, values);
                     cancel();
                     return;
                 }

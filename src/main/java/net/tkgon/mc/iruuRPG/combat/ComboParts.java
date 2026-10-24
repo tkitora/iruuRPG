@@ -226,9 +226,34 @@ final class ComboParts {
     static void standLantern(MoveKit kit, Location at, double height, double pulse) {
         Fx fx = kit.fx(at);
         if (!fx.active()) return;
+        // the ranger's placed things are traps
+        if ("gifted".equals(kit.classId())) {
+            standTrap(kit, fx, at, height, pulse);
+            return;
+        }
         for (double y = 0.1; y < height; y += 0.3) fx.dust(at.getX(), at.getY() + y, at.getZ(), kit.palette(), 0.2 + 0.4 * y / height, 0.9);
         fx.sphereShell(at.clone().add(0.0, height + 0.15, 0.0), 0.25 + 0.12 * pulse, 0.0, 14, kit.palette(), 1.0);
         fx.flatRing(at.clone().add(0.0, 0.12, 0.0), 0.55, 14, kit.palette(), 0.5, 0.1, 0.9);
+    }
+
+    /**
+     * A trap drawn at {@code at} (on the ground): a ring of eight teeth that stand open and, as {@code pulse} (0 - 1) rises, snap shut toward the middle, a stake with a chain
+     * to the ring and a little dust at the middle where the trigger is.
+     */
+    private static void standTrap(MoveKit kit, Fx fx, Location at, double height, double pulse) {
+        double reach = 0.7 - 0.35 * pulse;
+        double tooth = 0.4 * Math.min(1.3, height) * (1.0 - 0.5 * pulse);
+        for (int index = 0; index < 8; index++) {
+            double angle = Math.PI * 2.0 * index / 8.0;
+            Location foot = at.clone().add(Math.cos(angle) * 0.7, 0.1, Math.sin(angle) * 0.7);
+            Location tip = at.clone().add(Math.cos(angle) * reach, 0.1 + tooth, Math.sin(angle) * reach);
+            fx.line(foot, tip, kit.palette(), 0.4, 1.0, 0.0, 0.9, 0.3, null, 1);
+        }
+        fx.flatRing(at.clone().add(0.0, 0.12, 0.0), 0.7, 18, kit.palette(), 0.5, 0.1, 0.9);
+        Location stake = at.clone().add(0.9, 0.0, 0.0);
+        fx.line(stake, stake.clone().add(0.0, 0.5, 0.0), kit.palette(), 0.2, 0.6, 0.0, 0.9, 0.3, null, 1);
+        fx.line(stake.clone().add(0.0, 0.3, 0.0), at.clone().add(0.7, 0.15, 0.0), kit.palette(), 0.3, 0.5, 0.0, 0.8, 0.3, null, 1);
+        fx.dust(at.getX(), at.getY() + 0.15, at.getZ(), kit.palette(), 0.4 + 0.5 * pulse, 0.9);
     }
 
     /** A lantern lobbed to {@code to}: see {@link #placeAt}. */

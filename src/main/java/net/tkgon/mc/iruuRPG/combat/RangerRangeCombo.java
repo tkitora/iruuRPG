@@ -16,6 +16,8 @@ import java.util.concurrent.ThreadLocalRandom;
  * round it, and draws the enemies together). Heavy: 0 a backstep shot (the ranger hops back, nothing can hurt for 4 ticks, 130% and slows 50%), 1 an arrow that
  * bounces twice (40% x3), 2 a net arrow (40% and a net round the hit that holds all in it, slows 70% for 2.5 s), 3 four homing arrows (35% x4), 4 a rain of arrows
  * on the aim (12% x12).
+ * The arrows have a weight: the light ones of the first attacks (0.6 - 0.7) fly flat and fast, the great arrow of the fifth (2.4) is slow and falls hard,
+ * pushes what it hits and thuds into the ground; the net arrow is heavy too (1.6) (see {@link MoveKit#arrowShot}).
  */
 public final class RangerRangeCombo implements ClassCombo {
 
@@ -72,7 +74,7 @@ public final class RangerRangeCombo implements ClassCombo {
                     double side = index == 0 ? 0.3 : -0.3;
                     kit.later(index, () -> {
                         Location start = muzzle(kit, side, -0.1);
-                        kit.arrowShot(start, toward(kit, start), rate, speed, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
+                        kit.arrowShot(start, toward(kit, start), rate, speed * 1.1, 0.6, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -86,7 +88,7 @@ public final class RangerRangeCombo implements ClassCombo {
                         if (which > 0) {
                             direction.add(axes[1].clone().multiply(random.nextDouble(-0.07, 0.07))).add(axes[2].clone().multiply(random.nextDouble(-0.05, 0.05))).normalize();
                         }
-                        kit.arrowShot(start, direction, rate, speed * 1.1, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
+                        kit.arrowShot(start, direction, rate, speed * 1.15, 0.7, end -> slowAt(kit, end, 1.3, 20.0, 1.0));
                     });
                 }
             }
@@ -123,7 +125,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 // the finisher: a great arrow that bursts where it ends
                 Location start = muzzle(kit, 0.0, -0.1);
                 kit.sound(start, Sound.ENTITY_ARROW_SHOOT, 1.0f, 0.7f);
-                kit.arrowShot(start, toward(kit, start), rate, speed * 0.9, end -> {
+                kit.arrowShot(start, toward(kit, start), rate, speed * 0.8, 2.4, end -> {
                     kit.burst(end, 2.6);
                     kit.shockwave(end, 0.8, 2.6, 3, 1.0);
                     kit.sound(end, Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 1.5f);
@@ -166,7 +168,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 // a net arrow: where it ends a net opens (a ring with its threads) and holds what is in it for a second and a half
                 Location start = muzzle(kit, 0.0, -0.1);
                 kit.sound(start, Sound.ENTITY_ARROW_SHOOT, 1.0f, 1.2f);
-                kit.arrowShot(start, toward(kit, start), rate, 2.0, end -> {
+                kit.arrowShot(start, toward(kit, start), rate, 2.0, 1.6, end -> {
                     Location net = kit.ground(end);
                     kit.sound(net, Sfx.WIND_BURST, 0.8f, 1.4f);
                     for (LivingEntity victim : kit.around(net, 3.0)) {
