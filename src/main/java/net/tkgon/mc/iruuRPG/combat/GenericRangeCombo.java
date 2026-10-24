@@ -16,7 +16,7 @@ public final class GenericRangeCombo extends BaseCombo {
 
     public GenericRangeCombo() {
         super("*", AttackType.RANGE, new ComboSpec(PLAN,
-                new double[]{0.5, 0.7, 0.9, 1.0, 1.8}, new int[]{1, 1, 1, 1, 1},
+                new double[]{0.58, 0.78, 0.98, 1.17, 1.37}, new int[]{1, 1, 1, 1, 1},
                 new double[]{0.5, 0.9, 1.0, 1.2, 1.4}, new int[]{60, 0, 0, 0, 0}, 36));
     }
 

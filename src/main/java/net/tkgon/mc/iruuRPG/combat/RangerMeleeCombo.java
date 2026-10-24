@@ -18,7 +18,7 @@ public final class RangerMeleeCombo extends BaseCombo {
 
     public RangerMeleeCombo() {
         super("gifted", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{0.47, 0.34, 1.02, 0.24, 1.28}, new int[]{2, 3, 1, 5, 1},
+                new double[]{0.32, 0.29, 1.09, 0.26, 1.52}, new int[]{2, 3, 1, 5, 1},
                 new double[]{0.21, 1.02, 0.34, 1.1, 1.28}, new int[]{100, 0, 0, 0, 0}, 40));
     }
 
@@ -51,12 +51,12 @@ public final class RangerMeleeCombo extends BaseCombo {
                 }
             }
             case 3 -> {
-                // a lunge: nothing can hurt the ranger for 5 ticks of the dash, which ends at the first enemy it touches; after the cut, a backstep
+                // a short step in (the big moves are at the end of the chain or heavy 0, so none of them can be pressed again and again): nothing can hurt the ranger for 3 ticks of it, which ends at the first enemy it touches; after the cut, a backstep
                 LivingEntity ahead = kit.nearest(6.0, 45.0);
                 Vector heading = ahead == null ? facing : ahead.getLocation().toVector().subtract(feet.toVector());
                 kit.sound(feet, Sfx.METAL, 0.9f, 1.2f);
-                kit.invulnerable(5);
-                kit.dashToContact(heading, 1.0, 5, 1.6, (end, touched) -> {
+                kit.invulnerable(3);
+                kit.dashToContact(heading, 0.45, 3, 1.6, (end, touched) -> {
                     kit.slash("drop", 2.6, 130.0, 25.0, 0.0, 1.8, 0.3, 0.0, 1.2, 0.14, 0.0);
                     kit.hitAll(kit.cone(3.2, 60.0), rate);
                     if (touched != null) kit.later(2L, () -> kit.hopBack(0.8, 0.25));

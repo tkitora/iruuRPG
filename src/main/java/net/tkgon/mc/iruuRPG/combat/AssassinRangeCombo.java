@@ -23,7 +23,7 @@ public final class AssassinRangeCombo extends BaseCombo {
 
     public AssassinRangeCombo() {
         super("assassin", AttackType.RANGE, new ComboSpec(PLAN,
-                new double[]{0.6, 0.5, 0.4, 0.07, 0.3}, new int[]{2, 2, 3, 1, 5},
+                new double[]{0.37, 0.5, 0.42, 0.07, 0.35}, new int[]{2, 2, 3, 1, 5},
                 new double[]{0.06, 0.24, 1.3, 0.35, 0.2}, new int[]{120, 0, 0, 0, 0}, 40));
     }
 

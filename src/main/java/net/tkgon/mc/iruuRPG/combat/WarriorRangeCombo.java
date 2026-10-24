@@ -18,7 +18,7 @@ public final class WarriorRangeCombo extends BaseCombo {
 
     public WarriorRangeCombo() {
         super("warrior", AttackType.RANGE, new ComboSpec(PLAN,
-                new double[]{1.0, 0.6, 0.6, 0.4, 1.5}, new int[]{1, 2, 2, 3, 1},
+                new double[]{0.73, 0.48, 0.61, 0.48, 1.7}, new int[]{1, 2, 2, 3, 1},
                 new double[]{0.25, 1.3, 0.15, 1.2, 1.5}, new int[]{150, 0, 0, 0, 0}, 40));
     }
 

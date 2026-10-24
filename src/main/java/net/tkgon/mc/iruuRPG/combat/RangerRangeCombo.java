@@ -22,7 +22,7 @@ public final class RangerRangeCombo implements ClassCombo {
     static final String PLAN = "ranger_range";
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
-            new double[]{0.55, 0.4, 1.2, 0.28, 1.0}, new int[]{2, 3, 1, 5, 1},
+            new double[]{0.35, 0.31, 1.18, 0.28, 1.65}, new int[]{2, 3, 1, 5, 1},
             new double[]{1.3, 0.4, 0.4, 0.35, 0.12}, new int[]{100, 0, 0, 0, 0}, 40);
 
     /** What an arrow that ended at {@code end} does to the enemies within {@code radius} of it: slows them. */

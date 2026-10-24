@@ -23,7 +23,7 @@ public final class ClericMeleeCombo implements ClassCombo {
     static final String PLAN = "cleric_melee";
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
-            new double[]{0.68, 0.38, 0.72, 0.38, 0.94}, new int[]{1, 2, 1, 2, 1},
+            new double[]{0.46, 0.3, 0.77, 0.46, 1.08}, new int[]{1, 2, 1, 2, 1},
             new double[]{0.13, 0.77, 0.12, 0.85, 0.68}, new int[]{160, 0, 0, 0, 0}, 40);
 
     @Override

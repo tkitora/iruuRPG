@@ -21,7 +21,7 @@ public final class ClericRangeCombo extends BaseCombo {
 
     public ClericRangeCombo() {
         super("healer", AttackType.RANGE, new ComboSpec(PLAN,
-                new double[]{0.55, 0.4, 1.2, 0.3, 1.0}, new int[]{2, 3, 1, 4, 1},
+                new double[]{0.34, 0.3, 1.14, 0.34, 1.59}, new int[]{2, 3, 1, 4, 1},
                 new double[]{0.2, 0.15, 0.4, 1.4, 0.3}, new int[]{160, 0, 0, 0, 0}, 40));
     }
 
