@@ -102,12 +102,31 @@ final class BrushSettings {
     /** Whether the cell shade measures with a cube (angular shards) instead of a ball. */
     boolean cellAngular;
 
+    // the stroke (a button held down while the brush moves)
+    /** How far apart the points of a stroke are, as a share of the radius (0.2 - 1.5). */
+    double strokeSpacing = 0.6;
+    /** How much the path of a stroke is smoothed (0 = as it was drawn, 1 = very smooth). */
+    double strokeSmooth;
+    /** The size of the brush at the start and at the end of a stroke, as a share of the radius (0.2 - 1; in between it changes evenly). */
+    double taperStart = 1.0;
+    double taperEnd = 1.0;
+    /** How far each point of a stroke is moved at random sideways, as a share of the radius (0 - 1). */
+    double strokeScatter;
+    /** Every held stroke is drawn when the button is let go, as one edit (one //undo), also when the gradient is not along the stroke. */
+    boolean strokeGroup;
+    /** The share of the radius the brush has now (set by the module along a stroke with a taper). */
+    double radiusScale = 1.0;
+
     // ambient occlusion
     /** How far from the block the rays look (1 - 6). */
     int aoRadius = 3;
     int aoSamples = 24;
     /** The curve of the result (0.4 - 3): above 1 only the deepest corners darken, below 1 the open places darken too. */
     double aoPower = 1.0;
+    /** How enclosed a place must be before it darkens (0 - 0.8): below this share the place counts as open. */
+    double aoBias;
+    /** Whether leaves and logs count as walls for the ambient occlusion (off: only stone, earth and built blocks do). */
+    boolean aoCountPlants = true;
 
     // gradient application
     boolean gradientReverse;

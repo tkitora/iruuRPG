@@ -17,7 +17,7 @@ final class BrushCommand implements TabExecutor {
 
     private static final String PREFIX = BrushModule.PREFIX;
     private static final List<String> SUBS = List.of("help", "give", "menu", "off", "undo", "redo", "use", "peek", "preview", "set", "preset", "blacklist", "select");
-    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "generate", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell", "noise", "octaves", "persistence", "contrast", "noiseseed", "aoradius", "aosamples", "aopower", "reverse", "reference", "refdir", "refspan");
+    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "generate", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell", "noise", "octaves", "persistence", "contrast", "noiseseed", "aoradius", "aosamples", "aopower", "reverse", "reference", "refdir", "refspan", "spacing", "smooth", "taperstart", "taperend", "scatter", "group", "aobias", "aoplants");
 
     private final BrushModule module;
 
@@ -36,7 +36,7 @@ final class BrushCommand implements TabExecutor {
             "/ibrush preview                  追従プレビューのオン/オフ (設定や見る所を変えると更新)",
             "/ibrush undo | redo              直前の編集の取り消し/やり直し (//undo, //redo と同じ)",
             "/ibrush set <項目> <値>           設定を数値や名前で直接変える (項目は /ibrush help set)",
-            "/ibrush preset list|apply <名前>|save <名前>   ブロックの一覧のプリセット (save は、いまの一覧と割合と置き方を保存)",
+            "/ibrush preset list|apply <名前>|save <名前>|delete <名前>|rename <名前> <新しい名前>|overwrite <名前>   ブロックの一覧のプリセット (save は、いまの一覧と割合と置き方を保存。delete / rename / overwrite は自作のみ)",
             "/ibrush blacklist [gradient|shade] list|add [ブロック]|remove <ブロック>|save   グラデーション用 / 陰影用の、使わないブロック",
             "/ibrush select give|fuzzy|adjacent|mode|invert|clear|show|blend|shade|threshold <0〜100>|radius <1〜64>|info   選択ツール (help select で詳しく)");
 
@@ -65,6 +65,8 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set octaves <1〜5> / persistence <20〜80> / contrast <50〜300> / noiseseed <整数>   ノイズの重ねる回数・細かい層の強さ(%)・コントラスト(%)・番号",
             "/ibrush set aoradius <1〜6> / aosamples <8〜48> / aopower <40〜300>   AOの届く距離・光線の数・くっきり度(%)",
             "/ibrush set reverse <on|off>              グラデーションの向きを逆にする",
+            "/ibrush set aobias <0〜80> / aoplants <on|off>   AOの「囲まれている」しきい値(%) / 葉と木を壁に数えるか",
+            "/ibrush set spacing <20〜150> / smooth <0〜100> / taperstart <20〜100> / taperend <20〜100> / scatter <0〜100> / group <on|off>   ストロークの間隔・手ぶれ補正・始まりと終わりの太さ・ばらつき・1回の編集にまとめる",
             "/ibrush set reference <add|remove|clear> [ブロック]   グラデーションの起点のブロック (axis block)",
             "/ibrush set refdir <down|up> / refspan <1〜48>   起点からの向きと、最後のブロックになる距離");
 
@@ -318,6 +320,14 @@ final class BrushCommand implements TabExecutor {
                 case "aosamples" -> s.aoSamples = Math.max(8, Math.min(48, Integer.parseInt(value)));
                 case "aopower" -> s.aoPower = Math.max(0.4, Math.min(3.0, Double.parseDouble(value) / 100.0));
                 case "reverse" -> s.gradientReverse = onOff(value);
+                case "aobias" -> s.aoBias = Math.max(0.0, Math.min(0.8, Double.parseDouble(value) / 100.0));
+                case "aoplants" -> s.aoCountPlants = onOff(value);
+                case "spacing" -> s.strokeSpacing = Math.max(0.2, Math.min(1.5, Double.parseDouble(value) / 100.0));
+                case "smooth" -> s.strokeSmooth = Math.max(0.0, Math.min(1.0, Double.parseDouble(value) / 100.0));
+                case "taperstart" -> s.taperStart = Math.max(0.2, Math.min(1.0, Double.parseDouble(value) / 100.0));
+                case "taperend" -> s.taperEnd = Math.max(0.2, Math.min(1.0, Double.parseDouble(value) / 100.0));
+                case "scatter" -> s.strokeScatter = Math.max(0.0, Math.min(1.0, Double.parseDouble(value) / 100.0));
+                case "group" -> s.strokeGroup = onOff(value);
                 case "refdir" -> {
                     if (!value.equals("down") && !value.equals("up")) throw new NumberFormatException();
                     s.referenceDown = value.equals("down");
@@ -412,6 +422,40 @@ final class BrushCommand implements TabExecutor {
                 store.addPreset(name, s);
                 player.sendMessage(PREFIX + (store.save() ? "保存しました: " + name : "保存できませんでした (ログを見てください)。"));
             }
+            case "delete" -> {
+                String name = args.length > 2 ? args[2] : "";
+                if (!store.removePreset(name)) {
+                    player.sendMessage(PREFIX + "自作のプリセットにありません: " + name);
+                    return;
+                }
+                player.sendMessage(PREFIX + (store.save() ? "削除しました: " + name : "削除しましたが、ファイルに書けませんでした。"));
+            }
+            case "rename" -> {
+                String from = args.length > 2 ? args[2] : "";
+                String to = BrushStore.safeName(args.length > 3 ? args[3] : null);
+                if (to == null) {
+                    player.sendMessage(PREFIX + "新しい名前は英小文字・数字・- _ の32文字まで: /ibrush preset rename <名前> <新しい名前>");
+                    return;
+                }
+                if (!store.renamePreset(from, to)) {
+                    player.sendMessage(PREFIX + "名前を変えられません (自作のプリセットにない、または新しい名前がもうある)。");
+                    return;
+                }
+                player.sendMessage(PREFIX + (store.save() ? "名前を変えました: " + from + " → " + to : "名前を変えましたが、ファイルに書けませんでした。"));
+            }
+            case "overwrite" -> {
+                String name = args.length > 2 ? args[2] : "";
+                if (store.presets().stream().noneMatch(own -> own.name().equals(name))) {
+                    player.sendMessage(PREFIX + "自作のプリセットにありません: " + name);
+                    return;
+                }
+                if (s.pattern.isEmpty()) {
+                    player.sendMessage(PREFIX + "ブロックの一覧が空です。");
+                    return;
+                }
+                store.addPreset(name, s);
+                player.sendMessage(PREFIX + (store.save() ? "上書きしました: " + name : "上書きしましたが、ファイルに書けませんでした。"));
+            }
             default -> help(player, new String[]{"help", "preset"});
         }
     }
@@ -473,7 +517,7 @@ final class BrushCommand implements TabExecutor {
                 case "menu" -> {
                     for (BrushMenu.Page page : BrushMenu.Page.values()) options.add(page.name().toLowerCase(Locale.ROOT));
                 }
-                case "preset" -> options.addAll(List.of("list", "apply", "save"));
+                case "preset" -> options.addAll(List.of("list", "apply", "save", "delete", "rename", "overwrite"));
                 case "blacklist" -> options.addAll(List.of("gradient", "shade", "list", "add", "remove", "save"));
                 case "select" -> options.addAll(List.of("give", "fuzzy", "adjacent", "mode", "threshold", "radius", "invert", "clear", "show", "blend", "shade", "limit", "info"));
                 default -> {
@@ -504,6 +548,8 @@ final class BrushCommand implements TabExecutor {
                 }
             } else if (sub.equals("preset") && key.equals("apply")) {
                 for (Gradients.Preset preset : module.store().allPresets()) options.add(preset.name());
+            } else if (sub.equals("preset") && (key.equals("delete") || key.equals("rename") || key.equals("overwrite"))) {
+                for (Gradients.Preset preset : module.store().presets()) options.add(preset.name());
             } else if (sub.equals("blacklist") && (key.equals("gradient") || key.equals("shade"))) {
                 options.addAll(List.of("list", "add", "remove", "save"));
             } else if (sub.equals("select") && key.equals("mode")) {

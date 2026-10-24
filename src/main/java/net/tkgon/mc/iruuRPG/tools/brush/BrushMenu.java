@@ -42,7 +42,8 @@ final class BrushMenu implements Listener {
         SUN(4, Material.SUNFLOWER, "陰影", "太陽と陰影"),
         NOISE(5, Material.AMETHYST_SHARD, "ノイズ", "ノイズとセル"),
         BLACKLIST(6, Material.BARRIER, "ブラックリスト", "ブラックリスト"),
-        SELECT(7, Material.BLAZE_ROD, "選択", "選択ツール");
+        SELECT(7, Material.BLAZE_ROD, "選択", "選択ツール"),
+        PRESETS(8, Material.BOOKSHELF, "プリセット管理", "ブロックの一覧のプリセット");
 
         final int tab;
         final Material icon;
@@ -83,6 +84,8 @@ final class BrushMenu implements Listener {
         private int presetIndex = -1;
         /** The blacklist page edits the shade's list (true) or the gradient's (false). */
         private boolean shadeList;
+        /** The page of the list of presets (21 to a page). */
+        private int presetPage;
         private final Map<Integer, BiConsumer<Player, ClickType>> actions = new HashMap<>();
 
         @Override
@@ -202,6 +205,7 @@ final class BrushMenu implements Listener {
             case MASK -> mask(holder, s);
             case POSITION -> position(holder, s);
             case NOISE -> noisePage(holder, s);
+            case PRESETS -> presetsPage(holder, s);
             case SUN -> sun(holder, s);
             case BLACKLIST -> blacklist(holder);
             case SELECT -> select(holder, player);
@@ -261,6 +265,38 @@ final class BrushMenu implements Listener {
                     s.noiseScale = Math.max(0.5, Math.min(12.0, s.noiseScale + (left(c) ? 0.5 : -0.5)));
                     refresh(p, Page.MAIN);
                 });
+        // the stroke: what a button held down while the brush moves does
+        put(holder, GRID[8], item(Material.CHAIN, "ストロークの間隔: " + Math.round(s.strokeSpacing * 100) + "%", NamedTextColor.AQUA, List.of(
+                "なぞったとき、点を打つ間隔 (半径に対する割合。小さいほど隙間なく塗る)", "左クリック +10% / 右クリック -10% (20〜150%)")), (p, c) -> {
+            s.strokeSpacing = Math.max(0.2, Math.min(1.5, Math.round((s.strokeSpacing + (left(c) ? 0.1 : -0.1)) * 10.0) / 10.0));
+            refresh(p, Page.MAIN);
+        });
+        put(holder, GRID[9], item(Material.STRING, "ストロークの手ぶれ補正: " + Math.round(s.strokeSmooth * 100) + "%", NamedTextColor.AQUA, List.of(
+                "なぞった道すじをなめらかにする (離したときに効く)", "左クリック +25% / 右クリック -25%")), (p, c) -> {
+            s.strokeSmooth = Math.max(0.0, Math.min(1.0, s.strokeSmooth + (left(c) ? 0.25 : -0.25)));
+            refresh(p, Page.MAIN);
+        });
+        put(holder, GRID[10], item(Material.ARROW, "始まりの太さ: " + Math.round(s.taperStart * 100) + "%", NamedTextColor.AQUA, List.of(
+                "ストロークの始まりのブラシの大きさ (半径に対する割合)。終わりとの間は、なめらかに変わる", "左クリック +10% / 右クリック -10% (20〜100%)")), (p, c) -> {
+            s.taperStart = Math.max(0.2, Math.min(1.0, Math.round((s.taperStart + (left(c) ? 0.1 : -0.1)) * 10.0) / 10.0));
+            refresh(p, Page.MAIN);
+        });
+        put(holder, GRID[11], item(Material.SPECTRAL_ARROW, "終わりの太さ: " + Math.round(s.taperEnd * 100) + "%", NamedTextColor.AQUA, List.of(
+                "ストロークの終わりのブラシの大きさ。始まりより小さくすると、先細りの線になる", "左クリック +10% / 右クリック -10% (20〜100%)")), (p, c) -> {
+            s.taperEnd = Math.max(0.2, Math.min(1.0, Math.round((s.taperEnd + (left(c) ? 0.1 : -0.1)) * 10.0) / 10.0));
+            refresh(p, Page.MAIN);
+        });
+        put(holder, GRID[12], item(Material.GUNPOWDER, "ストロークのばらつき: " + Math.round(s.strokeScatter * 100) + "%", NamedTextColor.AQUA, List.of(
+                "ストロークの点を、ランダムに横へずらす (半径に対する割合)", "左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.strokeScatter = Math.max(0.0, Math.min(1.0, Math.round((s.strokeScatter + (left(c) ? 0.1 : -0.1)) * 10.0) / 10.0));
+            refresh(p, Page.MAIN);
+        });
+        put(holder, GRID[13], item(Material.HOPPER_MINECART, "ストロークを1回の編集にまとめる: " + onOff(s.strokeGroup), NamedTextColor.AQUA, List.of(
+                "オン: 押しつづけてなぞった間は塗らずに道すじだけ記録し、離したときに全体を1回の編集で塗る (//undo 1回で全部戻る)",
+                "オフ: なぞりながら次々に塗る (1回ごとに //undo が要る)", "(グラデーションの向きが「なぞった線に沿って」のときは、いつもオンと同じ)", "クリックで切り替え")), (p, c) -> {
+            s.strokeGroup = !s.strokeGroup;
+            refresh(p, Page.MAIN);
+        });
         put(holder, GRID[21], item(Material.BOOK, "つかいかた", NamedTextColor.GOLD, List.of(
                 "ブラシを持って 右クリック = 見ている所に使う (押しつづけると続けて使う)",
                 "Shift + 右クリック = 1回だけプレビュー / 左クリック = この画面",
@@ -640,6 +676,16 @@ final class BrushMenu implements Listener {
             s.aoSamples = Math.max(8, Math.min(48, s.aoSamples + (left(c) ? 4 : -4)));
             refresh(p, Page.SUN);
         });
+        put(holder, GRID[24], item(Material.SCULK_SENSOR, "AOの「囲まれている」しきい値: " + Math.round(s.aoBias * 100) + "%", NamedTextColor.AQUA, List.of(
+                "どれだけ囲まれていたら暗くし始めるか (0〜80%)。大きいほど、深い隅だけが暗くなり、開けた所は暗くならない", "左クリック +5% / 右クリック -5%")), (p, c) -> {
+            s.aoBias = Math.max(0.0, Math.min(0.8, Math.round((s.aoBias + (left(c) ? 0.05 : -0.05)) * 100.0) / 100.0));
+            refresh(p, Page.SUN);
+        });
+        put(holder, GRID[25], item(Material.OAK_LEAVES, "AOで葉と木を壁に数える: " + onOff(s.aoCountPlants), NamedTextColor.AQUA, List.of(
+                "オフ: 葉と丸太は「囲んでいるもの」に数えない (木の下が暗くならない)", "オン: 石や土と同じく壁として数える", "クリックで切り替え")), (p, c) -> {
+            s.aoCountPlants = !s.aoCountPlants;
+            refresh(p, Page.SUN);
+        });
         put(holder, GRID[23], item(Material.REDSTONE_TORCH, "AOのくっきり度: " + String.format(java.util.Locale.ROOT, "%.1f", s.aoPower), NamedTextColor.AQUA, List.of("1より大きい: 深い隅だけが暗くなる / 1より小さい: 開けた所も暗くなる (0.4〜3)", "左クリック +0.2 / 右クリック -0.2")), (p, c) -> {
             s.aoPower = Math.max(0.4, Math.min(3.0, Math.round((s.aoPower + (left(c) ? 0.2 : -0.2)) * 10.0) / 10.0));
             refresh(p, Page.SUN);
@@ -732,6 +778,70 @@ final class BrushMenu implements Listener {
                 "ノイズの種類・重ねる回数・強さ・コントラスト・番号は、ノイズを使うすべての所で共通",
                 "使う所: 模様のノイズ / グラデーションの向き「ノイズ」(模様のページ) / 影のノイズ",
                 "セルは影の源。ノイズの種類「セルラー」「ボロノイ」「シャード」は、模様やグラデーションにも使える")), null);
+    }
+
+    // ---- preset management ----------------------------------------------------------------------------------------------------------
+
+    private void presetsPage(Holder holder, BrushSettings s) {
+        BrushStore store = module.store();
+        List<Gradients.Preset> all = store.allPresets();
+        int perPage = 21;
+        int pages = Math.max(1, (all.size() + perPage - 1) / perPage);
+        holder.presetPage = Math.max(0, Math.min(pages - 1, holder.presetPage));
+        put(holder, GRID[0], item(Material.WRITABLE_BOOK, "いまの一覧を新しいプリセットに保存", NamedTextColor.GREEN, List.of(
+                "模様のページの、ブロックの一覧と割合と置き方を、新しいプリセット (my-1, my-2 ...) に保存する", "すぐ brush.yml に書く")), (p, c) -> {
+            if (s.pattern.isEmpty()) {
+                p.sendMessage(BrushModule.PREFIX + "一覧が空です。");
+                return;
+            }
+            int number = 1;
+            while (true) {
+                final String candidate = "my-" + number;
+                if (all.stream().noneMatch(preset -> preset.name().equals(candidate))) break;
+                number++;
+            }
+            store.addPreset("my-" + number, s);
+            p.sendMessage(BrushModule.PREFIX + (store.save() ? "プリセット my-" + number + " を保存しました。" : "保存できませんでした (ログを見てください)。"));
+            holder.presetPage = pages;
+            refresh(p, Page.PRESETS);
+        });
+        put(holder, GRID[1], item(Material.ANVIL, "ファイルに書く", NamedTextColor.GREEN, List.of("自作のプリセット全部を brush.yml に書く (削除・上書きは、そのたびに書くので、通常は要らない)")), (p, c) ->
+                p.sendMessage(BrushModule.PREFIX + (store.save() ? "保存しました。" : "保存できませんでした (ログを見てください)。")));
+        put(holder, GRID[2], item(Material.ARROW, "前のページ", NamedTextColor.WHITE, List.of()), (p, c) -> {
+            holder.presetPage = Math.max(0, holder.presetPage - 1);
+            refresh(p, Page.PRESETS);
+        });
+        put(holder, GRID[3], item(Material.ARROW, "次のページ", NamedTextColor.WHITE, List.of()), (p, c) -> {
+            holder.presetPage = Math.min(pages - 1, holder.presetPage + 1);
+            refresh(p, Page.PRESETS);
+        });
+        put(holder, GRID[4], item(Material.BOOK, "プリセット " + all.size() + "件 (" + (holder.presetPage + 1) + "/" + pages + ")", NamedTextColor.GOLD, List.of(
+                "左クリック: 使う", "Shift+右クリック: 削除 (自作のみ)", "Q (ドロップ): いまの一覧で上書き (自作のみ)", "名前を変える: /ibrush preset rename <いまの名前> <新しい名前>")), null);
+        for (int index = 0; index < perPage; index++) {
+            int at = holder.presetPage * perPage + index;
+            if (at >= all.size()) break;
+            Gradients.Preset preset = all.get(at);
+            boolean custom = store.presets().stream().anyMatch(own -> own.name().equals(preset.name()));
+            Material icon = preset.generated() ? preset.from() : preset.parts().get(0).material();
+            put(holder, GRID[7 + index], item(icon, preset.name(), custom ? NamedTextColor.GREEN : NamedTextColor.WHITE, List.of(
+                    describe(preset), custom ? "自作" : "組み込み", "左クリック: 使う" + (custom ? " / Shift+右クリック: 削除 / Q: いまの一覧で上書き" : ""))), (p, c) -> {
+                if (c == ClickType.SHIFT_RIGHT && custom) {
+                    store.removePreset(preset.name());
+                    p.sendMessage(BrushModule.PREFIX + (store.save() ? "削除しました: " + preset.name() : "削除しましたが、ファイルに書けませんでした。"));
+                } else if ((c == ClickType.DROP || c == ClickType.CONTROL_DROP) && custom) {
+                    if (s.pattern.isEmpty()) {
+                        p.sendMessage(BrushModule.PREFIX + "一覧が空です。");
+                        return;
+                    }
+                    store.addPreset(preset.name(), s);
+                    p.sendMessage(BrushModule.PREFIX + (store.save() ? "上書きしました: " + preset.name() : "上書きしましたが、ファイルに書けませんでした。"));
+                } else if (left(c)) {
+                    Gradients.apply(preset, s, store.gradientBlacklist());
+                    p.sendMessage(BrushModule.PREFIX + "使います: " + preset.name());
+                }
+                refresh(p, Page.PRESETS);
+            });
+        }
     }
 
     // ---- selection --------------------------------------------------------------------------------------------------------------

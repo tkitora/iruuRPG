@@ -29,6 +29,8 @@ final class SurfaceProbe {
     private int aoRadius = 3;
     private int aoSamples = 24;
     private double aoPower = 1.0;
+    private double aoBias;
+    private boolean aoCountPlants = true;
 
     SurfaceProbe(World world, Vector sun, boolean castShadows) {
         this.world = world;
@@ -41,6 +43,8 @@ final class SurfaceProbe {
         this.aoRadius = Math.max(1, Math.min(6, s.aoRadius));
         this.aoSamples = Math.max(6, Math.min(64, s.aoSamples));
         this.aoPower = Math.max(0.2, s.aoPower);
+        this.aoBias = Math.max(0.0, Math.min(0.8, s.aoBias));
+        this.aoCountPlants = s.aoCountPlants;
     }
 
     static long pack(int x, int y, int z) {
@@ -101,6 +105,14 @@ final class SurfaceProbe {
         return Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, normal(x, y, z).getY()))));
     }
 
+    /** Whether the block at the place walls in the ambient occlusion: a solid block (leaves and logs only when the setting counts them). */
+    private boolean encloses(int x, int y, int z) {
+        if (!solid(x, y, z)) return false;
+        if (aoCountPlants) return true;
+        Material type = type(x, y, z);
+        return !org.bukkit.Tag.LEAVES.isTagged(type) && !org.bukkit.Tag.LOGS.isTagged(type);
+    }
+
     /** The share of the sky round the surface block that is closed off by solid blocks (0 = open, 1 = shut in): rays over the hemisphere of the normal, 3 blocks each, near blocks counting more. */
     double ambient(int x, int y, int z) {
         return ambients.computeIfAbsent(pack(x, y, z), key -> {
@@ -118,13 +130,15 @@ final class SurfaceProbe {
                 if (dx * normal.getX() + dy * normal.getY() + dz * normal.getZ() < 0.15) continue;
                 total += 1.0;
                 for (int step = 1; step <= aoRadius; step++) {
-                    if (solid((int) Math.round(x + dx * step), (int) Math.round(y + dy * step), (int) Math.round(z + dz * step))) {
+                    if (encloses((int) Math.round(x + dx * step), (int) Math.round(y + dy * step), (int) Math.round(z + dz * step))) {
                         blocked += 1.0 / step;
                         break;
                     }
                 }
             }
-            return total <= 0.0 ? 0.0 : Math.pow(Math.min(1.0, blocked / total * 1.6), aoPower);
+            double enclosed = total <= 0.0 ? 0.0 : Math.min(1.0, blocked / total * 1.6);
+            // below the bias the place counts as open; above it the rest of the range is stretched over 0 - 1
+            return Math.pow(Math.max(0.0, (enclosed - aoBias) / (1.0 - aoBias)), aoPower);
         });
     }
 
