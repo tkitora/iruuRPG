@@ -33,12 +33,17 @@ public final class MageMeleeCombo extends BaseCombo {
      * A crescent of light that flies from {@code start} along {@code direction} ({@code speed} blocks a tick for up to {@code range} blocks), tilted {@code tilt} radians
      * from upright. It cuts everything it passes through once for {@code rate} and ends at a block.
      */
-    private static void crescent(MoveKit kit, Location start, Vector direction, double speed, double range, double tilt, double rate) {
+    static void crescent(MoveKit kit, Location start, Vector direction, double speed, double range, double tilt, double rate) {
         crescent(kit, start, direction, speed, range, tilt, rate, 1.5);
     }
 
     /** The same crescent with the radius of its arc {@code size}, with a trail of souls. */
-    private static void crescent(MoveKit kit, Location start, Vector direction, double speed, double range, double tilt, double rate, double size) {
+    static void crescent(MoveKit kit, Location start, Vector direction, double speed, double range, double tilt, double rate, double size) {
+        crescent(kit, start, direction, speed, range, tilt, rate, size, org.bukkit.Particle.SOUL_FIRE_FLAME, Sfx.REAP);
+    }
+
+    /** The same crescent with the {@code trail} particle and the {@code sound} it is sent with. */
+    static void crescent(MoveKit kit, Location start, Vector direction, double speed, double range, double tilt, double rate, double size, org.bukkit.Particle trail, Sfx sound) {
         Vector heading = direction.clone().normalize();
         Vector side = heading.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
         if (side.lengthSquared() < 1.0E-6) side = new Vector(1.0, 0.0, 0.0);
@@ -50,7 +55,7 @@ public final class MageMeleeCombo extends BaseCombo {
         Set<UUID> hit = new HashSet<>();
         Location[] position = {start.clone()};
         int ticks = (int) Math.ceil(range / speed);
-        kit.sound(start, Sfx.REAP, 0.6f, 1.2f);
+        kit.sound(start, sound, 0.6f, 1.2f);
         kit.every(ticks + 1, age -> {
             Fx fx = kit.fx(position[0]);
             if (fx.active()) {
@@ -72,7 +77,7 @@ public final class MageMeleeCombo extends BaseCombo {
             for (LivingEntity victim : kit.around(next, 1.7)) {
                 if (hit.add(victim.getUniqueId())) kit.hit(victim, rate);
             }
-            if (age % 2 == 0) kit.particle(org.bukkit.Particle.SOUL_FIRE_FLAME, position[0], 2, size * 0.4, 0.01);
+            if (age % 2 == 0) if (trail != null) kit.particle(trail, position[0], 2, size * 0.4, 0.01);
             if (!next.getBlock().isPassable()) {
                 kit.burst(next, 0.9);
                 return true;

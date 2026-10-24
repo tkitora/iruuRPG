@@ -7,7 +7,8 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
 
 /**
- * The warrior's combo with a ranged weapon (thrown axes and spears): heavy missiles. Normal: 1 a thrown axe (100%), 2 two javelins (60% x2),
+ * The warrior's combo with a ranged weapon, a spell blade: the sword is swung and the cut flies off it as a wave of steel and the weapon's element. Normal: 1 a wave
+ * of the blade (a wide crescent that cuts what it passes, 73%), 2 two slanted waves that cross (48% x2),
  * 3 a boomerang axe that hits going out and coming back (60% x2), 4 three shock waves along the ground (40% x3), 5 a spear thrown from a leap
  * (150%). Heavy: 0 a war cry for 2.5 s (pushes and hurts what is near, 25% a pulse), 1 a great axe that pierces (130%), 2 a rain of spears
  * (15% x8), 3 a chain that pulls the target in and cuts (120%), 4 a siege spear that bursts (150%).
@@ -32,15 +33,24 @@ public final class WarriorRangeCombo extends BaseCombo {
         Vector[] axes = kit.axes();
         switch (step.stage()) {
             case 1 -> {
+                // the blade is swung and the cut flies off it: a wide wave that goes through everything in its way
                 Location start = ComboParts.hand(kit);
-                kit.sound(start, Sfx.WIND, 1.0f, 0.8f);
+                kit.slash("arc", 2.8, 140.0, 15.0, 0.0, 1.8, 0.4, 0.0, 1.3, 0.1, 0.0);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
-                kit.bolt(start, direction, 1.7, 14.0, rate, end -> {
-                    kit.burst(end, 1.6);
-                    kit.sound(end, Sfx.METAL_HEAVY, 0.8f, 0.8f);
-                });
+                MageMeleeCombo.crescent(kit, start, direction, 1.5, 13.0, 0.0, rate, 2.0, org.bukkit.Particle.CRIT, Sfx.WIND);
             }
-            case 2 -> ComboParts.quickBolts(kit, hits, rate, 1.9, 14.0, 0.0);
+            case 2 -> {
+                // two cuts, one slanted each way, that cross
+                for (int index = 0; index < hits; index++) {
+                    int which = index;
+                    kit.later(index * 3L, () -> {
+                        Location start = ComboParts.hand(kit);
+                        kit.slash("arc", 2.6, 130.0, 40.0, which % 2 == 0 ? 0.0 : 180.0, 1.8, 0.4, 0.0, 1.2, 0.09, 0.0);
+                        Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
+                        MageMeleeCombo.crescent(kit, start, direction, 1.6, 12.0, which % 2 == 0 ? 0.6 : -0.6, rate, 1.7, org.bukkit.Particle.CRIT, Sfx.WIND);
+                    });
+                }
+            }
             case 3 -> {
                 // a boomerang axe: it flies out, hits, and comes back, hitting again
                 Location start = ComboParts.hand(kit);

@@ -10,7 +10,7 @@ import org.bukkit.util.Vector;
  * The warrior's combo with a deployed weapon (a war lantern): bombs, mines and banners, set down where the warrior aims and gone within 2.5 s (the same
  * kind placed again replaces the old one). Normal: 1 a bomb that goes off after 1.5 s (100%, knocks back), 2 two bombs (60% each), 3 a mine that waits for
  * 2.7 s (130%), 4 three mines in a row (40% each, they go off when an enemy comes close), 5 a war banner planted at the aim for 2.7 s (25% a pulse, 5 pulses,
- * pushes out). Heavy: 0 a totem under the feet (25% a pulse), 1 a fault line ahead that stays 2 s (25% a pulse, lifts), 2 a barricade of five (10% a pulse,
+ * pushes out and slows 40%; the warrior by it takes 20% less damage). Heavy: 0 a totem under the feet (25% a pulse; the warrior on it takes 30% less damage, the enemies are slowed 50%), 1 a fault line ahead that stays 2 s (25% a pulse, lifts), 2 a barricade of five (10% a pulse,
  * pushes), 3 four bombs in a cross round the aim (35% each), 4 a great bomb that pulls the enemies in for 2 s and bursts (150%).
  */
 public final class WarriorDeployCombo extends BaseCombo {
@@ -59,8 +59,13 @@ public final class WarriorDeployCombo extends BaseCombo {
                     if (!pulse) return;
                     kit.shockwave(target, 1.0, 4.2, 3, 1.0);
                     kit.sound(target, Sfx.METAL, 0.6f, 0.8f);
+                    // the banner steadies the warrior who stands by it, and holds the enemies back
+                    if (kit.player.getLocation().distanceSquared(target) <= 4.5 * 4.5) kit.guard(0.2, 14);
                     for (LivingEntity victim : kit.around(target, 4.2)) {
-                        if (kit.hit(victim, rate)) kit.push(victim, target.toVector(), 0.3, 0.1);
+                        if (kit.hit(victim, rate)) {
+                            kit.push(victim, target.toVector(), 0.3, 0.1);
+                            kit.slow(victim, 40.0, 1.5);
+                        }
                     }
                 }, zone -> kit.shockwave(target, 3.0, 4.4, 3, 1.0));
             }
@@ -79,6 +84,9 @@ public final class WarriorDeployCombo extends BaseCombo {
                 Location at = kit.ground(feet);
                 kit.sound(feet, Sfx.METAL_HEAVY, 0.8f, 0.8f);
                 ComboParts.sigil(kit, "warrior_totem", at, 3.6, rate, 50, 10, here -> {
+                    // the totem steadies the warrior on it (30% less damage) and slows the enemies round it
+                    if (kit.player.getLocation().distanceSquared(here) <= 3.8 * 3.8) kit.guard(0.3, 14);
+                    for (LivingEntity victim : kit.around(here, 3.6)) kit.slow(victim, 50.0, 1.2);
                     for (double y = 0.0; y <= 2.4; y += 0.4) kit.fx(here).dust(here.getX(), here.getY() + y, here.getZ(), kit.palette(), y / 2.4, 1.3);
                 });
             }
