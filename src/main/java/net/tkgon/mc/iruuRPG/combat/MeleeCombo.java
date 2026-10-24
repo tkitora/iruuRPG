@@ -246,6 +246,15 @@ public final class MeleeCombo {
         return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, 0, 1.0);
     }
 
+    /** The cooldown of heavy attack {@code index} of {@code plan} in ticks (the config's, else the plan's own). */
+    public int heavyCooldownTicks(String plan, int index) {
+        ComboSpec spec = specs.get(plan);
+        double[] defaults = new double[]{60, 0, 0, 0, 0};
+        if (spec != null) for (int at = 0; at < 5; at++) defaults[at] = spec.heavyCooldownTicks()[at];
+        int at = Math.max(0, Math.min(HEAVIES - 1, index));
+        return (int) Math.round(listed(plan + ".heavy-cooldown-ticks", at, defaults[at], 0, 1200));
+    }
+
     /** Heavy attack {@code index} of {@code plan}, or null while its own cooldown runs. */
     private Step heavy(Player player, String plan, int index, boolean skipCooldown) {
         long now = System.currentTimeMillis();

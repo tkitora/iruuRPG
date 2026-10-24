@@ -66,6 +66,8 @@ public final class AssassinMeleeCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
+        // (only the normal attacks show the two crossing cuts of a blow with the off hand; the heavy attacks do not)
+        kit.offHandVisuals(true);
         int frenzy = kit.frenzy();
         // the clones of the item swap skill copy this attack
         if (frenzy > 0) AssassinClones.copyAttack(kit, -1);
@@ -252,10 +254,10 @@ public final class AssassinMeleeCombo extends BaseCombo {
                 }
             }
             case 2 -> {
-                // a blade storm: a spin for 1.2 s that hits everyone round every 3 ticks, and takes 40% off what the assassin suffers
-                kit.guard(0.4, 26);
+                // a blade storm: a spin for 0.85 s (0.7 of the earlier time) that hits everyone round every 3 ticks, and takes 40% off what the assassin suffers
+                kit.guard(0.4, 19);
                 kit.sound(feet, Sfx.WIND_BURST, 0.9f, 0.9f);
-                kit.every(25, age -> {
+                kit.every(18, age -> {
                     Location at = kit.player.getLocation();
                     if (age % 3 == 0) {
                         kit.slash("arc", 2.8, 320.0, 70.0, age % 2 == 0 ? 0.0 : 180.0, 0.4, 0.5, 0.0, 1.1, 0.07, 0.0);

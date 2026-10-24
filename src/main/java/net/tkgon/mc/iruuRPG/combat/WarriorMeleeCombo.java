@@ -7,12 +7,12 @@ import org.bukkit.util.Vector;
 
 /**
  * The warrior's combo with melee weapons: staying power and the weight of one blow. The blows are few and slow, each one a whole stroke on one
- * enemy or a short sweep; between them the warrior is guarded (takes less damage for a few ticks), picks up shields (up to three turning round, each
+ * enemy or a short sweep; between them the warrior is guarded (takes less damage for a few ticks), gets shields from heavy 0 only (three turning round, each
  * cuts a damage by 70% and breaks) and heals a little with the heavy ones, so the fight can go on.
  *
- * <p>Normal: 1 a cleave (100%, 25% less damage taken for 0.6 s), 2 a shield bash (70%, slows, one shield), 3 a wide sweep (110%, 25% less damage taken for
+ * <p>Normal: 1 a cleave (100%, 25% less damage taken for 0.6 s), 2 a shield bash (70%, slows), 3 a wide sweep (110%, 25% less damage taken for
  * 0.6 s), 4 a hammer drop on one enemy (130%, slows hard), 5 an earthbreaker leap (150% on all round where it lands, heals 3%, 40% less damage taken for
- * 0.75 s). Heavy: 0 a bulwark (three shields for 10 s, 40% less damage taken for 2 s; its own cooldown of 12 s), 1 a stomp (60% round, slows, a shield),
+ * 0.75 s). Heavy: 0 a bulwark (three shields for 10 s, 40% less damage taken for 2 s; its own cooldown of 18 s; it is the only thing that gives shields), 1 a stomp (60% round, slows),
  * 2 a whirlwind (a spin for 1 s, 24% every 4 ticks round, 30% less damage taken, heals 1%), 3 a colossus strike (a moment of winding up with 60% less damage
  * taken, then 150% on the enemy ahead and a throw up), 4 a shield rush (a charge of 6 blocks under a 50% guard, 80% on all in the way and a push, 40% more
  * with a shield up).
@@ -24,7 +24,7 @@ public final class WarriorMeleeCombo extends BaseCombo {
     public WarriorMeleeCombo() {
         super("warrior", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.67, 0.89, 1.12, 1.34, 1.56}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.0, 0.6, 0.24, 1.5, 0.8}, new int[]{240, 0, 0, 0, 0}, 40));
+                new double[]{0.0, 0.6, 0.24, 1.5, 0.8}, new int[]{360, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -52,7 +52,6 @@ public final class WarriorMeleeCombo extends BaseCombo {
                         kit.push(target, feet.toVector(), 0.25, 0.05);
                     }
                 }
-                kit.addShield();
             }
             case 3 -> {
                 kit.guard(0.25, 12);
@@ -107,7 +106,6 @@ public final class WarriorMeleeCombo extends BaseCombo {
                 for (LivingEntity target : kit.around(feet, 4.0)) {
                     if (kit.hit(target, rate)) kit.slow(target, 40.0, 2.0);
                 }
-                kit.addShield();
             }
             case 2 -> {
                 // a whirlwind: a spin for a second; everyone round is cut every 4 ticks
