@@ -35,11 +35,12 @@ import java.util.function.BiConsumer;
 final class BrushMenu implements Listener {
 
     enum Page {
-        MAIN(1, Material.PAINTING, "基本", "ブラシ"),
-        PATTERN(2, Material.WHITE_CONCRETE, "模様", "模様"),
-        MASK(3, Material.HOPPER, "マスク", "マスク"),
-        POSITION(4, Material.LADDER, "高さ・位置", "高さと位置のマスク"),
-        SUN(5, Material.SUNFLOWER, "陰影", "太陽と陰影"),
+        MAIN(0, Material.PAINTING, "基本", "ブラシ"),
+        PATTERN(1, Material.WHITE_CONCRETE, "模様", "模様"),
+        MASK(2, Material.HOPPER, "マスク", "マスク"),
+        POSITION(3, Material.LADDER, "高さ・位置", "高さと位置"),
+        SUN(4, Material.SUNFLOWER, "陰影", "太陽と陰影"),
+        NOISE(5, Material.AMETHYST_SHARD, "ノイズ", "ノイズとセル"),
         BLACKLIST(6, Material.BARRIER, "ブラックリスト", "ブラックリスト"),
         SELECT(7, Material.BLAZE_ROD, "選択", "選択ツール");
 
@@ -199,6 +200,7 @@ final class BrushMenu implements Listener {
             case PATTERN -> pattern(holder, s);
             case MASK -> mask(holder, s);
             case POSITION -> position(holder, s);
+            case NOISE -> noisePage(holder, s);
             case SUN -> sun(holder, s);
             case BLACKLIST -> blacklist(holder);
             case SELECT -> select(holder, player);
@@ -319,7 +321,7 @@ final class BrushMenu implements Listener {
             refresh(p, Page.PATTERN);
         });
         int total = Math.max(1, s.totalWeight());
-        for (int index = 0; index < Math.min(14, s.pattern.size()); index++) {
+        for (int index = 0; index < Math.min(13, s.pattern.size()); index++) {
             BrushSettings.Entry entry = s.pattern.get(index);
             int at = index;
             put(holder, GRID[7 + index], item(entry.material, (index + 1) + ". " + name(entry.material), NamedTextColor.WHITE, List.of(
@@ -358,6 +360,10 @@ final class BrushMenu implements Listener {
             refresh(p, Page.PATTERN);
         });
         if (gradient) {
+            put(holder, GRID[20], item(Material.REPEATER, "向きを逆にする: " + onOff(s.gradientReverse), NamedTextColor.AQUA, List.of("オン: 最初と最後のブロックの位置が入れ替わる (0〜1 が 1〜0 になる)", "クリックで切り替え")), (p, c) -> {
+                s.gradientReverse = !s.gradientReverse;
+                refresh(p, Page.PATTERN);
+            });
             put(holder, GRID[25], item(Material.COMPASS, "向き: " + s.gradientAxis.label, NamedTextColor.AQUA, List.of(s.gradientAxis.description, "クリックで切り替え")), (p, c) -> {
                 BrushSettings.GradientAxis[] all = BrushSettings.GradientAxis.values();
                 s.gradientAxis = all[Math.floorMod(s.gradientAxis.ordinal() + (left(c) ? 1 : -1), all.length)];
@@ -406,7 +412,7 @@ final class BrushMenu implements Listener {
         if (!usable(material)) return;
         BrushSettings.Entry entry = s.find(material);
         if (entry != null) entry.weight = Math.min(99, entry.weight + 1);
-        else if (s.pattern.size() < 14) s.pattern.add(new BrushSettings.Entry(material, 1));
+        else if (s.pattern.size() < 13) s.pattern.add(new BrushSettings.Entry(material, 1));
     }
 
     // ---- mask ------------------------------------------------------------------------------------------------------------------
@@ -514,12 +520,39 @@ final class BrushMenu implements Listener {
         });
         int index = 14;
         for (Material material : new ArrayList<>(s.relationBlocks)) {
-            if (index >= GRID.length) break;
+            if (index >= 21) break;
             put(holder, GRID[index++], item(material, name(material), NamedTextColor.WHITE, List.of("クリックで取り除く")), (p, c) -> {
                 s.relationBlocks.remove(material);
                 refresh(p, Page.POSITION);
             });
         }
+        // the block the gradient starts from (the gradient's direction "特定のブロックから", set on the pattern page)
+        List<String> referenceLore = new ArrayList<>();
+        referenceLore.add("模様のページで、グラデーションの向きを「特定のブロックから」にすると、このブロックが最初のブロックの位置になる");
+        for (Material material : s.referenceBlocks) referenceLore.add("・" + name(material));
+        referenceLore.add("左クリック: 手に持つブロックを足す / 右クリック: 最後の1つを取り除く / Shift+右クリック: 全部消す");
+        put(holder, GRID[21], item(Material.TARGET, "グラデーションの起点のブロック (" + s.referenceBlocks.size() + ")", NamedTextColor.GOLD, referenceLore), (p, c) -> {
+            if (c == ClickType.SHIFT_RIGHT) s.referenceBlocks.clear();
+            else if (left(c)) {
+                Material held = p.getInventory().getItemInMainHand().getType();
+                if (usable(held)) s.referenceBlocks.add(held);
+            } else if (!s.referenceBlocks.isEmpty()) {
+                Material last = null;
+                for (Material material : s.referenceBlocks) last = material;
+                s.referenceBlocks.remove(last);
+            }
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[22], item(s.referenceDown ? Material.DROPPER : Material.DISPENSER, "起点からの向き: " + (s.referenceDown ? "起点の「下」へ" : "起点の「上」へ"), NamedTextColor.AQUA, List.of(
+                "下へ: 起点のブロックが上にあり、そこから下へ離れるほど最後のブロックへ (例: 草から下の土へ)",
+                "上へ: 起点のブロックが下にあり、そこから上へ離れるほど最後のブロックへ", "クリックで切り替え")), (p, c) -> {
+            s.referenceDown = !s.referenceDown;
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[23], item(Material.COMPARATOR, "起点から最後までの距離: " + s.referenceSpan, NamedTextColor.AQUA, List.of("起点から何ブロック離れたら、最後のブロックになるか", "左クリック +1 / 右クリック -1 (Shift で 4)")), (p, c) -> {
+            s.referenceSpan = Math.max(1, Math.min(48, s.referenceSpan + (left(c) ? 1 : -1) * (big(c) ? 4 : 1)));
+            refresh(p, Page.POSITION);
+        });
     }
 
     // ---- sun and shade -----------------------------------------------------------------------------------------------------------
@@ -598,32 +631,16 @@ final class BrushMenu implements Listener {
             s.curvatureStrength = Math.max(0.1, Math.min(1.0, s.curvatureStrength + (left(c) ? 0.1 : -0.1)));
             refresh(p, Page.SUN);
         });
-        put(holder, GRID[21], item(Material.AMETHYST_SHARD, "ノイズ: " + onOff(s.noiseShadeOn), NamedTextColor.AQUA, List.of("滑らかなノイズで、斑に影をつける (汚れ・むらの表現に)", "クリックで切り替え")), (p, c) -> {
-            s.noiseShadeOn = !s.noiseShadeOn;
+        put(holder, GRID[21], item(Material.SPYGLASS, "AOの届く距離: " + s.aoRadius, NamedTextColor.AQUA, List.of("光線を何ブロック先まで飛ばして、囲まれ具合を見るか (1〜6)", "大きいほど広い範囲の囲まれ方を見る", "左クリック +1 / 右クリック -1")), (p, c) -> {
+            s.aoRadius = Math.max(1, Math.min(6, s.aoRadius + (left(c) ? 1 : -1)));
             refresh(p, Page.SUN);
         });
-        put(holder, GRID[22], item(Material.REDSTONE, "ノイズの強さ: " + Math.round(s.noiseShadeStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
-            s.noiseShadeStrength = Math.max(0.1, Math.min(1.0, s.noiseShadeStrength + (left(c) ? 0.1 : -0.1)));
+        put(holder, GRID[22], item(Material.COMPARATOR, "AOの光線の数: " + s.aoSamples, NamedTextColor.AQUA, List.of("多いほど滑らかで、重くなる (8〜48)", "左クリック +4 / 右クリック -4")), (p, c) -> {
+            s.aoSamples = Math.max(8, Math.min(48, s.aoSamples + (left(c) ? 4 : -4)));
             refresh(p, Page.SUN);
         });
-        put(holder, GRID[23], item(Material.COMPARATOR, "ノイズの大きさ: " + s.noiseShadeScale, NamedTextColor.AQUA, List.of("斑の塊の大きさ (大きいほど大きな塊)", "左クリック +0.5 / 右クリック -0.5")), (p, c) -> {
-            s.noiseShadeScale = Math.max(1.0, Math.min(16.0, s.noiseShadeScale + (left(c) ? 0.5 : -0.5)));
-            refresh(p, Page.SUN);
-        });
-        put(holder, GRID[24], item(Material.HONEYCOMB, "セル: " + onOff(s.cellOn), NamedTextColor.AQUA, List.of("細胞状 (ボロノイ) の模様で影をつける (ひび・石畳・鱗の表現に)", "クリックで切り替え")), (p, c) -> {
-            s.cellOn = !s.cellOn;
-            refresh(p, Page.SUN);
-        });
-        put(holder, GRID[25], item(Material.GLOWSTONE_DUST, "セルの強さ: " + Math.round(s.cellStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
-            s.cellStrength = Math.max(0.1, Math.min(1.0, s.cellStrength + (left(c) ? 0.1 : -0.1)));
-            refresh(p, Page.SUN);
-        });
-        put(holder, GRID[26], item(Material.HONEYCOMB_BLOCK, "セルの大きさ: " + s.cellSize, NamedTextColor.AQUA, List.of("1つのセルのおよその大きさ (ブロック)", "左クリック +1 / 右クリック -1")), (p, c) -> {
-            s.cellSize = Math.max(2.0, Math.min(20.0, s.cellSize + (left(c) ? 1.0 : -1.0)));
-            refresh(p, Page.SUN);
-        });
-        put(holder, GRID[27], item(Material.COBBLESTONE_WALL, "セルの影: " + (s.cellEdges ? "境目" : "セルごと"), NamedTextColor.AQUA, List.of("境目: セルの境目を暗くする (ひび割れ風) / セルごと: 1つおきのセルを暗くする", "クリックで切り替え")), (p, c) -> {
-            s.cellEdges = !s.cellEdges;
+        put(holder, GRID[23], item(Material.REDSTONE_TORCH, "AOのくっきり度: " + String.format(java.util.Locale.ROOT, "%.1f", s.aoPower), NamedTextColor.AQUA, List.of("1より大きい: 深い隅だけが暗くなる / 1より小さい: 開けた所も暗くなる (0.4〜3)", "左クリック +0.2 / 右クリック -0.2")), (p, c) -> {
+            s.aoPower = Math.max(0.4, Math.min(3.0, Math.round((s.aoPower + (left(c) ? 0.2 : -0.2)) * 10.0) / 10.0));
             refresh(p, Page.SUN);
         });
         put(holder, GRID[17], item(Material.BOOK, "つかいかた", NamedTextColor.GOLD, List.of(
@@ -639,6 +656,81 @@ final class BrushMenu implements Listener {
         s.sunAzimuth = azimuth;
         s.sunElevation = elevation;
         refresh(player, Page.SUN);
+    }
+
+    // ---- noise and cells ------------------------------------------------------------------------------------------------------------
+
+    private void noisePage(Holder holder, BrushSettings s) {
+        Procedural.NoiseType[] types = Procedural.NoiseType.values();
+        List<String> typeLore = new ArrayList<>();
+        typeLore.add(s.noiseType.description);
+        for (Procedural.NoiseType type : types) typeLore.add((type == s.noiseType ? "▶ " : "   ") + type.label);
+        typeLore.add("左クリック: 次の種類 / 右クリック: 前の種類");
+        typeLore.add("ノイズを使う所すべてに効く: 模様のノイズ・グラデーションの向き「ノイズ」・影のノイズ");
+        put(holder, GRID[0], item(Material.AMETHYST_SHARD, "ノイズの種類: " + s.noiseType.label, NamedTextColor.GOLD, typeLore), (p, c) -> {
+            s.noiseType = types[Math.floorMod(s.noiseType.ordinal() + (left(c) ? 1 : -1), types.length)];
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[1], item(Material.COMPARATOR, "重ねる回数: " + s.noiseOctaves, NamedTextColor.AQUA, List.of("細かい層を何枚重ねるか (1〜5)。増やすと細かい凹凸が足される", "左クリック +1 / 右クリック -1")), (p, c) -> {
+            s.noiseOctaves = Math.max(1, Math.min(5, s.noiseOctaves + (left(c) ? 1 : -1)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[2], item(Material.REPEATER, "細かい層の強さ: " + Math.round(s.noisePersistence * 100) + "%", NamedTextColor.AQUA, List.of("重ねた細かい層が、1つ前の層に比べてどれだけ強いか (20〜80%)", "左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.noisePersistence = Math.max(0.2, Math.min(0.8, s.noisePersistence + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[3], item(Material.BLACK_CONCRETE, "コントラスト: " + String.format(java.util.Locale.ROOT, "%.2f", s.noiseContrast), NamedTextColor.AQUA, List.of("明暗をどれだけはっきり分けるか (0.5〜3)", "左クリック +0.25 / 右クリック -0.25")), (p, c) -> {
+            s.noiseContrast = Math.max(0.5, Math.min(3.0, s.noiseContrast + (left(c) ? 0.25 : -0.25)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[4], item(Material.WHEAT_SEEDS, "ノイズの番号: " + s.noiseSeed, NamedTextColor.AQUA, List.of("変えると別の模様になる", "左クリック +1 / 右クリック -1 (Shift で 10)")), (p, c) -> {
+            s.noiseSeed += (left(c) ? 1 : -1) * (big(c) ? 10 : 1);
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[5], item(Material.AMETHYST_BLOCK, "模様のノイズ: " + onOff(s.noise), NamedTextColor.AQUA, List.of("模様の選び方を、ばらばらではなく斑(まだら)の塊にする", "クリックで切り替え")), (p, c) -> {
+            s.noise = !s.noise;
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[6], item(Material.SPYGLASS, "模様・グラデーションの大きさ: " + s.noiseScale, NamedTextColor.AQUA, List.of("模様のノイズと、グラデーションの向き「ノイズ」の、1つの塊の大きさ (ブロック)", "左クリック +0.5 / 右クリック -0.5")), (p, c) -> {
+            s.noiseScale = Math.max(0.5, Math.min(16.0, s.noiseScale + (left(c) ? 0.5 : -0.5)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[7], item(Material.COAL_BLOCK, "影のノイズ: " + onOff(s.noiseShadeOn), NamedTextColor.AQUA, List.of("ノイズで影をつける (汚れ・むらの表現に)", "クリックで切り替え")), (p, c) -> {
+            s.noiseShadeOn = !s.noiseShadeOn;
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[8], item(Material.REDSTONE, "影のノイズの強さ: " + Math.round(s.noiseShadeStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.noiseShadeStrength = Math.max(0.1, Math.min(1.0, s.noiseShadeStrength + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[9], item(Material.COMPARATOR, "影のノイズの大きさ: " + s.noiseShadeScale, NamedTextColor.AQUA, List.of("左クリック +0.5 / 右クリック -0.5")), (p, c) -> {
+            s.noiseShadeScale = Math.max(1.0, Math.min(16.0, s.noiseShadeScale + (left(c) ? 0.5 : -0.5)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[14], item(Material.HONEYCOMB, "セル: " + onOff(s.cellOn), NamedTextColor.AQUA, List.of("細胞状 (ボロノイ) の模様で影をつける (ひび・石畳・鱗の表現に)", "クリックで切り替え")), (p, c) -> {
+            s.cellOn = !s.cellOn;
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[15], item(Material.GLOWSTONE_DUST, "セルの強さ: " + Math.round(s.cellStrength * 100) + "%", NamedTextColor.AQUA, List.of("左クリック +10% / 右クリック -10%")), (p, c) -> {
+            s.cellStrength = Math.max(0.1, Math.min(1.0, s.cellStrength + (left(c) ? 0.1 : -0.1)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[16], item(Material.HONEYCOMB_BLOCK, "セルの大きさ: " + s.cellSize, NamedTextColor.AQUA, List.of("1つのセルのおよその大きさ (ブロック)", "左クリック +1 / 右クリック -1")), (p, c) -> {
+            s.cellSize = Math.max(2.0, Math.min(20.0, s.cellSize + (left(c) ? 1.0 : -1.0)));
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[17], item(Material.COBBLESTONE_WALL, "セルの影: " + (s.cellEdges ? "境目" : "セルごと"), NamedTextColor.AQUA, List.of("境目: セルの境目を暗くする (ひび割れ風) / セルごと: 1つおきのセルを暗くする", "クリックで切り替え")), (p, c) -> {
+            s.cellEdges = !s.cellEdges;
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[18], item(s.cellAngular ? Material.STONE_BRICKS : Material.SLIME_BALL, "セルの形: " + (s.cellAngular ? "角ばった破片" : "丸い細胞"), NamedTextColor.AQUA, List.of("角ばった破片: 立方体で距離をはかるので、平らな面の欠片になる", "クリックで切り替え")), (p, c) -> {
+            s.cellAngular = !s.cellAngular;
+            refresh(p, Page.NOISE);
+        });
+        put(holder, GRID[21], item(Material.BOOK, "つかいかた", NamedTextColor.GOLD, List.of(
+                "ノイズの種類・重ねる回数・強さ・コントラスト・番号は、ノイズを使うすべての所で共通",
+                "使う所: 模様のノイズ / グラデーションの向き「ノイズ」(模様のページ) / 影のノイズ",
+                "セルは影の源。ノイズの種類「セルラー」「ボロノイ」「シャード」は、模様やグラデーションにも使える")), null);
     }
 
     // ---- selection --------------------------------------------------------------------------------------------------------------

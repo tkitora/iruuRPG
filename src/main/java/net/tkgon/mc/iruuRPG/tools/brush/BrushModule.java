@@ -48,6 +48,18 @@ public final class BrushModule implements Listener {
     private final SelectionTool selection;
     private final Map<UUID, Stroke> strokes = new HashMap<>();
 
+    /** A stroke held down for the gradient along the stroke: where it went, drawn all at once when the button is let go. */
+    private static final class Path {
+        final List<Block> points = new ArrayList<>();
+        final List<Double> distances = new ArrayList<>();
+        Block last;
+        double distance;
+        int tick;
+        org.bukkit.scheduler.BukkitTask finisher;
+    }
+
+    private final Map<UUID, Path> paths = new HashMap<>();
+
     /** The path of a stroke held down: where it was last used and how far it has gone (for the gradient along the stroke and for filling the gap between two uses). */
     private static final class Stroke {
         Block last;
@@ -91,6 +103,7 @@ public final class BrushModule implements Listener {
     }
 
     public void stop() {
+        for (UUID id : new ArrayList<>(paths.keySet())) forgetStroke(id);
         selection.stop();
         livePreview.shutdown();
         preview.clearAll();
@@ -207,6 +220,7 @@ public final class BrushModule implements Listener {
     public void onQuit(PlayerQuitEvent event) {
         livePreview.off(event.getPlayer(), false);
         strokes.remove(event.getPlayer().getUniqueId());
+        forgetStroke(event.getPlayer().getUniqueId());
         preview.clear(event.getPlayer());
         settings.remove(event.getPlayer().getUniqueId());
         lastUse.remove(event.getPlayer().getUniqueId());
@@ -227,6 +241,11 @@ public final class BrushModule implements Listener {
         }
         BrushSettings s = settings(player);
         int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
+        if (!previewOnly && s.patternMode == BrushSettings.PatternMode.GRADIENT && s.gradientAxis == BrushSettings.GradientAxis.STROKE) {
+            // the gradient along the stroke is laid when the button is let go, over the whole length of the stroke (0 at its start, 1 at its end)
+            collectStroke(player, block, s);
+            return;
+        }
         BrushEngine.Result result = previewOnly ? evaluate(player, block, cap) : stroke(player, block, s, cap);
         if (result.changes().isEmpty()) {
             player.sendMessage(PREFIX + (result.note() != null ? result.note() : "変わるブロックがありません (範囲・マスク・模様を見直してください)。"));
@@ -242,6 +261,83 @@ public final class BrushModule implements Listener {
         int count = draw(player, block.getWorld(), result.changes());
         player.sendTitle("", "§7" + s.mode.label() + ": " + count + "ブロック" + (worldEdit ? "" : " (undo なし)"), 0, 14, 6);
         if (result.note() != null) player.sendMessage(PREFIX + result.note());
+    }
+
+    /** Adds the place looked at to the stroke being drawn (with the points between it and the last), shows a few dots where the stroke has been, and waits for the release. */
+    private void collectStroke(Player player, Block block, BrushSettings s) {
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        Path path = paths.computeIfAbsent(player.getUniqueId(), id -> new Path());
+        int release = Math.max(8, plugin.getConfig().getInt("brush.cooldown-ticks", 4) * 2 + 2);
+        if (path.last != null && (now - path.tick > release || !path.last.getWorld().equals(block.getWorld()))) {
+            finishStroke(player);
+            path = paths.computeIfAbsent(player.getUniqueId(), id -> new Path());
+        }
+        List<Block> added = new ArrayList<>();
+        if (path.last != null && !path.last.equals(block)) {
+            double gap = path.last.getLocation().distance(block.getLocation());
+            double step = Math.max(1.0, s.radius * 0.6);
+            int count = (int) Math.min(24, Math.ceil(gap / step));
+            for (int index = 1; index < count; index++) {
+                double t = index / (double) count;
+                int x = (int) Math.round(path.last.getX() + (block.getX() - path.last.getX()) * t);
+                int y = (int) Math.round(path.last.getY() + (block.getY() - path.last.getY()) * t);
+                int z = (int) Math.round(path.last.getZ() + (block.getZ() - path.last.getZ()) * t);
+                added.add(block.getWorld().getBlockAt(x, y, z));
+                path.points.add(added.get(added.size() - 1));
+                path.distances.add(path.distance + gap * t);
+            }
+            path.distance += gap;
+        }
+        path.points.add(block);
+        path.distances.add(path.distance);
+        added.add(block);
+        path.last = block;
+        path.tick = now;
+        org.bukkit.Particle.DustOptions dust = new org.bukkit.Particle.DustOptions(org.bukkit.Color.fromRGB(255, 200, 60), 1.3f);
+        for (Block point : added) player.spawnParticle(org.bukkit.Particle.REDSTONE, point.getLocation().add(0.5, 1.3, 0.5), 2, 0.1, 0.1, 0.1, 0.0, dust);
+        if (path.finisher == null) {
+            path.finisher = org.bukkit.Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+                Path current = paths.get(player.getUniqueId());
+                if (current == null || !player.isOnline()) {
+                    forgetStroke(player.getUniqueId());
+                    return;
+                }
+                if (org.bukkit.Bukkit.getCurrentTick() - current.tick > release) finishStroke(player);
+            }, 2L, 2L);
+        }
+        if (path.points.size() >= 400) finishStroke(player);
+    }
+
+    /** The button was let go: the brush is worked out at every point of the stroke, the place on the gradient being how far along the whole stroke the point is, and drawn at once. */
+    private void finishStroke(Player player) {
+        Path path = paths.remove(player.getUniqueId());
+        if (path == null) return;
+        if (path.finisher != null) path.finisher.cancel();
+        if (!player.isOnline() || path.points.isEmpty()) return;
+        BrushSettings s = settings(player);
+        int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
+        Map<Long, BrushEngine.Change> merged = new java.util.LinkedHashMap<>();
+        String note = null;
+        for (int index = 0; index < path.points.size(); index++) {
+            s.strokeT = path.distance <= 1.0E-6 ? 0.5 : Math.min(1.0, path.distances.get(index) / path.distance);
+            BrushEngine.Result part = evaluate(player, path.points.get(index), cap);
+            if (part.note() != null) note = part.note();
+            for (BrushEngine.Change change : part.changes()) merged.put(SurfaceProbe.pack(change.x(), change.y(), change.z()), change);
+            if (merged.size() >= cap) break;
+        }
+        preview.clear(player);
+        if (merged.isEmpty()) {
+            player.sendMessage(PREFIX + (note != null ? note : "変わるブロックがありません (範囲・マスク・模様を見直してください)。"));
+            return;
+        }
+        int count = draw(player, path.points.get(0).getWorld(), new ArrayList<>(merged.values()));
+        player.sendTitle("", "§7なぞった線: " + count + "ブロック (長さ " + Math.round(path.distance) + ")" + (worldEdit ? "" : " (undo なし)"), 0, 14, 6);
+        if (note != null) player.sendMessage(PREFIX + note);
+    }
+
+    private void forgetStroke(UUID id) {
+        Path path = paths.remove(id);
+        if (path != null && path.finisher != null) path.finisher.cancel();
     }
 
     /**

@@ -26,10 +26,21 @@ final class SurfaceProbe {
     private final Map<Long, Double> ambients = new HashMap<>();
     private final Map<Long, Double> curvatures = new HashMap<>();
 
+    private int aoRadius = 3;
+    private int aoSamples = 24;
+    private double aoPower = 1.0;
+
     SurfaceProbe(World world, Vector sun, boolean castShadows) {
         this.world = world;
         this.sun = sun;
         this.castShadows = castShadows;
+    }
+
+    SurfaceProbe(World world, BrushSettings s) {
+        this(world, s.sunVector(), s.castShadows);
+        this.aoRadius = Math.max(1, Math.min(6, s.aoRadius));
+        this.aoSamples = Math.max(6, Math.min(64, s.aoSamples));
+        this.aoPower = Math.max(0.2, s.aoPower);
     }
 
     static long pack(int x, int y, int z) {
@@ -96,7 +107,7 @@ final class SurfaceProbe {
             Vector normal = normal(x, y, z);
             double blocked = 0.0;
             double total = 0.0;
-            int points = 24;
+            int points = aoSamples;
             double golden = Math.PI * (3.0 - Math.sqrt(5.0));
             for (int index = 0; index < points; index++) {
                 double dy = 1.0 - 2.0 * (index + 0.5) / points;
@@ -106,14 +117,14 @@ final class SurfaceProbe {
                 double dz = Math.sin(angle) * ring;
                 if (dx * normal.getX() + dy * normal.getY() + dz * normal.getZ() < 0.15) continue;
                 total += 1.0;
-                for (int step = 1; step <= 3; step++) {
+                for (int step = 1; step <= aoRadius; step++) {
                     if (solid((int) Math.round(x + dx * step), (int) Math.round(y + dy * step), (int) Math.round(z + dz * step))) {
                         blocked += 1.0 / step;
                         break;
                     }
                 }
             }
-            return total <= 0.0 ? 0.0 : Math.min(1.0, blocked / total * 1.6);
+            return total <= 0.0 ? 0.0 : Math.pow(Math.min(1.0, blocked / total * 1.6), aoPower);
         });
     }
 

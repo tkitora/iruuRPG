@@ -30,8 +30,13 @@ final class BrushSettings {
         RADIAL("中心から縁へ", "ブラシの中心が最初のブロック、縁が最後のブロック"),
         VERTICAL("下から上へ", "ブラシの下が最初のブロック、上が最後のブロック"),
         DIRECTIONAL("向きに沿って", "使ったときに向いていた方向に、手前から奥へ"),
-        NOISE("ノイズ", "滑らかなノイズで斑にする"),
-        STROKE("なぞった線に沿って", "右クリックを押したままなぞると、なぞった長さに沿って最初→最後のブロックになる");
+        NOISE("ノイズ", "ノイズ (種類・大きさ・細かさは「ノイズ」のページ) で斑にする"),
+        STROKE("なぞった線に沿って", "右クリックを押したままなぞり、離したときに、なぞった全体の長さを 0〜1 として、最初→最後のブロックを置く"),
+        ANGLE("表面の傾き", "平らな面が最初のブロック、垂直な壁が最後のブロック (0°〜90°)"),
+        CURVATURE("曲率", "凹んだ所が最初のブロック、出っぱった所が最後のブロック"),
+        AMBIENT("アンビエント(AO)", "開けた所が最初のブロック、囲まれた所が最後のブロック"),
+        LIGHT("光 (陰影)", "日なたが最初のブロック、影が最後のブロック (太陽の向きは「陰影」のページ)"),
+        BLOCK("特定のブロックから", "「高さ・位置」のページで決めたブロックを起点に、上下へ離れるほど最後のブロックへ");
 
         final String label;
         final String description;
@@ -83,6 +88,32 @@ final class BrushSettings {
 
     /** The selection the brush is held to (null: none); set by the module from the player's selection tool. */
     Selection selection;
+    // noise (one set of settings for the pattern's noise, the gradient's and the shade's)
+    Procedural.NoiseType noiseType = Procedural.NoiseType.VALUE;
+    int noiseOctaves = 1;
+    /** How strong each finer layer is next to the one before (0.2 - 0.8). */
+    double noisePersistence = 0.5;
+    /** How hard the noise is pushed toward light and dark (0.5 - 3). */
+    double noiseContrast = 1.0;
+    int noiseSeed;
+    /** Whether the cell shade measures with a cube (angular shards) instead of a ball. */
+    boolean cellAngular;
+
+    // ambient occlusion
+    /** How far from the block the rays look (1 - 6). */
+    int aoRadius = 3;
+    int aoSamples = 24;
+    /** The curve of the result (0.4 - 3): above 1 only the deepest corners darken, below 1 the open places darken too. */
+    double aoPower = 1.0;
+
+    // gradient application
+    boolean gradientReverse;
+    /** The gradient starting from a block: the blocks it starts from, and whether it goes down from them (they are above) or up (they are below). */
+    final Set<Material> referenceBlocks = new LinkedHashSet<>();
+    boolean referenceDown = true;
+    /** How many blocks away from the starting block the gradient reaches its last block. */
+    int referenceSpan = 8;
+
     /** Counts every change of a setting, so the live preview can tell when to start over. */
     int revision;
     /** Where on the gradient (0 - 1) the stroke is now, for the gradient along the stroke; set by the module. */

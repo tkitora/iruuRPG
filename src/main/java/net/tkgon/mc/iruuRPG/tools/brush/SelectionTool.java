@@ -431,7 +431,7 @@ final class SelectionTool implements Listener {
             return;
         }
         BrushSettings settings = module.settings(player);
-        SurfaceProbe probe = new SurfaceProbe(world, settings.sunVector(), settings.castShadows);
+        SurfaceProbe probe = new SurfaceProbe(world, settings);
         Set<Material> allowed = BrushEngine.shadePalette(settings);
         List<BrushEngine.Change> changes = new ArrayList<>();
         for (long key : selection.blocks) {
