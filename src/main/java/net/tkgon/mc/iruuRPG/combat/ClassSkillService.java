@@ -633,8 +633,11 @@ public final class ClassSkillService {
                 state.age = tick;
                 boolean finished = tick >= totalTicks || !player.isOnline() || state.ended;
                 if (tick % 20 == 0 && !finished) {
+                    double guardShare = skill.values().getOrDefault("ally-guard-percent", 12.0) / 100.0;
                     for (Player ally : alliesIn(center, radius)) {
                         attackService.healPlayerBy(player, ally, healPerSecond);
+                        // the blessing: the allies inside take less damage for as long as they stay
+                        if (guardShare > 0.0 && attackService.guard() != null) attackService.guard().grant(ally, guardShare, 30);
                         // a column of light rises round each one healed
                         SkillFx.column(player, ally.getLocation(), 2.4, 0.6, SkillFx.HOLY);
                     }
@@ -662,6 +665,8 @@ public final class ClassSkillService {
                     updateKnockbackShield(finished ? java.util.List.of() : alliesIn(center, radius), shielded);
                 }
                 if (finished) {
+                    // when the time runs out (not when it was re-cast) the sanctuary blooms once: a last heal, the enemies pushed out and a little confused
+                    if (tick >= totalTicks && !state.ended && player.isOnline()) sanctuaryBloom(player, skill, center, radius, healPerSecond);
                     state.ended = true;
                     sanctuaries.remove(player.getUniqueId(), state);
                     cancel();
@@ -671,6 +676,36 @@ public final class ClassSkillService {
                 tick += 5;
             }
         }.runTaskTimer(plugin, 0L, 5L);
+    }
+
+    /** The end of a sanctuary that ran its time: {@code end-heal-seconds} of its healing at once, the enemies inside pushed out and given {@code end-confusion}. */
+    private void sanctuaryBloom(Player caster, ClassSkillDefinition skill, Location center, double radius, double healPerSecond) {
+        World world = center.getWorld();
+        if (world == null) return;
+        double healSeconds = skill.values().getOrDefault("end-heal-seconds", 1.0);
+        double confusion = skill.values().getOrDefault("end-confusion", 40.0);
+        for (Player ally : alliesIn(center, radius)) {
+            attackService.healPlayerBy(caster, ally, healPerSecond * healSeconds);
+            SkillFx.column(caster, ally.getLocation(), 3.0, 0.8, SkillFx.HOLY);
+        }
+        for (org.bukkit.entity.Entity entity : world.getNearbyEntities(center, radius, radius, radius)) {
+            if (!isValidTarget(caster, entity)) continue;
+            LivingEntity enemy = (LivingEntity) entity;
+            Vector away = enemy.getLocation().toVector().subtract(center.toVector()).setY(0.0);
+            if (away.lengthSquared() < 1.0E-6) away = new Vector(0.0, 0.0, 1.0);
+            if (enemy.getLocation().distanceSquared(center) > radius * radius) continue;
+            enemy.setVelocity(enemy.getVelocity().add(away.normalize().multiply(0.7).setY(0.25)));
+            if (confusion > 0.0 && statusEffectService != null) statusEffectService.addConfusion(enemy, confusion, caster.getUniqueId());
+        }
+        world.playSound(center, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 1.8f);
+        world.playSound(center, Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.7f);
+        for (int ring = 1; ring <= 4; ring++) {
+            double r = radius * ring / 4.0;
+            int which = ring;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(caster, center, r, SkillFx.HOLY, 1.0 - 0.1 * which, 1.4), ring - 1);
+        }
+        SkillFx.column(caster, center, 7.0, 2.2, SkillFx.HOLY);
+        ParticleFx.to(world).spawnParticle(Particle.VILLAGER_HAPPY, center.clone().add(0.0, 1.0, 0.0), 50, radius * 0.4, 0.8, radius * 0.4, 0.0);
     }
 
     /** A sanctuary that is up (for the re-cast of the upgrade). */
