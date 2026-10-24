@@ -252,6 +252,10 @@ public final class IruuRPG extends JavaPlugin {
         this.rangerMoves = new net.tkgon.mc.iruuRPG.combat.RangerMoves(this, attackService, attackEffects);
         this.rangerMoves.setDeployService(deployService);
         this.attackService.setRangerMoves(rangerMoves);
+        // the basic combos for a weapon that is usable but not a favorite of the class: the same for every class (sword, staff, turret)
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.GenericMeleeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.GenericRangeCombo());
+        this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.GenericDeployCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.ClericMeleeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerDeployCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.RangerRangeCombo());
