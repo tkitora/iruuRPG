@@ -134,7 +134,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     }
 
     private void sendStatus(CommandSender sender) {
-        sender.sendMessage("iruuRPG is running.");
+        sender.sendMessage("iruuRPG is running (" + net.tkgon.mc.iruuRPG.BuildInfo.text() + ").");
         sender.sendMessage("Loaded items: " + itemRegistry.all().size());
         sender.sendMessage("Loaded mobs: " + mobRegistry.all().size());
         if (!itemRegistry.all().isEmpty()) {

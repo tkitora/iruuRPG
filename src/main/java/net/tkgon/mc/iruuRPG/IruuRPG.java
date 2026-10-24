@@ -364,7 +364,7 @@ public final class IruuRPG extends JavaPlugin {
         playerHud.setClassSkills(classSkillListener);
         PlayerHudTask.start(this, profileManager, playerBars, levelService, playerHud);
         PlayerResourceTask.start(this, profileManager, playerBars);
-        getLogger().info("iruuRPG enabled.");
+        getLogger().info("iruuRPG enabled (" + BuildInfo.text() + ").");
     }
 
     @Override
