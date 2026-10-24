@@ -36,11 +36,11 @@ public enum Sfx {
     CRACK(new Layer(Sound.ITEM_SHIELD_BREAK, 0.35f, 1.7f), new Layer(Sound.ENTITY_ITEM_BREAK, 0.45f, 1.5f),
             new Layer(Sound.BLOCK_GLASS_BREAK, 0.25f, 1.8f)),
     /** A scythe reaping: a sweep, a phantom's wing and a skeleton's rattle. */
-    REAP(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.55f, 0.7f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.45f, 1.1f),
-            new Layer(Sound.ENTITY_SKELETON_AMBIENT, 0.22f, 1.35f)),
+    REAP(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.55f, 0.55f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.45f, 0.8f),
+            new Layer(Sound.ENTITY_SKELETON_AMBIENT, 0.22f, 1.0f)),
     /** A heavy reap: a phantom's swoop, a skeleton hurt and a low sweep. */
-    REAP_HEAVY(new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.6f, 0.8f), new Layer(Sound.ENTITY_SKELETON_HURT, 0.4f, 0.7f),
-            new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.55f)),
+    REAP_HEAVY(new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.6f, 0.65f), new Layer(Sound.ENTITY_SKELETON_HURT, 0.4f, 0.55f),
+            new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.5f)),
     /** Souls let go: a phantom's cry and bones, thin and cold. */
     SOUL(new Layer(Sound.ENTITY_PHANTOM_AMBIENT, 0.4f, 1.1f), new Layer(Sound.ENTITY_SKELETON_AMBIENT, 0.3f, 0.8f),
             new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.5f, 0.9f));

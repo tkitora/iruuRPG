@@ -284,6 +284,7 @@ public final class AttackService {
         if (guard != null) guard.forget(id);
         if (mageMoves != null) mageMoves.forget(id);
         swapDashReady.remove(id);
+        MageMeleeCombo.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);
         }
@@ -443,7 +444,7 @@ public final class AttackService {
         startChainIfFresh(attacker, combo.spec().plan());
         MeleeCombo.Step step = meleeCombo.next(attacker, false, combo.spec().plan());
         beginAttack(attacker);
-        attackCooldowns.ensureAtLeast(attacker, weapon.attackType(), (int) plugin.getConfig().getLong("combat.combo." + combo.spec().plan() + ".normal-gap-ticks", 10L));
+        attackCooldowns.ensureAtLeast(attacker, weapon.attackType(), (int) plugin.getConfig().getLong("combat.combo." + combo.spec().plan() + ".normal-gap-ticks", combo.normalGapTicks()));
         combo.normal(kit(attacker, weapon), step);
         return true;
     }
@@ -489,6 +490,12 @@ public final class AttackService {
         }
         ClassCombo combo = classComboFor(attacker, weapon);
         startChainIfFresh(attacker, combo.spec().plan());
+        // a heavy attack that can be gone on with (the scythe's): the click is its next part
+        if (combo.followUp(kit(attacker, weapon))) {
+            beginAttack(attacker);
+            if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+            return true;
+        }
         // the assassin's heavy click with no normal attack since heavy 0 is its re-activation (one more clone, then the charge) while its clones stand
         if (AssassinMeleeCombo.PLAN.equals(combo.spec().plan()) && meleeCombo.done(attacker, combo.spec().plan()) == 0 && AssassinClones.canRecast(attacker)) {
             beginAttack(attacker);
