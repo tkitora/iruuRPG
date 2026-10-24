@@ -30,13 +30,13 @@ final class BrushEngine {
     private BrushEngine() {
     }
 
-    static Result compute(World world, int cx, int cy, int cz, BrushSettings s, int cap, Set<Material> blacklist) {
+    static Result compute(World world, int cx, int cy, int cz, BrushSettings s, int cap, Set<Material> shadeBlacklist) {
         SurfaceProbe probe = new SurfaceProbe(world, s.sunVector(), s.castShadows);
         Map<Long, Change> changes = new LinkedHashMap<>();
         Random random = new Random();
         String note = switch (s.mode) {
-            case PAINT -> paint(probe, cx, cy, cz, s, random, changes, cap, blacklist);
-            case AUTO_SHADE -> shade(probe, cx, cy, cz, s, random, changes, cap, blacklist);
+            case PAINT -> paint(probe, cx, cy, cz, s, random, changes, cap);
+            case AUTO_SHADE -> shade(probe, cx, cy, cz, s, random, changes, cap, shadeBlacklist);
         };
         return new Result(new ArrayList<>(changes.values()), note);
     }
@@ -64,11 +64,33 @@ final class BrushEngine {
             boolean in = angle >= s.angleMin && angle <= s.angleMax;
             if (in == s.angleMaskInvert) return false;
         }
+        if (s.heightMaskOn && (s.heightAbove ? y < s.heightValue : y > s.heightValue)) return false;
+        if (s.relationMaskOn && !related(s, probe, x, y, z)) return false;
         if (s.shadeMaskOn) {
             boolean shaded = s.toonSteps > 1 ? band(s, totalShade(probe, s, x, y, z)) >= s.shadeBand : totalShade(probe, s, x, y, z) >= 0.35;
             if (shaded == s.shadeMaskInvert) return false;
         }
         return true;
+    }
+
+    /**
+     * Whether one of the blocks of the relation mask is above the place (or below it, the other way) within the reach, in its own column or the eight round it (so the diagonal
+     * ones count too).
+     */
+    private static boolean related(BrushSettings s, SurfaceProbe probe, int x, int y, int z) {
+        if (s.relationBlocks.isEmpty()) return false;
+        int step = s.relationUnder ? 1 : -1;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                for (int k = 1; k <= s.relationReach; k++) {
+                    Material type = probe.type(x + dx, y + step * k, z + dz);
+                    if (s.relationBlocks.contains(type)) return true;
+                    Material base = BlockColors.baseOf(type);
+                    if (base != null && s.relationBlocks.contains(base)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     /** The toon band of a shade (0 - 1): 0 for the lit, up to {@code toonSteps - 1} for the darkest. */
@@ -177,10 +199,12 @@ final class BrushEngine {
         };
     }
 
-    private static String paint(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap, Set<Material> blacklist) {
+    private static String paint(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap) {
         boolean gradient = s.patternMode == BrushSettings.PatternMode.GRADIENT;
-        List<Material> ramp = gradient ? Gradients.ramp(s.gradientFrom, s.gradientTo, s.gradientSteps, blacklist) : List.of();
-        if (!gradient && s.pattern.isEmpty()) return "模様 (パターン) のブロックがありません。メニューの「模様」で足してください。";
+        if (s.pattern.isEmpty()) return "模様 (パターン) のブロックがありません。メニューの「模様」で足すか、プリセットを選んでください。";
+        // (the block list is the same for both: laid along the gradient, each block as long a stretch as its weight, or scattered by weight)
+        List<Material> ramp = new ArrayList<>();
+        for (BrushSettings.Entry entry : s.pattern) ramp.add(entry.material);
         int r = s.radius;
         BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
         for (int dx = -r; dx <= r; dx++) {
@@ -207,7 +231,7 @@ final class BrushEngine {
                             material = Gradients.nearest(ramp, moved);
                             if (material == current) continue;
                         } else {
-                            material = Gradients.at(ramp, t);
+                            material = Gradients.pickAlong(s.pattern, t);
                         }
                     } else {
                         material = pick(s, x, y, z, random);

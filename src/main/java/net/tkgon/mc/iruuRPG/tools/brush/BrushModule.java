@@ -309,7 +309,7 @@ public final class BrushModule implements Listener {
         org.bukkit.util.Vector look = player.getLocation().getDirection().setY(0.0);
         s.facing = look.lengthSquared() < 1.0E-6 ? new org.bukkit.util.Vector(0.0, 0.0, 1.0) : look.normalize();
         s.selection = selection.active(player);
-        return BrushEngine.compute(block.getWorld(), block.getX(), block.getY(), block.getZ(), s, cap, store.blacklist());
+        return BrushEngine.compute(block.getWorld(), block.getX(), block.getY(), block.getZ(), s, cap, store.shadeBlacklist());
     }
 
     private int drawDirect(org.bukkit.World world, List<BrushEngine.Change> changes) {

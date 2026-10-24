@@ -51,8 +51,16 @@ final class SurfaceProbe {
         return type.isSolid() && !type.isAir();
     }
 
+    /** Whether the block touches air or something it can be seen through: on a face, an edge or a corner (the blocks round it in all 26 directions are looked at). */
     boolean exposed(int x, int y, int z) {
-        return !solid(x + 1, y, z) || !solid(x - 1, y, z) || !solid(x, y + 1, z) || !solid(x, y - 1, z) || !solid(x, y, z + 1) || !solid(x, y, z - 1);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if ((dx != 0 || dy != 0 || dz != 0) && !solid(x + dx, y + dy, z + dz)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     Vector normal(int x, int y, int z) {

@@ -12,8 +12,27 @@ import java.util.Set;
  */
 final class Gradients {
 
-    /** A ready-made gradient: its name, the two ends and the steps between. */
-    record Preset(String name, Material from, Material to, int steps) {
+    /** One block of a preset and how often it is chosen against the others (or how long a stretch of the gradient it takes). */
+    record Part(Material material, int weight) {
+    }
+
+    /**
+     * A ready-made set of blocks: either made from two ends and the steps between ({@code parts} null: the ramp is worked out when it is used) or listed by hand ({@code parts}),
+     * with whether it is laid as a gradient or scattered by weight.
+     */
+    record Preset(String name, Material from, Material to, int steps, List<Part> parts, boolean gradient) {
+        Preset(String name, Material from, Material to, int steps) {
+            this(name, from, to, steps, null, true);
+        }
+
+        /** A preset listed by hand. */
+        static Preset manual(String name, List<Part> parts, boolean gradient) {
+            return new Preset(name, null, null, 0, List.copyOf(parts), gradient);
+        }
+
+        boolean generated() {
+            return parts == null;
+        }
     }
 
     /** The presets that come with the brush; the player's own are kept in the yaml ({@link BrushStore}). */
@@ -83,6 +102,41 @@ final class Gradients {
         }
         if (!ramp.contains(to)) ramp.add(to);
         return ramp;
+    }
+
+    /** Puts the preset in the settings' block list (the one both ways of laying blocks share) and the way of laying it. A generated preset works out its ramp now. */
+    static void apply(Preset preset, BrushSettings s, Set<Material> blacklist) {
+        s.pattern.clear();
+        if (preset.generated()) {
+            for (Material material : ramp(preset.from(), preset.to(), preset.steps(), blacklist)) s.pattern.add(new BrushSettings.Entry(material, 1));
+            s.gradientFrom = preset.from();
+            s.gradientTo = preset.to();
+            s.gradientSteps = preset.steps();
+            s.patternMode = BrushSettings.PatternMode.GRADIENT;
+        } else {
+            for (Part part : preset.parts()) s.pattern.add(new BrushSettings.Entry(part.material(), part.weight()));
+            s.patternMode = preset.gradient() ? BrushSettings.PatternMode.GRADIENT : BrushSettings.PatternMode.RANDOM;
+        }
+    }
+
+    /** The settings' block list as a preset of that name. */
+    static Preset fromSettings(String name, BrushSettings s) {
+        List<Part> parts = new ArrayList<>();
+        for (BrushSettings.Entry entry : s.pattern) parts.add(new Part(entry.material, entry.weight));
+        return Preset.manual(name, parts, s.patternMode == BrushSettings.PatternMode.GRADIENT);
+    }
+
+    /** The block at {@code t} (0 - 1) along the list, each taking a stretch as long as its weight. */
+    static Material pickAlong(List<BrushSettings.Entry> list, double t) {
+        int total = 0;
+        for (BrushSettings.Entry entry : list) total += Math.max(1, entry.weight);
+        double target = Math.max(0.0, Math.min(0.9999, t)) * total;
+        double sum = 0.0;
+        for (BrushSettings.Entry entry : list) {
+            sum += Math.max(1, entry.weight);
+            if (target < sum) return entry.material;
+        }
+        return list.get(list.size() - 1).material;
     }
 
     /** The colour (0xRRGGBB) at {@code t} (0 - 1) along the ramp, going smoothly from one block's colour to the next. */

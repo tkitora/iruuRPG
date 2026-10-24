@@ -17,7 +17,7 @@ final class BrushCommand implements TabExecutor {
 
     private static final String PREFIX = BrushModule.PREFIX;
     private static final List<String> SUBS = List.of("help", "give", "menu", "off", "undo", "redo", "use", "peek", "preview", "set", "preset", "blacklist", "select");
-    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell");
+    private static final List<String> SET_KEYS = List.of("mode", "shape", "radius", "strength", "falloff", "surface", "pattern", "from", "to", "steps", "generate", "axis", "additive", "toon", "depth", "sun", "light", "ao", "curvature", "shadenoise", "cell");
 
     private final BrushModule module;
 
@@ -36,9 +36,9 @@ final class BrushCommand implements TabExecutor {
             "/ibrush preview                  追従プレビューのオン/オフ (設定や見る所を変えると更新)",
             "/ibrush undo | redo              直前の編集の取り消し/やり直し (//undo, //redo と同じ)",
             "/ibrush set <項目> <値>           設定を数値や名前で直接変える (項目は /ibrush help set)",
-            "/ibrush preset list|apply <名前>|save <名前>   グラデーションのプリセット",
-            "/ibrush blacklist list|add [ブロック]|remove <ブロック>|save   グラデーション・自動陰影で使わないブロック",
-            "/ibrush select give|fuzzy|adjacent|invert|clear|show|blend|shade|threshold <0〜100>|radius <1〜64>|info   選択ツール (help select で詳しく)");
+            "/ibrush preset list|apply <名前>|save <名前>   ブロックの一覧のプリセット (save は、いまの一覧と割合と置き方を保存)",
+            "/ibrush blacklist [gradient|shade] list|add [ブロック]|remove <ブロック>|save   グラデーション用 / 陰影用の、使わないブロック",
+            "/ibrush select give|fuzzy|adjacent|mode|invert|clear|show|blend|shade|threshold <0〜100>|radius <1〜64>|info   選択ツール (help select で詳しく)");
 
     private static final List<String> HELP_SET = List.of(
             "/ibrush set mode <paint|shade>            塗る / 自動陰影",
@@ -48,8 +48,9 @@ final class BrushCommand implements TabExecutor {
             "/ibrush set falloff <0〜100>              縁のぼかし (%)",
             "/ibrush set surface <on|off>              表面だけ",
             "/ibrush set pattern <random|gradient>     模様の作り方",
-            "/ibrush set from <ブロック> / to <ブロック>   グラデーションの両端 (省略すると手に持つブロック)",
-            "/ibrush set steps <0〜14>                 グラデーションの間のブロック数",
+            "/ibrush set from <ブロック> / to <ブロック>   一覧を作る元の2つのブロック (省略すると手に持つブロック)",
+            "/ibrush set steps <0〜14>                 一覧を作るときの、間のブロック数",
+            "/ibrush set generate                      2つのブロックから一覧を作る (グラデーションになる。ブラックリスト・グラデーション用を使う)",
             "/ibrush set axis <radial|vertical|directional|noise>   グラデーションの向き",
             "/ibrush set additive <on|off>             加算 (上乗せ)",
             "/ibrush set toon <0|2〜6>                 トゥーン調の段数 (0 でオフ)",
@@ -66,6 +67,7 @@ final class BrushCommand implements TabExecutor {
             "/ibrush select fuzzy | adjacent    選び方: 似た色 / 同じブロックでつながった所",
             "/ibrush select threshold <0〜100>  ファジーのしきい値 (大きいほど色が離れていても選ぶ)",
             "/ibrush select radius <1〜64>      クリックした所から探す半径",
+            "/ibrush select mode <range|blocks>  選択の使い方: range=選んだ場所だけ / blocks=選んだブロックと同じ種類のブロックならどこでも(ブロックのマスク)",
             "/ibrush select invert              選択を反転 (ブラシは外側だけに効く。計算は増えない)",
             "/ibrush select clear               選択を解除",
             "/ibrush select show                選択の縁の表示のオン/オフ",
@@ -96,6 +98,13 @@ final class BrushCommand implements TabExecutor {
                 case "radius" -> {
                     state.radius = Math.max(1, Math.min(tool.maxRadius(), Integer.parseInt(args[2])));
                     player.sendMessage(PREFIX + "半径: " + state.radius);
+                }
+                case "mode" -> {
+                    String value = args[2].toLowerCase(Locale.ROOT);
+                    if (!value.equals("range") && !value.equals("blocks")) throw new NumberFormatException();
+                    state.blocksAsMask = value.equals("blocks");
+                    state.kinds = null;
+                    player.sendMessage(PREFIX + "選択の使い方: " + (state.blocksAsMask ? "ブロックのマスク" : "範囲"));
                 }
                 case "invert" -> tool.invert(player);
                 case "clear" -> tool.clear(player);
@@ -245,6 +254,10 @@ final class BrushCommand implements TabExecutor {
                     }
                     if (key.equals("from")) s.gradientFrom = material;
                     else s.gradientTo = material;
+                }
+                case "generate" -> {
+                    s.pattern.clear();
+                    for (Material material : Gradients.ramp(s.gradientFrom, s.gradientTo, s.gradientSteps, module.store().gradientBlacklist())) s.pattern.add(new BrushSettings.Entry(material, 1));
                     s.patternMode = BrushSettings.PatternMode.GRADIENT;
                 }
                 case "steps" -> s.gradientSteps = Math.max(0, Math.min(14, Integer.parseInt(value)));
@@ -320,17 +333,16 @@ final class BrushCommand implements TabExecutor {
             case "list" -> {
                 player.sendMessage(PREFIX + "グラデーションのプリセット:");
                 for (Gradients.Preset preset : store.allPresets()) {
-                    player.sendMessage("  " + preset.name() + "  (" + preset.from().name().toLowerCase(Locale.ROOT) + " → " + preset.to().name().toLowerCase(Locale.ROOT) + ", 間 " + preset.steps() + ")");
+                    player.sendMessage("  " + preset.name() + "  (" + (preset.generated()
+                            ? preset.from().name().toLowerCase(Locale.ROOT) + " → " + preset.to().name().toLowerCase(Locale.ROOT) + ", 間 " + preset.steps()
+                            : preset.parts().size() + "ブロック, " + (preset.gradient() ? "グラデーション" : "ばらまき")) + ")");
                 }
             }
             case "apply" -> {
                 String name = args.length > 2 ? args[2] : "";
                 for (Gradients.Preset preset : store.allPresets()) {
                     if (!preset.name().equalsIgnoreCase(name)) continue;
-                    s.patternMode = BrushSettings.PatternMode.GRADIENT;
-                    s.gradientFrom = preset.from();
-                    s.gradientTo = preset.to();
-                    s.gradientSteps = preset.steps();
+                    Gradients.apply(preset, s, store.gradientBlacklist());
                     module.changed(player);
                     player.sendMessage(PREFIX + "プリセットを使います: " + preset.name());
                     return;
@@ -343,7 +355,11 @@ final class BrushCommand implements TabExecutor {
                     player.sendMessage(PREFIX + "名前は英小文字・数字・- _ の32文字まで: /ibrush preset save <名前>");
                     return;
                 }
-                store.addPreset(name, s.gradientFrom, s.gradientTo, s.gradientSteps);
+                if (s.pattern.isEmpty()) {
+                    player.sendMessage(PREFIX + "ブロックの一覧が空です (模様のページで足すか、/ibrush set generate)。");
+                    return;
+                }
+                store.addPreset(name, s);
                 player.sendMessage(PREFIX + (store.save() ? "保存しました: " + name : "保存できませんでした (ログを見てください)。"));
             }
             default -> help(player, new String[]{"help", "preset"});
@@ -351,34 +367,43 @@ final class BrushCommand implements TabExecutor {
     }
 
     private void blacklist(Player player, String[] args) {
-        String action = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "list";
         BrushStore store = module.store();
+        // /ibrush blacklist <gradient|shade> <list|add|remove|save> [block]   (the kind may be left out for the gradient's list)
+        int at = 1;
+        boolean shade = false;
+        if (args.length > 1 && (args[1].equalsIgnoreCase("gradient") || args[1].equalsIgnoreCase("shade"))) {
+            shade = args[1].equalsIgnoreCase("shade");
+            at = 2;
+        }
+        String action = args.length > at ? args[at].toLowerCase(Locale.ROOT) : "list";
+        java.util.Set<Material> list = shade ? store.shadeBlacklist() : store.gradientBlacklist();
+        String kind = shade ? "陰影" : "グラデーション";
         switch (action) {
             case "list" -> {
                 List<String> names = new ArrayList<>();
-                for (Material material : store.blacklist()) names.add(material.name().toLowerCase(Locale.ROOT));
-                player.sendMessage(PREFIX + "ブラックリスト (" + names.size() + "): " + (names.isEmpty() ? "なし" : String.join(", ", names)));
+                for (Material material : list) names.add(material.name().toLowerCase(Locale.ROOT));
+                player.sendMessage(PREFIX + "ブラックリスト・" + kind + " (" + names.size() + "): " + (names.isEmpty() ? "なし" : String.join(", ", names)));
             }
             case "add" -> {
-                Material material = block(player, args, 2);
+                Material material = block(player, args, at + 1);
                 if (material == null) {
                     player.sendMessage(PREFIX + "ブロックを指定するか、手に持ってください。");
                     return;
                 }
-                store.blacklist().add(material);
+                list.add(material);
                 module.changed(player);
-                player.sendMessage(PREFIX + "足しました: " + material.name().toLowerCase(Locale.ROOT) + " (/ibrush blacklist save で保存)");
+                player.sendMessage(PREFIX + kind + "のリストに足しました: " + material.name().toLowerCase(Locale.ROOT) + " (/ibrush blacklist save で保存)");
             }
             case "remove" -> {
-                Material material = args.length > 2 ? Material.matchMaterial(args[2]) : null;
-                if (material == null || !store.blacklist().remove(material)) {
+                Material material = args.length > at + 1 ? Material.matchMaterial(args[at + 1]) : null;
+                if (material == null || !list.remove(material)) {
                     player.sendMessage(PREFIX + "リストにありません。");
                     return;
                 }
                 module.changed(player);
-                player.sendMessage(PREFIX + "取り除きました: " + material.name().toLowerCase(Locale.ROOT) + " (/ibrush blacklist save で保存)");
+                player.sendMessage(PREFIX + kind + "のリストから取り除きました: " + material.name().toLowerCase(Locale.ROOT) + " (/ibrush blacklist save で保存)");
             }
-            case "save" -> player.sendMessage(PREFIX + (store.save() ? "保存しました (" + store.blacklist().size() + "件)。" : "保存できませんでした (ログを見てください)。"));
+            case "save" -> player.sendMessage(PREFIX + (store.save() ? "保存しました (グラデーション " + store.gradientBlacklist().size() + "件 / 陰影 " + store.shadeBlacklist().size() + "件)。" : "保存できませんでした (ログを見てください)。"));
             default -> help(player, new String[]{"help", "blacklist"});
         }
     }
@@ -399,8 +424,8 @@ final class BrushCommand implements TabExecutor {
                     for (BrushMenu.Page page : BrushMenu.Page.values()) options.add(page.name().toLowerCase(Locale.ROOT));
                 }
                 case "preset" -> options.addAll(List.of("list", "apply", "save"));
-                case "blacklist" -> options.addAll(List.of("list", "add", "remove", "save"));
-                case "select" -> options.addAll(List.of("give", "fuzzy", "adjacent", "threshold", "radius", "invert", "clear", "show", "blend", "shade", "limit", "info"));
+                case "blacklist" -> options.addAll(List.of("gradient", "shade", "list", "add", "remove", "save"));
+                case "select" -> options.addAll(List.of("give", "fuzzy", "adjacent", "mode", "threshold", "radius", "invert", "clear", "show", "blend", "shade", "limit", "info"));
                 default -> {
                 }
             }
@@ -423,8 +448,10 @@ final class BrushCommand implements TabExecutor {
                 }
             } else if (sub.equals("preset") && key.equals("apply")) {
                 for (Gradients.Preset preset : module.store().allPresets()) options.add(preset.name());
-            } else if (sub.equals("blacklist") && key.equals("remove")) {
-                for (Material material : module.store().blacklist()) options.add(material.name().toLowerCase(Locale.ROOT));
+            } else if (sub.equals("blacklist") && (key.equals("gradient") || key.equals("shade"))) {
+                options.addAll(List.of("list", "add", "remove", "save"));
+            } else if (sub.equals("select") && key.equals("mode")) {
+                options.addAll(List.of("range", "blocks"));
             }
         }
         List<String> result = new ArrayList<>();

@@ -72,6 +72,10 @@ final class SelectionTool implements Listener {
         boolean show = true;
         /** The brush is held to the selection. */
         boolean limitBrush = true;
+        /** How the brush uses the selection: false, only on the blocks selected (a range); true, on any block of the kinds that were selected (a block mask). */
+        boolean blocksAsMask;
+        /** The kinds of block the selection holds (worked out once, dropped when the selection changes). */
+        Set<Material> kinds;
         BlockSelection selection;
         BukkitTask job;
     }
@@ -99,7 +103,21 @@ final class SelectionTool implements Listener {
     Selection active(Player player) {
         State state = states.get(player.getUniqueId());
         if (state == null || !state.limitBrush || state.selection == null) return null;
-        return state.selection.world.equals(player.getWorld().getUID()) ? state.selection : null;
+        if (!state.selection.world.equals(player.getWorld().getUID())) return null;
+        if (!state.blocksAsMask) return state.selection;
+        World world = player.getWorld();
+        if (state.kinds == null) {
+            // the kinds of block the selection holds
+            Set<Material> kinds = new HashSet<>();
+            for (long key : state.selection.blocks) {
+                Material type = world.getType(BlockSelection.unpackX(key), BlockSelection.unpackY(key), BlockSelection.unpackZ(key));
+                Material base = BlockColors.baseOf(type);
+                kinds.add(base != null ? base : type);
+                if (kinds.size() > 64) break;
+            }
+            state.kinds = kinds;
+        }
+        return new TypeSelection(world, state.kinds, state.selection.inverted);
     }
 
     void stop() {
@@ -221,8 +239,8 @@ final class SelectionTool implements Listener {
         seen.add(SurfaceProbe.pack(ox, oy, oz));
         player.sendMessage(PREFIX + (mode == Mode.FUZZY ? "似た色を探しています…" : "同じブロックを探しています…") + " (半径 " + radius + (mode == Mode.FUZZY ? ", しきい値 " + state.threshold : "") + ")");
         int[][] neighbours = mode == Mode.FUZZY
-                ? new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}, {1, 1, 0}, {1, -1, 0}, {-1, 1, 0}, {-1, -1, 0}, {0, 1, 1}, {0, 1, -1}, {0, -1, 1}, {0, -1, -1}, {1, 0, 1}, {1, 0, -1}, {-1, 0, 1}, {-1, 0, -1}}
-                : new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+                ? ALL_NEIGHBOURS
+                : ALL_NEIGHBOURS;
         state.job = new org.bukkit.scheduler.BukkitRunnable() {
             private int added;
 
@@ -262,6 +280,7 @@ final class SelectionTool implements Listener {
                     cancel();
                     state.job = null;
                     state.selection = target;
+                    state.kinds = null;
                     player.sendMessage(PREFIX + "選びました: " + target.blocks.size() + "ブロック" + (target.inverted ? " (反転中)" : "") + "。ブラシはこの範囲だけに効きます。");
                     ensureDisplay();
                 }
@@ -277,11 +296,28 @@ final class SelectionTool implements Listener {
                     if (BlockColors.colorDistance(BlockColors.rgb(base), originColor) > allowed) return false;
                 }
                 if (surface) {
-                    return !solidAt(w, x + 1, y, z) || !solidAt(w, x - 1, y, z) || !solidAt(w, x, y + 1, z) || !solidAt(w, x, y - 1, z) || !solidAt(w, x, y, z + 1) || !solidAt(w, x, y, z - 1);
+                    for (int[] step : ALL_NEIGHBOURS) if (!solidAt(w, x + step[0], y + step[1], z + step[2])) return true;
+                    return false;
                 }
                 return true;
             }
         }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /** The 26 blocks round a block: the faces, the edges and the corners (a condition on what is round a block looks at the diagonal ones too). */
+    private static final int[][] ALL_NEIGHBOURS = neighbours();
+
+    private static int[][] neighbours() {
+        int[][] all = new int[26][];
+        int index = 0;
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dy = -1; dy <= 1; dy++) {
+                for (int dz = -1; dz <= 1; dz++) {
+                    if (dx != 0 || dy != 0 || dz != 0) all[index++] = new int[]{dx, dy, dz};
+                }
+            }
+        }
+        return all;
     }
 
     private static boolean solidAt(World world, int x, int y, int z) {
@@ -305,6 +341,7 @@ final class SelectionTool implements Listener {
         if (state.job != null) state.job.cancel();
         state.job = null;
         state.selection = null;
+        state.kinds = null;
         player.sendMessage(PREFIX + "選択を解除しました。");
     }
 
@@ -340,7 +377,13 @@ final class SelectionTool implements Listener {
                 double dz = z + 0.5 - eye.getZ();
                 if (dx * dx + dy * dy + dz * dz > rangeSquared) continue;
                 // only the edge of the set: a block with a neighbour that is not selected
-                boolean edge = !selection.has(x + 1, y, z) || !selection.has(x - 1, y, z) || !selection.has(x, y + 1, z) || !selection.has(x, y - 1, z) || !selection.has(x, y, z + 1) || !selection.has(x, y, z - 1);
+                boolean edge = false;
+                for (int[] step : ALL_NEIGHBOURS) {
+                    if (!selection.has(x + step[0], y + step[1], z + step[2])) {
+                        edge = true;
+                        break;
+                    }
+                }
                 if (!edge) continue;
                 // on the face that looks out (up when open above, else sideways)
                 double px = x + 0.5;
@@ -392,7 +435,7 @@ final class SelectionTool implements Listener {
         Set<Material> allowed = BrushEngine.shadePalette(settings);
         List<BrushEngine.Change> changes = new ArrayList<>();
         for (long key : selection.blocks) {
-            BrushEngine.Change change = BrushEngine.shadeOne(probe, settings, BlockSelection.unpackX(key), BlockSelection.unpackY(key), BlockSelection.unpackZ(key), allowed, module.store().blacklist());
+            BrushEngine.Change change = BrushEngine.shadeOne(probe, settings, BlockSelection.unpackX(key), BlockSelection.unpackY(key), BlockSelection.unpackZ(key), allowed, module.store().shadeBlacklist());
             if (change != null) changes.add(change);
         }
         if (changes.isEmpty()) {

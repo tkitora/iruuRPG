@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 
 /**
@@ -34,9 +35,10 @@ import java.util.function.BiConsumer;
 final class BrushMenu implements Listener {
 
     enum Page {
-        MAIN(2, Material.PAINTING, "基本", "ブラシ"),
-        PATTERN(3, Material.WHITE_CONCRETE, "模様", "模様"),
-        MASK(4, Material.HOPPER, "マスク", "マスク"),
+        MAIN(1, Material.PAINTING, "基本", "ブラシ"),
+        PATTERN(2, Material.WHITE_CONCRETE, "模様", "模様"),
+        MASK(3, Material.HOPPER, "マスク", "マスク"),
+        POSITION(4, Material.LADDER, "高さ・位置", "高さと位置のマスク"),
         SUN(5, Material.SUNFLOWER, "陰影", "太陽と陰影"),
         BLACKLIST(6, Material.BARRIER, "ブラックリスト", "ブラックリスト"),
         SELECT(7, Material.BLAZE_ROD, "選択", "選択ツール");
@@ -76,6 +78,10 @@ final class BrushMenu implements Listener {
         private Page page;
         /** Which end of the gradient the next block clicked in the inventory becomes. */
         private Pick pick = Pick.NONE;
+        /** The preset the cycling item shows (an index in the store's list; -1: none yet). */
+        private int presetIndex = -1;
+        /** The blacklist page edits the shade's list (true) or the gradient's (false). */
+        private boolean shadeList;
         private final Map<Integer, BiConsumer<Player, ClickType>> actions = new HashMap<>();
 
         @Override
@@ -107,6 +113,11 @@ final class BrushMenu implements Listener {
             for (String line : lore) if (!line.isEmpty()) lines.add(text(line, NamedTextColor.GRAY));
             meta.lore(lines);
             meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_POTION_EFFECTS);
+            // a switch that is on shines like an enchanted item, so it can be told from one that is off at a glance
+            if (name.endsWith(": オン")) {
+                meta.addEnchant(org.bukkit.enchantments.Enchantment.LUCK, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
             item.setItemMeta(meta);
         }
         return item;
@@ -187,6 +198,7 @@ final class BrushMenu implements Listener {
             case MAIN -> main(holder, s);
             case PATTERN -> pattern(holder, s);
             case MASK -> mask(holder, s);
+            case POSITION -> position(holder, s);
             case SUN -> sun(holder, s);
             case BLACKLIST -> blacklist(holder);
             case SELECT -> select(holder, player);
@@ -226,16 +238,16 @@ final class BrushMenu implements Listener {
                     s.surfaceOnly = !s.surfaceOnly;
                     refresh(p, Page.MAIN);
                 });
+        // one item for the shape: click for the next, right click for the one before; the one in use is in the name, the rest in the lore
         BrushShape[] shapes = BrushShape.values();
-        for (int index = 0; index < shapes.length; index++) {
-            BrushShape shape = shapes[index];
-            boolean on = s.shape == shape;
-            put(holder, GRID[7 + index], item(shape.icon(), (on ? "▶ " : "") + shape.label(), on ? NamedTextColor.GOLD : NamedTextColor.WHITE, List.of(shape.description(), on ? "選んでいます" : "クリックで形を選ぶ")),
-                    (p, c) -> {
-                        s.shape = shape;
-                        refresh(p, Page.MAIN);
-                    });
-        }
+        List<String> shapeLore = new ArrayList<>();
+        shapeLore.add(s.shape.description());
+        for (BrushShape shape : shapes) shapeLore.add((shape == s.shape ? "▶ " : "   ") + shape.label());
+        shapeLore.add("左クリック: 次の形 / 右クリック: 前の形");
+        put(holder, GRID[7], item(s.shape.icon(), "形: " + s.shape.label(), NamedTextColor.GOLD, shapeLore), (p, c) -> {
+            s.shape = shapes[Math.floorMod(s.shape.ordinal() + (left(c) ? 1 : -1), shapes.length)];
+            refresh(p, Page.MAIN);
+        });
         put(holder, GRID[18], item(Material.AMETHYST_SHARD, "ノイズ: " + onOff(s.noise), NamedTextColor.AQUA, List.of("オン: 模様の選び方を滑らかなノイズにして、点々ではなく斑(まだら)の塊にする", "オフ: 一つずつランダム", "クリックで切り替え")),
                 (p, c) -> {
                     s.noise = !s.noise;
@@ -257,19 +269,15 @@ final class BrushMenu implements Listener {
 
     private void pattern(Holder holder, BrushSettings s) {
         boolean gradient = s.patternMode == BrushSettings.PatternMode.GRADIENT;
-        put(holder, GRID[0], item(gradient ? Material.PRISMARINE_SHARD : Material.WHITE_CONCRETE, "模様の作り方: " + (gradient ? "グラデーション" : "ブロックの割合"), NamedTextColor.GOLD, List.of(
-                "ブロックの割合: 選んだブロックを割合でばらまく",
-                "グラデーション: 2つのブロックの間を、近い色のブロックでつなぐ",
-                "クリックで切り替え")), (p, c) -> {
+        BrushStore store = module.store();
+        put(holder, GRID[0], item(gradient ? Material.PRISMARINE_SHARD : Material.WHITE_CONCRETE, "置き方: " + (gradient ? "グラデーション" : "ばらまき (割合)"), NamedTextColor.GOLD, List.of(
+                "ブロックの一覧は、どちらの置き方でも共通",
+                "グラデーション: 一覧の順に、割合の分だけ長く、ブロックを並べる",
+                "ばらまき: 割合に応じて、ばらばらに置く", "クリックで切り替え")), (p, c) -> {
             s.patternMode = gradient ? BrushSettings.PatternMode.RANDOM : BrushSettings.PatternMode.GRADIENT;
             refresh(p, Page.PATTERN);
         });
-        if (gradient) gradientControls(holder, s);
-        else listControls(holder, s);
-    }
-
-    private void listControls(Holder holder, BrushSettings s) {
-        put(holder, GRID[1], item(Material.EMERALD, "手に持つブロックを足す", NamedTextColor.GREEN, List.of("メインハンドのブロックを模様に足す", "自分のインベントリのブロックをクリックしても足せる")), (p, c) -> {
+        put(holder, GRID[1], item(Material.EMERALD, "手に持つブロックを足す", NamedTextColor.GREEN, List.of("メインハンドのブロックを一覧の最後に足す", "自分のインベントリのブロックをクリックしても足せる")), (p, c) -> {
             addPattern(s, p.getInventory().getItemInMainHand().getType());
             refresh(p, Page.PATTERN);
         });
@@ -277,80 +285,107 @@ final class BrushMenu implements Listener {
             for (int slot = 0; slot < 9; slot++) addPattern(s, p.getInventory().getItem(slot) == null ? Material.AIR : p.getInventory().getItem(slot).getType());
             refresh(p, Page.PATTERN);
         });
-        put(holder, GRID[3], item(Material.WATER_BUCKET, "割合をそろえる", NamedTextColor.AQUA, List.of("全部のブロックの重みを 1 にする")), (p, c) -> {
+        put(holder, GRID[3], item(Material.WATER_BUCKET, "割合をそろえる", NamedTextColor.AQUA, List.of("全部のブロックの割合を 1 にする")), (p, c) -> {
             for (BrushSettings.Entry entry : s.pattern) entry.weight = 1;
             refresh(p, Page.PATTERN);
         });
-        put(holder, GRID[4], item(Material.LAVA_BUCKET, "全部消す", NamedTextColor.RED, List.of("模様を空にする")), (p, c) -> {
+        put(holder, GRID[4], item(Material.LAVA_BUCKET, "全部消す", NamedTextColor.RED, List.of("一覧を空にする")), (p, c) -> {
             s.pattern.clear();
             refresh(p, Page.PATTERN);
         });
-        put(holder, GRID[5], item(Material.BOOK, "つかいかた", NamedTextColor.GOLD, List.of(
-                "ブロックのアイコン: 左クリック 割合 +1 / 右クリック -1",
-                "Shift + 右クリックで取り除く (Shift + 左で +5)",
-                "割合が大きいブロックほどたくさん使われる")), null);
-        for (int index = 0; index < Math.min(GRID.length - 7, s.pattern.size()); index++) {
+        put(holder, GRID[5], item(Material.WRITABLE_BOOK, "プリセットに保存", NamedTextColor.GREEN, List.of(
+                "いまのブロックの一覧と割合と置き方を、自分のプリセット (brush.yml) に保存する",
+                "名前は my-1, my-2 ... (/ibrush preset save <名前> でも保存できる)")), (p, c) -> {
+            if (s.pattern.isEmpty()) {
+                p.sendMessage(BrushModule.PREFIX + "一覧が空です。");
+                return;
+            }
+            int number = store.presets().size() + 1;
+            store.addPreset("my-" + number, s);
+            p.sendMessage(BrushModule.PREFIX + (store.save() ? "プリセット my-" + number + " を保存しました。" : "保存できませんでした (ログを見てください)。"));
+            refresh(p, Page.PATTERN);
+        });
+        // one item for the presets: click for the next (and use it), right click for the one before
+        List<Gradients.Preset> presets = store.allPresets();
+        Gradients.Preset current = holder.presetIndex >= 0 && holder.presetIndex < presets.size() ? presets.get(holder.presetIndex) : null;
+        List<String> presetLore = new ArrayList<>();
+        presetLore.add(current == null ? "まだ選んでいません" : describe(current));
+        for (int index = 0; index < presets.size(); index++) presetLore.add((index == holder.presetIndex ? "▶ " : "   ") + presets.get(index).name());
+        presetLore.add("左クリック: 次のプリセットを使う / 右クリック: 前のプリセットを使う");
+        put(holder, GRID[6], item(Material.BOOKSHELF, "プリセット: " + (current == null ? "(選んでいない)" : current.name()), NamedTextColor.AQUA, presetLore), (p, c) -> {
+            if (presets.isEmpty()) return;
+            holder.presetIndex = Math.floorMod(holder.presetIndex + (left(c) ? 1 : -1), presets.size());
+            Gradients.apply(presets.get(holder.presetIndex), s, store.gradientBlacklist());
+            refresh(p, Page.PATTERN);
+        });
+        int total = Math.max(1, s.totalWeight());
+        for (int index = 0; index < Math.min(14, s.pattern.size()); index++) {
             BrushSettings.Entry entry = s.pattern.get(index);
-            int total = Math.max(1, s.totalWeight());
-            put(holder, GRID[7 + index], item(entry.material, name(entry.material), NamedTextColor.WHITE, List.of(
-                    "割合: " + entry.weight + " (" + Math.round(100.0 * entry.weight / total) + "%)", "左 +1 / 右 -1 / Shift+左 +5 / Shift+右 取り除く")), (p, c) -> {
+            int at = index;
+            put(holder, GRID[7 + index], item(entry.material, (index + 1) + ". " + name(entry.material), NamedTextColor.WHITE, List.of(
+                    "割合: " + entry.weight + " (" + Math.round(100.0 * entry.weight / total) + "%)",
+                    "左 +1 / 右 -1 / Shift+左 1つ前へ / Shift+右 取り除く", "Q (ドロップ) で、手に持つブロックに置き換える")), (p, c) -> {
                 if (c == ClickType.SHIFT_RIGHT) s.pattern.remove(entry);
-                else entry.weight = Math.max(1, Math.min(99, entry.weight + (left(c) ? 1 : -1) * (big(c) ? 5 : 1)));
+                else if (c == ClickType.SHIFT_LEFT) {
+                    if (at > 0) {
+                        s.pattern.remove(at);
+                        s.pattern.add(at - 1, entry);
+                    }
+                } else if (c == ClickType.DROP || c == ClickType.CONTROL_DROP) {
+                    Material held = p.getInventory().getItemInMainHand().getType();
+                    if (usable(held)) entry.material = held;
+                } else entry.weight = Math.max(1, Math.min(99, entry.weight + (left(c) ? 1 : -1)));
+                refresh(p, Page.PATTERN);
+            });
+        }
+        // the two ends the list can be made from
+        put(holder, GRID[21], item(s.gradientFrom, "作る元: 最初のブロック " + name(s.gradientFrom), holder.pick == Pick.FROM ? NamedTextColor.GOLD : NamedTextColor.GREEN, List.of(
+                holder.pick == Pick.FROM ? "→ 自分のインベントリのブロックをクリックしてください" : "左クリック: 次にクリックするブロックにする",
+                "右クリック: 手に持つブロックにする", "「2つのブロックから一覧を作る」で、一覧がこの2つの間のブロックで置き換わる")), (p, c) -> setEnd(p, holder, s, Pick.FROM, left(c)));
+        put(holder, GRID[22], item(s.gradientTo, "作る元: 最後のブロック " + name(s.gradientTo), holder.pick == Pick.TO ? NamedTextColor.GOLD : NamedTextColor.GREEN, List.of(
+                holder.pick == Pick.TO ? "→ 自分のインベントリのブロックをクリックしてください" : "左クリック: 次にクリックするブロックにする",
+                "右クリック: 手に持つブロックにする")), (p, c) -> setEnd(p, holder, s, Pick.TO, left(c)));
+        put(holder, GRID[23], item(Material.LADDER, "間のブロックの数: " + s.gradientSteps, NamedTextColor.AQUA, List.of("2つのブロックの間に入れる、近い色のブロックの数 (0〜14)", "左クリック +1 / 右クリック -1")), (p, c) -> {
+            s.gradientSteps = Math.max(0, Math.min(14, s.gradientSteps + (left(c) ? 1 : -1)));
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[24], item(Material.CRAFTING_TABLE, "2つのブロックから一覧を作る", NamedTextColor.GREEN, List.of(
+                "最初と最後のブロックの間を、色の近いブロックでつないで、一覧に入れる (グラデーションの置き方になる)",
+                "できたあとは、ブロックの順・割合・入れ替えを自由に直せる", "ブラックリスト (グラデーション用) のブロックは使わない")), (p, c) -> {
+            s.pattern.clear();
+            for (Material material : Gradients.ramp(s.gradientFrom, s.gradientTo, s.gradientSteps, store.gradientBlacklist())) s.pattern.add(new BrushSettings.Entry(material, 1));
+            s.patternMode = BrushSettings.PatternMode.GRADIENT;
+            refresh(p, Page.PATTERN);
+        });
+        if (gradient) {
+            put(holder, GRID[25], item(Material.COMPASS, "向き: " + s.gradientAxis.label, NamedTextColor.AQUA, List.of(s.gradientAxis.description, "クリックで切り替え")), (p, c) -> {
+                BrushSettings.GradientAxis[] all = BrushSettings.GradientAxis.values();
+                s.gradientAxis = all[Math.floorMod(s.gradientAxis.ordinal() + (left(c) ? 1 : -1), all.length)];
+                refresh(p, Page.PATTERN);
+            });
+            put(holder, GRID[26], item(Material.SUGAR, "ざらつき: " + Math.round(s.dither * 100) + "%", NamedTextColor.AQUA, List.of("0%: きれいな帯 / 大きいほど、境目がまだらに混ざる", "左クリック +10% / 右クリック -10%")), (p, c) -> {
+                s.dither = Math.max(0.0, Math.min(1.0, s.dither + (left(c) ? 0.1 : -0.1)));
+                refresh(p, Page.PATTERN);
+            });
+            put(holder, GRID[27], item(Material.GLOWSTONE_DUST, "加算: " + onOff(s.additive), NamedTextColor.AQUA, List.of(
+                    "オン: 同じ所にもう一度塗ると、いまの色が一覧の色の方へ少しずつ進む (上乗せ)", "進み方: " + Math.round(s.additiveRate * 100) + "% (右クリックで 25 → 50 → 75 → 100%)",
+                    "オフ: 塗るたびに、一覧のブロックで置き換える", "左クリックで切り替え")), (p, c) -> {
+                if (left(c)) s.additive = !s.additive;
+                else s.additiveRate = s.additiveRate >= 0.99 ? 0.25 : s.additiveRate + 0.25;
                 refresh(p, Page.PATTERN);
             });
         }
     }
 
-    private void gradientControls(Holder holder, BrushSettings s) {
-        put(holder, GRID[1], item(s.gradientFrom, "最初のブロック: " + name(s.gradientFrom), holder.pick == Pick.FROM ? NamedTextColor.GOLD : NamedTextColor.GREEN, List.of(
-                holder.pick == Pick.FROM ? "→ 自分のインベントリのブロックをクリックしてください" : "左クリック: 次にクリックするブロックを最初のブロックにする",
-                "右クリック: 手に持つブロックを最初のブロックにする")), (p, c) -> setEnd(p, holder, s, Pick.FROM, left(c)));
-        put(holder, GRID[2], item(s.gradientTo, "最後のブロック: " + name(s.gradientTo), holder.pick == Pick.TO ? NamedTextColor.GOLD : NamedTextColor.GREEN, List.of(
-                holder.pick == Pick.TO ? "→ 自分のインベントリのブロックをクリックしてください" : "左クリック: 次にクリックするブロックを最後のブロックにする",
-                "右クリック: 手に持つブロックを最後のブロックにする")), (p, c) -> setEnd(p, holder, s, Pick.TO, left(c)));
-        put(holder, GRID[3], item(Material.LADDER, "間のブロックの数: " + s.gradientSteps, NamedTextColor.AQUA, List.of("2つのブロックの間に入れる、近い色のブロックの数 (0〜14)", "左クリック +1 / 右クリック -1")), (p, c) -> {
-            s.gradientSteps = Math.max(0, Math.min(14, s.gradientSteps + (left(c) ? 1 : -1)));
-            refresh(p, Page.PATTERN);
-        });
-        put(holder, GRID[4], item(Material.COMPASS, "向き: " + s.gradientAxis.label, NamedTextColor.AQUA, List.of(s.gradientAxis.description, "クリックで切り替え")), (p, c) -> {
-            BrushSettings.GradientAxis[] all = BrushSettings.GradientAxis.values();
-            s.gradientAxis = all[(s.gradientAxis.ordinal() + 1) % all.length];
-            refresh(p, Page.PATTERN);
-        });
-        put(holder, GRID[5], item(Material.SUGAR, "ざらつき: " + Math.round(s.dither * 100) + "%", NamedTextColor.AQUA, List.of("0%: きれいな帯 / 大きいほど、境目がまだらに混ざる", "左クリック +10% / 右クリック -10%")), (p, c) -> {
-            s.dither = Math.max(0.0, Math.min(1.0, s.dither + (left(c) ? 0.1 : -0.1)));
-            refresh(p, Page.PATTERN);
-        });
-        put(holder, GRID[6], item(Material.GLOWSTONE_DUST, "加算: " + onOff(s.additive), NamedTextColor.AQUA, List.of(
-                "オン: 同じ所にもう一度塗ると、いまの色がグラデーションの色の方へ少しずつ進む (上乗せ)",
-                "オフ: 塗るたびに、グラデーションのブロックで置き換える", "クリックで切り替え")), (p, c) -> {
-            s.additive = !s.additive;
-            refresh(p, Page.PATTERN);
-        });
-        put(holder, GRID[7], item(Material.REDSTONE, "加算の進み方: " + Math.round(s.additiveRate * 100) + "%", NamedTextColor.AQUA, List.of("1回塗るごとに、色をどれだけ進めるか", "左クリック +10% / 右クリック -10%")), (p, c) -> {
-            s.additiveRate = Math.max(0.1, Math.min(1.0, s.additiveRate + (left(c) ? 0.1 : -0.1)));
-            refresh(p, Page.PATTERN);
-        });
-        List<String> rampLore = new ArrayList<>();
-        for (Material block : Gradients.ramp(s.gradientFrom, s.gradientTo, s.gradientSteps, module.store().blacklist())) rampLore.add("・" + name(block));
-        put(holder, GRID[8], item(Material.PAINTING, "いまのグラデーション", NamedTextColor.WHITE, rampLore), null);
-        put(holder, GRID[9], item(Material.WRITABLE_BOOK, "プリセットに保存", NamedTextColor.GREEN, List.of("いまの2つのブロックと数を、自分のプリセット (brush.yml) に保存する", "名前は my-1, my-2 ... (/ibrush preset save <名前> でも保存できる)")), (p, c) -> {
-            int number = module.store().presets().size() + 1;
-            module.store().addPreset("my-" + number, s.gradientFrom, s.gradientTo, s.gradientSteps);
-            p.sendMessage(BrushModule.PREFIX + (module.store().save() ? "プリセット my-" + number + " を保存しました。" : "保存できませんでした (ログを見てください)。"));
-            refresh(p, Page.PATTERN);
-        });
-        List<Gradients.Preset> presets = module.store().allPresets();
-        for (int index = 0; index < Math.min(GRID.length - 14, presets.size()); index++) {
-            Gradients.Preset preset = presets.get(index);
-            put(holder, GRID[14 + index], item(preset.from(), preset.name(), NamedTextColor.WHITE, List.of(name(preset.from()) + " → " + name(preset.to()) + " (間 " + preset.steps() + ")", "クリックで使う")), (p, c) -> {
-                s.patternMode = BrushSettings.PatternMode.GRADIENT;
-                s.gradientFrom = preset.from();
-                s.gradientTo = preset.to();
-                s.gradientSteps = preset.steps();
-                refresh(p, Page.PATTERN);
-            });
+    private static String describe(Gradients.Preset preset) {
+        if (preset.generated()) return name(preset.from()) + " → " + name(preset.to()) + " (間 " + preset.steps() + ")";
+        StringBuilder text = new StringBuilder(preset.gradient() ? "グラデーション: " : "ばらまき: ");
+        for (int index = 0; index < Math.min(4, preset.parts().size()); index++) {
+            if (index > 0) text.append(", ");
+            text.append(name(preset.parts().get(index).material())).append(" x").append(preset.parts().get(index).weight());
         }
+        if (preset.parts().size() > 4) text.append(" ほか").append(preset.parts().size() - 4);
+        return text.toString();
     }
 
     private void setEnd(Player player, Holder holder, BrushSettings s, Pick which, boolean arm) {
@@ -371,7 +406,7 @@ final class BrushMenu implements Listener {
         if (!usable(material)) return;
         BrushSettings.Entry entry = s.find(material);
         if (entry != null) entry.weight = Math.min(99, entry.weight + 1);
-        else if (s.pattern.size() < GRID.length - 7) s.pattern.add(new BrushSettings.Entry(material, 1));
+        else if (s.pattern.size() < 14) s.pattern.add(new BrushSettings.Entry(material, 1));
     }
 
     // ---- mask ------------------------------------------------------------------------------------------------------------------
@@ -432,6 +467,59 @@ final class BrushMenu implements Listener {
             s.shadeBand = Math.max(1, Math.min(Math.max(1, s.toonSteps - 1), s.shadeBand + (left(c) ? 1 : -1)));
             refresh(p, Page.MASK);
         });
+    }
+
+    // ---- height and position masks ------------------------------------------------------------------------------------------------
+
+    private void position(Holder holder, BrushSettings s) {
+        put(holder, GRID[0], item(Material.LADDER, "高さのマスク: " + onOff(s.heightMaskOn), NamedTextColor.AQUA, List.of("ある高さより上 (または下) のブロックだけに効かせる", "クリックで切り替え")), (p, c) -> {
+            s.heightMaskOn = !s.heightMaskOn;
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[1], item(s.heightAbove ? Material.PISTON : Material.STICKY_PISTON, "向き: Y=" + s.heightValue + (s.heightAbove ? " 以上" : " 以下"), NamedTextColor.AQUA, List.of(
+                "以上: その高さと、それより上のブロックだけ / 以下: その高さと、それより下のブロックだけ", "クリックで切り替え")), (p, c) -> {
+            s.heightAbove = !s.heightAbove;
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[2], item(Material.SPYGLASS, "高さ (Y): " + s.heightValue, NamedTextColor.AQUA, List.of("左クリック +1 / 右クリック -1", "Shift で 8 ずつ")), (p, c) -> {
+            s.heightValue = Math.max(-64, Math.min(320, s.heightValue + (left(c) ? 1 : -1) * (big(c) ? 8 : 1)));
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[3], item(Material.ENDER_PEARL, "いまの高さにする", NamedTextColor.AQUA, List.of("あなたが立っている高さ (足元のブロックの Y) を、高さにする")), (p, c) -> {
+            s.heightValue = p.getLocation().getBlockY() - 1;
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[7], item(Material.HOPPER, "ブロックの上下のマスク: " + onOff(s.relationMaskOn), NamedTextColor.AQUA, List.of(
+                "リストのブロックのすぐ下にあるブロック (または、すぐ上に乗っているブロック) だけに効かせる", "斜めに隣り合う列も見る", "クリックで切り替え")), (p, c) -> {
+            s.relationMaskOn = !s.relationMaskOn;
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[8], item(s.relationUnder ? Material.DROPPER : Material.DISPENSER, "向き: " + (s.relationUnder ? "リストのブロックの「下」にあるもの" : "リストのブロックの「上」に乗っているもの"), NamedTextColor.AQUA, List.of(
+                "下: 上にリストのブロックがある所 (例: 草の下の土) / 上: 下にリストのブロックがある所 (例: 岩の上の苔)", "クリックで切り替え")), (p, c) -> {
+            s.relationUnder = !s.relationUnder;
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[9], item(Material.COMPARATOR, "探す距離: " + s.relationReach, NamedTextColor.AQUA, List.of("リストのブロックを何ブロック先まで探すか", "左クリック +1 / 右クリック -1 (Shift で 4)")), (p, c) -> {
+            s.relationReach = Math.max(1, Math.min(48, s.relationReach + (left(c) ? 1 : -1) * (big(c) ? 4 : 1)));
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[10], item(Material.EMERALD, "手に持つブロックを足す", NamedTextColor.GREEN, List.of("自分のインベントリのブロックをクリックしても足せる")), (p, c) -> {
+            Material held = p.getInventory().getItemInMainHand().getType();
+            if (usable(held)) s.relationBlocks.add(held);
+            refresh(p, Page.POSITION);
+        });
+        put(holder, GRID[11], item(Material.LAVA_BUCKET, "リストを空にする", NamedTextColor.RED, List.of()), (p, c) -> {
+            s.relationBlocks.clear();
+            refresh(p, Page.POSITION);
+        });
+        int index = 14;
+        for (Material material : new ArrayList<>(s.relationBlocks)) {
+            if (index >= GRID.length) break;
+            put(holder, GRID[index++], item(material, name(material), NamedTextColor.WHITE, List.of("クリックで取り除く")), (p, c) -> {
+                s.relationBlocks.remove(material);
+                refresh(p, Page.POSITION);
+            });
+        }
     }
 
     // ---- sun and shade -----------------------------------------------------------------------------------------------------------
@@ -596,6 +684,13 @@ final class BrushMenu implements Listener {
             state.limitBrush = !state.limitBrush;
             refresh(p, Page.SELECT);
         });
+        put(holder, GRID[12], item(state.blocksAsMask ? Material.GRASS_BLOCK : Material.MAP, "選択の使い方: " + (state.blocksAsMask ? "ブロックのマスク" : "範囲"), NamedTextColor.AQUA, List.of(
+                "範囲: 選んだ場所のブロックだけにブラシが効く",
+                "ブロックのマスク: 選んだブロックと同じ種類のブロックなら、どこにでもブラシが効く",
+                "クリックで切り替え")), (p, c) -> {
+            state.blocksAsMask = !state.blocksAsMask;
+            refresh(p, Page.SELECT);
+        });
         put(holder, GRID[9], item(Material.BLAZE_ROD, "選択ツールをもらう", NamedTextColor.GOLD, List.of("持っていなければ、選択ツールのアイテムを渡す")), (p, c) -> tool.give(p));
         put(holder, GRID[11], item(Material.BLACK_DYE, "選択範囲に自動陰影", NamedTextColor.GREEN, List.of("選んだ範囲全体に、いまの陰影の設定 (光・AO・曲率・ノイズ・セル・トゥーン) を適用する",
                 "模様のブロックが入っていれば、その中からだけ選ぶ / //undo で戻せる", "反転中は使えない")), (p, c) -> {
@@ -611,28 +706,32 @@ final class BrushMenu implements Listener {
 
     private void blacklist(Holder holder) {
         BrushStore store = module.store();
-        put(holder, GRID[0], item(Material.BOOK, "ブラックリスト (" + store.blacklist().size() + ")", NamedTextColor.GOLD, List.of(
-                "ここにあるブロックは、グラデーションの途中にも、自動陰影の暗いブロックにも使われない",
-                "全員で共通 (brush.yml)。「保存」を押すまでファイルには書かれない",
-                "ブロックのアイコンをクリックで取り除く")), null);
+        Set<Material> list = holder.shadeList ? store.shadeBlacklist() : store.gradientBlacklist();
+        put(holder, GRID[0], item(holder.shadeList ? Material.BLACK_DYE : Material.PRISMARINE_SHARD, "いま見ているリスト: " + (holder.shadeList ? "陰影" : "グラデーション") + " (" + list.size() + ")", NamedTextColor.GOLD, List.of(
+                "グラデーション: 2つのブロックからグラデーションを作るとき、途中に使わないブロック",
+                "陰影: 自動陰影が、暗いブロックとして選ばないブロック",
+                "全員共通 (brush.yml)。「保存」を押すまでファイルには書かれない", "クリックで、もう一方のリストに切り替え")), (p, c) -> {
+            holder.shadeList = !holder.shadeList;
+            refresh(p, Page.BLACKLIST);
+        });
         put(holder, GRID[1], item(Material.EMERALD, "手に持つブロックを足す", NamedTextColor.GREEN, List.of("自分のインベントリのブロックをクリックしても足せる")), (p, c) -> {
             Material held = p.getInventory().getItemInMainHand().getType();
-            if (usable(held)) store.blacklist().add(held);
+            if (usable(held)) list.add(held);
             refresh(p, Page.BLACKLIST);
         });
-        put(holder, GRID[2], item(Material.LAVA_BUCKET, "全部消す", NamedTextColor.RED, List.of("リストを空にする (保存するまでファイルはそのまま)")), (p, c) -> {
-            store.blacklist().clear();
+        put(holder, GRID[2], item(Material.LAVA_BUCKET, "全部消す", NamedTextColor.RED, List.of("このリストを空にする (保存するまでファイルはそのまま)")), (p, c) -> {
+            list.clear();
             refresh(p, Page.BLACKLIST);
         });
-        put(holder, GRID[3], item(Material.WRITABLE_BOOK, "保存", NamedTextColor.GREEN, List.of("いまのリストを plugins/iruuRPG/brush.yml に書く", "クリックで保存")), (p, c) -> {
-            p.sendMessage(BrushModule.PREFIX + (store.save() ? "ブラックリストを保存しました (" + store.blacklist().size() + "件)。" : "保存できませんでした (ログを見てください)。"));
+        put(holder, GRID[3], item(Material.WRITABLE_BOOK, "保存", NamedTextColor.GREEN, List.of("2つのリストを plugins/iruuRPG/brush.yml に書く", "クリックで保存")), (p, c) -> {
+            p.sendMessage(BrushModule.PREFIX + (store.save() ? "ブラックリストを保存しました (グラデーション " + store.gradientBlacklist().size() + "件 / 陰影 " + store.shadeBlacklist().size() + "件)。" : "保存できませんでした (ログを見てください)。"));
             refresh(p, Page.BLACKLIST);
         });
         int index = 7;
-        for (Material material : new ArrayList<>(store.blacklist())) {
+        for (Material material : new ArrayList<>(list)) {
             if (index >= GRID.length) break;
             put(holder, GRID[index++], item(material, name(material), NamedTextColor.WHITE, List.of("クリックで取り除く")), (p, c) -> {
-                store.blacklist().remove(material);
+                list.remove(material);
                 refresh(p, Page.BLACKLIST);
             });
         }
@@ -661,21 +760,22 @@ final class BrushMenu implements Listener {
         if (!usable(material)) return;
         switch (holder.page) {
             case PATTERN -> {
-                if (s.patternMode == BrushSettings.PatternMode.GRADIENT) {
-                    if (holder.pick == Pick.FROM) s.gradientFrom = material;
-                    else if (holder.pick == Pick.TO) s.gradientTo = material;
-                    holder.pick = Pick.NONE;
-                } else {
-                    addPattern(s, material);
-                }
+                if (holder.pick == Pick.FROM) s.gradientFrom = material;
+                else if (holder.pick == Pick.TO) s.gradientTo = material;
+                else addPattern(s, material);
+                holder.pick = Pick.NONE;
                 refresh(player, Page.PATTERN);
+            }
+            case POSITION -> {
+                s.relationBlocks.add(material);
+                refresh(player, Page.POSITION);
             }
             case MASK -> {
                 s.blockMask.add(material);
                 refresh(player, Page.MASK);
             }
             case BLACKLIST -> {
-                module.store().blacklist().add(material);
+                (holder.shadeList ? module.store().shadeBlacklist() : module.store().gradientBlacklist()).add(material);
                 refresh(player, Page.BLACKLIST);
             }
             default -> {
