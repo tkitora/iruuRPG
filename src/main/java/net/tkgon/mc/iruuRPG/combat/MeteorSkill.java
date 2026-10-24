@@ -47,7 +47,136 @@ final class MeteorSkill {
         this.skillRunner = skillRunner;
     }
 
+    /** A cast whose re-cast is still to come: when it was cast and whether the re-cast was made. */
+    private static final class Recast {
+        private final long castMillis;
+        private final long untilMillis;
+        private boolean used;
+
+        private Recast(long castMillis, long untilMillis) {
+            this.castMillis = castMillis;
+            this.untilMillis = untilMillis;
+        }
+    }
+
+    private final Map<java.util.UUID, Recast> recasts = new java.util.HashMap<>();
+
+    /**
+     * Pressing the key again after a cast (from {@code recast-delay-seconds} to {@code recast-window-seconds} after it, once): the finale, one great meteor that falls
+     * on the aim (a ring marks the place, the star comes down in 10 ticks) for {@code recast-damage-rate} times the meteor's rate on all within {@code recast-radius};
+     * after the upgrade four smaller ones fall round it. True when the press was handled here (also when it is too early).
+     */
+    boolean tryRecast(Player player, Map<String, Double> values, RpgItemDefinition weapon, boolean upgraded) {
+        Recast recast = recasts.get(player.getUniqueId());
+        long now = System.currentTimeMillis();
+        if (recast == null || recast.used) return false;
+        if (now > recast.untilMillis) {
+            recasts.remove(player.getUniqueId());
+            return false;
+        }
+        double delay = values.getOrDefault("recast-delay-seconds", 1.0);
+        if (now - recast.castMillis < delay * 1000.0) {
+            player.sendMessage("[iruuRPG] 流星の再発動まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - (now - recast.castMillis) / 1000.0) + "秒");
+            return true;
+        }
+        recast.used = true;
+        attackService.beginAttack(player);
+        finale(player, values, weapon, upgraded);
+        return true;
+    }
+
+    private void finale(Player player, Map<String, Double> values, RpgItemDefinition weapon, boolean upgraded) {
+        World world = player.getWorld();
+        Location target = PlayerSkillCaster.aimPoint(player, values.getOrDefault("recast-range", 28.0));
+        RayTraceResult ray = world.rayTraceBlocks(player.getEyeLocation(), player.getEyeLocation().getDirection(), 40.0, FluidCollisionMode.NEVER, true);
+        if (ray != null && ray.getHitPosition() != null) target = ray.getHitPosition().toLocation(world);
+        Location spot = target.clone();
+        double rate = values.getOrDefault("damage-rate", 1.3) * values.getOrDefault("recast-damage-rate", 4.0);
+        double radius = values.getOrDefault("recast-radius", 4.5);
+        world.playSound(spot, Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.9f);
+        world.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_FLAP, 0.6f, 1.6f);
+        for (int tick = 0; tick < 10; tick++) {
+            double r = radius - (radius - 1.5) * tick / 9.0;
+            int which = tick;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                SkillFx.groundRing(player, spot, r, SkillFx.METEOR, 0.5 + 0.05 * which, 1.2);
+                if (which % 3 == 0) SkillFx.circle(player, spot.clone().add(0.0, 0.2, 0.0), new Vector(1, 0, 0), new Vector(0, 0, 1), r * 0.8, which * 4, SkillFx.METEOR);
+            }, tick);
+        }
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            fall(player, spot, 18.0, 6);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline()) return;
+                ParticleFx.mark(player);
+                impact(player, weapon, spot, radius, rate, 1.6);
+                world.playSound(spot, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.7f);
+                world.playSound(spot, Sound.ITEM_TRIDENT_THUNDER, 0.8f, 0.6f);
+            }, 6L);
+        }, 10L);
+        if (upgraded) {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            for (int index = 0; index < 4; index++) {
+                double angle = Math.PI * 0.5 * index + random.nextDouble(-0.3, 0.3);
+                Location small = spot.clone().add(Math.cos(angle) * (radius * 0.9), 0.0, Math.sin(angle) * (radius * 0.9));
+                small.setY(world.getHighestBlockYAt(small) + 1.0);
+                plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                    if (!player.isOnline()) return;
+                    fall(player, small, 12.0, 4);
+                    plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                        if (!player.isOnline()) return;
+                        ParticleFx.mark(player);
+                        impact(player, weapon, small, 2.2, values.getOrDefault("damage-rate", 1.3), 1.0);
+                    }, 4L);
+                }, 14L + index * 3L);
+            }
+        }
+    }
+
+    /** A streak of light falling to {@code spot} from {@code height} blocks above it in {@code ticks} ticks. */
+    private void fall(Player player, Location spot, double height, int ticks) {
+        Location top = spot.clone().add(1.5, height, 1.0);
+        for (int tick = 0; tick < ticks; tick++) {
+            Location a = top.clone().add(spot.clone().subtract(top).toVector().multiply(tick / (double) ticks));
+            Location b = top.clone().add(spot.clone().subtract(top).toVector().multiply((tick + 1) / (double) ticks));
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.trail(player, a, b, SkillFx.METEOR, 2.0), tick);
+        }
+    }
+
+    /** The finale's blow: {@code rate} on all within {@code radius}, a flash, rings and a glow that stays for a moment (see {@link #afterglow}). */
+    private void impact(Player player, RpgItemDefinition weapon, Location at, double radius, double rate, double size) {
+        World world = at.getWorld();
+        ParticleFx.to(player, world).spawnParticle(Particle.FLASH, at, 1);
+        SkillFx.burst(player, at.clone().add(0.0, 0.4, 0.0), radius, SkillFx.METEOR);
+        for (int ring = 1; ring <= 3; ring++) {
+            double r = radius * ring / 3.0;
+            int which = ring;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(player, at, r, SkillFx.METEOR, 1.0 - 0.1 * which, 1.4 * size), ring - 1);
+        }
+        for (Entity entity : world.getNearbyEntities(at, radius, radius, radius)) {
+            if (!(entity instanceof LivingEntity near) || near.isDead() || !attackService.isAttackTarget(near, player)) continue;
+            if (near.getLocation().distanceSquared(at) > radius * radius) continue;
+            hitVictim(player, weapon, near, rate, at);
+            Vector away = near.getLocation().toVector().subtract(at.toVector()).setY(0.0);
+            if (away.lengthSquared() > 1.0E-6) near.setVelocity(near.getVelocity().add(away.normalize().multiply(0.5).setY(0.3)));
+        }
+        afterglow(player, at, radius);
+    }
+
+    /** A crater's glow where a star came down: for 1.2 s a ring of light draws in and sparks rise from the middle. */
+    private void afterglow(Player player, Location at, double radius) {
+        for (int tick = 1; tick <= 6; tick++) {
+            double r = radius * (1.0 - tick / 7.0);
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                SkillFx.groundRing(player, at, r, SkillFx.METEOR, 0.6, 0.9);
+                ParticleFx.to(player, at.getWorld()).spawnParticle(Particle.END_ROD, at.clone().add(0.0, 0.3, 0.0), 3, radius * 0.2, 0.3, radius * 0.2, 0.03);
+            }, tick * 4L);
+        }
+    }
+
     void cast(Player player, Map<String, Double> values, RpgItemDefinition weapon, boolean upgraded) {
+        long castNow = System.currentTimeMillis();
+        recasts.put(player.getUniqueId(), new Recast(castNow, castNow + (long) (values.getOrDefault("recast-window-seconds", 8.0) * 1000.0)));
         int chargeTicks = (int) Math.round(values.getOrDefault("charge-ticks", 16.0));
         int count = Math.max(1, (int) Math.round(upgraded ? values.getOrDefault("upgrade-count", 12.0) : values.getOrDefault("count", 6.0)));
         // the meteors share a fixed firing time (more meteors = a shorter gap between them), so the skill lasts as long as before
@@ -219,6 +348,7 @@ final class MeteorSkill {
                 ParticleFx.to(player, world).spawnParticle(Particle.FLASH, next, 1);
                 SkillFx.burst(player, next, blastRadius, SkillFx.METEOR);
                 world.playSound(next, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.7f);
+                afterglow(player, next, blastRadius);
                 if (hit.getHitEntity() instanceof LivingEntity victim) hitVictim(player, weapon, victim, rate, next);
                 blast(player, weapon, next, blastRadius, rate * blastShare, hit.getHitEntity());
             }

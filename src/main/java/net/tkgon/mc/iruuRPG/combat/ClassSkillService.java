@@ -741,6 +741,11 @@ public final class ClassSkillService {
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
         if (SATSUJIN.equalsIgnoreCase(skill.id())) return frenzyEcho(player, skill);
+        if (METEOR.equalsIgnoreCase(skill.id())) {
+            RpgItemDefinition held = attackService.weaponInMainHand(player);
+            if (held == null || held.attackType() != AttackType.RANGE) return false;
+            return meteor.tryRecast(player, skill.values(), held, classService.hasSkill(profileManager.getOrCreate(player), METEOR_UPGRADE));
+        }
         if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;
         SanctuaryState state = sanctuaries.get(player.getUniqueId());
         if (state == null || state.ended) return false;
