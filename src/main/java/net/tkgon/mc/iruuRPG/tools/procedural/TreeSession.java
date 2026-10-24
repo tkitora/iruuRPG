@@ -15,6 +15,8 @@ final class TreeSession {
     public Location base;
     /** The block that was clicked (the place of an object is next to it: above, or below for one that hangs). */
     Location clicked;
+    /** The page of the menu that was open last (by name): the menu opens on it next time. */
+    String lastPage = "BASIC";
     /** A tree is being put in the world. */
     boolean busy;
 

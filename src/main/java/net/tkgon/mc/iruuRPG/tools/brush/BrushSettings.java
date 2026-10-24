@@ -47,6 +47,9 @@ final class BrushSettings {
         }
     }
 
+    /** The page of the menu that was open last: the menu opens on it next time. */
+    BrushMenu.Page lastPage = BrushMenu.Page.MAIN;
+
     BrushMode mode = BrushMode.PAINT;
     BrushShape shape = BrushShape.SPHERE;
     int radius = 6;

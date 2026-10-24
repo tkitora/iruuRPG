@@ -187,7 +187,8 @@ final class BrushCommand implements TabExecutor {
     }
 
     private void menu(Player player, String[] args) {
-        BrushMenu.Page page = BrushMenu.Page.MAIN;
+        // (no page named: the one that was open last)
+        BrushMenu.Page page = module.settings(player).lastPage;
         if (args.length > 1) {
             for (BrushMenu.Page candidate : BrushMenu.Page.values()) if (candidate.name().equalsIgnoreCase(args[1])) page = candidate;
         }
