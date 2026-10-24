@@ -7,7 +7,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
 
 /**
- * The ranger's combo with a deployed weapon (the lantern): snares and arrow lanterns, set down where the ranger aims and gone within 2.5 s
+ * The ranger's combo with a deployed weapon (traps; drawn as traps with teeth that snap shut where the lanterns of the other classes stand): snares and arrow traps, set down where the ranger aims and gone within 2.5 s
  * (the same kind placed again replaces the old one). Normal: 1 a snare lantern (25% a pulse, 5 pulses, slows 30%), 2 two arrow lanterns that shoot
  * the nearest enemy (12% a shot), 3 a mine that waits for 2.7 s and goes off when an enemy comes close (130%, slows), 4 three net lanterns in a row
  * (20% x3 each, slows 40%), 5 a hail beacon that drops an arrow every 6 ticks round it (12% each, 8 arrows). Heavy: 0 a caltrop sigil under the feet

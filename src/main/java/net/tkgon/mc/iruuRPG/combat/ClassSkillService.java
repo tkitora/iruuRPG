@@ -134,7 +134,7 @@ public final class ClassSkillService {
         ParticleFx.mark(player);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) {
             if (classEffectService != null) {
-                classEffectService.activateInstinct(player, skill.values().getOrDefault("duration-seconds", 10.0));
+                classEffectService.activateInstinct(player, skill.values().getOrDefault("duration-seconds", 10.0), skill.values());
             }
             return;
         }
