@@ -58,9 +58,10 @@ final class TreeMenu implements Listener {
     enum Page {
         BASIC(2, Material.OAK_SAPLING, "基本", new TreeSettings.Key[]{TreeSettings.Key.HEIGHT, TreeSettings.Key.WIDTH}),
         TRUNK(3, Material.OAK_LOG, "幹・根", new TreeSettings.Key[]{TreeSettings.Key.TRUNK_RADIUS, TreeSettings.Key.TAPER, TreeSettings.Key.FLARE, TreeSettings.Key.CURVE,
-                TreeSettings.Key.TRUNK_RATIO, TreeSettings.Key.ROOTS, TreeSettings.Key.TRUNK_FORKS, TreeSettings.Key.FORK_HEIGHT, TreeSettings.Key.FORK_ANGLE}),
+                TreeSettings.Key.TRUNK_RATIO, TreeSettings.Key.ROOTS, TreeSettings.Key.TRUNK_FORKS, TreeSettings.Key.FORK_HEIGHT, TreeSettings.Key.FORK_ANGLE,
+                TreeSettings.Key.TRUNK_LEAN, TreeSettings.Key.TRUNK_TWIST, TreeSettings.Key.TRUNK_BULGE}),
         BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{TreeSettings.Key.BRANCHES, TreeSettings.Key.LEVELS, TreeSettings.Key.DENSITY, TreeSettings.Key.BRANCH_ANGLE,
-                TreeSettings.Key.DROOP}),
+                TreeSettings.Key.DROOP, TreeSettings.Key.BRANCH_LENGTH, TreeSettings.Key.BRANCH_THICKNESS}),
         LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS});
 
         final int tab;
@@ -98,6 +99,11 @@ final class TreeMenu implements Listener {
         ICONS.put(TreeSettings.Key.TRUNK_FORKS, Material.JUNGLE_LOG);
         ICONS.put(TreeSettings.Key.FORK_HEIGHT, Material.SPRUCE_LOG);
         ICONS.put(TreeSettings.Key.FORK_ANGLE, Material.ACACIA_LOG);
+        ICONS.put(TreeSettings.Key.BRANCH_LENGTH, Material.BAMBOO_BLOCK);
+        ICONS.put(TreeSettings.Key.BRANCH_THICKNESS, Material.STRIPPED_BAMBOO_BLOCK);
+        ICONS.put(TreeSettings.Key.TRUNK_LEAN, Material.LEVER);
+        ICONS.put(TreeSettings.Key.TRUNK_TWIST, Material.TWISTING_VINES);
+        ICONS.put(TreeSettings.Key.TRUNK_BULGE, Material.MUDDY_MANGROVE_ROOTS);
     }
 
     private final TreeModule tool;

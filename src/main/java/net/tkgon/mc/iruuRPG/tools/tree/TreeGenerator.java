@@ -13,6 +13,7 @@ final class TreeGenerator {
         Random random = new Random(seed);
         TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
         if (!"conifer".equals(settings.algorithm())) TrunkFork.apply(skeleton, settings, random);
+        TreeShape.apply(skeleton, settings, random);
         return TreeVoxelizer.voxelize(skeleton, settings, random, ground);
     }
 

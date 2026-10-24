@@ -12,9 +12,9 @@ final class TreeSkeleton {
 
     /** One point of the skeleton. {@code level}: 0 trunk, 1 a branch off the trunk, 2 and more the branches off branches; -1 when the algorithm does not say (the thickness decides). */
     public static final class Node {
-        public final double x;
-        public final double y;
-        public final double z;
+        public double x;
+        public double y;
+        public double z;
         public final int parent;
         public final int level;
         public double radius;

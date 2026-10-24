@@ -35,7 +35,12 @@ final class TreeSettings {
         LEAF_FLATNESS("leaf-flatness", "葉の厚み", 0.3, 1.3, 0.05, 0.2, "葉のかたまりの縦と横の比 (小さいほど平たい)"),
         TRUNK_FORKS("trunk-forks", "幹の分岐数", 0, 3, 1, 1, "幹が途中で分かれる本数 (0 = 分かれない。針葉樹は分かれない)"),
         FORK_HEIGHT("fork-height", "分岐の高さ", 0.2, 0.9, 0.05, 0.1, "幹が分かれる高さ (幹の高さに対する割合)"),
-        FORK_ANGLE("fork-angle", "分岐の開き角", 10, 60, 2, 10, "分かれた幹が、真上から外へ開く角度 (度)");
+        FORK_ANGLE("fork-angle", "分岐の開き角", 10, 60, 2, 10, "分かれた幹が、真上から外へ開く角度 (度)"),
+        BRANCH_LENGTH("branch-length", "枝の長さ", 0.4, 2.0, 0.05, 0.2, "幹から出る枝全体の長さの倍率 (1 = そのまま。箱 (幅) からはみ出た分は切られる)"),
+        BRANCH_THICKNESS("branch-thickness", "枝の太さ", 0.4, 2.0, 0.05, 0.2, "枝全体の太さの倍率 (1 = そのまま。幹は変わらない)"),
+        TRUNK_LEAN("trunk-lean", "幹の傾き", 0.0, 1.0, 0.05, 0.2, "幹が上へ行くほど一方へ傾く度合い (0 でまっすぐ)"),
+        TRUNK_TWIST("trunk-twist", "幹のねじれ", 0.0, 1.0, 0.05, 0.2, "幹がらせんを描くようにねじれる度合い (0 でねじれなし)"),
+        TRUNK_BULGE("trunk-bulge", "幹のふくらみ", 0.0, 1.0, 0.05, 0.2, "幹の中ほどが太くなる度合い (0 でふくらみなし)");
 
         private final String id;
         private final String label;
@@ -93,7 +98,7 @@ final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28};
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0};
     private String algorithm = "builder";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */

@@ -176,7 +176,9 @@ final class TreeVoxelizer {
                         double distance = dx * dx + dy * dy + dz * dz;
                         double edge = 1.0 + 0.55 * TreeNoise.value(x * 0.55, y * 0.55, z * 0.55, seed);
                         if (distance > edge) continue;
-                        if (distance < 0.55 && random.nextDouble() < holes) continue;
+                        // the leaf density thins the cloud everywhere, the outside more than the inside (ragged edge, holes)
+                        double outer = Math.min(1.0, distance / edge);
+                        if (random.nextDouble() < holes * (0.35 + 1.25 * outer * outer)) continue;
                         put(x, y, z, TreePart.LEAF);
                         // a leaf now and then hangs from the underside
                         if (dy < -0.55 && distance > 0.6 && random.nextDouble() < 0.1) put(x, y - 1, z, TreePart.LEAF);
