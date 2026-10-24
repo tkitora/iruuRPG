@@ -36,9 +36,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * The mage's combo (see {@link MeleeCombo}, plan {@code mage}) on the ranged weapon. The colors are the weapon's element
  * and purple: the more powerful the attack, the more purple.
  *
- * <p>Normal attacks (right click): 1 and 2 a magic bolt from the upper left (50%) / upper right (80%), 3 a fast scatter
- * of bolts (3 hits of 30%) and 4 a dense one (4 hits of 30%), both coming from the sides and diagonals so they cross,
- * 5 a burst of magic (3 hits of 60%) with two vortexes of light turning opposite ways. Runs of more than one effect are
+ * <p>Normal attacks (right click), each with a path of its own and its own way of arriving: 1 a straight magic bolt from the upper left, 2 a bolt that curves in
+ * from the side and bursts where it ends (a third on the ones round), 3 bolts that bounce off blocks (3 hits), 4 orbs lobbed in a ring that lie in the ground as
+ * sigils for 0.4 s and then go off (4 hits), 5 a burst of magic (3 hits of 60%) with two vortexes of light turning opposite ways. Runs of more than one effect are
  * a tick apart and each a little turned from the one before. Between two normal attacks there is a least delay.
  *
  * <p>Heavy attacks (left click, the number of normal attacks so far): 1 a ball of magic flying ahead that bursts for 60%,
@@ -171,9 +171,9 @@ public final class MageMoves {
     public void normal(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
         switch (step.stage()) {
             case 1 -> bolt(player, weapon, -1.2, 0.8, step.damageMultiplier(), 1.0, 0.0, 0.3);
-            case 2 -> bolt(player, weapon, 1.2, 0.8, step.damageMultiplier(), 1.0, 0.0, 0.3);
-            case 3 -> scatter(player, weapon, step, false);
-            case 4 -> scatter(player, weapon, step, true);
+            case 2 -> curveBolt(player, weapon, step.damageMultiplier());
+            case 3 -> ricochets(player, weapon, step);
+            case 4 -> mines(player, weapon, step);
             default -> burstSeries(player, weapon, step);
         }
     }
@@ -196,33 +196,110 @@ public final class MageMoves {
     }
 
     /**
-     * Fast bolts from the sides and the diagonals, all aimed at the same point so their paths cross (3 hits of 30% with a
-     * little purple, or 4 hits of 30% with more than half purple and extra bolts around each for the dense one).
+     * 2: a bolt that leaves the staff wide to the side and curves in to the aim (a bezier path, 6 - 22 ticks), bursting where it ends or on the first enemy or block in the
+     * way: the rate on the enemy it hits, a third of it on the others round the burst.
      */
-    private void scatter(Player player, RpgItemDefinition weapon, MeleeCombo.Step step, boolean dense) {
+    private void curveBolt(Player player, RpgItemDefinition weapon, double rate) {
+        MoveKit kit = attackService.kit(player, weapon);
+        kit.palette(Palettes.mixed(weapon.element(), 0.45));
+        Vector[] axes = basis(player);
+        Location start = player.getEyeLocation().add(axes[0].clone().multiply(0.6)).add(axes[1].clone().multiply(1.2)).add(axes[2].clone().multiply(0.8));
+        Location aim = aimPoint(player);
+        Vector across = aim.toVector().subtract(start.toVector());
+        double distance = across.length();
+        Location control = start.clone().add(across.multiply(0.5)).add(axes[1].clone().multiply(Math.min(5.0, 1.5 + distance * 0.25))).add(axes[2].clone().multiply(1.2));
+        int ticks = (int) Math.max(6, Math.min(22, Math.round(distance / 1.6)));
+        World world = player.getWorld();
+        Sfx.MAGIC.play(start, 0.8f, 1.5f);
+        Location[] previous = {start.clone()};
+        kit.every(ticks, age -> {
+            ParticleFx.mark(player);
+            double t = (age + 1) / (double) ticks;
+            double a = (1.0 - t) * (1.0 - t);
+            double b = 2.0 * t * (1.0 - t);
+            double c = t * t;
+            Location now = new Location(world, a * start.getX() + b * control.getX() + c * aim.getX(), a * start.getY() + b * control.getY() + c * aim.getY(),
+                    a * start.getZ() + b * control.getZ() + c * aim.getZ());
+            kit.line(previous[0], now, 0.2, 1.0, 1.2);
+            LivingEntity struck = null;
+            for (LivingEntity candidate : kit.around(now, 1.0)) {
+                struck = candidate;
+                break;
+            }
+            boolean blocked = !now.getBlock().isPassable();
+            if (struck != null || blocked || age == ticks - 1) {
+                kit.burst(now, 1.6);
+                kit.sound(now, Sfx.MAGIC, 0.8f, 1.1f);
+                if (struck != null) kit.hit(struck, rate);
+                for (LivingEntity other : kit.around(now, 2.2)) {
+                    if (other != struck) kit.hit(other, rate * 0.33);
+                }
+                return true;
+            }
+            previous[0] = now;
+            return false;
+        });
+    }
+
+    /** 3: bolts that bounce off blocks (twice at most), each flying to the aim with a little spread: the rate on the first enemy they touch, a small burst at each turn. */
+    private void ricochets(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        MoveKit kit = attackService.kit(player, weapon);
+        kit.palette(Palettes.mixed(weapon.element(), 0.3));
         int hits = step.extraHits() + 1;
         long gap = (long) number("multi-hit-gap-ticks", 1.0);
-        double purple = dense ? 0.6 : 0.25;
-        double[][] places = {{-1.4, 0.0}, {1.4, 0.0}, {-1.1, 1.0}, {1.1, 1.0}, {-1.1, -0.8}, {1.1, -0.8}};
+        double[][] places = {{-1.4, 0.0}, {1.4, 0.0}, {-1.1, 1.0}, {1.1, 1.0}};
         ThreadLocalRandom random = ThreadLocalRandom.current();
         for (int index = 0; index < hits; index++) {
             double[] place = places[random.nextInt(places.length)];
-            double side = place[0] + random.nextDouble(-0.2, 0.2);
-            double up = place[1] + random.nextDouble(-0.15, 0.15);
             later(gap * index, () -> {
                 if (!player.isOnline() || player.isDead()) return;
-                bolt(player, weapon, side, up, step.damageMultiplier(), dense ? 1.5 : 1.8, 0.0, purple);
-                if (dense) {
-                    // the dense scatter: a few more bolts around, for the look only
-                    Vector[] axes = basis(player);
-                    Location aim = aimPoint(player);
-                    for (int extra = 0; extra < 3; extra++) {
-                        Location start = player.getEyeLocation().add(axes[0].clone().multiply(0.6))
-                                .add(axes[1].clone().multiply(side + random.nextDouble(-0.5, 0.5))).add(axes[2].clone().multiply(up + random.nextDouble(-0.4, 0.4)));
-                        Location end = aim.clone().add(random.nextDouble(-0.5, 0.5), random.nextDouble(-0.4, 0.4), random.nextDouble(-0.5, 0.5));
-                        line(player, player.getWorld(), start, end, weapon.element(), purple, 1.0f);
+                Vector[] axes = basis(player);
+                Location start = player.getEyeLocation().add(axes[0].clone().multiply(0.6)).add(axes[1].clone().multiply(place[0])).add(axes[2].clone().multiply(place[1]));
+                Vector direction = aimPoint(player).toVector().subtract(start.toVector());
+                if (direction.lengthSquared() < 1.0E-6) direction = axes[0].clone();
+                direction.normalize().add(axes[1].clone().multiply(random.nextDouble(-0.06, 0.06))).add(axes[2].clone().multiply(random.nextDouble(-0.06, 0.06))).normalize();
+                Sfx.MAGIC.play(start, 0.5f, 1.8f);
+                kit.ricochet(start, direction, 2, 1.8, 36, step.damageMultiplier(), at -> {
+                    kit.particle(Particle.END_ROD, at, 4, 0.15, 0.04);
+                    kit.sound(at, Sfx.MAGIC, 0.4f, 1.9f);
+                });
+            });
+        }
+    }
+
+    /**
+     * 4: lobbed orbs that come down in a ring round the aim and lie there as a sigil for 0.4 s before they go off, each for the rate on all within 2 blocks: the shots
+     * that stay in the ground, so the enemies that walk away from them are missed and those that stay are caught.
+     */
+    private void mines(Player player, RpgItemDefinition weapon, MeleeCombo.Step step) {
+        MoveKit kit = attackService.kit(player, weapon);
+        kit.palette(Palettes.mixed(weapon.element(), 0.65));
+        int hits = step.extraHits() + 1;
+        long gap = (long) number("multi-hit-gap-ticks", 1.0);
+        Location aim = aimPoint(player);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int index = 0; index < hits; index++) {
+            double angle = Math.PI * 2.0 * index / hits + random.nextDouble(-0.3, 0.3);
+            double radius = index == 0 ? 0.0 : 2.4 + random.nextDouble(0.0, 0.8);
+            Location land = kit.ground(aim.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius));
+            later(gap * index, () -> {
+                if (!player.isOnline() || player.isDead()) return;
+                Vector[] axes = basis(player);
+                Location start = player.getEyeLocation().add(axes[0].clone().multiply(0.6)).add(axes[1].clone().multiply(random.nextBoolean() ? 1.3 : -1.3)).add(axes[2].clone().multiply(0.8));
+                Sfx.MAGIC.play(start, 0.5f, 1.4f);
+                int flight = (int) Math.max(5, Math.min(14, start.distance(land) / 1.5));
+                kit.lob(start, land, flight, 2.5, spot -> {
+                    for (int tick = 0; tick < 8; tick++) {
+                        int which = tick;
+                        kit.later(tick, () -> SkillFx.circle(player, spot.clone().add(0.0, 0.15, 0.0), X_AXIS, Z_AXIS, 1.8 - 0.8 * which / 8.0, which * 2, Palettes.mixed(weapon.element(), 0.65)));
                     }
-                }
+                    kit.later(8L, () -> {
+                        kit.burst(spot.clone().add(0.0, 0.4, 0.0), 2.0);
+                        kit.shockwave(spot, 0.5, 2.0, 3, 0.9);
+                        kit.sound(spot, Sfx.MAGIC, 0.7f, 0.9f);
+                        kit.hitAll(kit.around(spot, 2.0), step.damageMultiplier());
+                    });
+                });
             });
         }
     }
