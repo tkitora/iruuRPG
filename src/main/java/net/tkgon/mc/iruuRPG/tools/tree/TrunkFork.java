@@ -59,15 +59,31 @@ final class TrunkFork {
         double leafScale = "builder".equals(settings.algorithm()) ? 1.5 : 1.0;
         double lean = Math.toRadians(settings.get(TreeSettings.Key.FORK_ANGLE));
         double azimuth = random.nextDouble() * Math.PI * 2.0;
+        double footReach = Math.max(1.5, reach - Math.hypot(origin.x, origin.z));
         for (int index = 0; index < forks; index++) {
-            double turn = azimuth + Math.PI * 2.0 * index / forks + (random.nextDouble() - 0.5) * 0.5;
+            double phi = azimuth + Math.PI * 2.0 * index / forks + (random.nextDouble() - 0.5) * 0.5;
             double tilt = lean * (0.85 + 0.3 * random.nextDouble());
-            double[] direction = {Math.sin(tilt) * Math.cos(turn), Math.cos(tilt), Math.sin(tilt) * Math.sin(turn)};
-            double length = Math.max(3.0, (Math.max(topY, origin.y + 3.0) - origin.y) * (0.85 + 0.25 * random.nextDouble()));
+            double height = Math.max(3.0, (Math.max(topY, origin.y + 3.0) - origin.y) * (0.85 + 0.25 * random.nextDouble()));
+            // how far out the leader ends: the lean says it, the box limits it. It goes out fast at first and then more slowly, but never back in: a leader that bent back to the
+            // trunk would run along it
+            double outward = Math.max(1.5, Math.min(footReach, height * Math.tan(tilt) * 1.2 + 1.0));
             double startRadius = Math.max(0.8, origin.radius * 0.75);
             double endRadius = Math.max(0.5, startRadius * (1.0 - taper * 0.8));
-            TreeAlgorithm.Growth growth = new TreeAlgorithm.Growth(curve * 0.06, 0.04, 0.03, top, reach, 0.02);
-            List<Integer> made = TreeAlgorithm.growStem(skeleton, fork, new double[]{origin.x, origin.y, origin.z}, direction, length, startRadius, endRadius, 0, growth, random);
+            int steps = Math.max(3, (int) Math.round(height));
+            int parent = fork;
+            List<Integer> made = new ArrayList<>();
+            for (int step = 1; step <= steps; step++) {
+                double t = step / (double) steps;
+                double lateral = outward * (1.0 - Math.pow(1.0 - t, 1.7));
+                double wiggle = curve * 0.6 * Math.sin(t * 5.0 + phi * 3.0);
+                double x = origin.x + Math.cos(phi) * lateral - Math.sin(phi) * wiggle;
+                double z = origin.z + Math.sin(phi) * lateral + Math.cos(phi) * wiggle;
+                double y = origin.y + height * t;
+                if (y > top) break;
+                parent = skeleton.add(x, y, z, parent, 0);
+                skeleton.nodes.get(parent).radius = startRadius + (endRadius - startRadius) * Math.pow(t, 0.9);
+                made.add(parent);
+            }
             if (!leaves || made.isEmpty()) continue;
             int before = skeleton.leaves.size();
             TreeAlgorithm.leafAlong(skeleton, made, 3, flatness, random, 0.85);

@@ -27,7 +27,8 @@ final class BuilderAlgorithm implements TreeAlgorithm {
         double flatness = settings.get(TreeSettings.Key.LEAF_FLATNESS);
         double cloud = leaf * CLOUD;
         double top = Math.max(4.0, settings.height() - cloud * flatness * 0.9 - 0.5);
-        double reach = Math.max(1.5, settings.width() / 2.0 - cloud);
+        // (the branches reach into the leaf clouds: a tree 12 wide with a cloud of 3 would have branches of 3 blocks that the trunk and the leaves hide)
+        double reach = Math.max(2.5, settings.width() / 2.0 - cloud * 0.45);
         double trunkRadius = settings.get(TreeSettings.Key.TRUNK_RADIUS);
         double taper = settings.get(TreeSettings.Key.TAPER);
         double curve = settings.get(TreeSettings.Key.CURVE);
