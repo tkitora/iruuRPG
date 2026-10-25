@@ -21,6 +21,9 @@ mob:
   attack-tags: true          # 敵の名前の前に [物・近] のように、物理/魔法と近接/遠距離を出す
   target-range: 24.0
   player-damage-multiplier: 0.10
+  # /iruurpg btdebug で出す、ビヘイビアツリーの敵の状態表示: この距離内の敵だけ表示する
+  behavior-view:
+    range: 40.0
   status-display:
     enabled: true
     y-offset: 0.0

@@ -144,7 +144,10 @@ final class EqsQuery {
         List<Integer> order = new ArrayList<>();
         for (int index = 0; index < count; index++) if (kept[index]) order.add(index);
         order.sort(Comparator.comparingDouble((Integer index) -> score[index]).reversed());
-        if (order.isEmpty()) return null;
+        if (order.isEmpty()) {
+            record(c, standing, score, kept, null);
+            return null;
+        }
         // the places the mob can walk to: only the best few are asked of the pathfinder
         List<Location> best = new ArrayList<>();
         int asked = 0;
@@ -157,8 +160,31 @@ final class EqsQuery {
             best.add(place);
             if (best.size() >= (randomTop ? topN : 1)) break;
         }
-        if (best.isEmpty()) return null;
-        return best.get(randomTop ? c.random.nextInt(best.size()) : 0);
+        if (best.isEmpty()) {
+            record(c, standing, score, kept, null);
+            return null;
+        }
+        Location chosen = best.get(randomTop ? c.random.nextInt(best.size()) : 0);
+        record(c, standing, score, kept, chosen);
+        return chosen;
+    }
+
+    /** Hands the candidates, scaled to 0 - 1 among the kept ones, to the debug view. */
+    private void record(Ctx c, List<Location> standing, double[] score, boolean[] kept, Location chosen) {
+        if (c.eqsSink == null) return;
+        double low = Double.MAX_VALUE;
+        double high = -Double.MAX_VALUE;
+        for (int index = 0; index < score.length; index++) {
+            if (!kept[index]) continue;
+            low = Math.min(low, score[index]);
+            high = Math.max(high, score[index]);
+        }
+        double span = Math.max(1.0E-6, high - low);
+        List<EqsResult.Candidate> list = new ArrayList<>();
+        for (int index = 0; index < score.length; index++) {
+            list.add(new EqsResult.Candidate(standing.get(index), kept[index] ? (score[index] - low) / span : 0.0, kept[index]));
+        }
+        c.eqsSink.accept(new EqsResult(name, c.now, list, chosen));
     }
 
     private static Location place(Ctx c, String which) {
