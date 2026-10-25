@@ -164,6 +164,69 @@ class Repo:
         return ids
 
 
+BT_COMPOSITES = ("selector", "sequence", "random", "parallel")
+BT_TASKS = ("move-to", "flee", "wait", "attack", "shoot", "use-skill", "face-target", "set-blackboard", "set-state", "clear-target", "play-sound", "succeed", "fail")
+BT_DECORATORS = ("blackboard", "distance", "hp", "line-of-sight", "chance", "cooldown", "loop", "time-limit", "not", "force-success")
+BT_SERVICES = ("update-target", "run-eqs")
+
+
+def check_behavior(bh, problems, warnings):
+    """敵の behavior: (BT+FSM。docs/mob-behavior.md) の、形だけの検査。mode: legacy (または behavior: なし) のときは、何も見ない。"""
+    if bh is None:
+        return
+    if not isinstance(bh, dict):
+        problems.append("behavior がマップになっていません")
+        return
+    mode = str(bh.get("mode", "bt"))
+    if mode not in ("legacy", "bt"):
+        warnings.append("behavior.mode '%s' は、legacy / bt のどちらかではありません" % mode)
+        return
+    if mode == "legacy":
+        return
+    fsm, tree = bh.get("fsm"), bh.get("tree")
+    if fsm is None and tree is None:
+        problems.append("behavior: fsm か tree のどちらかが要ります (mode: bt のとき)")
+        return
+    states = set()
+    if fsm is not None:
+        if not isinstance(fsm, dict) or not isinstance(fsm.get("states"), dict) or not fsm["states"]:
+            problems.append("behavior.fsm: states (状態の一覧) が要ります")
+            return
+        states = set(fsm["states"])
+        if fsm.get("initial") not in states:
+            problems.append("behavior.fsm: initial '%s' は、states にありません" % fsm.get("initial"))
+        for name, st in fsm["states"].items():
+            if not isinstance(st, dict) or not isinstance(st.get("tree"), dict):
+                problems.append("状態 '%s': tree がありません" % name)
+                continue
+            check_bt_node(st["tree"], "状態 '%s' の tree" % name, problems, 0)
+            for i, tr in enumerate(st.get("transitions") or []):
+                if not isinstance(tr, dict) or tr.get("to") not in states:
+                    problems.append("状態 '%s' の transitions %d: to が states にありません" % (name, i + 1))
+    if tree is not None and fsm is None:
+        check_bt_node(tree, "tree", problems, 0)
+
+
+def check_bt_node(node, where, problems, depth):
+    if not isinstance(node, dict):
+        problems.append("%s: ノードがマップになっていません" % where)
+        return
+    t = str(node.get("type", ""))
+    if t not in BT_COMPOSITES and t not in BT_TASKS:
+        problems.append("%s: type '%s' は、使えません" % (where, t))
+    if t in BT_COMPOSITES:
+        children = node.get("children")
+        if not isinstance(children, list) or not children:
+            problems.append("%s (%s): children (子のリスト) が要ります" % (where, t))
+        elif depth < 24:
+            for i, c in enumerate(children):
+                check_bt_node(c, "%s の %d 番目" % (where, i + 1), problems, depth + 1)
+    for key, allowed in (("decorators", BT_DECORATORS), ("services", BT_SERVICES)):
+        for i, d in enumerate(node.get(key) or []):
+            if not isinstance(d, dict) or str(d.get("type")) not in allowed:
+                problems.append("%s の %s %d: type が使えません" % (where, key, i + 1))
+
+
 def validate(kind, entry_id, body, repo):
     problems, warnings = [], []
     if not ID_RE.match(entry_id or ""):
@@ -208,6 +271,7 @@ def validate(kind, entry_id, body, repo):
         area = body.get("area")
         if area is not None and not (isinstance(area, str) or (isinstance(area, list) and all(isinstance(a, str) for a in area))):
             problems.append("area は、文字列か、文字列のリスト (例: area: [cave, field1]) で書いてください")
+        check_behavior(body.get("behavior"), problems, warnings)
     else:
         result = body.get("result")
         ingredients = body.get("ingredients")
