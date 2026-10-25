@@ -285,6 +285,7 @@ public final class AttackService {
         if (mageMoves != null) mageMoves.forget(id);
         swapDashReady.remove(id);
         MageMeleeCombo.forget(id);
+        RangerBuffs.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);
         }
@@ -1130,6 +1131,11 @@ public final class AttackService {
             attackEffects.playExtraDamageNumber(numberLocation, numberHeight, element, damage);
         }
         return applied;
+    }
+
+    /** A stack of the explosion status on {@code target} (ten of them detonate), from {@code source}. */
+    public void addExplosionStack(LivingEntity target, Player source) {
+        statusEffectService.addExplosion(target, 1.0, source.getUniqueId());
     }
 
     public boolean applyRangeDamage(Player attacker, LivingEntity victim, double damage) {

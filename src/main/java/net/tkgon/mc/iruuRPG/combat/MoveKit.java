@@ -709,6 +709,10 @@ public final class MoveKit {
     public void arrowShot(Location start, Vector direction, double rate, double speedScale, double weight, Consumer<Location> onEnd) {
         effects.playArrowLaunch(player, start);
         Vector heading = direction.clone().normalize();
+        boolean ranger = "gifted".equals(attack.classIdOf(player));
+        // what the backstep gave to the arrows (ricochet, poison for an arrow of any attack; the small explosion, orange damage for the arrows of a normal attack)
+        RangerBuffs.Type buff = !ranger ? null : attackBuff != null ? attackBuff : RangerBuffs.takeArrow(player.getUniqueId());
+        Gradient trail = buff != null ? buff.trail : palette;
         // the ring of light at the muzzle: four rings opening one after the other. Everyone else sees all four; the shooter sees only
         // the outermost one, so the rings do not stand in front of their own aim.
         Vector u = heading.clone().crossProduct(Y);
@@ -722,7 +726,7 @@ public final class MoveKit {
             later(step, () -> {
                 Fx ring = fx(ringAt);
                 if (which < 3) ring = ring.exceptOwner();
-                ring.ring(ringAt.clone().add(heading.clone().multiply(0.15 * which)), ringU, v, 0.3 + 0.32 * which, 20, palette, 0.9 - 0.18 * which, 0.1, 1.0);
+                ring.ring(ringAt.clone().add(heading.clone().multiply(0.15 * which)), ringU, v, 0.3 + 0.32 * which, 20, trail, 0.9 - 0.18 * which, 0.1, 1.0);
             });
         }
         double speed = Math.max(0.5, attack.projectileSpeed(player) * speedScale / 20.0);
@@ -736,20 +740,23 @@ public final class MoveKit {
         Vector velocity = heading.clone().multiply(distance).add(new Vector(0.0, 0.5 * gravity * flight * flight * compensation, 0.0)).normalize().multiply(speed);
         World world = start.getWorld();
         double raySize = plugin.getConfig().getDouble("combat.range-ray-size", 0.6) * 0.7;
-        boolean ranger = "gifted".equals(attack.classIdOf(player));
         List<Zones.Zone> lanterns = ranger ? zones.near(player, "ranger_", start, range + 6.0) : List.of();
         boolean[] boosted = {false};
+        boolean[] ringed = {false};
+        int[] bounces = {buff == RangerBuffs.Type.RICOCHET ? 2 : 0};
+        java.util.Set<UUID> struck = new java.util.HashSet<>();
         double[] travelled = {0.0};
         Location[] position = {start.clone()};
-        every((int) Math.ceil(range / speed) + 2, age -> {
+        every((int) Math.ceil(range / speed) + 12, age -> {
             ParticleFx.mark(player);
-            double effectiveRate = rate * (boosted[0] ? 1.25 : 1.0);
+            double effectiveRate = rate * (boosted[0] ? 1.25 : 1.0) * (ringed[0] ? 1.2 : 1.0);
             Vector flight2 = velocity.clone();
             double length = flight2.length();
             Vector direction2 = flight2.clone().normalize();
-            RayTraceResult result = world.rayTrace(position[0], direction2, length, FluidCollisionMode.NEVER, true, raySize, entity -> attack.isAttackTarget(entity, player));
+            RayTraceResult result = world.rayTrace(position[0], direction2, length, FluidCollisionMode.NEVER, true, raySize,
+                    entity -> attack.isAttackTarget(entity, player) && !struck.contains(entity.getUniqueId()));
             Location next = result != null && result.getHitPosition() != null ? result.getHitPosition().toLocation(world) : position[0].clone().add(flight2);
-            drawArrow(position[0], next, direction2);
+            drawArrow(position[0], next, direction2, trail, ringed[0]);
             if (!boosted[0]) {
                 for (Zones.Zone lantern : lanterns) {
                     if (lantern.center.clone().add(0.0, 1.0, 0.0).distanceSquared(next) <= 6.25) {
@@ -760,14 +767,56 @@ public final class MoveKit {
                     }
                 }
             }
+            // the ring of heavy 2: through it an arrow is 20% faster and 20% stronger, and its tip turns red
+            RangerBuffs.Circle circle = ranger && !ringed[0] ? RangerBuffs.circle(player.getUniqueId()) : null;
+            if (circle != null && RangerBuffs.passes(circle, position[0], next)) {
+                ringed[0] = true;
+                velocity.multiply(1.2);
+                effectiveRate = rate * (boosted[0] ? 1.25 : 1.0) * 1.2;
+                sound(next, Sound.BLOCK_BEACON_POWER_SELECT, 0.4f, 1.9f);
+                particle(Particle.FLAME, next, 8, 0.2, 0.05);
+            }
             if (result != null) {
                 if (result.getHitEntity() instanceof LivingEntity victim) {
+                    struck.add(victim.getUniqueId());
                     if (hit(victim, effectiveRate)) {
                         relay(victim, lanterns, rate);
                         if (weight > 1.2) push(victim, player.getLocation().toVector(), 0.12 * weight, 0.05);
+                        arrowEffect(buff, victim, next, effectiveRate);
+                    }
+                    if (buff == RangerBuffs.Type.RICOCHET && bounces[0] > 0) {
+                        bounces[0]--;
+                        // on to the nearest other enemy, else off upward
+                        LivingEntity other = null;
+                        double best = 81.0;
+                        for (LivingEntity candidate : around(next, 9.0)) {
+                            if (struck.contains(candidate.getUniqueId())) continue;
+                            double d = candidate.getLocation().distanceSquared(next);
+                            if (d < best) {
+                                best = d;
+                                other = candidate;
+                            }
+                        }
+                        Vector away = other != null ? other.getLocation().add(0.0, other.getHeight() * 0.5, 0.0).toVector().subtract(next.toVector()).normalize().multiply(speed)
+                                : direction2.clone().multiply(-0.5 * speed).setY(0.3);
+                        sound(next, Sound.ENTITY_ARROW_HIT, 0.5f, 1.8f);
+                        burst(next, 0.7);
+                        velocity.copy(away);
+                        position[0] = next;
+                        return false;
                     }
                 } else {
+                    if (buff == RangerBuffs.Type.RICOCHET && bounces[0] > 0 && result.getHitBlockFace() != null) {
+                        bounces[0]--;
+                        Vector normal = result.getHitBlockFace().getDirection();
+                        velocity.subtract(normal.clone().multiply(2.0 * velocity.dot(normal))).multiply(0.85);
+                        position[0] = next.clone().add(normal.clone().multiply(0.15));
+                        sound(next, Sound.ENTITY_ARROW_HIT, 0.5f, 1.8f);
+                        burst(next, 0.7);
+                        return false;
+                    }
                     stick(next, direction2, weight);
+                    arrowEffect(buff, null, next, effectiveRate);
                 }
                 if (onEnd != null) onEnd.accept(next);
                 return true;
@@ -776,6 +825,123 @@ public final class MoveKit {
             velocity.setY(velocity.getY() - gravity);
             travelled[0] += length;
             return travelled[0] >= range;
+        });
+    }
+
+    /** What an arrow that carries one of the backstep's effects does where it ended: {@code victim} is the enemy it hit (null: a block). */
+    private void arrowEffect(RangerBuffs.Type buff, LivingEntity victim, Location at, double rate) {
+        if (buff == null) return;
+        switch (buff) {
+            case POISON -> {
+                if (victim != null) poison(victim);
+            }
+            case BLAST -> {
+                particle(Particle.EXPLOSION_NORMAL, at, 2, 0.2, 0.02);
+                burst(at, 1.6);
+                sound(at, Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.7f);
+                if (victim != null) attack.addExplosionStack(victim, player);
+                for (LivingEntity near : around(at, 2.0)) {
+                    if (near.equals(victim) || !hit(near, rate * 0.1)) continue;
+                    attack.addExplosionStack(near, player);
+                }
+                if (victim != null) hit(victim, rate * 0.1);
+            }
+            case ORANGE -> {
+                if (victim == null || victim.isDead()) return;
+                AttackService.AttackDamage damage = attack.calculateDamage(player, victim, weapon);
+                attack.applyExtraDamage(player, victim, Math.round(damage.result().damage() * rate * 0.1 * 10.0) / 10.0, net.tkgon.mc.iruuRPG.stat.Element.ORANGE);
+                particle(Particle.FLAME, victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0), 8, 0.25, 0.04);
+            }
+            default -> {
+            }
+        }
+    }
+
+    private static final Map<UUID, Integer> POISONED = new HashMap<>();
+
+    /** Poison on {@code victim} for 4 s: every half second it takes slip damage (a share of the weapon's damage, {@code poison-rate}); a poisoned enemy is not poisoned again meanwhile. */
+    private void poison(LivingEntity victim) {
+        int now = org.bukkit.Bukkit.getCurrentTick();
+        Integer until = POISONED.get(victim.getUniqueId());
+        if (until != null && until > now) return;
+        POISONED.put(victim.getUniqueId(), now + 80);
+        double rate = number("ranger_range", "poison-rate", 0.06);
+        every(80, age -> {
+            if (victim.isDead() || !victim.isValid()) {
+                POISONED.remove(victim.getUniqueId());
+                return true;
+            }
+            Location body = victim.getLocation().add(0.0, victim.getHeight() * 0.6, 0.0);
+            particle(Particle.SPORE_BLOSSOM_AIR, body, 3, 0.3, 0.01);
+            fx(body).dust(body.getX(), body.getY(), body.getZ(), RangerBuffs.Type.POISON.trail, 0.7, 1.0);
+            if (age % 10 == 9) hit(victim, rate);
+            return false;
+        });
+    }
+
+    private RangerBuffs.Type attackBuff;
+
+    /** What the normal attack's effect (the small explosion, orange damage) does for a hit of something that is not an arrow shot (the piercing arrow). */
+    public void buffHit(LivingEntity victim, Location at, double rate) {
+        arrowEffect(attackBuff, victim, at, rate);
+    }
+
+    /** Ends the placed things of the ranger (traps, snares, mines) within {@code radius} of {@code at}; where each stood. */
+    public List<Location> breakPlacements(Location at, double radius) {
+        List<Location> centers = new ArrayList<>();
+        for (Zones.Zone zone : zones.near(player, "ranger_", at, radius)) {
+            centers.add(zone.center.clone());
+            zone.stop();
+        }
+        return centers;
+    }
+
+    /**
+     * The ranger's attack begins: a normal attack takes the effect that is on for normal attacks (the small explosion, orange damage; counted once for the attack, every arrow of it
+     * has it), a heavy one takes none.
+     */
+    public void rangerBegin(boolean normal) {
+        attackBuff = normal ? RangerBuffs.takeAttack(player.getUniqueId()) : null;
+    }
+
+    /**
+     * An arrow that flies straight (not in an arc) through the enemies on its way, {@code speed} blocks a tick for up to {@code range} blocks, drawn with {@code trail}: each enemy
+     * it passes is given to {@code onHit} once; it ends at a block. {@code onStep} runs with the arrow's place every tick (it may end the flight by returning true), {@code onEnd}
+     * where it ended.
+     */
+    public void pierceArrow(Location start, Vector direction, double speed, double range, Gradient trail, Consumer<LivingEntity> onHit,
+                            java.util.function.Predicate<Location> onStep, Consumer<Location> onEnd) {
+        Vector heading = direction.clone().normalize();
+        World world = start.getWorld();
+        java.util.Set<UUID> passed = new java.util.HashSet<>();
+        Location[] position = {start.clone()};
+        double[] travelled = {0.0};
+        every((int) Math.ceil(range / speed) + 2, age -> {
+            ParticleFx.mark(player);
+            double step = Math.min(speed, range - travelled[0]);
+            if (step <= 1.0E-6) {
+                if (onEnd != null) onEnd.accept(position[0]);
+                return true;
+            }
+            RayTraceResult block = world.rayTraceBlocks(position[0], heading, step, FluidCollisionMode.NEVER, true);
+            Location next = block != null && block.getHitPosition() != null ? block.getHitPosition().toLocation(world) : position[0].clone().add(heading.clone().multiply(step));
+            drawArrow(position[0], next, heading, trail, false);
+            fx(next).sphereShell(next, 0.35, age * 0.7, 10, trail, 1.0);
+            for (LivingEntity victim : corridor(position[0], heading, position[0].distance(next), 0.9)) {
+                if (passed.add(victim.getUniqueId()) && onHit != null) onHit.accept(victim);
+            }
+            position[0] = next;
+            travelled[0] += step;
+            if (onStep != null && onStep.test(next)) {
+                if (onEnd != null) onEnd.accept(next);
+                return true;
+            }
+            if (block != null) {
+                stick(next, heading, 1.0);
+                if (onEnd != null) onEnd.accept(next);
+                return true;
+            }
+            return false;
         });
     }
 
@@ -807,13 +973,20 @@ public final class MoveKit {
     }
 
     private void drawArrow(Location from, Location to, Vector heading) {
+        drawArrow(from, to, heading, palette, false);
+    }
+
+    private static final Gradient ARROW_RED_HEAD = Gradient.of(org.bukkit.Color.fromRGB(170, 20, 20), org.bukkit.Color.fromRGB(255, 70, 50));
+
+    /** An arrow drawn with {@code trail} behind it; {@code redTip}: its head is red (it went through the ring of heavy 2). */
+    private void drawArrow(Location from, Location to, Vector heading, Gradient trail, boolean redTip) {
         Fx fx = fx(to);
         if (!fx.active()) return;
         // the arrow: head at `to`, a shaft behind it, feathers at the tail, and a faint trail behind that
         Location tail = to.clone().subtract(heading.clone().multiply(1.1));
         Location neck = to.clone().subtract(heading.clone().multiply(0.1));
         fx.line(tail, neck, ARROW_SHAFT, 0.0, 1.0, 0.0, 1.0, 0.1, null, 1);
-        fx.line(neck, to.clone().add(heading.clone().multiply(0.15)), ARROW_HEAD, 0.4, 1.0, 0.0, 1.2, 0.07, null, 1);
+        fx.line(neck, to.clone().add(heading.clone().multiply(0.15)), redTip ? ARROW_RED_HEAD : ARROW_HEAD, 0.4, 1.0, 0.0, 1.2, 0.07, null, 1);
         Vector side = heading.clone().crossProduct(Y);
         if (side.lengthSquared() < 1.0E-6) side = X.clone();
         side.normalize().multiply(0.16);
@@ -822,7 +995,7 @@ public final class MoveKit {
         fx.line(tail, tailFront.clone().add(side), ARROW_FEATHER, 0.2, 1.0, 0.0, 0.9, 0.1, null, 1);
         fx.line(tail, tailFront.clone().subtract(side), ARROW_FEATHER, 0.2, 1.0, 0.0, 0.9, 0.1, null, 1);
         fx.line(tail, tailFront.clone().add(up), ARROW_FEATHER, 0.2, 1.0, 0.0, 0.9, 0.1, null, 1);
-        fx.line(tail.clone().subtract(heading.clone().multiply(2.2)), tail, palette, 0.05, 0.45, 1.5, 0.7, 0.3, null, 1);
+        fx.line(tail.clone().subtract(heading.clone().multiply(2.2)), tail, trail, 0.05, 0.45, 1.5, 0.7, 0.3, null, 1);
     }
 
     /** A column of light standing at {@code base}: rings along it, widening toward the bottom, the color bright at the top. */
