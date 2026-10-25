@@ -22,7 +22,7 @@ import java.util.UUID;
  * Normal: 1 two sweeps, out and back (29% each), 2 a reaping cut that lifts (79%), 3 a whirl, three spins round (32% each), 4 a step in and a cut (118%), 5 the harvest (a pull
  * in for 0.3 s, then a full circle of 3.8 blocks: 138%, slows). Heavy (each can be pressed again within a moment to go on with the next part of it): 0 a leap: the mage jumps,
  * the enemies near are thrown up (10%), and the second press is the plunge: the mage comes down on the spot with a cut downward (90%); its own cooldown of 6 s. 1 three sweeping
- * cuts forward (20% each; again: a crossing cut, 40%), 2 three soul pillars in the line ahead, near (36% each; again: they erupt once more, 36% each), 3 a short dash forward and
+ * cuts forward (20% each; again: a crossing cut, 40%), 2 a long line slash straight ahead (a thin line shows for 0.3 s, then the blade goes down 6 blocks of it, 36%, slows; again: two more slanted 28 degrees each way, 36% each), 3 a short dash forward and
  * a sweep (110%; again: a dash and a sweep back, 66%), 4 three short dashes with a cut each and a last cut (125% in all; again: an overhead cut, 62%).
  */
 public final class MageMeleeCombo extends BaseCombo {
@@ -38,7 +38,7 @@ public final class MageMeleeCombo extends BaseCombo {
     /** The scythe is slower than the other melee weapons: at least this many ticks between two normal attacks. */
     @Override
     public int normalGapTicks() {
-        return 14;
+        return 18;
     }
 
     // ---- what comes after a heavy attack (pressed again) ----------------------------------------------------------------------------
@@ -108,7 +108,7 @@ public final class MageMeleeCombo extends BaseCombo {
 
     /** A sweep of the scythe: an arc of 250 degrees ahead, and everything in the cone cut for {@code rate}. */
     private static void sweep(MoveKit kit, double radius, double tilt, double roll, double rate) {
-        kit.slash("arc", radius, 250.0, tilt, roll, 1.4, 0.5, 0.0, 1.3, 0.14, 0.0);
+        kit.slash("arc", radius, 250.0, tilt, roll, radius * 0.9, 0.5, 0.0, 1.3, 0.14, 0.0);
         kit.sound(kit.player.getLocation(), Sfx.REAP, 0.8f, 0.85f);
         reap(kit, kit.cone(radius, 115.0), rate, sweepWay(kit, roll));
     }
@@ -171,16 +171,6 @@ public final class MageMeleeCombo extends BaseCombo {
         });
     }
 
-    /** A rune struck in the plane of {@code right} and {@code up} round {@code at}: it shows, closing in, for {@code ticks} ticks, then {@code after} runs. */
-    private static void rune(MoveKit kit, Location at, Vector right, Vector up, double radius, int ticks, Runnable after) {
-        kit.sound(at, Sfx.MAGIC, 0.6f, 1.4f);
-        for (int tick = 0; tick < ticks; tick++) {
-            int which = tick;
-            kit.later(tick, () -> SkillFx.circle(kit.player, at, right, up, radius * (1.0 - 0.25 * which / ticks), which * 3, kit.palette()));
-        }
-        kit.later(ticks, after);
-    }
-
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
         FOLLOW.remove(kit.player.getUniqueId());
@@ -194,12 +184,12 @@ public final class MageMeleeCombo extends BaseCombo {
                 // two sweeps, out and back
                 for (int index = 0; index < hits; index++) {
                     int which = index;
-                    kit.later(index * 5L, () -> sweep(kit, 3.4, 15.0, which % 2 == 0 ? 0.0 : 180.0, rate));
+                    kit.later(index * 6L, () -> sweep(kit, 3.4, 78.0, which % 2 == 0 ? 0.0 : 180.0, rate));
                 }
             }
             case 2 -> {
                 // a reaping cut from high to low: the hook of the blade lifts what it catches
-                kit.slash("arc", 3.6, 250.0, 25.0, 0.0, 1.5, 0.1, 0.0, 1.4, 0.16, 0.0);
+                kit.slash("arc", 3.6, 250.0, 25.0, 0.0, 3.2, 0.1, 0.0, 1.4, 0.16, 0.0);
                 kit.sound(feet, Sfx.REAP_HEAVY, 0.8f, 0.9f);
                 Vector way = facing.clone().multiply(0.5).add(new Vector(0.0, -0.5, 0.0));
                 for (LivingEntity victim : kit.cone(3.6, 100.0)) {
@@ -215,7 +205,7 @@ public final class MageMeleeCombo extends BaseCombo {
                     int which = index;
                     kit.later(index * 4L, () -> {
                         Location at = kit.player.getLocation();
-                        kit.slash("arc", 3.4, 330.0, 70.0, which % 2 == 0 ? 0.0 : 180.0, 0.4, 0.6, 0.0, 1.2, 0.1, 0.0);
+                        kit.slash("arc", 3.4, 330.0, 85.0, which % 2 == 0 ? 0.0 : 180.0, 3.2, 0.6, 0.0, 1.2, 0.1, 0.0);
                         kit.fx(at).flatRing(at.clone().add(0.0, 0.3 + 0.35 * which, 0.0), 3.3, 36, kit.palette(), 0.5, 0.2, 1.0);
                         kit.sound(at, Sfx.REAP, 0.8f, 0.75f + 0.1f * which);
                         for (LivingEntity victim : kit.around(at, 3.4)) {
@@ -231,7 +221,7 @@ public final class MageMeleeCombo extends BaseCombo {
                 // a step in and a cut: the mage slides forward a little under the blade
                 kit.sound(feet, Sfx.REAP_HEAVY, 0.9f, 0.8f);
                 kit.dash(facing, 0.5, 3, end -> {
-                    kit.slash("arc", 3.9, 250.0, 20.0, 0.0, 1.5, 0.4, 0.0, 1.5, 0.16, 0.0);
+                    kit.slash("arc", 3.9, 250.0, 30.0, 0.0, 3.5, 0.4, 0.0, 1.5, 0.16, 0.0);
                     kit.sound(end, Sfx.REAP, 1.0f, 0.7f);
                     kit.shockwave(end, 0.8, 3.0, 3, 1.0);
                     reap(kit, kit.cone(3.9, 115.0), rate, sweepWay(kit, 0.0));
@@ -250,7 +240,7 @@ public final class MageMeleeCombo extends BaseCombo {
                 }
                 kit.later(7L, () -> {
                     Location at = kit.player.getLocation();
-                    kit.slash("arc", 3.8, 340.0, 70.0, 0.0, 0.4, 0.5, 0.0, 1.6, 0.2, 0.0);
+                    kit.slash("arc", 3.8, 340.0, 85.0, 0.0, 3.6, 0.5, 0.0, 1.6, 0.2, 0.0);
                     kit.shockwave(at, 1.0, 4.2, 5, 1.2);
                     kit.fx(at).sphereShell(at.clone().add(0.0, 1.0, 0.0), 1.8, 0.0, 48, kit.palette(), 1.0);
                     kit.particle(Particle.SOUL_FIRE_FLAME, at.clone().add(0.0, 1.0, 0.0), 30, 1.8, 0.08);
@@ -277,7 +267,7 @@ public final class MageMeleeCombo extends BaseCombo {
                 // a leap: the mage jumps with a cut upward, and what is near is thrown up; the second press is the plunge
                 kit.guard(0.5, 30);
                 kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.9f);
-                kit.slash("arc", 3.6, 250.0, 20.0, 180.0, 1.5, 0.9, 0.0, 1.4, 0.16, 0.0);
+                kit.slash("arc", 3.6, 250.0, 20.0, 180.0, 3.2, 0.9, 0.0, 1.4, 0.16, 0.0);
                 for (LivingEntity victim : kit.around(feet, 3.6)) {
                     if (kit.hit(victim, rate)) {
                         kit.lift(victim, 0.95);
@@ -298,23 +288,20 @@ public final class MageMeleeCombo extends BaseCombo {
                 // three sweeping cuts forward
                 for (int index = 0; index < 3; index++) {
                     int which = index;
-                    kit.later(index * 4L, () -> sweep(kit, 3.5, 10.0 + 15.0 * which, which % 2 == 0 ? 0.0 : 180.0, rate));
+                    kit.later(index * 5L, () -> sweep(kit, 3.5, 75.0 - 15.0 * which, which % 2 == 0 ? 0.0 : 180.0, rate));
                 }
                 arm(kit, 1, 10, 36, rate * 2.0);
             }
             case 2 -> {
-                // three soul pillars in the line ahead, near, each risen a little after the one before
-                for (int index = 1; index <= 3; index++) {
-                    Location at = kit.ground(feet.clone().add(facing.clone().multiply(1.6 * index + 0.2))).add(0.0, 0.2, 0.0);
-                    kit.later((index - 1) * 4L, () -> pillar(kit, at, rate));
-                }
+                // a long line slash straight ahead: a thin line shows along the way for 0.3 s, then the blade goes down it (6 blocks, slows)
+                lineSlash(kit, facing, rate, true);
                 arm(kit, 2, 12, 36, rate);
             }
             case 3 -> {
                 // a short dash forward and a sweep
                 kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.8f);
                 kit.dash(facing, 1.0, 4, end -> {
-                    kit.slash("arc", 3.9, 250.0, 15.0, 0.0, 1.5, 0.4, 0.0, 1.5, 0.16, 0.0);
+                    kit.slash("arc", 3.9, 250.0, 75.0, 0.0, 3.5, 0.4, 0.0, 1.5, 0.16, 0.0);
                     kit.sound(end, Sfx.REAP, 1.0f, 0.7f);
                     kit.shockwave(end, 0.8, 3.2, 3, 1.0);
                     reap(kit, kit.cone(3.9, 120.0), rate, sweepWay(kit, 0.0));
@@ -328,14 +315,14 @@ public final class MageMeleeCombo extends BaseCombo {
                     kit.later(index * 5L, () -> {
                         kit.sound(kit.player.getLocation(), Sfx.REAP_HEAVY, 0.8f, 0.8f + 0.1f * which);
                         kit.dash(kit.facing(), 0.9, 3, end -> {
-                            kit.slash("arc", 3.5, 250.0, 15.0 + 25.0 * which, which % 2 == 0 ? 0.0 : 180.0, 1.5, 0.5, 0.0, 1.3, 0.12, 0.0);
+                            kit.slash("arc", 3.5, 250.0, 75.0 - 15.0 * which, which % 2 == 0 ? 0.0 : 180.0, 3.1, 0.5, 0.0, 1.3, 0.12, 0.0);
                             reap(kit, kit.cone(3.5, 115.0), rate * 0.22, sweepWay(kit, which % 2 == 0 ? 0.0 : 180.0));
                         });
                     });
                 }
                 kit.later(16L, () -> {
                     Location at = kit.player.getLocation();
-                    kit.slash("arc", 3.9, 250.0, 30.0, 0.0, 1.5, 0.3, 0.0, 1.6, 0.18, 0.0);
+                    kit.slash("arc", 3.9, 250.0, 40.0, 0.0, 3.5, 0.3, 0.0, 1.6, 0.18, 0.0);
                     kit.shockwave(at, 1.0, 3.8, 4, 1.1);
                     kit.sound(at, Sfx.REAP_HEAVY, 1.0f, 0.65f);
                     reap(kit, kit.cone(3.9, 120.0), rate * 0.44, sweepWay(kit, 0.0));
@@ -345,14 +332,29 @@ public final class MageMeleeCombo extends BaseCombo {
         }
     }
 
-    /** A soul pillar at {@code at}: a rune closes for 0.3 s, then it rises and cuts all within 1.9 blocks for {@code rate}; the ash goes up with it. */
-    private static void pillar(MoveKit kit, Location at, double rate) {
-        rune(kit, at, new Vector(1, 0, 0), new Vector(0, 0, 1), 1.8, 6, () -> {
-            kit.burst(at.clone().add(0.0, 0.3, 0.0), 2.2);
-            kit.shockwave(at, 0.8, 2.4, 3, 1.0);
-            kit.sound(at, Sfx.SOUL, 0.8f, 0.8f);
-            kit.particle(Particle.SOUL_FIRE_FLAME, at.clone().add(0.0, 1.0, 0.0), 24, 0.5, 0.1);
-            reap(kit, kit.around(at, 1.9), rate, new Vector(0.0, 1.0, 0.0));
+    /** A line slash along {@code way} (6 blocks): with {@code telegraph}, a thin line shows for 0.3 s first; then the blade goes down it and cuts all within 0.9 blocks of it. */
+    private static void lineSlash(MoveKit kit, Vector way, double rate, boolean telegraph) {
+        Location from = kit.player.getLocation().add(0.0, 1.0, 0.0);
+        Location to = from.clone().add(way.clone().multiply(6.2));
+        Vector side = new Vector(-way.getZ(), 0.0, way.getX());
+        int wait = telegraph ? 6 : 1;
+        if (telegraph) {
+            kit.sound(from, Sfx.REAP, 0.7f, 0.7f);
+            for (int tick = 0; tick < wait; tick++) kit.later(tick, () -> kit.line(from, to, 0.1, 0.6, 0.8));
+        }
+        kit.later(wait, () -> {
+            kit.slash("arc", 3.8, 160.0, 85.0, 0.0, 3.4, 0.5, 0.0, 1.5, 0.12, 0.0);
+            kit.sound(from, Sfx.REAP_HEAVY, 1.0f, 0.7f);
+            for (int offset = -1; offset <= 1; offset++) {
+                Vector shift = side.clone().multiply(0.7 * offset);
+                kit.line(from.clone().add(shift), to.clone().add(shift), 0.1, 1.0, 1.5);
+            }
+            kit.burst(to, 1.6);
+            for (LivingEntity victim : kit.corridor(from, way, 6.2, 1.8)) {
+                if (!kit.hit(victim, rate)) continue;
+                kit.slow(victim, 40.0, 1.2);
+                ash(kit, victim, way);
+            }
         });
     }
 
@@ -373,7 +375,7 @@ public final class MageMeleeCombo extends BaseCombo {
                     Location at = kit.player.getLocation();
                     kit.particle(Particle.SOUL_FIRE_FLAME, at.clone().add(0.0, 1.0, 0.0), 4, 0.3, 0.02);
                     if ((age >= 2 && kit.player.isOnGround()) || age == 15) {
-                        kit.slash("arc", 3.9, 250.0, 15.0, 0.0, 1.2, 0.2, 0.0, 1.7, 0.2, 0.0);
+                        kit.slash("arc", 3.9, 250.0, 5.0, 0.0, 3.2, 0.2, 0.0, 1.7, 0.2, 0.0);
                         kit.shockwave(at, 1.0, 4.4, 5, 1.2);
                         kit.burst(at.clone().add(0.0, 0.4, 0.0), 3.0);
                         kit.sound(at, Sfx.REAP_HEAVY, 1.0f, 0.6f);
@@ -389,30 +391,31 @@ public final class MageMeleeCombo extends BaseCombo {
             }
             case 1 -> {
                 // a crossing cut: two arcs, slanted each way, at once
-                kit.slash("arc", 3.8, 250.0, 40.0, 0.0, 1.4, 0.5, 0.0, 1.4, 0.14, 0.0);
-                kit.slash("arc", 3.8, 250.0, -40.0, 180.0, 1.4, 0.5, 0.0, 1.4, 0.14, 0.04);
+                kit.slash("arc", 3.8, 250.0, 50.0, 0.0, 3.4, 0.5, 0.0, 1.4, 0.14, 0.0);
+                kit.slash("arc", 3.8, 250.0, 130.0, 180.0, 3.4, 0.5, 0.0, 1.4, 0.14, 0.04);
                 kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.75f);
                 reap(kit, kit.cone(3.8, 125.0), rate, facing);
             }
             case 2 -> {
-                // the pillars erupt once more
-                for (int index = 1; index <= 3; index++) {
-                    Location at = kit.ground(feet.clone().add(facing.clone().multiply(1.6 * index + 0.2))).add(0.0, 0.2, 0.0);
-                    kit.later((index - 1) * 2L, () -> pillar(kit, at, rate));
+                // two more line slashes, slanted 28 degrees each way
+                for (int side = -1; side <= 1; side += 2) {
+                    double turn = Math.toRadians(28.0 * side);
+                    Vector way = new Vector(facing.getX() * Math.cos(turn) - facing.getZ() * Math.sin(turn), 0.0, facing.getX() * Math.sin(turn) + facing.getZ() * Math.cos(turn));
+                    lineSlash(kit, way, rate, false);
                 }
             }
             case 3 -> {
                 // a dash on and a sweep back the other way
                 kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.8f);
                 kit.dash(facing, 0.8, 3, end -> {
-                    kit.slash("arc", 3.9, 250.0, 15.0, 180.0, 1.5, 0.4, 0.0, 1.5, 0.16, 0.0);
+                    kit.slash("arc", 3.9, 250.0, 75.0, 180.0, 3.5, 0.4, 0.0, 1.5, 0.16, 0.0);
                     kit.sound(end, Sfx.REAP, 1.0f, 0.7f);
                     reap(kit, kit.cone(3.9, 120.0), rate, sweepWay(kit, 180.0));
                 });
             }
             default -> {
                 // an overhead cut
-                kit.slash("arc", 3.9, 250.0, 5.0, 0.0, 1.5, 0.1, 0.0, 1.7, 0.2, 0.0);
+                kit.slash("arc", 3.9, 250.0, 5.0, 0.0, 3.5, 0.1, 0.0, 1.7, 0.2, 0.0);
                 kit.shockwave(feet, 0.8, 4.0, 4, 1.1);
                 kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.6f);
                 Vector way = facing.clone().multiply(0.4).add(new Vector(0.0, -0.6, 0.0));

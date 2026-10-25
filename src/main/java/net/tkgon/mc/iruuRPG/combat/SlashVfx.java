@@ -100,7 +100,17 @@ public final class SlashVfx {
         }
     }
 
-    /** Where the arc goes: radius, how far around it sweeps, bulge up/forward, rotation (degrees). */
+    /**
+     * The frame a slash is drawn in when it is laid out from the player's view: {@code view} (the way they look, the middle of the arc is {@code forward} blocks along it),
+     * {@code right} (the start of the arc is on that side; the cross of the view and the world's up), {@code up} (the view's own up), and {@code bank} (degrees): the turn of
+     * the arc about the view line, 0 = a flat sweep from the right through the front to the left, positive = its start is raised (a cut from the upper right to the lower left),
+     * 90 = a chop from above to below. Only turns about the view line (bank) and about the vertical (the frame is turned before it is given) are used, never about the
+     * line across the view: that would be a turn in height.
+     */
+    public record Frame(double[] view, double[] right, double[] up, double forward, double bank) {
+    }
+
+    /** Where the arc goes: radius, how far around it sweeps, bulge up/forward, rotation (degrees); or, with a {@code frame}, laid out from the view (see {@link Frame}). */
     public record Shape(
             double radius,
             double sweepDegrees,
@@ -111,7 +121,8 @@ public final class SlashVfx {
             double roll,
             int samplesPerBlock,
             boolean reverse,
-            Kind kind
+            Kind kind,
+            Frame frame
     ) {
         public Shape {
             if (radius <= 0 || sweepDegrees <= 0 || sweepDegrees > 360 || samplesPerBlock < 1) {
@@ -121,13 +132,23 @@ public final class SlashVfx {
         }
 
         public Shape(double radius, double sweepDegrees, double height, double depth, double yaw, double pitch, double roll,
+                     int samplesPerBlock, boolean reverse, Kind kind) {
+            this(radius, sweepDegrees, height, depth, yaw, pitch, roll, samplesPerBlock, reverse, kind, null);
+        }
+
+        public Shape(double radius, double sweepDegrees, double height, double depth, double yaw, double pitch, double roll,
                      int samplesPerBlock, boolean reverse) {
-            this(radius, sweepDegrees, height, depth, yaw, pitch, roll, samplesPerBlock, reverse, Kind.ARC);
+            this(radius, sweepDegrees, height, depth, yaw, pitch, roll, samplesPerBlock, reverse, Kind.ARC, null);
         }
 
         public Shape(double radius, double sweepDegrees, double height, double depth, double yaw, double pitch, double roll,
                      int samplesPerBlock) {
             this(radius, sweepDegrees, height, depth, yaw, pitch, roll, samplesPerBlock, false);
+        }
+
+        /** The same shape drawn with another density. */
+        public Shape withDensity(int density) {
+            return new Shape(radius, sweepDegrees, height, depth, yaw, pitch, roll, density, reverse, kind, frame);
         }
     }
 
@@ -135,8 +156,10 @@ public final class SlashVfx {
         if (!plugin.isEnabled()) return;
         if (origin == null || origin.getWorld() == null || layers == null || shape == null || duration <= 0) return;
 
+        // (the arc is drawn a little slower than asked for: slash-vfx.speed-scale, 1.25 = a quarter longer)
+        double slow = Math.max(0.5, Math.min(3.0, plugin.getConfig().getDouble("slash-vfx.speed-scale", 1.25)));
         active.add(new Instance(origin.getWorld(), origin.getX(), origin.getY(), origin.getZ(),
-                layers.clone(), duration, shape, tipLayer));
+                layers.clone(), duration * slow, shape, tipLayer));
         if (task == null) {
             task = plugin.getServer().getScheduler().runTaskTimer(plugin, this::tick, 0L, 1L);
         }
@@ -238,7 +261,8 @@ public final class SlashVfx {
                             double across = half <= 0.0 ? 0.0 : Math.abs(j - half) / half;
                             double t = layer.tailT() + (1.0 - layer.tailT()) * along;
                             colorAt[i][s][j] = (float) Curves.clamp01(t * (1.0 - layer.acrossShare()) + across * layer.acrossShare());
-                            sizeAt[i][s][j] = (float) (layer.size() * (0.55 + 0.45 * Math.pow(Math.sin(Math.PI * Math.min(1.0, 0.12 + 0.88 * u)), 0.5)));
+                            // (a dust particle lives as long as it is big: the start of the arc is thin and goes first, the end is full and stays longest)
+                            sizeAt[i][s][j] = (float) (layer.size() * (0.35 + 0.65 * Math.pow(u, 0.7)));
                         }
                     }
                 }
@@ -270,7 +294,49 @@ public final class SlashVfx {
             return new Vec3(x3, y2, z3);
         }
 
+        /**
+         * A point of an arc laid out from the view (see {@link Frame}): the arc is a circle in the plane of the right and the view, its start on the right, its middle
+         * (progress 0.5) {@code forward} blocks along the view and its end on the left; the plane is then turned about the view line by the bank. The thickness lines run
+         * along the radius.
+         */
+        private Vec3 framePoint(double u, Layer layer, double thicknessOffset) {
+            Frame frame = shape.frame();
+            if (shape.reverse()) u = 1.0 - u;
+            double sweep = Math.toRadians(shape.sweepDegrees());
+            double theta = (u - 0.5) * sweep;
+            double a;
+            double c;
+            double ra;
+            double rc;
+            if (shape.kind() == Kind.LINE) {
+                double half = shape.radius() * Math.sin(sweep / 2.0);
+                a = half * (1.0 - 2.0 * u);
+                c = frame.forward();
+                ra = 0.0;
+                rc = 1.0;
+            } else {
+                a = -shape.radius() * Math.sin(theta);
+                c = frame.forward() - shape.radius() + shape.radius() * Math.cos(theta);
+                ra = -Math.sin(theta);
+                rc = Math.cos(theta);
+            }
+            if (shape.kind() == Kind.DROP) thicknessOffset *= dropWidth(u) * 1.8;
+            a += ra * thicknessOffset + layer.offsetX();
+            c += rc * thicknessOffset + layer.offsetZ();
+            double b = layer.offsetY();
+            double bank = Math.toRadians(frame.bank());
+            double cb = Math.cos(bank);
+            double sb = Math.sin(bank);
+            double a2 = a * cb - b * sb;
+            double b2 = a * sb + b * cb;
+            double[] right = frame.right();
+            double[] up = frame.up();
+            double[] view = frame.view();
+            return new Vec3(ox + right[0] * a2 + up[0] * b2 + view[0] * c, oy + right[1] * a2 + up[1] * b2 + view[1] * c, oz + right[2] * a2 + up[2] * b2 + view[2] * c);
+        }
+
         private Vec3 calculatePoint(double u, Layer layer, double thicknessOffset) {
+            if (shape.frame() != null) return framePoint(u, layer, thicknessOffset);
             // a reversed arc is drawn from its other end, with the same bulge
             if (shape.reverse()) u = 1.0 - u;
             double sweep = Math.toRadians(shape.sweepDegrees());
