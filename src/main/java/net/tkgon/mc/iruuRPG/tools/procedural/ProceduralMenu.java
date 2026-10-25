@@ -90,8 +90,11 @@ final class ProceduralMenu implements Listener {
 
         /** The numbers of the page for this kind. */
         TreeSettings.Key[] keysFor(ProcKind kind) {
+            // (a web has no height and width: the points decide how big it is)
+            if (this == BASIC && kind.web()) return new TreeSettings.Key[]{};
             if (this != SHAPE) return keys;
             return switch (kind) {
+                case WEB -> new TreeSettings.Key[]{TreeSettings.Key.WEB_RINGS, TreeSettings.Key.WEB_SPOKES, TreeSettings.Key.WEB_SAG, TreeSettings.Key.WEB_IRREG, TreeSettings.Key.WEB_REACH};
                 case ROCK -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS, TreeSettings.Key.MOSS};
                 case SPIKE -> new TreeSettings.Key[]{TreeSettings.Key.SPIKE_SIDES, TreeSettings.Key.SPIKE_TWIST, TreeSettings.Key.SPIKE_STAR, TreeSettings.Key.SPIKE_TAPER, TreeSettings.Key.CURVE,
                         TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS};
@@ -136,6 +139,11 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.CRYSTAL_FACETS, Material.AMETHYST_BLOCK);
         ICONS.put(TreeSettings.Key.CRYSTAL_THICK, Material.BUDDING_AMETHYST);
         ICONS.put(TreeSettings.Key.CRYSTAL_VARIANCE, Material.LARGE_AMETHYST_BUD);
+        ICONS.put(TreeSettings.Key.WEB_RINGS, Material.STRING);
+        ICONS.put(TreeSettings.Key.WEB_SPOKES, Material.TRIPWIRE_HOOK);
+        ICONS.put(TreeSettings.Key.WEB_SAG, Material.LEAD);
+        ICONS.put(TreeSettings.Key.WEB_IRREG, Material.COBWEB);
+        ICONS.put(TreeSettings.Key.WEB_REACH, Material.SPYGLASS);
     }
 
     private final ProceduralModule tool;
@@ -230,8 +238,9 @@ final class ProceduralMenu implements Listener {
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
                 text("プレビュー中は、変えて 0.75 秒後に木が変わる", NamedTextColor.GRAY))));
 
-        for (int index = 0; index < page.keys.length; index++) {
-            TreeSettings.Key key = page.keys[index];
+        TreeSettings.Key[] shownKeys = page.keysFor(settings.kind());
+        for (int index = 0; index < shownKeys.length; index++) {
+            TreeSettings.Key key = shownKeys[index];
             List<Component> lore = new ArrayList<>();
             lore.add(text(key.description(), NamedTextColor.GRAY));
             lore.add(text("現在: " + number(key, settings.get(key)) + "  (" + number(key, key.min()) + " 〜 " + number(key, key.max()) + ")", NamedTextColor.WHITE));
@@ -270,7 +279,12 @@ final class ProceduralMenu implements Listener {
     private void renderBasic(Player player, Inventory inventory, TreeSession session, TreeSettings settings) {
         Location base = session.base;
         ProcKind kind = settings.kind();
-        inventory.setItem(INFO, item(Material.COMPASS, "置く場所", NamedTextColor.GOLD, List.of(
+        if (kind.web()) {
+            inventory.setItem(INFO, item(Material.COMPASS, "巣の点", NamedTextColor.GOLD, List.of(
+                    text(session.points.size() + " 点 (最初の点: " + (base == null ? "なし" : base.getBlockX() + ", " + base.getBlockY() + ", " + base.getBlockZ()) + ")", NamedTextColor.WHITE),
+                    text("ツールでブロックをクリックして点を足す。2点以上で生成できる", NamedTextColor.GRAY),
+                    text("空気のブロックにだけ置く (ほかのブロックは上書きしない)", NamedTextColor.GRAY))));
+        } else inventory.setItem(INFO, item(Material.COMPASS, "置く場所", NamedTextColor.GOLD, List.of(
                 text(base == null ? "まだ決まっていません (ブロックをクリック)" : base.getWorld().getName() + " " + base.getBlockX() + ", " + base.getBlockY() + ", " + base.getBlockZ(), NamedTextColor.WHITE),
                 text("クリックしたブロックの真上が、足元 (逆さのスパイク・結晶は、クリックしたブロックの真下から垂れる)", NamedTextColor.GRAY),
                 text("木の根・岩の足元は、地面があればそれに沿う", NamedTextColor.GRAY))));
@@ -281,7 +295,40 @@ final class ProceduralMenu implements Listener {
         kindLore.add(text("左クリック: 次の種類 / 右クリック: 前の種類 (種類を変えると、大きさなどがその種類の初期値になる)", NamedTextColor.YELLOW));
         inventory.setItem(KIND, item(kind.icon(), "作るもの: " + kind.label(), NamedTextColor.GOLD, kindLore));
         if (kind.tree()) renderTreeChoices(inventory, settings);
+        if (kind.web()) renderWebChoices(inventory, session, settings);
         renderRest(inventory, session, settings);
+    }
+
+    static String webShapeLabel(String shape) {
+        return switch (shape) {
+            case "sheet" -> "棚網 (平らな面)";
+            case "bowl" -> "皿網 (皿のようにたるむ)";
+            case "funnel" -> "漏斗網 (すぼまる筒)";
+            case "irregular" -> "不規則網 (からまった糸)";
+            case "strand" -> "条網 (点から点への帯)";
+            default -> "円網 (放射糸とらせん)";
+        };
+    }
+
+    private void renderWebChoices(Inventory inventory, TreeSession session, TreeSettings settings) {
+        List<Component> shapeLore = new ArrayList<>();
+        shapeLore.add(text("円網: 点を結ぶ枠に、中心から放射糸とらせんを張る", NamedTextColor.GRAY));
+        shapeLore.add(text("棚網: 枠の中に、交差する糸の平らな面", NamedTextColor.GRAY));
+        shapeLore.add(text("皿網: 棚網が中央に向かって皿のようにたるむ (たるみ = 深さ)", NamedTextColor.GRAY));
+        shapeLore.add(text("漏斗網: 口から一番低い点へすぼまる筒。輪と縦糸", NamedTextColor.GRAY));
+        shapeLore.add(text("不規則網: 点と、そのまわりの空間の節をつなぐ、からまった糸", NamedTextColor.GRAY));
+        shapeLore.add(text("条網: 点から点へ、並行な糸の帯と横糸", NamedTextColor.GRAY));
+        shapeLore.add(text("左クリック: 次の形 / 右クリック: 前の形", NamedTextColor.YELLOW));
+        inventory.setItem(ALGORITHM, item(Material.COBWEB, "巣の形: " + webShapeLabel(settings.webShape()), NamedTextColor.AQUA, shapeLore));
+        List<Component> pointLore = new ArrayList<>();
+        pointLore.add(text("ツールでブロックをクリックすると、その面の先の空気が点になる (Shift+クリックで最後の点を消す)", NamedTextColor.GRAY));
+        pointLore.add(text("2点以上で巣ができる。最初の点が巣の基準 (地形の壁・地面・天井には、点のまわりで自動で糸を固定する)", NamedTextColor.GRAY));
+        for (int index = 0; index < Math.min(8, session.points.size()); index++) {
+            int[] point = session.points.get(index);
+            pointLore.add(text((index == 0 ? "◎ " : "・ ") + point[0] + ", " + point[1] + ", " + point[2], NamedTextColor.WHITE));
+        }
+        pointLore.add(text("左クリック: 最後の点を消す / 右クリック: 全部消す", NamedTextColor.YELLOW));
+        inventory.setItem(CROWN, item(Material.LEAD, "点: " + session.points.size() + " 個", NamedTextColor.AQUA, pointLore));
     }
 
     private void renderTreeChoices(Inventory inventory, TreeSettings settings) {
@@ -400,12 +447,26 @@ final class ProceduralMenu implements Listener {
                 tool.limit(settings);
             }
             case ALGORITHM -> {
-                if (!settings.kind().tree()) return false;
-                settings.cycleAlgorithm();
+                if (settings.kind().web()) {
+                    settings.cycleWebShape(left);
+                } else {
+                    if (!settings.kind().tree()) return false;
+                    settings.cycleAlgorithm();
+                }
             }
             case CROWN -> {
-                if (!settings.kind().tree()) return false;
-                settings.cycleCrown();
+                if (settings.kind().web()) {
+                    if (left) {
+                        if (!session.points.isEmpty()) session.points.remove(session.points.size() - 1);
+                    } else {
+                        session.points.clear();
+                        session.pointsWorld = null;
+                    }
+                    tool.markPoints(player, session);
+                } else {
+                    if (!settings.kind().tree()) return false;
+                    settings.cycleCrown();
+                }
             }
             case SEED -> {
                 // (with the preview on the seed is never "random": the right click gives a new fixed one then)

@@ -53,7 +53,12 @@ final class TreeSettings {
         CRYSTAL_TIP("crystal-tip", "結晶の先の長さ", 0.1, 0.9, 0.05, 0.1, "結晶の長さのうち、先が尖る部分の割合"),
         CRYSTAL_FACETS("crystal-facets", "結晶の面の数", 3, 8, 1, 1, "結晶の断面の角の数 (6 で六角柱)"),
         CRYSTAL_THICK("crystal-thick", "結晶の太さ", 0.4, 2.5, 0.1, 0.3, "結晶の太さの倍率"),
-        CRYSTAL_VARIANCE("crystal-variance", "結晶の長さのばらつき", 0.0, 1.0, 0.05, 0.2, "かたまりの結晶の長さのばらつき (0 でそろう)");
+        CRYSTAL_VARIANCE("crystal-variance", "結晶の長さのばらつき", 0.0, 1.0, 0.05, 0.2, "かたまりの結晶の長さのばらつき (0 でそろう)"),
+        WEB_RINGS("web-rings", "糸の段数", 2, 24, 1, 3, "円網のらせんの巻き数 / 棚網・皿網の格子の細かさ / 漏斗網の輪の数 / 不規則網の節の数 / 条網の横糸の間隔"),
+        WEB_SPOKES("web-spokes", "放射糸の数", 4, 32, 1, 4, "円網・漏斗網の放射状の糸の数。条網では、並べて張る糸の本数"),
+        WEB_SAG("web-sag", "たるみ", 0.0, 1.0, 0.05, 0.2, "糸が重みでたるむ度合い。皿網では皿の深さ"),
+        WEB_IRREG("web-irregularity", "不規則さ", 0.0, 1.0, 0.05, 0.2, "糸の位置・角度のばらつき (不規則網ではつながり方も)"),
+        WEB_REACH("web-reach", "地形を探す距離", 1, 16, 1, 3, "点のまわりでこの距離までの壁・地面・天井を探して、糸を固定する (ブロック)");
 
         private final String id;
         private final String label;
@@ -111,9 +116,10 @@ final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 5, 0.5, 0.25, 0.3, 6, 1.0, 0.5};
+    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 5, 0.5, 0.25, 0.3, 6, 1.0, 0.5, 8, 12, 0.25, 0.3, 5};
     private ProcKind kind = ProcKind.TREE;
     private String crystalType = "cluster";
+    private String webShape = "orb";
     private String algorithm = "builder";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */
@@ -125,6 +131,7 @@ final class TreeSettings {
         System.arraycopy(values, 0, copy.values, 0, values.length);
         copy.kind = kind;
         copy.crystalType = crystalType;
+        copy.webShape = webShape;
         copy.algorithm = algorithm;
         copy.crown = crown;
         copy.seed = seed;
@@ -183,6 +190,21 @@ final class TreeSettings {
         setCrystalType(CRYSTAL_TYPES.get(Math.floorMod(CRYSTAL_TYPES.indexOf(crystalType) + (forward ? 1 : -1), CRYSTAL_TYPES.size())));
     }
 
+    /** The kinds of web: orb (円網), sheet (棚網), bowl (皿網), funnel (漏斗網), irregular (不規則網), strand (条網). */
+    static final List<String> WEB_SHAPES = List.of("orb", "sheet", "bowl", "funnel", "irregular", "strand");
+
+    String webShape() {
+        return webShape;
+    }
+
+    void setWebShape(String shape) {
+        this.webShape = WEB_SHAPES.contains(shape) ? shape : "orb";
+    }
+
+    void cycleWebShape(boolean forward) {
+        setWebShape(WEB_SHAPES.get(Math.floorMod(WEB_SHAPES.indexOf(webShape) + (forward ? 1 : -1), WEB_SHAPES.size())));
+    }
+
     public String algorithm() {
         return algorithm;
     }
@@ -235,6 +257,7 @@ final class TreeSettings {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("kind", kind.name().toLowerCase(Locale.ROOT));
         map.put("crystal-type", crystalType);
+        map.put("web-shape", webShape);
         map.put("algorithm", algorithm);
         map.put("crown", crown);
         for (Key key : Key.values()) map.put(key.id, key.whole() ? (Object) getInt(key) : (Object) get(key));
@@ -248,6 +271,7 @@ final class TreeSettings {
         settings.setName(name);
         if (map.get("kind") instanceof String text && ProcKind.byId(text) != null) settings.kind = ProcKind.byId(text);
         if (map.get("crystal-type") instanceof String text) settings.setCrystalType(text);
+        if (map.get("web-shape") instanceof String text) settings.setWebShape(text);
         if (map.get("algorithm") instanceof String text) settings.setAlgorithm(text);
         if (map.get("crown") instanceof String text) settings.setCrown(text);
         for (Key key : Key.values()) {

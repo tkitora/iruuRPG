@@ -528,6 +528,9 @@ treetool:
   # メニューで設定できる高さと幅の上限
   max-height: 80
   max-width: 60
+  # クモの巣: 選べる点の数 / 点のまわりの地形を読む範囲の大きさ (ブロック数。超えたら作らない)。巣は空気にしか置かない
+  web-max-points: 16
+  web-max-volume: 400000
   # 部位ごとのブロック
   materials:
     trunk: BROWN_WOOL
@@ -542,6 +545,9 @@ treetool:
     moss: LIME_WOOL
     crystal: LIGHT_BLUE_WOOL
     crystal-core: WHITE_WOOL
+    # クモの巣 (糸は本物のクモの巣ブロック。プレビューでもクモの巣のまま見える)
+    web-frame: COBWEB
+    web: COBWEB
 
 # ペイントブラシ (/ibrush)。建築用のツールで、ゲームの処理とは別 (tools/brush)。描画は FastAsyncWorldEdit 経由なので //undo で戻せる
 brush:
