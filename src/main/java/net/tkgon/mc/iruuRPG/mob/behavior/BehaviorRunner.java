@@ -36,6 +36,11 @@ public final class BehaviorRunner {
         return errors;
     }
 
+    /** Whether the section can be made into a behavior at all (it has a tree or a state machine, and the first state exists); the problems go to {@code errors}. */
+    public static boolean usable(String id, Map<?, ?> section, List<String> errors) {
+        return BehaviorParser.parse(id, section, errors) != null;
+    }
+
     /** Whether the section asks for the tree (`mode: bt`, or no mode at all); `mode: legacy` keeps the older behavior. */
     public static boolean wanted(Map<?, ?> section) {
         return section != null && !section.isEmpty() && !Cfg.lower(section, "mode", "bt").equals("legacy");
