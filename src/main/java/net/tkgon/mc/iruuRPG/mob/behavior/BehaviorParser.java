@@ -157,6 +157,7 @@ final class BehaviorParser {
                 }
                 node = new Tasks.PlaySound(sound, (float) Cfg.number(map, "volume", 1.0), (float) Cfg.number(map, "pitch", 1.0));
             }
+            case "play-animation", "animation" -> node = new Tasks.PlayAnimation(Cfg.text(map, "animation", "idle"), Cfg.flag(map, "wait", false));
             case "succeed" -> node = new Tasks.Fixed("succeed", Status.SUCCESS);
             case "fail" -> node = new Tasks.Fixed("fail", Status.FAILURE);
             default -> {

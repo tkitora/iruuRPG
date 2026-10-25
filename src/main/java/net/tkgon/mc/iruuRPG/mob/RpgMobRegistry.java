@@ -173,7 +173,8 @@ public final class RpgMobRegistry {
                 areas(section.get("area")),
                 ranged(id, section.get("ranged")),
                 skills(id, section.getMapList("skills")),
-                behavior(id, section.getConfigurationSection("behavior"))
+                behavior(id, section.getConfigurationSection("behavior")),
+                section.getConfigurationSection("model") == null ? Map.of() : plain(section.getConfigurationSection("model"))
         ));
     }
 

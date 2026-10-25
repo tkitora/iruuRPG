@@ -316,6 +316,35 @@ final class Tasks {
         }
     }
 
+    /** Plays an animation of the mob's model; with `wait: true` it runs until the animation is over. Succeeds without a model (nothing to play), so a tree works with or without one. */
+    static final class PlayAnimation extends Task {
+        private final String animation;
+        private final boolean wait;
+        private int endAt;
+
+        PlayAnimation(String animation, boolean wait) {
+            super("play-animation");
+            this.animation = animation;
+            this.wait = wait;
+        }
+
+        @Override
+        String label() {
+            return name != null && !name.isBlank() ? name : "play-animation " + animation;
+        }
+
+        @Override
+        void onEnter(Ctx c) {
+            boolean played = c.host.playAnimation(animation);
+            endAt = wait && played ? c.now + (int) Math.round(c.host.animationSeconds(animation) * 20.0) : c.now;
+        }
+
+        @Override
+        Status tickNode(Ctx c) {
+            return c.now >= endAt ? Status.SUCCESS : Status.RUNNING;
+        }
+    }
+
     /** Answers success (or failure) at once: a placeholder for a branch that does nothing. */
     static final class Fixed extends Task {
         private final Status answer;

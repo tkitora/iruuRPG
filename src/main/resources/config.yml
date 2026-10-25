@@ -552,6 +552,15 @@ treetool:
     web-frame: COBWEB
     web: COBWEB
 
+# モデル機能 (model/): Blockbench の .bbmodel を、敵に着せる。モデルは plugins/iruuRPG/models/*.bbmodel、パックは resourcepacks/iruumodel.zip (docs/models.md)
+model:
+  enabled: true
+  auto-build: true         # 起動時にモデルを読み、パックを作る (中身が同じなら書き換えない)
+  base-item: PAPER         # 部品を表示するアイテム (パックが、このアイテムのモデルに部品を足す)
+  cmd-base: 8100000        # 部品の custom model data の最初の番号
+  update-ticks: 2          # 何tickごとにモデルの姿勢を更新するか
+  view-distance: 48.0      # この距離にプレイヤーがいるときだけ更新する
+
 # リソースパック (pack/): 入ってきたプレイヤーに、下のパックを送る。サーバー専用パック (server.zip: 草ブロックを全面草にする) と、
 # モデル機能のパック (iruumodel.zip: /iruumodel build が作る) は別のパック。zip は plugins/iruuRPG/resourcepacks/ にある。
 resourcepack:
