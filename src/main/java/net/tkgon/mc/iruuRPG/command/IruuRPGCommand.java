@@ -92,6 +92,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             case "item" -> giveItem(sender, args);
             case "mob", "enemy" -> spawnMob(sender, args);
             case "pack", "resourcepack" -> pack(sender, args);
+            case "btdebug", "btview" -> btView(sender, args);
             case "dummy", "target" -> spawnDummy(sender);
             default -> {
                 sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy>");
@@ -103,7 +104,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 1) {
-            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "pack"), args[0]);
+            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack"), args[0]);
         }
 
         if (args[0].equalsIgnoreCase("level") || args[0].equalsIgnoreCase("lv") || args[0].equalsIgnoreCase("xp")) {
@@ -157,6 +158,24 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             return true;
         }
         service.describe(sender);
+        return true;
+    }
+
+    /** /iruurpg btdebug [on|off]: the state of every behavior-tree mob, and the points its queries chose, shown to the player who asks. */
+    private boolean btView(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Players only.");
+            return true;
+        }
+        if (!sender.hasPermission("iruurpg.admin")) {
+            sender.sendMessage("No permission.");
+            return true;
+        }
+        boolean on;
+        if (args.length > 1 && args[1].equalsIgnoreCase("on")) on = mobService.setBehaviorView(player, true);
+        else if (args.length > 1 && args[1].equalsIgnoreCase("off")) on = mobService.setBehaviorView(player, false);
+        else on = mobService.toggleBehaviorView(player);
+        player.sendMessage("[iruuRPG] ビヘイビアツリーの表示: " + (on ? "オン (近くの BT の敵の頭の上に、状態・動いているノード・目標・EQS の点が出ます)" : "オフ"));
         return true;
     }
 
