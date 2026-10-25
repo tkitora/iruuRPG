@@ -119,6 +119,12 @@ public final class ProceduralModule implements Listener {
 
     /** The place of the object: above the block clicked (a tree, a rock), or on the face that was clicked (a spike or a crystal, which grow out of it toward the player). */
     private static void syncBase(TreeSession session) {
+        if (session.settings.kind().web()) {
+            // a web stands on the first of its points
+            session.base = session.points.isEmpty() || session.pointsWorld == null ? null
+                    : new Location(session.pointsWorld, session.points.get(0)[0], session.points.get(0)[1], session.points.get(0)[2]);
+            return;
+        }
         if (session.clicked == null) return;
         boolean pointing = session.settings.kind() == ProcKind.SPIKE || session.settings.kind() == ProcKind.CRYSTAL;
         BlockFace face = pointing ? session.face : BlockFace.UP;
@@ -149,7 +155,7 @@ public final class ProceduralModule implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("プロシージャルツール", NamedTextColor.GREEN, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
-                text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く", NamedTextColor.GRAY),
+                text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く。クモの巣のときは、クリックした面の先に点を置く (Shift+クリックで最後の点を消す)", NamedTextColor.GRAY),
                 text("空中を右クリック: 前回の場所の設定画面を開く", NamedTextColor.GRAY),
                 text("設定画面の「生成」で、部位ごとのウールで木を作る", NamedTextColor.GRAY),
                 text("設定画面の「プレビュー」で、あなたにだけ見えるガラスの木を確かめられる", NamedTextColor.GRAY),
@@ -204,6 +210,10 @@ public final class ProceduralModule implements Listener {
         }
         TreeSession session = session(player);
         Action action = event.getAction();
+        if (session.settings.kind().web() && (action == Action.RIGHT_CLICK_BLOCK || action == Action.LEFT_CLICK_BLOCK)) {
+            webPoint(player, session, event.getClickedBlock(), event.getBlockFace());
+            return;
+        }
         if (action == Action.RIGHT_CLICK_BLOCK || action == Action.LEFT_CLICK_BLOCK) {
             Block clicked = event.getClickedBlock();
             if (clicked == null) return;
@@ -217,7 +227,7 @@ public final class ProceduralModule implements Listener {
             changed(player);
             menu.open(player);
         } else if (action == Action.RIGHT_CLICK_AIR) {
-            if (session.base == null) {
+            if (session.base == null && !session.settings.kind().web()) {
                 player.sendMessage(PREFIX + "置きたい場所のブロックをクリックしてください。");
                 return;
             }
@@ -237,6 +247,101 @@ public final class ProceduralModule implements Listener {
         if (session != null && session.preview) preview.off(event.getPlayer(), true);
     }
 
+    // ---- the points of a web --------------------------------------------------------------------------------------------------
+
+    /**
+     * A click on a block with the tool while a web is being made: the point is the air next to the face that was clicked (sneaking takes the last point away instead). The
+     * points are shown to the player as sparks for a moment; the menu opens with a right click in the air.
+     */
+    private void webPoint(Player player, TreeSession session, Block clicked, BlockFace face) {
+        if (player.isSneaking()) {
+            if (session.points.isEmpty()) {
+                player.sendMessage(PREFIX + "消す点がありません。");
+                return;
+            }
+            int[] removed = session.points.remove(session.points.size() - 1);
+            changed(player);
+            markPoints(player, session);
+            player.sendMessage(PREFIX + "最後の点を消しました (" + removed[0] + ", " + removed[1] + ", " + removed[2] + ")。残り " + session.points.size() + " 点。");
+            return;
+        }
+        if (clicked == null) return;
+        Block at = clicked.getRelative(face == null || face == BlockFace.SELF ? BlockFace.UP : face);
+        if (!at.getType().isAir()) {
+            player.sendMessage(PREFIX + "その面の先が空気ではないので、点にできません。");
+            return;
+        }
+        if (session.pointsWorld != null && !session.pointsWorld.equals(at.getWorld())) session.points.clear();
+        int max = plugin.getConfig().getInt("treetool.web-max-points", 16);
+        if (session.points.size() >= max) {
+            player.sendMessage(PREFIX + "点は " + max + " 個までです (Shift+クリックで最後の点を消せます)。");
+            return;
+        }
+        for (int[] point : session.points) {
+            if (point[0] == at.getX() && point[1] == at.getY() && point[2] == at.getZ()) {
+                player.sendMessage(PREFIX + "そこはもう点です。");
+                return;
+            }
+        }
+        session.pointsWorld = at.getWorld();
+        session.points.add(new int[]{at.getX(), at.getY(), at.getZ()});
+        changed(player);
+        markPoints(player, session);
+        player.sendMessage(PREFIX + "点 " + session.points.size() + " を置きました (" + at.getX() + ", " + at.getY() + ", " + at.getZ() + ")。"
+                + (session.points.size() < 2 ? "あと1点以上選んでください。" : "空中を右クリックで設定画面 (プレビュー・生成)。") + " Shift+クリックで最後の点を消す。");
+    }
+
+    /** Sparks at the points, to the player alone: the first is green, the rest white. */
+    void markPoints(Player player, TreeSession session) {
+        if (session.pointsWorld == null || !session.pointsWorld.equals(player.getWorld())) return;
+        for (int index = 0; index < session.points.size(); index++) {
+            int[] point = session.points.get(index);
+            Location at = new Location(session.pointsWorld, point[0] + 0.5, point[1] + 0.5, point[2] + 0.5);
+            if (index == 0) player.spawnParticle(org.bukkit.Particle.VILLAGER_HAPPY, at, 8, 0.25, 0.25, 0.25, 0.0);
+            else player.spawnParticle(org.bukkit.Particle.END_ROD, at, 6, 0.2, 0.2, 0.2, 0.01);
+        }
+    }
+
+    /** Takes all the points away. */
+    void clearPoints(Player player) {
+        TreeSession session = session(player);
+        session.points.clear();
+        session.pointsWorld = null;
+        changed(player);
+        player.sendMessage(PREFIX + "点を全部消しました。");
+    }
+
+    /**
+     * Reads what a web needs from the world, on the main thread: the points and the blocks round them (a box round the points, {@code web-reach} + 3 blocks wider each way).
+     * Null, with a message, when there are fewer than two points or the box is too big ({@code treetool.web-max-volume}).
+     */
+    WebInput webInput(Player player, TreeSession session, TreeSettings settings, boolean tell) {
+        if (session.points.size() < 2 || session.pointsWorld == null) {
+            if (tell) player.sendMessage(PREFIX + "クモの巣は、点を2つ以上選んでください (ツールでブロックをクリック)。");
+            return null;
+        }
+        int margin = settings.getInt(TreeSettings.Key.WEB_REACH) + 3;
+        int[] min = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE};
+        int[] max = {Integer.MIN_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+        for (int[] point : session.points) {
+            for (int axis = 0; axis < 3; axis++) {
+                min[axis] = Math.min(min[axis], point[axis] - margin);
+                max[axis] = Math.max(max[axis], point[axis] + margin);
+            }
+        }
+        min[1] = Math.max(min[1], session.pointsWorld.getMinHeight());
+        max[1] = Math.min(max[1], session.pointsWorld.getMaxHeight() - 1);
+        long volume = WebTerrain.volume(min, max);
+        long cap = plugin.getConfig().getLong("treetool.web-max-volume", 400000L);
+        if (volume > cap) {
+            if (tell) player.sendMessage(PREFIX + "点が離れすぎています (" + volume + " > " + cap + " ブロックの範囲)。近づけるか、点を減らしてください。");
+            return null;
+        }
+        List<int[]> points = new ArrayList<>();
+        for (int[] point : session.points) points.add(point.clone());
+        return new WebInput(points, WebTerrain.sample(session.pointsWorld, min, max));
+    }
+
     // ---- generating ---------------------------------------------------------------------------------------------------------
 
     /** Grows the tree of the player's settings on their base block and puts it in the world. */
@@ -252,6 +357,12 @@ public final class ProceduralModule implements Listener {
         }
         TreeSettings settings = session.settings.copy();
         limit(settings);
+        WebInput webInput = null;
+        if (settings.kind().web()) {
+            webInput = webInput(player, session, settings, true);
+            if (webInput == null) return;
+        }
+        WebInput web = webInput;
         // (with the preview on the seed is fixed: the tree put in the world is the one that was shown)
         long seed = settings.seed() != 0L ? settings.seed() : new Random().nextLong() & Long.MAX_VALUE;
         Location base = session.base.clone();
@@ -261,7 +372,7 @@ public final class ProceduralModule implements Listener {
         player.sendMessage(PREFIX + "作っています… (" + session.settings.kind().label() + ", " + algorithmLabel(settings.algorithm()) + ", 高さ " + settings.height() + " 幅 " + settings.width() + ")");
         TreeGround ground;
         try {
-            ground = TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+            ground = settings.kind().web() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
         } catch (RuntimeException exception) {
             ground = null;
         }
@@ -270,7 +381,7 @@ public final class ProceduralModule implements Listener {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks;
             try {
-                blocks = TreeGenerator.build(settings, seed, terrain, aim);
+                blocks = TreeGenerator.build(settings, seed, terrain, aim, web);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("tree generation failed: " + exception);
                 Bukkit.getScheduler().runTask(plugin, () -> {
@@ -310,6 +421,7 @@ public final class ProceduralModule implements Listener {
         List<TreeWorldEdit.Change> changes = new ArrayList<>();
         Map<TreePart, Integer> counts = new EnumMap<>(TreePart.class);
         List<TreePart> kindParts = session.settings.kind().parts();
+        boolean webKind = session.settings.kind().web();
 
         new BukkitRunnable() {
             private int next;
@@ -327,7 +439,7 @@ public final class ProceduralModule implements Listener {
                         if (y < world.getMinHeight() || y >= world.getMaxHeight()) continue;
                         if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
                         Block block = world.getBlockAt(x, y, z);
-                        if (!replaceable(block, replaceSolid)) continue;
+                        if (webKind ? !block.getType().isAir() : !replaceable(block, replaceSolid)) continue;
                         TreePart part = blocks.get(key);
                         counts.merge(part, 1, Integer::sum);
                         if (worldEdit) {

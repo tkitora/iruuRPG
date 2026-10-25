@@ -15,7 +15,7 @@ import java.util.Locale;
 final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate");
+    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point");
 
     private final ProceduralModule tool;
 
@@ -35,7 +35,7 @@ final class ProceduralCommand implements TabExecutor {
             case "kind" -> {
                 ProcKind kind = args.length > 1 ? ProcKind.byId(args[1]) : null;
                 if (kind == null) {
-                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
+                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
                 } else {
                     session.settings.setKind(kind);
                     tool.limit(session.settings);
@@ -57,6 +57,40 @@ final class ProceduralCommand implements TabExecutor {
             case "set" -> set(player, session.settings, args);
             case "save" -> save(player, session.settings, args);
             case "load" -> load(player, session, args);
+            case "point" -> {
+                String what = args.length > 1 ? args[1].toLowerCase(Locale.ROOT) : "list";
+                switch (what) {
+                    case "clear" -> tool.clearPoints(player);
+                    case "undo" -> {
+                        if (session.points.isEmpty()) {
+                            player.sendMessage(PREFIX + "消す点がありません。");
+                        } else {
+                            session.points.remove(session.points.size() - 1);
+                            tool.changed(player);
+                            tool.markPoints(player, session);
+                            player.sendMessage(PREFIX + "最後の点を消しました。残り " + session.points.size() + " 点。");
+                        }
+                    }
+                    case "shape" -> {
+                        String value = args.length > 2 ? args[2].toLowerCase(Locale.ROOT) : "";
+                        if (!TreeSettings.WEB_SHAPES.contains(value)) {
+                            player.sendMessage(PREFIX + "/proceduraltool point shape <" + String.join("|", TreeSettings.WEB_SHAPES) + ">  (いま: " + session.settings.webShape() + ")");
+                        } else {
+                            session.settings.setWebShape(value);
+                            tool.changed(player);
+                            player.sendMessage(PREFIX + "巣の形: " + ProceduralMenu.webShapeLabel(value));
+                        }
+                    }
+                    default -> {
+                        player.sendMessage(PREFIX + "巣の点 (" + session.points.size() + "): " + (session.points.isEmpty() ? "なし" : ""));
+                        for (int index = 0; index < session.points.size(); index++) {
+                            int[] point = session.points.get(index);
+                            player.sendMessage("  " + (index + 1) + ": " + point[0] + ", " + point[1] + ", " + point[2]);
+                        }
+                        player.sendMessage(PREFIX + "/proceduraltool point <clear|undo|shape <形>>  (kind web にしてから、ツールでブロックをクリックして点を足す)");
+                    }
+                }
+            }
             case "list" -> {
                 List<String> names = tool.store().list();
                 player.sendMessage(PREFIX + "保存した設定 (" + names.size() + "): " + (names.isEmpty() ? "なし" : String.join(", ", names)));
@@ -171,6 +205,10 @@ final class ProceduralCommand implements TabExecutor {
         } else if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
             options.addAll(List.of("algorithm", "crown", "seed"));
             for (TreeSettings.Key key : TreeSettings.Key.values()) options.add(key.id());
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("point")) {
+            options.addAll(List.of("list", "clear", "undo", "shape"));
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("point") && args[1].equalsIgnoreCase("shape")) {
+            options.addAll(TreeSettings.WEB_SHAPES);
         } else if (args.length == 2 && args[0].equalsIgnoreCase("kind")) {
             for (ProcKind kind : ProcKind.values()) options.add(kind.name().toLowerCase(Locale.ROOT));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {

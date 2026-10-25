@@ -15,7 +15,13 @@ final class TreeGenerator {
 
     /** {@code aim}: the way a spike or a crystal points (null: straight up). */
     static Map<Long, TreePart> build(TreeSettings settings, long seed, TreeGround ground, org.bukkit.util.Vector aim) {
+        return build(settings, seed, ground, aim, null);
+    }
+
+    /** {@code web}: the points and the terrain of a web (null for anything else). */
+    static Map<Long, TreePart> build(TreeSettings settings, long seed, TreeGround ground, org.bukkit.util.Vector aim, WebInput web) {
         Random random = new Random(seed);
+        if (settings.kind().web()) return WebGenerator.build(settings, web, random);
         if (!settings.kind().tree()) return ProceduralShapes.build(settings.kind(), settings, seed, random, ground, aim);
         TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
         if (!"conifer".equals(settings.algorithm())) TrunkFork.apply(skeleton, settings, random);

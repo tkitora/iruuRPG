@@ -20,6 +20,9 @@ final class TreeSession {
     org.bukkit.util.Vector aim;
     /** The page of the menu that was open last (by name): the menu opens on it next time. */
     String lastPage = "BASIC";
+    /** The points of a web (block positions of air in {@link #pointsWorld}), in the order they were chosen: the first is the base of the web. */
+    final java.util.List<int[]> points = new java.util.ArrayList<>();
+    World pointsWorld;
     /** A tree is being put in the world. */
     boolean busy;
 

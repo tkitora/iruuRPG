@@ -19,7 +19,11 @@ enum TreePart {
     STONE_DARK("stone-dark", "岩(暗)", 7, Material.BLUE_WOOL),
     MOSS("moss", "苔", 3, Material.LIME_WOOL),
     CRYSTAL("crystal", "結晶", 8, Material.LIGHT_BLUE_WOOL),
-    CRYSTAL_CORE("crystal-core", "結晶の芯", 2, Material.WHITE_WOOL);
+    CRYSTAL_CORE("crystal-core", "結晶の芯", 2, Material.WHITE_WOOL),
+    /** The threads of a web that hold it (the frame, the spokes, the lines to the terrain); the cobweb itself, so the preview and the result are the same. */
+    WEB_FRAME("web-frame", "巣の枠糸", 0, Material.COBWEB),
+    /** The threads that catch (the spiral, the grid, the tangle). */
+    WEB("web", "巣の糸", 1, Material.COBWEB);
 
     private final String key;
     private final String label;

@@ -14,7 +14,8 @@ enum ProcKind {
     TREE("木", Material.OAK_SAPLING, "幹・枝・葉の木 (アルゴリズムと樹冠の形を選べる)", List.of(TreePart.TRUNK, TreePart.ROOT, TreePart.BRANCH, TreePart.TWIG, TreePart.LEAF)),
     ROCK("岩", Material.COBBLESTONE, "ごつごつした岩。数を増やすと、大小の岩のかたまり。層・苔つき", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK, TreePart.MOSS)),
     SPIKE("スパイク", Material.POINTED_DRIPSTONE, "見ているブロックから、こちら(視点)へ向かって生える1本の尖った柱。角の数・ねじれ・筋・先の鋭さを調整できる", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK)),
-    CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "見ているブロックから、こちら(視点)へ向かって生える結晶。かたまり・大きな1本・薄い刃から作り方を選べる", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE));
+    CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "見ているブロックから、こちら(視点)へ向かって生える結晶。かたまり・大きな1本・薄い刃から作り方を選べる", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE)),
+    WEB("クモの巣", Material.COBWEB, "ブロックをクリックして点を2つ以上選び、その間と周りの地形に合わせて巣を張る (円網・棚網・皿網・漏斗網・不規則網・条網)。空気のブロックにだけ置く", List.of(TreePart.WEB_FRAME, TreePart.WEB));
 
     private final String label;
     private final Material icon;
@@ -86,8 +87,20 @@ enum ProcKind {
                 s.set(TreeSettings.Key.CRYSTAL_THICK, 1.0);
                 s.set(TreeSettings.Key.CRYSTAL_VARIANCE, 0.5);
             }
+            case WEB -> {
+                s.set(TreeSettings.Key.WEB_RINGS, 8);
+                s.set(TreeSettings.Key.WEB_SPOKES, 12);
+                s.set(TreeSettings.Key.WEB_SAG, 0.25);
+                s.set(TreeSettings.Key.WEB_IRREG, 0.3);
+                s.set(TreeSettings.Key.WEB_REACH, 5);
+            }
             default -> {
             }
         }
+    }
+
+    /** Whether the object is made between points chosen one by one (a web) and not on the one block clicked. */
+    boolean web() {
+        return this == WEB;
     }
 }

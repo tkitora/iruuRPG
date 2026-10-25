@@ -141,9 +141,16 @@ final class TreePreview {
         TreeSettings settings = session.settings.copy();
         module.limit(settings);
         long seed = settings.seed();
+        WebInput web = null;
+        if (settings.kind().web()) {
+            // (a web needs two points; until then there is nothing to show)
+            web = module.webInput(player, session, settings, false);
+            if (web == null) return;
+        }
+        WebInput webInput = web;
         TreeGround ground;
         try {
-            ground = TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+            ground = settings.kind().web() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
         } catch (RuntimeException exception) {
             ground = null;
         }
@@ -154,7 +161,7 @@ final class TreePreview {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks = null;
             try {
-                blocks = TreeGenerator.build(settings, seed, terrain, aim);
+                blocks = TreeGenerator.build(settings, seed, terrain, aim, webInput);
             } catch (RuntimeException exception) {
                 plugin.getLogger().warning("tree preview failed: " + exception);
             }
@@ -209,6 +216,7 @@ final class TreePreview {
         for (Long key : session.shown.keySet()) if (!target.containsKey(key)) removes.add(key);
         adds.sort((a, b) -> Integer.compare(keyY(a), keyY(b)));
         boolean replaceSolid = plugin.getConfig().getBoolean("treetool.replace-solid", false);
+        boolean webKind = session.settings.kind().web();
         int perTick = Math.max(200, plugin.getConfig().getInt("treetool.preview-blocks-per-tick", 3000));
         session.show = new BukkitRunnable() {
             private int removed;
@@ -235,7 +243,7 @@ final class TreePreview {
                     int z = keyZ(key);
                     if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
                     Block block = world.getBlockAt(x, keyY(key), z);
-                    if (!ProceduralModule.replaceable(block, replaceSolid)) {
+                    if (webKind ? !block.getType().isAir() : !ProceduralModule.replaceable(block, replaceSolid)) {
                         if (session.shown.remove(key) != null) send(player, world, key, null);
                         continue;
                     }
