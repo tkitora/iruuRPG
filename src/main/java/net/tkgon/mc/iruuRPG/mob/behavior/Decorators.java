@@ -119,6 +119,113 @@ final class Decorators {
         }
     }
 
+    /** The number of allies within {@code radius} blocks (the same kind of mob, or any behavior-tree mob) is between {@code min} and {@code max}. */
+    static final class Allies extends Decorator {
+        private final double radius;
+        private final int min;
+        private final int max;
+        private final boolean sameType;
+
+        Allies(double radius, int min, int max, boolean sameType) {
+            this.radius = radius;
+            this.min = min;
+            this.max = max;
+            this.sameType = sameType;
+            this.label = "allies " + min + "〜" + (max == Integer.MAX_VALUE ? "" : max) + " (" + radius + ")";
+        }
+
+        @Override
+        boolean canEnter(Ctx c, Node node) {
+            int count = c.host.alliesNear(radius, sameType);
+            return count >= min && count <= max;
+        }
+    }
+
+    /**
+     * An attack slot (a token): at most {@code max} mobs of the group hold the slot {@code name} at once. The group is the mobs going after the same target ({@code per: target}), the
+     * same kind of mob ({@code type}) or everyone ({@code world}). The node may be entered while a slot is free; it holds the slot while it runs and gives it back when it ends, or
+     * after {@code hold} seconds (the node is stopped then). With no slot free the condition fails, and a selector goes on to its next branch.
+     */
+    static final class Slot extends Decorator {
+        private final String name;
+        private final int max;
+        private final int hold;
+        private final String per;
+        private String key;
+
+        Slot(String name, int max, int hold, String per) {
+            this.name = name;
+            this.max = Math.max(1, max);
+            this.hold = Math.max(1, hold);
+            this.per = per;
+            this.label = "slot " + name + " ×" + this.max;
+        }
+
+        private String key(Ctx c) {
+            String scope = switch (per) {
+                case "type" -> c.host.typeId();
+                case "world" -> "world";
+                default -> c.bb.target == null ? "none" : c.bb.target.getUniqueId().toString();
+            };
+            return name + ":" + c.host.typeId() + "@" + scope;
+        }
+
+        @Override
+        boolean canEnter(Ctx c, Node node) {
+            return c.host.coordinator().available(key(c), c.host.id(), max, c.now);
+        }
+
+        @Override
+        void entered(Ctx c, Node node) {
+            key = key(c);
+            c.host.coordinator().acquire(key, c.host.id(), max, hold + 20, c.now);
+        }
+
+        @Override
+        void left(Ctx c, Node node) {
+            if (key != null) c.host.coordinator().release(key, c.host.id());
+            key = null;
+        }
+
+        @Override
+        Status during(Ctx c, Node node) {
+            return c.now - node.startedTick >= hold ? Status.FAILURE : null;
+        }
+    }
+
+    /** A cooldown shared by a group: once one of them enters the node, none can for {@code seconds}. Scope: the same target, the same kind of mob, or everyone. */
+    static final class GroupCooldown extends Decorator {
+        private final String name;
+        private final int ticks;
+        private final String scope;
+
+        GroupCooldown(String name, int ticks, String scope) {
+            this.name = name;
+            this.ticks = ticks;
+            this.scope = scope;
+            this.label = "group-cooldown " + name + " " + ticks / 20.0 + "s";
+        }
+
+        private String key(Ctx c) {
+            String id = switch (scope) {
+                case "type" -> c.host.typeId();
+                case "world" -> "world";
+                default -> c.bb.target == null ? "none" : c.bb.target.getUniqueId().toString();
+            };
+            return "cd:" + name + ":" + c.host.typeId() + "@" + id;
+        }
+
+        @Override
+        boolean canEnter(Ctx c, Node node) {
+            return c.host.coordinator().ready(key(c), c.now);
+        }
+
+        @Override
+        void entered(Ctx c, Node node) {
+            c.host.coordinator().start(key(c), c.now, ticks);
+        }
+    }
+
     /** After the node finishes it cannot be entered for {@code ticks}. */
     static final class Cooldown extends Decorator {
         private final int ticks;

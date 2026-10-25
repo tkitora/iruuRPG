@@ -1,6 +1,6 @@
 # ビヘイビアツリー+ステートマシンで動く確認用の敵 (behavior: の書き方は docs/mob-behavior.md)。/iruurpg mob bt_sample_zombie で出せる。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 1
+version: 2
 
 mobs:
   bt_sample_zombie:
@@ -49,6 +49,12 @@ mobs:
             - {type: pathable}
           pick: random-top
           top: 3
+        surround_spot:         # 囲い込み: 目標のまわりで、仲間のいない角度の場所 (仲間が複数いると散らばる)
+          generator: {type: ring, around: target, radius: 3.5, points: 16}
+          tests:
+            - {type: spread, around: target, value: 70, weight: 2.0}
+            - {type: distance, to: self, prefer: near, weight: 0.5}
+            - {type: pathable}
         safe_spot:             # 自分のまわりの、目標から遠い場所
           generator: {type: ring, around: self, radius: 9, points: 16}
           tests:
@@ -92,18 +98,31 @@ mobs:
                   decorators:
                     - {type: distance, max: 3.5}
                     - {type: cooldown, seconds: 8}
+                    - {type: group-cooldown, key: smash, seconds: 6, scope: type}
                   children:
                     - {type: face-target}
                     - {type: use-skill, index: 0}
-                # 3. 近くにいる: なぐる
+                # 3. 近くにいる: なぐる (同じ目標に同時になぐるのは2体まで。取れなければ、次の枝で目標のまわりに散らばる)
                 - type: sequence
                   name: 近接
                   decorators:
                     - {type: distance, max: 2.6}
+                    - {type: slot, name: melee, max: 2, hold: 3, per: target}
+                    - {type: cooldown, seconds: 0.4}
                   children:
                     - {type: face-target}
                     - {type: attack, rate: 1.0}
                     - {type: wait, seconds: 0.9}
+                # 3.5 近くに仲間がいて枠が取れない: 目標のまわりの空いた角度へ回り込んで待つ
+                - type: sequence
+                  name: 囲い込み
+                  decorators:
+                    - {type: distance, max: 7}
+                    - {type: allies, radius: 8, min: 1}
+                  children:
+                    - {type: move-to, eqs: surround_spot, speed: 1.1, acceptance: 1.0}
+                    - {type: face-target}
+                    - {type: wait, seconds: 0.8, random-deviation: 0.3}
                 # 4. 少し離れていて見えている: 横へ回り込む (10秒に1回、4秒まで)
                 - type: sequence
                   name: 回り込み

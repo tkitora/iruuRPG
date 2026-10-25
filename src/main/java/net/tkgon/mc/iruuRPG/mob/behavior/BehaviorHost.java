@@ -12,6 +12,11 @@ public interface BehaviorHost {
 
     Mob mob();
 
+    /** The unique id of the mob. */
+    default java.util.UUID id() {
+        return mob().getUniqueId();
+    }
+
     /** The current game tick. */
     int tick();
 
@@ -50,6 +55,29 @@ public interface BehaviorHost {
 
     /** Where the mob was set (its home). */
     Location home();
+
+    /** The id of the kind of mob this is (the mobs of one kind act as a group). */
+    default String typeId() {
+        return "";
+    }
+
+    /** How many other living mobs run by a behavior tree are within {@code radius} blocks (only the same kind when {@code sameType}). */
+    default int alliesNear(double radius, boolean sameType) {
+        return 0;
+    }
+
+    /** Where the other living behavior-tree mobs within {@code radius} blocks are (only the same kind when {@code sameType}). */
+    default java.util.List<Location> allyLocations(double radius, boolean sameType) {
+        return java.util.List.of();
+    }
+
+    /** What the behavior-tree mobs share (attack slots, shared cooldowns). */
+    default Coordinator coordinator() {
+        return SOLO;
+    }
+
+    /** The coordinator of a host that has none: nobody else uses it. */
+    Coordinator SOLO = new Coordinator();
 
     /** Plays the animation of the mob's model once (the model feature); false when the mob has no model or the model has no such animation. */
     default boolean playAnimation(String name) {

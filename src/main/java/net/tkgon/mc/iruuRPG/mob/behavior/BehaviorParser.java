@@ -192,6 +192,10 @@ final class BehaviorParser {
             case "line-of-sight", "sight" -> decorator = new Decorators.LineOfSight(Cfg.flag(map, "visible", true));
             case "chance" -> decorator = new Decorators.Chance(Math.max(0.0, Math.min(1.0, Cfg.number(map, "percent", 50.0) / 100.0)));
             case "cooldown" -> decorator = new Decorators.Cooldown(Cfg.ticks(map, "seconds", 5.0));
+            case "allies" -> decorator = new Decorators.Allies(Cfg.number(map, "radius", 8.0), (int) Cfg.number(map, "min", 0.0), (int) Math.min(Integer.MAX_VALUE, Cfg.number(map, "max", Integer.MAX_VALUE)),
+                    Cfg.flag(map, "same-type", true));
+            case "slot" -> decorator = new Decorators.Slot(Cfg.text(map, "name", "attack"), (int) Cfg.number(map, "max", 2.0), Cfg.ticks(map, "hold", 3.0), Cfg.lower(map, "per", "target"));
+            case "group-cooldown" -> decorator = new Decorators.GroupCooldown(Cfg.text(map, "key", "group"), Cfg.ticks(map, "seconds", 6.0), Cfg.lower(map, "scope", "target"));
             case "loop" -> decorator = new Decorators.Loop((int) Cfg.number(map, "count", 2.0), Cfg.flag(map, "infinite", false));
             case "time-limit" -> decorator = new Decorators.TimeLimit(Cfg.ticks(map, "seconds", 5.0));
             case "not", "inverter" -> decorator = new Decorators.Inverter();

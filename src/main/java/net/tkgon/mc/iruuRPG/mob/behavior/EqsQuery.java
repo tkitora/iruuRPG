@@ -136,6 +136,42 @@ final class EqsQuery {
                 case "random" -> {
                     for (int index = 0; index < count; index++) score[index] += c.random.nextDouble() * test.weight();
                 }
+                case "spread" -> {
+                    // the angle round the target: the farther from the allies' angles, the better (value = the difference that counts as far enough, degrees)
+                    Location ref = place(c, test.to().equals("self") ? "target" : test.to());
+                    if (ref == null) continue;
+                    List<Location> allies = c.host.allyLocations(24.0, true);
+                    double ideal = test.value() > 0 ? test.value() : 60.0;
+                    for (int index = 0; index < count; index++) {
+                        double angle = Math.toDegrees(Math.atan2(standing.get(index).getZ() - ref.getZ(), standing.get(index).getX() - ref.getX()));
+                        double nearest = 180.0;
+                        for (Location ally : allies) {
+                            double difference = Math.abs(((Math.toDegrees(Math.atan2(ally.getZ() - ref.getZ(), ally.getX() - ref.getX())) - angle) % 360.0 + 540.0) % 360.0 - 180.0);
+                            nearest = Math.min(nearest, difference);
+                        }
+                        if (test.filter() && nearest < test.min()) kept[index] = false;
+                        score[index] += Math.min(1.0, nearest / ideal) * test.weight();
+                    }
+                }
+                case "ally-distance" -> {
+                    List<Location> allies = c.host.allyLocations(24.0, true);
+                    double[] raw = new double[count];
+                    double low = Double.MAX_VALUE;
+                    double high = -Double.MAX_VALUE;
+                    for (int index = 0; index < count; index++) {
+                        double nearest = 24.0;
+                        for (Location ally : allies) nearest = Math.min(nearest, standing.get(index).distance(ally));
+                        raw[index] = nearest;
+                        low = Math.min(low, nearest);
+                        high = Math.max(high, nearest);
+                        if (test.filter() && (nearest < test.min() || nearest > test.max())) kept[index] = false;
+                    }
+                    double span = Math.max(1.0E-6, high - low);
+                    for (int index = 0; index < count; index++) {
+                        double s = test.prefer().equals("near") ? 1.0 - (raw[index] - low) / span : (raw[index] - low) / span;
+                        score[index] += s * test.weight();
+                    }
+                }
                 case "pathable" -> pathable = true;
                 default -> {
                 }
@@ -226,7 +262,7 @@ final class EqsQuery {
             for (Object entry : list) {
                 if (!(entry instanceof Map<?, ?> t)) continue;
                 String type = Cfg.text(t, "type", "");
-                if (!List.of("distance", "line-of-sight", "pathable", "crowd", "random").contains(type)) {
+                if (!List.of("distance", "line-of-sight", "pathable", "crowd", "random", "spread", "ally-distance").contains(type)) {
                     errors.add("eqs " + name + ": unknown test '" + type + "'");
                     continue;
                 }
