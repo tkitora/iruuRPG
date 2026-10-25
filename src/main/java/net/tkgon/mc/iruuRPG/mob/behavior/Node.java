@@ -34,6 +34,7 @@ abstract class Node {
             active = true;
             startedTick = c.now;
             for (Service service : services) service.reset();
+            for (Decorator decorator : decorators) decorator.entered(c, this);
             onEnter(c);
         } else {
             for (Decorator decorator : decorators) {
@@ -63,6 +64,7 @@ abstract class Node {
             return Status.RUNNING;
         }
         active = false;
+        for (Decorator decorator : decorators) decorator.left(c, this);
         onFinish(c);
         return out;
     }
@@ -73,6 +75,7 @@ abstract class Node {
         active = false;
         abortChildren(c);
         onAbort(c);
+        for (Decorator decorator : decorators) decorator.left(c, this);
     }
 
     /** Whether the node may be entered now (the conditions of its decorators), without side effects. */

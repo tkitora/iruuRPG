@@ -423,6 +423,8 @@ public final class RpgMobService {
     }
 
     private final Map<UUID, BehaviorMob> behaviors = new HashMap<>();
+    /** What the behavior-tree mobs share: attack slots and shared cooldowns. */
+    private final net.tkgon.mc.iruuRPG.mob.behavior.Coordinator btCoordinator = new net.tkgon.mc.iruuRPG.mob.behavior.Coordinator();
 
     /** A mob whose yaml has a `behavior:` section with `mode: bt` is run by it: its vanilla goals go and the tree moves it, hits and shoots for it. */
     private void startBehavior(LivingEntity entity, RpgMobDefinition definition) {
@@ -721,6 +723,41 @@ public final class RpgMobService {
         @Override
         public Location home() {
             return home.clone();
+        }
+
+        @Override
+        public String typeId() {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            return runtime == null ? "" : runtime.definition().id();
+        }
+
+        private boolean sameKind(UUID other, boolean sameType) {
+            if (!sameType) return true;
+            MobRuntime mine = runtimes.get(mob.getUniqueId());
+            MobRuntime theirs = runtimes.get(other);
+            return mine != null && theirs != null && mine.definition().id().equals(theirs.definition().id());
+        }
+
+        @Override
+        public int alliesNear(double radius, boolean sameType) {
+            return allyLocations(radius, sameType).size();
+        }
+
+        @Override
+        public List<Location> allyLocations(double radius, boolean sameType) {
+            List<Location> list = new ArrayList<>();
+            for (UUID id : behaviors.keySet()) {
+                if (id.equals(mob.getUniqueId()) || !sameKind(id, sameType)) continue;
+                Entity other = Bukkit.getEntity(id);
+                if (!(other instanceof LivingEntity living) || living.isDead() || !living.isValid() || !other.getWorld().equals(mob.getWorld())) continue;
+                if (other.getLocation().distanceSquared(mob.getLocation()) <= radius * radius) list.add(other.getLocation());
+            }
+            return list;
+        }
+
+        @Override
+        public net.tkgon.mc.iruuRPG.mob.behavior.Coordinator coordinator() {
+            return btCoordinator;
         }
 
         @Override

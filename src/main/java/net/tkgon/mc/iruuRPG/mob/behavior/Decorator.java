@@ -16,6 +16,14 @@ abstract class Decorator {
         return true;
     }
 
+    /** The node was entered (every decorator said yes): the place to take a slot or start a shared cooldown. */
+    void entered(Ctx c, Node node) {
+    }
+
+    /** The node ended (finished or stopped): the place to give a slot back. */
+    void left(Ctx c, Node node) {
+    }
+
     /** Called every tick the node runs after entering; a status stops the node with that answer. */
     Status during(Ctx c, Node node) {
         return null;

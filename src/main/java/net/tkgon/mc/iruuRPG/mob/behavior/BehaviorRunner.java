@@ -113,6 +113,9 @@ public final class BehaviorRunner {
         ctx.bb.target = target;
         ctx.bb.set("has-target", target != null);
         ctx.bb.set("hp", host.hpRatio());
+        // the group: how many of the same kind are near, and how many hold an attack slot against the target
+        ctx.bb.set("allies-near", host.alliesNear(ctx.bb.number("ally-range", 8.0), true));
+        ctx.bb.set("attackers", target == null ? 0 : host.coordinator().attackers(target.getUniqueId().toString(), ctx.now));
         if (target != null) {
             ctx.bb.set("distance", host.mob().getLocation().distance(target.getLocation()));
             ctx.bb.set("in-sight", host.canSee(target));
