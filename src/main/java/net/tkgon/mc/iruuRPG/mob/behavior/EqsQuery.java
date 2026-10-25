@@ -268,7 +268,7 @@ final class EqsQuery {
                 }
                 String preferText = Cfg.text(t, "prefer", "near");
                 boolean hasValue = t.get("value") instanceof Number;
-                tests.add(new Test(type, Cfg.text(t, "to", "self"), hasValue ? "value" : preferText, Cfg.number(t, "value", 0.0), Cfg.number(t, "weight", 1.0),
+                tests.add(new Test(type, Cfg.text(t, "to", Cfg.text(t, "around", "self")), hasValue ? "value" : preferText, Cfg.number(t, "value", 0.0), Cfg.number(t, "weight", 1.0),
                         Cfg.number(t, "min", 0.0), Cfg.number(t, "max", Double.MAX_VALUE), Cfg.flag(t, "filter", type.equals("pathable")), Cfg.flag(t, "visible", true)));
             }
         }

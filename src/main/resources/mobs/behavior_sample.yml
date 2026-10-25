@@ -1,6 +1,6 @@
 # ビヘイビアツリー+ステートマシンで動く確認用の敵 (behavior: の書き方は docs/mob-behavior.md)。/iruurpg mob bt_sample_zombie で出せる。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 2
+version: 3
 
 mobs:
   bt_sample_zombie:
@@ -52,7 +52,7 @@ mobs:
         surround_spot:         # 囲い込み: 目標のまわりで、仲間のいない角度の場所 (仲間が複数いると散らばる)
           generator: {type: ring, around: target, radius: 3.5, points: 16}
           tests:
-            - {type: spread, around: target, value: 70, weight: 2.0}
+            - {type: spread, to: target, value: 70, weight: 2.0}
             - {type: distance, to: self, prefer: near, weight: 0.5}
             - {type: pathable}
         safe_spot:             # 自分のまわりの、目標から遠い場所
