@@ -1,0 +1,121 @@
+# ビヘイビアツリー+ステートマシンで動く確認用の敵 (behavior: の書き方は docs/mob-behavior.md)。/iruurpg mob bt_sample_zombie で出せる。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
+mobs:
+  bt_sample_zombie:
+    type: ZOMBIE
+    name: "BTサンプル・ゾンビ"
+    level: 1
+    area: [training]
+    experience: 0
+    ai: true
+    gravity: true
+    fire-proof: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    description:
+      - "ビヘイビアツリー+ステートマシンの確認用。頭の上に、状態・動いているノード・目標・HPが出る。"
+    skills:
+      - {type: strike, radius: 3, damage-rate: 1.3, cooldown-ticks: 200}
+    stats:
+      max-hp: 200
+      max-mp: 1
+      defense: 10
+      strength: 6
+      weapon-damage: 6
+    equipment:
+      main-hand:
+        item: training_sword
+
+    # ---- 行動: mode を legacy にするか、この behavior: を消すと、これまでの動きに戻る ----
+    behavior:
+      mode: bt
+      debug: true              # 頭の上に、状態とツリーの動いている場所を出す
+      tick-interval: 4         # 何tickに1回ツリーを動かすか
+      aggro-range: 18          # この距離に入ったプレイヤーを目標にする
+      blackboard:              # 最初から持っておく値
+        taunted: false
+
+      # 場所を選ぶ問い合わせ (EQS): 候補を作る -> テストで点をつける・外す -> 一番良い場所を取る
+      eqs:
+        flank_spot:            # 目標のまわりの、目標から見える横の場所
+          generator: {type: ring, around: target, radius: 4.5, points: 12}
+          tests:
+            - {type: distance, to: self, prefer: near, weight: 1.0}
+            - {type: line-of-sight, to: target, filter: true}
+            - {type: crowd, value: 3, max: 1, filter: true}
+            - {type: pathable}
+          pick: random-top
+          top: 3
+        safe_spot:             # 自分のまわりの、目標から遠い場所
+          generator: {type: ring, around: self, radius: 9, points: 16}
+          tests:
+            - {type: distance, to: target, prefer: far, weight: 2.0}
+            - {type: pathable}
+
+      fsm:
+        initial: idle
+        states:
+          # 目標がいない: 少し待つ。目標が来たら combat へ
+          idle:
+            tree:
+              type: sequence
+              name: 見張り
+              children:
+                - {type: wait, seconds: 1.5, random-deviation: 0.5}
+            transitions:
+              - to: combat
+                when: {type: blackboard, key: has-target, op: "==", value: true}
+
+          # 目標がいる: 上から順に試す (selector)
+          combat:
+            services:
+              - {type: update-target, range: 20, interval: 0.5}
+            tree:
+              type: selector
+              name: 戦闘
+              children:
+                # 1. HP が 25% 以下: 逃げる (HPが減ったら、下の行動を止めて、これに切り替わる)
+                - type: sequence
+                  name: 逃走
+                  decorators:
+                    - {type: hp, below: 0.25, abort: lower}
+                    - {type: cooldown, seconds: 8}
+                  children:
+                    - {type: flee, eqs: safe_spot, speed: 1.3}
+                    - {type: wait, seconds: 1.0}
+                # 2. 近くにいる: 地面叩きのスキル (8秒に1回)
+                - type: sequence
+                  name: スキル
+                  decorators:
+                    - {type: distance, max: 3.5}
+                    - {type: cooldown, seconds: 8}
+                  children:
+                    - {type: face-target}
+                    - {type: use-skill, index: 0}
+                # 3. 近くにいる: なぐる
+                - type: sequence
+                  name: 近接
+                  decorators:
+                    - {type: distance, max: 2.6}
+                  children:
+                    - {type: face-target}
+                    - {type: attack, rate: 1.0}
+                    - {type: wait, seconds: 0.9}
+                # 4. 少し離れていて見えている: 横へ回り込む (10秒に1回、4秒まで)
+                - type: sequence
+                  name: 回り込み
+                  decorators:
+                    - {type: distance, min: 6, max: 14}
+                    - {type: line-of-sight}
+                    - {type: cooldown, seconds: 10}
+                    - {type: time-limit, seconds: 4}
+                  children:
+                    - {type: move-to, eqs: flank_spot, speed: 1.2, acceptance: 1.2}
+                # 5. それ以外: 目標に向かって歩く
+                - {type: move-to, target: target, speed: 1.0, acceptance: 2.0, name: 追跡}
+            transitions:
+              - to: idle
+                when: {type: blackboard, key: has-target, op: "==", value: false}

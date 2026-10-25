@@ -32,7 +32,8 @@ public record RpgMobDefinition(
         List<String> description,
         List<String> areas,
         RangedSpec ranged,
-        List<net.tkgon.mc.iruuRPG.skill.SkillSpec> skills
+        List<net.tkgon.mc.iruuRPG.skill.SkillSpec> skills,
+        Map<String, Object> behavior
 ) {
     public RpgMobDefinition {
         if (id == null || id.isBlank()) {
@@ -50,6 +51,12 @@ public record RpgMobDefinition(
         description = description == null ? List.of() : List.copyOf(description);
         areas = areas == null ? List.of() : List.copyOf(areas);
         skills = skills == null ? List.of() : List.copyOf(skills);
+        behavior = behavior == null ? Map.of() : behavior;
+    }
+
+    /** Whether the mob is run by a behavior tree (a `behavior:` section with `mode: bt`) and not by the older behavior. */
+    public boolean usesBehaviorTree() {
+        return net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.wanted(behavior);
     }
 
     /** Where the mob appears: dungeon ids or field names (lower case). Empty: no tag. */
