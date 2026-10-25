@@ -140,6 +140,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.tools.brush.BrushModule brushModule;
     private net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule proceduralModule;
     private net.tkgon.mc.iruuRPG.pack.ResourcePackService resourcePackService;
+    private net.tkgon.mc.iruuRPG.model.ModelModule modelModule;
     private FieldSpawnerService fieldSpawnerService;
     private FieldSpawnerEditor fieldSpawnerEditor;
     private RewardChestMenu rewardChestMenu;
@@ -172,6 +173,7 @@ public final class IruuRPG extends JavaPlugin {
         ResourceSync.sync(this, "mobs/dungeon.yml");
         ResourceSync.sync(this, "mobs/quest.yml");
         ResourceSync.sync(this, "mobs/behavior_sample.yml");
+        ResourceSync.sync(this, "mobs/model_sample.yml");
         ResourceSync.sync(this, "loot/cave.yml");
         ResourceSync.sync(this, "loot/cave_road.yml");
         ResourceSync.sync(this, "classes/mage.yml");
@@ -387,6 +389,7 @@ public final class IruuRPG extends JavaPlugin {
         if (brushModule != null) brushModule.stop();
         if (proceduralModule != null) proceduralModule.stop();
         if (resourcePackService != null) resourcePackService.stop();
+        if (modelModule != null) modelModule.stop();
         if (attackService != null && attackService.guard() != null) {
             attackService.guard().shutdown();
         }
@@ -467,6 +470,8 @@ public final class IruuRPG extends JavaPlugin {
         // the procedural tool for builders (trees, rocks, spikes, ...): it lives in tools/procedural (like the brush) and nothing else knows about it
         this.proceduralModule = net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule.start(this);
         this.resourcePackService = net.tkgon.mc.iruuRPG.pack.ResourcePackService.start(this);
+        this.modelModule = net.tkgon.mc.iruuRPG.model.ModelModule.start(this);
+        mobService.setModels(modelModule);
 
         PluginCommand vfxCommand = getCommand("vfx");
         if (vfxCommand != null) {

@@ -34,6 +34,10 @@ commands:
     description: Plays a skill from skills/*.yml (or a template) so you can look at it (admins)
     usage: /skilltest <id> [self|dummy|mine] [element]
     permission: iruurpg.admin
+  iruumodel:
+    description: Models of Blockbench (.bbmodel) on mobs - list, build the pack, look at one, uninstall
+    usage: /iruumodel <list|reload|build|demo|play|clear|uninstall>
+    permission: iruurpg.admin
   proceduraltool:
     description: "Procedural tool (admins): trees, rocks, spikes, crystals. Gives the tool; set, save, load, undo"
     usage: /proceduraltool [give|off|menu|kind|set|info|save|load|list|delete|undo|redo|preview|generate]

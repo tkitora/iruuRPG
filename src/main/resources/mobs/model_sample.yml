@@ -1,0 +1,49 @@
+# モデル機能 (Blockbench のモデルを敵に着せる) の見本の敵。/iruurpg mob model_sample_crawler で出せる (docs/models.md)。
+# 先にリソースパックが要る: /iruumodel build でパックを作り、resourcepack の設定で配る (docs/resourcepacks.md)。パックが無いと、モデルは見えない。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
+version: 1
+
+mobs:
+  model_sample_crawler:
+    type: SPIDER                 # 当たり判定・体力などの土台。体は見えなくなり、model: のモデルが代わりに動く
+    name: "モデル見本・クローラー"
+    level: 1
+    area: [training]
+    experience: 0
+    ai: true
+    gravity: true
+    fire-proof: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    description:
+      - "モデル機能の見本。idle / walk / attack / death のアニメーションがあるモデル (models/sample_crawler.bbmodel)。"
+    stats:
+      max-hp: 150
+      max-mp: 1
+      defense: 8
+      strength: 5
+      weapon-damage: 5
+
+    # ---- モデル: id は models/<id>.bbmodel のファイル名。scale で大きさを変える。hide-base: false で土台の体も見せる ----
+    model:
+      id: sample_crawler
+      scale: 1.0
+
+    # ---- 行動: ビヘイビアツリー。attack のノードは、モデルの "attack" アニメーションを自動で再生する (play-animation で好きなものも鳴らせる) ----
+    behavior:
+      mode: bt
+      aggro-range: 16
+      tree:
+        type: selector
+        name: クローラー
+        children:
+          - type: sequence
+            name: 噛みつく
+            decorators:
+              - {type: distance, max: 2.4}
+            children:
+              - {type: face-target}
+              - {type: attack, rate: 1.0}
+              - {type: wait, seconds: 1.0}
+          - {type: move-to, target: target, speed: 1.1, acceptance: 1.8, name: 追いかける}

@@ -51,6 +51,16 @@ public interface BehaviorHost {
     /** Where the mob was set (its home). */
     Location home();
 
+    /** Plays the animation of the mob's model once (the model feature); false when the mob has no model or the model has no such animation. */
+    default boolean playAnimation(String name) {
+        return false;
+    }
+
+    /** The length of the animation in seconds (0 when there is none). */
+    default double animationSeconds(String name) {
+        return 0.0;
+    }
+
     /** Other mobs of the same kind of behavior near {@code at} (for tests that keep away from the crowd). */
     int crowdNear(Location at, double radius);
 }

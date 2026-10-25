@@ -115,6 +115,8 @@ public final class RpgMobService {
         storeCurrentHp(entity, profile.currentHp());
         runtimes.put(entity.getUniqueId(), new MobRuntime(definition, profile, new HashMap<>()));
         startBehavior(entity, definition);
+        // a mob with a `model:` section is dressed in its model (the model feature, if it is there)
+        if (models != null && !definition.model().isEmpty()) models.attach(entity, definition.model());
         updateName(entity);
         selectRandomTarget(entity, definition, null, System.currentTimeMillis());
         return entity;
@@ -395,6 +397,13 @@ public final class RpgMobService {
         hurt(mob, target, 1.0);
     }
 
+    private MobModels models;
+
+    /** The model feature (net.tkgon.mc.iruuRPG.model), if it is running. */
+    public void setModels(MobModels models) {
+        this.models = models;
+    }
+
     // ---- behavior trees and state machines ---------------------------------------------------------------------------
 
     /** A mob run by a behavior tree: the runner, the host it acts through and when it is ticked next. */
@@ -652,7 +661,18 @@ public final class RpgMobService {
         @Override
         public void attack(Player target, double rate) {
             mob.swingMainHand();
+            if (models != null) models.play(mob, "attack");
             hurt(mob, target, rate);
+        }
+
+        @Override
+        public boolean playAnimation(String name) {
+            return models != null && models.play(mob, name);
+        }
+
+        @Override
+        public double animationSeconds(String name) {
+            return models == null ? 0.0 : models.length(mob, name);
         }
 
         @Override
@@ -668,6 +688,7 @@ public final class RpgMobService {
             List<SkillSpec> skills = runtime.definition().skills();
             if (index < 0 || index >= skills.size()) return false;
             RpgMobService.this.startSkill(mob, target, skills.get(index));
+            if (models != null && !models.play(mob, "skill")) models.play(mob, "attack");
             return true;
         }
 
