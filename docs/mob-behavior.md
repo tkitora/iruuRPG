@@ -127,7 +127,7 @@ eqs:
       - {type: line-of-sight, to: target, filter: true}                # visible: false で「見えない場所」
       - {type: crowd, value: 3, max: 1, filter: true}                  # まわり(value ブロック)にいる、同じ種類の敵の数
       - {type: random, weight: 0.3}
-      - {type: spread, around: target, value: 60, weight: 1.0, filter: false, min: 30}   # 囲い込み: 目標のまわりの角度で、仲間のいる角度から離れた場所ほど高得点 (value = 十分離れたとみなす角度差(度)、min と filter: true でそれより近い場所を外す)
+      - {type: spread, to: target, value: 60, weight: 1.0, filter: false, min: 30}   # 囲い込み: `to` (target / home。省略は target) を中心にした角度で、仲間のいる角度から離れた場所ほど高得点 (value = 十分離れたとみなす角度差(度)、min と filter: true でそれより近い場所を外す)
       - {type: ally-distance, prefer: far, min: 0, max: 24, weight: 1.0}                # いちばん近い仲間との距離 (prefer: near | far、filter: true と min / max で範囲外を外す)
       - {type: pathable}                                               # 歩いて行ける場所だけ(点の高い順に数個だけ調べる)
     pick: best          # best | random-top (上位 top 個から乱択)
