@@ -18,12 +18,14 @@ public final class BehaviorRunner {
     private final Ctx ctx;
     private Behavior.State state;
     private int ticks;
+    private final Map<String, EqsResult> eqsResults = new java.util.LinkedHashMap<>();
     private int lastTargetSearch = -100;
 
     private BehaviorRunner(Behavior behavior, BehaviorHost host) {
         this.behavior = behavior;
         this.host = host;
         this.ctx = new Ctx(host, new Blackboard(), behavior.queries);
+        this.ctx.eqsSink = result -> eqsResults.put(result.query(), result);
         for (Map.Entry<String, Object> entry : behavior.blackboard.entrySet()) ctx.bb.set(entry.getKey(), entry.getValue());
         this.state = behavior.states.get(behavior.initial);
         ctx.bb.set("state", state.name());
@@ -120,6 +122,11 @@ public final class BehaviorRunner {
         }
     }
 
+    /** What each query of the mob found the last time it ran, newest data only (the debug view draws it). */
+    public List<EqsResult> eqsResults() {
+        return new ArrayList<>(eqsResults.values());
+    }
+
     /** The lines shown above the mob when `debug: true`: the state, the nodes that are running and the main values. */
     public List<String> debugLines() {
         List<String> lines = new ArrayList<>();
@@ -132,6 +139,13 @@ public final class BehaviorRunner {
         lines.add(target == null ? "§7目標 なし  HP " + hp
                 : "§7目標 §f" + target.getName() + " §7距離 §f" + String.format(java.util.Locale.ROOT, "%.1f", ctx.bb.number("distance", 0.0)) + " §7HP §f" + hp
                 + (ctx.bb.flag("in-sight") ? "" : " §c視線なし"));
+        for (EqsResult result : eqsResults.values()) {
+            if (ctx.now - result.tick() > 100) continue;
+            int kept = 0;
+            for (EqsResult.Candidate candidate : result.candidates()) if (candidate.kept()) kept++;
+            lines.add("§7EQS §b" + result.query() + " §7" + kept + "/" + result.candidates().size() + " §7→ "
+                    + (result.chosen() == null ? "§cなし" : String.format(java.util.Locale.ROOT, "§f%.0f, %.0f, %.0f", result.chosen().getX(), result.chosen().getY(), result.chosen().getZ())));
+        }
         return lines;
     }
 }

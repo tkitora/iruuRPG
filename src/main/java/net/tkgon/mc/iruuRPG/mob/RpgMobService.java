@@ -17,6 +17,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
+import org.bukkit.Particle;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.attribute.Attribute;
@@ -125,6 +126,7 @@ public final class RpgMobService {
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickChase, 10L, CHASE_PERIOD_TICKS);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickSkills, 15L, 5L);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickBehaviors, 12L, 1L);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickBehaviorView, 14L, 2L);
         long statusPeriod = Math.max(1L, plugin.getConfig().getLong("mob.status-display.update-period-ticks", 1L));
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickStatusDisplays, 1L, statusPeriod);
     }
@@ -323,6 +325,8 @@ public final class RpgMobService {
         skillBusy.clear();
         drivenMelee.clear();
         behaviors.clear();
+        btViewers.clear();
+        btViewDisplays.clear();
         runtimes.clear();
         targetLocks.clear();
         clearStatusDisplays();
@@ -426,6 +430,134 @@ public final class RpgMobService {
         BehaviorMob behavior = new BehaviorMob(runner, host);
         behavior.nextTick = Bukkit.getCurrentTick() + 1 + (int) ((entity.getUniqueId().hashCode() & 0x7fffffff) % Math.max(1, runner.interval()));
         behaviors.put(entity.getUniqueId(), behavior);
+    }
+
+    // ---- the behavior view: a command shows the state of every behavior-tree mob (and its query points) to the player who asked ---------
+
+    private final java.util.Set<UUID> btViewers = new java.util.HashSet<>();
+    /** The debug text of each behavior-tree mob (shown only to the viewers), by mob. */
+    private final Map<UUID, UUID> btViewDisplays = new HashMap<>();
+
+    /** Turns the behavior view on or off for the player (it shows the state and the running nodes above every behavior-tree mob, and the points its queries chose). True when it is on now. */
+    public boolean toggleBehaviorView(Player player) {
+        return setBehaviorView(player, !btViewers.contains(player.getUniqueId()));
+    }
+
+    public boolean setBehaviorView(Player player, boolean on) {
+        if (on) btViewers.add(player.getUniqueId());
+        else btViewers.remove(player.getUniqueId());
+        if (btViewers.isEmpty()) clearBehaviorView();
+        return on;
+    }
+
+    public boolean behaviorViewOn(Player player) {
+        return btViewers.contains(player.getUniqueId());
+    }
+
+    private void clearBehaviorView() {
+        for (UUID displayId : new ArrayList<>(btViewDisplays.values())) {
+            Entity display = Bukkit.getEntity(displayId);
+            if (display != null) display.remove();
+        }
+        btViewDisplays.clear();
+    }
+
+    /** Every 2 ticks while somebody has the view on: the debug text follows each behavior-tree mob and the viewers near it see it; query points are drawn every 10 ticks. */
+    private void tickBehaviorView() {
+        btViewers.removeIf(id -> Bukkit.getPlayer(id) == null);
+        if (btViewers.isEmpty()) {
+            if (!btViewDisplays.isEmpty()) clearBehaviorView();
+            return;
+        }
+        double range = plugin.getConfig().getDouble("mob.behavior-view.range", 40.0);
+        boolean points = Bukkit.getCurrentTick() % 10 < 2;
+        List<Player> viewers = new ArrayList<>();
+        for (UUID id : btViewers) {
+            Player viewer = Bukkit.getPlayer(id);
+            if (viewer != null) viewers.add(viewer);
+        }
+        btViewDisplays.keySet().removeIf(id -> !behaviors.containsKey(id));
+        for (Map.Entry<UUID, BehaviorMob> entry : new ArrayList<>(behaviors.entrySet())) {
+            Entity entity = Bukkit.getEntity(entry.getKey());
+            if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
+            List<Player> near = new ArrayList<>();
+            for (Player viewer : viewers) {
+                if (viewer.getWorld().equals(mob.getWorld()) && viewer.getLocation().distanceSquared(mob.getLocation()) <= range * range) near.add(viewer);
+            }
+            TextDisplay display = behaviorViewDisplay(mob);
+            if (near.isEmpty()) {
+                if (display != null) {
+                    for (Player viewer : viewers) viewer.hideEntity(plugin, display);
+                }
+                continue;
+            }
+            if (display == null) display = spawnBehaviorViewDisplay(mob);
+            display.text(net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection()
+                    .deserialize("§6[BT] §f" + mob.getName() + "\n" + String.join("\n", entry.getValue().runner.debugLines())));
+            display.teleport(statusDisplayLocation(mob).add(0.0, 0.6, 0.0));
+            for (Player viewer : viewers) {
+                if (near.contains(viewer)) viewer.showEntity(plugin, display);
+                else viewer.hideEntity(plugin, display);
+            }
+            if (points) drawQueryPoints(entry.getValue().runner, near);
+        }
+    }
+
+    private TextDisplay behaviorViewDisplay(LivingEntity mob) {
+        UUID displayId = btViewDisplays.get(mob.getUniqueId());
+        if (displayId == null) return null;
+        Entity display = Bukkit.getEntity(displayId);
+        if (display instanceof TextDisplay textDisplay && display.isValid() && display.getWorld().equals(mob.getWorld())) return textDisplay;
+        if (display != null) display.remove();
+        btViewDisplays.remove(mob.getUniqueId());
+        return null;
+    }
+
+    private TextDisplay spawnBehaviorViewDisplay(LivingEntity mob) {
+        TextDisplay display = mob.getWorld().spawn(statusDisplayLocation(mob).add(0.0, 0.6, 0.0), TextDisplay.class, spawned -> {
+            spawned.setVisibleByDefault(false);
+            spawned.getPersistentDataContainer().set(statusDisplayKey, PersistentDataType.STRING, "bt-view:" + mob.getUniqueId());
+            spawned.text(Component.empty());
+            spawned.setAlignment(TextDisplay.TextAlignment.CENTER);
+            spawned.setBillboard(Display.Billboard.CENTER);
+            spawned.setSeeThrough(true);
+            spawned.setShadowed(true);
+            spawned.setDefaultBackground(false);
+            spawned.setBackgroundColor(Color.fromARGB(110, 0, 0, 0));
+            spawned.setLineWidth(220);
+            spawned.setViewRange(1.0f);
+            spawned.setBrightness(new Display.Brightness(15, 15));
+            spawned.setTeleportDuration(3);
+            spawned.setGravity(false);
+            spawned.setSilent(true);
+            spawned.setPersistent(false);
+            spawned.setInvulnerable(true);
+        });
+        btViewDisplays.put(mob.getUniqueId(), display.getUniqueId());
+        return display;
+    }
+
+    /**
+     * The points the queries of a mob chose, drawn to the viewers near it: every candidate as a dust speck (red for a low score to green for a high one, grey when a test threw it
+     * out), the place chosen as a column of light with a line to it from the mob.
+     */
+    private void drawQueryPoints(net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner runner, List<Player> viewers) {
+        int now = Bukkit.getCurrentTick();
+        for (net.tkgon.mc.iruuRPG.mob.behavior.EqsResult result : runner.eqsResults()) {
+            if (now - result.tick() > 100) continue;
+            for (net.tkgon.mc.iruuRPG.mob.behavior.EqsResult.Candidate candidate : result.candidates()) {
+                Location at = candidate.place().clone().add(0.0, 0.3, 0.0);
+                Color color = candidate.kept()
+                        ? Color.fromRGB((int) (255 * (1.0 - candidate.score())), (int) (60 + 195 * candidate.score()), 40)
+                        : Color.fromRGB(110, 110, 110);
+                for (Player viewer : viewers) viewer.spawnParticle(Particle.REDSTONE, at, 1, 0, 0, 0, 0, new Particle.DustOptions(color, candidate.kept() ? 1.3f : 0.8f));
+            }
+            Location chosen = result.chosen();
+            if (chosen == null) continue;
+            for (Player viewer : viewers) {
+                for (double y = 0.0; y <= 2.0; y += 0.4) viewer.spawnParticle(Particle.END_ROD, chosen.clone().add(0.0, y, 0.0), 1, 0, 0, 0, 0);
+            }
+        }
     }
 
     /** Every tick: each mob run by a behavior is ticked when its turn comes (every `tick-interval` ticks, spread so that they do not all run in the same tick). */
