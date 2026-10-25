@@ -12,6 +12,29 @@ mobs:
 ```
 `mode: bt` の敵は、バニラの行動目標(ゴール)が外れ、ツリーが歩く・殴る・撃つ・スキルを出す。ダメージ・スキル・遠距離攻撃(`ranged:`)は、これまでの敵と同じものを使う。
 
+## テンプレートを参照する (use)
+行動のひな形を `bt-templates/<id>.yml` に置いて、敵が**コピーではなく参照**で使える。ひな形を直すと、次の読み直しで、それを使う敵すべてに反映される(すでに出ている敵は、次に湧くときから新しい行動)。
+```yaml
+# bt-templates/chase_hit.yml
+name: "追いかけて殴る"
+description: "近づいて殴る基本形"
+behavior:            # 敵の behavior: と同じ書き方 (mode: bt、fsm か tree、eqs、blackboard、debug、tick-interval、aggro-range、auto-target)
+  mode: bt
+  tree: {...}
+```
+```yaml
+# 敵の側
+behavior:
+  use: chase_hit         # bt-templates/chase_hit.yml の behavior を使う
+  debug: true            # 以下は、テンプレートの値の上書き(任意)
+  aggro-range: 25
+  blackboard: {taunted: true}   # テンプレートの blackboard に、キーごとに足す・置き換える
+  eqs: {...}                    # 同じ名前の問い合わせは敵のもので置き換え、ない名前は足す
+```
+- `use` のときは `fsm` と `tree` は書けない(書いてあれば警告して、テンプレートのものを使う)。テンプレートの中の `use` は使えない(警告して無視)。
+- `debug` `tick-interval` `aggro-range` `auto-target` `mode` は、敵に書いた値がテンプレートの値を置き換える。`mode: legacy` と書けば、その敵だけ今までの行動に戻る。
+- `use` の id がない、またはテンプレートが使えない(`behavior` がない・ツリーも状態機械もない)ときは、読み直しレポートに警告(「敵 xxx の behavior.use 'yyy' がありません」)が出て、その敵は今までの行動(legacy)で動く。
+
 ## behavior: の項目
 | 項目 | 内容 | 既定 |
 |---|---|---|

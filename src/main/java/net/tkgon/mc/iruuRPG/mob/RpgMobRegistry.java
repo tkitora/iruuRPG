@@ -49,8 +49,41 @@ public final class RpgMobRegistry {
         }
     }
 
+    /** The behavior templates (bt-templates/*.yml of the data folder), by id: the `behavior:` section of each. Mobs use them with `behavior: {use: <id>}`. */
+    private final Map<String, Map<String, Object>> templates = new HashMap<>();
+
+    /**
+     * Reads bt-templates/*.yml: each file is {@code name:}, {@code description:} and a {@code behavior:} written as in a mob. A file without a usable behavior is reported and left out
+     * (the mobs that use it keep their older behavior and a warning says so).
+     */
+    private void loadTemplates() {
+        templates.clear();
+        File folder = new File(plugin.getDataFolder(), "bt-templates");
+        File[] files = folder.isDirectory() ? yamlFiles(folder) : new File[0];
+        for (File file : files) {
+            String templateId = idFromFile(file);
+            YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+            ConfigurationSection section = yaml.getConfigurationSection("behavior");
+            if (section == null) {
+                plugin.getLogger().warning("bt-templates: " + file.getName() + ": behavior がありません");
+                continue;
+            }
+            Map<String, Object> behavior = plain(section);
+            if (behavior.containsKey("use")) {
+                plugin.getLogger().warning("bt-templates: " + file.getName() + ": テンプレートの中の use は使えません (無視します)");
+                behavior.remove("use");
+            }
+            List<String> problems = new java.util.ArrayList<>();
+            boolean usable = net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.usable("template " + templateId, behavior, problems);
+            for (String problem : problems) plugin.getLogger().warning("bt-templates: " + file.getName() + ": " + problem);
+            if (usable) templates.put(templateId, behavior);
+        }
+        if (!templates.isEmpty()) plugin.getLogger().info("Loaded " + templates.size() + " behavior templates.");
+    }
+
     private void load() {
         definitions.clear();
+        loadTemplates();
 
         File folder = new File(plugin.getDataFolder(), "mobs");
         ensureFolder(folder, "mobs/default.yml");
@@ -151,10 +184,72 @@ public final class RpgMobRegistry {
     private Map<String, Object> behavior(String id, ConfigurationSection section) {
         if (section == null) return Map.of();
         Map<String, Object> plain = plain(section);
+        if (plain.containsKey("use")) {
+            Map<String, Object> merged = fromTemplate(id, plain);
+            return merged == null ? Map.of() : merged;
+        }
         if (net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.wanted(plain)) {
             for (String problem : net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.validate(id, plain)) plugin.getLogger().warning("mobs: " + problem);
         }
         return plain;
+    }
+
+    /**
+     * A mob that says {@code use: <template>}: the behavior of the template with the mob's own values put over it: a value replaces the template's (debug, tick-interval, aggro-range,
+     * auto-target, mode), `blackboard` adds and replaces key by key, `eqs` replaces a query of the same name and adds the others. `fsm` and `tree` are not taken from a mob that uses a
+     * template (a warning says so). A template that is not there, or is broken, leaves the mob with its older behavior (null).
+     */
+    private Map<String, Object> fromTemplate(String id, Map<String, Object> own) {
+        String use = String.valueOf(own.get("use")).trim();
+        Map<String, Object> template = templates.get(use);
+        if (template == null) {
+            plugin.getLogger().warning("mobs: 敵 " + id + " の behavior.use '" + use + "' がありません (今までの行動で動きます)");
+            return null;
+        }
+        Map<String, Object> merged = deepCopy(template);
+        if (own.containsKey("fsm") || own.containsKey("tree")) {
+            plugin.getLogger().warning("mobs: 敵 " + id + ": use のときは fsm / tree は書けません (テンプレート '" + use + "' を使います)");
+        }
+        for (Map.Entry<String, Object> entry : own.entrySet()) {
+            String key = entry.getKey();
+            if (key.equals("use") || key.equals("fsm") || key.equals("tree")) continue;
+            Object value = entry.getValue();
+            if ((key.equals("blackboard") || key.equals("eqs")) && value instanceof Map<?, ?> overrides && merged.get(key) instanceof Map<?, ?> base) {
+                Map<String, Object> combined = new java.util.LinkedHashMap<>();
+                for (Map.Entry<?, ?> item : base.entrySet()) combined.put(String.valueOf(item.getKey()), item.getValue());
+                for (Map.Entry<?, ?> item : overrides.entrySet()) combined.put(String.valueOf(item.getKey()), item.getValue());
+                merged.put(key, combined);
+            } else {
+                merged.put(key, value);
+            }
+        }
+        // (the template was checked when it was read; only what the mob put over it is checked again)
+        if (own.containsKey("eqs") && net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.wanted(merged)) {
+            for (String problem : net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.validate(id, merged)) plugin.getLogger().warning("mobs: " + problem);
+        }
+        return merged;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> deepCopy(Map<String, Object> map) {
+        Map<String, Object> copy = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : map.entrySet()) copy.put(entry.getKey(), deepCopyValue(entry.getValue()));
+        return copy;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object deepCopyValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            Map<Object, Object> copy = new java.util.LinkedHashMap<>();
+            for (Map.Entry<?, ?> entry : map.entrySet()) copy.put(entry.getKey(), deepCopyValue(entry.getValue()));
+            return copy;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copy = new java.util.ArrayList<>();
+            for (Object item : list) copy.add(deepCopyValue(item));
+            return copy;
+        }
+        return value;
     }
 
     private static Map<String, Object> plain(ConfigurationSection section) {
