@@ -165,7 +165,7 @@ class Repo:
 
 
 BT_COMPOSITES = ("selector", "sequence", "random", "parallel")
-BT_TASKS = ("move-to", "flee", "wait", "attack", "shoot", "use-skill", "face-target", "set-blackboard", "set-state", "clear-target", "play-sound", "succeed", "fail")
+BT_TASKS = ("move-to", "flee", "wait", "attack", "shoot", "use-skill", "face-target", "set-blackboard", "set-state", "clear-target", "play-sound", "play-animation", "succeed", "fail")
 BT_DECORATORS = ("blackboard", "distance", "hp", "line-of-sight", "chance", "cooldown", "loop", "time-limit", "not", "force-success")
 BT_SERVICES = ("update-target", "run-eqs")
 
@@ -272,6 +272,21 @@ def validate(kind, entry_id, body, repo):
         if area is not None and not (isinstance(area, str) or (isinstance(area, list) and all(isinstance(a, str) for a in area))):
             problems.append("area は、文字列か、文字列のリスト (例: area: [cave, field1]) で書いてください")
         check_behavior(body.get("behavior"), problems, warnings)
+        # model: Blockbench のモデルを着せる (models/<id>.bbmodel。docs/models.md)
+        model = body.get("model")
+        if model is not None:
+            if not isinstance(model, dict):
+                problems.append("model がマップになっていません (例: model: {id: sample_crawler})")
+            else:
+                if not isinstance(model.get("id"), str) or not model.get("id", "").strip():
+                    problems.append("model.id (models/ のモデルの id) がありません")
+                scale = model.get("scale")
+                if scale is not None and (isinstance(scale, bool) or not isinstance(scale, (int, float))):
+                    problems.append("model.scale は数です")
+                elif isinstance(scale, (int, float)) and (scale <= 0 or scale > 20):
+                    warnings.append("model.scale が範囲外です (0 より大きく、20 まで)")
+                if "hide-base" in model and not isinstance(model["hide-base"], bool):
+                    problems.append("model.hide-base は true か false です")
     else:
         result = body.get("result")
         ingredients = body.get("ingredients")
