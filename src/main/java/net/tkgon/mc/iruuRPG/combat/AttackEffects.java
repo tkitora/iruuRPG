@@ -76,11 +76,10 @@ public final class AttackEffects {
     }
 
     /**
-     * Draws one arc of a melee cut. Only the way the player faces counts (up and down are ignored): the arc is
-     * a sweep across the facing direction, turned about the horizontal axis to the right by {@code tilt}; its middle
-     * is {@code forward} blocks ahead, {@code drop} below the eyes and {@code side} to the right. {@code roll}: 0
-     * sweeps from the right to the left, 180 from the left to the right; either way the arc bulges away from the
-     * player (toward what is hit), the 180 one is drawn from the other end.
+     * Draws one arc of a melee cut, laid out from the player's view: the start of the arc is on the player's right (the cross of the view and up), its middle (progress 0.5)
+     * is {@code forward} blocks along the view, its end on the left; {@code drop} below the eyes and {@code side} to the right are moved afterwards. The arc is turned only about
+     * the vertical ({@code yawOffset}) and about the view line (the bank: {@code 90 - tilt + roll}, so tilt 90 = a flat sweep, 0 = a chop from above to below), never about the
+     * line across the view. {@code roll} 180 draws it from the left end to the right.
      */
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, double duration, float scale, double delaySeconds) {
@@ -103,46 +102,33 @@ public final class AttackEffects {
     private void cut(Player attacker, Resolved look, double forward, double drop, double side, double radius,
                      double sweepDegrees, double tilt, double roll, boolean reverseArc, double duration, float scale, double delaySeconds, double yawOffset,
                      SlashVfx.Kind kind) {
-        Vector f = horizontalForward(attacker);
-        Vector right = f.clone().crossProduct(new Vector(0.0, 1.0, 0.0)).normalize();
+        // The arc is laid out from the player's view: its start is on the right (the cross of the view and up), its middle (progress 0.5) is `forward` blocks along the view,
+        // its end on the left. It is turned only about the vertical (yawOffset) and about the view line (the bank), never about the line across the view (that is a turn in height).
+        // `tilt` keeps its old meaning (0 = stands up, 90 = lies flat): the bank is 90 - tilt, and `roll` is added to it.
+        Vector view = attacker.getEyeLocation().getDirection();
+        view = view.lengthSquared() < 1.0E-9 ? new Vector(0.0, 0.0, 1.0) : view.normalize();
+        Vector right = view.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+        if (right.lengthSquared() < 1.0E-6) right = horizontalForward(attacker).crossProduct(new Vector(0.0, 1.0, 0.0));
+        right.normalize();
+        Vector up = right.clone().crossProduct(view).normalize();
         double offsetRadians = Math.toRadians(yawOffset);
         if (yawOffset != 0.0) {
             // the whole cut swings about the player, so a later cut of a run stands a little to the side of the one before
-            f = rotateAroundY(f, offsetRadians);
+            view = rotateAroundY(view, offsetRadians);
             right = rotateAroundY(right, offsetRadians);
+            up = rotateAroundY(up, offsetRadians);
         }
         double bandRadius = radius;
         radius *= slashSize();
         double turned = ((roll % 360.0) + 360.0) % 360.0;
         boolean reverse = reverseArc || Math.abs(turned - 180.0) < 1.0;
         if (Math.abs(turned - 180.0) < 1.0) roll = 0.0;
-
-        // the middle of the arc, to put it (not the point the line starts from) at the wanted spot
-        double s = Math.toRadians(sweepDegrees);
-        double cr = Math.cos(Math.toRadians(roll));
-        double sr = Math.sin(Math.toRadians(roll));
-        double sumX = 0.0;
-        double sumY = 0.0;
-        int samples = 17;
-        for (int index = 0; index < samples; index++) {
-            double theta = (index / (double) (samples - 1) - 0.5) * s;
-            double xl = radius * Math.sin(theta);
-            double yl = radius * (Math.cos(theta) - Math.cos(s / 2.0));
-            sumX += xl * cr - yl * sr;
-            sumY += xl * sr + yl * cr;
-        }
-        double middleX = sumX / samples;
-        double middleY = sumY / samples;
-        double t = Math.toRadians(tilt);
-        // local x is the player's left, local y turns to (up * cos + forward * sin) with the tilt
-        Vector middle = right.clone().multiply(-middleX)
-                .add(new Vector(0.0, middleY * Math.cos(t), 0.0))
-                .add(f.clone().multiply(middleY * Math.sin(t)));
-        Location origin = attacker.getEyeLocation()
-                .add(f.clone().multiply(forward)).add(right.clone().multiply(side)).add(0.0, -drop, 0.0)
-                .subtract(middle);
-        drawSlash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, attacker.getLocation().getYaw() + yawOffset,
-                tilt, roll, vfxDensity(), reverse, kind), bandRadius, duration, scale, delaySeconds);
+        double bank = (90.0 - tilt) + roll;
+        Location origin = attacker.getEyeLocation().add(right.clone().multiply(side)).add(0.0, -drop, 0.0);
+        SlashVfx.Frame frame = new SlashVfx.Frame(new double[]{view.getX(), view.getY(), view.getZ()}, new double[]{right.getX(), right.getY(), right.getZ()},
+                new double[]{up.getX(), up.getY(), up.getZ()}, forward, bank);
+        drawSlash(origin, look, new SlashVfx.Shape(radius, sweepDegrees, 0.0, 0.0, 0.0, 0.0, 0.0, vfxDensity(), reverse, kind, frame),
+                bandRadius, duration, scale, delaySeconds);
     }
 
     /** Where each player is in the slash chain (stage 1 - 3) and when they last swung. */
@@ -1375,7 +1361,7 @@ public final class AttackEffects {
         int density = shape.samplesPerBlock();
         while (density > 2 && (arcLength * density + 1) * 7 / ticks > 300) density--;
         SlashVfx.Shape safe = density == shape.samplesPerBlock() ? shape
-                : new SlashVfx.Shape(shape.radius(), shape.sweepDegrees(), shape.height(), shape.depth(), shape.yaw(), shape.pitch(), shape.roll(), density, shape.reverse(), shape.kind());
+                : shape.withDensity(density);
 
         // a ribbon of five fine lines (colored across the band: body in the middle, edge, then core outside; along the arc:
         // a deep small tail to a bright full head) and one thin bright core line; the particles are smaller than before
