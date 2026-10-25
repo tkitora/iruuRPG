@@ -51,7 +51,18 @@ tasks.withType(JavaCompile).configureEach {
 // which commit and when this jar was built, so that "is the new build the one running?" can be answered from the server (build-info.properties, read by BuildInfo)
 def gitSha = providers.exec { commandLine('git', 'rev-parse', '--short=10', 'HEAD'); ignoreExitValue = true }.standardOutput.asText.map { it.trim() }.orElse('unknown')
 
+// the server's own resource pack (src/main/resourcepack/server) is zipped into the jar as resourcepacks/server.zip (a reproducible zip, so its hash only changes when its files do)
+tasks.register('serverResourcePack', Zip) {
+    archiveFileName = 'server.zip'
+    destinationDirectory = layout.buildDirectory.dir('generated-resourcepacks')
+    from('src/main/resourcepack/server')
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
 processResources {
+    dependsOn tasks.named('serverResourcePack')
+    from(layout.buildDirectory.dir('generated-resourcepacks')) { into 'resourcepacks' }
     def props = [version: version]
     doFirst {
         def stamp = new File(layout.buildDirectory.get().asFile, 'generated-build-info')

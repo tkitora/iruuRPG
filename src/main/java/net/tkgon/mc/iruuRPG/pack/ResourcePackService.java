@@ -1,0 +1,178 @@
+package net.tkgon.mc.iruuRPG.pack;
+
+import org.bukkit.command.CommandSender;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/**
+ * Sends the server's resource packs to the players that join: the server's own pack ({@code server.zip}, bundled in the jar: see src/main/resourcepack) and the pack of the model
+ * feature ({@code iruumodel.zip}, made by {@code /iruumodel build}). Both are plain zip files in {@code plugins/iruuRPG/resourcepacks/}; a pack is sent when it is switched on in
+ * {@code resourcepack.packs.<name>} and its file is there. They are separate packs on purpose (the client keeps both, and either can be taken away without the other).
+ *
+ * <p>Where the files are served from is {@code resourcepack.base-url} (any web server that serves the folder), or the small built-in server of {@link PackHost} when
+ * {@code resourcepack.host.enabled} is on. With neither, nothing is sent. Self-contained: it reads only its own part of the config and the folder above.
+ */
+public final class ResourcePackService implements Listener {
+
+    /** The packs the jar carries: copied to the folder at start, replacing the old copy (they are the plugin's, not hand-edited). */
+    private static final List<String> BUNDLED = List.of("server.zip");
+
+    private final JavaPlugin plugin;
+    private PackHost host;
+    private final Map<String, String> hashes = new LinkedHashMap<>();
+    private final Map<String, Long> hashedAt = new LinkedHashMap<>();
+
+    public ResourcePackService(JavaPlugin plugin) {
+        this.plugin = plugin;
+    }
+
+    /** Starts the service: puts the bundled packs in the folder, starts the host when it is asked for, listens for joins. Never throws. */
+    public static ResourcePackService start(JavaPlugin plugin) {
+        try {
+            ResourcePackService service = new ResourcePackService(plugin);
+            service.extractBundled();
+            plugin.getServer().getPluginManager().registerEvents(service, plugin);
+            if (plugin.getConfig().getBoolean("resourcepack.host.enabled", false)) {
+                service.host = PackHost.start(plugin, service.folder(), service::servable);
+            }
+            return service;
+        } catch (RuntimeException | LinkageError exception) {
+            plugin.getLogger().warning("Resource pack service not started: " + exception);
+            return null;
+        }
+    }
+
+    public void stop() {
+        if (host != null) host.stop();
+        host = null;
+    }
+
+    File folder() {
+        File folder = new File(plugin.getDataFolder(), "resourcepacks");
+        if (!folder.exists() && !folder.mkdirs()) plugin.getLogger().warning("Could not create " + folder);
+        return folder;
+    }
+
+    private void extractBundled() {
+        for (String name : BUNDLED) {
+            try (InputStream in = plugin.getResource("resourcepacks/" + name)) {
+                if (in == null) continue;
+                byte[] bytes = in.readAllBytes();
+                File target = new File(folder(), name);
+                if (target.isFile() && java.util.Arrays.equals(Files.readAllBytes(target.toPath()), bytes)) continue;
+                Files.write(target.toPath(), bytes);
+            } catch (IOException exception) {
+                plugin.getLogger().warning("Could not put " + name + " in the resource pack folder: " + exception);
+            }
+        }
+    }
+
+    // ---- which packs, and where they are --------------------------------------------------------------------------------------
+
+    /** A pack as the config describes it. */
+    private record Pack(String name, String file, boolean required) {
+    }
+
+    private List<Pack> packs() {
+        List<Pack> list = new java.util.ArrayList<>();
+        var section = plugin.getConfig().getConfigurationSection("resourcepack.packs");
+        if (section == null) return list;
+        for (String name : section.getKeys(false)) {
+            var pack = section.getConfigurationSection(name);
+            if (pack == null || !pack.getBoolean("enabled", true)) continue;
+            String file = pack.getString("file", name + ".zip");
+            if (file == null || file.contains("/") || file.contains("\\") || file.contains("..")) continue;
+            list.add(new Pack(name, file, pack.getBoolean("required", false)));
+        }
+        return list;
+    }
+
+    /** Whether a file of the folder may be served by the built-in host: only the files of the packs that are switched on. */
+    boolean servable(String file) {
+        for (Pack pack : packs()) if (pack.file().equals(file)) return true;
+        return false;
+    }
+
+    private String baseUrl() {
+        String base = plugin.getConfig().getString("resourcepack.base-url", "");
+        if ((base == null || base.isBlank()) && host != null) base = host.publicUrl();
+        if (base == null || base.isBlank()) return null;
+        return base.endsWith("/") ? base : base + "/";
+    }
+
+    /** The SHA-1 of the file (40 hex digits), worked out again only when the file changed. */
+    private String hash(File file) {
+        long modified = file.lastModified();
+        String known = hashes.get(file.getName());
+        if (known != null && hashedAt.getOrDefault(file.getName(), -1L) == modified) return known;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-1");
+            StringBuilder hex = new StringBuilder();
+            for (byte b : digest.digest(Files.readAllBytes(file.toPath()))) hex.append(String.format("%02x", b));
+            hashes.put(file.getName(), hex.toString());
+            hashedAt.put(file.getName(), modified);
+            return hex.toString();
+        } catch (IOException | NoSuchAlgorithmException exception) {
+            plugin.getLogger().warning("Could not read " + file + ": " + exception);
+            return null;
+        }
+    }
+
+    // ---- sending ---------------------------------------------------------------------------------------------------------------
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        // (a moment after the join: the client is ready for the offer then)
+        Player player = event.getPlayer();
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) send(player);
+        }, 20L);
+    }
+
+    /** Offers the player every pack that is switched on and there; returns how many were offered (0 with the service off or no address). */
+    public int send(Player player) {
+        if (!plugin.getConfig().getBoolean("resourcepack.enabled", false)) return 0;
+        String base = baseUrl();
+        if (base == null) return 0;
+        String prompt = plugin.getConfig().getString("resourcepack.prompt", "iruuRPG のリソースパック");
+        int sent = 0;
+        for (Pack pack : packs()) {
+            File file = new File(folder(), pack.file());
+            if (!file.isFile()) continue;
+            String hash = hash(file);
+            if (hash == null) continue;
+            byte[] bytes = new byte[20];
+            for (int index = 0; index < 20; index++) bytes[index] = (byte) Integer.parseInt(hash.substring(index * 2, index * 2 + 2), 16);
+            // (one id per pack: a changed pack replaces the old one on the client instead of adding another)
+            UUID id = UUID.nameUUIDFromBytes(("iruurpg:" + pack.name()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            player.addResourcePack(id, base + pack.file() + "?h=" + hash.substring(0, 8), bytes, prompt, pack.required());
+            sent++;
+        }
+        return sent;
+    }
+
+    /** For /iruurpg pack: where each pack is and its hash. */
+    public void describe(CommandSender sender) {
+        sender.sendMessage("[リソースパック] " + (plugin.getConfig().getBoolean("resourcepack.enabled", false) ? "オン" : "オフ (resourcepack.enabled)")
+                + " / 場所: " + (baseUrl() == null ? "未設定 (resourcepack.base-url か host)" : baseUrl()));
+        for (Pack pack : packs()) {
+            File file = new File(folder(), pack.file());
+            sender.sendMessage("  " + pack.name() + ": " + pack.file() + (file.isFile() ? " (" + file.length() + " バイト, sha1 " + hash(file) + ")" : " (ファイルなし)")
+                    + (pack.required() ? " 必須" : ""));
+        }
+    }
+}

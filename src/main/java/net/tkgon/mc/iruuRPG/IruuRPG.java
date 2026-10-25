@@ -139,6 +139,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.combat.RangerMoves rangerMoves;
     private net.tkgon.mc.iruuRPG.tools.brush.BrushModule brushModule;
     private net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule proceduralModule;
+    private net.tkgon.mc.iruuRPG.pack.ResourcePackService resourcePackService;
     private FieldSpawnerService fieldSpawnerService;
     private FieldSpawnerEditor fieldSpawnerEditor;
     private RewardChestMenu rewardChestMenu;
@@ -385,6 +386,7 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (brushModule != null) brushModule.stop();
         if (proceduralModule != null) proceduralModule.stop();
+        if (resourcePackService != null) resourcePackService.stop();
         if (attackService != null && attackService.guard() != null) {
             attackService.guard().shutdown();
         }
@@ -464,6 +466,7 @@ public final class IruuRPG extends JavaPlugin {
 
         // the procedural tool for builders (trees, rocks, spikes, ...): it lives in tools/procedural (like the brush) and nothing else knows about it
         this.proceduralModule = net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule.start(this);
+        this.resourcePackService = net.tkgon.mc.iruuRPG.pack.ResourcePackService.start(this);
 
         PluginCommand vfxCommand = getCommand("vfx");
         if (vfxCommand != null) {
@@ -560,6 +563,7 @@ public final class IruuRPG extends JavaPlugin {
             return "警告 " + report.warningCount() + " 件 (plugins/iruuRPG/reload-report.txt)";
         }, itemRegistry, itemFactory, debugTargetService, mobRegistry, mobService, statsMenu, skillTreeMenu, levelService);
         executor.setSyncAction(ymlSyncService::sync);
+        executor.setPackService(() -> resourcePackService);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
