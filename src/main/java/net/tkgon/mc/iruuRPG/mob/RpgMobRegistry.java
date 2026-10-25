@@ -139,8 +139,31 @@ public final class RpgMobRegistry {
                 section.getStringList("description"),
                 areas(section.get("area")),
                 ranged(id, section.get("ranged")),
-                skills(id, section.getMapList("skills"))
+                skills(id, section.getMapList("skills")),
+                behavior(id, section.getConfigurationSection("behavior"))
         ));
+    }
+
+    /**
+     * behavior: the section of a mob run by a behavior tree and state machine (see docs/mob-behavior.md), as plain maps and lists. It is checked here and what is wrong is reported;
+     * a section that cannot be used leaves the mob with its older behavior when it spawns.
+     */
+    private Map<String, Object> behavior(String id, ConfigurationSection section) {
+        if (section == null) return Map.of();
+        Map<String, Object> plain = plain(section);
+        if (net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.wanted(plain)) {
+            for (String problem : net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.validate(id, plain)) plugin.getLogger().warning("mobs: " + problem);
+        }
+        return plain;
+    }
+
+    private static Map<String, Object> plain(ConfigurationSection section) {
+        Map<String, Object> map = new java.util.LinkedHashMap<>();
+        for (String key : section.getKeys(false)) {
+            Object value = section.get(key);
+            map.put(key, value instanceof ConfigurationSection nested ? plain(nested) : value);
+        }
+        return map;
     }
 
     /**

@@ -113,6 +113,7 @@ public final class RpgMobService {
         applyHealth(entity, profile);
         storeCurrentHp(entity, profile.currentHp());
         runtimes.put(entity.getUniqueId(), new MobRuntime(definition, profile, new HashMap<>()));
+        startBehavior(entity, definition);
         updateName(entity);
         selectRandomTarget(entity, definition, null, System.currentTimeMillis());
         return entity;
@@ -123,6 +124,7 @@ public final class RpgMobService {
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickRanged, 5L, 5L);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickChase, 10L, CHASE_PERIOD_TICKS);
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickSkills, 15L, 5L);
+        Bukkit.getScheduler().runTaskTimer(plugin, this::tickBehaviors, 12L, 1L);
         long statusPeriod = Math.max(1L, plugin.getConfig().getLong("mob.status-display.update-period-ticks", 1L));
         Bukkit.getScheduler().runTaskTimer(plugin, this::tickStatusDisplays, 1L, statusPeriod);
     }
@@ -305,6 +307,7 @@ public final class RpgMobService {
         lastSeen.remove(uuid);
         skillBusy.remove(uuid);
         skillStarted.remove(uuid);
+        behaviors.remove(uuid);
         removeStatusDisplay(uuid);
     }
 
@@ -319,6 +322,7 @@ public final class RpgMobService {
         attackMode.clear();
         skillBusy.clear();
         drivenMelee.clear();
+        behaviors.clear();
         runtimes.clear();
         targetLocks.clear();
         clearStatusDisplays();
@@ -345,7 +349,7 @@ public final class RpgMobService {
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
             MobRuntime runtime = runtimes.get(uuid);
-            if (runtime == null || !runtime.definition().ai() || attackMode.contains(uuid)) continue;
+            if (runtime == null || !runtime.definition().ai() || attackMode.contains(uuid) || behaviors.containsKey(uuid)) continue;
 
             Player target = chaseTarget(mob);
             if (target == null) continue;
@@ -385,6 +389,197 @@ public final class RpgMobService {
         nextMelee.put(mob.getUniqueId(), now + 20L);
         mob.swingMainHand();
         hurt(mob, target, 1.0);
+    }
+
+    // ---- behavior trees and state machines ---------------------------------------------------------------------------
+
+    /** A mob run by a behavior tree: the runner, the host it acts through and when it is ticked next. */
+    private static final class BehaviorMob {
+        private final net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner runner;
+        private final BtHost host;
+        private int nextTick;
+
+        private BehaviorMob(net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner runner, BtHost host) {
+            this.runner = runner;
+            this.host = host;
+        }
+
+        private net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner runner() {
+            return runner;
+        }
+    }
+
+    private final Map<UUID, BehaviorMob> behaviors = new HashMap<>();
+
+    /** A mob whose yaml has a `behavior:` section with `mode: bt` is run by it: its vanilla goals go and the tree moves it, hits and shoots for it. */
+    private void startBehavior(LivingEntity entity, RpgMobDefinition definition) {
+        if (!definition.ai() || !definition.usesBehaviorTree() || !(entity instanceof Mob mob)) return;
+        BtHost host = new BtHost(mob, entity.getLocation().clone());
+        List<String> problems = new ArrayList<>();
+        net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner runner =
+                net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.create(definition.id(), definition.behavior(), host, problems);
+        if (runner == null) {
+            plugin.getLogger().warning("mobs: " + definition.id() + " keeps its older behavior: " + String.join("; ", problems));
+            return;
+        }
+        Bukkit.getMobGoals().removeAllGoals(mob);
+        BehaviorMob behavior = new BehaviorMob(runner, host);
+        behavior.nextTick = Bukkit.getCurrentTick() + 1 + (int) ((entity.getUniqueId().hashCode() & 0x7fffffff) % Math.max(1, runner.interval()));
+        behaviors.put(entity.getUniqueId(), behavior);
+    }
+
+    /** Every tick: each mob run by a behavior is ticked when its turn comes (every `tick-interval` ticks, spread so that they do not all run in the same tick). */
+    private void tickBehaviors() {
+        if (behaviors.isEmpty()) return;
+        int now = Bukkit.getCurrentTick();
+        for (Map.Entry<UUID, BehaviorMob> entry : new ArrayList<>(behaviors.entrySet())) {
+            BehaviorMob behavior = entry.getValue();
+            Entity entity = Bukkit.getEntity(entry.getKey());
+            if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) {
+                behaviors.remove(entry.getKey());
+                continue;
+            }
+            if (now < behavior.nextTick) continue;
+            behavior.nextTick = now + behavior.runner.interval();
+            try {
+                behavior.runner.tick();
+            } catch (RuntimeException exception) {
+                // a tree that breaks stops, and the mob goes back to its older behavior
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "mobs: the behavior of " + mob.getType() + " stopped after an error", exception);
+                behaviors.remove(entry.getKey());
+            }
+        }
+    }
+
+    /** What a behavior tree can do with a mob, through the same hit, skills and shots as the older behavior. */
+    private final class BtHost implements net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost {
+        private final Mob mob;
+        private final Location home;
+
+        private BtHost(Mob mob, Location home) {
+            this.mob = mob;
+            this.home = home;
+        }
+
+        @Override
+        public Mob mob() {
+            return mob;
+        }
+
+        @Override
+        public int tick() {
+            return Bukkit.getCurrentTick();
+        }
+
+        @Override
+        public Player findTarget(double range) {
+            Player best = null;
+            double bestDistance = range * range;
+            for (Player player : mob.getWorld().getPlayers()) {
+                if (!canTarget(mob, player)) continue;
+                double distance = player.getLocation().distanceSquared(mob.getLocation());
+                if (distance < bestDistance) {
+                    bestDistance = distance;
+                    best = player;
+                }
+            }
+            if (best != null) mob.setTarget(best);
+            return best;
+        }
+
+        @Override
+        public boolean valid(Player player, double range) {
+            return canTarget(mob, player) && player.getLocation().distanceSquared(mob.getLocation()) <= range * range;
+        }
+
+        @Override
+        public boolean moveTo(Location at, double speed) {
+            return mob.getPathfinder().moveTo(at, speed);
+        }
+
+        @Override
+        public void stopMoving() {
+            mob.getPathfinder().stopPathfinding();
+        }
+
+        @Override
+        public boolean hasPath() {
+            return mob.getPathfinder().hasPath();
+        }
+
+        @Override
+        public void face(Location at) {
+            Vector direction = at.toVector().subtract(mob.getEyeLocation().toVector());
+            if (direction.lengthSquared() < 1.0E-6) return;
+            Location look = mob.getLocation().clone();
+            look.setDirection(direction);
+            mob.setRotation(look.getYaw(), look.getPitch());
+            mob.setBodyYaw(look.getYaw());
+        }
+
+        @Override
+        public void attack(Player target, double rate) {
+            mob.swingMainHand();
+            hurt(mob, target, rate);
+        }
+
+        @Override
+        public int skillCount() {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            return runtime == null ? 0 : runtime.definition().skills().size();
+        }
+
+        @Override
+        public boolean startSkill(int index, Player target) {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            if (runtime == null || skillRunner == null || skillBusy.contains(mob.getUniqueId())) return false;
+            List<SkillSpec> skills = runtime.definition().skills();
+            if (index < 0 || index >= skills.size()) return false;
+            RpgMobService.this.startSkill(mob, target, skills.get(index));
+            return true;
+        }
+
+        @Override
+        public boolean skillRunning() {
+            return skillBusy.contains(mob.getUniqueId());
+        }
+
+        @Override
+        public boolean shoot(Player target, double rate) {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            RangedSpec spec = runtime == null ? null : runtime.definition().ranged();
+            if (spec == null) return false;
+            RpgMobService.this.shoot(mob, target, spec, rate);
+            return true;
+        }
+
+        @Override
+        public double hpRatio() {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            if (runtime == null || runtime.profile().maxHp() <= 0.0) return 1.0;
+            return Math.max(0.0, Math.min(1.0, runtime.profile().currentHp() / runtime.profile().maxHp()));
+        }
+
+        @Override
+        public boolean canSee(Player player) {
+            return mob.hasLineOfSight(player);
+        }
+
+        @Override
+        public Location home() {
+            return home.clone();
+        }
+
+        @Override
+        public int crowdNear(Location at, double radius) {
+            int count = 0;
+            for (UUID id : behaviors.keySet()) {
+                if (id.equals(mob.getUniqueId())) continue;
+                Entity other = Bukkit.getEntity(id);
+                if (other != null && other.getWorld().equals(at.getWorld()) && other.getLocation().distanceSquared(at) <= radius * radius) count++;
+            }
+            return count;
+        }
     }
 
     // ---- skills ----------------------------------------------------------------------------------------------------
@@ -437,7 +632,7 @@ public final class RpgMobService {
         for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
             MobRuntime runtime = runtimes.get(uuid);
             if (runtime == null || runtime.definition().skills().isEmpty() || !runtime.definition().ai()) continue;
-            if (skillBusy.contains(uuid)) continue;
+            if (skillBusy.contains(uuid) || behaviors.containsKey(uuid)) continue;
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
             if (now < skillLockUntil.getOrDefault(uuid, 0L)) continue;
@@ -694,7 +889,7 @@ public final class RpgMobService {
         for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
             MobRuntime runtime = runtimes.get(uuid);
             RangedSpec spec = runtime == null ? null : runtime.definition().ranged();
-            if (spec == null) continue;
+            if (spec == null || behaviors.containsKey(uuid)) continue;
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid() || !runtime.definition().ai()) {
                 attackMode.remove(uuid);
@@ -930,6 +1125,8 @@ public final class RpgMobService {
     }
 
     private void maintainTarget(LivingEntity entity, RpgMobDefinition definition, long now) {
+        // (a mob run by a behavior tree keeps its own target)
+        if (behaviors.containsKey(entity.getUniqueId())) return;
         if (!definition.ai() || !(entity instanceof Mob mob)) {
             targetLocks.remove(entity.getUniqueId());
             return;
@@ -1299,6 +1496,12 @@ public final class RpgMobService {
         }
 
         Component statuses = statusEffectService.statusLine(entity);
+        // a mob run by a behavior tree with `debug: true` also shows its state and the nodes that are running
+        BehaviorMob bt = behaviors.get(entity.getUniqueId());
+        if (bt != null && bt.runner().debug()) {
+            Component debug = net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().deserialize(String.join("\n", bt.runner().debugLines()));
+            statuses = statuses == null ? debug : debug.append(Component.newline()).append(statuses);
+        }
         if (statuses == null) {
             removeStatusDisplay(entity.getUniqueId());
             return;
