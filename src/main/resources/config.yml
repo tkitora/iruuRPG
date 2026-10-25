@@ -552,6 +552,29 @@ treetool:
     web-frame: COBWEB
     web: COBWEB
 
+# リソースパック (pack/): 入ってきたプレイヤーに、下のパックを送る。サーバー専用パック (server.zip: 草ブロックを全面草にする) と、
+# モデル機能のパック (iruumodel.zip: /iruumodel build が作る) は別のパック。zip は plugins/iruuRPG/resourcepacks/ にある。
+resourcepack:
+  enabled: false
+  # zip を置いた場所の URL (Web サーバーが resourcepacks/ を配る)。末尾は / でも無くてもよい。空で host を使う
+  base-url: ""
+  prompt: "iruuRPG のリソースパック"
+  packs:
+    server:
+      file: server.zip
+      enabled: true
+      required: false
+    models:
+      file: iruumodel.zip
+      enabled: true
+      required: false
+  # Web サーバーが無いときの、プラグイン内蔵の小さな配信 (GET だけ、packs の zip だけ)。port をプレイヤーに開けること
+  host:
+    enabled: false
+    port: 8765
+    bind: 0.0.0.0
+    public-host: ""
+
 # ペイントブラシ (/ibrush)。建築用のツールで、ゲームの処理とは別 (tools/brush)。描画は FastAsyncWorldEdit 経由なので //undo で戻せる
 brush:
   # 半径の上限 (大きいと重い)

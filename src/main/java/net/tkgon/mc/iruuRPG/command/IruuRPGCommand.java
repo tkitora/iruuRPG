@@ -37,6 +37,12 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     private final SkillTreeMenu skillTreeMenu;
     private final LevelService levelService;
     private java.util.function.Consumer<CommandSender> syncAction;
+    private java.util.function.Supplier<net.tkgon.mc.iruuRPG.pack.ResourcePackService> packs = () -> null;
+
+    /** The resource pack service (looked up when the command runs: it may start after this command is made). */
+    public void setPackService(java.util.function.Supplier<net.tkgon.mc.iruuRPG.pack.ResourcePackService> packs) {
+        this.packs = packs;
+    }
 
     /** /iruurpg sync: pull the yml repository now and reload when it changed. */
     public void setSyncAction(java.util.function.Consumer<CommandSender> syncAction) {
@@ -85,6 +91,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             case "addxp" -> addXpShortcut(sender, args);
             case "item" -> giveItem(sender, args);
             case "mob", "enemy" -> spawnMob(sender, args);
+            case "pack", "resourcepack" -> pack(sender, args);
             case "btdebug", "btview" -> btView(sender, args);
             case "dummy", "target" -> spawnDummy(sender);
             default -> {
@@ -97,7 +104,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 1) {
-            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug"), args[0]);
+            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack"), args[0]);
         }
 
         if (args[0].equalsIgnoreCase("level") || args[0].equalsIgnoreCase("lv") || args[0].equalsIgnoreCase("xp")) {
@@ -132,6 +139,26 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
         }
 
         return List.of();
+    }
+
+    /** /iruurpg pack [send|info]: where the resource packs are, and offering them to the player again. */
+    private boolean pack(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("iruurpg.admin")) {
+            sender.sendMessage("No permission.");
+            return true;
+        }
+        net.tkgon.mc.iruuRPG.pack.ResourcePackService service = packs.get();
+        if (service == null) {
+            sender.sendMessage("[リソースパック] サービスが動いていません。");
+            return true;
+        }
+        if (args.length > 1 && args[1].equalsIgnoreCase("send") && sender instanceof Player player) {
+            int sent = service.send(player);
+            sender.sendMessage(sent == 0 ? "[リソースパック] 送れるパックがありません (resourcepack.enabled と base-url / host を確かめてください)。" : "[リソースパック] " + sent + " 個のパックを送りました。");
+            return true;
+        }
+        service.describe(sender);
+        return true;
     }
 
     /** /iruurpg btdebug [on|off]: the state of every behavior-tree mob, and the points its queries chose, shown to the player who asks. */
