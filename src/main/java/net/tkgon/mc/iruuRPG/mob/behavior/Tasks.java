@@ -187,35 +187,50 @@ final class Tasks {
     /** Uses a skill of the mob ({@code index}, else one chosen at random) at the target and runs until it is over; fails if it cannot start. */
     static final class UseSkill extends Task {
         private final int index;
+        private final String skill;
+        private final String animation;
         private boolean started;
+        private int animationEnd;
 
-        UseSkill(int index) {
+        UseSkill(int index, String skill, String animation) {
             super("use-skill");
             this.index = index;
+            this.skill = skill == null || skill.isBlank() ? null : skill;
+            this.animation = animation == null || animation.isBlank() ? null : animation;
         }
 
         @Override
         String label() {
-            return name != null && !name.isBlank() ? name : "use-skill" + (index >= 0 ? "#" + index : "");
+            return name != null && !name.isBlank() ? name : "use-skill" + (skill != null ? " " + skill : index >= 0 ? "#" + index : "");
         }
 
         @Override
         void onEnter(Ctx c) {
             started = false;
+            animationEnd = 0;
         }
 
         @Override
         Status tickNode(Ctx c) {
             if (!started) {
                 Player target = c.bb.target;
-                int count = c.host.skillCount();
-                if (target == null || count == 0) return Status.FAILURE;
-                int chosen = index >= 0 ? Math.min(index, count - 1) : c.random.nextInt(count);
-                if (!c.host.startSkill(chosen, target)) return Status.FAILURE;
+                if (target == null) return Status.FAILURE;
+                if (skill != null) {
+                    // a skill of the skill tool by its id (the mob's own skills: with that id first)
+                    if (!c.host.startSkill(skill, target)) return Status.FAILURE;
+                } else {
+                    int count = c.host.skillCount();
+                    if (count == 0) return Status.FAILURE;
+                    int chosen = index >= 0 ? Math.min(index, count - 1) : c.random.nextInt(count);
+                    if (!c.host.startSkill(chosen, target)) return Status.FAILURE;
+                }
+                // the model's animation of the skill, from the same moment (the skill's wind-up decides when it hits: set it to the moment the animation strikes)
+                if (animation != null && c.host.playAnimation(animation)) animationEnd = c.now + (int) Math.round(c.host.animationSeconds(animation) * 20.0);
                 started = true;
                 return Status.RUNNING;
             }
-            return c.host.skillRunning() && c.now - startedTick < 400 ? Status.RUNNING : Status.SUCCESS;
+            boolean running = (c.host.skillRunning() || c.now < animationEnd) && c.now - startedTick < 400;
+            return running ? Status.RUNNING : Status.SUCCESS;
         }
     }
 

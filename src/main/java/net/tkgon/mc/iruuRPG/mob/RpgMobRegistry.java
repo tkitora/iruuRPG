@@ -131,6 +131,11 @@ public final class RpgMobRegistry {
         }
     }
 
+    /** The skills of the skill tool (skills/*.yml), for a behavior tree that uses one by its id. */
+    public SkillRegistry skillRegistry() {
+        return skillRegistry;
+    }
+
     public Optional<RpgMobDefinition> find(String id) {
         return Optional.ofNullable(definitions.get(id));
     }

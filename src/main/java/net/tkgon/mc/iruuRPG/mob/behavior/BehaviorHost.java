@@ -45,6 +45,11 @@ public interface BehaviorHost {
 
     boolean skillRunning();
 
+    /** Starts the skill with this id at the player: one of the mob's own `skills:` with that id, else the skill of the skill tool (skills/*.yml); false when there is none or one runs. */
+    default boolean startSkill(String id, Player target) {
+        return false;
+    }
+
     /** One shot of the mob's ranged attack; false when the mob has none. */
     boolean shoot(Player target, double rate);
 
