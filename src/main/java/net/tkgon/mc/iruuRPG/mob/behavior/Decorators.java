@@ -11,16 +11,28 @@ final class Decorators {
         private final String key;
         private final String op;
         private final Object expected;
+        /** Compare with the value of this other key instead of {@code expected} (a bound that each mob sets in its blackboard). */
+        private final String valueKey;
 
         BlackboardCondition(String key, String op, Object expected) {
+            this(key, op, expected, null);
+        }
+
+        BlackboardCondition(String key, String op, Object expected, String valueKey) {
             this.key = key;
             this.op = op;
             this.expected = expected;
-            this.label = "bb " + key + " " + op + (expected == null ? "" : " " + expected);
+            this.valueKey = valueKey == null || valueKey.isBlank() ? null : valueKey;
+            this.label = "bb " + key + " " + op + (this.valueKey != null ? " @" + this.valueKey : expected == null ? "" : " " + expected);
         }
 
         @Override
         boolean canEnter(Ctx c, Node node) {
+            if (valueKey != null && c.bb.has(valueKey)) return compare(c, c.bb.get(valueKey));
+            return compare(c, expected);
+        }
+
+        private boolean compare(Ctx c, Object expected) {
             switch (op) {
                 case "set":
                     return c.bb.has(key) && c.bb.flag(key);

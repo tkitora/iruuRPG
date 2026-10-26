@@ -211,7 +211,7 @@ final class BehaviorParser {
                 String key = Cfg.text(map, "key", "");
                 String op = Cfg.text(map, "op", "==");
                 if (map.containsKey("is-set")) op = Cfg.flag(map, "is-set", true) ? "set" : "not-set";
-                decorator = new Decorators.BlackboardCondition(key, op, map.get("value"));
+                decorator = new Decorators.BlackboardCondition(key, op, map.get("value"), Cfg.text(map, "value-key", ""));
             }
             case "distance" -> decorator = new Decorators.Distance(Cfg.number(map, "min", 0.0), Cfg.number(map, "max", Double.MAX_VALUE), Cfg.text(map, "min-key", ""), Cfg.text(map, "max-key", ""));
             case "hp" -> decorator = new Decorators.Hp(Cfg.number(map, "below", 1.0), Cfg.number(map, "above", 0.0));

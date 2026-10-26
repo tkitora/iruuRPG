@@ -96,7 +96,7 @@ fsm:
 ### Decorator (`decorators:` に並べる。`abort: none\|self\|lower\|both` を付けられる)
 | type | 項目 | 動き |
 |---|---|---|
-| `blackboard` | `key`, `op` (`==` `!=` `<` `<=` `>` `>=` `set` `not-set`)、`value` | 黒板の値の条件 |
+| `blackboard` | `key`, `op` (`==` `!=` `<` `<=` `>` `>=` `set` `not-set`)、`value`、`value-key` | 黒板の値の条件。`value-key` の黒板の値があれば、`value` の代わりにそれと比べる(敵ごとの限度: `home-distance > leash` など) |
 | `distance` | `min`, `max`、`min-key`, `max-key` | 目標までの距離の条件(目標がいないと不成立)。`min-key` / `max-key` の黒板の値があれば、それを境にする |
 | `hp` | `below`, `above` (0〜1) | 自分のHPの割合の条件 |
 | `line-of-sight` | `visible` (true) | 目標が見えているか |
