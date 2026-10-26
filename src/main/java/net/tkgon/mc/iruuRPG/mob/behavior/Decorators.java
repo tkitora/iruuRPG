@@ -248,11 +248,14 @@ final class Decorators {
     /** After the node finishes it cannot be entered for {@code ticks}. */
     static final class Cooldown extends Decorator {
         private final int ticks;
+        /** Only a success starts the wait (a skill that was used, not one that was tried and was not ready). */
+        private final boolean successOnly;
         private int readyAt;
 
-        Cooldown(int ticks) {
+        Cooldown(int ticks, boolean successOnly) {
             this.ticks = ticks;
-            this.label = "cooldown " + ticks / 20.0 + "s";
+            this.successOnly = successOnly;
+            this.label = "cooldown " + ticks / 20.0 + "s" + (successOnly ? " (success)" : "");
         }
 
         @Override
@@ -262,7 +265,7 @@ final class Decorators {
 
         @Override
         Status after(Ctx c, Node node, Status status) {
-            readyAt = c.now + ticks;
+            if (!successOnly || status == Status.SUCCESS) readyAt = c.now + ticks;
             return status;
         }
     }

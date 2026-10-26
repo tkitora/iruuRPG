@@ -423,6 +423,105 @@ final class Tasks {
         }
     }
 
+    /**
+     * Circles the target for {@code seconds}, one way round, keeping an eye on it: what a mob does when it has nothing else to do
+     * (its skills are not ready, it may not hit). {@code radius} 0 keeps the distance it had when it started. It turns the other way
+     * when it is stuck (a wall) and fails when there is no target or it cannot move at all.
+     */
+    static final class Orbit extends Task {
+        private static final double STEP = Math.toRadians(35.0);
+        private final double radius;
+        private final double speed;
+        private final int ticks;
+        private final int deviation;
+        private final String direction;
+        private double ring;
+        private int turn;
+        private int endAt;
+        private int lastPath;
+        private int failedPaths;
+        private int checkAt;
+        private Location checkFrom;
+
+        Orbit(double radius, double speed, int ticks, int deviation, String direction) {
+            super("orbit");
+            this.radius = radius;
+            this.speed = speed;
+            this.ticks = ticks;
+            this.deviation = deviation;
+            this.direction = direction;
+        }
+
+        @Override
+        String label() {
+            return name != null && !name.isBlank() ? name : "orbit " + (radius > 0.0 ? "r" + radius + " " : "") + ticks / 20.0 + "s";
+        }
+
+        @Override
+        void onEnter(Ctx c) {
+            int extra = deviation <= 0 ? 0 : c.random.nextInt(deviation * 2 + 1) - deviation;
+            endAt = c.now + Math.max(1, ticks + extra);
+            turn = switch (direction) {
+                case "left" -> 1;
+                case "right" -> -1;
+                default -> c.random.nextBoolean() ? 1 : -1;
+            };
+            ring = radius;
+            if (ring <= 0.0 && c.bb.target != null && c.bb.target.getWorld() == c.host.mob().getWorld()) {
+                ring = c.host.mob().getLocation().distance(c.bb.target.getLocation());
+            }
+            ring = Math.max(2.0, ring);
+            lastPath = -100;
+            failedPaths = 0;
+            checkAt = c.now + 30;
+            checkFrom = c.host.mob().getLocation();
+        }
+
+        @Override
+        void onAbort(Ctx c) {
+            c.host.stopMoving();
+        }
+
+        @Override
+        Status tickNode(Ctx c) {
+            Player target = c.bb.target;
+            if (target == null || !c.host.valid(target, 64.0)) return Status.FAILURE;
+            if (c.now >= endAt) {
+                c.host.stopMoving();
+                c.host.face(target.getLocation());
+                return Status.SUCCESS;
+            }
+            Location here = c.host.mob().getLocation();
+            Location center = target.getLocation();
+            if (here.getWorld() != center.getWorld()) return Status.FAILURE;
+            if (c.now >= checkAt) {
+                // hardly moved: something is in the way, go round the other way
+                if (checkFrom != null && checkFrom.distance(here) < 0.5) {
+                    turn = -turn;
+                    lastPath = -100;
+                }
+                checkFrom = here;
+                checkAt = c.now + 30;
+            }
+            if (c.now - lastPath >= 6 || !c.host.hasPath()) {
+                lastPath = c.now;
+                double angle = Math.atan2(here.getZ() - center.getZ(), here.getX() - center.getX()) + turn * STEP;
+                Location next = new Location(center.getWorld(), center.getX() + Math.cos(angle) * ring, here.getY(), center.getZ() + Math.sin(angle) * ring);
+                if (!c.host.moveTo(next, speed)) {
+                    turn = -turn;
+                    if (++failedPaths >= 3) {
+                        c.host.stopMoving();
+                        return Status.FAILURE;
+                    }
+                } else {
+                    failedPaths = 0;
+                }
+            }
+            c.host.lookAt(center.clone().add(0.0, target.getEyeHeight(), 0.0));
+            return Status.RUNNING;
+        }
+    }
+
     /** Answers success (or failure) at once: a placeholder for a branch that does nothing. */
     static final class Fixed extends Task {
         private final Status answer;

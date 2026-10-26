@@ -147,6 +147,8 @@ final class BehaviorParser {
             case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", -1.0));
             case "shoot" -> node = new Tasks.Shoot(Cfg.number(map, "rate", 1.0));
             case "use-skill", "skill" -> node = new Tasks.UseSkill((int) Cfg.number(map, "index", -1.0), Cfg.text(map, "skill", ""), Cfg.text(map, "animation", ""), Cfg.flag(map, "track", false));
+            case "orbit", "circle" -> node = new Tasks.Orbit(Cfg.number(map, "radius", 0.0), Cfg.number(map, "speed", 0.9), Cfg.ticks(map, "seconds", 2.0), Cfg.ticks(map, "random-deviation", 0.0),
+                    Cfg.lower(map, "direction", "random"));
             case "face-target", "face" -> node = new Tasks.FaceTarget();
             case "set-blackboard", "set" -> node = new Tasks.SetBlackboard(Cfg.text(map, "key", ""), map.get("value"));
             case "set-state" -> node = new Tasks.SetState(Cfg.text(map, "state", ""));
@@ -217,7 +219,7 @@ final class BehaviorParser {
             case "hp" -> decorator = new Decorators.Hp(Cfg.number(map, "below", 1.0), Cfg.number(map, "above", 0.0));
             case "line-of-sight", "sight" -> decorator = new Decorators.LineOfSight(Cfg.flag(map, "visible", true));
             case "chance" -> decorator = new Decorators.Chance(Math.max(0.0, Math.min(1.0, Cfg.number(map, "percent", 50.0) / 100.0)));
-            case "cooldown" -> decorator = new Decorators.Cooldown(Cfg.ticks(map, "seconds", 5.0));
+            case "cooldown" -> decorator = new Decorators.Cooldown(Cfg.ticks(map, "seconds", 5.0), Cfg.lower(map, "on", "any").equals("success"));
             case "allies" -> decorator = new Decorators.Allies(Cfg.number(map, "radius", 8.0), (int) Cfg.number(map, "min", 0.0), (int) Math.min(Integer.MAX_VALUE, Cfg.number(map, "max", Integer.MAX_VALUE)),
                     Cfg.flag(map, "same-type", true));
             case "slot" -> decorator = new Decorators.Slot(Cfg.text(map, "name", "attack"), (int) Cfg.number(map, "max", 2.0), Cfg.ticks(map, "hold", 3.0), Cfg.lower(map, "per", "target"));
