@@ -35,6 +35,11 @@ public interface BehaviorHost {
 
     void face(Location at);
 
+    /** Turns the head toward a place, leaving the body to its walk (a mob circling its target keeps an eye on it). */
+    default void lookAt(Location at) {
+        face(at);
+    }
+
     /** One melee hit of {@code rate} times the mob's damage on the player (the mob swings). */
     void attack(Player target, double rate);
 

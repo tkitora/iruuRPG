@@ -665,6 +665,11 @@ public final class RpgMobService {
         }
 
         @Override
+        public void lookAt(Location at) {
+            mob.lookAt(at);
+        }
+
+        @Override
         public void attack(Player target, double rate) {
             mob.swingMainHand();
             if (models != null) models.play(mob, "attack");
