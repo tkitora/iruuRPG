@@ -151,13 +151,17 @@ final class ModelInstance {
         Map<BbModel.Bone, Matrix4f> bones = Pose.bones(model, Pose.sample(animation, time));
         // the model's front is north (-z); the mob's yaw 0 faces south (+z)
         float turn = (float) (Math.PI - Math.toRadians(at.getYaw()));
-        float size = (float) (scale / 16.0);
+        float size = (float) scale;
         for (int index = 0; index < model.parts.size(); index++) {
             BbModel.Part part = model.parts.get(index);
             Matrix4f matrix = new Matrix4f(bones.get(part.bone));
             double[] pivot = part.pivot();
             matrix.translate((float) pivot[0], (float) pivot[1], (float) pivot[2]);
             if (part.cube != null) matrix.rotate(Pose.euler(part.cube.rotation));
+            // The display draws its item model at block size already (16 model units = 1 block), so the turn and the scale of the pose apply as they are; only where the part
+            // stands (the translation, in model units) is turned into blocks.
+            Vector3f offset = matrix.getTranslation(new Vector3f()).mul(1.0f / 16.0f);
+            matrix.setTranslation(offset);
             Matrix4f world = new Matrix4f().scale(size).rotateY(turn).mul(matrix);
             ItemDisplay display = displays.get(index);
             if (!display.isValid()) continue;
