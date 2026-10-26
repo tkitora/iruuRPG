@@ -81,16 +81,84 @@ final class BbModel {
         this.id = id;
     }
 
+    /**
+     * The animation for a name the feature asks for (idle, walk, attack, skill, hurt, death), or one the yaml names: the exact name, else the name without a prefix such as
+     * {@code animation.} (the way Bedrock-style files name them), else a usual other name (walk: move / run; idle: stand; attack or skill: any whose name begins with it, one at
+     * random). Null when there is none.
+     */
+    Animation find(String name, java.util.Random random) {
+        if (name == null) return null;
+        Animation exact = animations.get(name);
+        if (exact != null) return exact;
+        Map<String, Animation> shortNames = new LinkedHashMap<>();
+        for (Map.Entry<String, Animation> entry : animations.entrySet()) shortNames.putIfAbsent(shortName(entry.getKey()), entry.getValue());
+        String wanted = shortName(name);
+        if (shortNames.containsKey(wanted)) return shortNames.get(wanted);
+        List<String> others = switch (wanted) {
+            case "walk" -> List.of("move", "run", "walking", "moving");
+            case "idle" -> List.of("stand", "standing", "idling");
+            case "skill" -> List.of("cast", "special");
+            default -> List.of();
+        };
+        for (String other : others) if (shortNames.containsKey(other)) return shortNames.get(other);
+        List<Animation> starting = new ArrayList<>();
+        for (Map.Entry<String, Animation> entry : shortNames.entrySet()) if (entry.getKey().startsWith(wanted)) starting.add(entry.getValue());
+        if (starting.isEmpty() && wanted.equals("skill")) return find("attack", random);
+        return starting.isEmpty() ? null : starting.get(random.nextInt(starting.size()));
+    }
+
+    /** The name without a prefix up to the last dot ({@code animation.idle} → {@code idle}), in lower case. */
+    private static String shortName(String name) {
+        int dot = name.lastIndexOf('.');
+        return (dot >= 0 ? name.substring(dot + 1) : name).toLowerCase(java.util.Locale.ROOT);
+    }
+
     /** A part of the model that is drawn by one display: the unrotated cubes of a bone together ({@code cube} null), or one rotated cube. */
     static final class Part {
         final Bone bone;
         final Cube cube;
         String key;
         int customModelData;
+        /**
+         * Where the middle of the part's model is, from the pivot (model units), and how much its cubes are made smaller in the model (and made big again by the display): a
+         * game model must stay within -16 to 32 units, so a part whose cubes reach far from the pivot (a long sword held in a hand) is drawn about its own middle, and one longer
+         * than that box is drawn smaller and scaled up.
+         */
+        double[] offset = {0, 0, 0};
+        double shrink = 1.0;
 
         Part(Bone bone, Cube cube) {
             this.bone = bone;
             this.cube = cube;
+        }
+
+        List<Cube> cubes() {
+            if (cube != null) return List.of(cube);
+            List<Cube> list = new ArrayList<>();
+            for (Cube each : bone.cubes) if (!each.rotated()) list.add(each);
+            return list;
+        }
+
+        /** Works out the offset and the shrink from the cubes. */
+        void fit() {
+            double[] pivot = pivot();
+            double[] low = {Double.MAX_VALUE, Double.MAX_VALUE, Double.MAX_VALUE};
+            double[] high = {-Double.MAX_VALUE, -Double.MAX_VALUE, -Double.MAX_VALUE};
+            for (Cube each : cubes()) {
+                for (int axis = 0; axis < 3; axis++) {
+                    low[axis] = Math.min(low[axis], Math.min(each.from[axis], each.to[axis]) - each.inflate - pivot[axis]);
+                    high[axis] = Math.max(high[axis], Math.max(each.from[axis], each.to[axis]) + each.inflate - pivot[axis]);
+                }
+            }
+            boolean outside = false;
+            double size = 0.0;
+            for (int axis = 0; axis < 3; axis++) {
+                if (low[axis] < -23.5 || high[axis] > 23.5) outside = true;
+                size = Math.max(size, high[axis] - low[axis]);
+            }
+            if (!outside) return;
+            for (int axis = 0; axis < 3; axis++) offset[axis] = (low[axis] + high[axis]) / 2.0;
+            if (size > 46.0) shrink = 46.0 / size;
         }
 
         /** The place the part turns about, in model units: the bone's origin, or the origin of the rotated cube. */
@@ -120,6 +188,7 @@ final class BbModel {
                 parts.add(part);
             }
         }
+        for (Part part : parts) part.fit();
     }
 
     // ---- reading ----------------------------------------------------------------------------------------------------------------

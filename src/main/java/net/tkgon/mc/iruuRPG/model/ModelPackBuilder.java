@@ -111,12 +111,7 @@ final class ModelPackBuilder {
     /** The item model of a part: its cubes with the pivot moved to the middle (8, 8, 8). Null when it has nothing to draw. */
     private static JsonObject partModel(BbModel model, BbModel.Part part, List<String> warnings) {
         double[] pivot = part.pivot();
-        List<BbModel.Cube> cubes = new ArrayList<>();
-        if (part.cube != null) {
-            cubes.add(part.cube);
-        } else {
-            for (BbModel.Cube cube : part.bone.cubes) if (!cube.rotated()) cubes.add(cube);
-        }
+        List<BbModel.Cube> cubes = part.cubes();
         JsonObject json = new JsonObject();
         JsonObject textures = new JsonObject();
         JsonArray elements = new JsonArray();
@@ -127,8 +122,9 @@ final class ModelPackBuilder {
             JsonArray to = new JsonArray();
             boolean outside = false;
             for (int axis = 0; axis < 3; axis++) {
-                double low = Math.min(cube.from[axis], cube.to[axis]) - pivot[axis] + 8.0 - cube.inflate;
-                double high = Math.max(cube.from[axis], cube.to[axis]) - pivot[axis] + 8.0 + cube.inflate;
+                // (about the part's own middle, and smaller when it is longer than a model may be: see Part.fit; the display puts it back)
+                double low = (Math.min(cube.from[axis], cube.to[axis]) - cube.inflate - pivot[axis] - part.offset[axis]) * part.shrink + 8.0;
+                double high = (Math.max(cube.from[axis], cube.to[axis]) + cube.inflate - pivot[axis] - part.offset[axis]) * part.shrink + 8.0;
                 if (low < -16.0 || high > 32.0) outside = true;
                 from.add(round(low));
                 to.add(round(high));

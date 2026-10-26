@@ -164,6 +164,12 @@ public final class ModelModule implements Listener, MobModels {
                 continue;
             }
             if (!anyoneNear(base, view)) continue;
+            // every 2 seconds the equipment is hidden again from the players near (the server sends it again when it changes)
+            if (now % 40 < Math.max(1, plugin.getConfig().getInt("model.update-ticks", 2))) {
+                for (Player player : base.getWorld().getPlayers()) {
+                    if (player.getLocation().distanceSquared(base.getLocation()) <= view * view) instance.hideEquipment(player);
+                }
+            }
             try {
                 instance.update(now);
             } catch (RuntimeException exception) {
@@ -180,6 +186,24 @@ public final class ModelModule implements Listener, MobModels {
             if (player.getLocation().distanceSquared(base.getLocation()) <= range * range) return true;
         }
         return false;
+    }
+
+    /** A player starts to see a mob with a model: its equipment is hidden from them (a tick later, after the server sent the real one). */
+    @EventHandler
+    public void onTrack(io.papermc.paper.event.player.PlayerTrackEntityEvent event) {
+        ModelInstance instance = instances.get(event.getEntity().getUniqueId());
+        if (instance == null) return;
+        Player player = event.getPlayer();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (player.isOnline()) instance.hideEquipment(player);
+        }, 1L);
+    }
+
+    /** A mob with a model that is hurt plays its `hurt` animation (if it has one and is not doing something else). */
+    @EventHandler(ignoreCancelled = true)
+    public void onHurt(org.bukkit.event.entity.EntityDamageEvent event) {
+        ModelInstance instance = instances.get(event.getEntity().getUniqueId());
+        if (instance != null && !instance.busy(Bukkit.getCurrentTick())) instance.play("hurt", Bukkit.getCurrentTick());
     }
 
     @EventHandler
