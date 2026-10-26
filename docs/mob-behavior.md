@@ -88,6 +88,8 @@ fsm:
 | `set-state` | `state` | ステートマシンの状態を変える |
 | `clear-target` | `seconds` (5) | 目標を忘れ、しばらく探さない |
 | `play-sound` | `sound`, `volume`, `pitch` | 音を鳴らす |
+| `play-animation` | `animation`、`wait` (false) | モデルのアニメーションを1回再生する(`wait: true` で終わるまで待つ)。モデルが無い敵では何もせず成功 |
+| `animation-attack` | `animation`、`hits: [{at 秒, shape: circle\|cone\|line, forward, radius, angle, width, height, rate, knockback}]`(1つなら hits を省いて直接書ける)、`telegraph` (false)、`face` (true)、`duration` 秒 (1、モデルが無いとき) | 止まって目標を向き、モデルのアニメーションを再生し、各ヒットの `at` 秒の瞬間に、その範囲のプレイヤー全員に当てる(`rate` 倍のダメージと `knockback`)。アニメーションが終わるまで動く。`telegraph: true` で、当たる範囲を当たるまで地面に赤く出す。範囲は敵の向きから: `circle` は `forward` 先を中心に半径 `radius`、`cone` は敵から半径 `radius`・角度 `angle`、`line` は `forward` 先から長さ `radius`・幅 `width`。上下 `height` (3) を超えた人には当たらない |
 | `succeed` / `fail` | | 何もしないで成功 / 失敗 |
 
 ### Decorator (`decorators:` に並べる。`abort: none\|self\|lower\|both` を付けられる)

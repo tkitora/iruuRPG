@@ -5,7 +5,7 @@ ModelEngine のような機能。Blockbench で作ったモデル (`.bbmodel`) �
 ## しくみ
 1. `plugins/iruuRPG/models/<id>.bbmodel` を読む(id = ファイル名)。キューブ(回転・Box UV/自由UV)、グループ(ボーン)の原点と回転、テクスチャ(**埋め込み**で保存すること)、アニメーション(回転・位置・拡縮のキーフレーム。補間は linear / catmullrom / step)。メッシュ・ロケーター・モラン式は対象外(警告を出して飛ばす)。
 2. モデル専用のリソースパック `resourcepacks/iruumodel.zip` を作る(`/iruumodel build`、起動時にも作る)。ボーンごと(回転したキューブは1つずつ)のアイテムモデルを `PAPER` のモデルの override(custom model data)に足す。部品の番号は `models/index.yml` に残り、モデルを直しても同じ。**サーバー専用パック(`server.zip`)とは別のパック**(docs/resourcepacks.md)。
-3. 敵に着せる: 敵の体を見えなくして(持ち物・防具も、周りのプレイヤーには空に見せる)、ボーンごとのアイテムディスプレイを敵の位置・向きに合わせて動かし、アニメーションを再生する。歩いていれば `walk`、止まっていれば `idle`、ダメージで `hurt`、死ねば `death`。アニメーション名は、そのままの名前のほか、`animation.idle` のような接頭辞つき、`move` / `run`(= walk)、`attack_slam` のような `attack` で始まる名前(乱択)も読む。ビヘイビアツリーの敵は `attack` と `skill` の動きで、それぞれのアニメーション(`skill` が無ければ `attack`)。
+3. 敵に着せる: 敵の体を見えなくして(持ち物・防具も、周りのプレイヤーには空に見せる)、ボーンごとのアイテムディスプレイを敵の位置・向きに合わせて動かし、アニメーションを再生する。歩いていれば `walk`、止まっていれば `idle`、ダメージで `hurt`(攻撃などの途中は止めない)、死ねば `death`。アニメーション名は、そのままの名前のほか、`animation.idle` のような接頭辞つき、`move` / `run`(= walk)、`attack_slam` のような `attack` で始まる名前(乱択)も読む。ビヘイビアツリーの敵は `attack` と `skill` の動きで、それぞれのアニメーション(`skill` が無ければ `attack`)。
 
 ## 使い方
 ```yaml

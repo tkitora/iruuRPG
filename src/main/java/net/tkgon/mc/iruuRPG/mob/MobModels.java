@@ -19,6 +19,10 @@ public interface MobModels {
     /** How long the animation is, in seconds (0 when the mob has no model or the model has no such animation). */
     double length(LivingEntity entity, String animation);
 
+    /** The mob was hurt: its model plays `hurt` unless it is in the middle of another one-shot animation. */
+    default void hurt(LivingEntity entity) {
+    }
+
     /** Takes the model off the mob. */
     void detach(LivingEntity entity);
 }

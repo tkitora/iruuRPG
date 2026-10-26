@@ -135,6 +135,12 @@ public final class ModelModule implements Listener, MobModels {
     }
 
     @Override
+    public void hurt(LivingEntity entity) {
+        ModelInstance instance = instances.get(entity.getUniqueId());
+        if (instance != null && !instance.busy(Bukkit.getCurrentTick())) instance.play("hurt", Bukkit.getCurrentTick());
+    }
+
+    @Override
     public void detach(LivingEntity entity) {
         ModelInstance instance = instances.remove(entity.getUniqueId());
         if (instance != null) {

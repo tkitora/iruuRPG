@@ -58,7 +58,10 @@ final class ModelInstance {
             ItemMeta meta = item.getItemMeta();
             meta.setCustomModelData(part.customModelData);
             item.setItemMeta(meta);
-            ItemDisplay display = base.getWorld().spawn(base.getLocation(), ItemDisplay.class, spawned -> {
+            Location start = base.getLocation();
+            start.setYaw(0.0f);
+            start.setPitch(0.0f);
+            ItemDisplay display = base.getWorld().spawn(start, ItemDisplay.class, spawned -> {
                 spawned.setItemStack(item);
                 spawned.setItemDisplayTransform(ItemDisplay.ItemDisplayTransform.NONE);
                 spawned.setBillboard(Display.Billboard.FIXED);
@@ -121,6 +124,7 @@ final class ModelInstance {
         deathAnimation = model.find("death", random);
         dyingLength = deathAnimation == null ? 0.0 : deathAnimation.length;
         frozen = base.getLocation();
+        frozen.setYaw(base.getBodyYaw());
     }
 
     /** The death animation is over (and a moment after). */
@@ -131,6 +135,8 @@ final class ModelInstance {
     /** Moves the displays to the pose of this tick. */
     void update(int tick) {
         Location at = dying && frozen != null ? frozen : base.getLocation();
+        // the way the mob's body faces (not its head, which looks at the target and up and down)
+        float yaw = dying && frozen != null ? frozen.getYaw() : base.getBodyYaw();
         if (previous != null && tick > previousTick && previous.getWorld() == at.getWorld()) {
             speed = Math.hypot(at.getX() - previous.getX(), at.getZ() - previous.getZ()) / (tick - previousTick);
         }
@@ -162,7 +168,12 @@ final class ModelInstance {
         }
         Map<BbModel.Bone, Matrix4f> bones = Pose.bones(model, Pose.sample(animation, time));
         // the model's front is north (-z); the mob's yaw 0 faces south (+z)
-        float turn = (float) (Math.PI - Math.toRadians(at.getYaw()));
+        float turn = (float) (Math.PI - Math.toRadians(yaw));
+        // the displays themselves stand unturned at the mob's feet: the turn is all in their transformation (a display turned as well would be turned twice, and tilted by
+        // the mob's pitch)
+        Location stand = at.clone();
+        stand.setYaw(0.0f);
+        stand.setPitch(0.0f);
         float size = (float) scale;
         for (int index = 0; index < model.parts.size(); index++) {
             BbModel.Part part = model.parts.get(index);
@@ -188,7 +199,8 @@ final class ModelInstance {
                 display.setTransformation(new Transformation(translation, rotation, scaling, new Quaternionf().rotationY((float) Math.PI)));
                 display.setInterpolationDelay(0);
             }
-            if (display.getLocation().distanceSquared(at) > 1.0E-4 || display.getWorld() != at.getWorld()) display.teleport(at);
+            Location now = display.getLocation();
+            if (now.getWorld() != stand.getWorld() || now.distanceSquared(stand) > 1.0E-4 || now.getYaw() != 0.0f || now.getPitch() != 0.0f) display.teleport(stand);
         }
     }
 

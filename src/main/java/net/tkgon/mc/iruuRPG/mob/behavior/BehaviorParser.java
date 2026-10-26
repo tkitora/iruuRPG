@@ -158,6 +158,16 @@ final class BehaviorParser {
                 node = new Tasks.PlaySound(sound, (float) Cfg.number(map, "volume", 1.0), (float) Cfg.number(map, "pitch", 1.0));
             }
             case "play-animation", "animation" -> node = new Tasks.PlayAnimation(Cfg.text(map, "animation", "idle"), Cfg.flag(map, "wait", false));
+            case "animation-attack", "attack-animation" -> {
+                java.util.List<Tasks.AnimationAttack.Hit> hits = new ArrayList<>();
+                if (map.get("hits") instanceof List<?> list) {
+                    for (Object item : list) if (item instanceof Map<?, ?> hit) hits.add(hit(hit));
+                } else {
+                    hits.add(hit(map));
+                }
+                hits.sort((a, b) -> Integer.compare(a.at(), b.at()));
+                node = new Tasks.AnimationAttack(Cfg.text(map, "animation", "attack"), hits, Cfg.ticks(map, "duration", 1.0), Cfg.flag(map, "face", true), Cfg.flag(map, "telegraph", false));
+            }
             case "succeed" -> node = new Tasks.Fixed("succeed", Status.SUCCESS);
             case "fail" -> node = new Tasks.Fixed("fail", Status.FAILURE);
             default -> {
@@ -169,6 +179,18 @@ final class BehaviorParser {
         if (map.get("decorators") instanceof List<?> list) decorators(list, node);
         if (map.get("services") instanceof List<?> list) services(list, node);
         return node;
+    }
+
+    /** One hit of an animation attack: when ({@code at}, seconds), where (the shape and its size) and how hard. */
+    private Tasks.AnimationAttack.Hit hit(Map<?, ?> map) {
+        String shape = Cfg.lower(map, "shape", "circle");
+        if (!List.of("circle", "cone", "line").contains(shape)) {
+            error("animation-attack: shape must be circle / cone / line (" + shape + ")");
+            shape = "circle";
+        }
+        Area area = new Area(shape, Cfg.number(map, "forward", shape.equals("circle") ? 1.5 : 0.0), Cfg.number(map, "radius", 3.0), Cfg.number(map, "angle", 90.0),
+                Cfg.number(map, "width", 2.0), Cfg.number(map, "height", 3.0));
+        return new Tasks.AnimationAttack.Hit(Cfg.ticks(map, "at", 0.5), area, Cfg.number(map, "rate", 1.0), Cfg.number(map, "knockback", 0.4));
     }
 
     private void decorators(List<?> list, Node node) {
