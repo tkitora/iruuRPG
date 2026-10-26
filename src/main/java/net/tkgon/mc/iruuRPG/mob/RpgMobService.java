@@ -177,6 +177,8 @@ public final class RpgMobService {
 
         applyHealth(entity, profile);
         updateName(entity);
+        // (the damage of the game's mobs goes round the vanilla damage event, so the model is told here)
+        if (models != null) models.hurt(entity);
         return true;
     }
 
@@ -665,6 +667,107 @@ public final class RpgMobService {
             mob.swingMainHand();
             if (models != null) models.play(mob, "attack");
             hurt(mob, target, rate);
+        }
+
+        @Override
+        public int areaAttack(net.tkgon.mc.iruuRPG.mob.behavior.Area area, double rate, double knockback) {
+            Location base = mob.getLocation();
+            Vector facing = base.getDirection().setY(0.0);
+            if (facing.lengthSquared() < 1.0E-6) facing = new Vector(0.0, 0.0, 1.0);
+            facing.normalize();
+            Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
+            Location centre = base.clone().add(facing.clone().multiply(area.forward()));
+            mob.swingMainHand();
+            int hit = 0;
+            for (Player player : mob.getWorld().getPlayers()) {
+                if (!canTarget(mob, player)) continue;
+                Location at = player.getLocation();
+                if (Math.abs(at.getY() - base.getY()) > area.height()) continue;
+                boolean inside = switch (area.shape()) {
+                    case "cone" -> {
+                        Vector offset = at.toVector().subtract(base.toVector()).setY(0.0);
+                        double distance = offset.length();
+                        yield distance <= area.radius() && (distance < 0.5 || Math.toDegrees(facing.angle(offset)) <= area.angle() / 2.0);
+                    }
+                    case "line" -> {
+                        Vector offset = at.toVector().subtract(base.toVector()).setY(0.0);
+                        double along = offset.dot(facing) - area.forward();
+                        yield along >= 0.0 && along <= area.radius() && Math.abs(offset.dot(right)) <= area.width() / 2.0;
+                    }
+                    default -> Math.hypot(at.getX() - centre.getX(), at.getZ() - centre.getZ()) <= area.radius();
+                };
+                if (!inside) continue;
+                hurt(mob, player, rate);
+                if (knockback > 0.0) {
+                    Vector away = at.toVector().subtract(base.toVector()).setY(0.0);
+                    if (away.lengthSquared() < 1.0E-6) away = facing.clone();
+                    player.setVelocity(player.getVelocity().add(away.normalize().multiply(knockback).setY(0.25)));
+                }
+                hit++;
+            }
+            // the blow lands: the outline flashes and the ground shakes
+            drawArea(area, base, facing, right, Particle.SWEEP_ATTACK, 1.0f, true);
+            mob.getWorld().playSound(centre, org.bukkit.Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.7f);
+            mob.getWorld().playSound(centre, org.bukkit.Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.4f);
+            return hit;
+        }
+
+        @Override
+        public void telegraph(net.tkgon.mc.iruuRPG.mob.behavior.Area area, int ticks) {
+            // the outline of the area on the ground, drawn every 4 ticks until the hit (it follows the way the mob faced when it began)
+            Location base = mob.getLocation();
+            Vector facing = base.getDirection().setY(0.0);
+            if (facing.lengthSquared() < 1.0E-6) facing = new Vector(0.0, 0.0, 1.0);
+            facing.normalize();
+            Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
+            Vector way = facing;
+            for (int tick = 0; tick < ticks; tick += 4) {
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (mob.isValid() && !mob.isDead()) drawArea(area, base, way, right, Particle.REDSTONE, 1.0f, false);
+                }, tick);
+            }
+        }
+
+        /** The outline of an area: a ring, a fan or a box on the ground (red dust as a warning; the blow itself with sweeps). */
+        private void drawArea(net.tkgon.mc.iruuRPG.mob.behavior.Area area, Location base, Vector facing, Vector right, Particle particle, float size, boolean blow) {
+            World world = base.getWorld();
+            Particle.DustOptions dust = new Particle.DustOptions(Color.fromRGB(230, 40, 30), 1.2f * size);
+            List<Location> points = new ArrayList<>();
+            double y = base.getY() + 0.15;
+            switch (area.shape()) {
+                case "cone" -> {
+                    double half = Math.toRadians(area.angle() / 2.0);
+                    for (double a = -half; a <= half + 1.0E-6; a += Math.max(0.05, half / 10.0)) {
+                        Vector dir = facing.clone().multiply(Math.cos(a)).add(right.clone().multiply(Math.sin(a)));
+                        points.add(base.clone().add(dir.multiply(area.radius())).add(0.0, 0.15, 0.0));
+                    }
+                    for (double d = 0.5; d < area.radius(); d += 0.6) {
+                        for (double a : new double[]{-half, half}) {
+                            Vector dir = facing.clone().multiply(Math.cos(a)).add(right.clone().multiply(Math.sin(a)));
+                            points.add(base.clone().add(dir.multiply(d)).add(0.0, 0.15, 0.0));
+                        }
+                    }
+                }
+                case "line" -> {
+                    Location start = base.clone().add(facing.clone().multiply(area.forward()));
+                    for (double d = 0.0; d <= area.radius(); d += 0.5) {
+                        for (double s : new double[]{-area.width() / 2.0, area.width() / 2.0}) points.add(start.clone().add(facing.clone().multiply(d)).add(right.clone().multiply(s)).add(0.0, 0.15, 0.0));
+                    }
+                    for (double s = -area.width() / 2.0; s <= area.width() / 2.0; s += 0.5) points.add(start.clone().add(facing.clone().multiply(area.radius())).add(right.clone().multiply(s)).add(0.0, 0.15, 0.0));
+                }
+                default -> {
+                    Location centre = base.clone().add(facing.clone().multiply(area.forward()));
+                    int count = (int) Math.max(16, area.radius() * 10);
+                    for (int index = 0; index < count; index++) {
+                        double a = Math.PI * 2.0 * index / count;
+                        points.add(new Location(world, centre.getX() + Math.cos(a) * area.radius(), y, centre.getZ() + Math.sin(a) * area.radius()));
+                    }
+                }
+            }
+            for (Location point : points) {
+                if (particle == Particle.REDSTONE) world.spawnParticle(Particle.REDSTONE, point, 1, 0, 0, 0, 0, dust);
+                else if (blow && ThreadLocalRandom.current().nextInt(3) == 0) world.spawnParticle(particle, point.clone().add(0.0, 0.4, 0.0), 1, 0, 0, 0, 0);
+            }
         }
 
         @Override

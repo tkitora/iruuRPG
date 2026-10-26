@@ -56,6 +56,15 @@ public interface BehaviorHost {
     /** Where the mob was set (its home). */
     Location home();
 
+    /** An area attack: every player in the area takes {@code rate} times the mob's damage and is pushed away by {@code knockback}; how many were hit. */
+    default int areaAttack(Area area, double rate, double knockback) {
+        return 0;
+    }
+
+    /** Shows the area on the ground for {@code ticks} (a warning before the hit). */
+    default void telegraph(Area area, int ticks) {
+    }
+
     /** The id of the kind of mob this is (the mobs of one kind act as a group). */
     default String typeId() {
         return "";

@@ -345,6 +345,59 @@ final class Tasks {
         }
     }
 
+    /**
+     * An attack made of an animation and the hits in it: the mob stops and faces its target, plays the animation (with a model; without one it just waits {@code duration}), and
+     * at the moment of each hit ({@code at} seconds after the start) every player in that hit's area takes it. Runs until the animation (or the last hit) is over. With
+     * {@code telegraph}, each hit's area shows on the ground from the start until it lands.
+     */
+    static final class AnimationAttack extends Task {
+        record Hit(int at, Area area, double rate, double knockback) {
+        }
+
+        private final String animation;
+        private final java.util.List<Hit> hits;
+        private final int duration;
+        private final boolean face;
+        private final boolean telegraph;
+        private int length;
+        private int next;
+
+        AnimationAttack(String animation, java.util.List<Hit> hits, int duration, boolean face, boolean telegraph) {
+            super("animation-attack");
+            this.animation = animation;
+            this.hits = hits;
+            this.duration = duration;
+            this.face = face;
+            this.telegraph = telegraph;
+        }
+
+        @Override
+        String label() {
+            return name != null && !name.isBlank() ? name : "animation-attack " + animation;
+        }
+
+        @Override
+        void onEnter(Ctx c) {
+            next = 0;
+            c.host.stopMoving();
+            if (face && c.bb.target != null) c.host.face(c.bb.target.getLocation());
+            boolean played = c.host.playAnimation(animation);
+            length = played ? (int) Math.round(c.host.animationSeconds(animation) * 20.0) : duration;
+            for (Hit hit : hits) length = Math.max(length, hit.at());
+            if (telegraph) for (Hit hit : hits) c.host.telegraph(hit.area(), Math.max(1, hit.at()));
+        }
+
+        @Override
+        Status tickNode(Ctx c) {
+            int age = c.now - startedTick;
+            while (next < hits.size() && age >= hits.get(next).at()) {
+                Hit hit = hits.get(next++);
+                c.host.areaAttack(hit.area(), hit.rate(), hit.knockback());
+            }
+            return age >= length ? Status.SUCCESS : Status.RUNNING;
+        }
+    }
+
     /** Answers success (or failure) at once: a placeholder for a branch that does nothing. */
     static final class Fixed extends Task {
         private final Status answer;
