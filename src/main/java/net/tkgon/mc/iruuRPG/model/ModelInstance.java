@@ -32,6 +32,9 @@ final class ModelInstance {
     private final List<ItemDisplay> displays = new ArrayList<>();
     private final List<Matrix4f> last = new ArrayList<>();
     private final boolean hideBase;
+    /** The mob's name and life above the model (an invisible mob's own name is not drawn by the game). */
+    private org.bukkit.entity.TextDisplay nameplate;
+    private net.kyori.adventure.text.Component shownName;
 
     private String locomotion = "idle";
     private int locomotionStart;
@@ -77,6 +80,11 @@ final class ModelInstance {
             displays.add(display);
             last.add(new Matrix4f().scale(Float.NaN));
         }
+    }
+
+    /** How high above the feet the top of the model is (blocks). */
+    double top() {
+        return model.height() / 16.0 * scale;
     }
 
     LivingEntity base() {
@@ -175,6 +183,7 @@ final class ModelInstance {
         stand.setYaw(0.0f);
         stand.setPitch(0.0f);
         float size = (float) scale;
+        updateNameplate(stand);
         for (int index = 0; index < model.parts.size(); index++) {
             BbModel.Part part = model.parts.get(index);
             Matrix4f matrix = new Matrix4f(bones.get(part.bone));
@@ -209,6 +218,42 @@ final class ModelInstance {
             if (display.isValid()) display.remove();
         }
         displays.clear();
+        removeNameplate();
+    }
+
+    private void removeNameplate() {
+        if (nameplate != null && nameplate.isValid()) nameplate.remove();
+        nameplate = null;
+        shownName = null;
+    }
+
+    /** Keeps the nameplate above the model with the mob's name (the name the game gives it: the plugin's name with the level and the life). */
+    private void updateNameplate(Location stand) {
+        net.kyori.adventure.text.Component name = base.customName();
+        if (!hideBase || dying || name == null) {
+            removeNameplate();
+            return;
+        }
+        Location at = stand.clone().add(0.0, top() + 0.35, 0.0);
+        if (nameplate == null || !nameplate.isValid()) {
+            nameplate = base.getWorld().spawn(at, org.bukkit.entity.TextDisplay.class, spawned -> {
+                spawned.setBillboard(Display.Billboard.CENTER);
+                spawned.setAlignment(org.bukkit.entity.TextDisplay.TextAlignment.CENTER);
+                spawned.setDefaultBackground(true);
+                spawned.setShadowed(false);
+                spawned.setSeeThrough(false);
+                spawned.setTeleportDuration(Math.min(59, this.period));
+                spawned.setPersistent(false);
+                spawned.setGravity(false);
+                spawned.setInvulnerable(true);
+            });
+            shownName = null;
+        }
+        if (!name.equals(shownName)) {
+            nameplate.text(name);
+            shownName = name;
+        }
+        if (nameplate.getLocation().distanceSquared(at) > 1.0E-4) nameplate.teleport(at);
     }
 
     /** Gives the mob its own body back (and shows its equipment again to the players near it). */
