@@ -80,10 +80,10 @@ fsm:
 |---|---|---|
 | `move-to` | `target: target\|home` / `key: <黒板のキー>` / `eqs: <問い合わせ>`、`speed` (1.0)、`acceptance` (1.5)、`timeout` 秒 (10) | 近づく。経路がない・2秒進まない・時間切れで失敗 |
 | `flee` | `eqs` (組み込みの `flee`)、`speed` (1.3) | 目標から遠い、歩ける場所へ逃げる |
-| `wait` | `seconds` (1)、`random-deviation` | 止まって待つ |
-| `attack` | `rate` (1.0)、`range` (2.6) | 目標が range 内なら近接で殴る。外なら失敗 |
+| `wait` | `seconds` (1)、`random-deviation`、`key` | 止まって待つ。`key` の黒板の値(秒)があれば、それを使う(1本のツリーで、敵ごとの間合い・攻撃の間隔を変える) |
+| `attack` | `rate` (1.0)、`range` | 目標が range 内なら近接で殴る。外なら失敗。`range` を書かないと、黒板の `attack-range`(無ければ 2.6) |
 | `shoot` | `rate` | `ranged:` の攻撃を1発撃つ(`ranged:` がないと失敗) |
-| `use-skill` | `skill`(スキルツールのスキルの id。skills/*.yml)、または `index`(敵の `skills:` の番号。どちらも省略で乱択)、`animation`(同時に再生するモデルのアニメーション)、`track` (false) | スキルを出して、終わるまで(アニメーションがあれば、それも終わるまで)動く。`skill:` は、敵の `skills:` に同じ id があればそれ、無ければスキルツールのスキルを使う(敵の `skills:` に書かなくてよい)。当たる瞬間は、スキルの溜め(`windup-ticks`)で決まるので、アニメーションの振り下ろしの時刻に合わせる。**敵の攻撃は、まずスキルツールのスキルで作り、`use-skill` で呼ぶ**(範囲・溜めの表示・ダメージ・ノックバック・状態異常が、スキルの画面で編集できる)。スキルで作れないものだけ `animation-attack`。**敵はスキルの間、プレイヤーの方へ回らない**(始めた瞬間に1回向いて、その向きのまま。溜めの間に出る範囲も動かない)。`track: true` で、溜めの間もプレイヤーを向き続ける(範囲も一緒に動く)。ツリーを使わない敵のスキルも、回らない |
+| `use-skill` | `skill`(スキルツールのスキルの id。skills/*.yml)、または `index`(敵の `skills:` の番号)。**どちらも省略すると、敵の `skills:` のうち、クールダウン(`cooldown-ticks`)が明けていて、いまの距離・見え方で届くものから1つ**(ツリーを使わない敵と同じ選び方。無ければ失敗)、`animation`(同時に再生するモデルのアニメーション)、`track` (false) | スキルを出して、終わるまで(アニメーションがあれば、それも終わるまで)動く。`skill:` は、敵の `skills:` に同じ id があればそれ、無ければスキルツールのスキルを使う(敵の `skills:` に書かなくてよい)。当たる瞬間は、スキルの溜め(`windup-ticks`)で決まるので、アニメーションの振り下ろしの時刻に合わせる。**敵の攻撃は、まずスキルツールのスキルで作り、`use-skill` で呼ぶ**(範囲・溜めの表示・ダメージ・ノックバック・状態異常が、スキルの画面で編集できる)。スキルで作れないものだけ `animation-attack`。**敵はスキルの間、プレイヤーの方へ回らない**(始めた瞬間に1回向いて、その向きのまま。溜めの間に出る範囲も動かない)。`track: true` で、溜めの間もプレイヤーを向き続ける(範囲も一緒に動く)。ツリーを使わない敵のスキルも、回らない |
 | `face-target` | | 目標のほうを向く |
 | `set-blackboard` | `key`, `value` | 黒板に値を書く |
 | `set-state` | `state` | ステートマシンの状態を変える |
@@ -97,7 +97,7 @@ fsm:
 | type | 項目 | 動き |
 |---|---|---|
 | `blackboard` | `key`, `op` (`==` `!=` `<` `<=` `>` `>=` `set` `not-set`)、`value` | 黒板の値の条件 |
-| `distance` | `min`, `max` | 目標までの距離の条件(目標がいないと不成立) |
+| `distance` | `min`, `max`、`min-key`, `max-key` | 目標までの距離の条件(目標がいないと不成立)。`min-key` / `max-key` の黒板の値があれば、それを境にする |
 | `hp` | `below`, `above` (0〜1) | 自分のHPの割合の条件 |
 | `line-of-sight` | `visible` (true) | 目標が見えているか |
 | `chance` | `percent` | 入るときだけ確率で通す |
@@ -118,7 +118,7 @@ fsm:
 | `run-eqs` | `query`, `key` (point)、`interval` (1) | 問い合わせの結果の場所を黒板の `key` に書く(`move-to` の `key:` で使う) |
 
 ## 黒板 (Blackboard)
-ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
+ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
 
 ## 場所を選ぶ問い合わせ (EQS)
 ```yaml

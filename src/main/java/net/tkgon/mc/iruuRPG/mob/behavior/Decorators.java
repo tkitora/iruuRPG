@@ -56,18 +56,25 @@ final class Decorators {
     static final class Distance extends Decorator {
         private final double min;
         private final double max;
+        private final String minKey;
+        private final String maxKey;
 
-        Distance(double min, double max) {
+        Distance(double min, double max, String minKey, String maxKey) {
             this.min = min;
             this.max = max;
-            this.label = "distance " + (min > 0 ? min : "") + "〜" + (max < Double.MAX_VALUE ? max : "");
+            this.minKey = minKey == null || minKey.isBlank() ? null : minKey;
+            this.maxKey = maxKey == null || maxKey.isBlank() ? null : maxKey;
+            this.label = "distance " + (this.minKey != null ? "@" + this.minKey : min > 0 ? min : "") + "〜" + (this.maxKey != null ? "@" + this.maxKey : max < Double.MAX_VALUE ? max : "");
         }
 
         @Override
         boolean canEnter(Ctx c, Node node) {
             if (c.bb.target == null) return false;
             double distance = c.bb.number("distance", Double.MAX_VALUE);
-            return distance >= min && distance <= max;
+            // (min-key / max-key: the bounds from the blackboard, when the mob has them; one tree, a reach for each mob)
+            double low = minKey != null ? c.bb.number(minKey, min) : min;
+            double high = maxKey != null ? c.bb.number(maxKey, max) : max;
+            return distance >= low && distance <= high;
         }
     }
 

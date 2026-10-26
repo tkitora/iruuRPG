@@ -116,12 +116,15 @@ final class Tasks {
     static final class Wait extends Task {
         private final int ticks;
         private final int deviation;
+        /** A blackboard key whose number (seconds) is used instead of {@code ticks} when the mob has it (one tree, a pace for each mob). */
+        private final String key;
         private int endAt;
 
-        Wait(int ticks, int deviation) {
+        Wait(int ticks, int deviation, String key) {
             super("wait");
             this.ticks = ticks;
             this.deviation = deviation;
+            this.key = key == null || key.isBlank() ? null : key;
         }
 
         @Override
@@ -132,7 +135,8 @@ final class Tasks {
         @Override
         void onEnter(Ctx c) {
             int extra = deviation <= 0 ? 0 : c.random.nextInt(deviation * 2 + 1) - deviation;
-            endAt = c.now + Math.max(1, ticks + extra);
+            int base = key != null && c.bb.has(key) ? (int) Math.round(c.bb.number(key, ticks / 20.0) * 20.0) : ticks;
+            endAt = c.now + Math.max(1, base + extra);
             c.host.stopMoving();
         }
 
@@ -157,7 +161,9 @@ final class Tasks {
         Status tickNode(Ctx c) {
             Player target = c.bb.target;
             if (target == null || !c.host.valid(target, 64.0)) return Status.FAILURE;
-            if (c.host.mob().getLocation().distance(target.getLocation()) > reach) return Status.FAILURE;
+            // (no range given: the mob's `attack-range` from the blackboard, else 2.6)
+            double limit = reach > 0.0 ? reach : c.bb.number("attack-range", 2.6);
+            if (c.host.mob().getLocation().distance(target.getLocation()) > limit) return Status.FAILURE;
             c.host.stopMoving();
             c.host.face(target.getLocation());
             c.host.attack(target, rate);
@@ -220,11 +226,13 @@ final class Tasks {
                 if (skill != null) {
                     // a skill of the skill tool by its id (the mob's own skills: with that id first)
                     if (!c.host.startSkill(skill, target, track)) return Status.FAILURE;
-                } else {
+                } else if (index >= 0) {
                     int count = c.host.skillCount();
                     if (count == 0) return Status.FAILURE;
-                    int chosen = index >= 0 ? Math.min(index, count - 1) : c.random.nextInt(count);
-                    if (!c.host.startSkill(chosen, target, track)) return Status.FAILURE;
+                    if (!c.host.startSkill(Math.min(index, count - 1), target, track)) return Status.FAILURE;
+                } else {
+                    // neither an id nor an index: one of the mob's own skills that is ready (its cooldown is over) and can reach the target from here
+                    if (!c.host.startUsableSkill(target, track)) return Status.FAILURE;
                 }
                 // the model's animation of the skill, from the same moment (the skill's wind-up decides when it hits: set it to the moment the animation strikes)
                 if (animation != null && c.host.playAnimation(animation)) animationEnd = c.now + (int) Math.round(c.host.animationSeconds(animation) * 20.0);

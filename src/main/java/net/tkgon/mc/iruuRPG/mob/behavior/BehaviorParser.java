@@ -143,8 +143,8 @@ final class BehaviorParser {
                         Cfg.ticks(map, "timeout", 10.0));
             }
             case "flee" -> node = new Tasks.MoveTo("eqs", "", Cfg.text(map, "eqs", "flee"), Cfg.number(map, "speed", 1.3), Cfg.number(map, "acceptance", 1.5), Cfg.ticks(map, "timeout", 6.0));
-            case "wait" -> node = new Tasks.Wait(Cfg.ticks(map, "seconds", 1.0), Cfg.ticks(map, "random-deviation", 0.0));
-            case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", 2.6));
+            case "wait" -> node = new Tasks.Wait(Cfg.ticks(map, "seconds", 1.0), Cfg.ticks(map, "random-deviation", 0.0), Cfg.text(map, "key", ""));
+            case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", -1.0));
             case "shoot" -> node = new Tasks.Shoot(Cfg.number(map, "rate", 1.0));
             case "use-skill", "skill" -> node = new Tasks.UseSkill((int) Cfg.number(map, "index", -1.0), Cfg.text(map, "skill", ""), Cfg.text(map, "animation", ""), Cfg.flag(map, "track", false));
             case "face-target", "face" -> node = new Tasks.FaceTarget();
@@ -213,7 +213,7 @@ final class BehaviorParser {
                 if (map.containsKey("is-set")) op = Cfg.flag(map, "is-set", true) ? "set" : "not-set";
                 decorator = new Decorators.BlackboardCondition(key, op, map.get("value"));
             }
-            case "distance" -> decorator = new Decorators.Distance(Cfg.number(map, "min", 0.0), Cfg.number(map, "max", Double.MAX_VALUE));
+            case "distance" -> decorator = new Decorators.Distance(Cfg.number(map, "min", 0.0), Cfg.number(map, "max", Double.MAX_VALUE), Cfg.text(map, "min-key", ""), Cfg.text(map, "max-key", ""));
             case "hp" -> decorator = new Decorators.Hp(Cfg.number(map, "below", 1.0), Cfg.number(map, "above", 0.0));
             case "line-of-sight", "sight" -> decorator = new Decorators.LineOfSight(Cfg.flag(map, "visible", true));
             case "chance" -> decorator = new Decorators.Chance(Math.max(0.0, Math.min(1.0, Cfg.number(map, "percent", 50.0) / 100.0)));
