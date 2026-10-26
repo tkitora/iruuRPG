@@ -17,6 +17,8 @@ public final class BehaviorRunner {
     private final BehaviorHost host;
     private final Ctx ctx;
     private Behavior.State state;
+    /** The state's `enter` is running (it runs to its end once, before the state's tree and its transitions). */
+    private boolean entering;
     private int ticks;
     private final Map<String, EqsResult> eqsResults = new java.util.LinkedHashMap<>();
     private int lastTargetSearch = -100;
@@ -28,6 +30,7 @@ public final class BehaviorRunner {
         this.ctx.eqsSink = result -> eqsResults.put(result.query(), result);
         for (Map.Entry<String, Object> entry : behavior.blackboard.entrySet()) ctx.bb.set(entry.getKey(), entry.getValue());
         this.state = behavior.states.get(behavior.initial);
+        this.entering = state.enter() != null;
         ctx.bb.set("state", state.name());
     }
 
@@ -77,6 +80,17 @@ public final class BehaviorRunner {
         ticks++;
         refresh();
         Behavior.State current = state;
+        if (entering) {
+            // what the state does once when it is entered: to its end, before anything else of the state (a `set-state` in it still moves on)
+            if (current.enter().run(ctx) != Status.RUNNING) entering = false;
+            if (ctx.requestedState != null) {
+                String next = ctx.requestedState;
+                ctx.requestedState = null;
+                Behavior.State target = behavior.states.get(next);
+                if (target != null && target != state) change(target);
+            }
+            return;
+        }
         for (Behavior.Transition transition : current.transitions()) {
             boolean holds = true;
             for (Decorator decorator : transition.when()) if (!decorator.canEnter(ctx, current.tree())) holds = false;
@@ -96,8 +110,10 @@ public final class BehaviorRunner {
 
     private void change(Behavior.State next) {
         state.tree().abort(ctx);
+        if (state.enter() != null) state.enter().abort(ctx);
         host.stopMoving();
         state = next;
+        entering = next.enter() != null;
         ctx.bb.set("state", next.name());
     }
 
@@ -135,7 +151,12 @@ public final class BehaviorRunner {
         List<String> lines = new ArrayList<>();
         lines.add("§7状態 §e" + state.name());
         List<String> path = new ArrayList<>();
-        if (state.tree().active) state.tree().path(path);
+        if (entering && state.enter() != null) {
+            path.add("enter");
+            if (state.enter().active) state.enter().path(path);
+        } else if (state.tree().active) {
+            state.tree().path(path);
+        }
         lines.add("§7BT §f" + (path.isEmpty() ? "(待機)" : String.join(" §7›§f ", path)));
         Player target = ctx.bb.target;
         String hp = String.format(java.util.Locale.ROOT, "%.0f%%", host.hpRatio() * 100.0);

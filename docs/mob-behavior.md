@@ -62,6 +62,7 @@ fsm:
         - {to: combat, when: {type: blackboard, key: has-target, op: "==", value: true}}
 ```
 `when` は Decorator の条件 1つ、またはその一覧(全部成り立つとき移る)。ツリーの中の `set-state` でも移れる。
+状態には `enter:`(ノード1つ)を書ける: その状態に入るたびに1回、ツリーより先に、終わるまで動く(その間は移り方も調べない)。ボスの「怒り」の咆哮・構え直しなど。
 
 ## ノード
 全ノード共通: `type`、`name` (デバッグ表示の名前)、`decorators: [...]`、`services: [...]`。
