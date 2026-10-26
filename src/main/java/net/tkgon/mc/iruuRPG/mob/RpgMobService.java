@@ -425,6 +425,8 @@ public final class RpgMobService {
     }
 
     private final Map<UUID, BehaviorMob> behaviors = new HashMap<>();
+    /** The skills a behavior asked for that do not exist (each is reported once). */
+    private final java.util.Set<String> missingSkills = new java.util.HashSet<>();
     /** What the behavior-tree mobs share: attack slots and shared cooldowns. */
     private final net.tkgon.mc.iruuRPG.mob.behavior.Coordinator btCoordinator = new net.tkgon.mc.iruuRPG.mob.behavior.Coordinator();
 
@@ -794,6 +796,23 @@ public final class RpgMobService {
             if (index < 0 || index >= skills.size()) return false;
             RpgMobService.this.startSkill(mob, target, skills.get(index));
             if (models != null && !models.play(mob, "skill")) models.play(mob, "attack");
+            return true;
+        }
+
+        @Override
+        public boolean startSkill(String id, Player target) {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            if (runtime == null || skillRunner == null || skillBusy.contains(mob.getUniqueId())) return false;
+            SkillSpec spec = null;
+            for (SkillSpec own : runtime.definition().skills()) if (id.equals(own.id())) spec = own;
+            if (spec == null) spec = mobRegistry.skillRegistry().find(id).orElse(null);
+            if (spec == null) {
+                if (missingSkills.add(runtime.definition().id() + "|" + id)) {
+                    plugin.getLogger().warning("mobs: " + runtime.definition().id() + ": use-skill: there is no skill '" + id + "' (skills/*.yml)");
+                }
+                return false;
+            }
+            RpgMobService.this.startSkill(mob, target, spec);
             return true;
         }
 

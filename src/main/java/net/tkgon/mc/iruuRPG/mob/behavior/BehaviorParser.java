@@ -142,7 +142,7 @@ final class BehaviorParser {
             case "wait" -> node = new Tasks.Wait(Cfg.ticks(map, "seconds", 1.0), Cfg.ticks(map, "random-deviation", 0.0));
             case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", 2.6));
             case "shoot" -> node = new Tasks.Shoot(Cfg.number(map, "rate", 1.0));
-            case "use-skill", "skill" -> node = new Tasks.UseSkill((int) Cfg.number(map, "index", -1.0));
+            case "use-skill", "skill" -> node = new Tasks.UseSkill((int) Cfg.number(map, "index", -1.0), Cfg.text(map, "skill", ""), Cfg.text(map, "animation", ""));
             case "face-target", "face" -> node = new Tasks.FaceTarget();
             case "set-blackboard", "set" -> node = new Tasks.SetBlackboard(Cfg.text(map, "key", ""), map.get("value"));
             case "set-state" -> node = new Tasks.SetState(Cfg.text(map, "state", ""));
