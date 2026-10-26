@@ -31,6 +31,7 @@ final class ModelInstance {
     private final int period;
     private final List<ItemDisplay> displays = new ArrayList<>();
     private final List<Matrix4f> last = new ArrayList<>();
+    private final boolean hideBase;
 
     private String locomotion = "idle";
     private int locomotionStart;
@@ -50,6 +51,7 @@ final class ModelInstance {
         this.base = base;
         this.scale = scale;
         this.period = Math.max(1, period);
+        this.hideBase = hideBase;
         if (hideBase) base.setInvisible(true);
         for (BbModel.Part part : model.parts) {
             ItemStack item = new ItemStack(baseItem);
@@ -82,23 +84,33 @@ final class ModelInstance {
         return dying;
     }
 
+    private final java.util.Random random = new java.util.Random();
+    private BbModel.Animation actionAnimation;
+    private BbModel.Animation deathAnimation;
+
     boolean hasAnimation(String name) {
-        return model.animations.containsKey(name);
+        return model.find(name, random) != null;
     }
 
     double length(String name) {
-        BbModel.Animation animation = model.animations.get(name);
+        BbModel.Animation animation = model.find(name, random);
         return animation == null ? 0.0 : animation.length;
     }
 
     /** Plays the animation once (over the walk or the idle). */
     boolean play(String name, int tick) {
-        BbModel.Animation animation = model.animations.get(name);
+        BbModel.Animation animation = model.find(name, random);
         if (animation == null || dying) return false;
         action = name;
+        actionAnimation = animation;
         actionStart = tick;
         actionLength = animation.length;
         return true;
+    }
+
+    /** Whether a one-shot animation is playing (a hurt does not cut an attack short). */
+    boolean busy(int tick) {
+        return dying || (action != null && (tick - actionStart) / 20.0 < actionLength);
     }
 
     /** The mob died: the model stays where it is and plays {@code death} (if it has it). */
@@ -106,8 +118,8 @@ final class ModelInstance {
         if (dying) return;
         dying = true;
         dyingStart = tick;
-        BbModel.Animation animation = model.animations.get("death");
-        dyingLength = animation == null ? 0.0 : animation.length;
+        deathAnimation = model.find("death", random);
+        dyingLength = deathAnimation == null ? 0.0 : deathAnimation.length;
         frozen = base.getLocation();
     }
 
@@ -135,7 +147,7 @@ final class ModelInstance {
             start = actionStart;
         } else {
             action = null;
-            String wanted = speed > 0.04 && model.animations.containsKey("walk") ? "walk" : "idle";
+            String wanted = speed > 0.04 && model.find("walk", random) != null ? "walk" : "idle";
             if (!wanted.equals(locomotion)) {
                 locomotion = wanted;
                 locomotionStart = tick;
@@ -143,7 +155,7 @@ final class ModelInstance {
             name = locomotion;
             start = locomotionStart;
         }
-        BbModel.Animation animation = model.animations.get(name);
+        BbModel.Animation animation = dying ? deathAnimation : action != null ? actionAnimation : model.find(name, random);
         double time = (tick - start) / 20.0;
         if (animation != null) {
             time = animation.loop.equals("loop") && !dying && action == null ? time % Math.max(0.05, animation.length) : Math.min(time, animation.length);
@@ -158,6 +170,8 @@ final class ModelInstance {
             double[] pivot = part.pivot();
             matrix.translate((float) pivot[0], (float) pivot[1], (float) pivot[2]);
             if (part.cube != null) matrix.rotate(Pose.euler(part.cube.rotation));
+            matrix.translate((float) part.offset[0], (float) part.offset[1], (float) part.offset[2]);
+            if (part.shrink != 1.0) matrix.scale((float) (1.0 / part.shrink));
             // The display draws its item model at block size already (16 model units = 1 block), so the turn and the scale of the pose apply as they are; only where the part
             // stands (the translation, in model units) is turned into blocks.
             Vector3f offset = matrix.getTranslation(new Vector3f()).mul(1.0f / 16.0f);
@@ -170,7 +184,8 @@ final class ModelInstance {
                 Vector3f translation = world.getTranslation(new Vector3f());
                 Vector3f scaling = world.getScale(new Vector3f());
                 Quaternionf rotation = world.getNormalizedRotation(new Quaternionf());
-                display.setTransformation(new Transformation(translation, rotation, scaling, new Quaternionf()));
+                // (the game turns an item display's model half round about the vertical before it draws it; turning it back here keeps the cubes where the model has them)
+                display.setTransformation(new Transformation(translation, rotation, scaling, new Quaternionf().rotationY((float) Math.PI)));
                 display.setInterpolationDelay(0);
             }
             if (display.getLocation().distanceSquared(at) > 1.0E-4 || display.getWorld() != at.getWorld()) display.teleport(at);
@@ -184,8 +199,27 @@ final class ModelInstance {
         displays.clear();
     }
 
-    /** Gives the mob its own body back. */
+    /** Gives the mob its own body back (and shows its equipment again to the players near it). */
     void showBase() {
-        if (base.isValid()) base.setInvisible(false);
+        if (!base.isValid()) return;
+        base.setInvisible(false);
+        if (base.getEquipment() == null) return;
+        for (org.bukkit.entity.Player player : base.getWorld().getPlayers()) {
+            if (player.getLocation().distanceSquared(base.getLocation()) > 64.0 * 64.0) continue;
+            for (org.bukkit.inventory.EquipmentSlot slot : org.bukkit.inventory.EquipmentSlot.values()) {
+                player.sendEquipmentChange(base, slot, base.getEquipment().getItem(slot));
+            }
+        }
+    }
+
+    /**
+     * Hides what the mob holds and wears from the player (an invisible mob still shows its equipment): the player is told the slots are empty. The mob keeps them (its damage
+     * and the vanilla behavior that needs a held bow do not change); the server tells a player the real ones again when they change or the mob comes into view, so this is sent
+     * again then (see ModelModule).
+     */
+    void hideEquipment(org.bukkit.entity.Player player) {
+        if (!hideBase || !base.isValid() || base.getEquipment() == null) return;
+        org.bukkit.inventory.ItemStack empty = new org.bukkit.inventory.ItemStack(Material.AIR);
+        for (org.bukkit.inventory.EquipmentSlot slot : org.bukkit.inventory.EquipmentSlot.values()) player.sendEquipmentChange(base, slot, empty);
     }
 }
