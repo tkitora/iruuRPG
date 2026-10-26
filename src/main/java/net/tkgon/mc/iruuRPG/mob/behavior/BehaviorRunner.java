@@ -129,6 +129,9 @@ public final class BehaviorRunner {
         ctx.bb.target = target;
         ctx.bb.set("has-target", target != null);
         ctx.bb.set("hp", host.hpRatio());
+        org.bukkit.Location home = host.home();
+        org.bukkit.Location here = host.mob().getLocation();
+        ctx.bb.set("home-distance", home == null || home.getWorld() != here.getWorld() ? 9999.0 : home.distance(here));
         // the group: how many of the same kind are near, and how many hold an attack slot against the target
         ctx.bb.set("allies-near", host.alliesNear(ctx.bb.number("ally-range", 8.0), true));
         ctx.bb.set("attackers", target == null ? 0 : host.coordinator().attackers(target.getUniqueId().toString(), ctx.now));

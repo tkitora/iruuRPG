@@ -54,6 +54,11 @@ public interface BehaviorHost {
         return startSkill(id, target);
     }
 
+    /** Starts one of the mob's own skills that is ready and can reach the player from here (the same choice as the mobs without a tree); false when none. */
+    default boolean startUsableSkill(Player target, boolean track) {
+        return false;
+    }
+
     /** Starts the skill with this id at the player: one of the mob's own `skills:` with that id, else the skill of the skill tool (skills/*.yml); false when there is none or one runs. */
     default boolean startSkill(String id, Player target) {
         return false;

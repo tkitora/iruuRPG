@@ -11,16 +11,28 @@ final class Decorators {
         private final String key;
         private final String op;
         private final Object expected;
+        /** Compare with the value of this other key instead of {@code expected} (a bound that each mob sets in its blackboard). */
+        private final String valueKey;
 
         BlackboardCondition(String key, String op, Object expected) {
+            this(key, op, expected, null);
+        }
+
+        BlackboardCondition(String key, String op, Object expected, String valueKey) {
             this.key = key;
             this.op = op;
             this.expected = expected;
-            this.label = "bb " + key + " " + op + (expected == null ? "" : " " + expected);
+            this.valueKey = valueKey == null || valueKey.isBlank() ? null : valueKey;
+            this.label = "bb " + key + " " + op + (this.valueKey != null ? " @" + this.valueKey : expected == null ? "" : " " + expected);
         }
 
         @Override
         boolean canEnter(Ctx c, Node node) {
+            if (valueKey != null && c.bb.has(valueKey)) return compare(c, c.bb.get(valueKey));
+            return compare(c, expected);
+        }
+
+        private boolean compare(Ctx c, Object expected) {
             switch (op) {
                 case "set":
                     return c.bb.has(key) && c.bb.flag(key);
@@ -56,18 +68,25 @@ final class Decorators {
     static final class Distance extends Decorator {
         private final double min;
         private final double max;
+        private final String minKey;
+        private final String maxKey;
 
-        Distance(double min, double max) {
+        Distance(double min, double max, String minKey, String maxKey) {
             this.min = min;
             this.max = max;
-            this.label = "distance " + (min > 0 ? min : "") + "〜" + (max < Double.MAX_VALUE ? max : "");
+            this.minKey = minKey == null || minKey.isBlank() ? null : minKey;
+            this.maxKey = maxKey == null || maxKey.isBlank() ? null : maxKey;
+            this.label = "distance " + (this.minKey != null ? "@" + this.minKey : min > 0 ? min : "") + "〜" + (this.maxKey != null ? "@" + this.maxKey : max < Double.MAX_VALUE ? max : "");
         }
 
         @Override
         boolean canEnter(Ctx c, Node node) {
             if (c.bb.target == null) return false;
             double distance = c.bb.number("distance", Double.MAX_VALUE);
-            return distance >= min && distance <= max;
+            // (min-key / max-key: the bounds from the blackboard, when the mob has them; one tree, a reach for each mob)
+            double low = minKey != null ? c.bb.number(minKey, min) : min;
+            double high = maxKey != null ? c.bb.number(maxKey, max) : max;
+            return distance >= low && distance <= high;
         }
     }
 

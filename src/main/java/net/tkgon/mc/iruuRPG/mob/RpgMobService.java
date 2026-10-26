@@ -827,6 +827,36 @@ public final class RpgMobService {
         }
 
         @Override
+        public boolean startUsableSkill(Player target, boolean track) {
+            MobRuntime runtime = runtimes.get(mob.getUniqueId());
+            if (runtime == null || skillRunner == null || skillBusy.contains(mob.getUniqueId())) return false;
+            List<SkillSpec> skills = runtime.definition().skills();
+            if (skills.isEmpty()) return false;
+            long now = Bukkit.getCurrentTick();
+            if (now < skillLockUntil.getOrDefault(mob.getUniqueId(), 0L)) return false;
+            long[] ready = skillReady.get(mob.getUniqueId());
+            if (ready == null || ready.length != skills.size()) {
+                // the first use comes a little after the fight starts, as for the mobs without a tree
+                ready = new long[skills.size()];
+                for (int index = 0; index < ready.length; index++) ready[index] = now + ThreadLocalRandom.current().nextInt(40, 100);
+                skillReady.put(mob.getUniqueId(), ready);
+            }
+            double distance = mob.getLocation().distance(target.getLocation());
+            boolean sees = mob.hasLineOfSight(target);
+            List<Integer> usable = new ArrayList<>();
+            for (int index = 0; index < skills.size(); index++) {
+                if (now >= ready[index] && skillUsable(mob, target, skills.get(index), distance, sees)) usable.add(index);
+            }
+            if (usable.isEmpty()) return false;
+            int chosen = usable.get(ThreadLocalRandom.current().nextInt(usable.size()));
+            ready[chosen] = now + skills.get(chosen).cooldownTicks();
+            skillLockUntil.put(mob.getUniqueId(), now + 40L);
+            RpgMobService.this.startSkill(mob, target, skills.get(chosen), track);
+            if (models != null && !models.play(mob, "skill")) models.play(mob, "attack");
+            return true;
+        }
+
+        @Override
         public boolean skillRunning() {
             return skillBusy.contains(mob.getUniqueId());
         }
