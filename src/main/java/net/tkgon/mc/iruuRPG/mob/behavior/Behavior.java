@@ -9,7 +9,8 @@ final class Behavior {
     record Transition(String to, List<Decorator> when) {
     }
 
-    record State(String name, Node tree, List<Transition> transitions) {
+    /** A state: its tree, the transitions out of it, and (may be null) what it does once each time it is entered, before its tree (a roar when a boss turns angry). */
+    record State(String name, Node tree, List<Transition> transitions, Node enter) {
     }
 
     final boolean debug;

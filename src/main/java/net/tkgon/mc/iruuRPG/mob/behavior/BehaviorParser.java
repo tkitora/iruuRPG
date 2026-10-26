@@ -69,7 +69,8 @@ final class BehaviorParser {
                         transitions.add(new Behavior.Transition(to, when));
                     }
                 }
-                states.put(name, new Behavior.State(name, tree, transitions));
+                Node enter = stateSpec.get("enter") instanceof Map<?, ?> enterMap ? node(enterMap, 0) : null;
+                states.put(name, new Behavior.State(name, tree, transitions, enter));
             }
             initial = Cfg.text(fsm, "initial", states.isEmpty() ? "root" : states.keySet().iterator().next());
             for (Behavior.State state : states.values()) {
@@ -82,7 +83,7 @@ final class BehaviorParser {
                 return null;
             }
         } else if (map.get("tree") instanceof Map<?, ?> treeMap) {
-            states.put("root", new Behavior.State("root", node(treeMap, 0), List.of()));
+            states.put("root", new Behavior.State("root", node(treeMap, 0), List.of(), null));
             initial = "root";
         } else {
             error("it needs a `tree:` or an `fsm:`");
@@ -93,7 +94,10 @@ final class BehaviorParser {
             for (Map.Entry<?, ?> entry : initialValues.entrySet()) blackboard.put(String.valueOf(entry.getKey()), entry.getValue());
         }
         // (a query or a state that nothing uses is not an error; a task that names a query that does not exist is)
-        for (Behavior.State state : states.values()) checkQueries(state.tree(), queries);
+        for (Behavior.State state : states.values()) {
+            checkQueries(state.tree(), queries);
+            if (state.enter() != null) checkQueries(state.enter(), queries);
+        }
         return new Behavior(Cfg.flag(map, "debug", false), Math.max(1, (int) Cfg.number(map, "tick-interval", 4.0)), Cfg.number(map, "aggro-range", Cfg.number(blackboard, "aggro-range", 20.0)),
                 Cfg.flag(map, "auto-target", true), queries, states, initial, blackboard);
     }
