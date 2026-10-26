@@ -21,7 +21,8 @@ import java.util.zip.ZipOutputStream;
 /**
  * Makes the resource pack of the model feature from the models read: one item model for every part of every model (the cubes of a bone, or one rotated cube), each with its
  * cubes moved so that the part's pivot is the middle of the model (the display turns it about the middle), the textures, and the base item's model with an override
- * for each part (by custom model data). The zip is the same bytes for the same models (fixed times, sorted entries), so its hash only changes when a model does.
+ * for each part (by custom model data). The textures are under {@code textures/item/}: the game only puts the textures of the folders {@code block/} and {@code item/} on the
+ * atlas that item models draw from, and one anywhere else shows as the black and purple of a missing texture. The zip is the same bytes for the same models (fixed times, sorted entries), so its hash only changes when a model does.
  */
 final class ModelPackBuilder {
 
@@ -61,7 +62,7 @@ final class ModelPackBuilder {
         JsonArray overrides = new JsonArray();
         List<BbModel.Part> all = new ArrayList<>();
         for (BbModel model : models) {
-            for (BbModel.Texture texture : model.textures) files.put("assets/" + NAMESPACE + "/textures/" + model.id + "/" + texture.name() + ".png", texture.png());
+            for (BbModel.Texture texture : model.textures) files.put("assets/" + NAMESPACE + "/textures/item/" + model.id + "/" + texture.name() + ".png", texture.png());
             for (BbModel.Part part : model.parts) {
                 JsonObject json = partModel(model, part, warnings);
                 if (json == null) continue;
@@ -151,9 +152,9 @@ final class ModelPackBuilder {
                 faceJson.addProperty("texture", "#" + f.texture());
                 if (f.rotation() != 0) faceJson.addProperty("rotation", ((f.rotation() % 360) + 360) % 360);
                 faces.add(face.getKey(), faceJson);
-                if (!textures.has(String.valueOf(f.texture()))) textures.addProperty(String.valueOf(f.texture()), NAMESPACE + ":" + model.id + "/" + textureName(model, f.texture()));
+                if (!textures.has(String.valueOf(f.texture()))) textures.addProperty(String.valueOf(f.texture()), NAMESPACE + ":item/" + model.id + "/" + textureName(model, f.texture()));
                 if (first) {
-                    textures.addProperty("particle", NAMESPACE + ":" + model.id + "/" + textureName(model, f.texture()));
+                    textures.addProperty("particle", NAMESPACE + ":item/" + model.id + "/" + textureName(model, f.texture()));
                     first = false;
                 }
             }
