@@ -189,12 +189,14 @@ final class Tasks {
         private final int index;
         private final String skill;
         private final String animation;
+        private final boolean track;
         private boolean started;
         private int animationEnd;
 
-        UseSkill(int index, String skill, String animation) {
+        UseSkill(int index, String skill, String animation, boolean track) {
             super("use-skill");
             this.index = index;
+            this.track = track;
             this.skill = skill == null || skill.isBlank() ? null : skill;
             this.animation = animation == null || animation.isBlank() ? null : animation;
         }
@@ -217,12 +219,12 @@ final class Tasks {
                 if (target == null) return Status.FAILURE;
                 if (skill != null) {
                     // a skill of the skill tool by its id (the mob's own skills: with that id first)
-                    if (!c.host.startSkill(skill, target)) return Status.FAILURE;
+                    if (!c.host.startSkill(skill, target, track)) return Status.FAILURE;
                 } else {
                     int count = c.host.skillCount();
                     if (count == 0) return Status.FAILURE;
                     int chosen = index >= 0 ? Math.min(index, count - 1) : c.random.nextInt(count);
-                    if (!c.host.startSkill(chosen, target)) return Status.FAILURE;
+                    if (!c.host.startSkill(chosen, target, track)) return Status.FAILURE;
                 }
                 // the model's animation of the skill, from the same moment (the skill's wind-up decides when it hits: set it to the moment the animation strikes)
                 if (animation != null && c.host.playAnimation(animation)) animationEnd = c.now + (int) Math.round(c.host.animationSeconds(animation) * 20.0);

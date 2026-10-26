@@ -194,6 +194,15 @@ public record SkillSpec(
                 speed, damageRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, extras);
     }
 
+    /** The same skill keeping the direction it was started with (it does not turn to follow the target while it winds up). */
+    public SkillSpec withLockedAim() {
+        if (extras.lockAim()) return this;
+        Extras locked = new Extras(true, extras.flatAim(), extras.aimYaw(), extras.aimPitch(), extras.spread(), extras.pattern(), extras.curve(), extras.homingRadius(),
+                extras.homingDelayTicks(), extras.homingTurn(), extras.lifetimeTicks(), extras.hitRadius(), extras.spawnDistance());
+        return new SkillSpec(id, name, template, look, radius, range, angle, orientation, windupTicks, cooldownTicks, count, intervalTicks,
+                speed, damageRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, locked);
+    }
+
     public SkillSpec withDamageRate(double newRate) {
         return new SkillSpec(id, name, template, look, radius, range, angle, orientation, windupTicks, cooldownTicks, count, intervalTicks,
                 speed, newRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, extras);

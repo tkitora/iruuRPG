@@ -45,6 +45,15 @@ public interface BehaviorHost {
 
     boolean skillRunning();
 
+    /** The same, turning to follow the player while it winds up when {@code track} (else the mob keeps the direction it started with). */
+    default boolean startSkill(int index, Player target, boolean track) {
+        return startSkill(index, target);
+    }
+
+    default boolean startSkill(String id, Player target, boolean track) {
+        return startSkill(id, target);
+    }
+
     /** Starts the skill with this id at the player: one of the mob's own `skills:` with that id, else the skill of the skill tool (skills/*.yml); false when there is none or one runs. */
     default boolean startSkill(String id, Player target) {
         return false;

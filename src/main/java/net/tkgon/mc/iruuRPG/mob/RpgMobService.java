@@ -790,17 +790,27 @@ public final class RpgMobService {
 
         @Override
         public boolean startSkill(int index, Player target) {
+            return startSkill(index, target, false);
+        }
+
+        @Override
+        public boolean startSkill(int index, Player target, boolean track) {
             MobRuntime runtime = runtimes.get(mob.getUniqueId());
             if (runtime == null || skillRunner == null || skillBusy.contains(mob.getUniqueId())) return false;
             List<SkillSpec> skills = runtime.definition().skills();
             if (index < 0 || index >= skills.size()) return false;
-            RpgMobService.this.startSkill(mob, target, skills.get(index));
+            RpgMobService.this.startSkill(mob, target, skills.get(index), track);
             if (models != null && !models.play(mob, "skill")) models.play(mob, "attack");
             return true;
         }
 
         @Override
         public boolean startSkill(String id, Player target) {
+            return startSkill(id, target, false);
+        }
+
+        @Override
+        public boolean startSkill(String id, Player target, boolean track) {
             MobRuntime runtime = runtimes.get(mob.getUniqueId());
             if (runtime == null || skillRunner == null || skillBusy.contains(mob.getUniqueId())) return false;
             SkillSpec spec = null;
@@ -812,7 +822,7 @@ public final class RpgMobService {
                 }
                 return false;
             }
-            RpgMobService.this.startSkill(mob, target, spec);
+            RpgMobService.this.startSkill(mob, target, spec, track);
             return true;
         }
 
@@ -1024,9 +1034,19 @@ public final class RpgMobService {
     }
 
     private void startSkill(Mob mob, Player target, SkillSpec spec) {
+        startSkill(mob, target, spec, false);
+    }
+
+    /**
+     * Starts a skill of a mob at the player. Without {@code track} the mob turns to the player once, when the skill starts, and keeps that direction until it is over (the
+     * warning of where it lands stays where it was shown; the player can step out of it); with {@code track} it keeps turning to the player while it winds up (a behavior tree
+     * asks for that with `track: true`). A skill whose own `lock-aim` is on is locked either way.
+     */
+    private void startSkill(Mob mob, Player target, SkillSpec spec, boolean track) {
         if (skillRunner == null) return;
         beginSkill(mob);
-        skillRunner.start(new MobCaster(mob), spec, () -> target.isOnline() && !target.isDead()
+        SkillSpec run = track ? spec : spec.withLockedAim();
+        skillRunner.start(new MobCaster(mob), run, () -> target.isOnline() && !target.isDead()
                         ? target.getLocation().add(0.0, target.getHeight() * 0.6, 0.0) : null,
                 () -> endSkill(mob));
     }
@@ -1758,7 +1778,8 @@ public final class RpgMobService {
                 .append(Component.text(" HP", NamedTextColor.RED));
 
         entity.customName(name);
-        entity.setCustomNameVisible(true);
+        // (a mob in a model: its name is drawn above the model by the model feature; the game does not draw an invisible mob's name anyway)
+        entity.setCustomNameVisible(models == null || models.height(entity) <= 0.0);
         updateStatusDisplay(entity);
     }
 
@@ -1875,7 +1896,10 @@ public final class RpgMobService {
     private Location statusDisplayLocation(LivingEntity entity) {
         double yOffset = plugin.getConfig().getDouble("mob.status-display.y-offset", 0.0);
         double anchorLift = plugin.getConfig().getDouble("mob.status-display.anchor-lift", 0.45);
-        return entity.getLocation().add(0.0, Math.max(0.6, entity.getHeight()) + yOffset + anchorLift, 0.0);
+        // (above the model when the mob wears one, and above its nameplate)
+        double top = models == null ? 0.0 : models.height(entity);
+        double height = top > 0.0 ? top + 0.6 : entity.getHeight();
+        return entity.getLocation().add(0.0, Math.max(0.6, height) + yOffset + anchorLift, 0.0);
     }
 
     private void removeStatusDisplay(UUID mobId) {

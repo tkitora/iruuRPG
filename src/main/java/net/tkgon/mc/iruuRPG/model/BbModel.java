@@ -169,6 +169,13 @@ final class BbModel {
 
     final List<Part> parts = new ArrayList<>();
 
+    /** How tall the model stands (the top of its highest cube, model units, in the pose it was made in). */
+    double height() {
+        double top = 0.0;
+        for (Bone bone : bones) for (Cube cube : bone.cubes) top = Math.max(top, Math.max(cube.from[1], cube.to[1]) + cube.inflate);
+        return top;
+    }
+
     /** The parts to draw, worked out once after reading. */
     private void makeParts() {
         parts.clear();

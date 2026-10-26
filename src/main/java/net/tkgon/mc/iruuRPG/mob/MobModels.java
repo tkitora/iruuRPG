@@ -19,6 +19,11 @@ public interface MobModels {
     /** How long the animation is, in seconds (0 when the mob has no model or the model has no such animation). */
     double length(LivingEntity entity, String animation);
 
+    /** How high the top of the mob's model is above its feet (blocks); 0 when it has no model (the game's own name of the mob is then drawn as usual). */
+    default double height(LivingEntity entity) {
+        return 0.0;
+    }
+
     /** The mob was hurt: its model plays `hurt` unless it is in the middle of another one-shot animation. */
     default void hurt(LivingEntity entity) {
     }

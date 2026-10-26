@@ -135,6 +135,12 @@ public final class ModelModule implements Listener, MobModels {
     }
 
     @Override
+    public double height(LivingEntity entity) {
+        ModelInstance instance = instances.get(entity.getUniqueId());
+        return instance == null ? 0.0 : instance.top();
+    }
+
+    @Override
     public void hurt(LivingEntity entity) {
         ModelInstance instance = instances.get(entity.getUniqueId());
         if (instance != null && !instance.busy(Bukkit.getCurrentTick())) instance.play("hurt", Bukkit.getCurrentTick());
