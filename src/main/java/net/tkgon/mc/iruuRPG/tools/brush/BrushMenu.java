@@ -75,6 +75,9 @@ final class BrushMenu implements Listener {
 
     private enum Pick { NONE, FROM, TO }
 
+    /** What a biome chosen from the list of all biomes is for (the biome mode). */
+    private enum BiomePick { NONE, ADD, FROM, TO }
+
     private static final class Holder implements MenuHolder {
         private Inventory inventory;
         private Page page;
@@ -86,6 +89,9 @@ final class BrushMenu implements Listener {
         private boolean shadeList;
         /** The page of the list of presets (21 to a page). */
         private int presetPage;
+        /** The biome mode: the list of all biomes is open (to add one or to choose an end), and which page of it. */
+        private BiomePick biomePick = BiomePick.NONE;
+        private int biomeListPage;
         private final Map<Integer, BiConsumer<Player, ClickType>> actions = new HashMap<>();
 
         @Override
@@ -176,6 +182,7 @@ final class BrushMenu implements Listener {
             put(holder, page.tab, item(page.icon, (here ? "▶ " : "") + page.label, here ? NamedTextColor.GOLD : NamedTextColor.WHITE, List.of(here ? "いま開いているページ" : "クリックで開く")),
                     (p, c) -> {
                         holder.pick = Pick.NONE;
+                        holder.biomePick = BiomePick.NONE;
                         refresh(p, page);
                     });
         }
@@ -307,6 +314,10 @@ final class BrushMenu implements Listener {
     // ---- pattern ---------------------------------------------------------------------------------------------------------------
 
     private void pattern(Holder holder, BrushSettings s) {
+        if (s.mode == BrushMode.BIOME) {
+            biomes(holder, s);
+            return;
+        }
         boolean gradient = s.patternMode == BrushSettings.PatternMode.GRADIENT;
         BrushStore store = module.store();
         put(holder, GRID[0], item(gradient ? Material.PRISMARINE_SHARD : Material.WHITE_CONCRETE, "置き方: " + (gradient ? "グラデーション" : "ばらまき (割合)"), NamedTextColor.GOLD, List.of(
@@ -940,6 +951,179 @@ final class BrushMenu implements Listener {
         }
     }
 
+    // ---- the biome mode's pattern page ---------------------------------------------------------------------------------------------
+
+    /** A leather tunic in the biome's colour (of the kind the list follows), named after the biome. */
+    private static ItemStack biomeItem(org.bukkit.block.Biome biome, BiomeColors.Kind kind, String prefix, NamedTextColor color, List<String> lore) {
+        int rgb = BiomeColors.rgb(biome, kind);
+        List<String> lines = new ArrayList<>();
+        lines.add(BiomeColors.name(biome) + " / " + BiomeColors.sort(biome));
+        lines.add(String.format(Locale.ROOT, "%s: #%06X", kind.label, rgb));
+        lines.addAll(lore);
+        ItemStack item = item(Material.LEATHER_CHESTPLATE, prefix + BiomeColors.label(biome), color, lines);
+        if (item.getItemMeta() instanceof org.bukkit.inventory.meta.LeatherArmorMeta meta) {
+            meta.setColor(org.bukkit.Color.fromRGB(rgb));
+            meta.addItemFlags(ItemFlag.HIDE_DYE);
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    private static void addBiome(BrushSettings s, org.bukkit.block.Biome biome) {
+        if (!BiomeColors.known(biome)) return;
+        for (BrushSettings.BiomeEntry entry : s.biomes) {
+            if (entry.biome == biome) {
+                entry.weight = Math.min(99, entry.weight + 1);
+                return;
+            }
+        }
+        if (s.biomes.size() < 13) s.biomes.add(new BrushSettings.BiomeEntry(biome, 1));
+    }
+
+    /**
+     * The pattern page in the biome mode: the biomes to paint (as the blocks of the other modes: a list with weights, scattered or along a gradient), the tint they are ordered by,
+     * and a list made from two biomes, the ones between them chosen by colour. The list of all biomes opens to add one or to choose an end.
+     */
+    private void biomes(Holder holder, BrushSettings s) {
+        if (holder.biomePick != BiomePick.NONE) {
+            biomeList(holder, s);
+            return;
+        }
+        boolean gradient = s.patternMode == BrushSettings.PatternMode.GRADIENT;
+        put(holder, GRID[0], item(gradient ? Material.PRISMARINE_SHARD : Material.WHITE_CONCRETE, "置き方: " + (gradient ? "グラデーション" : "ばらまき (割合)"), NamedTextColor.GOLD, List.of(
+                "グラデーション: 一覧の順に、割合の分だけ長く、バイオームを並べる",
+                "ばらまき: 割合に応じて、ばらばらに置く", "クリックで切り替え")), (p, c) -> {
+            s.patternMode = gradient ? BrushSettings.PatternMode.RANDOM : BrushSettings.PatternMode.GRADIENT;
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[1], item(s.biomeKind == BiomeColors.Kind.WATER ? Material.WATER_BUCKET : s.biomeKind == BiomeColors.Kind.FOLIAGE ? Material.OAK_LEAVES : Material.GRASS_BLOCK,
+                "色の基準: " + s.biomeKind.label, NamedTextColor.GOLD, List.of(
+                        s.biomeKind.description,
+                        "バイオームの色の表示と、「2つのバイオームから一覧を作る」で、どの色をつなぐか",
+                        "クリックで 草 → 葉 → 水")), (p, c) -> {
+            BiomeColors.Kind[] all = BiomeColors.Kind.values();
+            s.biomeKind = all[Math.floorMod(s.biomeKind.ordinal() + (left(c) ? 1 : -1), all.length)];
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[2], item(Material.EMERALD, "バイオームを選んで足す", NamedTextColor.GREEN, List.of("すべてのバイオームの一覧 (色の順) を開いて、クリックしたものを一覧の最後に足す")), (p, c) -> {
+            holder.biomePick = BiomePick.ADD;
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[3], item(Material.COMPASS, "見ている所のバイオームを足す", NamedTextColor.GREEN, List.of("ブラシで見ているブロック (無ければ自分の足元) のバイオーム")), (p, c) -> {
+            org.bukkit.block.Block target = module.target(p);
+            org.bukkit.block.Biome biome = target != null ? target.getBiome() : p.getLocation().getBlock().getBiome();
+            if (!BiomeColors.known(biome)) p.sendMessage(BrushModule.PREFIX + "このバイオーム (" + biome + ") は塗れません (ネザー・エンド・カスタム)。");
+            else addBiome(s, biome);
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[4], item(Material.WATER_BUCKET, "割合をそろえる", NamedTextColor.AQUA, List.of("全部のバイオームの割合を 1 にする")), (p, c) -> {
+            for (BrushSettings.BiomeEntry entry : s.biomes) entry.weight = 1;
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[5], item(Material.LAVA_BUCKET, "全部消す", NamedTextColor.RED, List.of("バイオームの一覧を空にする")), (p, c) -> {
+            s.biomes.clear();
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[6], item(Material.BOOK, "バイオームのブラシについて", NamedTextColor.AQUA, List.of(
+                "ゲームはバイオームを 4x4x4 ブロックのかたまりで持つので、そのかたまりごとに塗る",
+                "草・葉・水の色は、ゲームが数ブロックかけてなじませる (なめらかなグラデーションになる)",
+                "「表面だけ」がオンなら、地面のあるかたまりだけを塗る",
+                "雪のバイオームでは雪が降り、水が凍る。プレビューは無い。//undo で戻せる")), null);
+        int total = 0;
+        for (BrushSettings.BiomeEntry entry : s.biomes) total += Math.max(1, entry.weight);
+        for (int index = 0; index < Math.min(13, s.biomes.size()); index++) {
+            BrushSettings.BiomeEntry entry = s.biomes.get(index);
+            int at = index;
+            put(holder, GRID[7 + index], biomeItem(entry.biome, s.biomeKind, (index + 1) + ". ", NamedTextColor.WHITE, List.of(
+                    "割合: " + entry.weight + " (" + Math.round(100.0 * Math.max(1, entry.weight) / Math.max(1, total)) + "%)",
+                    "左 +1 / 右 -1 / Shift+左 1つ前へ / Shift+右 取り除く")), (p, c) -> {
+                if (c == ClickType.SHIFT_RIGHT) s.biomes.remove(entry);
+                else if (c == ClickType.SHIFT_LEFT) {
+                    if (at > 0) {
+                        s.biomes.remove(at);
+                        s.biomes.add(at - 1, entry);
+                    }
+                } else entry.weight = Math.max(1, Math.min(99, entry.weight + (left(c) ? 1 : -1)));
+                refresh(p, Page.PATTERN);
+            });
+        }
+        // the two ends the list can be made from
+        put(holder, GRID[21], biomeItem(s.biomeFrom, s.biomeKind, "作る元: 最初 ", NamedTextColor.GREEN, List.of("クリックで、一覧から選ぶ")), (p, c) -> {
+            holder.biomePick = BiomePick.FROM;
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[22], biomeItem(s.biomeTo, s.biomeKind, "作る元: 最後 ", NamedTextColor.GREEN, List.of("クリックで、一覧から選ぶ")), (p, c) -> {
+            holder.biomePick = BiomePick.TO;
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[23], item(Material.LADDER, "間のバイオームの数: " + s.biomeSteps, NamedTextColor.AQUA, List.of("2つのバイオームの間に入れる、近い色のバイオームの数 (0〜14)", "同じ色のバイオームは1つしか使わないので、少なくなることがある", "左クリック +1 / 右クリック -1")), (p, c) -> {
+            s.biomeSteps = Math.max(0, Math.min(14, s.biomeSteps + (left(c) ? 1 : -1)));
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, GRID[24], item(Material.CRAFTING_TABLE, "2つのバイオームから一覧を作る", NamedTextColor.GREEN, List.of(
+                "最初と最後のバイオームの間を、" + s.biomeKind.label + "が近いバイオームでつないで、一覧に入れる (グラデーションの置き方になる)",
+                "間には、両端と同じ種類 (陸・水辺・雪・洞窟) のバイオームだけを使う",
+                "できたあとは、順・割合を自由に直せる")), (p, c) -> {
+            s.biomes.clear();
+            for (org.bukkit.block.Biome biome : BiomeColors.ramp(s.biomeFrom, s.biomeTo, s.biomeSteps, s.biomeKind)) s.biomes.add(new BrushSettings.BiomeEntry(biome, 1));
+            s.patternMode = BrushSettings.PatternMode.GRADIENT;
+            refresh(p, Page.PATTERN);
+        });
+        if (gradient) {
+            put(holder, GRID[20], item(Material.REPEATER, "向きを逆にする: " + onOff(s.gradientReverse), NamedTextColor.AQUA, List.of("オン: 最初と最後の位置が入れ替わる", "クリックで切り替え")), (p, c) -> {
+                s.gradientReverse = !s.gradientReverse;
+                refresh(p, Page.PATTERN);
+            });
+            put(holder, GRID[25], item(Material.COMPASS, "向き: " + s.gradientAxis.label, NamedTextColor.AQUA, List.of(s.gradientAxis.description, "(ブロックの模様と共通の設定)", "クリックで切り替え")), (p, c) -> {
+                BrushSettings.GradientAxis[] all = BrushSettings.GradientAxis.values();
+                s.gradientAxis = all[Math.floorMod(s.gradientAxis.ordinal() + (left(c) ? 1 : -1), all.length)];
+                refresh(p, Page.PATTERN);
+            });
+            put(holder, GRID[26], item(Material.SUGAR, "ざらつき: " + Math.round(s.dither * 100) + "%", NamedTextColor.AQUA, List.of("0%: きれいな帯 / 大きいほど、境目がまだらに混ざる", "左クリック +10% / 右クリック -10%")), (p, c) -> {
+                s.dither = Math.max(0.0, Math.min(1.0, s.dither + (left(c) ? 0.1 : -0.1)));
+                refresh(p, Page.PATTERN);
+            });
+        }
+    }
+
+    /** The list of all biomes the brush can paint, in order of colour (of the kind chosen), 28 to a page: a click adds the biome or makes it an end. */
+    private void biomeList(Holder holder, BrushSettings s) {
+        List<org.bukkit.block.Biome> all = BiomeColors.all(s.biomeKind);
+        int pages = Math.max(1, (all.size() + GRID.length - 1) / GRID.length);
+        holder.biomeListPage = Math.max(0, Math.min(pages - 1, holder.biomeListPage));
+        String why = switch (holder.biomePick) {
+            case FROM -> "最初のバイオームにする";
+            case TO -> "最後のバイオームにする";
+            default -> "一覧の最後に足す";
+        };
+        for (int index = 0; index < GRID.length; index++) {
+            int at = holder.biomeListPage * GRID.length + index;
+            if (at >= all.size()) break;
+            org.bukkit.block.Biome biome = all.get(at);
+            put(holder, GRID[index], biomeItem(biome, s.biomeKind, "", NamedTextColor.WHITE, List.of("クリックで" + why)), (p, c) -> {
+                switch (holder.biomePick) {
+                    case FROM -> s.biomeFrom = biome;
+                    case TO -> s.biomeTo = biome;
+                    default -> addBiome(s, biome);
+                }
+                holder.biomePick = BiomePick.NONE;
+                refresh(p, Page.PATTERN);
+            });
+        }
+        put(holder, 46, item(Material.ARROW, "前のページ", NamedTextColor.YELLOW, List.of((holder.biomeListPage + 1) + " / " + pages)), (p, c) -> {
+            holder.biomeListPage = Math.floorMod(holder.biomeListPage - 1, pages);
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, 53, item(Material.ARROW, "次のページ", NamedTextColor.YELLOW, List.of((holder.biomeListPage + 1) + " / " + pages)), (p, c) -> {
+            holder.biomeListPage = Math.floorMod(holder.biomeListPage + 1, pages);
+            refresh(p, Page.PATTERN);
+        });
+        put(holder, 49, item(Material.BARRIER, "選ばずに戻る", NamedTextColor.RED, List.of()), (p, c) -> {
+            holder.biomePick = BiomePick.NONE;
+            refresh(p, Page.PATTERN);
+        });
+    }
+
     // ---- events -----------------------------------------------------------------------------------------------------------------
 
     @EventHandler
@@ -963,6 +1147,8 @@ final class BrushMenu implements Listener {
         if (!usable(material)) return;
         switch (holder.page) {
             case PATTERN -> {
+                // (the biome mode's list holds biomes, not blocks)
+                if (s.mode == BrushMode.BIOME) return;
                 if (holder.pick == Pick.FROM) s.gradientFrom = material;
                 else if (holder.pick == Pick.TO) s.gradientTo = material;
                 else addPattern(s, material);

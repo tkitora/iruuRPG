@@ -127,6 +127,11 @@ final class BrushLivePreview {
                 continue;
             }
             state.tooBig = false;
+            if (settings.mode == BrushMode.BIOME) {
+                // (a biome cannot be shown to one player alone: the biome mode has no preview)
+                module.preview().clear(player);
+                continue;
+            }
             BrushEngine.Result result = module.evaluate(player, block, Math.max(500, plugin.getConfig().getInt("brush.preview-blocks", 1500)));
             if (result.changes().isEmpty()) {
                 module.preview().clear(player);

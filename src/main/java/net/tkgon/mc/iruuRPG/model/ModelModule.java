@@ -116,7 +116,7 @@ public final class ModelModule implements Listener, MobModels {
         entity.getPersistentDataContainer().set(scaleKey, PersistentDataType.DOUBLE, scale);
         Material item = Material.matchMaterial(plugin.getConfig().getString("model.base-item", "PAPER"));
         ModelInstance instance = new ModelInstance(model, entity, Math.max(0.05, scale), Math.max(1, plugin.getConfig().getInt("model.update-ticks", 2)),
-                item == null ? Material.PAPER : item, partKey, hideBase);
+                item == null ? Material.PAPER : item, partKey, hideBase, plugin.getConfig().getDouble("model.walk-speed", 1.0));
         instances.put(entity.getUniqueId(), instance);
         instance.update(Bukkit.getCurrentTick());
         return true;
