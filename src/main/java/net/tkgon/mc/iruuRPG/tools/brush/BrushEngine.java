@@ -19,8 +19,15 @@ import java.util.Set;
  */
 final class BrushEngine {
 
-    /** One block to put. */
-    record Change(int x, int y, int z, BlockData data) {
+    /** One block to put, or (the biome mode: {@code data} null) the biome of the 4x4x4 cell the place is in. */
+    record Change(int x, int y, int z, BlockData data, org.bukkit.block.Biome biome) {
+        Change(int x, int y, int z, BlockData data) {
+            this(x, y, z, data, null);
+        }
+
+        boolean isBiome() {
+            return biome != null;
+        }
     }
 
     /** What a stroke comes to: the changes, and a note when it was cut short or could not be done. */
@@ -37,6 +44,7 @@ final class BrushEngine {
         String note = switch (s.mode) {
             case PAINT -> paint(probe, cx, cy, cz, s, random, changes, cap);
             case AUTO_SHADE -> shade(probe, cx, cy, cz, s, random, changes, cap, shadeBlacklist);
+            case BIOME -> biome(probe, cx, cy, cz, s, random, changes, cap);
         };
         return new Result(new ArrayList<>(changes.values()), note);
     }
@@ -260,6 +268,77 @@ final class BrushEngine {
             }
         }
         return null;
+    }
+
+    // ---- biome ----------------------------------------------------------------------------------------------------------------
+
+    /**
+     * The biome mode: the game keeps a biome for every 4x4x4 cell, so one biome is chosen for each cell whose middle is in the brush (the place on the gradient, the strength and
+     * the masks are taken at the middle). With "surface only", only the cells with the ground in them (an open block, or the air or plant just on top of one) are painted, which
+     * is where the grass, the leaves and the water show the biome's colour.
+     */
+    private static String biome(SurfaceProbe probe, int cx, int cy, int cz, BrushSettings s, Random random, Map<Long, Change> changes, int cap) {
+        if (s.biomes.isEmpty()) return "バイオームの一覧が空です。「模様」のページでバイオームを足してください。";
+        boolean gradient = s.patternMode == BrushSettings.PatternMode.GRADIENT;
+        int r = effectiveRadius(s);
+        BrushShape.Volume volume = s.shape.volume(r, random.nextLong());
+        int total = 0;
+        for (BrushSettings.BiomeEntry entry : s.biomes) total += Math.max(1, entry.weight);
+        for (int qx = Math.floorDiv(cx - r, 4); qx <= Math.floorDiv(cx + r, 4); qx++) {
+            for (int qy = Math.floorDiv(cy - r, 4); qy <= Math.floorDiv(cy + r, 4); qy++) {
+                for (int qz = Math.floorDiv(cz - r, 4); qz <= Math.floorDiv(cz + r, 4); qz++) {
+                    int x = qx * 4 + 2;
+                    int y = qy * 4 + 2;
+                    int z = qz * 4 + 2;
+                    int dx = x - cx;
+                    int dy = y - cy;
+                    int dz = z - cz;
+                    if (Math.abs(dx) > r || Math.abs(dy) > r || Math.abs(dz) > r) continue;
+                    double distance = volume.distance(dx, dy, dz);
+                    if (distance > 1.0) continue;
+                    if (y < probe.world().getMinHeight() || y >= probe.world().getMaxHeight()) continue;
+                    if (!inSelection(s, x, y, z)) continue;
+                    if (s.surfaceOnly && !groundIn(probe, qx, qy, qz)) continue;
+                    if (random.nextDouble() > s.strength * weight(s, distance) * volume.density(distance)) continue;
+                    Material type = probe.type(x, y, z);
+                    if (type.isSolid() && !passes(s, probe, x, y, z, type)) continue;
+                    if (s.heightMaskOn && (s.heightAbove ? y < s.heightValue : y > s.heightValue)) continue;
+                    org.bukkit.block.Biome biome;
+                    if (gradient) {
+                        double t = gradientPosition(s, probe, dx, dy, dz, distance, x, y, z) + (random.nextDouble() - 0.5) * s.dither * 2.0 / Math.max(1, s.biomes.size() - 1);
+                        biome = BiomeColors.pickAlong(s.biomes, t);
+                    } else {
+                        double target = (s.noise ? Math.max(0.0, Math.min(0.999, 0.5 + 1.1 * (Procedural.sample(s, x + 0.5, y + 0.5, z + 0.5, s.noiseScale) - 0.5))) : random.nextDouble()) * total;
+                        double sum = 0.0;
+                        biome = s.biomes.get(s.biomes.size() - 1).biome;
+                        for (BrushSettings.BiomeEntry entry : s.biomes) {
+                            sum += Math.max(1, entry.weight);
+                            if (target < sum) {
+                                biome = entry.biome;
+                                break;
+                            }
+                        }
+                    }
+                    if (probe.world().getBiome(x, y, z) == biome) continue;
+                    changes.put(SurfaceProbe.pack(x, y, z), new Change(x, y, z, null, biome));
+                    if (changes.size() >= cap) return "変更が多すぎるので途中で止めました (" + cap + "か所)。";
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Whether the ground is in the cell: an open solid block, or a block that is not solid (air, a plant) standing on a solid one. */
+    private static boolean groundIn(SurfaceProbe probe, int qx, int qy, int qz) {
+        for (int x = qx * 4; x < qx * 4 + 4; x++) {
+            for (int z = qz * 4; z < qz * 4 + 4; z++) {
+                for (int y = qy * 4; y < qy * 4 + 4; y++) {
+                    Material type = probe.type(x, y, z);
+                    if (type.isSolid() ? probe.exposed(x, y, z) : probe.type(x, y - 1, z).isSolid()) return true;
+                }
+            }
+        }
+        return false;
     }
 
     // ---- auto shade -----------------------------------------------------------------------------------------------------------

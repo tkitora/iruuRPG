@@ -22,6 +22,17 @@ final class BrushSettings {
         }
     }
 
+    /** A biome of the biome list (the biome mode) and how often it is chosen against the others (or how long a stretch of the gradient it takes). */
+    static final class BiomeEntry {
+        org.bukkit.block.Biome biome;
+        int weight;
+
+        BiomeEntry(org.bukkit.block.Biome biome, int weight) {
+            this.biome = biome;
+            this.weight = weight;
+        }
+    }
+
     /** How the blocks painted are chosen: by weight from the list, or along a gradient between two blocks. */
     enum PatternMode { RANDOM, GRADIENT }
 
@@ -147,6 +158,12 @@ final class BrushSettings {
     double noiseScale = 3.0;
     boolean preview;
     final List<Entry> pattern = new ArrayList<>();
+    // the biome mode: the list of biomes (laid the same two ways as the blocks: scattered by weight or along the gradient), the tint they are ordered by, and the two ends a list is made from
+    final List<BiomeEntry> biomes = new ArrayList<>();
+    BiomeColors.Kind biomeKind = BiomeColors.Kind.GRASS;
+    org.bukkit.block.Biome biomeFrom = org.bukkit.block.Biome.CHERRY_GROVE;
+    org.bukkit.block.Biome biomeTo = org.bukkit.block.Biome.SWAMP;
+    int biomeSteps = 4;
 
     // masks: each is off, or on (it lets pass what it describes) or on and inverted (it lets pass what it does not describe)
     boolean blockMaskOn;
