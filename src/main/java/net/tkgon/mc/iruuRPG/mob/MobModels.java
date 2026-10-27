@@ -24,8 +24,9 @@ public interface MobModels {
         return 0.0;
     }
 
-    /** The mob was hurt: its model plays `hurt` unless it is in the middle of another one-shot animation. */
-    default void hurt(LivingEntity entity) {
+    /** The mob flinches: its model plays `hurt` unless it is in the middle of another one-shot animation. True when it plays (the mob then stands still for a moment). */
+    default boolean hurt(LivingEntity entity) {
+        return false;
     }
 
     /** Takes the model off the mob. */
