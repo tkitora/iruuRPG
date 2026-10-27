@@ -141,9 +141,9 @@ public final class ModelModule implements Listener, MobModels {
     }
 
     @Override
-    public void hurt(LivingEntity entity) {
+    public boolean hurt(LivingEntity entity) {
         ModelInstance instance = instances.get(entity.getUniqueId());
-        if (instance != null && !instance.busy(Bukkit.getCurrentTick())) instance.play("hurt", Bukkit.getCurrentTick());
+        return instance != null && !instance.busy(Bukkit.getCurrentTick()) && instance.play("hurt", Bukkit.getCurrentTick());
     }
 
     @Override
@@ -209,13 +209,6 @@ public final class ModelModule implements Listener, MobModels {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (player.isOnline()) instance.hideEquipment(player);
         }, 1L);
-    }
-
-    /** A mob with a model that is hurt plays its `hurt` animation (if it has one and is not doing something else). */
-    @EventHandler(ignoreCancelled = true)
-    public void onHurt(org.bukkit.event.entity.EntityDamageEvent event) {
-        ModelInstance instance = instances.get(event.getEntity().getUniqueId());
-        if (instance != null && !instance.busy(Bukkit.getCurrentTick())) instance.play("hurt", Bukkit.getCurrentTick());
     }
 
     @EventHandler

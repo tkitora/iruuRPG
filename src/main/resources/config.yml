@@ -18,6 +18,17 @@ player:
     drop-experience-orbs: true
     experience-orb-speed: 0.32
 
+# 体幹 (モデルに hurt アニメーションがある敵): 当たるたびにゲージがたまり、満タンで「よろける」(hurt を再生して一瞬止まる)。
+# すべての被弾で hurt を出すのではなく、数発に1回。大きなスタンではない。敵ごとに mobs の model: の poise: で上書きできる
+poise:
+  max: 100                 # 満タンの値
+  per-hit: 30              # 1発ごとに必ずたまる量 (HP の多い敵でも、たまるのが遅くなりすぎない)
+  damage-scale: 100        # 与えたダメージの割合 (最大HPに対する) にかける量。最大HPの10%のダメージで +10
+  drain-delay: 2.5         # 当たらないまま、この秒数がたつと減り始める
+  drain-per-second: 30     # 減る速さ (1秒あたり)
+  flinch-seconds: 0.35     # よろけて止まる長さ (秒)
+  min-interval: 1.5        # よろけてから、次によろけられるまでの秒数 (よろけ続けない)
+
 mob:
   default-max-hp: 20.0
   default-max-mp: 1.0

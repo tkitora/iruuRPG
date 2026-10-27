@@ -178,8 +178,42 @@ public final class RpgMobService {
         applyHealth(entity, profile);
         updateName(entity);
         // (the damage of the game's mobs goes round the vanilla damage event, so the model is told here)
-        if (models != null) models.hurt(entity);
+        if (models != null && !runtime.definition().model().isEmpty()) hitPoise(entity, runtime, beforeHp - profile.currentHp());
         return true;
+    }
+
+    /**
+     * A hit on a mob with a model fills its poise; when it is full the model plays `hurt` and the mob stands still for a moment (not in the middle of an attack: then the
+     * gauge stays full for the next hit).
+     */
+    private void hitPoise(LivingEntity entity, MobRuntime runtime, double damage) {
+        int now = Bukkit.getCurrentTick();
+        Poise.Settings settings = Poise.Settings.of(plugin.getConfig().getConfigurationSection("poise"), runtime.definition().model().get("poise"));
+        if (!poise.hit(entity.getUniqueId(), settings, damage, runtime.profile().maxHp(), now)) return;
+        if (!models.hurt(entity)) return;
+        poise.flinched(entity.getUniqueId(), now);
+        flinch(entity, settings.flinchTicks());
+    }
+
+    /** The mob stops where it is for a moment: no walking, no tree, no attack (it does not slide on while the hurt animation plays). */
+    private void flinch(LivingEntity entity, int ticks) {
+        if (!(entity instanceof Mob mob)) return;
+        UUID uuid = mob.getUniqueId();
+        int until = Bukkit.getCurrentTick() + ticks;
+        flinchUntil.put(uuid, until);
+        mob.getPathfinder().stopPathfinding();
+        mob.setVelocity(new Vector(0.0, Math.min(0.0, mob.getVelocity().getY()), 0.0));
+        boolean aware = mob.isAware();
+        mob.setAware(false);
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (flinchUntil.getOrDefault(uuid, 0) != until) return;
+            flinchUntil.remove(uuid);
+            if (aware && mob.isValid()) mob.setAware(true);
+        }, ticks);
+    }
+
+    private boolean flinching(UUID uuid) {
+        return Bukkit.getCurrentTick() < flinchUntil.getOrDefault(uuid, 0);
     }
 
     /** Called once per player who gets credit for a kill (dealt at least 5% of the mob's max HP), with the mob's id. */
@@ -314,6 +348,8 @@ public final class RpgMobService {
         skillBusy.remove(uuid);
         skillStarted.remove(uuid);
         behaviors.remove(uuid);
+        poise.forget(uuid);
+        flinchUntil.remove(uuid);
         removeStatusDisplay(uuid);
     }
 
@@ -323,10 +359,13 @@ public final class RpgMobService {
             if (entity != null) {
                 statusEffectService.clear(entity);
                 if ((attackMode.contains(uuid) || skillBusy.contains(uuid)) && entity instanceof Mob mob) mob.setAI(true);
+                if (flinchUntil.containsKey(uuid) && entity instanceof Mob mob) mob.setAware(true);
             }
         }
         attackMode.clear();
         skillBusy.clear();
+        poise.clear();
+        flinchUntil.clear();
         drivenMelee.clear();
         behaviors.clear();
         btViewers.clear();
@@ -357,7 +396,7 @@ public final class RpgMobService {
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
             MobRuntime runtime = runtimes.get(uuid);
-            if (runtime == null || !runtime.definition().ai() || attackMode.contains(uuid) || behaviors.containsKey(uuid)) continue;
+            if (runtime == null || !runtime.definition().ai() || attackMode.contains(uuid) || behaviors.containsKey(uuid) || flinching(uuid)) continue;
 
             Player target = chaseTarget(mob);
             if (target == null) continue;
@@ -425,6 +464,9 @@ public final class RpgMobService {
     }
 
     private final Map<UUID, BehaviorMob> behaviors = new HashMap<>();
+    /** The poise of the mobs with a model (see Poise), and until when a mob that flinched stands still. */
+    private final Poise poise = new Poise();
+    private final Map<UUID, Integer> flinchUntil = new HashMap<>();
     /** The skills a behavior asked for that do not exist (each is reported once). */
     private final java.util.Set<String> missingSkills = new java.util.HashSet<>();
     /** What the behavior-tree mobs share: attack slots and shared cooldowns. */
@@ -586,7 +628,7 @@ public final class RpgMobService {
                 behaviors.remove(entry.getKey());
                 continue;
             }
-            if (now < behavior.nextTick) continue;
+            if (now < behavior.nextTick || flinching(entry.getKey())) continue;
             behavior.nextTick = now + behavior.runner.interval();
             try {
                 behavior.runner.tick();
@@ -989,7 +1031,7 @@ public final class RpgMobService {
         for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
             MobRuntime runtime = runtimes.get(uuid);
             if (runtime == null || runtime.definition().skills().isEmpty() || !runtime.definition().ai()) continue;
-            if (skillBusy.contains(uuid) || behaviors.containsKey(uuid)) continue;
+            if (skillBusy.contains(uuid) || behaviors.containsKey(uuid) || flinching(uuid)) continue;
             Entity entity = Bukkit.getEntity(uuid);
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
             if (now < skillLockUntil.getOrDefault(uuid, 0L)) continue;
