@@ -26,7 +26,11 @@ final class WorldEditBridge {
         int count = 0;
         try (EditSession edit = WorldEdit.getInstance().newEditSessionBuilder().world(BukkitAdapter.adapt(world)).actor(actor).build()) {
             for (BrushEngine.Change change : changes) {
-                if (edit.setBlock(BlockVector3.at(change.x(), change.y(), change.z()), BukkitAdapter.adapt(change.data()))) count++;
+                BlockVector3 at = BlockVector3.at(change.x(), change.y(), change.z());
+                // a biome (the biome mode) goes in the same edit, so one //undo takes it back as well
+                if (change.isBiome()) {
+                    if (edit.setBiome(at, BukkitAdapter.adapt(change.biome()))) count++;
+                } else if (edit.setBlock(at, BukkitAdapter.adapt(change.data()))) count++;
             }
             session.remember(edit);
         }

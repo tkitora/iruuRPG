@@ -42,6 +42,8 @@ public final class BrushModule implements Listener {
     private final NamespacedKey toolKey;
     private final Map<UUID, BrushSettings> settings = new HashMap<>();
     private final Map<UUID, Integer> lastUse = new HashMap<>();
+    /** The chunks the last biome edit of each player touched: an undo or redo sends them again, so the colours change on screen too. */
+    private final Map<UUID, java.util.Set<Long>> lastBiomeChunks = new HashMap<>();
     private final BrushPreview preview;
     private final BrushLivePreview livePreview;
     private final BrushStore store;
@@ -224,6 +226,7 @@ public final class BrushModule implements Listener {
         preview.clear(event.getPlayer());
         settings.remove(event.getPlayer().getUniqueId());
         lastUse.remove(event.getPlayer().getUniqueId());
+        lastBiomeChunks.remove(event.getPlayer().getUniqueId());
     }
 
     Block target(Player player) {
@@ -241,6 +244,10 @@ public final class BrushModule implements Listener {
         }
         BrushSettings s = settings(player);
         int cap = Math.max(1000, plugin.getConfig().getInt("brush.max-blocks", 120000));
+        if (previewOnly && s.mode == BrushMode.BIOME) {
+            player.sendMessage(PREFIX + "バイオームのモードには、プレビューがありません (塗ったあと //undo で戻せます)。");
+            return;
+        }
         if (!previewOnly && (s.strokeGroup || (s.patternMode == BrushSettings.PatternMode.GRADIENT && s.gradientAxis == BrushSettings.GradientAxis.STROKE))) {
             // the gradient along the stroke is laid when the button is let go, over the whole length of the stroke (0 at its start, 1 at its end)
             collectStroke(player, block, s);
@@ -259,7 +266,7 @@ public final class BrushModule implements Listener {
         }
         preview.clear(player);
         int count = draw(player, block.getWorld(), result.changes());
-        player.sendTitle("", "§7" + s.mode.label() + ": " + count + "ブロック" + (worldEdit ? "" : " (undo なし)"), 0, 14, 6);
+        player.sendTitle("", "§7" + s.mode.label() + ": " + count + (s.mode == BrushMode.BIOME ? "か所 (4x4x4)" : "ブロック") + (worldEdit ? "" : " (undo なし)"), 0, 14, 6);
         if (result.note() != null) player.sendMessage(PREFIX + result.note());
     }
 
@@ -432,16 +439,40 @@ public final class BrushModule implements Listener {
         return new BrushEngine.Result(new ArrayList<>(merged.values()), note);
     }
 
-    /** Puts the changes in the world as one edit of the player (with undo when WorldEdit is there); returns how many blocks were put. */
+    /** Puts the changes in the world as one edit of the player (with undo when WorldEdit is there); returns how many blocks (or biome cells) were put. */
     int draw(Player player, org.bukkit.World world, List<BrushEngine.Change> changes) {
+        int count = -1;
         if (worldEdit) {
             try {
-                return WorldEditBridge.apply(player, world, changes);
+                count = WorldEditBridge.apply(player, world, changes);
             } catch (RuntimeException | LinkageError exception) {
                 plugin.getLogger().warning("Brush: WorldEdit failed, drawing without undo: " + exception);
             }
         }
-        return drawDirect(world, changes);
+        if (count < 0) count = drawDirect(world, changes);
+        java.util.Set<Long> chunks = new java.util.HashSet<>();
+        for (BrushEngine.Change change : changes) {
+            if (change.isBiome()) chunks.add(org.bukkit.Chunk.getChunkKey(change.x() >> 4, change.z() >> 4));
+        }
+        if (!chunks.isEmpty()) {
+            lastBiomeChunks.put(player.getUniqueId(), chunks);
+            resendChunks(world, chunks);
+        }
+        return count;
+    }
+
+    /**
+     * Sends the chunks to the players again a moment later (after the edit is in the world): the game does not tell the players of a new biome, so the grass would keep its
+     * old colour until the chunk is loaded again.
+     */
+    private void resendChunks(org.bukkit.World world, java.util.Set<Long> chunks) {
+        org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            for (long key : chunks) {
+                int x = (int) key;
+                int z = (int) (key >> 32);
+                if (world.isChunkLoaded(x, z)) world.refreshChunk(x, z);
+            }
+        }, 5L);
     }
 
     /** What one use at {@code block} would change, with the facing of the player, the selection and the blacklist put in. */
@@ -456,7 +487,8 @@ public final class BrushModule implements Listener {
     private int drawDirect(org.bukkit.World world, List<BrushEngine.Change> changes) {
         int count = 0;
         for (BrushEngine.Change change : changes) {
-            world.getBlockAt(change.x(), change.y(), change.z()).setBlockData(change.data(), false);
+            if (change.isBiome()) world.setBiome(change.x(), change.y(), change.z(), change.biome());
+            else world.getBlockAt(change.x(), change.y(), change.z()).setBlockData(change.data(), false);
             count++;
         }
         return count;
@@ -469,6 +501,13 @@ public final class BrushModule implements Listener {
         }
         preview.clear(player);
         player.performCommand("/undo");
+        resendLastBiomes(player);
+    }
+
+    /** After an undo or redo of a biome edit, its chunks are sent again (the colours change on screen too). */
+    private void resendLastBiomes(Player player) {
+        java.util.Set<Long> chunks = lastBiomeChunks.get(player.getUniqueId());
+        if (chunks != null && settings(player).mode == BrushMode.BIOME) resendChunks(player.getWorld(), chunks);
     }
 
     void redo(Player player) {
@@ -478,6 +517,7 @@ public final class BrushModule implements Listener {
         }
         preview.clear(player);
         player.performCommand("/redo");
+        resendLastBiomes(player);
     }
 
     void menuOpen(Player player) {
