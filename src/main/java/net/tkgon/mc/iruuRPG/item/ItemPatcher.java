@@ -32,36 +32,69 @@ public final class ItemPatcher {
     private final RpgItemFactory factory;
     private final ItemIdentifier identifier;
     private final Supplier<String> rarityMark;
+    private final java.util.function.Consumer<String> log;
     private Map<String, String> fingerprints = Map.of();
+    private boolean enabled = true;
 
-    public ItemPatcher(RpgItemRegistry registry, RpgItemFactory factory, ItemIdentifier identifier, Supplier<String> rarityMark) {
+    public ItemPatcher(RpgItemRegistry registry, RpgItemFactory factory, ItemIdentifier identifier, Supplier<String> rarityMark,
+                       java.util.function.Consumer<String> log) {
         this.registry = registry;
         this.factory = factory;
         this.identifier = identifier;
         this.rarityMark = rarityMark;
+        this.log = log == null ? message -> { } : log;
     }
 
-    /** The fingerprint of every item definition as it is now (call after the items, skills and config are loaded). */
+    /**
+     * The fingerprint of every item definition as it is now (call after the items, skills and config are loaded). A
+     * definition that makes no real item (material AIR or not an item) or cannot be built gets none: its items are never
+     * patched. One bad definition never stops the others (it is logged and skipped).
+     */
     public Map<String, String> computeFingerprints() {
         Map<String, String> out = new HashMap<>();
+        java.util.List<String> skipped = new java.util.ArrayList<>();
         for (RpgItemDefinition definition : registry.all().values()) {
-            out.put(definition.id(), fingerprint(factory.createUnstamped(definition)));
+            try {
+                if (definition.material() == null || definition.material().isAir() || !definition.material().isItem()) {
+                    skipped.add(definition.id() + " (" + definition.material() + ")");
+                    continue;
+                }
+                out.put(definition.id(), fingerprint(factory.createUnstamped(definition)));
+            } catch (RuntimeException e) {
+                skipped.add(definition.id() + " (" + e + ")");
+            }
         }
+        if (!skipped.isEmpty()) log.accept("items: no fingerprint (never patched) for " + skipped.size() + " item(s): " + String.join(", ", skipped));
         return out;
     }
 
     /** The fingerprints items are compared with. */
     public void setFingerprints(Map<String, String> fingerprints) {
         this.fingerprints = Map.copyOf(fingerprints);
-        // the items made from now on carry the fingerprint, so they are never patched for nothing
+        stampNewItems();
+    }
+
+    /** Off (config item-patch.enabled: false): nothing is patched or stamped, items stay as they are. */
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+        stampNewItems();
+    }
+
+    public boolean enabled() {
+        return enabled;
+    }
+
+    private void stampNewItems() {
+        // the items made from now on carry the fingerprint, so they stack with the checked ones and are never patched for nothing
         Map<String, String> current = this.fingerprints;
-        factory.setRevision(current::get);
+        factory.setRevision(enabled ? current::get : null);
     }
 
     public Map<String, String> fingerprints() {
         return fingerprints;
     }
 
+    /** The fingerprint of a plain item; it throws for an item that cannot be serialized (AIR), see computeFingerprints. */
     static String fingerprint(ItemStack plain) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(plain.serializeAsBytes());
@@ -72,11 +105,62 @@ public final class ItemPatcher {
         }
     }
 
-    /** The item built again from its current definition, or null when it is not an RPG item, its definition is gone, or it is up to date. */
+    /** What the patch did since the counts were last taken (for the log). */
+    public static final class Counts {
+        /** Built again: the yaml changed what the item shows. */
+        public int rebuilt;
+        /** Only stamped with the fingerprint: the item was already what the yaml makes (an item from before the fingerprints). */
+        public int stamped;
+        /** Building it again failed: the item was left as it was. */
+        public int failed;
+        /** Crafted items from before the rarity was stored whose name marks could not be read (the rarity was worked out from the bonuses). */
+        public int rarityUnread;
+
+        public void add(Counts other) {
+            rebuilt += other.rebuilt;
+            stamped += other.stamped;
+            failed += other.failed;
+            rarityUnread += other.rarityUnread;
+        }
+
+        public boolean any() {
+            return rebuilt + stamped + failed + rarityUnread > 0;
+        }
+
+        @Override
+        public String toString() {
+            return "rebuilt " + rebuilt + ", stamped only " + stamped + ", failed " + failed + ", crafted rarity not readable " + rarityUnread;
+        }
+    }
+
+    private Counts counts = new Counts();
+
+    /** The counts since the last call, and starts new ones. */
+    public Counts takeCounts() {
+        Counts out = counts;
+        counts = new Counts();
+        return out;
+    }
+
+    /**
+     * The item brought up to date, or null when it is not an RPG item, its definition is gone, or it is up to date.
+     * When the item is already what the current yaml makes (only the fingerprint is missing), the answer is the same item
+     * with the fingerprint added and nothing else touched. If building it fails, the item is left as it is (null).
+     */
     public ItemStack patch(ItemStack item) {
-        if (item == null || item.getType().isAir() || !item.hasItemMeta()) return null;
+        if (!enabled || item == null || item.getType().isAir() || !item.hasItemMeta()) return null;
         String id = identifier.itemId(item).orElse(null);
         if (id == null) return null;
+        try {
+            return patch(item, id);
+        } catch (RuntimeException e) {
+            counts.failed++;
+            log.accept("items: could not bring an item '" + id + "' up to date, left as it was: " + e);
+            return null;
+        }
+    }
+
+    private ItemStack patch(ItemStack item, String id) {
         String want = fingerprints.get(id);
         RpgItemDefinition definition = registry.find(id).orElse(null);
         if (want == null || definition == null) return null; // an item whose yaml is gone is left as it is
@@ -106,11 +190,26 @@ public final class ItemPatcher {
             if (entry.getKey().equals(Enchantment.LUCK) || meta.hasEnchant(entry.getKey())) continue;
             meta.addEnchant(entry.getKey(), entry.getValue(), true);
         }
-        meta.getPersistentDataContainer().set(identifier.keys().itemRev(), PersistentDataType.STRING, want);
-        if (rarity != null) meta.getPersistentDataContainer().set(identifier.keys().rarity(), PersistentDataType.INTEGER, rarity.tier());
+        stamp(meta, want, rarity);
         fresh.setItemMeta(meta);
         fresh.setAmount(item.getAmount());
+
+        // the same item with only the stamp: if that is what the rebuild gives, it is all that changes
+        ItemStack stamped = item.clone();
+        ItemMeta stampedMeta = stamped.getItemMeta();
+        stamp(stampedMeta, want, rarity);
+        stamped.setItemMeta(stampedMeta);
+        if (stamped.equals(fresh)) {
+            counts.stamped++;
+            return stamped;
+        }
+        counts.rebuilt++;
         return fresh;
+    }
+
+    private void stamp(ItemMeta meta, String want, Rarity rarity) {
+        meta.getPersistentDataContainer().set(identifier.keys().itemRev(), PersistentDataType.STRING, want);
+        if (rarity != null) meta.getPersistentDataContainer().set(identifier.keys().rarity(), PersistentDataType.INTEGER, rarity.tier());
     }
 
     /** Patches the array in place; answers how many stacks changed. */
@@ -135,6 +234,8 @@ public final class ItemPatcher {
         if (stored != null) return stored;
         Integer marks = meta.hasDisplayName() ? rarityMarks(PlainTextComponentSerializer.plainText().serialize(meta.displayName()), rarityMark.get()) : null;
         if (marks != null) return Rarity.fromTier(marks);
+        counts.rarityUnread++;
+        log.accept("items: the rarity of a crafted '" + definition.id() + "' could not be read from its name; worked out from its bonuses");
         return definition.rarity().up(bonusCount(bonus, elements) / 2);
     }
 

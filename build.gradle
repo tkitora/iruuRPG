@@ -28,8 +28,25 @@ dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
+// `test` (and so `build`) runs only the light tests; the ones that start the dev bundle's server code (tag "server") run with ./gradlew itemPatchTest
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'server'
+    }
+}
+
+tasks.register('itemPatchTest', Test) {
+    description = 'The item patch on real items (the server code of the dev bundle).'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'server'
+    }
+    // -PitemPatchData=<a copy of plugins/iruuRPG or the yml repository>: also run the patch over the server's own items
+    systemProperty 'itemPatch.data', (project.findProperty('itemPatchData') ?: '')
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }
 }
 
 tasks {

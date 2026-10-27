@@ -57,8 +57,8 @@ public final class StorageService {
     private final PlayerProfileManager profileManager;
     private final File folder;
     private final Map<UUID, PlayerStorage> loaded = new HashMap<>();
-    /** The item patch (items built again from a newer yaml), applied whenever a storage is read from its file. */
-    private java.util.function.Function<ItemStack, ItemStack> patch;
+    /** The item patch (items built again from a newer yaml), applied whenever a storage is read from its file: (where, pages) → stacks changed. */
+    private java.util.function.ToIntBiFunction<String, List<ItemStack[]>> patch;
 
     public StorageService(JavaPlugin plugin, PlayerProfileManager profileManager) {
         this.plugin = plugin;
@@ -108,7 +108,7 @@ public final class StorageService {
         if (storage != null) return storage;
         storage = load(id);
         loaded.put(id, storage);
-        if (patch != null && patch(storage, patch) > 0) save(id);
+        if (patch != null && patch.applyAsInt("storage " + id, storage.pages) > 0) save(id);
         return storage;
     }
 
@@ -241,7 +241,7 @@ public final class StorageService {
         return new int[]{movedSlots.size(), left};
     }
 
-    public void setPatch(java.util.function.Function<ItemStack, ItemStack> patch) {
+    public void setPatch(java.util.function.ToIntBiFunction<String, List<ItemStack[]>> patch) {
         this.patch = patch;
     }
 

@@ -21,11 +21,10 @@ import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.bukkit.plugin.java.JavaPluginLoader;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -47,18 +46,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The item patch on real items (the server's own item and data code from the dev bundle): an item whose yaml changed is
  * built again with the new name and text, and keeps everything that is its own.
  */
+@Tag("server")
 class ItemPatcherTest {
 
     private static File data;
-    private static TestPlugin plugin;
-
-    static final class TestPlugin extends JavaPlugin {
-        @SuppressWarnings("deprecation")
-        TestPlugin(File folder) {
-            super(new JavaPluginLoader(Bukkit.getServer()), new PluginDescriptionFile("iruuRPG", "1.0", "net.tkgon.mc.iruuRPG.Test"),
-                    folder, new File(folder, "iruuRPG.jar"));
-        }
-    }
+    private static JavaPlugin plugin;
 
     private RpgItemRegistry registry;
     private RpgItemFactory factory;
@@ -67,33 +59,9 @@ class ItemPatcherTest {
 
     @BeforeAll
     static void server() throws IOException {
-        SharedConstants.tryDetectVersion();
-        Bootstrap.bootStrap();
-        RegistryAccess access = RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
-        // a server that answers only what the item code asks (answering by name: stubbing with when() would load Registry before there is a server)
-        Logger logger = Logger.getLogger("test");
-        Server server = Mockito.mock(Server.class, call -> switch (call.getMethod().getName()) {
-            case "getItemFactory" -> CraftItemFactory.instance();
-            case "getUnsafe" -> CraftMagicNumbers.INSTANCE;
-            case "getRegistry" -> registry(call.getArgument(0), access);
-            case "getLogger" -> logger;
-            case "getName", "getVersion" -> "test";
-            case "getBukkitVersion" -> "1.20.4-R0.1-SNAPSHOT";
-            default -> Mockito.RETURNS_DEFAULTS.answer(call);
-        });
-        if (Bukkit.getServer() == null) Bukkit.setServer(server);
-        CraftRegistry.setMinecraftRegistry(access);
+        TestServer.start();
         data = Files.createTempDirectory("itempatch").toFile();
-        plugin = new TestPlugin(data);
-    }
-
-    /** The server's registry for the built-in kinds (enchantments, ...); an empty one for the kinds that come from data packs (not used here). */
-    private static Object registry(Class<? extends org.bukkit.Keyed> kind, RegistryAccess access) {
-        try {
-            return CraftRegistry.createRegistry(kind, access);
-        } catch (IllegalStateException missing) {
-            return Mockito.mock(org.bukkit.Registry.class);
-        }
+        plugin = new TestServer.TestPlugin(data);
     }
 
     @BeforeEach
@@ -103,7 +71,7 @@ class ItemPatcherTest {
         registry.reload();
         identifier = new ItemIdentifier(new ItemKeys(plugin));
         factory = new RpgItemFactory(plugin, identifier, new ItemSkillRegistry(plugin));
-        patcher = new ItemPatcher(registry, factory, identifier, () -> plugin.getConfig().getString("rarity.mark", "*"));
+        patcher = new ItemPatcher(registry, factory, identifier, () -> plugin.getConfig().getString("rarity.mark", "*"), message -> { });
         patcher.setFingerprints(patcher.computeFingerprints());
     }
 
@@ -235,14 +203,6 @@ class ItemPatcherTest {
     }
 
     @Test
-    void rarityMarksAreReadFromTheName() {
-        assertEquals(3, ItemPatcher.rarityMarks("剣 [***]", "*"));
-        assertEquals(0, ItemPatcher.rarityMarks("剣", "*"));
-        assertEquals(2, ItemPatcher.rarityMarks("剣 [★★]", "★"));
-        assertNull(ItemPatcher.rarityMarks("剣 [**]", "★"), "another mark: cannot be told");
-    }
-
-    @Test
     void fingerprintsAreStable() {
         Map<String, String> first = patcher.computeFingerprints();
         Map<String, String> second = patcher.computeFingerprints();
@@ -282,5 +242,145 @@ class ItemPatcherTest {
         ItemPatchService restarted = new ItemPatchService(plugin, patcher);
         assertTrue(restarted.refresh().isEmpty());
         assertEquals(2, restarted.version());
+    }
+
+    @Test
+    void anItemFromBeforeThatIsAlreadyCurrentIsOnlyStamped() {
+        ItemStack old = factory.create(sword());
+        ItemMeta meta = old.getItemMeta();
+        meta.getPersistentDataContainer().remove(identifier.keys().itemRev());
+        old.setItemMeta(meta);
+        old.setAmount(3);
+
+        patcher.takeCounts();
+        ItemStack patched = patcher.patch(old);
+        ItemPatcher.Counts counts = patcher.takeCounts();
+        assertNotNull(patched, "the fingerprint is added");
+        assertEquals(1, counts.stamped);
+        assertEquals(0, counts.rebuilt);
+        // nothing else changed: the same as the old item with the stamp, and it stacks with an item made now
+        ItemStack expected = old.clone();
+        ItemMeta stamped = expected.getItemMeta();
+        stamped.getPersistentDataContainer().set(identifier.keys().itemRev(), PersistentDataType.STRING, patcher.fingerprints().get("test_sword"));
+        expected.setItemMeta(stamped);
+        assertEquals(expected, patched);
+        assertTrue(patched.isSimilar(factory.create(sword())), "stacks with a new one");
+    }
+
+    @Test
+    void aChangedItemCountsAsRebuilt() throws IOException {
+        ItemStack sword = factory.create(sword());
+        changeYaml("新しい剣", "新しい説明");
+        patcher.takeCounts();
+        assertNotNull(patcher.patch(sword));
+        ItemPatcher.Counts counts = patcher.takeCounts();
+        assertEquals(1, counts.rebuilt);
+        assertEquals(0, counts.stamped);
+    }
+
+    @Test
+    void aFailureLeavesTheItemAsItWas() {
+        // a crafted item from before (no rarity stored) whose name cannot be read, with the mark setting broken
+        List<String> logged = new java.util.ArrayList<>();
+        ItemPatcher broken = new ItemPatcher(registry, factory, identifier, () -> {
+            throw new IllegalStateException("broken setting");
+        }, logged::add);
+        broken.setFingerprints(broken.computeFingerprints());
+        ItemStack old = factory.createCrafted(sword(), Rarity.fromTier(2), new StatSet(), new ElementStatSet());
+        ItemMeta meta = old.getItemMeta();
+        meta.getPersistentDataContainer().remove(identifier.keys().itemRev());
+        meta.getPersistentDataContainer().remove(identifier.keys().rarity());
+        old.setItemMeta(meta);
+        ItemStack before = old.clone();
+
+        assertNull(broken.patch(old), "left as it was");
+        assertEquals(before, old);
+        assertEquals(1, broken.takeCounts().failed);
+        assertTrue(logged.stream().anyMatch(line -> line.contains("test_sword")), logged.toString());
+        patcher.setFingerprints(patcher.computeFingerprints()); // the factory stamps for the shared patcher again
+    }
+
+    @Test
+    void aRarityThatCannotBeReadIsCounted() {
+        StatSet bonus = new StatSet();
+        bonus.add(StatType.STRENGTH, 1.0);
+        bonus.add(StatType.MAGIC, 1.0);
+        ItemStack old = factory.createCrafted(sword(), sword().rarity().up(1), bonus, new ElementStatSet());
+        ItemMeta meta = old.getItemMeta();
+        meta.getPersistentDataContainer().remove(identifier.keys().itemRev());
+        meta.getPersistentDataContainer().remove(identifier.keys().rarity());
+        meta.displayName(Component.text("剣 [??]")); // marks of another setting
+        old.setItemMeta(meta);
+
+        patcher.takeCounts();
+        ItemStack patched = patcher.patch(old);
+        assertNotNull(patched);
+        assertEquals(1, patcher.takeCounts().rarityUnread);
+        // worked out from the bonuses as the craft does: two bonuses, one tier up
+        assertEquals(sword().rarity().up(1), identifier.rarity(patched).orElseThrow());
+    }
+
+    @Test
+    void whenOffNothingIsPatchedOrStamped() throws IOException {
+        ItemStack sword = factory.create(sword());
+        changeYaml("新しい剣", "新しい説明");
+        patcher.setEnabled(false);
+        try {
+            assertNull(patcher.patch(sword));
+            ItemStack made = factory.create(sword());
+            assertNull(made.getItemMeta().getPersistentDataContainer().get(identifier.keys().itemRev(), PersistentDataType.STRING),
+                    "new items carry no fingerprint while off (they stack with the old ones)");
+        } finally {
+            patcher.setEnabled(true);
+        }
+        assertNotNull(patcher.patch(sword));
+    }
+
+    @Test
+    void definitionsThatMakeNoItemNeverStopTheFingerprintsOrTheRefresh() throws IOException {
+        // as items/orange.yml on the server: material AIR (and a block that is no item, and a name that is no material)
+        File folder = new File(data, "items");
+        Files.writeString(new File(folder, "odd.yml").toPath(), String.join("\n",
+                "items:",
+                "  AIR:",
+                "    material: AIR",
+                "    name: \"エアー\"",
+                "  water:",
+                "    material: WATER",
+                "    name: \"水\"",
+                "  nothing:",
+                "    material: NOT_A_MATERIAL",
+                "    name: \"なし\"",
+                ""), StandardCharsets.UTF_8);
+        try {
+            registry.reload();
+            List<String> logged = new java.util.ArrayList<>();
+            ItemPatcher odd = new ItemPatcher(registry, factory, identifier, () -> "*", logged::add);
+            Map<String, String> fingerprints = odd.computeFingerprints();
+            assertTrue(fingerprints.containsKey("test_sword"), "the other items still get theirs");
+            assertTrue(!fingerprints.containsKey("AIR") && !fingerprints.containsKey("water"), fingerprints.keySet().toString());
+            assertTrue(logged.stream().anyMatch(line -> line.contains("AIR")), logged.toString());
+
+            new File(data, "item-patch.yml").delete();
+            ItemPatchService service = new ItemPatchService(plugin, odd);
+            assertTrue(service.refresh().contains("test_sword"));
+            assertTrue(odd.enabled(), "the patch is still on");
+        } finally {
+            new File(folder, "odd.yml").delete();
+            registry.reload();
+            patcher.setFingerprints(patcher.computeFingerprints());
+        }
+    }
+
+    @Test
+    void aFaultInTheRefreshTurnsThePatchOffInsteadOfThrowing() {
+        ItemPatchService service = new ItemPatchService(plugin, patcher);
+        service.addKeeper(patch -> {
+            throw new IllegalStateException("a keeper that breaks");
+        });
+        new File(data, "item-patch.yml").delete();
+        assertTrue(service.refresh().isEmpty(), "no exception out of the refresh");
+        assertTrue(!patcher.enabled(), "the patch stops");
+        patcher.setEnabled(true);
     }
 }

@@ -352,10 +352,10 @@ public final class IruuRPG extends JavaPlugin {
         this.storageMenu.start();
         // items made before their yaml changed are built again (keeping what is their own: crafted stats, rarity, ...)
         this.itemPatchService = new net.tkgon.mc.iruuRPG.item.ItemPatchService(this, new net.tkgon.mc.iruuRPG.item.ItemPatcher(
-                itemRegistry, itemFactory, itemIdentifier, () -> getConfig().getString("rarity.mark", "*")));
+                itemRegistry, itemFactory, itemIdentifier, () -> getConfig().getString("rarity.mark", "*"), getLogger()::warning));
         this.itemPatchService.addKeeper(marketService::patchItems);
         this.itemPatchService.addKeeper(storageMenu::patchItems);
-        this.storageService.setPatch(itemPatchService.patcher()::patch);
+        this.storageService.setPatch(itemPatchService::patchLoaded);
         this.itemPatchService.setAfterPlayerPatch(player -> {
             PlayerProfile profile = equipmentService.recalculate(player);
             playerBars.sync(player, profile);
@@ -379,7 +379,7 @@ public final class IruuRPG extends JavaPlugin {
         registerCommands();
         registerListeners();
         loadOnlinePlayers();
-        itemPatchService.refresh();
+        refreshItemPatch();
         Bukkit.getScheduler().runTask(this, tutorialService::sweepEntities);
         PlayerHud playerHud = new PlayerHud(this, levelService);
         playerHud.setCooldowns(attackService);
@@ -715,6 +715,15 @@ public final class IruuRPG extends JavaPlugin {
         return report;
     }
 
+    /** The item patch never stops the plugin from starting or reloading: a fault only leaves the items as they are. */
+    private void refreshItemPatch() {
+        try {
+            itemPatchService.refresh();
+        } catch (RuntimeException | LinkageError e) {
+            getLogger().log(java.util.logging.Level.SEVERE, "items: the item patch failed; the plugin goes on without it", e);
+        }
+    }
+
     private void reloadPluginData() {
         profileManager.saveAll();
         reloadConfig();
@@ -728,7 +737,7 @@ public final class IruuRPG extends JavaPlugin {
         craftRegistry.reload();
         questService.rerollNow();
         // the items whose yaml changed: the market, the storages and the players online at once (each player is looked at once more when joining)
-        itemPatchService.refresh();
+        refreshItemPatch();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             PlayerProfile profile = equipmentService.recalculate(player);
