@@ -86,6 +86,17 @@ public final class ItemPatchService implements Listener {
      * Answers the ids that changed.
      */
     public Set<String> refresh() {
+        // a fault of the patch never stops the plugin (it is called from onEnable and the reload): it only stops the patch
+        try {
+            return refreshNow();
+        } catch (RuntimeException | LinkageError e) {
+            patcher.setEnabled(false);
+            plugin.getLogger().log(java.util.logging.Level.SEVERE, "items: the item patch failed and is off until the next reload; items are left as they are", e);
+            return Set.of();
+        }
+    }
+
+    private Set<String> refreshNow() {
         patcher.setEnabled(plugin.getConfig().getBoolean("item-patch.enabled", true));
         Map<String, String> now = patcher.computeFingerprints();
         YamlConfiguration yaml = file.exists() ? YamlConfiguration.loadConfiguration(file) : null;
@@ -174,12 +185,18 @@ public final class ItemPatchService implements Listener {
     /** Patches item arrays read from somewhere (a storage file), logging what was done; answers how many stacks changed. */
     public int patchLoaded(String where, java.util.List<ItemStack[]> arrays) {
         if (!patcher.enabled()) return 0;
-        patcher.takeCounts();
-        int changed = 0;
-        for (ItemStack[] array : arrays) changed += patcher.patchAll(array);
-        ItemPatcher.Counts counts = patcher.takeCounts();
-        if (counts.any()) plugin.getLogger().info("items: " + where + ": " + counts);
-        return changed;
+        try {
+            patcher.takeCounts();
+            int changed = 0;
+            for (ItemStack[] array : arrays) changed += patcher.patchAll(array);
+            ItemPatcher.Counts counts = patcher.takeCounts();
+            if (counts.any()) plugin.getLogger().info("items: " + where + ": " + counts);
+            return changed;
+        } catch (RuntimeException e) {
+            // the storage opens as it is
+            plugin.getLogger().log(java.util.logging.Level.WARNING, "items: could not patch " + where, e);
+            return 0;
+        }
     }
 
     private int patchInventory(Inventory inventory) {

@@ -45,12 +45,26 @@ public final class ItemPatcher {
         this.log = log == null ? message -> { } : log;
     }
 
-    /** The fingerprint of every item definition as it is now (call after the items, skills and config are loaded). */
+    /**
+     * The fingerprint of every item definition as it is now (call after the items, skills and config are loaded). A
+     * definition that makes no real item (material AIR or not an item) or cannot be built gets none: its items are never
+     * patched. One bad definition never stops the others (it is logged and skipped).
+     */
     public Map<String, String> computeFingerprints() {
         Map<String, String> out = new HashMap<>();
+        java.util.List<String> skipped = new java.util.ArrayList<>();
         for (RpgItemDefinition definition : registry.all().values()) {
-            out.put(definition.id(), fingerprint(factory.createUnstamped(definition)));
+            try {
+                if (definition.material() == null || definition.material().isAir() || !definition.material().isItem()) {
+                    skipped.add(definition.id() + " (" + definition.material() + ")");
+                    continue;
+                }
+                out.put(definition.id(), fingerprint(factory.createUnstamped(definition)));
+            } catch (RuntimeException e) {
+                skipped.add(definition.id() + " (" + e + ")");
+            }
         }
+        if (!skipped.isEmpty()) log.accept("items: no fingerprint (never patched) for " + skipped.size() + " item(s): " + String.join(", ", skipped));
         return out;
     }
 
@@ -80,6 +94,7 @@ public final class ItemPatcher {
         return fingerprints;
     }
 
+    /** The fingerprint of a plain item; it throws for an item that cannot be serialized (AIR), see computeFingerprints. */
     static String fingerprint(ItemStack plain) {
         try {
             byte[] digest = MessageDigest.getInstance("SHA-256").digest(plain.serializeAsBytes());

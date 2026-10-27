@@ -43,6 +43,10 @@ tasks.register('itemPatchTest', Test) {
     useJUnitPlatform {
         includeTags 'server'
     }
+    // -PitemPatchData=<a copy of plugins/iruuRPG or the yml repository>: also run the patch over the server's own items
+    systemProperty 'itemPatch.data', (project.findProperty('itemPatchData') ?: '')
+    testLogging { showStandardStreams = true }
+    outputs.upToDateWhen { false }
 }
 
 tasks {
