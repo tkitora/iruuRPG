@@ -565,6 +565,7 @@ model:
   cmd-base: 8100000        # 部品の custom model data の最初の番号
   update-ticks: 2          # 何tickごとにモデルの姿勢を更新するか
   view-distance: 48.0      # この距離にプレイヤーがいるときだけ更新する
+  walk-speed: 1.0          # モデルの walk アニメーションが想定する歩く速さ (ブロック/秒)。mob の実際の速さとの比で、walk の再生速度を変える (足が地面を滑らない)
 
 # リソースパック (pack/): 入ってきたプレイヤーに、下のパックを送る。サーバー専用パック (server.zip: 草ブロックを全面草にする) と、
 # モデル機能のパック (iruumodel.zip: /iruumodel build が作る) は別のパック。zip は plugins/iruuRPG/resourcepacks/ にある。
