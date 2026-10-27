@@ -67,6 +67,22 @@ public final class StorageMenu implements Listener {
         }, 600L, 600L);
     }
 
+    /**
+     * The item patch: the pages on screen go into the data first (so the half-minute save does not bring the old
+     * items back), every storage in memory is patched, then the pages on screen are drawn again.
+     */
+    public int patchItems(java.util.function.Function<ItemStack, ItemStack> patch) {
+        for (Holder holder : open.values()) capture(holder);
+        int changed = service.patchLoaded(patch);
+        if (changed > 0) {
+            for (Holder holder : open.values()) {
+                Player player = Bukkit.getPlayer(holder.ownerId);
+                if (player != null && holder.inventory != null && !holder.confirm) render(player, holder);
+            }
+        }
+        return changed;
+    }
+
     /** Server stop: everything on screen is saved. */
     public void shutdown() {
         for (Holder holder : new ArrayList<>(open.values())) {

@@ -41,8 +41,27 @@ public final class RpgItemFactory {
         this.skillRegistry = skillRegistry;
     }
 
+    /** The fingerprint of an item's current yaml (set by the item patch), stamped on every item made, or null. */
+    private java.util.function.Function<String, String> revision = id -> null;
+
+    public void setRevision(java.util.function.Function<String, String> revision) {
+        this.revision = revision == null ? id -> null : revision;
+    }
+
     public ItemStack create(RpgItemDefinition definition) {
+        ItemStack item = build(definition, definition.rarity(), null, null);
+        stamp(item, definition);
+        return item;
+    }
+
+    /** The item as the yaml alone makes it, without the fingerprint (what the fingerprint is taken from). */
+    ItemStack createUnstamped(RpgItemDefinition definition) {
         return build(definition, definition.rarity(), null, null);
+    }
+
+    private void stamp(ItemStack item, RpgItemDefinition definition) {
+        String rev = revision.apply(definition.id());
+        if (rev != null) identifier.setRevision(item, rev);
     }
 
     /**
@@ -52,6 +71,7 @@ public final class RpgItemFactory {
     public ItemStack createCrafted(RpgItemDefinition definition, Rarity rarity, StatSet bonus, ElementStatSet elementBonus) {
         ItemStack item = build(definition, rarity, bonus, elementBonus);
         identifier.setBonusStats(item, bonus);
+        stamp(item, definition);
         return item;
     }
 

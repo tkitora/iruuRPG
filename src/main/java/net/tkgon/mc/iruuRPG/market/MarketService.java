@@ -533,6 +533,33 @@ public final class MarketService implements Listener {
         }
     }
 
+    /** The item patch: the items of the listings, buy offers and return boxes built again from a newer yaml. */
+    public int patchItems(java.util.function.Function<ItemStack, ItemStack> patch) {
+        int changed = 0;
+        for (MarketListing listing : listings.values()) {
+            ItemStack patched = patch.apply(listing.item());
+            if (patched == null) continue;
+            listing.replaceItem(patched);
+            changed++;
+        }
+        for (MarketBuyOffer offer : offers.values()) {
+            ItemStack patched = patch.apply(offer.item());
+            if (patched == null) continue;
+            offer.replaceItem(patched);
+            changed++;
+        }
+        for (List<ItemStack> box : returns.values()) {
+            for (int index = 0; index < box.size(); index++) {
+                ItemStack patched = patch.apply(box.get(index));
+                if (patched == null) continue;
+                box.set(index, patched);
+                changed++;
+            }
+        }
+        if (changed > 0) save();
+        return changed;
+    }
+
     public void save() {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("next-id", nextId);

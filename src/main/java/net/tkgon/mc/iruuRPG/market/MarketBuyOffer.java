@@ -6,7 +6,7 @@ import org.bukkit.inventory.ItemStack;
 public final class MarketBuyOffer {
 
     private final long id;
-    private final ItemStack item; // one piece
+    private ItemStack item; // one piece
     private final long unitPrice;
     private int remaining;
 
@@ -40,5 +40,11 @@ public final class MarketBuyOffer {
 
     public boolean unlimited() {
         return remaining < 0;
+    }
+
+    /** The item built again from a newer yaml (the item patch); one piece, as always. */
+    public void replaceItem(ItemStack item) {
+        this.item = item.clone();
+        this.item.setAmount(1);
     }
 }

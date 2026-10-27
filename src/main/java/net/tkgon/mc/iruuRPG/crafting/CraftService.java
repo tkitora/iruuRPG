@@ -252,6 +252,7 @@ public final class CraftService implements Listener {
         Rarity rarity = definition.rarity().up(bonus.count() / 2);
         ItemStack item = itemFactory.createCrafted(definition, rarity, bonus.stats(), bonus.elements());
         itemIdentifier.setBonusElementStats(item, bonus.elements());
+        itemIdentifier.setRarity(item, rarity);
         return item;
     }
 

@@ -22,6 +22,14 @@ dependencies {
     // the brush tool (tools/brush) draws through FastAsyncWorldEdit so that //undo works; it is compiled against, never bundled (the server has the plugin)
     compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Core:2.9.2") { transitive = false }
     compileOnly("com.fastasyncworldedit:FastAsyncWorldEdit-Bukkit:2.9.2") { transitive = false }
+    // tests run against the real item code of the server in the dev bundle (see src/test: the item patch keeps what is an item's own)
+    testImplementation("org.junit.jupiter:junit-jupiter:5.10.2")
+    testImplementation("org.mockito:mockito-core:5.11.0")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+test {
+    useJUnitPlatform()
 }
 
 tasks {
