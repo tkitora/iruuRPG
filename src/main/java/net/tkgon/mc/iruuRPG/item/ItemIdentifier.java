@@ -121,6 +121,43 @@ public final class ItemIdentifier {
         return stats;
     }
 
+    /** Stores the rarity of this one item (a crafted item's, which may be above its base rarity). */
+    public void setRarity(ItemStack item, Rarity rarity) {
+        if (item == null || rarity == null) return;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        meta.getPersistentDataContainer().set(keys.rarity(), PersistentDataType.INTEGER, rarity.tier());
+        item.setItemMeta(meta);
+    }
+
+    /** The rarity stored on this one item, if any. */
+    public Optional<Rarity> rarity(ItemStack item) {
+        if (item == null || item.getType().isAir()) return Optional.empty();
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return Optional.empty();
+
+        Integer tier = meta.getPersistentDataContainer().get(keys.rarity(), PersistentDataType.INTEGER);
+        return tier == null ? Optional.empty() : Optional.of(Rarity.fromTier(tier));
+    }
+
+    /** Stamps the fingerprint of the yaml the item was built from (see ItemPatcher). */
+    public void setRevision(ItemStack item, String revision) {
+        if (item == null || revision == null) return;
+
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+
+        meta.getPersistentDataContainer().set(keys.itemRev(), PersistentDataType.STRING, revision);
+        item.setItemMeta(meta);
+    }
+
+    public ItemKeys keys() {
+        return keys;
+    }
+
     public Optional<String> itemId(ItemStack item) {
         if (item == null || item.getType().isAir()) return Optional.empty();
 

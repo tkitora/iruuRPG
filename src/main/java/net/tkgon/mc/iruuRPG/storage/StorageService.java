@@ -57,6 +57,8 @@ public final class StorageService {
     private final PlayerProfileManager profileManager;
     private final File folder;
     private final Map<UUID, PlayerStorage> loaded = new HashMap<>();
+    /** The item patch (items built again from a newer yaml), applied whenever a storage is read from its file. */
+    private java.util.function.Function<ItemStack, ItemStack> patch;
 
     public StorageService(JavaPlugin plugin, PlayerProfileManager profileManager) {
         this.plugin = plugin;
@@ -102,7 +104,12 @@ public final class StorageService {
     }
 
     public PlayerStorage of(UUID id) {
-        return loaded.computeIfAbsent(id, this::load);
+        PlayerStorage storage = loaded.get(id);
+        if (storage != null) return storage;
+        storage = load(id);
+        loaded.put(id, storage);
+        if (patch != null && patch(storage, patch) > 0) save(id);
+        return storage;
     }
 
     /** Unlocks the next page for gold. Returns an error text, or null when bought. */
@@ -232,6 +239,34 @@ public final class StorageService {
         player.saveData();
         plugin.getLogger().info("storage: moved " + movedSlots.size() + " ender chest stacks of " + player.getName() + " into the storage");
         return new int[]{movedSlots.size(), left};
+    }
+
+    public void setPatch(java.util.function.Function<ItemStack, ItemStack> patch) {
+        this.patch = patch;
+    }
+
+    /** The item patch on every storage in memory (written to its file when something changed); answers how many stacks changed. */
+    public int patchLoaded(java.util.function.Function<ItemStack, ItemStack> patch) {
+        int changed = 0;
+        for (Map.Entry<UUID, PlayerStorage> entry : loaded.entrySet()) {
+            int count = patch(entry.getValue(), patch);
+            if (count > 0) save(entry.getKey());
+            changed += count;
+        }
+        return changed;
+    }
+
+    private static int patch(PlayerStorage storage, java.util.function.Function<ItemStack, ItemStack> patch) {
+        int changed = 0;
+        for (ItemStack[] page : storage.pages) {
+            for (int slot = 0; slot < page.length; slot++) {
+                ItemStack patched = patch.apply(page[slot]);
+                if (patched == null) continue;
+                page[slot] = patched;
+                changed++;
+            }
+        }
+        return changed;
     }
 
     /** Frees the memory of players who are not online (their file is the truth). */

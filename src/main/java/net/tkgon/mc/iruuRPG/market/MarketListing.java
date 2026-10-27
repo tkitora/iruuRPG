@@ -10,7 +10,7 @@ public final class MarketListing {
     private final long id;
     private final UUID sellerId;
     private final String sellerName;
-    private final ItemStack item; // one piece; the amount is {@link #remaining}
+    private ItemStack item; // one piece; the amount is {@link #remaining}
     private int remaining;
     private final long unitPrice;
     private final long listedAt;
@@ -90,5 +90,11 @@ public final class MarketListing {
 
     public boolean isExpired(long now) {
         return now >= expiresAt;
+    }
+
+    /** The item built again from a newer yaml (the item patch); one piece, as always. */
+    public void replaceItem(ItemStack item) {
+        this.item = item.clone();
+        this.item.setAmount(1);
     }
 }

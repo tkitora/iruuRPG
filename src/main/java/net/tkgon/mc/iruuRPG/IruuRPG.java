@@ -157,6 +157,7 @@ public final class IruuRPG extends JavaPlugin {
     private TravelMenu travelMenu;
     private StorageService storageService;
     private StorageMenu storageMenu;
+    private net.tkgon.mc.iruuRPG.item.ItemPatchService itemPatchService;
     private YmlSyncService ymlSyncService;
 
     @Override
@@ -349,6 +350,16 @@ public final class IruuRPG extends JavaPlugin {
         this.storageService = new StorageService(this, profileManager);
         this.storageMenu = new StorageMenu(this, storageService, item -> !mainMenuItemService.isMenuItem(item));
         this.storageMenu.start();
+        // items made before their yaml changed are built again (keeping what is their own: crafted stats, rarity, ...)
+        this.itemPatchService = new net.tkgon.mc.iruuRPG.item.ItemPatchService(this, new net.tkgon.mc.iruuRPG.item.ItemPatcher(
+                itemRegistry, itemFactory, itemIdentifier, () -> getConfig().getString("rarity.mark", "*")));
+        this.itemPatchService.addKeeper(marketService::patchItems);
+        this.itemPatchService.addKeeper(storageMenu::patchItems);
+        this.storageService.setPatch(itemPatchService.patcher()::patch);
+        this.itemPatchService.setAfterPlayerPatch(player -> {
+            PlayerProfile profile = equipmentService.recalculate(player);
+            playerBars.sync(player, profile);
+        });
         this.dungeonMenu.setMainMenu(mainMenu);
         this.dungeonService.setGateHandler(dungeonMenu::openConfirm);
         this.mainMenu.setDungeonMenu(dungeonMenu);
@@ -368,6 +379,7 @@ public final class IruuRPG extends JavaPlugin {
         registerCommands();
         registerListeners();
         loadOnlinePlayers();
+        itemPatchService.refresh();
         Bukkit.getScheduler().runTask(this, tutorialService::sweepEntities);
         PlayerHud playerHud = new PlayerHud(this, levelService);
         playerHud.setCooldowns(attackService);
@@ -625,6 +637,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(worldLabels, this);
         getServer().getPluginManager().registerEvents(travelMenu, this);
         getServer().getPluginManager().registerEvents(storageMenu, this);
+        getServer().getPluginManager().registerEvents(itemPatchService, this);
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
@@ -714,6 +727,8 @@ public final class IruuRPG extends JavaPlugin {
         questRegistry.reload();
         craftRegistry.reload();
         questService.rerollNow();
+        // the items whose yaml changed: the market, the storages and the players online at once (each player is looked at once more when joining)
+        itemPatchService.refresh();
 
         for (Player player : Bukkit.getOnlinePlayers()) {
             PlayerProfile profile = equipmentService.recalculate(player);
