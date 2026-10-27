@@ -47,9 +47,15 @@ final class ModelInstance {
     private Location frozen;
     private Location previous;
     private int previousTick;
+    /** How fast the mob goes over the ground (blocks a second, smoothed). */
     private double speed;
+    /** Where the walk is in its animation (seconds of the animation): it runs faster or slower with the mob's speed. */
+    private double walkTime;
+    /** The speed a model's walk is made for (blocks a second): the walk plays at the mob's speed divided by this. */
+    private final double walkSpeed;
 
-    ModelInstance(BbModel model, LivingEntity base, double scale, int period, Material baseItem, NamespacedKey partKey, boolean hideBase) {
+    ModelInstance(BbModel model, LivingEntity base, double scale, int period, Material baseItem, NamespacedKey partKey, boolean hideBase, double walkSpeed) {
+        this.walkSpeed = walkSpeed > 0.0 ? walkSpeed : 1.0;
         this.model = model;
         this.base = base;
         this.scale = scale;
@@ -145,8 +151,12 @@ final class ModelInstance {
         Location at = dying && frozen != null ? frozen : base.getLocation();
         // the way the mob's body faces (not its head, which looks at the target and up and down)
         float yaw = dying && frozen != null ? frozen.getYaw() : base.getBodyYaw();
+        double elapsed = 0.0;
         if (previous != null && tick > previousTick && previous.getWorld() == at.getWorld()) {
-            speed = Math.hypot(at.getX() - previous.getX(), at.getZ() - previous.getZ()) / (tick - previousTick);
+            elapsed = (tick - previousTick) / 20.0;
+            double now = Math.hypot(at.getX() - previous.getX(), at.getZ() - previous.getZ()) / elapsed;
+            // (smoothed: a step of the path finder is uneven from one update to the next)
+            speed = elapsed > 1.0 ? now : speed + (now - speed) * 0.5;
         }
         previous = at.clone();
         previousTick = tick;
@@ -161,16 +171,20 @@ final class ModelInstance {
             start = actionStart;
         } else {
             action = null;
-            String wanted = speed > 0.04 && model.find("walk", random) != null ? "walk" : "idle";
+            String wanted = speed > 0.3 && model.find("walk", random) != null ? "walk" : "idle";
             if (!wanted.equals(locomotion)) {
                 locomotion = wanted;
                 locomotionStart = tick;
+                walkTime = 0.0;
+            } else if (wanted.equals("walk")) {
+                // the walk is made for walkSpeed blocks a second: at twice that it plays twice as fast, so the feet keep up with the ground
+                walkTime += Math.min(elapsed, 1.0) * Math.max(0.25, Math.min(4.0, speed / walkSpeed));
             }
             name = locomotion;
             start = locomotionStart;
         }
         BbModel.Animation animation = dying ? deathAnimation : action != null ? actionAnimation : model.find(name, random);
-        double time = (tick - start) / 20.0;
+        double time = !dying && action == null && name.equals("walk") ? walkTime : (tick - start) / 20.0;
         if (animation != null) {
             time = animation.loop.equals("loop") && !dying && action == null ? time % Math.max(0.05, animation.length) : Math.min(time, animation.length);
         }

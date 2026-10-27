@@ -59,7 +59,9 @@ final class ModelPackBuilder {
         mcmeta.add("pack", pack);
         files.put("pack.mcmeta", json(mcmeta));
 
-        JsonArray overrides = new JsonArray();
+        // the overrides go by custom model data from low to high: the game takes the last one whose number is not above the item's, so in any other order a part of a
+        // later model (higher numbers) is drawn as the last part of a model listed after it
+        TreeMap<Integer, JsonObject> overrides = new TreeMap<>();
         List<BbModel.Part> all = new ArrayList<>();
         for (BbModel model : models) {
             for (BbModel.Texture texture : model.textures) files.put("assets/" + NAMESPACE + "/textures/item/" + model.id + "/" + texture.name() + ".png", texture.png());
@@ -72,7 +74,7 @@ final class ModelPackBuilder {
                 predicate.addProperty("custom_model_data", part.customModelData);
                 override.add("predicate", predicate);
                 override.addProperty("model", NAMESPACE + ":" + model.id + "/" + part.key);
-                overrides.add(override);
+                overrides.put(part.customModelData, override);
                 all.add(part);
             }
         }
@@ -82,7 +84,9 @@ final class ModelPackBuilder {
         JsonObject textures = new JsonObject();
         textures.addProperty("layer0", "minecraft:item/" + baseItem.toLowerCase(Locale.ROOT));
         item.add("textures", textures);
-        item.add("overrides", overrides);
+        JsonArray ordered = new JsonArray();
+        for (JsonObject override : overrides.values()) ordered.add(override);
+        item.add("overrides", ordered);
         files.put("assets/minecraft/models/item/" + baseItem.toLowerCase(Locale.ROOT) + ".json", json(item));
 
         File parent = zip.getParentFile();
