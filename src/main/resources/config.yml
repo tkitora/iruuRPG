@@ -1,6 +1,11 @@
 rarity:
   mark: "🙥"
 
+# アイテムの yaml が変わったら、ゲーム内のアイテムを新しい内容に作り直す (docs/item-patch.md)。
+# false にすると、作り直しも印付けもしない (アイテムはそのまま)。true に戻すと、次の読み直し・ログインで確認する
+item-patch:
+  enabled: true
+
 player:
   level-cap: 256
   first-release-level-cap: 20

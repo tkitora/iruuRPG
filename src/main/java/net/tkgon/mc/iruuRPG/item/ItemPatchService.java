@@ -86,6 +86,7 @@ public final class ItemPatchService implements Listener {
      * Answers the ids that changed.
      */
     public Set<String> refresh() {
+        patcher.setEnabled(plugin.getConfig().getBoolean("item-patch.enabled", true));
         Map<String, String> now = patcher.computeFingerprints();
         YamlConfiguration yaml = file.exists() ? YamlConfiguration.loadConfiguration(file) : null;
         Map<String, String> before = new HashMap<>();
@@ -107,14 +108,20 @@ public final class ItemPatchService implements Listener {
 
         plugin.getLogger().info("items: " + changed.size() + " item definition(s) changed, item version " + version
                 + " (" + String.join(", ", changed.stream().limit(10).toList()) + (changed.size() > 10 ? ", ..." : "") + ")");
-        int kept = 0;
-        for (Keeper keeper : keepers) kept += keeper.patchItems(patcher::patch);
+        if (!patcher.enabled()) {
+            plugin.getLogger().info("items: item-patch.enabled is false; the items are left as they are");
+            return changed;
+        }
+        patcher.takeCounts();
+        for (Keeper keeper : keepers) keeper.patchItems(patcher::patch);
+        ItemPatcher.Counts stored = patcher.takeCounts();
         int players = 0;
+        ItemPatcher.Counts online = new ItemPatcher.Counts();
         for (Player player : Bukkit.getOnlinePlayers()) {
             // patched now; the version is not marked, so the next join looks once more
-            if (patchPlayer(player) > 0) players++;
+            if (patchPlayer(player, online) > 0) players++;
         }
-        plugin.getLogger().info("items: patched " + kept + " stack(s) in the market and storages, and the items of " + players + " player(s) online");
+        plugin.getLogger().info("items: market and storages: " + stored + "; players online (" + players + "): " + online);
         return changed;
     }
 
@@ -131,6 +138,13 @@ public final class ItemPatchService implements Listener {
 
     /** Patches the player's inventory (armor and off hand too), the item on the cursor, the vanilla ender chest and an open container. */
     public int patchPlayer(Player player) {
+        return patchPlayer(player, null);
+    }
+
+    /** {@code total}: the counts are added there (one log line for all), else logged for this player. */
+    private int patchPlayer(Player player, ItemPatcher.Counts total) {
+        if (!patcher.enabled()) return 0;
+        patcher.takeCounts();
         int changed = 0;
         ItemStack[] contents = player.getInventory().getContents();
         int count = patcher.patchAll(contents);
@@ -146,11 +160,25 @@ public final class ItemPatchService implements Listener {
         Inventory top = player.getOpenInventory().getTopInventory();
         if (isPlaced(top.getHolder(false))) changed += patchInventory(top);
 
-        if (changed > 0) {
-            afterPlayerPatch.accept(player);
-            player.sendMessage(Component.text("[アイテム] " + changed + " 個のアイテムを、最新の内容に更新した。", NamedTextColor.GRAY));
-            plugin.getLogger().info("items: patched " + changed + " stack(s) of " + player.getName());
+        ItemPatcher.Counts counts = patcher.takeCounts();
+        if (changed > 0) afterPlayerPatch.accept(player);
+        // the player is told only of the items that look different; stamping the fingerprint on an item changes nothing they see
+        if (counts.rebuilt > 0) {
+            player.sendMessage(Component.text("[アイテム] " + counts.rebuilt + " 個のアイテムを、最新の内容に更新した。", NamedTextColor.GRAY));
         }
+        if (total != null) total.add(counts);
+        else if (counts.any()) plugin.getLogger().info("items: " + player.getName() + ": " + counts);
+        return changed;
+    }
+
+    /** Patches item arrays read from somewhere (a storage file), logging what was done; answers how many stacks changed. */
+    public int patchLoaded(String where, java.util.List<ItemStack[]> arrays) {
+        if (!patcher.enabled()) return 0;
+        patcher.takeCounts();
+        int changed = 0;
+        for (ItemStack[] array : arrays) changed += patcher.patchAll(array);
+        ItemPatcher.Counts counts = patcher.takeCounts();
+        if (counts.any()) plugin.getLogger().info("items: " + where + ": " + counts);
         return changed;
     }
 
@@ -175,6 +203,7 @@ public final class ItemPatchService implements Listener {
             if (!player.isOnline()) return;
             Integer checked = player.getPersistentDataContainer().get(checkedKey, PersistentDataType.INTEGER);
             if (checked != null && checked >= version) return;
+            if (!patcher.enabled()) return; // checked again once the patch is on
             patchPlayer(player);
             player.getPersistentDataContainer().set(checkedKey, PersistentDataType.INTEGER, version);
         }, 20L);
@@ -184,9 +213,13 @@ public final class ItemPatchService implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onOpen(InventoryOpenEvent event) {
+        if (!patcher.enabled()) return;
+        // only the container opened (no look through the world)
         Inventory top = event.getInventory();
         if (!isPlaced(top.getHolder(false))) return;
-        int changed = patchInventory(top);
-        if (changed > 0) plugin.getLogger().info("items: patched " + changed + " stack(s) in a container opened by " + event.getPlayer().getName());
+        patcher.takeCounts();
+        patchInventory(top);
+        ItemPatcher.Counts counts = patcher.takeCounts();
+        if (counts.any()) plugin.getLogger().info("items: a container opened by " + event.getPlayer().getName() + ": " + counts);
     }
 }
