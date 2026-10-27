@@ -352,10 +352,10 @@ public final class IruuRPG extends JavaPlugin {
         this.storageMenu.start();
         // items made before their yaml changed are built again (keeping what is their own: crafted stats, rarity, ...)
         this.itemPatchService = new net.tkgon.mc.iruuRPG.item.ItemPatchService(this, new net.tkgon.mc.iruuRPG.item.ItemPatcher(
-                itemRegistry, itemFactory, itemIdentifier, () -> getConfig().getString("rarity.mark", "*")));
+                itemRegistry, itemFactory, itemIdentifier, () -> getConfig().getString("rarity.mark", "*"), getLogger()::warning));
         this.itemPatchService.addKeeper(marketService::patchItems);
         this.itemPatchService.addKeeper(storageMenu::patchItems);
-        this.storageService.setPatch(itemPatchService.patcher()::patch);
+        this.storageService.setPatch(itemPatchService::patchLoaded);
         this.itemPatchService.setAfterPlayerPatch(player -> {
             PlayerProfile profile = equipmentService.recalculate(player);
             playerBars.sync(player, profile);
