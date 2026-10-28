@@ -49,9 +49,9 @@ public final class PlayerProfileStorage {
             }
         }
 
-        // base-hp-format 2: the initial HP became player.initial-max-hp (200); a player saved before gets it once
+        // base-hp-format 2: the initial HP became player.initial-max-hp (a player saved before gets it once, only when its HP is below it)
         boolean raiseHp = yaml.getInt("base-hp-format", 1) < HP_FORMAT;
-        double initialHp = plugin.getConfig().getDouble("player.initial-max-hp", 200.0);
+        double initialHp = plugin.getConfig().getDouble("player.initial-max-hp", 20.0);
         if (raiseHp && profile.baseStats().get(StatType.MAX_HP) < initialHp) {
             profile.baseStats().set(StatType.MAX_HP, initialHp);
         }
@@ -105,7 +105,7 @@ public final class PlayerProfileStorage {
     }
 
     private PlayerProfile createDefaultProfile(UUID uuid) {
-        double defaultMaxHp = plugin.getConfig().getDouble("player.initial-max-hp", 200.0);
+        double defaultMaxHp = plugin.getConfig().getDouble("player.initial-max-hp", 20.0);
         double defaultHpRegen = plugin.getConfig().getDouble("player.default-hp-regen-per-3s", 1.0);
         double defaultMaxMp = plugin.getConfig().getDouble("player.default-max-mp", 20.0);
         double defaultMpRegen = plugin.getConfig().getDouble("player.default-mp-regen-per-3s", 5.0);
