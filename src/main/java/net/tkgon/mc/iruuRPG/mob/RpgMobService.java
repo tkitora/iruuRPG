@@ -712,6 +712,18 @@ public final class RpgMobService {
         }
 
         @Override
+        public void faceWhileMoving(Entity target) {
+            if (target == null) {
+                if (models != null) models.face(mob, null, 0);
+                return;
+            }
+            Location eye = target.getLocation().add(0.0, target.getHeight() * 0.85, 0.0);
+            mob.lookAt(eye);
+            // the path finder turns the body back to the path in the mob's own tick: the model is told to keep facing the target until the next step of the tree (and a little)
+            if (models != null) models.face(mob, target, Bukkit.getCurrentTick() + 10);
+        }
+
+        @Override
         public void attack(Player target, double rate) {
             mob.swingMainHand();
             if (models != null) models.play(mob, "attack");

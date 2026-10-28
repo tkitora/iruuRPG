@@ -27,13 +27,15 @@ final class Tasks {
         private final double speed;
         private final double acceptance;
         private final int timeout;
+        /** Faces the target all the way (stepping back from it, say) instead of turning to the path. */
+        private final boolean face;
         private Location place;
         private int lastPath;
         private int failedPaths;
         private int checkAt;
         private Location checkFrom;
 
-        MoveTo(String mode, String key, String eqs, double speed, double acceptance, int timeout) {
+        MoveTo(String mode, String key, String eqs, double speed, double acceptance, int timeout, boolean face) {
             super("move-to");
             this.mode = mode;
             this.key = key;
@@ -41,6 +43,7 @@ final class Tasks {
             this.speed = speed;
             this.acceptance = acceptance;
             this.timeout = timeout;
+            this.face = face;
         }
 
         /** The query this task uses, or null. */
@@ -76,10 +79,17 @@ final class Tasks {
         @Override
         void onAbort(Ctx c) {
             c.host.stopMoving();
+            if (face) c.host.faceWhileMoving(null);
         }
 
         @Override
         Status tickNode(Ctx c) {
+            Status status = move(c);
+            if (face) c.host.faceWhileMoving(status == Status.RUNNING && c.bb.target != null && c.bb.target.getWorld() == c.host.mob().getWorld() ? c.bb.target : null);
+            return status;
+        }
+
+        private Status move(Ctx c) {
             Location goal = mode.equals("target") ? (c.bb.target == null ? null : c.bb.target.getLocation()) : place;
             if (goal == null || goal.getWorld() == null) return Status.FAILURE;
             Location here = c.host.mob().getLocation();
@@ -480,10 +490,18 @@ final class Tasks {
         @Override
         void onAbort(Ctx c) {
             c.host.stopMoving();
+            c.host.faceWhileMoving(null);
         }
 
         @Override
         Status tickNode(Ctx c) {
+            Status status = circle(c);
+            // it faces the target all the way round (it steps sideways), not the way it goes
+            c.host.faceWhileMoving(status == Status.RUNNING ? c.bb.target : null);
+            return status;
+        }
+
+        private Status circle(Ctx c) {
             Player target = c.bb.target;
             if (target == null || !c.host.valid(target, 64.0)) return Status.FAILURE;
             if (c.now >= endAt) {
@@ -517,7 +535,6 @@ final class Tasks {
                     failedPaths = 0;
                 }
             }
-            c.host.lookAt(center.clone().add(0.0, target.getEyeHeight(), 0.0));
             return Status.RUNNING;
         }
     }

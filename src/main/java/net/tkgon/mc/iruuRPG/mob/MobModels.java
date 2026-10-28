@@ -29,6 +29,10 @@ public interface MobModels {
         return false;
     }
 
+    /** Turns the mob's model toward {@code target} (not the way it walks) until {@code untilTick}; a null target turns it back to the mob's body at once. */
+    default void face(LivingEntity entity, org.bukkit.entity.Entity target, int untilTick) {
+    }
+
     /** Takes the model off the mob. */
     void detach(LivingEntity entity);
 }

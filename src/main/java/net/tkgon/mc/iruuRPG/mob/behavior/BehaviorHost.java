@@ -40,6 +40,14 @@ public interface BehaviorHost {
         face(at);
     }
 
+    /**
+     * Keeps the mob turned toward {@code target} while it walks: it steps sideways or backwards on its path instead of turning to it (a model turns with it, a mob without
+     * one at least looks). Called again on every step of the tree; {@code null} lets the body follow its walk again.
+     */
+    default void faceWhileMoving(org.bukkit.entity.Entity target) {
+        if (target != null) lookAt(target.getLocation().add(0.0, target.getHeight() * 0.85, 0.0));
+    }
+
     /** One melee hit of {@code rate} times the mob's damage on the player (the mob swings). */
     void attack(Player target, double rate);
 
