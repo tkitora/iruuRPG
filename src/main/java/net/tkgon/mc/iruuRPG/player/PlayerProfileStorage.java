@@ -12,8 +12,8 @@ import java.util.logging.Level;
 
 public final class PlayerProfileStorage {
 
-    /** The version of how the base max HP is stored (2: the initial HP is player.initial-max-hp). */
-    private static final int HP_FORMAT = 2;
+    /** The version of how the base max HP is stored (2: the initial HP is player.initial-max-hp; 3: everybody starts again from it, once). */
+    private static final int HP_FORMAT = 3;
 
     private final JavaPlugin plugin;
     private final File playerFolder;
@@ -49,10 +49,10 @@ public final class PlayerProfileStorage {
             }
         }
 
-        // base-hp-format 2: the initial HP became player.initial-max-hp (a player saved before gets it once, only when its HP is below it)
+        // base-hp-format 3: the base max HP of every player is set to player.initial-max-hp once (the earlier 200 is gone); saved again, it is not touched
         boolean raiseHp = yaml.getInt("base-hp-format", 1) < HP_FORMAT;
         double initialHp = plugin.getConfig().getDouble("player.initial-max-hp", 20.0);
-        if (raiseHp && profile.baseStats().get(StatType.MAX_HP) < initialHp) {
+        if (raiseHp) {
             profile.baseStats().set(StatType.MAX_HP, initialHp);
         }
 
