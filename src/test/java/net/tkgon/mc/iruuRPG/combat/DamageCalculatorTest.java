@@ -56,4 +56,26 @@ class DamageCalculatorTest {
         assertEquals(14437.4, damage, 70.0);
         assertTrue(damage / 0.7 > 19000.0 && damage / 0.7 < 22000.0, "DPS " + damage / 0.7);
     }
+
+    private double orangeHit(double orangeResist) {
+        PlayerProfile attacker = new PlayerProfile(UUID.randomUUID(), 20.0, 20.0);
+        attacker.finalStats().set(StatType.WEAPON_DAMAGE, 100.0);
+        attacker.finalElementStats().setDamage(Element.ORANGE, 100.0);
+        PlayerProfile victim = new PlayerProfile(UUID.randomUUID(), 20.0, 20.0);
+        victim.finalStats().set(StatType.DEFENSE, 500.0);
+        victim.finalStats().set(StatType.PHYSICAL_RESIST, 3.0);
+        victim.finalElementStats().setResist(Element.ORANGE, orangeResist);
+        RpgItemDefinition sword = new RpgItemDefinition("test_orange", Material.IRON_SWORD, ItemVisualOptions.NONE, "test", 1, Rarity.COMMON,
+                Element.ORANGE, DamageKind.PHYSICAL, AttackType.MELEE, ItemSkillType.NONE, "", Map.of(), null, new StatSet(), new ElementStatSet(), List.of());
+        return calculator.calculate(new DamageInput(attacker, victim, sword)).damage();
+    }
+
+    @Test
+    void orangeIgnoresEverythingButTheOrangeResist() {
+        double open = orangeHit(0.0);
+        // defense 500 and physical resist 3 do not count: the same as a victim with none of them
+        assertTrue(open > 0.0);
+        // the orange resist is the one thing that is not skipped: resist 1 halves the damage
+        assertEquals(open * 0.5, orangeHit(1.0), open * 0.02);
+    }
 }

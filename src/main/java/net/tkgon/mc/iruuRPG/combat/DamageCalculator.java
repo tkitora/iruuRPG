@@ -95,10 +95,10 @@ public final class DamageCalculator {
         // Corrosion lowers the victim's defense by its value (never below 0).
         double defense = Math.max(0.0, victimStats.get(StatType.DEFENSE) - defenseReduction);
         double elementResist = victim.finalElementStats().resist(element);
+        // Orange damage goes through everything but the victim's orange resist.
         if (element == Element.ORANGE) {
             defense = 0.0;
             kindResist = 0.0;
-            elementResist = 0.0;
         }
 
         return new DamageParts(
