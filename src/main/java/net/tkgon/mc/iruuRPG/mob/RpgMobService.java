@@ -533,7 +533,11 @@ public final class RpgMobService {
             Player viewer = Bukkit.getPlayer(id);
             if (viewer != null) viewers.add(viewer);
         }
-        btViewDisplays.keySet().removeIf(id -> !behaviors.containsKey(id));
+        // the text of a mob that died (or went away) goes with it
+        for (UUID mobId : new ArrayList<>(btViewDisplays.keySet())) {
+            Entity entity = Bukkit.getEntity(mobId);
+            if (!behaviors.containsKey(mobId) || !(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) removeBehaviorView(mobId);
+        }
         for (Map.Entry<UUID, BehaviorMob> entry : new ArrayList<>(behaviors.entrySet())) {
             Entity entity = Bukkit.getEntity(entry.getKey());
             if (!(entity instanceof Mob mob) || mob.isDead() || !mob.isValid()) continue;
@@ -558,6 +562,12 @@ public final class RpgMobService {
             }
             if (points) drawQueryPoints(entry.getValue().runner, near);
         }
+    }
+
+    private void removeBehaviorView(UUID mobId) {
+        UUID displayId = btViewDisplays.remove(mobId);
+        Entity display = displayId == null ? null : Bukkit.getEntity(displayId);
+        if (display != null) display.remove();
     }
 
     private TextDisplay behaviorViewDisplay(LivingEntity mob) {
