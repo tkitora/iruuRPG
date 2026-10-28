@@ -140,14 +140,15 @@ final class BehaviorParser {
                     mode = "target";
                 }
                 node = new Tasks.MoveTo(mode, Cfg.text(map, "key", ""), Cfg.text(map, "eqs", ""), Cfg.number(map, "speed", 1.0), Cfg.number(map, "acceptance", 1.5),
-                        Cfg.ticks(map, "timeout", 10.0));
+                        Cfg.ticks(map, "timeout", 10.0), Cfg.flag(map, "face", false));
             }
-            case "flee" -> node = new Tasks.MoveTo("eqs", "", Cfg.text(map, "eqs", "flee"), Cfg.number(map, "speed", 1.3), Cfg.number(map, "acceptance", 1.5), Cfg.ticks(map, "timeout", 6.0));
+            case "flee" -> node = new Tasks.MoveTo("eqs", "", Cfg.text(map, "eqs", "flee"), Cfg.number(map, "speed", 1.3), Cfg.number(map, "acceptance", 1.5), Cfg.ticks(map, "timeout", 6.0),
+                    Cfg.flag(map, "face", false));
             case "wait" -> node = new Tasks.Wait(Cfg.ticks(map, "seconds", 1.0), Cfg.ticks(map, "random-deviation", 0.0), Cfg.text(map, "key", ""));
             case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", -1.0));
             case "shoot" -> node = new Tasks.Shoot(Cfg.number(map, "rate", 1.0));
             case "use-skill", "skill" -> node = new Tasks.UseSkill((int) Cfg.number(map, "index", -1.0), Cfg.text(map, "skill", ""), Cfg.text(map, "animation", ""), Cfg.flag(map, "track", false));
-            case "orbit", "circle" -> node = new Tasks.Orbit(Cfg.number(map, "radius", 0.0), Cfg.number(map, "speed", 0.9), Cfg.ticks(map, "seconds", 2.0), Cfg.ticks(map, "random-deviation", 0.0),
+            case "orbit", "circle" -> node = new Tasks.Orbit(Cfg.number(map, "radius", 0.0), Cfg.number(map, "speed", 0.5), Cfg.ticks(map, "seconds", 2.0), Cfg.ticks(map, "random-deviation", 0.0),
                     Cfg.lower(map, "direction", "random"));
             case "face-target", "face" -> node = new Tasks.FaceTarget();
             case "set-blackboard", "set" -> node = new Tasks.SetBlackboard(Cfg.text(map, "key", ""), map.get("value"));

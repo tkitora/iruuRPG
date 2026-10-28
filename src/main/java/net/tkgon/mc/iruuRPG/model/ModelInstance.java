@@ -53,6 +53,12 @@ final class ModelInstance {
     private double walkTime;
     /** The speed a model's walk is made for (blocks a second): the walk plays at the mob's speed divided by this. */
     private final double walkSpeed;
+    /** What the model faces instead of the way the mob's body goes (a mob circling its target), and until when. */
+    private org.bukkit.entity.Entity facing;
+    private int facingUntil;
+    /** The way the model was drawn last (degrees), and until when it still turns smoothly back to the body after facing something. */
+    private float shownYaw = Float.NaN;
+    private int blendUntil;
 
     ModelInstance(BbModel model, LivingEntity base, double scale, int period, Material baseItem, NamespacedKey partKey, boolean hideBase, double walkSpeed) {
         this.walkSpeed = walkSpeed > 0.0 ? walkSpeed : 1.0;
@@ -146,11 +152,42 @@ final class ModelInstance {
         return dying && (tick - dyingStart) / 20.0 >= dyingLength + 0.6;
     }
 
+    /** Keeps the model turned toward {@code target} until {@code untilTick} (null: back to the body). */
+    void face(org.bukkit.entity.Entity target, int untilTick) {
+        facing = target;
+        facingUntil = target == null ? 0 : untilTick;
+    }
+
+    /**
+     * The way to draw the model: toward what it is told to face while that lasts, else the body's way. Going into and out of facing it turns at most 40 degrees a tick
+     * (the body and the target can be a quarter turn apart), at other times it follows the body as it is.
+     */
+    private float facingYaw(Location at, float body, int tick) {
+        float wanted = body;
+        if (facing != null && tick <= facingUntil && facing.isValid() && facing.getWorld() == at.getWorld()) {
+            double dx = facing.getLocation().getX() - at.getX();
+            double dz = facing.getLocation().getZ() - at.getZ();
+            if (dx * dx + dz * dz > 1.0E-4) wanted = (float) Math.toDegrees(Math.atan2(-dx, dz));
+            blendUntil = tick + 10;
+        } else {
+            facing = null;
+        }
+        if (Float.isNaN(shownYaw) || tick > blendUntil) {
+            shownYaw = wanted;
+            return wanted;
+        }
+        float delta = ((wanted - shownYaw) % 360.0f + 540.0f) % 360.0f - 180.0f;
+        float most = 40.0f * Math.max(1, Math.min(10, tick - previousTick));
+        shownYaw += Math.max(-most, Math.min(most, delta));
+        return shownYaw;
+    }
+
     /** Moves the displays to the pose of this tick. */
     void update(int tick) {
         Location at = dying && frozen != null ? frozen : base.getLocation();
         // the way the mob's body faces (not its head, which looks at the target and up and down)
         float yaw = dying && frozen != null ? frozen.getYaw() : base.getBodyYaw();
+        if (!dying) yaw = facingYaw(at, yaw, tick);
         double elapsed = 0.0;
         if (previous != null && tick > previousTick && previous.getWorld() == at.getWorld()) {
             elapsed = (tick - previousTick) / 20.0;
