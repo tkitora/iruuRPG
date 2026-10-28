@@ -870,7 +870,8 @@ public final class AttackEffects {
         if (center == null || center.getWorld() == null) return;
         Resolved r = resolve(look, element);
         World world = center.getWorld();
-        int points = (int) Math.max(16, Math.min(72, Math.round(radius * 10)));
+        // (about 12 points a block of radius, so a wide ring has no gaps: about 0.5 blocks apart at most)
+        int points = (int) Math.max(16, Math.min(160, Math.round(radius * 12)));
         for (int index = 0; index < points; index++) {
             double angle = Math.PI * 2.0 * index / points;
             Location point = center.clone().add(Math.cos(angle) * radius, 0.2, Math.sin(angle) * radius);
@@ -945,6 +946,27 @@ public final class AttackEffects {
             spawnDust(world, point, r.dust(index % 3 == 0 ? r.core : r.body, 1.0));
         }
         r.burst(world, at, 6, 0.15, 0.08);
+    }
+
+    /** A skill hit someone: a burst on their body and a ring at their feet, so the one hit can tell (a sound alone is easy to miss). */
+    public void playSkillHitBurst(org.bukkit.entity.LivingEntity victim, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (victim == null || !victim.isValid()) return;
+        Resolved r = resolve(look, element);
+        Location feet = victim.getLocation();
+        World world = feet.getWorld();
+        if (world == null) return;
+        double half = Math.max(0.4, victim.getWidth() * 0.8);
+        for (int index = 0; index < 14; index++) {
+            double angle = Math.PI * 2.0 * index / 14;
+            spawnDust(world, feet.clone().add(Math.cos(angle) * half, 0.1, Math.sin(angle) * half), r.dust(index % 2 == 0 ? r.body : r.edge, 1.0));
+        }
+        Location body = feet.clone().add(0.0, victim.getHeight() * 0.55, 0.0);
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int index = 0; index < 12; index++) {
+            Location point = body.clone().add(randomUnitVector(random).multiply(random.nextDouble(0.2, 0.7)));
+            spawnDust(world, point, r.dust(index % 3 == 0 ? r.core : r.body, 1.2));
+        }
+        r.burst(world, body, 10, 0.25, 0.12);
     }
 
     // ---- sounds of skills

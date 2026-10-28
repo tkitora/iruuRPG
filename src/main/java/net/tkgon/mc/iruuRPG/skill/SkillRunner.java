@@ -875,6 +875,7 @@ public final class SkillRunner {
             return;
         }
         caster.damage(victim, spec.damageRate());
+        effects.playSkillHitBurst(victim, spec.look(), caster.element());
         if (!caster.applyEffects()) return;
         if (spec.knockback() != null) push(caster, spec.knockback(), victim, originPoint);
         if (statusEffects == null) return;
