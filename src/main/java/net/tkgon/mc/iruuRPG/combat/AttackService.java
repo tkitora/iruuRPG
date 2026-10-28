@@ -1119,6 +1119,10 @@ public final class AttackService {
      * color, also when it is the hit that kills (the position is taken before the damage).
      */
     public boolean applyExtraDamage(Player attacker, LivingEntity victim, double damage, net.tkgon.mc.iruuRPG.stat.Element element) {
+        // an extra hit goes through defense and the kind resists, but not through the resist of its own element
+        double resist = Math.max(0.0, profileForVictim(victim).finalElementStats().resist(element));
+        damage = round(damage * (1.0 - resist / (1.0 + resist)));
+        if (damage <= 0.0) return false;
         Location numberLocation = victim.getLocation().clone();
         double numberHeight = victim.getHeight();
         boolean applied = applyDirectDamage(attacker, victim, damage);
