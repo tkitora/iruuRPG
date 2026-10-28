@@ -832,9 +832,7 @@ public final class AttackService {
 
         PlayerProfile victimProfile = equipmentService.recalculate(victim);
         double corrosion = statusEffectService.corrosionOf(victim);
-        RpgItemDefinition weapon = mobService.attackWeapon(attacker)
-                .filter(RpgItemDefinition::isWeaponLike)
-                .orElseGet(this::fallbackMobWeapon);
+        RpgItemDefinition weapon = mobWeapon(attacker);
         DamageResult result = damageCalculator.calculate(new DamageInput(attackerProfile, victimProfile, weapon, corrosion));
         // a skill hit multiplies the mob's normal damage (see RpgMobService#hurt)
         double rate = mobService.pendingDamageRate(attacker);
@@ -851,9 +849,7 @@ public final class AttackService {
         PlayerProfile attackerProfile = mobService.profile(attacker).orElse(null);
         if (attackerProfile == null) return;
 
-        RpgItemDefinition weapon = mobService.attackWeapon(attacker)
-                .filter(RpgItemDefinition::isWeaponLike)
-                .orElseGet(this::fallbackMobWeapon);
+        RpgItemDefinition weapon = mobWeapon(attacker);
         statusEffectService.onMobDamageDealt(attacker, victim, weapon, attackerProfile, damage);
         stackTrigger(victim, "damaged");
     }
@@ -1617,6 +1613,14 @@ public final class AttackService {
                     : plugin.getConfig().getDouble("combat.range-area-damage-rate", 0.45);
             case DEPLOY, SPECIAL -> 0.0;
         };
+    }
+
+    /** What a mob hits with: its weapon (or a plain physical melee one), in the mob's own attack element if it has one. */
+    private RpgItemDefinition mobWeapon(LivingEntity attacker) {
+        RpgItemDefinition weapon = mobService.attackWeapon(attacker)
+                .filter(RpgItemDefinition::isWeaponLike)
+                .orElseGet(this::fallbackMobWeapon);
+        return mobService.attackElement(attacker).map(weapon::withElement).orElse(weapon);
     }
 
     private RpgItemDefinition fallbackMobWeapon() {

@@ -179,7 +179,8 @@ public final class RpgMobRegistry {
                 ranged(id, section.get("ranged")),
                 skills(id, section.getMapList("skills")),
                 behavior(id, section.getConfigurationSection("behavior")),
-                section.getConfigurationSection("model") == null ? Map.of() : plain(section.getConfigurationSection("model"))
+                section.getConfigurationSection("model") == null ? Map.of() : plain(section.getConfigurationSection("model")),
+                attackElement(id, section.getString("attack-element"))
         ));
     }
 
@@ -651,6 +652,17 @@ public final class RpgMobRegistry {
                 || key.equals("colorDmgS")
                 || key.equals("colorDef")
                 || key.equals("element-stats");
+    }
+
+    /** attack-element: red / blue / white / green / orange (or 赤 / 青 / 白 / 緑 / 橙); empty or unknown: the weapon's element. */
+    private Element attackElement(String id, String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        for (Element element : Element.values()) {
+            if (element.displayName().equals(raw.trim())) return element;
+        }
+        Element element = Element.fromConfig(raw, null);
+        if (element == null) plugin.getLogger().warning("mobs: " + id + ": unknown attack-element '" + raw + "' (the weapon's element is used)");
+        return element;
     }
 
     @FunctionalInterface

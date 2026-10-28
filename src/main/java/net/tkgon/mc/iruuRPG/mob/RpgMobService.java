@@ -156,6 +156,12 @@ public final class RpgMobService {
         return itemRegistry.find(hand.itemId());
     }
 
+    /** The element the mob attacks with: its own `attack-element:`, else empty (its weapon's element is used). */
+    public Optional<net.tkgon.mc.iruuRPG.stat.Element> attackElement(LivingEntity entity) {
+        MobRuntime runtime = runtime(entity);
+        return runtime == null ? Optional.empty() : Optional.ofNullable(runtime.definition().attackElement());
+    }
+
     public boolean applyDamage(LivingEntity entity, double damage) {
         return applyDamage(entity, damage, null);
     }
@@ -1396,9 +1402,10 @@ public final class RpgMobService {
         this.attackEffects = attackEffects;
     }
 
-    /** The color of a mob's bolt: its strongest element damage, else its weapon's element, else white. */
+    /** The color of a mob's bolt (and of its skills): its attack element if it has one, else its strongest element damage, else its weapon's element, else white. */
     private net.tkgon.mc.iruuRPG.stat.Element boltElement(LivingEntity mob) {
         MobRuntime runtime = runtime(mob);
+        if (runtime != null && runtime.definition().attackElement() != null) return runtime.definition().attackElement();
         net.tkgon.mc.iruuRPG.stat.Element best = null;
         double bestDamage = 0.0;
         if (runtime != null) {
