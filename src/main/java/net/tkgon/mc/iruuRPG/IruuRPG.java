@@ -202,7 +202,13 @@ public final class IruuRPG extends JavaPlugin {
         this.itemFactory.setGeneralSkills(skillRegistry);
         this.mobRegistry = new RpgMobRegistry(this, skillRegistry);
         this.mobRegistry.reload();
-        this.profileManager = new PlayerProfileManager(new PlayerProfileStorage(this));
+        PlayerProfileStorage profileStorage = new PlayerProfileStorage(this);
+        try {
+            profileStorage.migrateStoredHp();
+        } catch (RuntimeException e) {
+            getLogger().log(java.util.logging.Level.WARNING, "players: the HP migration failed (players are migrated when they load)", e);
+        }
+        this.profileManager = new PlayerProfileManager(profileStorage);
         this.equipmentService = new EquipmentService(profileManager, itemIdentifier, itemRegistry);
         this.classService = new ClassService(this, classRegistry);
         this.equipmentService.setClassService(classService);
