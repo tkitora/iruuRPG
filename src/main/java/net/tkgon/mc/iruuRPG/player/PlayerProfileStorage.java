@@ -26,6 +26,36 @@ public final class PlayerProfileStorage {
         }
     }
 
+    /**
+     * The base max HP of every saved player that is not yet in base-hp-format 3 becomes player.initial-max-hp, in the files at once (a player is also migrated when loaded; this
+     * is for the players who are not online). The current HP is left as it is: loading clamps it to the new maximum. Answers how many files changed.
+     */
+    public int migrateStoredHp() {
+        double initialHp = plugin.getConfig().getDouble("player.initial-max-hp", 20.0);
+        int changed = sweepHp(playerFolder, initialHp, message -> plugin.getLogger().warning(message));
+        if (changed > 0) plugin.getLogger().info("players: the base max HP of " + changed + " saved player(s) set to " + initialHp);
+        return changed;
+    }
+
+    static int sweepHp(File folder, double initialHp, java.util.function.Consumer<String> warn) {
+        File[] files = folder.listFiles((dir, name) -> name.endsWith(".yml"));
+        if (files == null) return 0;
+        int changed = 0;
+        for (File file : files) {
+            try {
+                YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+                if (yaml.getInt("base-hp-format", 1) >= HP_FORMAT) continue;
+                yaml.set("base-stats.max-hp", initialHp);
+                yaml.set("base-hp-format", HP_FORMAT);
+                yaml.save(file);
+                changed++;
+            } catch (IOException | RuntimeException e) {
+                warn.accept("players: could not migrate " + file.getName() + ": " + e.getMessage());
+            }
+        }
+        return changed;
+    }
+
     public PlayerProfile load(UUID uuid) {
         PlayerProfile profile = createDefaultProfile(uuid);
         File file = file(uuid);
