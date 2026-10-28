@@ -113,6 +113,13 @@ public record RpgItemDefinition(
         return !skillId.isEmpty();
     }
 
+    /** The same item with another element (an enemy that attacks with its own element, whatever it holds). */
+    public RpgItemDefinition withElement(Element other) {
+        if (other == null || other == element) return this;
+        return new RpgItemDefinition(id, material, visualOptions, name, requiredLevel, rarity, other, damageKind, attackType, skill, skillId, skillOverrides, stacks, stats,
+                elementStats, description, comboStyle, kindLabel, typeLabel, classUse);
+    }
+
     public boolean isWeaponLike() {
         return attackType != AttackType.SPECIAL || !damageKind.noDamage();
     }

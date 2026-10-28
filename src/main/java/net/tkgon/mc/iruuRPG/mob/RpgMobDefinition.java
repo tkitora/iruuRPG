@@ -34,7 +34,9 @@ public record RpgMobDefinition(
         RangedSpec ranged,
         List<net.tkgon.mc.iruuRPG.skill.SkillSpec> skills,
         Map<String, Object> behavior,
-        Map<String, Object> model
+        Map<String, Object> model,
+        /** The element the mob attacks with (`attack-element:`); null: its weapon's. */
+        net.tkgon.mc.iruuRPG.stat.Element attackElement
 ) {
     public RpgMobDefinition {
         if (id == null || id.isBlank()) {
