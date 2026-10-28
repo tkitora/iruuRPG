@@ -323,7 +323,8 @@ public final class SkillRegistry {
                 number(owner, flat, "homing-turn", old.homingTurn(), 0.05, 1.0),
                 (int) Math.round(number(owner, flat, "lifetime-ticks", old.lifetimeTicks(), 10, 200)),
                 number(owner, flat, "hit-radius", old.hitRadius(), 0.3, 3.0),
-                number(owner, flat, "spawn-distance", old.spawnDistance(), 0.0, 8.0));
+                number(owner, flat, "spawn-distance", old.spawnDistance(), 0.0, 8.0),
+                number(owner, flat, "hit-height", old.hitHeight(), 0.2, 8.0));
 
         SkillTemplate template = start.template();
         if (template == SkillTemplate.WAVE && count > 5) {

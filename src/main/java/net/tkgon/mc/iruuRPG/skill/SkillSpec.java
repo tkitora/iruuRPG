@@ -68,14 +68,17 @@ public record SkillSpec(
      * {@code aimYaw} / {@code aimPitch} turn the aim by that many degrees, {@code spread} fans the bolts of a barrage
      * over that many degrees. Volley: the start {@code pattern}, how hard the bullets first swing out
      * ({@code curve}), the {@code homing*} behavior, how long a bullet flies, its hit size and how far in front of
-     * the caster the pattern is.
+     * the caster the pattern is. Nova: {@code hitHeight} is how far above or below the ring's center the feet of the
+     * one it hits may be (small: it can be jumped over).
      */
     public record Extras(boolean lockAim, boolean flatAim, double aimYaw, double aimPitch, double spread,
                          VolleyPattern pattern, double curve, double homingRadius, int homingDelayTicks, double homingTurn,
-                         int lifetimeTicks, double hitRadius, double spawnDistance) {
+                         int lifetimeTicks, double hitRadius, double spawnDistance, double hitHeight) {
+
+        public static final double DEFAULT_HIT_HEIGHT = 2.5;
 
         public static final Extras NONE = new Extras(false, false, 0.0, 0.0, 0.0,
-                VolleyPattern.RING, 0.9, 0.0, 7, 0.45, 70, 0.9, 2.0);
+                VolleyPattern.RING, 0.9, 0.0, 7, 0.45, 70, 0.9, 2.0, DEFAULT_HIT_HEIGHT);
 
         public Extras {
             pattern = pattern == null ? VolleyPattern.RING : pattern;
@@ -146,7 +149,7 @@ public record SkillSpec(
             case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case TELEPORT -> new SkillSpec("", "", template, look, 3.0, 12.0, 130, Orientation.HORIZONTAL, 12, 160, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
-            case VOLLEY -> new SkillSpec("", "", template, look, 1.2, 24.0, 90, Orientation.HORIZONTAL, 12, 200, 6, 4, 22.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, new Extras(false, false, 0.0, 0.0, 0.0, VolleyPattern.RING, 0.9, 8.0, 7, 0.45, 70, 0.9, 2.0));
+            case VOLLEY -> new SkillSpec("", "", template, look, 1.2, 24.0, 90, Orientation.HORIZONTAL, 12, 200, 6, 4, 22.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, new Extras(false, false, 0.0, 0.0, 0.0, VolleyPattern.RING, 0.9, 8.0, 7, 0.45, 70, 0.9, 2.0, Extras.DEFAULT_HIT_HEIGHT));
             case COMBO -> new SkillSpec("", "", template, look, 1.0, 1.0, 130, Orientation.HORIZONTAL, 4, 240, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
         };
@@ -198,7 +201,7 @@ public record SkillSpec(
     public SkillSpec withLockedAim() {
         if (extras.lockAim()) return this;
         Extras locked = new Extras(true, extras.flatAim(), extras.aimYaw(), extras.aimPitch(), extras.spread(), extras.pattern(), extras.curve(), extras.homingRadius(),
-                extras.homingDelayTicks(), extras.homingTurn(), extras.lifetimeTicks(), extras.hitRadius(), extras.spawnDistance());
+                extras.homingDelayTicks(), extras.homingTurn(), extras.lifetimeTicks(), extras.hitRadius(), extras.spawnDistance(), extras.hitHeight());
         return new SkillSpec(id, name, template, look, radius, range, angle, orientation, windupTicks, cooldownTicks, count, intervalTicks,
                 speed, damageRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, locked);
     }

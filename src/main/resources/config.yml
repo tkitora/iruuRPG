@@ -577,6 +577,7 @@ model:
   update-ticks: 2          # 何tickごとにモデルの姿勢を更新するか
   view-distance: 48.0      # この距離にプレイヤーがいるときだけ更新する
   walk-speed: 1.0          # モデルの walk アニメーションが想定する歩く速さ (ブロック/秒)。mob の実際の速さとの比で、walk の再生速度を変える (足が地面を滑らない)
+  death-vanish-seconds: 0.6  # death アニメーションのあと、煙を出して縮んで消えるまでの秒数 (0 で煙なし: 0.6 秒止まって消える)
 
 # リソースパック (pack/): 入ってきたプレイヤーに、下のパックを送る。サーバー専用パック (server.zip: 草ブロックを全面草にする) と、
 # モデル機能のパック (iruumodel.zip: /iruumodel build が作る) は別のパック。zip は plugins/iruuRPG/resourcepacks/ にある。

@@ -709,7 +709,8 @@ public final class SkillRunner {
                     double dx = at.getX() - center.getX();
                     double dz = at.getZ() - center.getZ();
                     double distance = Math.sqrt(dx * dx + dz * dz);
-                    if (Math.abs(at.getY() - center.getY()) > 2.5) continue;
+                    // (a low ring can be jumped over: hit-height is how far the feet may be above or below it)
+                    if (Math.abs(at.getY() - center.getY()) > spec.extras().hitHeight()) continue;
                     if (distance > radius + 0.6 || distance < radius - step - 0.6) continue;
                     hit.add(player.getUniqueId());
                     effects.playSkillHitSound(caster.owner(), at.clone().add(0.0, 1.0, 0.0), spec.look(), element);
