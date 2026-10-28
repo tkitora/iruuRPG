@@ -11,7 +11,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public final class DamageCalculator {
 
     private static final double W0 = 30.0;
-    private static final double WA = 1.25;
+    private static final double WA = 1.6;
     private static final double W1 = 300.0;
     private static final double W2 = 800.0;
     private static final double W3 = 800.0;
@@ -21,6 +21,8 @@ public final class DamageCalculator {
     private static final double ELEMENT_SPIKE_BONUS = 1.0;
     private static final double POWER_SPIKE_BONUS = 0.6;
     private static final double DEFENSE_K = 600.0;
+    /** The whole damage is multiplied by this (with WA, brings a standard build to ~50 DPS at Lv1 and ~20k at Lv200: design/damage-rebalance-2026-10-28.md). */
+    private static final double DAMAGE_SCALE = 0.05;
 
     public DamageResult calculate(DamageInput input) {
         RpgItemDefinition weapon = input.weapon();
@@ -51,7 +53,8 @@ public final class DamageCalculator {
                 * resistFactor
                 * damageReductionFactor(input.victim())
                 * finalTypeMultiplier(input.attacker(), weapon)
-                * critical.multiplier;
+                * critical.multiplier
+                * DAMAGE_SCALE;
 
         return new DamageResult(round(Math.max(0.0, finalDamage)), critical.critical);
     }
