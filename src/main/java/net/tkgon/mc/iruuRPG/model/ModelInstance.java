@@ -59,6 +59,9 @@ final class ModelInstance {
     /** The way the model was drawn last (degrees), and until when it still turns smoothly back to the body after facing something. */
     private float shownYaw = Float.NaN;
     private int blendUntil;
+    /** How long the model takes to go up in smoke after its death animation (seconds; 0: it stays a moment and goes as before), and whether the smoke has come. */
+    private double vanishSeconds;
+    private boolean smoked;
 
     ModelInstance(BbModel model, LivingEntity base, double scale, int period, Material baseItem, NamespacedKey partKey, boolean hideBase, double walkSpeed) {
         this.walkSpeed = walkSpeed > 0.0 ? walkSpeed : 1.0;
@@ -149,7 +152,36 @@ final class ModelInstance {
 
     /** The death animation is over (and a moment after). */
     boolean finished(int tick) {
-        return dying && (tick - dyingStart) / 20.0 >= dyingLength + 0.6;
+        return dying && (tick - dyingStart) / 20.0 >= dyingLength + (vanishSeconds > 0.0 ? vanishSeconds + 0.1 : 0.6);
+    }
+
+    /** At the end of its death animation the model shrinks away into smoke over {@code seconds} (0: no smoke). */
+    void vanish(double seconds) {
+        vanishSeconds = Math.max(0.0, seconds);
+    }
+
+    /** How big the model still is (1 until the death animation is over, then down to nearly 0 while it goes up in smoke). */
+    private float fade(Location at, int tick) {
+        if (!dying || vanishSeconds <= 0.0) return 1.0f;
+        double over = (tick - dyingStart) / 20.0 - dyingLength;
+        if (over < 0.0) return 1.0f;
+        double tall = Math.max(0.5, top());
+        double wide = Math.max(0.4, tall * 0.3);
+        org.bukkit.World world = at.getWorld();
+        if (world == null) return 0.02f;
+        Location middle = at.clone().add(0.0, tall * 0.5, 0.0);
+        if (!smoked) {
+            smoked = true;
+            int puffs = (int) Math.max(20, Math.min(120, tall * 25));
+            world.spawnParticle(org.bukkit.Particle.SMOKE_LARGE, middle, puffs, wide, tall * 0.35, wide, 0.03);
+            world.spawnParticle(org.bukkit.Particle.SMOKE_NORMAL, middle, puffs, wide, tall * 0.4, wide, 0.06);
+            world.spawnParticle(org.bukkit.Particle.CAMPFIRE_COSY_SMOKE, at.clone().add(0.0, tall * 0.3, 0.0), Math.max(4, puffs / 8), wide * 0.7, tall * 0.2, wide * 0.7, 0.01);
+            world.playSound(middle, org.bukkit.Sound.BLOCK_FIRE_EXTINGUISH, 1.0f, 0.6f);
+        } else {
+            // (a little more rises while it shrinks)
+            world.spawnParticle(org.bukkit.Particle.SMOKE_LARGE, middle, 4, wide * 0.6, tall * 0.25, wide * 0.6, 0.02);
+        }
+        return (float) Math.max(0.02, 1.0 - over / vanishSeconds);
     }
 
     /** Keeps the model turned toward {@code target} until {@code untilTick} (null: back to the body). */
@@ -235,6 +267,9 @@ final class ModelInstance {
         stand.setPitch(0.0f);
         float size = (float) scale;
         updateNameplate(stand);
+        // going up in smoke: every part shrinks toward the middle of the model
+        float fade = fade(at, tick);
+        float middle = (float) (top() * 0.5);
         for (int index = 0; index < model.parts.size(); index++) {
             BbModel.Part part = model.parts.get(index);
             Matrix4f matrix = new Matrix4f(bones.get(part.bone));
@@ -247,7 +282,7 @@ final class ModelInstance {
             // stands (the translation, in model units) is turned into blocks.
             Vector3f offset = matrix.getTranslation(new Vector3f()).mul(1.0f / 16.0f);
             matrix.setTranslation(offset);
-            Matrix4f world = new Matrix4f().scale(size).rotateY(turn).mul(matrix);
+            Matrix4f world = new Matrix4f().translate(0.0f, middle * (1.0f - fade), 0.0f).scale(size * fade).rotateY(turn).mul(matrix);
             ItemDisplay display = displays.get(index);
             if (!display.isValid()) continue;
             if (!world.equals(last.get(index), 1.0E-4f)) {
