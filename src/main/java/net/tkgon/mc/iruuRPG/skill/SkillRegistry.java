@@ -324,7 +324,8 @@ public final class SkillRegistry {
                 (int) Math.round(number(owner, flat, "lifetime-ticks", old.lifetimeTicks(), 10, 200)),
                 number(owner, flat, "hit-radius", old.hitRadius(), 0.3, 3.0),
                 number(owner, flat, "spawn-distance", old.spawnDistance(), 0.0, 8.0),
-                number(owner, flat, "hit-height", old.hitHeight(), 0.2, 8.0));
+                number(owner, flat, "hit-height", old.hitHeight(), 0.2, 8.0),
+                flag(flat, "reverse", old.reverse()));
 
         SkillTemplate template = start.template();
         if (template == SkillTemplate.WAVE && count > 5) {

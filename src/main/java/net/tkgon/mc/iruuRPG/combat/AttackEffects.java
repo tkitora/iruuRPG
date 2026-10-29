@@ -833,10 +833,11 @@ public final class AttackEffects {
 
     /**
      * The cut of a sweep: a crescent through the fan. Horizontal: flat in front of the caster; vertical: standing
-     * up like a curtain; diagonal: standing up and tilted.
+     * up like a curtain; diagonal: standing up and tilted. It is drawn from the caster's right to the left, or the
+     * other way round when {@code reverse}.
      */
     public void playSkillCrescent(Location origin, float yaw, double radius, double angle,
-                                  net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation orientation,
+                                  net.tkgon.mc.iruuRPG.skill.SkillSpec.Orientation orientation, boolean reverse,
                                   net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (origin == null || origin.getWorld() == null) return;
         Resolved r = resolve(look, element);
@@ -850,7 +851,7 @@ public final class AttackEffects {
             // standing arcs are drawn out in front, so they are not around the caster's feet
             at.add(rotateAroundY(new Vector(0.0, 0.0, 1.0), Math.toRadians(yaw)).multiply(Math.max(1.0, radius * 0.45)));
         }
-        slash(at, r, new SlashVfx.Shape(radius * 0.8, angle, 0.0, 0.0, yaw, pitch, roll, vfxDensity()), 0.2, 1.2f, 0.0);
+        slash(at, r, new SlashVfx.Shape(radius * 0.8, angle, 0.0, 0.0, yaw, pitch, roll, vfxDensity(), reverse), 0.2, 1.2f, 0.0);
     }
 
     /** One step of a flying slash of a skill: a crescent of {@code radius} that bulges the way it flies. */
