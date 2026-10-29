@@ -46,6 +46,9 @@ commands:
       - ptree
       - ptool
     permission: iruurpg.admin
+  bgm:
+    description: "Background music: your volume for everyone; songs, music boxes (volumes) and tests for admins. /bgm help"
+    usage: /bgm [volume|now|wand|pos1|pos2|create|redefine|set|remove|list|info|tp|show|play|stop|songs|reload]
   vfx:
     description: "Look at the light flow particle effects (admins): list, help <id>, test <id> <x> <y> <z> <seconds> [args]"
     usage: /vfx <list|help|test>

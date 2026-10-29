@@ -579,6 +579,11 @@ model:
   walk-speed: 1.0          # モデルの walk アニメーションが想定する歩く速さ (ブロック/秒)。mob の実際の速さとの比で、walk の再生速度を変える (足が地面を滑らない)
   death-vanish-seconds: 0.6  # death アニメーションのあと、煙を出して縮んで消えるまでの秒数 (0 で煙なし: 0.6 秒止まって消える)
 
+# BGM (bgm/): plugins/iruuRPG/bgm/ の .nbs (Note Block Studio) を、範囲 (bgm/volumes.yml) に入ったプレイヤーに流す。音量はメニューの「設定」。
+bgm:
+  enabled: true
+  check-ticks: 10          # 何tickごとに、プレイヤーがどの範囲にいるかを調べるか (10 = 0.5秒)
+
 # リソースパック (pack/): 入ってきたプレイヤーに、下のパックを送る。サーバー専用パック (server.zip: 草ブロックを全面草にする) と、
 # モデル機能のパック (iruumodel.zip: /iruumodel build が作る) は別のパック。zip は plugins/iruuRPG/resourcepacks/ にある。
 resourcepack:

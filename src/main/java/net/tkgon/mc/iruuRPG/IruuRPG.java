@@ -149,6 +149,8 @@ public final class IruuRPG extends JavaPlugin {
     private PartyMenu partyMenu;
     private SoundSettings soundSettings;
     private net.tkgon.mc.iruuRPG.combat.ParticleSettings particleSettings;
+    private net.tkgon.mc.iruuRPG.bgm.BgmSettings bgmSettings;
+    private net.tkgon.mc.iruuRPG.bgm.BgmModule bgmModule;
     private net.tkgon.mc.iruuRPG.combat.SniperMode sniperMode;
     private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
     private AttackEffects attackEffectsRef;
@@ -219,6 +221,7 @@ public final class IruuRPG extends JavaPlugin {
 
         this.soundSettings = new SoundSettings(this);
         this.particleSettings = new net.tkgon.mc.iruuRPG.combat.ParticleSettings(this);
+        this.bgmSettings = new net.tkgon.mc.iruuRPG.bgm.BgmSettings(this);
         net.tkgon.mc.iruuRPG.combat.ParticleFx.install(particleSettings);
         AttackEffects attackEffects = new AttackEffects(this, soundSettings);
         this.statusEffectService.setAttackEffects(attackEffects);
@@ -314,7 +317,7 @@ public final class IruuRPG extends JavaPlugin {
             sniperMode.reset(player);
         });
         this.mainMenuItemService = new MainMenuItemService(this);
-        this.settingsMenu = new SettingsMenu(soundSettings, attackEffectsRef.sounds(), mainMenuItemService, particleSettings);
+        this.settingsMenu = new SettingsMenu(soundSettings, attackEffectsRef.sounds(), mainMenuItemService, particleSettings, bgmSettings);
         this.settingsMenu.setMainMenu(mainMenu);
         this.mainMenu.setSettingsMenu(settingsMenu);
         this.marketService = new MarketService(this, profileManager);
@@ -406,6 +409,7 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (brushModule != null) brushModule.stop();
         if (proceduralModule != null) proceduralModule.stop();
+        if (bgmModule != null) bgmModule.stop();
         if (resourcePackService != null) resourcePackService.stop();
         if (modelModule != null) modelModule.stop();
         if (attackService != null && attackService.guard() != null) {
@@ -500,6 +504,9 @@ public final class IruuRPG extends JavaPlugin {
 
         // the brush tool for builders: it lives in tools/brush and nothing else knows about it
         this.brushModule = net.tkgon.mc.iruuRPG.tools.brush.BrushModule.start(this);
+
+        // the background music (Note Block Studio songs played in boxes of the world): it lives in bgm and nothing else knows about it
+        this.bgmModule = net.tkgon.mc.iruuRPG.bgm.BgmModule.start(this, bgmSettings);
 
         PluginCommand storageCommand = getCommand("storage");
         if (storageCommand != null) {
@@ -636,6 +643,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(partyMenu, this);
         getServer().getPluginManager().registerEvents(soundSettings, this);
         getServer().getPluginManager().registerEvents(particleSettings, this);
+        getServer().getPluginManager().registerEvents(bgmSettings, this);
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.ClickSignals(this), this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
