@@ -91,6 +91,15 @@ public final class BehaviorRunner {
         return state.name();
     }
 
+    /** A number of the blackboard (the memory of the mob), or {@code fallback} when it is not set. Other systems read it, e.g. {@code phase} for the music of a boss fight. */
+    public double blackboardNumber(String key, double fallback) {
+        return ctx.bb.number(key, fallback);
+    }
+
+    public boolean hasBlackboard(String key) {
+        return ctx.bb.has(key);
+    }
+
     /** The player the mob has as its target now, or null. */
     public Player target() {
         return ctx.bb.target;

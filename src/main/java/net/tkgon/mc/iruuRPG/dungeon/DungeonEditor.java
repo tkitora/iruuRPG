@@ -4,6 +4,9 @@ import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.bgm.Bgm;
+import net.tkgon.mc.iruuRPG.bgm.BgmMenus;
+import net.tkgon.mc.iruuRPG.bgm.BgmSettings;
 import net.tkgon.mc.iruuRPG.gui.MenuHolder;
 import net.tkgon.mc.iruuRPG.mob.RpgMobDefinition;
 import net.tkgon.mc.iruuRPG.mob.RpgMobRegistry;
@@ -26,7 +29,9 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerRespawnEvent;
+import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryCreativeEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
@@ -59,11 +64,11 @@ import java.util.UUID;
  * on and off at any time. The real hotbar is kept (also in a file, in case the server stops) and given back when
  * leaving the editor, the template world, or the server.
  *
- * Tools (slots 1-5, 7, 8 = done; slot 9 keeps the menu item): place a mob (pick from a list, optionally as the boss
+ * Tools (slots 1-7, 8 = done; slot 9 keeps the menu item): place a mob (pick from a list, optionally as the boss
  * or with a chance to appear; sneak = the last mob again), an entrance (the dungeon's entry, the boss room trigger, the boss room, the reward room:
  * chosen from a small list; sneak = the last kind again), a chest (road chest or clear chest, the same way), the exit,
- * delete (a placed mob, a road chest or a wall's block), and walls that vanish on a condition (slot 7, see
- * {@link DungeonWallEditor}). Done: click = back to building, sneak-click = save and go back.
+ * delete (a placed mob, a road chest or a wall's block), the music (slot 6: a song for the way, up to 3 for the boss fight: a screen, with a listen),
+ * and walls that vanish on a condition (slot 7, see {@link DungeonWallEditor}). Done: click = back to building, sneak-click = save and go back.
  */
 public final class DungeonEditor implements Listener {
 
@@ -78,6 +83,9 @@ public final class DungeonEditor implements Listener {
                 "道中の宝箱 (いくつでも) / クリアの宝箱 (報酬部屋)", "しゃがんでクリック: 前と同じ種類をもう一度"),
         EXIT(Material.ENDER_EYE, "出口を置く", NamedTextColor.AQUA,
                 "ブロックをクリック → その上を脱出口にする", "ボスを倒すと通れる"),
+        BGM(Material.JUKEBOX, "BGMを設定する", NamedTextColor.LIGHT_PURPLE,
+                "クリック: 道中の曲 (1つ) と、ボス戦の曲 (3つまで) を決める",
+                "ボス戦の曲は1つ目が必須。2つ目以降は、ボスが次のフェーズに入ったときの曲", "曲は一覧から選ぶ (右クリックで試聴)"),
         DELETE(Material.BARRIER, "置いたものを消す", NamedTextColor.DARK_RED,
                 "置いたモブ (名札の下) をクリック → 消す", "道中の宝箱をクリック → 消す / ブロックをクリック: その近くのモブを消す",
                 "壁のブロックをクリック → その壁から外す"),
@@ -103,7 +111,7 @@ public final class DungeonEditor implements Listener {
 
     private static final int TOOL_SLOTS = 8; // slots 0-7; slot 8 is the menu item
     /** Hotbar slots 1-8 (index 0-7); empty slots stay empty. */
-    private static final Tool[] HOTBAR = {Tool.MOB, Tool.ENTRANCE, Tool.CHEST, Tool.EXIT, Tool.DELETE, null, Tool.WALL, Tool.DONE};
+    private static final Tool[] HOTBAR = {Tool.MOB, Tool.ENTRANCE, Tool.CHEST, Tool.EXIT, Tool.DELETE, Tool.BGM, Tool.WALL, Tool.DONE};
 
     /** The kinds the entrance and chest tools ask for. */
     private enum Kind {
@@ -155,6 +163,7 @@ public final class DungeonEditor implements Listener {
     private final NamespacedKey toolKey;
     private final File saveFolder;
     private final Map<UUID, Session> sessions = new HashMap<>();
+    private BgmSettings bgmSettings;
     private final DungeonWallEditor walls;
 
     public DungeonEditor(JavaPlugin plugin, DungeonService service, RpgMobRegistry mobRegistry) {
@@ -165,6 +174,15 @@ public final class DungeonEditor implements Listener {
         this.toolKey = new NamespacedKey(plugin, "dungeon_tool");
         this.saveFolder = new File(plugin.getDataFolder(), "editor");
         this.walls = new DungeonWallEditor(service, mobRegistry);
+    }
+
+    /** The music tool needs the BGM (the songs and the listen); without it the tool says so. */
+    public void setBgmSettings(BgmSettings bgmSettings) {
+        this.bgmSettings = bgmSettings;
+    }
+
+    private Bgm bgm() {
+        return bgmSettings == null ? Bgm.NONE : bgmSettings.bgm();
     }
 
     public boolean editing(Player player) {
@@ -330,6 +348,7 @@ public final class DungeonEditor implements Listener {
             if (event.getView().getTopInventory().getHolder() instanceof DungeonWallEditor.Menu menu) walls.onClick(player, menu, event.getRawSlot(), event.getClick());
             if (event.getView().getTopInventory().getHolder() instanceof Choice choice) onChoice(player, choice, event.getRawSlot());
             if (event.getView().getTopInventory().getHolder() instanceof Tables tables) onTable(player, tables, event.getRawSlot());
+            if (event.getView().getTopInventory().getHolder() instanceof BgmScreen screen) onBgm(player, screen, event.getRawSlot(), event.getClick());
         }
     }
 
@@ -394,7 +413,12 @@ public final class DungeonEditor implements Listener {
 
         DungeonDefinition definition = registry.find(session.dungeonId).orElse(null);
         if (definition == null) return;
+        if (tool == Tool.BGM) {
+            openBgm(player, definition);
+            return;
+        }
         if (tool == Tool.DONE) {
+            warnBgm(player, definition);
             if (player.isSneaking()) {
                 stop(player, false);
                 service.saveTemplate(player, definition);
@@ -557,6 +581,193 @@ public final class DungeonEditor implements Listener {
         if (table == null) return;
         player.closeInventory();
         placeRoadChest(player, session, table);
+    }
+
+
+    // ---- the music: a song for the way, up to 3 for the boss fight ----------------------------------------------------------------
+
+    private static final int ROUTE_SLOT = 10;
+    private static final int BOSS_SLOT = 12; // 12, 13, 14
+    private static final int HELP_SLOT = 16;
+    private static final int PICK_PREVIOUS = 45;
+    private static final int PICK_CLEAR = 47;
+    private static final int PICK_BACK = 49;
+    private static final int PICK_NEXT = 53;
+
+    /** The screen of the music: the main one (the four slots), or the list of songs for one of them. */
+    private static final class BgmScreen implements MenuHolder {
+        private final boolean picking;
+        /** 0 = the song for the way, 1-3 = the songs of the boss fight. */
+        private final int target;
+        private final int page;
+        private final List<Bgm.SongInfo> songs;
+        private Inventory inventory;
+
+        private BgmScreen(boolean picking, int target, int page, List<Bgm.SongInfo> songs) {
+            this.picking = picking;
+            this.target = target;
+            this.page = page;
+            this.songs = songs;
+        }
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private void openBgm(Player player, DungeonDefinition definition) {
+        if (bgm().songs().isEmpty()) {
+            hint(player, "BGMの曲がありません (BGMが動いていない、または曲が無い)。/bgm songs で確かめてください。");
+            return;
+        }
+        BgmScreen screen = new BgmScreen(false, 0, 0, List.of());
+        screen.inventory = Bukkit.createInventory(screen, 27, Component.text("BGM - " + definition.name()));
+        ItemStack frame = button(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
+        for (int slot = 0; slot < 27; slot++) screen.inventory.setItem(slot, frame);
+        screen.inventory.setItem(ROUTE_SLOT, songSlot(definition.bgmRoute(), "道中の曲", false, List.of(
+                text("入ったときから、ループで流れる", NamedTextColor.GRAY),
+                text("ボス戦が始まると、ボス戦の曲に変わる", NamedTextColor.GRAY))));
+        List<String> boss = definition.bgmBoss();
+        String[] meaning = {"ボス戦のはじめから、ループで流れる", "ボスが次のフェーズに入ったときの曲", "さらに次のフェーズに入ったときの曲"};
+        for (int index = 0; index < DungeonDefinition.BOSS_SONGS; index++) {
+            String song = index < boss.size() ? boss.get(index) : null;
+            screen.inventory.setItem(BOSS_SLOT + index, songSlot(song, "ボス戦の曲 " + (index + 1) + (index == 0 ? " (必須)" : ""), index == 0 && boss.isEmpty(), List.of(
+                    text(meaning[index], NamedTextColor.GRAY),
+                    text(index == 0 ? "ボス戦の曲は、最低1つ必要" : index > boss.size() ? "前の枠から順に決める" : "フェーズが無いボスは、1つ目だけが流れる", NamedTextColor.GRAY))));
+        }
+        screen.inventory.setItem(HELP_SLOT, button(Material.PAPER, "しくみ", NamedTextColor.YELLOW, List.of(
+                text("ボス戦: ボス部屋へ移動したとき、またはボスが傷ついた・狙ってきたとき始まる", NamedTextColor.GRAY),
+                text("フェーズ: ボスの行動 (BT) の黒板の phase が 2, 3 になると次の曲", NamedTextColor.GRAY),
+                text("ボスを倒すと、フェードアウトして終わる", NamedTextColor.GRAY),
+                text("曲が無いダンジョンは、今までどおり無音", NamedTextColor.GRAY))));
+        screen.inventory.setItem(22, button(Material.ARROW, "閉じる", NamedTextColor.GRAY, List.of(text("変更は、その場で保存される", NamedTextColor.GRAY))));
+        player.openInventory(screen.inventory);
+    }
+
+    private ItemStack songSlot(String songId, String label, boolean missing, List<Component> info) {
+        Bgm.SongInfo song = songId == null ? null : bgm().song(songId);
+        List<Component> lore = new ArrayList<>();
+        if (songId == null) {
+            lore.add(text(missing ? "未設定 (必須)" : "未設定", missing ? NamedTextColor.RED : NamedTextColor.GRAY));
+        } else if (song == null) {
+            lore.add(text("曲が見つかりません: " + songId, NamedTextColor.RED));
+        } else {
+            lore.add(text((song.category().isEmpty() ? song.title() : song.shortTitle()) + "  " + song.length(), NamedTextColor.GREEN));
+            if (!song.category().isEmpty()) lore.add(text(song.code(), NamedTextColor.YELLOW));
+        }
+        lore.addAll(info);
+        lore.add(text("左クリック: 曲を選ぶ", NamedTextColor.YELLOW));
+        if (songId != null) lore.add(text("右クリック: 外す", NamedTextColor.YELLOW));
+        return button(songId == null ? Material.GRAY_DYE : Material.JUKEBOX, label, songId == null ? (missing ? NamedTextColor.RED : NamedTextColor.GRAY) : NamedTextColor.LIGHT_PURPLE, lore);
+    }
+
+    private void openPick(Player player, int target, int page) {
+        List<Bgm.SongInfo> songs = bgm().songs();
+        int shown = Math.max(0, Math.min(page, BgmMenus.pages(songs.size()) - 1));
+        BgmScreen screen = new BgmScreen(true, target, shown, songs);
+        String label = target == 0 ? "道中の曲" : "ボス戦の曲 " + target;
+        screen.inventory = Bukkit.createInventory(screen, 54, Component.text(label + "を選ぶ"));
+        fillPick(screen, player);
+        player.openInventory(screen.inventory);
+    }
+
+    /** Puts the songs of the page and the buttons in the screen (again, in place, when the listen changes: opening a new screen would end the listen). */
+    private void fillPick(BgmScreen screen, Player player) {
+        int pages = BgmMenus.pages(screen.songs.size());
+        screen.inventory.clear();
+        String playing = bgm().previewing(player);
+        List<Bgm.SongInfo> list = BgmMenus.page(screen.songs, screen.page);
+        for (int index = 0; index < list.size(); index++) {
+            Bgm.SongInfo song = list.get(index);
+            screen.inventory.setItem(index, BgmMenus.item(song, song.id().equals(playing), List.of(
+                    text("左クリック: この曲にする", NamedTextColor.YELLOW), text("右クリック: 試聴 (もう一度で止める)", NamedTextColor.YELLOW))));
+        }
+        ItemStack frame = button(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
+        for (int slot = 45; slot < 54; slot++) screen.inventory.setItem(slot, frame);
+        if (screen.page > 0) screen.inventory.setItem(PICK_PREVIOUS, button(Material.ARROW, "前のページ", NamedTextColor.WHITE, List.of(text(screen.page + " / " + pages, NamedTextColor.GRAY))));
+        if (screen.page < pages - 1) screen.inventory.setItem(PICK_NEXT, button(Material.ARROW, "次のページ", NamedTextColor.WHITE, List.of(text((screen.page + 2) + " / " + pages, NamedTextColor.GRAY))));
+        screen.inventory.setItem(PICK_CLEAR, button(Material.BARRIER, "この枠を空にする", NamedTextColor.RED, List.of(text(screen.target == 0 ? "道中の曲を外す" : "この曲を外す (後ろの曲は前につまる)", NamedTextColor.GRAY))));
+        screen.inventory.setItem(PICK_BACK, button(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of(text("試聴を止めて、BGMの設定へ", NamedTextColor.GRAY))));
+    }
+
+    private void onBgm(Player player, BgmScreen screen, int slot, ClickType click) {
+        Session session = sessions.get(player.getUniqueId());
+        DungeonDefinition definition = session == null ? null : registry.find(session.dungeonId).orElse(null);
+        if (definition == null) return;
+        if (!screen.picking) {
+            if (slot == 22) {
+                player.closeInventory();
+                return;
+            }
+            int target = slot == ROUTE_SLOT ? 0 : slot >= BOSS_SLOT && slot < BOSS_SLOT + DungeonDefinition.BOSS_SONGS ? slot - BOSS_SLOT + 1 : -1;
+            if (target < 0) return;
+            if (click == ClickType.RIGHT || click == ClickType.SHIFT_RIGHT) {
+                setSong(player, definition, target, null);
+                return;
+            }
+            if (target > definition.bgmBoss().size() + 1) {
+                hint(player, "ボス戦の曲は、前の枠から順に決めてください。");
+                return;
+            }
+            openPick(player, target, 0);
+            return;
+        }
+        if (slot == PICK_BACK) {
+            bgm().stopPreview(player);
+            openBgm(player, definition);
+        } else if (slot == PICK_PREVIOUS && screen.page > 0) {
+            openPick(player, screen.target, screen.page - 1);
+        } else if (slot == PICK_NEXT && screen.page < BgmMenus.pages(screen.songs.size()) - 1) {
+            openPick(player, screen.target, screen.page + 1);
+        } else if (slot == PICK_CLEAR) {
+            bgm().stopPreview(player);
+            setSong(player, definition, screen.target, null);
+        } else if (slot >= 0 && slot < BgmMenus.PER_PAGE) {
+            List<Bgm.SongInfo> list = BgmMenus.page(screen.songs, screen.page);
+            if (slot >= list.size()) return;
+            Bgm.SongInfo song = list.get(slot);
+            if (click == ClickType.RIGHT || click == ClickType.SHIFT_RIGHT) {
+                if (song.id().equals(bgm().previewing(player))) bgm().stopPreview(player); else bgm().preview(player, song.id());
+                fillPick(screen, player);
+            } else {
+                bgm().stopPreview(player);
+                setSong(player, definition, screen.target, song.id());
+            }
+        }
+    }
+
+    /** Puts a song in a slot (null: empties it); the boss songs stay together at the front. */
+    private void setSong(Player player, DungeonDefinition definition, int target, String songId) {
+        String route = definition.bgmRoute();
+        List<String> boss = new ArrayList<>(definition.bgmBoss());
+        if (target == 0) {
+            route = songId;
+        } else if (songId == null) {
+            if (target - 1 < boss.size()) boss.remove(target - 1);
+        } else if (target - 1 < boss.size()) {
+            boss.set(target - 1, songId);
+        } else {
+            boss.add(songId);
+        }
+        registry.setBgm(definition, route, boss);
+        DungeonDefinition updated = registry.find(definition.id()).orElse(definition);
+        player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, songId == null ? 0.8f : 1.4f);
+        warnBgm(player, updated);
+        openBgm(player, updated);
+    }
+
+    /** The boss fight needs a song when the dungeon has music at all. */
+    private void warnBgm(Player player, DungeonDefinition definition) {
+        if (definition.bgmRoute() != null && definition.bgmBoss().isEmpty()) {
+            player.sendMessage(Component.text("[エディター] BGM: ボス戦の曲が未設定です (最低1つ必要)。ボス戦になっても、道中の曲のままになります。", NamedTextColor.RED));
+        }
+    }
+
+    /** Closing the list of songs ends the listen. */
+    @EventHandler
+    public void onBgmClose(InventoryCloseEvent event) {
+        if (event.getPlayer() instanceof Player player && event.getInventory().getHolder() instanceof BgmScreen screen && screen.picking) bgm().stopPreview(player);
     }
 
     // ---- choosing a kind (entrance / chest) --------------------------------------------------------------------------

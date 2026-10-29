@@ -22,6 +22,7 @@ public final class BgmSettings implements Listener {
     private final Map<UUID, Integer> cache = new ConcurrentHashMap<>();
     private final NamespacedKey percentKey;
     private volatile Function<Player, String> nowPlaying = player -> null;
+    private volatile Bgm bgm = Bgm.NONE;
 
     public BgmSettings(JavaPlugin plugin) {
         this.percentKey = new NamespacedKey(plugin, "bgm_percent");
@@ -45,6 +46,15 @@ public final class BgmSettings implements Listener {
     /** The title of the song the player hears now, or null (the settings menu shows it). */
     public String nowPlaying(Player player) {
         return nowPlaying.apply(player);
+    }
+
+    /** What the rest of the plugin may ask of the music ({@link Bgm#NONE} while the BGM is not running). */
+    public Bgm bgm() {
+        return bgm;
+    }
+
+    void bgm(Bgm bgm) {
+        this.bgm = bgm == null ? Bgm.NONE : bgm;
     }
 
     void nowPlaying(Function<Player, String> source) {

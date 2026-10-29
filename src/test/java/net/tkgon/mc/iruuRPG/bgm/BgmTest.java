@@ -2,6 +2,7 @@ package net.tkgon.mc.iruuRPG.bgm;
 
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -300,6 +301,95 @@ class BgmTest {
         channel.follow(volume, registry);
         assertEquals(2, channel.voiceCount());
         assertEquals("Hollow Beneath the Giant (Dungeon001)", channel.nowPlaying());
+    }
+
+    // ---- scenes (a dungeon run) and listens --------------------------------------------------------------------------------------------
+
+    private static Player player() {
+        Player player = mock(Player.class);
+        when(player.getEyeLocation()).thenReturn(new Location(null, 0, 64, 0));
+        return player;
+    }
+
+    @Test
+    void aSceneSongPlaysInsteadOfTheVolumesAndGivesWayToAListen(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        BgmVolume volume = new BgmVolume("plains", "world", new int[]{0, 0, 0}, new int[]{9, 9, 9}, "plains_adventure");
+        BgmChannel channel = new BgmChannel();
+        channel.follow(volume, registry);
+        assertEquals("Under an Endless Sky (Field001)", channel.nowPlaying());
+
+        // the scene: its song goes over, and the volumes are not followed while it lasts
+        channel.playScene(registry.song("atlas_dungeon"), true, 2.0);
+        assertEquals("Hollow Beneath the Giant (Dungeon001)", channel.nowPlaying());
+        assertEquals(2, channel.voiceCount(), "the song of the volume fades out");
+        channel.follow(null, registry);
+        channel.follow(volume, registry);
+        assertEquals("Hollow Beneath the Giant (Dungeon001)", channel.nowPlaying(), "the volumes do not change the song of the scene");
+        assertEquals(2, channel.voiceCount());
+
+        // the same song again changes nothing; another one is gone over to
+        channel.playScene(registry.song("atlas_dungeon"), true, 2.0);
+        assertEquals(2, channel.voiceCount());
+        channel.playScene(registry.song("atlas_vindicator"), true, 2.0);
+        assertEquals("The Axe at the Gate (Boss001)", channel.nowPlaying());
+        assertEquals(3, channel.voiceCount());
+
+        // a listen is over everything; when it ends the scene comes back
+        channel.playManual(registry.song("atlas_cave"), true, 0.5);
+        assertEquals("Where the Titan Sleeps (Field002)", channel.nowPlaying());
+        assertEquals("atlas_cave", channel.manualSong().id());
+        channel.stopManual(0.5);
+        assertEquals("The Axe at the Gate (Boss001)", channel.nowPlaying(), "the scene song is back");
+        assertNull(channel.manualSong());
+
+        // the end of the scene: its song fades out and the volume is followed again
+        channel.endScene(1.0);
+        assertNull(channel.nowPlaying());
+        channel.follow(volume, registry);
+        assertEquals("Under an Endless Sky (Field001)", channel.nowPlaying());
+    }
+
+    @Test
+    void aFadedOutSongIsTakenAway(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        BgmChannel channel = new BgmChannel();
+        channel.playScene(registry.song("atlas_dungeon"), true, 0.0);
+        channel.endScene(1.0);
+        Player player = player();
+        for (int tick = 0; tick < 25; tick++) channel.tick(player, 1.0f);
+        assertEquals(0, channel.voiceCount());
+        assertTrue(channel.silent());
+    }
+
+    @Test
+    void aSceneSongStartsAfterAListenIfItWasAskedForDuringIt(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        BgmChannel channel = new BgmChannel();
+        channel.playManual(registry.song("atlas_cave"), true, 0.5);
+        channel.playScene(registry.song("atlas_dungeon"), true, 2.0);
+        assertEquals("Where the Titan Sleeps (Field002)", channel.nowPlaying(), "the listen goes on");
+        channel.stopManual(0.5);
+        assertEquals("Hollow Beneath the Giant (Dungeon001)", channel.nowPlaying());
+    }
+
+    @Test
+    void theNameOfASongTellsItsKind() {
+        Bgm.SongInfo field = new Bgm.SongInfo("a", "Under an Endless Sky (Field001)", 154.0, "bundled");
+        assertEquals("フィールド", field.category());
+        assertEquals("フィールド001", field.code());
+        assertEquals("Under an Endless Sky", field.shortTitle());
+        assertEquals("2:34", field.length());
+        assertEquals("ボス", new Bgm.SongInfo("b", "The Axe at the Gate (Boss001)", 128.0, "bundled").category());
+        assertEquals("ダンジョン002", new Bgm.SongInfo("c", "Deep (Dungeon002)", 60.0, "bgm").code());
+        Bgm.SongInfo plain = new Bgm.SongInfo("d", "Some Song", 59.6, "bgm");
+        assertEquals("", plain.category());
+        assertEquals("", plain.code());
+        assertEquals("Some Song", plain.shortTitle());
+        assertEquals("1:00", plain.length());
     }
 
     @Test

@@ -109,6 +109,10 @@ public final class DungeonService implements Listener {
         /** road chest index -> players who opened it */
         private final Map<Integer, Set<UUID>> roadOpened = new HashMap<>();
         private boolean bossRoomOpened;
+        /** The boss fight has begun: the boss songs play instead of the one for the way. */
+        private boolean bossMusic;
+        /** Which boss song plays (0-based); only goes up as the boss goes on to its next phases. */
+        private int musicIndex = -1;
         private int secondsLeft;
         /** player -> revive progress of the teammate they are standing by (for the sidebar) */
         private final Map<UUID, Integer> reviving = new HashMap<>();
@@ -232,6 +236,17 @@ public final class DungeonService implements Listener {
     private net.tkgon.mc.iruuRPG.party.PartyService partyService;
 
     /** Parties enter together; a member can join their party's run with /dungeon join. */
+    private net.tkgon.mc.iruuRPG.bgm.BgmSettings bgmSettings;
+
+    /** The music of the runs: the way, the boss fight and its phases (see {@link DungeonDefinition#bgmRoute()}); without it the dungeon is silent as before. */
+    public void setBgmSettings(net.tkgon.mc.iruuRPG.bgm.BgmSettings bgmSettings) {
+        this.bgmSettings = bgmSettings;
+    }
+
+    private net.tkgon.mc.iruuRPG.bgm.Bgm bgm() {
+        return bgmSettings == null ? net.tkgon.mc.iruuRPG.bgm.Bgm.NONE : bgmSettings.bgm();
+    }
+
     public void setPartyService(net.tkgon.mc.iruuRPG.party.PartyService partyService) {
         this.partyService = partyService;
     }
@@ -479,6 +494,7 @@ public final class DungeonService implements Listener {
             Player player = Bukkit.getPlayer(id);
             if (player == null) continue;
             player.teleport(entry);
+            musicFor(instance, player);
             player.showTitle(Title.title(Component.text(instance.definition.name(), NamedTextColor.GOLD),
                     Component.text((instance.definition.boss() != null ? "ボスを倒せ" : "敵をすべて倒せ")
                             + " (制限 " + clock(instance.definition.timeLimitSeconds()) + ")", NamedTextColor.GRAY),
@@ -516,6 +532,7 @@ public final class DungeonService implements Listener {
     /** Takes the player out of the run and back to where they came from. */
     private void sendHome(Player player, Instance instance) {
         UUID id = player.getUniqueId();
+        if (player.isOnline()) bgm().endScene(player, MUSIC_LEAVE_FADE);
         if (player.isOnline()) undown(instance, player);
         instance.players.remove(id);
         instance.lives.remove(id);
@@ -551,6 +568,7 @@ public final class DungeonService implements Listener {
                 }
                 if (definition.rewardXp() > 0) levelService.addXp(player, definition.rewardXp());
             }
+            bgm().endScene(player, MUSIC_CLEAR_FADE); // (the boss is down: the music fades away)
             String sub = room ? "5秒後に移動" : "";
             player.showTitle(Title.title(Component.text("CLEAR!", NamedTextColor.GOLD, TextDecoration.BOLD),
                     Component.text(sub, NamedTextColor.YELLOW),
@@ -673,6 +691,7 @@ public final class DungeonService implements Listener {
         }
         exitParticles(instance, false);
         tickBossTrigger(instance);
+        tickMusic(instance);
         tickWalls(instance);
         tickDowned(instance);
         if (instance.state != State.ACTIVE) return;
@@ -698,6 +717,77 @@ public final class DungeonService implements Listener {
         } else {
             instance.emptySeconds = 0;
         }
+    }
+
+    // ---- the music of a run ------------------------------------------------------------------------------------------------------
+
+    private static final double MUSIC_FADE = 2.0;
+    private static final double MUSIC_LEAVE_FADE = 1.0;
+    private static final double MUSIC_CLEAR_FADE = 4.0;
+    /** The blackboard key of the behavior tree a boss writes its phase to (1, 2, 3 ...). */
+    private static final String PHASE_KEY = "phase";
+
+    /** The song a player of the run hears now: the boss song of the phase while the boss fight goes on, else the song for the way (null: none). */
+    private String currentSong(Instance instance) {
+        DungeonDefinition definition = instance.definition;
+        if (instance.bossMusic && !definition.bgmBoss().isEmpty()) {
+            return definition.bgmBoss().get(Math.max(0, Math.min(instance.musicIndex, definition.bgmBoss().size() - 1)));
+        }
+        return definition.bgmRoute();
+    }
+
+    private void musicFor(Instance instance, Player player) {
+        String song = currentSong(instance);
+        if (song != null) bgm().playScene(player, song, true, MUSIC_FADE);
+    }
+
+    /** Every second: the boss fight begins (its first song), and goes on to the next song when the boss goes on to its next phase. */
+    private void tickMusic(Instance instance) {
+        List<String> songs = instance.definition.bgmBoss();
+        if (songs.isEmpty() || instance.world == null) return;
+        if (!instance.bossMusic) {
+            if (!bossFightBegun(instance)) return;
+            instance.bossMusic = true;
+            instance.musicIndex = Math.max(0, DungeonMusic.songIndex(songs.size(), bossPhase(instance)));
+            playForAll(instance);
+            return;
+        }
+        int index = Math.max(instance.musicIndex, DungeonMusic.songIndex(songs.size(), bossPhase(instance)));
+        if (index != instance.musicIndex) {
+            instance.musicIndex = index;
+            playForAll(instance);
+        }
+    }
+
+    private void playForAll(Instance instance) {
+        for (UUID id : instance.players) {
+            Player player = Bukkit.getPlayer(id);
+            if (player != null && player.isOnline() && player.getWorld().equals(instance.world)) musicFor(instance, player);
+        }
+    }
+
+    /** The fight begins when the party is taken to the boss room, or the boss is hurt or has a target. */
+    private boolean bossFightBegun(Instance instance) {
+        if (instance.bossRoomOpened) return true;
+        for (UUID id : instance.bosses) {
+            Entity entity = Bukkit.getEntity(id);
+            if (!(entity instanceof LivingEntity living) || living.isDead()) continue;
+            var max = living.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH);
+            if (max != null && living.getHealth() < max.getValue() - 0.01) return true;
+            if (living instanceof org.bukkit.entity.Mob mob && mob.getTarget() != null) return true;
+            if (mobService.behaviorHasTarget(id)) return true;
+        }
+        return false;
+    }
+
+    /** The phase of the boss fight: the highest {@code phase} that a boss has written on the blackboard of its behavior tree; 1 for a boss that writes none. */
+    private double bossPhase(Instance instance) {
+        double phase = 1.0;
+        for (UUID id : instance.bosses) {
+            Double value = mobService.behaviorNumber(id, PHASE_KEY);
+            if (value != null) phase = Math.max(phase, value);
+        }
+        return phase;
     }
 
     // ---- mobs and players dying ----------------------------------------------------------------------------------------------
@@ -1378,6 +1468,7 @@ public final class DungeonService implements Listener {
         remember(player, player.getLocation());
         player.closeInventory();
         player.teleport(instance.definition.entry().in(instance.world));
+        musicFor(instance, player);
         for (UUID id : instance.players) {
             Player p = Bukkit.getPlayer(id);
             if (p != null) p.sendMessage(Component.text("[ダンジョン] " + player.getName() + " が参加した。(" + instance.players.size() + " 人)", NamedTextColor.GREEN));
@@ -1393,6 +1484,7 @@ public final class DungeonService implements Listener {
         if (instance == null || instance.world == null) return;
         if (event.getFrom().equals(instance.world) && !player.getWorld().equals(instance.world)) {
             // left the instance world some other way: treat it as leaving (no teleport back)
+            bgm().endScene(player, MUSIC_LEAVE_FADE);
             instance.players.remove(player.getUniqueId());
             instance.lives.remove(player.getUniqueId());
             byPlayer.remove(player.getUniqueId());
@@ -1418,6 +1510,7 @@ public final class DungeonService implements Listener {
         if (saved == null) return;
         Instance instance = byPlayer.get(player.getUniqueId());
         if (instance != null && instance.state == State.ACTIVE && player.getWorld().equals(instance.world)) {
+            musicFor(instance, player); // (the music of a player who was away starts again)
             return; // came back into a run that is still going
         }
         // the run is gone (closed, or the server restarted): back to where they came from

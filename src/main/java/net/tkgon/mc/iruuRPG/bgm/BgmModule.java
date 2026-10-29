@@ -37,7 +37,7 @@ import java.util.UUID;
  * every box, the song fades away (and the next one fades in). Every player has their own {@link BgmChannel}, and their own loudness ({@link BgmSettings}, in the settings
  * menu). Like the other tools this lives in its own package and the rest of the plugin only starts it; starting never throws (a failure is logged and there is no BGM).
  */
-public final class BgmModule implements Listener {
+public final class BgmModule implements Listener, Bgm {
 
     static final String PREFIX = "[BGM] ";
     private static final String PERMISSION = "iruurpg.admin";
@@ -81,6 +81,7 @@ public final class BgmModule implements Listener {
                 command.setExecutor(handler);
                 command.setTabCompleter(handler);
             }
+            settings.bgm(module);
             settings.nowPlaying(player -> {
                 BgmChannel channel = module.channels.get(player.getUniqueId());
                 return channel == null ? null : channel.nowPlaying();
@@ -107,6 +108,7 @@ public final class BgmModule implements Listener {
     public void stop() {
         if (task != null) task.cancel();
         if (watchTask != null) watchTask.cancel();
+        settings.bgm(Bgm.NONE);
         channels.clear();
         selections.clear();
     }
@@ -143,6 +145,58 @@ public final class BgmModule implements Listener {
             if (!watchWarned) plugin.getLogger().warning("bgm: cannot look for changed files: " + exception);
             watchWarned = true;
         }
+    }
+
+    // ---- Bgm: what the rest of the plugin may ask --------------------------------------------------------------------------------------
+
+    @Override
+    public List<SongInfo> songs() {
+        List<SongInfo> list = new java.util.ArrayList<>();
+        for (NbsSong song : registry.songs().values()) list.add(info(song));
+        return list;
+    }
+
+    @Override
+    public SongInfo song(String id) {
+        NbsSong song = registry.song(id);
+        return song == null ? null : info(song);
+    }
+
+    private SongInfo info(NbsSong song) {
+        return new SongInfo(song.id().toLowerCase(java.util.Locale.ROOT), song.title(), song.seconds(), registry.origin(song.id()));
+    }
+
+    @Override
+    public void playScene(Player player, String songId, boolean loop, double fadeSeconds) {
+        NbsSong song = registry.song(songId);
+        if (song != null) channel(player).playScene(song, loop, fadeSeconds);
+    }
+
+    @Override
+    public void endScene(Player player, double fadeSeconds) {
+        BgmChannel channel = channels.get(player.getUniqueId());
+        if (channel != null) channel.endScene(fadeSeconds);
+    }
+
+    @Override
+    public boolean preview(Player player, String songId) {
+        NbsSong song = registry.song(songId);
+        if (song == null) return false;
+        channel(player).playManual(song, true, 0.6);
+        return true;
+    }
+
+    @Override
+    public void stopPreview(Player player) {
+        BgmChannel channel = channels.get(player.getUniqueId());
+        if (channel != null && channel.manual()) channel.stopManual(0.6);
+    }
+
+    @Override
+    public String previewing(Player player) {
+        BgmChannel channel = channels.get(player.getUniqueId());
+        NbsSong song = channel == null ? null : channel.manualSong();
+        return song == null ? null : song.id().toLowerCase(java.util.Locale.ROOT);
     }
 
     // ---- running ---------------------------------------------------------------------------------------------------------------------

@@ -127,7 +127,9 @@ public final class DungeonRegistry {
                 point(yaml.getConfigurationSection("chest")),
                 point(yaml.getConfigurationSection("boss-trigger")),
                 point(yaml.getConfigurationSection("boss-room")),
-                roadChests(yaml, id)
+                roadChests(yaml, id),
+                yaml.getString("bgm.route"),
+                yaml.getStringList("bgm.boss")
         );
     }
 
@@ -227,9 +229,14 @@ public final class DungeonRegistry {
     public DungeonDefinition create(String id, String name) {
         DungeonDefinition definition = new DungeonDefinition(id, name, List.of(), 1, 900, 3, 0L, 0L,
                 new DungeonDefinition.Point(0.5, 65.0, 0.5, 0.0f, 0.0f), List.of(), null, null, 300,
-                DungeonDefinition.DeathMode.REVIVE, 4, null, null, null, null, List.of());
+                DungeonDefinition.DeathMode.REVIVE, 4, null, null, null, null, List.of(), null, List.of());
         put(definition);
         return definition;
+    }
+
+    /** Sets the songs of the dungeon: the one that plays along the way, and those of the boss fight (up to 3). */
+    public void setBgm(DungeonDefinition definition, String route, List<String> boss) {
+        put(definition.withBgm(route, boss));
     }
 
     public void setEntry(DungeonDefinition definition, Location location) {
@@ -445,6 +452,8 @@ public final class DungeonRegistry {
         if (d.chest() != null) yaml.set("chest", pointMap(d.chest()));
         if (d.bossTrigger() != null) yaml.set("boss-trigger", pointMap(d.bossTrigger()));
         if (d.bossRoom() != null) yaml.set("boss-room", pointMap(d.bossRoom()));
+        if (d.bgmRoute() != null) yaml.set("bgm.route", d.bgmRoute());
+        if (!d.bgmBoss().isEmpty()) yaml.set("bgm.boss", d.bgmBoss());
         List<Map<String, Object>> chests = new ArrayList<>();
         for (DungeonDefinition.RoadChest chest : d.roadChests()) {
             Map<String, Object> map = pointMap(chest.at());
