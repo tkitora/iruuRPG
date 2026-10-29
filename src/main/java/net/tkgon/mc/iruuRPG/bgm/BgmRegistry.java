@@ -25,7 +25,9 @@ import java.util.TreeMap;
 public final class BgmRegistry {
 
     /** The songs inside the jar ({@code bgm/<id>.nbs}). */
-    private static final List<String> BUNDLED = List.of("plains_adventure");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator");
+    /** The SHA-1 of the versions of a bundled song that went out earlier and were never recorded (a file that still is one of them was not edited, so it is replaced). */
+    private static final Map<String, List<String>> PREVIOUS = Map.of("plains_adventure", List.of("4258ea7855cdb44c8f2f7ee28d2a77d3a567075d"));
 
     private final JavaPlugin plugin;
     private volatile Map<String, NbsSong> songs = Map.of();
@@ -91,16 +93,58 @@ public final class BgmRegistry {
         for (String problem : problems) plugin.getLogger().warning("bgm: " + problem);
     }
 
+    /**
+     * Puts the bundled songs in the folder. A song that is not there is written; one that is there is replaced by a newer bundled version only when nobody has edited it
+     * (its SHA-1 is the one recorded when it was written, in {@code bgm/.bundled.yml}, or one of {@link #PREVIOUS}); an edited song is left alone.
+     */
     private void extractBundled() {
+        File recordFile = new File(folder(), ".bundled.yml");
+        YamlConfiguration record = recordFile.isFile() ? YamlConfiguration.loadConfiguration(recordFile) : new YamlConfiguration();
+        boolean changed = false;
         for (String id : BUNDLED) {
             File target = new File(folder(), id + ".nbs");
-            if (target.exists()) continue;
             try (InputStream in = plugin.getResource("bgm/" + id + ".nbs")) {
                 if (in == null) continue;
-                Files.write(target.toPath(), in.readAllBytes());
-            } catch (IOException exception) {
+                byte[] bundled = in.readAllBytes();
+                String bundledHash = sha1(bundled);
+                boolean write = !target.exists();
+                if (!write) {
+                    String current = sha1(Files.readAllBytes(target.toPath()));
+                    if (current.equals(bundledHash)) {
+                        if (!bundledHash.equals(record.getString(id))) {
+                            record.set(id, bundledHash);
+                            changed = true;
+                        }
+                        continue;
+                    }
+                    write = current.equals(record.getString(id)) || PREVIOUS.getOrDefault(id, List.of()).contains(current);
+                }
+                if (write) {
+                    Files.write(target.toPath(), bundled);
+                    record.set(id, bundledHash);
+                    changed = true;
+                }
+            } catch (IOException | RuntimeException exception) {
                 problems.add("cannot put the bundled song " + id + " in the folder: " + exception.getMessage());
             }
+        }
+        if (changed) {
+            try {
+                record.save(recordFile);
+            } catch (IOException exception) {
+                problems.add("cannot write bgm/.bundled.yml: " + exception.getMessage());
+            }
+        }
+    }
+
+    private static String sha1(byte[] data) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-1").digest(data);
+            StringBuilder text = new StringBuilder();
+            for (byte value : digest) text.append(String.format("%02x", value));
+            return text.toString();
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
         }
     }
 
