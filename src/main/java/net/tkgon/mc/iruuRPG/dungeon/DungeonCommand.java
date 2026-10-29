@@ -187,12 +187,24 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 if (args.length < 3 || mobRegistry.find(args[2]).isEmpty()) {
-                    player.sendMessage("[ダンジョン] /dungeon spawn " + id + " <mobId> (モブの id を確認してください)");
+                    player.sendMessage("[ダンジョン] /dungeon spawn " + id + " <mobId> [出る確率 %] (モブの id を確認してください)");
                     return true;
                 }
-                registry.addSpawn(definition, args[2], player.getLocation());
+                int chance = 100;
+                if (args.length >= 4) {
+                    try {
+                        chance = Integer.parseInt(args[3].replace("%", ""));
+                    } catch (NumberFormatException e) {
+                        chance = -1;
+                    }
+                    if (chance < 1 || chance > 100) {
+                        player.sendMessage("[ダンジョン] 出る確率は 1〜100 (%) で書いてください。");
+                        return true;
+                    }
+                }
+                registry.addSpawn(definition, args[2], player.getLocation(), chance);
                 service.refreshMarkers(id);
-                player.sendMessage("[ダンジョン] #" + (definition.spawns().size() + 1) + " " + args[2] + " を置いた。(消すときは /dungeon removespawn " + id + " "
+                player.sendMessage("[ダンジョン] #" + (definition.spawns().size() + 1) + " " + args[2] + " を置いた。" + (chance < 100 ? "(確率 " + chance + "%) " : "") + "(消すときは /dungeon removespawn " + id + " "
                         + (definition.spawns().size() + 1) + "、または近くで /dungeon removespawn " + id + ")");
             }
             case "exit" -> {
@@ -327,7 +339,17 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 player.sendMessage("[ダンジョン] " + definition.name() + " のモブ: " + definition.spawns().size() + " 体");
                 for (int index = 0; index < definition.spawns().size(); index++) {
                     DungeonDefinition.MobSpawn spawn = definition.spawns().get(index);
-                    player.sendMessage(String.format(Locale.ROOT, "  #%d %s  (%.1f, %.1f, %.1f)", index + 1, spawn.mobId(), spawn.x(), spawn.y(), spawn.z()));
+                    player.sendMessage(String.format(Locale.ROOT, "  #%d %s  (%.1f, %.1f, %.1f)%s", index + 1, spawn.mobId(), spawn.x(), spawn.y(), spawn.z(),
+                            spawn.always() ? "" : "  確率 " + spawn.chance() + "%"));
+                }
+                List<DungeonWall> walls = registry.walls(id);
+                if (!walls.isEmpty()) {
+                    player.sendMessage("[ダンジョン] 消える壁: " + walls.size() + " 個 (エディターの「消える壁」で編集)");
+                    for (int index = 0; index < walls.size(); index++) {
+                        DungeonWall wall = walls.get(index);
+                        String target = wall.target() >= 0 && wall.target() < definition.spawns().size() ? definition.spawns().get(wall.target()).mobId() : "?";
+                        player.sendMessage("  壁 #" + (index + 1) + " " + wall.describe(target) + " / " + wall.blocks().size() + " ブロック");
+                    }
                 }
                 player.sendMessage("[ダンジョン] 入口 (世界): " + registry.gates(id).size() + " か所"
                         + (service.requireGate() ? " (入口からしか入れない設定)" : " (いまはどこからでも入れる設定)"));

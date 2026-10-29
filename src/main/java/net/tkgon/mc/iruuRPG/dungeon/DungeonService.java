@@ -114,6 +114,14 @@ public final class DungeonService implements Listener {
         private final Map<UUID, Integer> reviving = new HashMap<>();
         /** How many non-boss mobs were placed when the run opened. */
         private int trashTotal;
+        /** How many of them appeared by chance (each adds one to the kills needed for the boss room). */
+        private int byChance;
+        /** placed mob (0-based spawn index) -> the mob that appeared for it in this run */
+        private final Map<Integer, UUID> spawned = new HashMap<>();
+        /** the dungeon's walls when the run opened, and which of them are still closed */
+        private List<DungeonWall> walls = List.of();
+        private final Set<Integer> wallsOpened = new HashSet<>();
+        private final Map<Integer, TextDisplay> wallLabels = new HashMap<>();
         private TextDisplay triggerLabel;
         private TextDisplay exitLabel;
         private long deadline;
@@ -407,15 +415,24 @@ public final class DungeonService implements Listener {
         world.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
         world.setGameRule(GameRule.KEEP_INVENTORY, true);
 
-        for (DungeonDefinition.MobSpawn spawn : instance.definition.spawns()) {
+        List<DungeonDefinition.MobSpawn> spawns = instance.definition.spawns();
+        for (int index = 0; index < spawns.size(); index++) {
+            DungeonDefinition.MobSpawn spawn = spawns.get(index);
+            boolean boss = spawn.mobId().equals(instance.definition.boss());
+            // a mob with a chance may stay away this run (the boss always comes)
+            if (!boss && !DungeonWall.appears(spawn.chance(), java.util.concurrent.ThreadLocalRandom.current().nextInt(100))) continue;
             Location location = spawn.in(world);
             location.getChunk().load();
+            int spawnIndex = index;
             mobService.spawnAt(location, spawn.mobId()).ifPresentOrElse(entity -> {
                 entity.getPersistentDataContainer().set(instanceKey, PersistentDataType.INTEGER, instance.number);
                 instance.mobs.add(entity.getUniqueId());
-                if (spawn.mobId().equals(instance.definition.boss())) {
+                instance.spawned.put(spawnIndex, entity.getUniqueId());
+                if (boss) {
                     instance.bosses.add(entity.getUniqueId());
                     entity.addScoreboardTag(NO_DROPS_TAG); // the boss's rewards are in the reward room
+                } else if (!spawn.always()) {
+                    instance.byChance++;
                 }
             }, () -> plugin.getLogger().warning("dungeon " + instance.definition.id() + ": unknown mob '" + spawn.mobId() + "'"));
         }
@@ -443,6 +460,7 @@ public final class DungeonService implements Listener {
             if (block.getType() != Material.CHEST) block.setType(Material.CHEST);
         }
         instance.trashTotal = instance.mobs.size() - instance.bosses.size();
+        openWalls(instance);
         if (instance.definition.exit() != null) {
             Location at = instance.definition.exit().in(world).add(0, 1.6, 0);
             at.getChunk().load();
@@ -654,6 +672,7 @@ public final class DungeonService implements Listener {
         }
         exitParticles(instance, false);
         tickBossTrigger(instance);
+        tickWalls(instance);
         tickDowned(instance);
         if (instance.state != State.ACTIVE) return;
         long left = instance.deadline - now;
@@ -1111,7 +1130,7 @@ public final class DungeonService implements Listener {
             if (!instance.bosses.contains(id)) alive++;
         }
         int killed = Math.max(0, instance.trashTotal - alive);
-        int required = (int) Math.ceil(instance.trashTotal * bossKillShare() - 1.0E-9);
+        int required = DungeonWall.requiredKills(instance.trashTotal, instance.byChance, bossKillShare());
         return new int[]{killed, required};
     }
 
@@ -1173,6 +1192,125 @@ public final class DungeonService implements Listener {
             }
             if (instance.triggerLabel != null && instance.triggerLabel.isValid()) instance.triggerLabel.remove();
         }, 60L);
+    }
+
+    // ---- walls that vanish on a condition --------------------------------------------------------------------------------------
+
+    /** At the start of a run: takes the dungeon's walls and puts a label over each (the blocks are in the copied world). */
+    private void openWalls(Instance instance) {
+        instance.walls = registry.walls(instance.definition.id());
+        for (int index = 0; index < instance.walls.size(); index++) {
+            DungeonWall wall = instance.walls.get(index);
+            if (wall.blocks().isEmpty()) {
+                instance.wallsOpened.add(index);
+                continue;
+            }
+            Location at = wallTop(instance.world, wall);
+            at.getChunk().load();
+            int wallIndex = index;
+            instance.wallLabels.put(index, instance.world.spawn(at, TextDisplay.class, display -> {
+                display.setBillboard(Display.Billboard.CENTER);
+                display.setPersistent(false);
+                display.text(wallText(instance, wallIndex, 0, 1));
+            }));
+        }
+    }
+
+    /** Over the middle of the wall's blocks, above the highest one. */
+    private static Location wallTop(World world, DungeonWall wall) {
+        double x = 0;
+        double z = 0;
+        int top = Integer.MIN_VALUE;
+        for (DungeonWall.Pos pos : wall.blocks()) {
+            x += pos.x();
+            z += pos.z();
+            top = Math.max(top, pos.y());
+        }
+        int size = Math.max(1, wall.blocks().size());
+        return new Location(world, x / size + 0.5, top + 1.6, z / size + 0.5);
+    }
+
+    private String targetName(DungeonDefinition definition, int target) {
+        if (target < 0 || target >= definition.spawns().size()) return "?";
+        String mobId = definition.spawns().get(target).mobId();
+        return mobRegistry.find(mobId).map(RpgMobDefinition::name).orElse(mobId);
+    }
+
+    private Component wallText(Instance instance, int index, int here, int need) {
+        DungeonWall wall = instance.walls.get(index);
+        Component title = Component.text("閉ざされた道", NamedTextColor.GRAY, TextDecoration.BOLD).append(Component.newline());
+        return switch (wall.when()) {
+            case KILLS -> title.append(Component.text("敵を倒す: " + Math.min(trashProgress(instance)[0], wall.count()) + " / " + wall.count(), NamedTextColor.RED));
+            case GATHER -> title.append(Component.text("ここに集まる: " + here + " / " + need + " 人", NamedTextColor.WHITE));
+            case TARGET -> instance.spawned.containsKey(wall.target())
+                    ? title.append(Component.text("「" + targetName(instance.definition, wall.target()) + "」を倒す", NamedTextColor.RED))
+                    : title.append(Component.text("固く閉ざされている", NamedTextColor.DARK_GRAY)); // its mob did not come this run
+        };
+    }
+
+    /** Every second: opens each closed wall whose condition is met, and keeps its label up to date. */
+    private void tickWalls(Instance instance) {
+        if (instance.walls.isEmpty()) return;
+        int killed = -1;
+        for (int index = 0; index < instance.walls.size(); index++) {
+            if (instance.wallsOpened.contains(index)) continue;
+            DungeonWall wall = instance.walls.get(index);
+            if (killed < 0) killed = trashProgress(instance)[0];
+            int standing = 0;
+            int here = 0;
+            if (wall.when() == DungeonWall.Condition.GATHER) {
+                for (UUID id : instance.players) {
+                    Player player = Bukkit.getPlayer(id);
+                    if (player == null || instance.downed.containsKey(id) || player.getGameMode() == GameMode.SPECTATOR) continue;
+                    if (!player.getWorld().equals(instance.world)) continue;
+                    standing++;
+                    if (near(player.getLocation(), wall)) here++;
+                }
+            }
+            UUID target = instance.spawned.get(wall.target());
+            boolean targetDead = target != null && !instance.mobs.contains(target);
+            if (wall.met(killed, here, standing, targetDead)) {
+                openWall(instance, index);
+            } else {
+                TextDisplay label = instance.wallLabels.get(index);
+                if (label != null && label.isValid()) label.text(wallText(instance, index, here, wall.needed(standing)));
+            }
+        }
+    }
+
+    private static boolean near(Location at, DungeonWall wall) {
+        double range = DungeonWall.GATHER_RANGE * DungeonWall.GATHER_RANGE;
+        for (DungeonWall.Pos pos : wall.blocks()) {
+            double dx = at.getX() - (pos.x() + 0.5);
+            double dy = at.getY() - (pos.y() + 0.5);
+            double dz = at.getZ() - (pos.z() + 0.5);
+            if (dx * dx + dy * dy + dz * dz <= range) return true;
+        }
+        return false;
+    }
+
+    /** All the wall's blocks vanish at once. */
+    private void openWall(Instance instance, int index) {
+        instance.wallsOpened.add(index);
+        DungeonWall wall = instance.walls.get(index);
+        for (DungeonWall.Pos pos : wall.blocks()) {
+            Block block = instance.world.getBlockAt(pos.x(), pos.y(), pos.z());
+            block.getChunk().load();
+            if (block.getType().isAir()) continue;
+            ParticleFx.to(instance.world).spawnParticle(Particle.BLOCK_CRACK, block.getLocation().add(0.5, 0.5, 0.5), 12, 0.3, 0.3, 0.3, 0.0, block.getBlockData());
+            block.setType(Material.AIR, false);
+        }
+        Location top = wallTop(instance.world, wall);
+        instance.world.playSound(top, Sound.BLOCK_PISTON_CONTRACT, 1.0f, 0.6f);
+        instance.world.playSound(top, Sound.ENTITY_ZOMBIE_BREAK_WOODEN_DOOR, 0.6f, 0.8f);
+        TextDisplay label = instance.wallLabels.remove(index);
+        if (label != null && label.isValid()) label.remove();
+        for (UUID id : instance.players) {
+            Player player = Bukkit.getPlayer(id);
+            if (player == null || !player.getWorld().equals(instance.world)) continue;
+            player.sendMessage(Component.text("[ダンジョン] どこかで道が開いた。", NamedTextColor.YELLOW));
+            if (player.getLocation().distanceSquared(top) > 24 * 24) player.playSound(player.getLocation(), Sound.BLOCK_PISTON_CONTRACT, 0.4f, 0.6f);
+        }
     }
 
     // ---- team -----------------------------------------------------------------------------------------------------------------
@@ -1497,6 +1635,7 @@ public final class DungeonService implements Listener {
             boolean boss = spawn.mobId().equals(definition.boss());
             String name = mobRegistry.find(spawn.mobId()).map(RpgMobDefinition::name).orElse("? 不明なモブ");
             Component text = Component.text("#" + (index + 1) + " " + name + (boss ? " (ボス)" : ""), boss ? NamedTextColor.RED : NamedTextColor.YELLOW, TextDecoration.BOLD)
+                    .append(boss || spawn.always() ? Component.empty() : Component.text(" " + spawn.chance() + "%", NamedTextColor.AQUA, TextDecoration.BOLD))
                     .append(Component.newline())
                     .append(Component.text(spawn.mobId(), NamedTextColor.GRAY));
             labels.add(label(spawn.in(world).add(0, 1.8, 0), text));
@@ -1534,6 +1673,14 @@ public final class DungeonService implements Listener {
         }
         if (definition.bossRoom() != null) {
             labels.add(label(definition.bossRoom().in(world).add(0, 2.2, 0), Component.text("ボス部屋 (移動先)", NamedTextColor.RED, TextDecoration.BOLD)));
+        }
+        List<DungeonWall> walls = registry.walls(definition.id());
+        for (int index = 0; index < walls.size(); index++) {
+            DungeonWall wall = walls.get(index);
+            if (wall.blocks().isEmpty()) continue;
+            labels.add(label(wallTop(world, wall), Component.text("壁 #" + (index + 1) + " (" + wall.blocks().size() + " ブロック)", wallColor(index), TextDecoration.BOLD)
+                    .append(Component.newline())
+                    .append(Component.text(wall.describe(targetName(definition, wall.target())), NamedTextColor.WHITE))));
         }
         markers.put(definition.templateWorldName(), labels);
     }
@@ -1581,7 +1728,26 @@ public final class DungeonService implements Listener {
             if (definition.bossTrigger() != null) {
                 ParticleFx.to(world).spawnParticle(Particle.FLAME, definition.bossTrigger().in(world).add(0, 0.2, 0), 10, 1.2, 0.1, 1.2, 0.0);
             }
+            List<DungeonWall> walls = registry.walls(id);
+            for (int index = 0; index < walls.size(); index++) {
+                Particle.DustOptions dust = new Particle.DustOptions(WALL_COLORS[index % WALL_COLORS.length], 1.2f);
+                for (DungeonWall.Pos pos : walls.get(index).blocks()) {
+                    ParticleFx.to(world).spawnParticle(Particle.REDSTONE, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, 2, 0.3, 0.3, 0.3, 0.0, dust);
+                }
+            }
         }
+    }
+
+    /** The colors of the walls' particles while building (wall #1, #2, ...; then again from the start). */
+    private static final org.bukkit.Color[] WALL_COLORS = {
+            org.bukkit.Color.fromRGB(0xFF5555), org.bukkit.Color.fromRGB(0x55AAFF), org.bukkit.Color.fromRGB(0x55FF55),
+            org.bukkit.Color.fromRGB(0xFFAA00), org.bukkit.Color.fromRGB(0xFF55FF), org.bukkit.Color.fromRGB(0x55FFFF)};
+    private static final NamedTextColor[] WALL_TEXT = {
+            NamedTextColor.RED, NamedTextColor.BLUE, NamedTextColor.GREEN, NamedTextColor.GOLD, NamedTextColor.LIGHT_PURPLE, NamedTextColor.AQUA};
+
+    /** The text color of wall #index+1 (the same as its particles). */
+    public static NamedTextColor wallColor(int index) {
+        return WALL_TEXT[index % WALL_TEXT.length];
     }
 
     // ---- state file (where to send players back after a crash) ----------------------------------------------------------------

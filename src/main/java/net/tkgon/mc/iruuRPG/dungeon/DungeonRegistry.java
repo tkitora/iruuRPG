@@ -23,6 +23,8 @@ public final class DungeonRegistry {
     private final Map<String, DungeonDefinition> definitions = new LinkedHashMap<>();
     /** dungeon id -> its entrances out in the world (gates: in the file) */
     private final Map<String, List<Gate>> gates = new LinkedHashMap<>();
+    /** dungeon id -> its walls that vanish on a condition ("walls:" in the file) */
+    private final Map<String, List<DungeonWall>> walls = new LinkedHashMap<>();
 
     /** An entrance to a dungeon out in the world: a block; right-clicking it (or standing by it) lets you in. */
     public record Gate(String world, int x, int y, int z) {
@@ -43,6 +45,7 @@ public final class DungeonRegistry {
     public void reload() {
         definitions.clear();
         gates.clear();
+        walls.clear();
         File folder = folder();
         if (!folder.exists() && !folder.mkdirs()) {
             plugin.getLogger().warning("Could not create dungeons folder: " + folder.getAbsolutePath());
@@ -72,6 +75,7 @@ public final class DungeonRegistry {
                         list.add(new Gate(String.valueOf(world), (int) number(raw.get("x")), (int) number(raw.get("y")), (int) number(raw.get("z"))));
                     }
                     gates.put(definition.id(), list);
+                    walls.put(definition.id(), readWalls(yaml, definition));
                 }
             } catch (RuntimeException e) {
                 plugin.getLogger().warning("dungeon: could not read " + file.getName() + ": " + e.getMessage());
@@ -95,7 +99,8 @@ public final class DungeonRegistry {
         for (Map<?, ?> raw : yaml.getMapList("spawns")) {
             Object mob = raw.get("mob");
             if (mob == null) continue;
-            spawns.add(new DungeonDefinition.MobSpawn(String.valueOf(mob), number(raw.get("x")), number(raw.get("y")), number(raw.get("z"))));
+            int chance = raw.get("chance") instanceof Number value ? value.intValue() : 100;
+            spawns.add(new DungeonDefinition.MobSpawn(String.valueOf(mob), number(raw.get("x")), number(raw.get("y")), number(raw.get("z")), chance));
         }
         ConfigurationSection exitSection = yaml.getConfigurationSection("exit");
         DungeonDefinition.Point exit = exitSection == null ? null
@@ -159,6 +164,37 @@ public final class DungeonRegistry {
         return chests;
     }
 
+    /** "walls:" entries: when (kills | gather | target), count, target (the placed mob's number, from 1), blocks [[x, y, z], ...]. */
+    private List<DungeonWall> readWalls(YamlConfiguration yaml, DungeonDefinition definition) {
+        List<DungeonWall> list = new ArrayList<>();
+        for (Map<?, ?> entry : yaml.getMapList("walls")) {
+            Object whenValue = entry.get("when");
+            DungeonWall.Condition when = DungeonWall.Condition.of(whenValue == null ? null : String.valueOf(whenValue));
+            if (when == null) {
+                plugin.getLogger().warning("dungeon " + definition.id() + ": wall #" + (list.size() + 1) + " has an unknown 'when: " + whenValue
+                        + "' (kills | gather | target); using kills");
+                when = DungeonWall.Condition.KILLS;
+            }
+            int count = entry.get("count") instanceof Number value ? value.intValue() : 1;
+            int target = entry.get("target") instanceof Number value ? value.intValue() - 1 : -1;
+            if (target >= definition.spawns().size()) {
+                plugin.getLogger().warning("dungeon " + definition.id() + ": wall #" + (list.size() + 1) + " targets mob #" + (target + 1)
+                        + " but only " + definition.spawns().size() + " are placed");
+                target = -1;
+            }
+            List<DungeonWall.Pos> blocks = new ArrayList<>();
+            if (entry.get("blocks") instanceof List<?> raw) {
+                for (Object item : raw) {
+                    if (item instanceof List<?> xyz && xyz.size() == 3) {
+                        blocks.add(new DungeonWall.Pos((int) number(xyz.get(0)), (int) number(xyz.get(1)), (int) number(xyz.get(2))));
+                    }
+                }
+            }
+            list.add(new DungeonWall(when, count, target, blocks));
+        }
+        return list;
+    }
+
     private static DungeonDefinition.Point pointOf(Map<?, ?> entry) {
         return new DungeonDefinition.Point(number(entry.get("x")), number(entry.get("y")), number(entry.get("z")),
                 (float) number(entry.get("yaw")), (float) number(entry.get("pitch")));
@@ -201,8 +237,13 @@ public final class DungeonRegistry {
     }
 
     public void addSpawn(DungeonDefinition definition, String mobId, Location location) {
+        addSpawn(definition, mobId, location, 100);
+    }
+
+    /** Places a mob that appears in a run with this percent chance (100: always). */
+    public void addSpawn(DungeonDefinition definition, String mobId, Location location, int chance) {
         List<DungeonDefinition.MobSpawn> spawns = new ArrayList<>(definition.spawns());
-        spawns.add(new DungeonDefinition.MobSpawn(mobId, location.getX(), location.getY(), location.getZ()));
+        spawns.add(new DungeonDefinition.MobSpawn(mobId, location.getX(), location.getY(), location.getZ(), chance));
         put(definition.withSpawns(spawns));
     }
 
@@ -211,6 +252,10 @@ public final class DungeonRegistry {
         if (index < 0 || index >= definition.spawns().size()) return false;
         List<DungeonDefinition.MobSpawn> spawns = new ArrayList<>(definition.spawns());
         spawns.remove(index);
+        // the walls that wait for a placed mob keep pointing at the same mob
+        List<DungeonWall> list = new ArrayList<>();
+        for (DungeonWall wall : walls(definition.id())) list.add(wall.afterSpawnRemoved(index));
+        walls.put(definition.id(), list);
         put(definition.withSpawns(spawns));
         return true;
     }
@@ -255,6 +300,9 @@ public final class DungeonRegistry {
     }
 
     public void clearSpawns(DungeonDefinition definition) {
+        List<DungeonWall> list = new ArrayList<>();
+        for (DungeonWall wall : walls(definition.id())) list.add(wall.withTarget(-1));
+        walls.put(definition.id(), list);
         put(definition.withSpawns(List.of()));
     }
 
@@ -264,6 +312,40 @@ public final class DungeonRegistry {
 
     public void setExit(DungeonDefinition definition, Location location) {
         put(definition.withExit(DungeonDefinition.Point.of(location)));
+    }
+
+    public List<DungeonWall> walls(String id) {
+        return List.copyOf(walls.getOrDefault(id, List.of()));
+    }
+
+    /** Replaces the wall at {@code index} (0-based); an index past the end adds it. */
+    public void setWall(DungeonDefinition definition, int index, DungeonWall wall) {
+        List<DungeonWall> list = new ArrayList<>(walls(definition.id()));
+        if (index >= 0 && index < list.size()) {
+            list.set(index, wall);
+        } else {
+            list.add(wall);
+        }
+        walls.put(definition.id(), list);
+        save(definition);
+    }
+
+    public boolean removeWall(DungeonDefinition definition, int index) {
+        List<DungeonWall> list = new ArrayList<>(walls(definition.id()));
+        if (index < 0 || index >= list.size()) return false;
+        list.remove(index);
+        walls.put(definition.id(), list);
+        save(definition);
+        return true;
+    }
+
+    /** The wall that has this block, or -1. */
+    public int wallAt(String id, DungeonWall.Pos pos) {
+        List<DungeonWall> list = walls.getOrDefault(id, List.of());
+        for (int index = 0; index < list.size(); index++) {
+            if (list.get(index).has(pos)) return index;
+        }
+        return -1;
     }
 
     public List<Gate> gates(String id) {
@@ -334,6 +416,7 @@ public final class DungeonRegistry {
             map.put("x", spawn.x());
             map.put("y", spawn.y());
             map.put("z", spawn.z());
+            if (!spawn.always()) map.put("chance", spawn.chance());
             spawns.add(map);
         }
         yaml.set("spawns", spawns);
@@ -369,6 +452,21 @@ public final class DungeonRegistry {
             chests.add(map);
         }
         if (!chests.isEmpty()) yaml.set("chests", chests);
+        List<Map<String, Object>> wallList = new ArrayList<>();
+        for (DungeonWall wall : walls.getOrDefault(d.id(), List.of())) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("when", wall.when().key());
+            if (wall.when() == DungeonWall.Condition.TARGET) {
+                if (wall.target() >= 0) map.put("target", wall.target() + 1);
+            } else {
+                map.put("count", wall.count());
+            }
+            List<List<Integer>> blocks = new ArrayList<>();
+            for (DungeonWall.Pos pos : wall.blocks()) blocks.add(List.of(pos.x(), pos.y(), pos.z()));
+            map.put("blocks", blocks);
+            wallList.add(map);
+        }
+        if (!wallList.isEmpty()) yaml.set("walls", wallList);
         File file = new File(folder(), d.id() + ".yml");
         try {
             yaml.save(file);

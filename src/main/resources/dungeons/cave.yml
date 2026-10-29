@@ -7,6 +7,8 @@
 #   /dungeon build cave             テンプレートワールドへ移動 (無ければ空のワールドを作る)
 #   建築する → /dungeon entry cave  今の位置を入口にする
 #   /dungeon spawn cave cave_crawler 今の位置にモブを置く (何体でも。cave_crawler / cave_bones / cave_spider / cave_boss)
+#   /dungeon spawn cave cave_bones 35 出る確率 35% で置く (エディターでは、モブ一覧の右下で 5% 刻みに決める)
+#                                   確率のモブが出た回は、ボス部屋に必要な討伐数が 1 体ずつ増える (ボスはいつも出る)
 #   /dungeon exit cave              今の位置を脱出口にする (最初から見えるが、ボスを倒すまで出られない)
 #   /dungeon boss cave cave_boss    このモブが倒れたらクリア (置いたモブの中に必要)
 #   /dungeon rewardroom cave        今の位置を報酬部屋にする (クリアの5秒後に全員ここへ移動)
@@ -15,6 +17,13 @@
 #   /dungeon removechest cave       見ている (または近くの) 道中の宝箱を消す
 #   /dungeon save cave              テンプレートを保存して元の場所へ戻る
 # モブが1体以上 (ボスを決めたらボスも) 置かれると「入れる」状態になる。
+#
+# 消える壁 (エディターの 7 番の道具「消える壁」で作る。分かれ道・寄り道の扉に使う):
+#   walls:
+#     - {when: kills, count: 10, blocks: [[12, 64, 3], [12, 65, 3]]}   ボス以外の敵を合わせて 10 体倒すと消える
+#     - {when: gather, count: 3, blocks: [[20, 64, 8]]}               3 人が壁のそば (3 ブロック) に立つと消える (中の人が少なければ全員)
+#     - {when: target, target: 4, blocks: [[30, 64, 1]]}              置いたモブ #4 を倒すと消える (確率のモブが出なかった回は消えない)
+#   1 つの壁のブロックは、全部いっしょに消える (離れた場所にあってもよい)。壁はいくつでも作れる。
 
 id: cave
 name: "アトラスの洞窟"
