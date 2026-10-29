@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.bgm.BgmSettings;
 import net.tkgon.mc.iruuRPG.combat.AttackSounds;
 import net.tkgon.mc.iruuRPG.combat.ParticleSettings;
 import net.tkgon.mc.iruuRPG.combat.SoundKind;
@@ -26,17 +27,19 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * The settings screens: the hub (sound, particles, hotbar menu item), the sound screen (how loud every kind of attack
- * sound is, and whether other players' attack sounds are heard) and the particle screen (how much of the particles is
- * shown, and whether other players' particles are).
+ * The settings screens: the hub (sound, particles, BGM, hotbar menu item), the sound screen (how loud every kind of attack
+ * sound is, and whether other players' attack sounds are heard), the particle screen (how much of the particles is
+ * shown, and whether other players' particles are) and the BGM screen (how loud the background music is).
  */
 public final class SettingsMenu implements Listener {
 
     private static final int SIZE = 27;
     private static final int BACK = 18;
-    private static final int SOUND_BUTTON = 11;
-    private static final int PARTICLE_BUTTON = 13;
-    private static final int MENU_ITEM_BUTTON = 15;
+    private static final int SOUND_BUTTON = 10;
+    private static final int PARTICLE_BUTTON = 12;
+    private static final int BGM_BUTTON = 14;
+    private static final int MENU_ITEM_BUTTON = 16;
+    private static final int BGM_VOLUME = 13;
     private static final int PARTICLE_AMOUNT = 11;
     private static final int PARTICLE_OTHERS = 15;
     private static final int[] KIND_SLOTS = {10, 11, 12, 13, 14, 15, 16};
@@ -47,10 +50,12 @@ public final class SettingsMenu implements Listener {
     private final AttackSounds attackSounds;
     private final MainMenuItemService menuItemService;
     private final ParticleSettings particleSettings;
+    private final BgmSettings bgmSettings;
     private MainMenu mainMenu;
 
-    public SettingsMenu(SoundSettings soundSettings, AttackSounds attackSounds, MainMenuItemService menuItemService, ParticleSettings particleSettings) {
+    public SettingsMenu(SoundSettings soundSettings, AttackSounds attackSounds, MainMenuItemService menuItemService, ParticleSettings particleSettings, BgmSettings bgmSettings) {
         this.particleSettings = particleSettings;
+        this.bgmSettings = bgmSettings;
         this.soundSettings = soundSettings;
         this.attackSounds = attackSounds;
         this.menuItemService = menuItemService;
@@ -84,6 +89,14 @@ public final class SettingsMenu implements Listener {
         player.openInventory(inventory);
     }
 
+    public void openBgm(Player player) {
+        Holder holder = new Holder(player.getUniqueId(), Screen.BGM);
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("設定 - BGM"));
+        holder.inventory = inventory;
+        render(player, holder);
+        player.openInventory(inventory);
+    }
+
     private void render(Player player, Holder holder) {
         Inventory inventory = holder.inventory;
         inventory.clear();
@@ -100,11 +113,31 @@ public final class SettingsMenu implements Listener {
             inventory.setItem(PARTICLE_BUTTON, item(Material.FIREWORK_STAR, "パーティクル", NamedTextColor.LIGHT_PURPLE, List.of(
                     text("表示するパーティクルの量を調整します", NamedTextColor.GRAY),
                     text("他のプレイヤーのパーティクルを消すこともできます", NamedTextColor.GRAY))));
+            inventory.setItem(BGM_BUTTON, item(Material.JUKEBOX, "BGM", NamedTextColor.GREEN, List.of(
+                    text("フィールドで流れる音楽の大きさを調整します", NamedTextColor.GRAY),
+                    text("現在: " + bgmSettings.percent(player) + "%", NamedTextColor.WHITE))));
             boolean hidden = menuItemService.isHidden(player);
             inventory.setItem(MENU_ITEM_BUTTON, item(Material.NETHER_STAR, "ホットバーのメニューアイテム", NamedTextColor.GOLD, List.of(
                     text("現在: " + (hidden ? "表示しない" : "表示する"), hidden ? NamedTextColor.RED : NamedTextColor.GREEN),
                     text("建築の邪魔なときは消せます (/menu でメニューを開けます)", NamedTextColor.GRAY),
                     text("クリックで切り替え", NamedTextColor.YELLOW))));
+            return;
+        }
+
+        if (holder.screen == Screen.BGM) {
+            int percent = bgmSettings.percent(player);
+            String playing = bgmSettings.nowPlaying(player);
+            List<Component> lore = new ArrayList<>();
+            lore.add(text("フィールドの音楽の大きさ。0%で聞こえなくなります", NamedTextColor.GRAY));
+            lore.add(text(playing == null ? "いまは流れていません" : "いまの曲: " + playing, NamedTextColor.GRAY));
+            lore.add(text(" ", NamedTextColor.GRAY));
+            lore.add(Component.text(bar(percent) + " ", percent == 0 ? NamedTextColor.RED : NamedTextColor.GREEN)
+                    .append(Component.text(percent + "%", NamedTextColor.WHITE))
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(text("左クリック: +" + BgmSettings.STEP + "%", NamedTextColor.YELLOW));
+            lore.add(text("右クリック: -" + BgmSettings.STEP + "%", NamedTextColor.YELLOW));
+            lore.add(text("Shift+左: 100% / Shift+右: 消す", NamedTextColor.YELLOW));
+            inventory.setItem(BGM_VOLUME, item(Material.JUKEBOX, "BGMの音量", NamedTextColor.GREEN, lore));
             return;
         }
 
@@ -170,7 +203,7 @@ public final class SettingsMenu implements Listener {
 
         int slot = event.getRawSlot();
         if (slot == BACK) {
-            if (holder.screen == Screen.SOUND || holder.screen == Screen.PARTICLE) {
+            if (holder.screen == Screen.SOUND || holder.screen == Screen.PARTICLE || holder.screen == Screen.BGM) {
                 open(player);
             } else if (mainMenu != null) {
                 mainMenu.open(player);
@@ -183,9 +216,29 @@ public final class SettingsMenu implements Listener {
                 openSound(player);
             } else if (slot == PARTICLE_BUTTON) {
                 openParticles(player);
+            } else if (slot == BGM_BUTTON) {
+                openBgm(player);
             } else if (slot == MENU_ITEM_BUTTON) {
                 menuItemService.setHidden(player, !menuItemService.isHidden(player));
                 render(player, holder);
+            }
+            return;
+        }
+
+        if (holder.screen == Screen.BGM) {
+            if (slot == BGM_VOLUME) {
+                int current = bgmSettings.percent(player);
+                int next = switch (event.getClick()) {
+                    case LEFT -> current + BgmSettings.STEP;
+                    case RIGHT -> current - BgmSettings.STEP;
+                    case SHIFT_LEFT -> 100;
+                    case SHIFT_RIGHT -> 0;
+                    default -> current;
+                };
+                if (next != current) {
+                    bgmSettings.setPercent(player, next);
+                    render(player, holder);
+                }
             }
             return;
         }
@@ -249,7 +302,7 @@ public final class SettingsMenu implements Listener {
 
     private ItemStack back(Screen screen) {
         ItemStack item = MenuButtons.back();
-        if (screen == Screen.SOUND || screen == Screen.PARTICLE) {
+        if (screen == Screen.SOUND || screen == Screen.PARTICLE || screen == Screen.BGM) {
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
                 meta.lore(List.of(text("設定へ戻る", NamedTextColor.GRAY)));
@@ -278,7 +331,8 @@ public final class SettingsMenu implements Listener {
     private enum Screen {
         HUB,
         SOUND,
-        PARTICLE
+        PARTICLE,
+        BGM
     }
 
     private static final class Holder implements MenuHolder {
