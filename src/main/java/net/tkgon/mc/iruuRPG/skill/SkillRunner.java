@@ -393,7 +393,10 @@ public final class SkillRunner {
         Element element = caster.element();
         Location start = caster.location().clone();
         Location at = aim.get();
-        Vector direction = at == null ? null : at.toVector().subtract(start.toVector()).setY(0.0);
+        // (a flyer dives at the aim, or climbs to it; one on the ground keeps level and hops)
+        boolean airborne = caster.airborne();
+        Vector direction = at == null ? null : at.toVector().subtract(start.toVector());
+        if (direction != null && !airborne) direction.setY(0.0);
         if (direction == null || direction.lengthSquared() < 1.0E-6) {
             caster.release();
             onDone.run();
@@ -423,7 +426,8 @@ public final class SkillRunner {
                     lunged = true;
                     caster.release(); // the lunge is a push: it needs the body to be free
                     effects.playSkillCastSound(caster.owner(), caster.location(), spec.look(), element);
-                    caster.lunge(direction.clone().multiply(spec.speed() / 8.0).setY(0.25));
+                    Vector push = direction.clone().multiply(spec.speed() / 8.0);
+                    caster.lunge(airborne ? push : push.setY(0.25));
                 }
                 for (LivingEntity player : within(caster.location(), caster, spec, 1.8, 2.5)) {
                     if (hit.add(player.getUniqueId())) hit(caster, spec, player, null);

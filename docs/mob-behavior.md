@@ -45,8 +45,8 @@ behavior:
 | `auto-target` | 目標がいないとき、自動で探す | true |
 | `blackboard` | 最初から持つ値 (`キー: 値`) | なし |
 | `eqs` | 場所を選ぶ問い合わせ (下記) | なし |
-| `navigation` | `walk` (歩く。バニラの経路探索) / `fly` (飛ぶ。下記「飛ぶ敵」)。`{mode: fly, speed: 6}` の形で、速さ 1 のときの 1秒に飛ぶブロック数も書ける | walk (speed 5) |
-| `volume` | 動ける範囲 (出た場所が中心。下記「動ける範囲」) | なし (fly のときは円柱: 半径 = 黒板の `leash` (無ければ 32)、上 24・下 8) |
+| `navigation` | 最初の動き方。`walk` (歩く。バニラの経路探索) / `fly` (飛ぶ。下記「飛ぶ敵」)。`{mode: fly, speed: 6, walk-speed: 2.2}` の形で、速さ 1 のときの 1秒に飛ぶブロック数 (`speed`、`fly-speed` とも書ける) と歩くブロック数 (`walk-speed`) も書ける。途中で変えるのは `set-navigation` (下記「飛ぶ・歩くの切り替え」) | walk (飛ぶ速さ 5、歩く速さは敵の種類のまま) |
+| `volume` | 動ける範囲 (出た場所が中心。下記「動ける範囲」) | なし (fly のとき・`set-navigation` で飛ぶときは円柱: 半径 = 黒板の `leash` (無ければ 32)、上 24・下 8) |
 | `waypoints` | `patrol` の巡回ルート (下記) | なし |
 | `fsm` | ステートマシン (`initial` と `states`) | |
 | `tree` | `fsm` を使わないときの、1本のツリー | |
@@ -89,6 +89,7 @@ fsm:
 | `use-skill` | `skill`(スキルツールのスキルの id。skills/*.yml)、または `index`(敵の `skills:` の番号)。**どちらも省略すると、敵の `skills:` のうち、クールダウン(`cooldown-ticks`)が明けていて、いまの距離・見え方で届くものから1つ**(ツリーを使わない敵と同じ選び方。無ければ失敗)、`animation`(同時に再生するモデルのアニメーション)、`track` (false) | スキルを出して、終わるまで(アニメーションがあれば、それも終わるまで)動く。`skill:` は、敵の `skills:` に同じ id があればそれ、無ければスキルツールのスキルを使う(敵の `skills:` に書かなくてよい)。当たる瞬間は、スキルの溜め(`windup-ticks`)で決まるので、アニメーションの振り下ろしの時刻に合わせる。**敵の攻撃は、まずスキルツールのスキルで作り、`use-skill` で呼ぶ**(範囲・溜めの表示・ダメージ・ノックバック・状態異常が、スキルの画面で編集できる)。スキルで作れないものだけ `animation-attack`。**敵はスキルの間、プレイヤーの方へ回らない**(始めた瞬間に1回向いて、その向きのまま。溜めの間に出る範囲も動かない)。`track: true` で、溜めの間もプレイヤーを向き続ける(範囲も一緒に動く)。ツリーを使わない敵のスキルも、回らない |
 | `orbit` | `radius` (0 = 始めたときの距離のまま、最小 2)、`speed` (0.5 = ふだんの半分)、`seconds` (2)、`random-deviation`、`direction: random\|left\|right` (random) | 目標のまわりを、同じ向きに回る。回るあいだ目標のほうを向いたまま (横歩き。モデルのある敵はモデルごと、ない敵は頭だけ)。時間がたつと止まって目標を向き、成功。壁などで進めないと逆回りに変える。目標がいない・まったく動けないと失敗。**スキルが使えず、殴れもしない(何もすることがない)ときの枝**に置く |
 | `patrol` | `route` (`waypoints` の名前)、`speed` (0.8)、`wait` 秒 (0、各点で待つ)、`acceptance` (1.2)、`laps` (0 = ずっと) | 巡回ルートを、いちばん近い点から回る。行けない点 (経路がない・2秒進まない) は飛ばす。`laps` 周したら成功。ルートがないと失敗。歩く敵・飛ぶ敵のどちらでも使える |
+| `set-navigation` | `mode: fly\|walk`、`rise` (0)、`land` (true)、`speed` (1.0)、`timeout` 秒 (4) | 動き方を変える。`fly`: 飛び立ち (重力なし・自分の舵取り)、`rise` ブロック上がる。`walk`: `land: true` なら、真下の地面まで飛んで降りてから歩く (false なら、その場で落ちる)。上がる・降りる間は動く。時間切れでも切り替えはして成功。もうその動き方なら、すぐ成功。飛べない (範囲が作れない) ときだけ失敗。下記「飛ぶ・歩くの切り替え」 |
 | `face-target` | | 目標のほうを向く |
 | `set-blackboard` | `key`, `value` | 黒板に値を書く |
 | `set-state` | `state` | ステートマシンの状態を変える |
@@ -123,7 +124,7 @@ fsm:
 | `run-eqs` | `query`, `key` (point)、`interval` (1) | 問い合わせの結果の場所を黒板の `key` に書く(`move-to` の `key:` で使う) |
 
 ## 黒板 (Blackboard)
-ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`altitude` (足元の地面からの高さ。32 まで。飛ぶ敵だけ)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
+ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`flying` (いま飛んでいるか)、`altitude` (足元の地面からの高さ。32 まで。飛んでいるときだけ)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
 
 ## 場所を選ぶ問い合わせ (EQS)
 ```yaml
@@ -166,6 +167,31 @@ behavior:
 - 敵の種類 (`type:`): 何でもよい (モデルの土台の見えない敵も可)。ただし **VEX は壁をすり抜ける**ので向かない。PHANTOM は日光で燃えるので `fire-proof: true` を付ける。
 - スキルは、空中の敵の位置から出る (地面の予告は、敵の足元の高さに出る)。
 - `/iruurpg btdebug` で、飛ぶ敵の経路 (白い粒の線) と、動ける範囲の縁 (青い輪。円柱と箱は 下・出た場所・上 の 3段) が見える。
+- 突進 (`dash`) のスキルは、飛んでいる間は、目標へまっすぐ (上下も) 突っ込む (急降下)。地上では今までどおり水平に跳ぶ。
+- モデルに `fly` アニメーションがあれば、飛んでいる間は `walk` / `idle` の代わりに `fly` を流す。よろけ (`hurt`) は、飛んでいる間は `fly_hurt` を再生する (無いモデルは、飛んでいる間はよろけない。地上用の `hurt` では体が地面の高さに下がってしまうため)。
+
+## 飛ぶ・歩くの切り替え (set-navigation)
+飛ぶ時間と歩く時間のある敵 (空と地上の 2 形態のボス、など) は、`set-navigation` で途中から変える。状態 (ステート) ごとに分けて、`enter:` で切り替えると分かりやすい。
+```yaml
+behavior:
+  navigation: {mode: walk, speed: 7, walk-speed: 2.2}   # 最初は歩く。飛ぶ速さ 7、歩く速さ 2.2 ブロック/秒
+  volume: {shape: cylinder, radius: 20, up: 12, down: 4}
+  fsm:
+    initial: ground
+    states:
+      ground:
+        tree: ...                                        # 地上の技
+        transitions: [{to: air, when: {type: blackboard, key: go-air, op: "==", value: true}}]
+      air:
+        enter: {type: set-navigation, mode: fly, rise: 5}  # 飛び立って 5 ブロック上がる
+        tree: ...                                        # 空中の技
+        transitions: [{to: land, when: ...}]
+      land:
+        enter: {type: set-navigation, mode: walk}          # 真下に降りてから歩く
+        tree: {type: set-state, state: ground}
+```
+- 黒板の `flying` で、いまの動き方を条件にできる。
+- `navigation` の `walk-speed` は、歩く速さ (`move-to` などの `speed: 1` のとき) を 1秒に何ブロックかで決める (敵の移動速度を、その速さになるように変える。普通の地面での目安。`speed: 1.2` なら約 1.44 倍)。書かなければ、敵の種類のまま。
 
 ## 巡回ルート (waypoints)
 ```yaml
@@ -191,4 +217,4 @@ waypoints:
 ## ツールサイトの項目 (yml 担当へ)
 敵の編集画面に、**行動の切り替え**(既定は「今までの行動」、もう1つが「BT+FSM」)を足す。「BT+FSM」を選んだときだけ、上の `behavior:` を編集する欄を出す(状態の一覧、状態ごとのツリー、ノードの `type` と項目、Decorator・Service、問い合わせ)。保存形式は上の yml そのまま。切り替えを「今までの行動」に戻すと `behavior:` を書き出さない(または `mode: legacy`)。
 
-飛ぶ敵のための欄: `navigation` (歩く / 飛ぶ、飛ぶ速さ)、`volume` (形・半径・上・下)、`waypoints` (ルートの名前・点の一覧・loop / back-and-forth・absolute)、`patrol` ノード (route・speed・wait・acceptance・laps)、`move-to` の `height`、EQS の `sphere` と `offset-y` / `layers` / `height`、`place`、`height` テスト。
+飛ぶ敵のための欄: `navigation` (歩く / 飛ぶ、飛ぶ速さ、歩く速さ `walk-speed`)、`set-navigation` ノード (mode・rise・land・speed・timeout)、`volume` (形・半径・上・下)、`waypoints` (ルートの名前・点の一覧・loop / back-and-forth・absolute)、`patrol` ノード (route・speed・wait・acceptance・laps)、`move-to` の `height`、EQS の `sphere` と `offset-y` / `layers` / `height`、`place`、`height` テスト。

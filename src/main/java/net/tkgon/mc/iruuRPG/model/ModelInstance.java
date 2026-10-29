@@ -134,6 +134,17 @@ final class ModelInstance {
         return true;
     }
 
+    /** Whether the mob is in the air now: it has no gravity (a flying mob) and its model has a {@code fly} animation, which is then its walk and its idle. */
+    private boolean airborne() {
+        return !base.hasGravity() && model.named("fly") != null;
+    }
+
+    /** The mob flinches: {@code hurt}, or in the air {@code fly_hurt} (a hurt made standing would pull the model down to the ground); false when there is none. */
+    boolean hurt(int tick) {
+        if (airborne()) return model.named("fly_hurt") != null && play("fly_hurt", tick);
+        return play("hurt", tick);
+    }
+
     /** Whether a one-shot animation is playing (a hurt does not cut an attack short). */
     boolean busy(int tick) {
         return dying || (action != null && (tick - actionStart) / 20.0 < actionLength);
@@ -240,7 +251,7 @@ final class ModelInstance {
             start = actionStart;
         } else {
             action = null;
-            String wanted = speed > 0.3 && model.find("walk", random) != null ? "walk" : "idle";
+            String wanted = airborne() ? "fly" : speed > 0.3 && model.find("walk", random) != null ? "walk" : "idle";
             if (!wanted.equals(locomotion)) {
                 locomotion = wanted;
                 locomotionStart = tick;

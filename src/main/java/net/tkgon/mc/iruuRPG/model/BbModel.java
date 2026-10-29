@@ -107,6 +107,15 @@ final class BbModel {
         return starting.isEmpty() ? null : starting.get(random.nextInt(starting.size()));
     }
 
+    /** The animation of exactly this name (or this name after a prefix such as {@code animation.}), with no other names tried; null when there is none. */
+    Animation named(String name) {
+        Animation exact = animations.get(name);
+        if (exact != null) return exact;
+        String wanted = shortName(name);
+        for (Map.Entry<String, Animation> entry : animations.entrySet()) if (shortName(entry.getKey()).equals(wanted)) return entry.getValue();
+        return null;
+    }
+
     /** The name without a prefix up to the last dot ({@code animation.idle} → {@code idle}), in lower case. */
     private static String shortName(String name) {
         int dot = name.lastIndexOf('.');

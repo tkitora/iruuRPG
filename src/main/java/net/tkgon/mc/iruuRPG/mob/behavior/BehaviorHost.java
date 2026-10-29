@@ -130,8 +130,13 @@ public interface BehaviorHost {
         return 0.0;
     }
 
-    /** Whether the mob flies (`navigation: fly`): it moves through the air of its room instead of walking. */
+    /** Whether the mob flies now (`navigation: fly`, or `set-navigation`): it moves through the air of its room instead of walking. */
     default boolean flying() {
+        return false;
+    }
+
+    /** Makes the mob fly (no gravity, its own steering) or walk again (gravity, the vanilla path finder): `set-navigation`. False when it cannot. */
+    default boolean setFlying(boolean fly) {
         return false;
     }
 

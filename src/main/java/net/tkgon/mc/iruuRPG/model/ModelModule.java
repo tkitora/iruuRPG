@@ -38,6 +38,8 @@ public final class ModelModule implements Listener, MobModels {
     private final ModelRegistry registry;
     private final NamespacedKey modelKey;
     private final NamespacedKey scaleKey;
+    /** The walk speed a mob's own `model:` section gives (blocks a second), kept on the mob for when it loads again. */
+    private final NamespacedKey walkSpeedKey;
     private final NamespacedKey partKey;
     private final Map<UUID, ModelInstance> instances = new HashMap<>();
     private final List<UUID> demos = new ArrayList<>();
@@ -74,6 +76,7 @@ public final class ModelModule implements Listener, MobModels {
         this.registry = new ModelRegistry(plugin);
         this.modelKey = new NamespacedKey(plugin, "model_id");
         this.scaleKey = new NamespacedKey(plugin, "model_scale");
+        this.walkSpeedKey = new NamespacedKey(plugin, "model_walk_speed");
         this.partKey = new NamespacedKey(plugin, "model_part");
     }
 
@@ -101,10 +104,17 @@ public final class ModelModule implements Listener, MobModels {
         String id = section.get("id") == null ? "" : String.valueOf(section.get("id"));
         double scale = section.get("scale") instanceof Number number ? number.doubleValue() : 1.0;
         boolean hide = !(section.get("hide-base") instanceof Boolean flag) || flag;
-        attach(entity, id, scale, hide);
+        // (the speed the model's walk is made for, when it is not the one of config.yml)
+        double walkSpeed = section.get("walk-speed") instanceof Number number ? number.doubleValue() : 0.0;
+        attach(entity, id, scale, hide, walkSpeed);
     }
 
     boolean attach(LivingEntity entity, String id, double scale, boolean hideBase) {
+        return attach(entity, id, scale, hideBase, 0.0);
+    }
+
+    /** {@code walkSpeed}: blocks a second the model's walk is made for; 0 or less uses {@code model.walk-speed} of config.yml. */
+    boolean attach(LivingEntity entity, String id, double scale, boolean hideBase, double walkSpeed) {
         BbModel model = registry.find(id).orElse(null);
         if (model == null) {
             if (warned.putIfAbsent(id, true) == null) plugin.getLogger().warning("models: there is no model '" + id + "' (a mob uses it)");
@@ -114,9 +124,12 @@ public final class ModelModule implements Listener, MobModels {
         if (old != null) old.remove();
         entity.getPersistentDataContainer().set(modelKey, PersistentDataType.STRING, id);
         entity.getPersistentDataContainer().set(scaleKey, PersistentDataType.DOUBLE, scale);
+        if (walkSpeed > 0.0) entity.getPersistentDataContainer().set(walkSpeedKey, PersistentDataType.DOUBLE, walkSpeed);
+        else entity.getPersistentDataContainer().remove(walkSpeedKey);
         Material item = Material.matchMaterial(plugin.getConfig().getString("model.base-item", "PAPER"));
         ModelInstance instance = new ModelInstance(model, entity, Math.max(0.05, scale), Math.max(1, plugin.getConfig().getInt("model.update-ticks", 2)),
-                item == null ? Material.PAPER : item, partKey, hideBase, plugin.getConfig().getDouble("model.walk-speed", 1.0));
+                item == null ? Material.PAPER : item, partKey, hideBase,
+                walkSpeed > 0.0 ? walkSpeed : plugin.getConfig().getDouble("model.walk-speed", 1.0));
         instance.vanish(plugin.getConfig().getDouble("model.death-vanish-seconds", 0.6));
         instances.put(entity.getUniqueId(), instance);
         instance.update(Bukkit.getCurrentTick());
@@ -144,7 +157,7 @@ public final class ModelModule implements Listener, MobModels {
     @Override
     public boolean hurt(LivingEntity entity) {
         ModelInstance instance = instances.get(entity.getUniqueId());
-        return instance != null && !instance.busy(Bukkit.getCurrentTick()) && instance.play("hurt", Bukkit.getCurrentTick());
+        return instance != null && !instance.busy(Bukkit.getCurrentTick()) && instance.hurt(Bukkit.getCurrentTick());
     }
 
     @Override
@@ -162,6 +175,7 @@ public final class ModelModule implements Listener, MobModels {
         }
         entity.getPersistentDataContainer().remove(modelKey);
         entity.getPersistentDataContainer().remove(scaleKey);
+        entity.getPersistentDataContainer().remove(walkSpeedKey);
     }
 
     // ---- running -----------------------------------------------------------------------------------------------------------------
@@ -232,8 +246,9 @@ public final class ModelModule implements Listener, MobModels {
             String id = entity.getPersistentDataContainer().get(modelKey, PersistentDataType.STRING);
             if (id == null) continue;
             Double scale = entity.getPersistentDataContainer().get(scaleKey, PersistentDataType.DOUBLE);
+            Double walkSpeed = entity.getPersistentDataContainer().get(walkSpeedKey, PersistentDataType.DOUBLE);
             Bukkit.getScheduler().runTask(plugin, () -> {
-                if (living.isValid() && !instances.containsKey(living.getUniqueId())) attach(living, id, scale == null ? 1.0 : scale, true);
+                if (living.isValid() && !instances.containsKey(living.getUniqueId())) attach(living, id, scale == null ? 1.0 : scale, true, walkSpeed == null ? 0.0 : walkSpeed);
             });
         }
     }
@@ -300,6 +315,7 @@ public final class ModelModule implements Listener, MobModels {
                 if (entity instanceof LivingEntity living && entity.getPersistentDataContainer().has(modelKey, PersistentDataType.STRING)) {
                     entity.getPersistentDataContainer().remove(modelKey);
                     entity.getPersistentDataContainer().remove(scaleKey);
+                    entity.getPersistentDataContainer().remove(walkSpeedKey);
                     living.setInvisible(false);
                 }
             }

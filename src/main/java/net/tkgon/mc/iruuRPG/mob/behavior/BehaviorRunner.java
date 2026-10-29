@@ -67,9 +67,14 @@ public final class BehaviorRunner {
         return behavior.debug;
     }
 
-    /** Whether the mob flies (`navigation: fly`). */
+    /** Whether the mob flies from the start (`navigation: fly`). */
     public boolean flying() {
         return behavior.fly;
+    }
+
+    /** The pace of the mob walking at speed 1, blocks a second; 0 leaves the one of its kind. */
+    public double walkSpeed() {
+        return behavior.walkSpeed;
     }
 
     /** The pace of a flying mob at speed 1, blocks a second. */
@@ -77,7 +82,7 @@ public final class BehaviorRunner {
         return behavior.flySpeed;
     }
 
-    /** The room the mob moves in round its home, or null (no limit). */
+    /** The room the mob moves in round its home, or null (no limit; never for a mob that flies, from the start or by `set-navigation`). */
     public Volume volume() {
         return behavior.volume;
     }
@@ -151,7 +156,9 @@ public final class BehaviorRunner {
         ctx.bb.set("home-distance", home == null || home.getWorld() != here.getWorld() ? 9999.0 : home.distance(here));
         ctx.bb.set("in-volume", behavior.volume == null || behavior.volume.contains(home, here));
         // (only a flying mob needs its height above the ground: the blocks under a walking one are not looked at)
-        if (behavior.fly) ctx.bb.set("altitude", FlyNavigator.heightAboveGround(here, 32));
+        boolean flying = host.flying();
+        ctx.bb.set("flying", flying);
+        if (flying) ctx.bb.set("altitude", FlyNavigator.heightAboveGround(here, 32));
         // the group: how many of the same kind are near, and how many hold an attack slot against the target
         ctx.bb.set("allies-near", host.alliesNear(ctx.bb.number("ally-range", 8.0), true));
         ctx.bb.set("attackers", target == null ? 0 : host.coordinator().attackers(target.getUniqueId().toString(), ctx.now));
