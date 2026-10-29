@@ -4,9 +4,17 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 
 ## 曲
 - 置き場所: サーバーの `plugins/iruuRPG/bgm/<曲のid>.nbs` (id はファイル名)。`/bgm reload` で読み直す。
-- 同梱の曲: `plains_adventure` 「Under an Endless Sky」(最初の街を出たあとの大平原。D メジャー、4/4、100 BPM = 6.67 ticks/秒、64小節 = 2:34、アイリッシュ・ケルト風)。jar に入っていて、フォルダにまだ無いときだけ書き出す (消すと同梱のものに戻る)。曲ごとの記録 (用途・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
+- 同梱の曲 (jar に入っていて、フォルダに無いときに書き出す。手で編集していなければ、新しい版に置き換わる)。命名は「曲名 (分類番号)」。ファイルの曲名は半角英数のみなので、分類は Field / Boss で書く (曲名 (フィールド001) = `(Field001)`):
+
+| id | 曲名 | 用途 | 長さ | テンポ・調 |
+|---|---|---|---|---|
+| `plains_adventure` | Under an Endless Sky (Field001) | 最初の街を出たあとの大平原。アイリッシュ・ケルト風 | 2:34 | 100 BPM (6.67 ticks/秒)、D メジャー |
+| `atlas_cave` | Where the Titan Sleeps (Field002) | アトラスの洞窟 (最初のダンジョン) の道中 | 2:34 | 75 BPM (5 ticks/秒)、E マイナー |
+| `atlas_vindicator` | The Axe at the Gate (Boss001) | アトラスの洞窟のボス (ヴィンディケーター) | 2:08 | 150 BPM (10 ticks/秒)、E マイナー |
+
+  曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` が `src/main/resources/bgm/plains_adventure.nbs` を作る (毎回同じ中身)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_boss_bgm.py` が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - ノートブロックで鳴らせるのは F#3〜F#5 (キー 33〜57) の 2 オクターブ。範囲の外のキーは、オクターブを移して収める。マイクラにバイオリンは無いので、同梱の曲では「フルートの3度下」で代わりにしている。実際の楽器の音が欲しくなったら、楽器のノートブロック用リソースパックを別に作る (まだ行わない)。
 

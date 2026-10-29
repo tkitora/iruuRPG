@@ -92,7 +92,7 @@ class BgmTest {
             data = in.readAllBytes();
         }
         NbsSong song = NbsSong.read("plains_adventure", data);
-        assertEquals("Under an Endless Sky", song.title());
+        assertEquals("Under an Endless Sky (Field001)", song.title());
         assertEquals(20.0 / 3.0, song.ticksPerSecond(), 1.0E-9);
         assertEquals(1024, song.length());
         assertEquals(64 * 16, song.length(), "64 bars");
@@ -141,10 +141,79 @@ class BgmTest {
     }
 
     private static NbsSong bundled() throws IOException {
-        try (InputStream in = BgmTest.class.getResourceAsStream("/bgm/plains_adventure.nbs")) {
-            assertNotNull(in);
-            return NbsSong.read("plains_adventure", in.readAllBytes());
+        return bundled("plains_adventure");
+    }
+
+    private static NbsSong bundled(String id) throws IOException {
+        try (InputStream in = BgmTest.class.getResourceAsStream("/bgm/" + id + ".nbs")) {
+            assertNotNull(in, id);
+            return NbsSong.read(id, in.readAllBytes());
         }
+    }
+
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator");
+
+    @Test
+    void everyBundledSongKeepsTheRules() throws IOException {
+        for (String id : BUNDLED) {
+            NbsSong song = bundled(id);
+            double serverTicks = 20.0 / song.ticksPerSecond();
+            assertEquals(Math.rint(serverTicks), serverTicks, 1.0E-9, id + ": the tempo divides 20");
+            assertTrue(song.seconds() >= 120.0, id + ": at least two minutes (" + song.seconds() + ")");
+            assertTrue(song.loops() && song.loopStart() == 64, id + ": loops from bar 5");
+            assertTrue(song.title().matches(".+ \\((Field|Boss)\\d{3}\\)"), id + ": named like 'Title (Field001)': " + song.title());
+            int[] perTick = new int[song.length()];
+            for (int i = 0; i < song.noteCount(); i++) {
+                NbsSong.Note note = song.note(i);
+                assertTrue(note.key() >= 33 && note.key() <= 57, id + ": key " + note.key());
+                perTick[note.tick()]++;
+            }
+            int peak = 0;
+            for (int count : perTick) peak = Math.max(peak, count);
+            assertTrue(peak <= 8, id + ": at most 8 notes at once (" + peak + ")");
+        }
+    }
+
+    @Test
+    void theAtlasSongsAreTheTwoLengthsWeMade() throws IOException {
+        assertEquals(768, bundled("atlas_cave").length());
+        assertEquals(1280, bundled("atlas_vindicator").length());
+        assertEquals("Where the Titan Sleeps (Field002)", bundled("atlas_cave").title());
+        assertEquals("The Axe at the Gate (Boss001)", bundled("atlas_vindicator").title());
+    }
+
+    @Test
+    void bundledSongsAreWrittenAndOnlyUneditedOnesAreReplaced(@TempDir File folder) throws IOException {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.getDataFolder()).thenReturn(folder);
+        when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getLogger("test"));
+        when(plugin.getResource(org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> BgmTest.class.getResourceAsStream("/" + call.getArgument(0, String.class)));
+        BgmRegistry registry = new BgmRegistry(plugin);
+        registry.reload();
+        assertEquals(3, registry.songs().size());
+        File cave = new File(new File(folder, "bgm"), "atlas_cave.nbs");
+        assertTrue(cave.isFile());
+        byte[] bundled = java.nio.file.Files.readAllBytes(cave.toPath());
+
+        // edited by someone (not the recorded version): left alone
+        byte[] edited = java.util.Arrays.copyOf(bundled, bundled.length - 1);
+        java.nio.file.Files.write(cave.toPath(), edited);
+        new BgmRegistry(plugin).reload();
+        assertEquals(edited.length, cave.length(), "an edited song stays");
+
+        // an older bundled version that nobody edited (it is the recorded one): replaced by the jar's
+        org.bukkit.configuration.file.YamlConfiguration record = new org.bukkit.configuration.file.YamlConfiguration();
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-1").digest(edited);
+            StringBuilder hash = new StringBuilder();
+            for (byte value : digest) hash.append(String.format("%02x", value));
+            record.set("atlas_cave", hash.toString());
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
+        record.save(new File(new File(folder, "bgm"), ".bundled.yml"));
+        new BgmRegistry(plugin).reload();
+        assertEquals(bundled.length, cave.length(), "an unedited older version is replaced");
     }
 
     @Test
