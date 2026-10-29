@@ -71,7 +71,26 @@ public record DungeonDefinition(
         }
     }
 
-    public record MobSpawn(String mobId, double x, double y, double z) {
+    /**
+     * A placed mob.
+     *
+     * @param chance percent chance that it appears in a run (100: always). The boss always appears. A mob that appears
+     *               by chance adds one to the kills needed before the boss room opens.
+     */
+    public record MobSpawn(String mobId, double x, double y, double z, int chance) {
+
+        public MobSpawn {
+            chance = Math.max(1, Math.min(100, chance));
+        }
+
+        public MobSpawn(String mobId, double x, double y, double z) {
+            this(mobId, x, y, z, 100);
+        }
+
+        /** True when it appears in every run. */
+        public boolean always() {
+            return chance >= 100;
+        }
 
         public Location in(World world) {
             return new Location(world, x, y, z);

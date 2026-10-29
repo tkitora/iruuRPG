@@ -64,11 +64,11 @@ import java.util.UUID;
  * on and off at any time. The real hotbar is kept (also in a file, in case the server stops) and given back when
  * leaving the editor, the template world, or the server.
  *
- * Tools (slots 1-6, 8 = done; slot 9 keeps the menu item): place a mob (pick from a list, optionally as the boss;
- * sneak = the last mob again), an entrance (the dungeon's entry, the boss room trigger, the boss room, the reward room:
+ * Tools (slots 1-7, 8 = done; slot 9 keeps the menu item): place a mob (pick from a list, optionally as the boss
+ * or with a chance to appear; sneak = the last mob again), an entrance (the dungeon's entry, the boss room trigger, the boss room, the reward room:
  * chosen from a small list; sneak = the last kind again), a chest (road chest or clear chest, the same way), the exit,
- * delete (a placed mob or a road chest), and the music (a song for the way, up to 3 for the boss fight: a screen, with a listen).
- * Done: click = back to building, sneak-click = save and go back.
+ * delete (a placed mob, a road chest or a wall's block), the music (slot 6: a song for the way, up to 3 for the boss fight: a screen, with a listen),
+ * and walls that vanish on a condition (slot 7, see {@link DungeonWallEditor}). Done: click = back to building, sneak-click = save and go back.
  */
 public final class DungeonEditor implements Listener {
 
@@ -87,7 +87,12 @@ public final class DungeonEditor implements Listener {
                 "クリック: 道中の曲 (1つ) と、ボス戦の曲 (3つまで) を決める",
                 "ボス戦の曲は1つ目が必須。2つ目以降は、ボスが次のフェーズに入ったときの曲", "曲は一覧から選ぶ (右クリックで試聴)"),
         DELETE(Material.BARRIER, "置いたものを消す", NamedTextColor.DARK_RED,
-                "置いたモブ (名札の下) をクリック → 消す", "道中の宝箱をクリック → 消す / ブロックをクリック: その近くのモブを消す"),
+                "置いたモブ (名札の下) をクリック → 消す", "道中の宝箱をクリック → 消す / ブロックをクリック: その近くのモブを消す",
+                "壁のブロックをクリック → その壁から外す"),
+        WALL(Material.IRON_BARS, "消える壁", NamedTextColor.LIGHT_PURPLE,
+                "空をクリック → 壁の一覧 (新しい壁・条件: 討伐数 / 集合人数 / 指定の1体)",
+                "ブロックをクリック → 編集中の壁に足す / もう一度で外す", "しゃがんで 2 つの角をクリック → 箱の中をまとめて足す",
+                "条件を満たすと、その壁のブロックが全部消える"),
         DONE(Material.LIME_DYE, "エディターを終える", NamedTextColor.WHITE,
                 "クリック: 建築モードに戻る (このワールドのまま)", "しゃがんでクリック: 保存して元の場所へ戻る");
 
@@ -106,7 +111,7 @@ public final class DungeonEditor implements Listener {
 
     private static final int TOOL_SLOTS = 8; // slots 0-7; slot 8 is the menu item
     /** Hotbar slots 1-8 (index 0-7); empty slots stay empty. */
-    private static final Tool[] HOTBAR = {Tool.MOB, Tool.ENTRANCE, Tool.CHEST, Tool.EXIT, Tool.DELETE, Tool.BGM, null, Tool.DONE};
+    private static final Tool[] HOTBAR = {Tool.MOB, Tool.ENTRANCE, Tool.CHEST, Tool.EXIT, Tool.DELETE, Tool.BGM, Tool.WALL, Tool.DONE};
 
     /** The kinds the entrance and chest tools ask for. */
     private enum Kind {
@@ -137,6 +142,8 @@ public final class DungeonEditor implements Listener {
         private String lastMob;
         private Location pending;
         private boolean asBoss;
+        /** percent chance to appear of the mobs placed next (100: always) */
+        private int chance = 100;
         private float pendingYaw;
         private Block pendingBlock;
         private Kind lastEntrance;
@@ -157,6 +164,7 @@ public final class DungeonEditor implements Listener {
     private final File saveFolder;
     private final Map<UUID, Session> sessions = new HashMap<>();
     private BgmSettings bgmSettings;
+    private final DungeonWallEditor walls;
 
     public DungeonEditor(JavaPlugin plugin, DungeonService service, RpgMobRegistry mobRegistry) {
         this.plugin = plugin;
@@ -165,6 +173,7 @@ public final class DungeonEditor implements Listener {
         this.mobRegistry = mobRegistry;
         this.toolKey = new NamespacedKey(plugin, "dungeon_tool");
         this.saveFolder = new File(plugin.getDataFolder(), "editor");
+        this.walls = new DungeonWallEditor(service, mobRegistry);
     }
 
     /** The music tool needs the BGM (the songs and the listen); without it the tool says so. */
@@ -246,6 +255,7 @@ public final class DungeonEditor implements Listener {
     public void stop(Player player, boolean announce) {
         Session session = sessions.remove(player.getUniqueId());
         if (session == null) return;
+        walls.forget(player);
         restore(player, session.savedHotbar);
         deleteBackup(player.getUniqueId());
         if (announce) player.sendMessage(Component.text("[エディター] 建築モードに戻った。(/dungeon edit でまたエディターへ)", NamedTextColor.GRAY));
@@ -334,7 +344,8 @@ public final class DungeonEditor implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player && editing(player)) {
             event.setCancelled(true);
-            if (event.getView().getTopInventory().getHolder() instanceof Picker picker) onPick(player, picker, event.getRawSlot());
+            if (event.getView().getTopInventory().getHolder() instanceof Picker picker) onPick(player, picker, event.getRawSlot(), event.getClick());
+            if (event.getView().getTopInventory().getHolder() instanceof DungeonWallEditor.Menu menu) walls.onClick(player, menu, event.getRawSlot(), event.getClick());
             if (event.getView().getTopInventory().getHolder() instanceof Choice choice) onChoice(player, choice, event.getRawSlot());
             if (event.getView().getTopInventory().getHolder() instanceof Tables tables) onTable(player, tables, event.getRawSlot());
             if (event.getView().getTopInventory().getHolder() instanceof BgmScreen screen) onBgm(player, screen, event.getRawSlot(), event.getClick());
@@ -417,6 +428,10 @@ public final class DungeonEditor implements Listener {
             return;
         }
         Block clicked = event.getClickedBlock();
+        if (tool == Tool.WALL) {
+            walls.use(player, definition, clicked);
+            return;
+        }
         if (clicked == null) {
             // (clicking a marker also sends a click into the air; the marker click handles it)
             if (tool != Tool.DELETE) hint(player, "ブロックをクリックしてください。");
@@ -463,7 +478,7 @@ public final class DungeonEditor implements Listener {
                     registry.removeRoadChest(definition, road);
                     clicked.setType(Material.AIR);
                     done(player, definition, "道中の宝箱 #" + (road + 1) + " を消した。");
-                } else {
+                } else if (!walls.delete(player, definition, clicked)) {
                     deleteNear(player, definition, clicked.getLocation().add(0.5, 1.0, 0.5));
                 }
             }
@@ -818,7 +833,7 @@ public final class DungeonEditor implements Listener {
             done(player, definition, "#" + (ref.index() + 1) + " " + spawn.mobId() + " を消した。");
         } else {
             player.sendActionBar(Component.text("#" + (ref.index() + 1) + " " + spawn.mobId()
-                    + (spawn.mobId().equals(definition.boss()) ? " (ボス)" : ""), NamedTextColor.YELLOW));
+                    + (spawn.mobId().equals(definition.boss()) ? " (ボス)" : spawn.always() ? "" : " (" + spawn.chance() + "%)"), NamedTextColor.YELLOW));
         }
         return true;
     }
@@ -845,13 +860,15 @@ public final class DungeonEditor implements Listener {
     private void place(Player player, Session session, String mobId) {
         DungeonDefinition definition = registry.find(session.dungeonId).orElse(null);
         if (definition == null || session.pending == null) return;
-        registry.addSpawn(definition, mobId, session.pending);
+        int chance = session.asBoss ? 100 : session.chance; // the boss always appears
+        registry.addSpawn(definition, mobId, session.pending, chance);
         session.lastMob = mobId;
         if (session.asBoss) {
             registry.setBoss(registry.find(session.dungeonId).orElse(definition), mobId);
         }
         done(player, registry.find(session.dungeonId).orElse(definition),
-                "#" + (definition.spawns().size() + 1) + " " + mobId + " を置いた。" + (session.asBoss ? " (ボス)" : "") + " しゃがんでクリックで同じモブをもう一度");
+                "#" + (definition.spawns().size() + 1) + " " + mobId + " を置いた。" + (session.asBoss ? " (ボス)" : chance < 100 ? " (確率 " + chance + "%)" : "")
+                        + " しゃがんでクリックで同じモブをもう一度");
     }
 
     private void done(Player player, DungeonDefinition definition, String message) {
@@ -871,6 +888,7 @@ public final class DungeonEditor implements Listener {
     private static final int PREV = 47;
     private static final int BOSS_TOGGLE = 49;
     private static final int NEXT = 51;
+    private static final int CHANCE = 53;
     private static final int FIRST_MOB_SLOT = 9;
     private static final int MOBS_PER_PAGE = 36;
     private static final String TAG_HERE = "@here";
@@ -991,6 +1009,19 @@ public final class DungeonEditor implements Listener {
         if (picker.page < pages - 1) inventory.setItem(NEXT, button(Material.SPECTRAL_ARROW, "次のページ", NamedTextColor.YELLOW,
                 List.of(text("ページ " + (picker.page + 1) + " / " + pages, NamedTextColor.GRAY))));
         renderBossToggle(inventory, session);
+        renderChance(inventory, session);
+    }
+
+    /** The chance to appear of the next placed mobs, in steps of 5%. */
+    private void renderChance(Inventory inventory, Session session) {
+        boolean always = session.chance >= 100;
+        ItemStack item = button(always ? Material.CLOCK : Material.RABBIT_FOOT, "出る確率: " + session.chance + "%",
+                session.asBoss ? NamedTextColor.GRAY : always ? NamedTextColor.WHITE : NamedTextColor.AQUA, List.of(
+                        text("置いたモブが、1 回のダンジョンで出てくる確率", NamedTextColor.GRAY),
+                        text("100% 未満で出たときは、ボス部屋に必要な討伐数が +1", NamedTextColor.GRAY),
+                        text(session.asBoss ? "ボスとして置くときは、いつも 100%" : "左クリック +5% / 右クリック -5% / シフトで ±25%", session.asBoss ? NamedTextColor.RED : NamedTextColor.YELLOW)));
+        item.setAmount(Math.max(1, Math.min(64, session.chance / 5)));
+        inventory.setItem(CHANCE, item);
     }
 
     private void renderBossToggle(Inventory inventory, Session session) {
@@ -999,7 +1030,7 @@ public final class DungeonEditor implements Listener {
                 List.of(text("オンで置くと、そのモブがボスになる (倒れたらクリア)", NamedTextColor.GRAY), text("クリックで切り替え", NamedTextColor.GRAY))));
     }
 
-    private void onPick(Player player, Picker picker, int slot) {
+    private void onPick(Player player, Picker picker, int slot, org.bukkit.event.inventory.ClickType click) {
         Session session = sessions.get(player.getUniqueId());
         if (session == null) return;
         if (slot == CANCEL) {
@@ -1007,6 +1038,11 @@ public final class DungeonEditor implements Listener {
         } else if (slot == BOSS_TOGGLE) {
             session.asBoss = !session.asBoss;
             renderBossToggle(picker.inventory, session);
+            renderChance(picker.inventory, session);
+        } else if (slot == CHANCE) {
+            int step = click.isShiftClick() ? 25 : 5;
+            session.chance = Math.max(5, Math.min(100, session.chance + (click.isRightClick() ? -step : step)));
+            renderChance(picker.inventory, session);
         } else if (slot == PREV || slot == NEXT) {
             picker.page += slot == NEXT ? 1 : -1;
             renderPicker(picker, session);
