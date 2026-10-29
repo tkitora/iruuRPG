@@ -1,6 +1,7 @@
 # ビヘイビアツリー+ステートマシンで動く確認用の敵 (behavior: の書き方は docs/mob-behavior.md)。/iruurpg mob bt_sample_zombie で出せる。
+# 飛ぶ敵の確認用は /iruurpg mob bt_sample_flyer (navigation: fly、volume、立体の EQS、waypoints の巡回)。
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 3
+version: 4
 
 mobs:
   bt_sample_zombie:
@@ -137,4 +138,83 @@ mobs:
                 - {type: move-to, target: target, speed: 1.0, acceptance: 2.0, name: 追跡}
             transitions:
               - to: idle
+                when: {type: blackboard, key: has-target, op: "==", value: false}
+
+  # ---- 飛ぶ敵の確認用: 出した場所のまわりの円柱 (半径 16、上 14・下 2) の中を飛ぶ。/iruurpg btdebug で、経路 (白) と範囲 (青) が見える ----
+  bt_sample_flyer:
+    type: BLAZE
+    name: "BTサンプル・飛行"
+    level: 1
+    area: [training]
+    experience: 0
+    ai: true
+    gravity: false
+    fire-proof: true
+    persistent: true
+    remove-when-far-away: false
+    show-health: true
+    description:
+      - "飛ぶ敵のビヘイビアツリーの確認用。見張りは空中の巡回、戦闘は上空を回って急降下して殴る。"
+    stats:
+      max-hp: 150
+      max-mp: 1
+      defense: 5
+      strength: 5
+      weapon-damage: 5
+
+    behavior:
+      mode: bt
+      debug: true
+      aggro-range: 16
+      navigation: {mode: fly, speed: 6}       # walk (既定) | fly。speed は速さ 1 のときの、1秒に飛ぶブロック数
+      volume: {shape: cylinder, radius: 16, up: 14, down: 2}   # 動ける範囲 (出た場所が中心)。cylinder | sphere | box
+      blackboard: {attack-range: 2.4}
+      waypoints:
+        lap:                                   # 出た場所から見た点 [x, y, z]。loop で一周 (back-and-forth で行って戻る)
+          points: [[8, 6, 0], [0, 8, 8], [-8, 6, 0], [0, 4, -8]]
+          mode: loop
+      eqs:
+        sky_spot:                              # 目標の上空 4〜7 ブロック、まわりの見える場所
+          generator: {type: ring, around: target, radius: 5, points: 10, offset-y: 5.5, layers: 3, height: 1.5}
+          tests:
+            - {type: height, value: 5, weight: 1.0}
+            - {type: line-of-sight, to: target, filter: true}
+            - {type: distance, to: self, prefer: near, weight: 0.5}
+            - {type: pathable}
+          pick: random-top
+          top: 3
+
+      fsm:
+        initial: patrol
+        states:
+          patrol:
+            tree: {type: patrol, route: lap, speed: 0.6, wait: 0.5, name: 巡回}
+            transitions:
+              - to: combat
+                when: {type: blackboard, key: has-target, op: "==", value: true}
+          combat:
+            services:
+              - {type: update-target, range: 20, interval: 0.5}
+            tree:
+              type: selector
+              name: 戦闘
+              children:
+                # 近い: 殴って、上空へ戻る
+                - type: sequence
+                  name: 急降下
+                  decorators:
+                    - {type: distance, max: 2.4}
+                    - {type: cooldown, seconds: 1.5}
+                  children:
+                    - {type: attack, rate: 1.0}
+                    - {type: move-to, eqs: sky_spot, speed: 1.0, acceptance: 1.2, face: true, timeout: 4}
+                # 上空で様子を見てから、目標へ降りる
+                - type: sequence
+                  name: 上空
+                  children:
+                    - {type: move-to, eqs: sky_spot, speed: 0.9, acceptance: 1.2, face: true, timeout: 4}
+                    - {type: wait, seconds: 0.8, random-deviation: 0.3}
+                    - {type: move-to, target: target, speed: 1.4, acceptance: 1.8, timeout: 4, name: 降下}
+            transitions:
+              - to: patrol
                 when: {type: blackboard, key: has-target, op: "==", value: false}

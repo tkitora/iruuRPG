@@ -45,6 +45,9 @@ behavior:
 | `auto-target` | 目標がいないとき、自動で探す | true |
 | `blackboard` | 最初から持つ値 (`キー: 値`) | なし |
 | `eqs` | 場所を選ぶ問い合わせ (下記) | なし |
+| `navigation` | `walk` (歩く。バニラの経路探索) / `fly` (飛ぶ。下記「飛ぶ敵」)。`{mode: fly, speed: 6}` の形で、速さ 1 のときの 1秒に飛ぶブロック数も書ける | walk (speed 5) |
+| `volume` | 動ける範囲 (出た場所が中心。下記「動ける範囲」) | なし (fly のときは円柱: 半径 = 黒板の `leash` (無ければ 32)、上 24・下 8) |
+| `waypoints` | `patrol` の巡回ルート (下記) | なし |
 | `fsm` | ステートマシン (`initial` と `states`) | |
 | `tree` | `fsm` を使わないときの、1本のツリー | |
 
@@ -78,13 +81,14 @@ fsm:
 ### Task (葉)
 | type | 項目 | 動き |
 |---|---|---|
-| `move-to` | `target: target\|home` / `key: <黒板のキー>` / `eqs: <問い合わせ>`、`speed` (1.0)、`acceptance` (1.5)、`timeout` 秒 (10)、`face` (false) | 近づく。経路がない・2秒進まない・時間切れで失敗。`face: true` で、動くあいだ目標のほうを向いたまま (向きを変えずに後ろ・横へ下がる。間合いを取るとき用)。モデルのある敵はモデルごと、ない敵は頭だけ向く |
+| `move-to` | `target: target\|home` / `key: <黒板のキー>` / `eqs: <問い合わせ>`、`speed` (1.0)、`acceptance` (1.5)、`timeout` 秒 (10)、`face` (false)、`height` (0) | `height` は、その場所の何ブロック上へ行くか (飛ぶ敵が目標の上に留まる、など)。近づく。経路がない・2秒進まない・時間切れで失敗。`face: true` で、動くあいだ目標のほうを向いたまま (向きを変えずに後ろ・横へ下がる。間合いを取るとき用)。モデルのある敵はモデルごと、ない敵は頭だけ向く |
 | `flee` | `eqs` (組み込みの `flee`)、`speed` (1.3)、`face` (false) | 目標から遠い、歩ける場所へ逃げる。`face` は `move-to` と同じ |
 | `wait` | `seconds` (1)、`random-deviation`、`key` | 止まって待つ。`key` の黒板の値(秒)があれば、それを使う(1本のツリーで、敵ごとの間合い・攻撃の間隔を変える) |
 | `attack` | `rate` (1.0)、`range` | 目標が range 内なら近接で殴る。外なら失敗。`range` を書かないと、黒板の `attack-range`(無ければ 2.6) |
 | `shoot` | `rate` | `ranged:` の攻撃を1発撃つ(`ranged:` がないと失敗) |
 | `use-skill` | `skill`(スキルツールのスキルの id。skills/*.yml)、または `index`(敵の `skills:` の番号)。**どちらも省略すると、敵の `skills:` のうち、クールダウン(`cooldown-ticks`)が明けていて、いまの距離・見え方で届くものから1つ**(ツリーを使わない敵と同じ選び方。無ければ失敗)、`animation`(同時に再生するモデルのアニメーション)、`track` (false) | スキルを出して、終わるまで(アニメーションがあれば、それも終わるまで)動く。`skill:` は、敵の `skills:` に同じ id があればそれ、無ければスキルツールのスキルを使う(敵の `skills:` に書かなくてよい)。当たる瞬間は、スキルの溜め(`windup-ticks`)で決まるので、アニメーションの振り下ろしの時刻に合わせる。**敵の攻撃は、まずスキルツールのスキルで作り、`use-skill` で呼ぶ**(範囲・溜めの表示・ダメージ・ノックバック・状態異常が、スキルの画面で編集できる)。スキルで作れないものだけ `animation-attack`。**敵はスキルの間、プレイヤーの方へ回らない**(始めた瞬間に1回向いて、その向きのまま。溜めの間に出る範囲も動かない)。`track: true` で、溜めの間もプレイヤーを向き続ける(範囲も一緒に動く)。ツリーを使わない敵のスキルも、回らない |
 | `orbit` | `radius` (0 = 始めたときの距離のまま、最小 2)、`speed` (0.5 = ふだんの半分)、`seconds` (2)、`random-deviation`、`direction: random\|left\|right` (random) | 目標のまわりを、同じ向きに回る。回るあいだ目標のほうを向いたまま (横歩き。モデルのある敵はモデルごと、ない敵は頭だけ)。時間がたつと止まって目標を向き、成功。壁などで進めないと逆回りに変える。目標がいない・まったく動けないと失敗。**スキルが使えず、殴れもしない(何もすることがない)ときの枝**に置く |
+| `patrol` | `route` (`waypoints` の名前)、`speed` (0.8)、`wait` 秒 (0、各点で待つ)、`acceptance` (1.2)、`laps` (0 = ずっと) | 巡回ルートを、いちばん近い点から回る。行けない点 (経路がない・2秒進まない) は飛ばす。`laps` 周したら成功。ルートがないと失敗。歩く敵・飛ぶ敵のどちらでも使える |
 | `face-target` | | 目標のほうを向く |
 | `set-blackboard` | `key`, `value` | 黒板に値を書く |
 | `set-state` | `state` | ステートマシンの状態を変える |
@@ -119,13 +123,14 @@ fsm:
 | `run-eqs` | `query`, `key` (point)、`interval` (1) | 問い合わせの結果の場所を黒板の `key` に書く(`move-to` の `key:` で使う) |
 
 ## 黒板 (Blackboard)
-ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
+ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`altitude` (足元の地面からの高さ。32 まで)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
 
 ## 場所を選ぶ問い合わせ (EQS)
 ```yaml
 eqs:
   flank_spot:
-    generator: {type: ring, around: target, radius: 4.5, points: 12}   # ring (rings: 輪の数) | grid (spacing) | self
+    generator: {type: ring, around: target, radius: 4.5, points: 12}   # ring (rings: 輪の数) | grid (spacing) | sphere (球) | self
+                                                                        # offset-y: 中心からの高さ、layers: 縦に重ねる段の数 (1)、height: 段を offset-y ± height に並べる (radius の半分)
     tests:
       - {type: distance, to: self, prefer: near, weight: 1.0}          # prefer: near | far、value: <数> でその距離に近いほど高得点、filter: true と min/max で範囲外を外す
       - {type: line-of-sight, to: target, filter: true}                # visible: false で「見えない場所」
@@ -133,13 +138,48 @@ eqs:
       - {type: random, weight: 0.3}
       - {type: spread, to: target, value: 60, weight: 1.0, filter: false, min: 30}   # 囲い込み: `to` (target / home。省略は target) を中心にした角度で、仲間のいる角度から離れた場所ほど高得点 (value = 十分離れたとみなす角度差(度)、min と filter: true でそれより近い場所を外す)
       - {type: ally-distance, prefer: far, min: 0, max: 24, weight: 1.0}                # いちばん近い仲間との距離 (prefer: near | far、filter: true と min / max で範囲外を外す)
-      - {type: pathable}                                               # 歩いて行ける場所だけ(点の高い順に数個だけ調べる)
+      - {type: height, value: 5, weight: 1.0}                          # 地面からの高さ (prefer: near | far | value、filter と min / max)。飛ぶ敵の高度
+      - {type: pathable}                                               # 行ける場所だけ (歩く敵は歩いて、飛ぶ敵は飛んで。点の高い順に数個だけ調べる)
     pick: best          # best | random-top (上位 top 個から乱択)
     top: 3
+    place: auto         # auto (歩く敵は地面の上、飛ぶ敵は空中) | ground (飛ぶ敵でも地面の上)
 ```
-候補は地面の上に置かれ(地面がない場所は捨てる)、`around` は `self` / `target` / `home`。組み込みの `flee` は、自分のまわりで目標から遠い、歩ける場所。
+歩く敵の候補は地面の上に置かれ(地面がない場所は捨てる)、飛ぶ敵の候補は空中の、体が入る場所に置かれる(ブロックの中なら上下・横の近い場所へずらし、無ければ捨てる)。動ける範囲 (`volume`) の外の候補は捨てる。`around` は `self` / `target` / `home`。組み込みの `flee` は、自分のまわりで目標から遠い、行ける場所。
+
+`sphere` は、`around` を中心にした半径 `radius` の球の上に、`layers` 段 (既定 5) の輪で候補を並べる (極に近い段ほど小さい輪。`rings` で内側の輪も足せる)。`ring` / `grid` に `layers` を付けると、同じ並びを縦に重ねる。
+
+## 動ける範囲 (volume)
+```yaml
+volume: {shape: cylinder, radius: 16, up: 14, down: 2}   # cylinder (円柱) | sphere (球: radius だけ) | box (箱: 東西南北に radius、上 up・下 down)
+```
+出た場所 (home) が中心。歩く敵では、EQS の候補を範囲の中だけにし、黒板の `in-volume` で「範囲の外に出たら戻る」を書ける。飛ぶ敵では、そのうえ経路も範囲の中だけを通り、範囲の外の場所へ行けと言われたら、範囲の縁のいちばん近い場所へ行く (目標が範囲の外に逃げると、縁まで追って止まる)。テンプレートを `use` する敵が `volume` を書くと、テンプレートの `volume` を丸ごと置き換える (敵ごとに範囲を変えられる)。
+
+## 飛ぶ敵 (navigation: fly)
+```yaml
+behavior:
+  navigation: {mode: fly, speed: 6}
+  volume: {shape: cylinder, radius: 16, up: 14, down: 2}
+```
+- 重力が無くなり、バニラの移動 (経路探索・移動の制御) は使わない。ツリーが行き先を決め、毎 tick、速度で飛ぶ向きへ動かす (体は飛ぶ向き、`face: true` や `orbit` のときは目標のほうを向く)。
+- 経路: まっすぐ飛べるなら直線。ブロックがじゃまなら、範囲の中のブロックの格子で 3D の A* (上下・斜めを含む 26 方向。角はすり抜けない。体の幅と高さが入るところだけ) を解き、折れ点だけの経路に縮める。1回に調べるのは 3000 マスまで (届かないときは、いちばん近づける所まで)。
+- `move-to` `flee` `orbit` `patrol` と EQS (`pathable` を含む) は、そのまま飛ぶ敵でも使える。`move-to` の `height` で、目標の上に留まれる。`attack` の届く距離は立体の距離。
+- 敵の種類 (`type:`): 何でもよい (モデルの土台の見えない敵も可)。ただし **VEX は壁をすり抜ける**ので向かない。PHANTOM は日光で燃えるので `fire-proof: true` を付ける。
+- スキルは、空中の敵の位置から出る (地面の予告は、敵の足元の高さに出る)。
+- `/iruurpg btdebug` で、飛ぶ敵の経路 (白い粒の線) と、動ける範囲の縁 (青い輪。円柱と箱は 下・出た場所・上 の 3段) が見える。
+
+## 巡回ルート (waypoints)
+```yaml
+waypoints:
+  lap:
+    points: [[8, 6, 0], [0, 8, 8], [-8, 6, 0]]   # 出た場所から見た点 [x, y, z] ({x:, y:, z:} でもよい)
+    mode: loop                                   # loop (一周して最初へ) | back-and-forth (行って戻る)
+    absolute: false                              # true で、点をワールドの座標として読む
+  short: [[3, 0, 0], [-3, 0, 0]]                 # 点の一覧だけでもよい (loop)
+```
+`patrol` が使う。テンプレートを `use` する敵は、同じ名前のルートを置き換え、ない名前を足せる。
 
 ## 確認用の敵
+`/iruurpg mob bt_sample_flyer` (飛ぶ敵: 見張りは空中の巡回、戦闘は目標の上空 (EQS) で様子を見て降下して殴り、上空へ戻る)。
 `/iruurpg mob bt_sample_zombie` (`mobs/behavior_sample.yml`)。`debug: true` で、頭の上に **状態 / 動いているノードの経路 / 目標・距離・HP** が出る。状態は `idle` (見張り) と `combat` (戦闘) の2つで、戦闘は上から 逃走 (HP25%以下) → スキル (近い・8秒に1回) → 近接 → 回り込み (EQS で横へ) → 追跡。
 
 ## スキルのカテゴリ
@@ -150,3 +190,5 @@ eqs:
 
 ## ツールサイトの項目 (yml 担当へ)
 敵の編集画面に、**行動の切り替え**(既定は「今までの行動」、もう1つが「BT+FSM」)を足す。「BT+FSM」を選んだときだけ、上の `behavior:` を編集する欄を出す(状態の一覧、状態ごとのツリー、ノードの `type` と項目、Decorator・Service、問い合わせ)。保存形式は上の yml そのまま。切り替えを「今までの行動」に戻すと `behavior:` を書き出さない(または `mode: legacy`)。
+
+飛ぶ敵のための欄: `navigation` (歩く / 飛ぶ、飛ぶ速さ)、`volume` (形・半径・上・下)、`waypoints` (ルートの名前・点の一覧・loop / back-and-forth・absolute)、`patrol` ノード (route・speed・wait・acceptance・laps)、`move-to` の `height`、EQS の `sphere` と `offset-y` / `layers` / `height`、`place`、`height` テスト。

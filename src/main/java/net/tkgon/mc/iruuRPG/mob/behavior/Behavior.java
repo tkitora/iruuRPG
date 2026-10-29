@@ -21,9 +21,20 @@ final class Behavior {
     final Map<String, State> states;
     final String initial;
     final Map<String, Object> blackboard;
+    /** `navigation: fly`: the mob flies (see {@link FlyNavigator}); {@code flySpeed} is its pace in blocks a second. */
+    final boolean fly;
+    final double flySpeed;
+    /** The room the mob moves in round its home (may be null: no limit; a flying mob always has one). */
+    final Volume volume;
+    /** The routes of `patrol`, by name. */
+    final Map<String, Route> routes;
+
+    /** A route of `patrol`: its points (from the home unless {@code absolute}), gone round ({@code loop}) or back and forth. */
+    record Route(List<org.bukkit.util.Vector> points, boolean absolute, boolean loop) {
+    }
 
     Behavior(boolean debug, int tickInterval, double aggroRange, boolean autoTarget, Map<String, EqsQuery> queries, Map<String, State> states, String initial,
-             Map<String, Object> blackboard) {
+             Map<String, Object> blackboard, boolean fly, double flySpeed, Volume volume, Map<String, Route> routes) {
         this.debug = debug;
         this.tickInterval = tickInterval;
         this.aggroRange = aggroRange;
@@ -32,5 +43,9 @@ final class Behavior {
         this.states = states;
         this.initial = initial;
         this.blackboard = blackboard;
+        this.fly = fly;
+        this.flySpeed = flySpeed;
+        this.volume = volume;
+        this.routes = routes;
     }
 }

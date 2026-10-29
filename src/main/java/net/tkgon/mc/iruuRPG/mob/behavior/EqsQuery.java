@@ -3,7 +3,6 @@ package net.tkgon.mc.iruuRPG.mob.behavior;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
@@ -13,13 +12,27 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A query of the environment (like Unreal's EQS) that chooses where a mob goes. A generator makes candidate places (a ring or a grid round the mob, its target or its home),
- * tests give each a score or throw it out (distance, line of sight, whether the mob can walk there, how crowded it is, noise), and the query takes the best place (or one of
- * the best few at random). The candidates stand on the ground (a place with no ground is dropped). Run from {@code move-to} or the {@code run-eqs} service.
+ * A query of the environment (like Unreal's EQS) that chooses where a mob goes. A generator makes candidate places (a ring, a grid or a sphere round the mob, its target or its
+ * home, in one layer or several above one another), tests give each a score or throw it out (distance, line of sight, whether the mob can get there, how crowded it is, how
+ * high it is, noise), and the query takes the best place (or one of the best few at random). For a walking mob the candidates stand on the ground (a place with no ground is
+ * dropped); for a flying mob they stay in the air where it fits. A candidate outside the mob's room ({@link Volume}) is dropped. Run from {@code move-to} or {@code run-eqs}.
  */
 final class EqsQuery {
 
     record Test(String type, String to, String prefer, double value, double weight, double min, double max, boolean filter, boolean visible) {
+    }
+
+    /**
+     * The layers of the candidates: {@code layers} copies of the generator's places from {@code offsetY - height} to {@code offsetY + height} above the center (one layer:
+     * at {@code offsetY}). {@code place}: {@code auto} (in the air for a flying mob, else on the ground), {@code ground} (on the ground for a flying mob too).
+     */
+    record Layers(double offsetY, int layers, double height, String place) {
+        static final Layers FLAT = new Layers(0.0, 1, 0.0, "auto");
+
+        Layers {
+            layers = Math.max(1, Math.min(9, layers));
+            height = Math.max(0.0, height);
+        }
     }
 
     final String name;
@@ -29,11 +42,12 @@ final class EqsQuery {
     private final int points;
     private final int rings;
     private final double spacing;
+    private final Layers layers;
     private final List<Test> tests;
     private final boolean randomTop;
     private final int topN;
 
-    EqsQuery(String name, String generator, String around, double radius, int points, int rings, double spacing, List<Test> tests, boolean randomTop, int topN) {
+    EqsQuery(String name, String generator, String around, double radius, int points, int rings, double spacing, Layers layers, List<Test> tests, boolean randomTop, int topN) {
         this.name = name;
         this.generator = generator;
         this.around = around;
@@ -41,6 +55,7 @@ final class EqsQuery {
         this.points = Math.max(4, Math.min(48, points));
         this.rings = Math.max(1, Math.min(4, rings));
         this.spacing = Math.max(1.0, spacing);
+        this.layers = layers == null ? Layers.FLAT : layers;
         this.tests = tests;
         this.randomTop = randomTop;
         this.topN = Math.max(1, topN);
@@ -48,7 +63,6 @@ final class EqsQuery {
 
     /** The place chosen, or null when nothing fits. */
     Location run(Ctx c) {
-        Mob mob = c.host.mob();
         Location origin = place(c, around);
         if (origin == null || origin.getWorld() == null) return null;
         List<Location> candidates = new ArrayList<>();
@@ -62,6 +76,23 @@ final class EqsQuery {
                 }
             }
             case "self" -> candidates.add(origin.clone());
+            case "sphere" -> {
+                // rings on layers from the bottom to the top of the sphere, smaller toward the poles (the layers give their number; offset-y moves the center)
+                int count = layers.layers() > 1 ? layers.layers() : 5;
+                double turn = c.random.nextDouble() * Math.PI * 2.0;
+                for (int layer = 0; layer < count; layer++) {
+                    double dy = -radius + 2.0 * radius * (layer + 0.5) / count;
+                    double scale = Math.sqrt(Math.max(0.0, 1.0 - (dy * dy) / (radius * radius)));
+                    for (int ring = 1; ring <= rings; ring++) {
+                        double r = radius * scale * ring / rings;
+                        int along = Math.max(4, (int) Math.round(points * scale * ring / rings));
+                        for (int index = 0; index < along; index++) {
+                            double angle = turn + Math.PI * 2.0 * index / along;
+                            candidates.add(origin.clone().add(Math.cos(angle) * r, layers.offsetY() + dy, Math.sin(angle) * r));
+                        }
+                    }
+                }
+            }
             default -> {
                 double turn = c.random.nextDouble() * Math.PI * 2.0;
                 for (int ring = 1; ring <= rings; ring++) {
@@ -73,11 +104,30 @@ final class EqsQuery {
                 }
             }
         }
-        // stand them on the ground
+        // the layers above one another (a sphere has its own)
+        if (!generator.equals("sphere")) {
+            List<Location> layered = new ArrayList<>();
+            int count = layers.layers();
+            for (Location candidate : candidates) {
+                for (int layer = 0; layer < count; layer++) {
+                    double dy = layers.offsetY() + (count == 1 ? 0.0 : -layers.height() + 2.0 * layers.height() * layer / (count - 1));
+                    layered.add(candidate.clone().add(0.0, dy, 0.0));
+                }
+            }
+            candidates = layered;
+        }
+        // stand them on the ground (a walking mob), or keep them in the air where the mob fits (a flying mob); none outside the mob's room
+        boolean air = c.host.flying() && !layers.place().equals("ground");
+        Location home = c.host.home();
         List<Location> standing = new ArrayList<>();
+        java.util.Set<Long> seen = new java.util.HashSet<>();
         for (Location candidate : candidates) {
-            Location ground = ground(candidate);
-            if (ground != null) standing.add(ground);
+            Location spot = air ? c.host.airSpot(candidate) : ground(candidate);
+            if (spot == null) continue;
+            if (c.volume != null && !c.volume.contains(home, spot)) continue;
+            // (two candidates moved to the same block count once)
+            long cell = ((long) (spot.getBlockX() & 0x3FFFFFF) << 38) | ((long) (spot.getBlockZ() & 0x3FFFFFF) << 12) | (long) ((spot.getBlockY() + 2048) & 0xFFF);
+            if (seen.add(cell)) standing.add(spot);
         }
         int count = standing.size();
         if (count == 0) return null;
@@ -92,25 +142,14 @@ final class EqsQuery {
                     Location ref = place(c, test.to());
                     if (ref == null) continue;
                     double[] raw = new double[count];
-                    double low = Double.MAX_VALUE;
-                    double high = -Double.MAX_VALUE;
-                    for (int index = 0; index < count; index++) {
-                        raw[index] = standing.get(index).distance(ref);
-                        low = Math.min(low, raw[index]);
-                        high = Math.max(high, raw[index]);
-                        if (test.filter() && (raw[index] < test.min() || raw[index] > test.max())) kept[index] = false;
-                    }
-                    double span = Math.max(1.0E-6, high - low);
-                    double deviation = 0.0;
-                    if (test.prefer().equals("value")) for (double v : raw) deviation = Math.max(deviation, Math.abs(v - test.value()));
-                    for (int index = 0; index < count; index++) {
-                        double s = switch (test.prefer()) {
-                            case "far" -> (raw[index] - low) / span;
-                            case "value" -> 1.0 - Math.abs(raw[index] - test.value()) / Math.max(1.0E-6, deviation);
-                            default -> 1.0 - (raw[index] - low) / span;
-                        };
-                        score[index] += s * test.weight();
-                    }
+                    for (int index = 0; index < count; index++) raw[index] = standing.get(index).distance(ref);
+                    scoreValues(test, raw, score, kept);
+                }
+                case "height" -> {
+                    // how high above the ground: a flying mob that keeps 3 - 6 blocks up, say
+                    double[] raw = new double[count];
+                    for (int index = 0; index < count; index++) raw[index] = FlyNavigator.heightAboveGround(standing.get(index), 32);
+                    scoreValues(test, raw, score, kept);
                 }
                 case "line-of-sight" -> {
                     if (target == null) continue;
@@ -191,7 +230,7 @@ final class EqsQuery {
             Location place = standing.get(index);
             if (pathable) {
                 if (asked++ >= 8) break;
-                if (mob.getPathfinder().findPath(place) == null) continue;
+                if (!c.host.canReach(place)) continue;
             }
             best.add(place);
             if (best.size() >= (randomTop ? topN : 1)) break;
@@ -203,6 +242,29 @@ final class EqsQuery {
         Location chosen = best.get(randomTop ? c.random.nextInt(best.size()) : 0);
         record(c, standing, score, kept, chosen);
         return chosen;
+    }
+
+    /** Scores one value of every candidate: the nearer to the low end (`prefer: near`), the high end (`far`) or `value`, the better; `filter` throws out those outside min - max. */
+    private static void scoreValues(Test test, double[] raw, double[] score, boolean[] kept) {
+        int count = raw.length;
+        double low = Double.MAX_VALUE;
+        double high = -Double.MAX_VALUE;
+        for (int index = 0; index < count; index++) {
+            low = Math.min(low, raw[index]);
+            high = Math.max(high, raw[index]);
+            if (test.filter() && (raw[index] < test.min() || raw[index] > test.max())) kept[index] = false;
+        }
+        double span = Math.max(1.0E-6, high - low);
+        double deviation = 0.0;
+        if (test.prefer().equals("value")) for (double v : raw) deviation = Math.max(deviation, Math.abs(v - test.value()));
+        for (int index = 0; index < count; index++) {
+            double s = switch (test.prefer()) {
+                case "far" -> (raw[index] - low) / span;
+                case "value" -> 1.0 - Math.abs(raw[index] - test.value()) / Math.max(1.0E-6, deviation);
+                default -> 1.0 - (raw[index] - low) / span;
+            };
+            score[index] += s * test.weight();
+        }
     }
 
     /** Hands the candidates, scaled to 0 - 1 among the kept ones, to the debug view. */
@@ -253,8 +315,8 @@ final class EqsQuery {
     static EqsQuery parse(String name, Map<?, ?> map, List<String> errors) {
         Map<?, ?> generatorMap = map.get("generator") instanceof Map<?, ?> m ? m : Map.of();
         String generator = Cfg.text(generatorMap, "type", "ring");
-        if (!List.of("ring", "grid", "self").contains(generator)) {
-            errors.add("eqs " + name + ": generator type must be ring / grid / self (" + generator + ")");
+        if (!List.of("ring", "grid", "self", "sphere").contains(generator)) {
+            errors.add("eqs " + name + ": generator type must be ring / grid / sphere / self (" + generator + ")");
             return null;
         }
         List<Test> tests = new ArrayList<>();
@@ -262,7 +324,7 @@ final class EqsQuery {
             for (Object entry : list) {
                 if (!(entry instanceof Map<?, ?> t)) continue;
                 String type = Cfg.text(t, "type", "");
-                if (!List.of("distance", "line-of-sight", "pathable", "crowd", "random", "spread", "ally-distance").contains(type)) {
+                if (!List.of("distance", "line-of-sight", "pathable", "crowd", "random", "spread", "ally-distance", "height").contains(type)) {
                     errors.add("eqs " + name + ": unknown test '" + type + "'");
                     continue;
                 }
@@ -273,7 +335,14 @@ final class EqsQuery {
             }
         }
         String pick = Cfg.text(map, "pick", "best");
-        return new EqsQuery(name, generator, Cfg.text(generatorMap, "around", "self"), Cfg.number(generatorMap, "radius", 6.0), (int) Cfg.number(generatorMap, "points", 12.0),
-                (int) Cfg.number(generatorMap, "rings", 1.0), Cfg.number(generatorMap, "spacing", 2.0), tests, pick.equals("random-top"), (int) Cfg.number(map, "top", 3.0));
+        String place = Cfg.lower(map, "place", "auto");
+        if (!List.of("auto", "ground").contains(place)) {
+            errors.add("eqs " + name + ": place must be auto / ground (" + place + ")");
+            place = "auto";
+        }
+        double radius = Cfg.number(generatorMap, "radius", 6.0);
+        Layers layers = new Layers(Cfg.number(generatorMap, "offset-y", 0.0), (int) Cfg.number(generatorMap, "layers", 1.0), Cfg.number(generatorMap, "height", radius / 2.0), place);
+        return new EqsQuery(name, generator, Cfg.text(generatorMap, "around", "self"), radius, (int) Cfg.number(generatorMap, "points", 12.0),
+                (int) Cfg.number(generatorMap, "rings", 1.0), Cfg.number(generatorMap, "spacing", 2.0), layers, tests, pick.equals("random-top"), (int) Cfg.number(map, "top", 3.0));
     }
 }

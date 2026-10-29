@@ -15,6 +15,9 @@ final class Ctx {
     java.util.function.Consumer<EqsResult> eqsSink;
     /** A state change asked for by a task ({@code set-state}) or a transition: applied by the runner after the tick. */
     String requestedState;
+    /** The room the mob moves in (may be null) and the routes of `patrol`. */
+    Volume volume;
+    Map<String, Behavior.Route> routes = Map.of();
 
     Ctx(BehaviorHost host, Blackboard bb, Map<String, EqsQuery> queries) {
         this.host = host;

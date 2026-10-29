@@ -44,7 +44,7 @@ final class BehaviorParser {
             }
         }
         // the built-in query that `flee` uses: a place round the mob, far from the target, that it can walk to
-        queries.computeIfAbsent("flee", name -> new EqsQuery(name, "ring", "self", 9.0, 16, 1, 2.0, List.of(
+        queries.computeIfAbsent("flee", name -> new EqsQuery(name, "ring", "self", 9.0, 16, 1, 2.0, EqsQuery.Layers.FLAT, List.of(
                 new EqsQuery.Test("distance", "target", "far", 0.0, 2.0, 0.0, Double.MAX_VALUE, false, true),
                 new EqsQuery.Test("pathable", "self", "near", 0.0, 1.0, 0.0, Double.MAX_VALUE, true, true)), false, 1));
 
@@ -93,23 +93,70 @@ final class BehaviorParser {
         if (map.get("blackboard") instanceof Map<?, ?> initialValues) {
             for (Map.Entry<?, ?> entry : initialValues.entrySet()) blackboard.put(String.valueOf(entry.getKey()), entry.getValue());
         }
-        // (a query or a state that nothing uses is not an error; a task that names a query that does not exist is)
+        // how it moves: walking (the vanilla path finder) or flying; the room it moves in round its home
+        double flySpeed = 5.0;
+        Object navigation = map.get("navigation");
+        String moving = "walk";
+        if (navigation instanceof Map<?, ?> navigationMap) {
+            moving = Cfg.lower(navigationMap, "mode", "walk");
+            flySpeed = Math.max(0.5, Math.min(40.0, Cfg.number(navigationMap, "speed", flySpeed)));
+        } else if (navigation != null) {
+            moving = String.valueOf(navigation).trim().toLowerCase(Locale.ROOT);
+        }
+        if (!moving.equals("walk") && !moving.equals("fly")) error("navigation must be walk / fly (" + moving + ")");
+        boolean fly = moving.equals("fly");
+        double leash = Cfg.number(blackboard, "leash", 32.0);
+        Volume volume = Volume.parse(map.get("volume") instanceof Map<?, ?> volumeMap ? volumeMap : null, leash, errors, "mob " + mobId + " behavior");
+        if (volume == null && fly) volume = new Volume("cylinder", leash, 24.0, 8.0);
+        Map<String, Behavior.Route> routes = new LinkedHashMap<>();
+        if (map.get("waypoints") instanceof Map<?, ?> waypointMap) {
+            for (Map.Entry<?, ?> entry : waypointMap.entrySet()) {
+                Behavior.Route route = route(String.valueOf(entry.getKey()), entry.getValue());
+                if (route != null) routes.put(String.valueOf(entry.getKey()), route);
+            }
+        }
+        // (a query or a state that nothing uses is not an error; a task that names a query or a route that does not exist is)
         for (Behavior.State state : states.values()) {
-            checkQueries(state.tree(), queries);
-            if (state.enter() != null) checkQueries(state.enter(), queries);
+            checkQueries(state.tree(), queries, routes);
+            if (state.enter() != null) checkQueries(state.enter(), queries, routes);
         }
         return new Behavior(Cfg.flag(map, "debug", false), Math.max(1, (int) Cfg.number(map, "tick-interval", 4.0)), Cfg.number(map, "aggro-range", Cfg.number(blackboard, "aggro-range", 20.0)),
-                Cfg.flag(map, "auto-target", true), queries, states, initial, blackboard);
+                Cfg.flag(map, "auto-target", true), queries, states, initial, blackboard, fly, flySpeed, volume, routes);
     }
 
-    private void checkQueries(Node node, Map<String, EqsQuery> queries) {
+    /** One route of `waypoints:`: a list of points, or a map with `points`, `absolute` and `loop`. Null (with an error) when it has no point. */
+    private Behavior.Route route(String name, Object value) {
+        Object points = value instanceof Map<?, ?> m ? m.get("points") : value;
+        List<org.bukkit.util.Vector> list = new ArrayList<>();
+        if (points instanceof List<?> items) {
+            for (Object item : items) {
+                if (item instanceof List<?> xyz && xyz.size() == 3 && xyz.get(0) instanceof Number x && xyz.get(1) instanceof Number y && xyz.get(2) instanceof Number z) {
+                    list.add(new org.bukkit.util.Vector(x.doubleValue(), y.doubleValue(), z.doubleValue()));
+                } else if (item instanceof Map<?, ?> point) {
+                    list.add(new org.bukkit.util.Vector(Cfg.number(point, "x", 0.0), Cfg.number(point, "y", 0.0), Cfg.number(point, "z", 0.0)));
+                } else {
+                    error("waypoints " + name + ": a point is [x, y, z] or {x, y, z} (" + item + ")");
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            error("waypoints " + name + " has no points");
+            return null;
+        }
+        boolean absolute = value instanceof Map<?, ?> m && Cfg.flag(m, "absolute", false);
+        boolean loop = !(value instanceof Map<?, ?> m) || !Cfg.lower(m, "mode", "loop").equals("back-and-forth");
+        return new Behavior.Route(list, absolute, loop);
+    }
+
+    private void checkQueries(Node node, Map<String, EqsQuery> queries, Map<String, Behavior.Route> routes) {
         if (node instanceof Tasks.MoveTo moveTo && moveTo.queryName() != null && !queries.containsKey(moveTo.queryName())) {
             error("move-to uses a query that does not exist: " + moveTo.queryName());
         }
+        if (node instanceof Tasks.Patrol patrol && !routes.containsKey(patrol.route())) error("patrol uses a route that is not in waypoints: " + patrol.route());
         for (Service service : node.services) {
             if (service instanceof Services.RunEqs run && !queries.containsKey(run.query())) error("run-eqs uses a query that does not exist: " + run.query());
         }
-        if (node instanceof Composites.Composite composite) for (Node child : composite.children) checkQueries(child, queries);
+        if (node instanceof Composites.Composite composite) for (Node child : composite.children) checkQueries(child, queries, routes);
     }
 
     private Node node(Map<?, ?> map, int depth) {
@@ -140,10 +187,12 @@ final class BehaviorParser {
                     mode = "target";
                 }
                 node = new Tasks.MoveTo(mode, Cfg.text(map, "key", ""), Cfg.text(map, "eqs", ""), Cfg.number(map, "speed", 1.0), Cfg.number(map, "acceptance", 1.5),
-                        Cfg.ticks(map, "timeout", 10.0), Cfg.flag(map, "face", false));
+                        Cfg.ticks(map, "timeout", 10.0), Cfg.flag(map, "face", false), Cfg.number(map, "height", 0.0));
             }
             case "flee" -> node = new Tasks.MoveTo("eqs", "", Cfg.text(map, "eqs", "flee"), Cfg.number(map, "speed", 1.3), Cfg.number(map, "acceptance", 1.5), Cfg.ticks(map, "timeout", 6.0),
-                    Cfg.flag(map, "face", false));
+                    Cfg.flag(map, "face", false), 0.0);
+            case "patrol" -> node = new Tasks.Patrol(Cfg.text(map, "route", ""), Cfg.number(map, "speed", 0.8), Cfg.ticks(map, "wait", 0.0), Cfg.number(map, "acceptance", 1.2),
+                    (int) Cfg.number(map, "laps", 0.0));
             case "wait" -> node = new Tasks.Wait(Cfg.ticks(map, "seconds", 1.0), Cfg.ticks(map, "random-deviation", 0.0), Cfg.text(map, "key", ""));
             case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", -1.0));
             case "shoot" -> node = new Tasks.Shoot(Cfg.number(map, "rate", 1.0));

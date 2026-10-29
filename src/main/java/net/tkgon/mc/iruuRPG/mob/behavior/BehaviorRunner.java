@@ -28,6 +28,8 @@ public final class BehaviorRunner {
         this.host = host;
         this.ctx = new Ctx(host, new Blackboard(), behavior.queries);
         this.ctx.eqsSink = result -> eqsResults.put(result.query(), result);
+        this.ctx.volume = behavior.volume;
+        this.ctx.routes = behavior.routes;
         for (Map.Entry<String, Object> entry : behavior.blackboard.entrySet()) ctx.bb.set(entry.getKey(), entry.getValue());
         this.state = behavior.states.get(behavior.initial);
         this.entering = state.enter() != null;
@@ -63,6 +65,21 @@ public final class BehaviorRunner {
 
     public boolean debug() {
         return behavior.debug;
+    }
+
+    /** Whether the mob flies (`navigation: fly`). */
+    public boolean flying() {
+        return behavior.fly;
+    }
+
+    /** The pace of a flying mob at speed 1, blocks a second. */
+    public double flySpeed() {
+        return behavior.flySpeed;
+    }
+
+    /** The room the mob moves in round its home, or null (no limit). */
+    public Volume volume() {
+        return behavior.volume;
     }
 
     public String stateName() {
@@ -132,6 +149,8 @@ public final class BehaviorRunner {
         org.bukkit.Location home = host.home();
         org.bukkit.Location here = host.mob().getLocation();
         ctx.bb.set("home-distance", home == null || home.getWorld() != here.getWorld() ? 9999.0 : home.distance(here));
+        ctx.bb.set("in-volume", behavior.volume == null || behavior.volume.contains(home, here));
+        ctx.bb.set("altitude", FlyNavigator.heightAboveGround(here, 32));
         // the group: how many of the same kind are near, and how many hold an attack slot against the target
         ctx.bb.set("allies-near", host.alliesNear(ctx.bb.number("ally-range", 8.0), true));
         ctx.bb.set("attackers", target == null ? 0 : host.coordinator().attackers(target.getUniqueId().toString(), ctx.now));
