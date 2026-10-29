@@ -3,23 +3,31 @@
 Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリューム)」に入ったプレイヤーに流す。範囲に入ると曲が始まり、別の範囲に入るか、どの範囲からも出るとフェードしながら変わる。音量はプレイヤーごとに、メニューの「設定」→「BGM」で変えられる。
 
 ## 曲
-- 置き場所: サーバーの `plugins/iruuRPG/bgm/<曲のid>.nbs` (id はファイル名)。`/bgm reload` で読み直す。
+- 置き場所 (id はファイル名):
+  - `plugins/iruuRPG/bgm/<曲のid>.nbs`: yml リポジトリと管理者の曲。**同じ id の同梱曲より優先**される。
+  - `plugins/iruuRPG/bgm-bundled/<曲のid>.nbs`: jar に同梱の曲。起動のたびに jar の版で書き直す (編集しない)。
+  - 同梱の曲を `bgm/` に分けるのは、yml リポジトリに同じ名前の曲が入ったとき、サーバー側の `git pull` が「上書きされる未追跡ファイル」で止まらないようにするため。
+- **再起動なしで曲を更新する**: 5秒ごと (`bgm.watch-ticks`) に、両方のフォルダの `.nbs` と `bgm/volumes.yml` の名前・大きさ・時刻を見て、変わっていれば自動で読み直す (ログに `BGM: changed on disk, read again: +新しい曲 ~変わった曲 -消えた曲`)。変わっていない曲は読み直さない (流れている曲は途切れない)。流れている曲が差し替わったときは、そのプレイヤーは、フェードしながら新しい版に移る。
+  - yml リポジトリ (`iruuRPG/iruu_rpg_yml_file`) の `bgm/<id>.nbs` に曲を足して push する → プラグインが約1分ごとに pull する → 5秒以内に読み直す。**jar の更新も再起動も要らない**。同じ id の曲を push すると、同梱曲を置き換える (消すと同梱曲に戻る)。
+  - 手で置く (`bgm/` に `.nbs` を入れる) のでも、同じ。`/bgm reload` で、いますぐ読み直す。
+  - `bgm/volumes.yml` は yml リポジトリに入れない (サーバーで /bgm コマンドが書き換えるため、pull が止まる)。範囲はコマンドで作る。
 - 同梱の曲 (jar に入っていて、フォルダに無いときに書き出す。手で編集していなければ、新しい版に置き換わる)。命名は「曲名 (分類番号)」。ファイルの曲名は半角英数のみなので、分類は Field / Boss で書く (曲名 (フィールド001) = `(Field001)`):
 
 | id | 曲名 | 用途 | 長さ | テンポ・調 |
 |---|---|---|---|---|
 | `plains_adventure` | Under an Endless Sky (Field001) | 最初の街を出たあとの大平原。アイリッシュ・ケルト風 | 2:34 | 100 BPM (6.67 ticks/秒)、D メジャー |
-| `atlas_cave` | Where the Titan Sleeps (Field002) | アトラスの洞窟 (最初のダンジョン) の道中 | 2:34 | 75 BPM (5 ticks/秒)、E マイナー |
+| `atlas_cave` | Where the Titan Sleeps (Field002) | アトラスの洞窟へ向かう道と入口のまわり (フィールド) | 2:34 | 75 BPM (5 ticks/秒)、E マイナー |
+| `atlas_dungeon` | Hollow Beneath the Giant (Dungeon001) | アトラスの洞窟 (ダンジョンの内部) | 2:14 | 100 BPM (6.67 ticks/秒)、E フリジア / マイナー |
 | `atlas_vindicator` | The Axe at the Gate (Boss001) | アトラスの洞窟のボス (ヴィンディケーター) | 2:08 | 150 BPM (10 ticks/秒)、E マイナー |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_boss_bgm.py` が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - ノートブロックで鳴らせるのは F#3〜F#5 (キー 33〜57) の 2 オクターブ。範囲の外のキーは、オクターブを移して収める。マイクラにバイオリンは無いので、同梱の曲では「フルートの3度下」で代わりにしている。実際の楽器の音が欲しくなったら、楽器のノートブロック用リソースパックを別に作る (まだ行わない)。
 
 ## 範囲 (ボリューム)
-- 直方体で、ワールドごと。2つの角 (ブロック) を選んで作る。入っているかどうかは、0.5秒ごと (`bgm.check-ticks`) に調べる。
+- 直方体で、ワールドごと。2つの角 (ブロック) を選んで作る。ワールド名には `*` が使える (例: `dungeon_*_cave*`)。入っているかどうかは、0.5秒ごと (`bgm.check-ticks`) に調べる。
 - 重なったとき: `priority` が高いほうが勝つ。同じなら小さいほう。
 - 出る側の境目で曲が途切れないよう、いま流れている範囲は、縁から 1.5 ブロック外までは「中」として扱う。
 - 項目 (`plugins/iruuRPG/bgm/volumes.yml`、コマンドで作る・変える):
@@ -31,6 +39,7 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `volume` | この範囲の音量 (%) | 100 |
 | `fade` | この範囲で曲が始まる・終わるときのフェードの秒数 | 3 |
 | `loop` | 曲が終わったら繰り返す。false なら入るたびに1回だけ | true |
+| `world` | ワールド名。`*` で「どれでも」(例: `dungeon_*_cave*`) | 作ったときのワールド |
 
 - フェード: 新しい範囲に入ると、前の曲が `fade` 秒かけて消えていき、同時に新しい曲が `fade` 秒かけて入ってくる (クロスフェード)。どの範囲からも出るときは、出た範囲の `fade` で消える。同じ曲の別の範囲に入った場合は、曲は止めずに続ける。
 - ループ: `loop: true` の範囲では、曲が終わると、曲のファイルに書かれたループ開始位置へ戻る (書かれていなければ最初から)。同梱の曲は、イントロの4小節のあとから繰り返す (曲の終わりは静かで、属和音で止まるので、頭に戻る継ぎ目がなめらか)。
@@ -43,7 +52,7 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 /bgm pos1 | pos2                  いまの足元を角にする
 /bgm create <id> <曲> [優先度]    選んだ2つの角で範囲を作る (作ったあと8秒、縁をパーティクルで見せる)
 /bgm redefine <id>                選んだ2つの角に、範囲を作り直す
-/bgm set <id> <song|priority|volume|fade|loop> <値>
+/bgm set <id> <song|priority|volume|fade|loop|world> <値>
 /bgm remove <id> | list | info <id> | tp <id>
 /bgm show [id|off]                範囲の縁を20秒、パーティクルで見せる (自分だけに見える。緑: 範囲、水色: 選んでいる角)
 /bgm songs                        曲の一覧
@@ -52,13 +61,25 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 /bgm reload                       曲と範囲を読み直す
 ```
 
+## ダンジョン (インスタンス) で鳴らす
+ダンジョンは、入るたびにテンプレートのワールド `dungeon_template_<id>` を、専用のコピー `dungeon_instance_<id>_<n>` にして使う。座標はテンプレートとコピーで同じなので、**範囲のワールド名を `dungeon_*_<id>*` にすれば、1つの範囲がテンプレートと全部のコピーで効く**。例 (アトラスの洞窟 = `cave`):
+
+```
+/dungeon build cave                  テンプレートのワールドへ行く (範囲の角を選ぶため)
+/bgm wand                            2つの角を選ぶ (洞窟の内部全体を囲む)
+/bgm create cave_inside atlas_dungeon
+/bgm set cave_inside world dungeon_*_cave*     テンプレートと全部のコピーで効くようにする
+/dungeon save cave
+```
+ボス部屋だけボス曲にするには、ボス部屋を囲む小さな範囲を、同じようにもう1つ作る (`/bgm create cave_boss atlas_vindicator` → `/bgm set cave_boss world dungeon_*_cave*` → `/bgm set cave_boss priority 5`)。範囲が重なったときは priority が高いほう (同じなら小さいほう) が勝つので、ボス部屋に入ると、フェードしながらボス曲に変わり、出ると内部の曲に戻る。ボスが動き出したときに曲を変える仕組み (フェーズ) は、無い。
+
 ## プレイヤーの音量
 - メニュー → 設定 → BGM。左クリックで +10%、右クリックで -10%、Shift+左で 100%、Shift+右で 0%。いま流れている曲の名前も出る。
 - `/bgm volume [0-100]` でも変えられる。`/bgm now` はいまの曲。
 - 値はプレイヤーのデータに保存される。音は Minecraft の「音楽」の音量 (サウンド設定) にも従う。
 
 ## しくみ (開発者向け)
-- パッケージ `net.tkgon.mc.iruuRPG.bgm`。`BgmModule.start()` が起動する (失敗してもプラグインは止まらない)。
+- パッケージ `net.tkgon.mc.iruuRPG.bgm`。`BgmModule.start()` が起動する (失敗してもプラグインは止まらない)。曲と範囲の置き場所と読み直しは `BgmRegistry` (曲の更新の見張りは `BgmModule.watch`)。
 - `NbsSong`: .nbs を読む。`BgmVoice`: 1曲ぶんの再生 (Bukkit に依存しない: 時計を進めて、鳴らす時刻になったノートを `Sink` に渡す。フェードの音量もここ)。`BgmChannel`: 1人ぶんの再生 (いまの曲と、フェードで消えていく曲)。`BgmRegistry`: 曲・範囲の読み書きと、「どの範囲にいるか」。
 - 音は `Player.playSound` を、プレイヤーの頭の位置から (ノートの左右は、向きに対して横に最大2ブロックずらして) 出す。カテゴリは `MUSIC`。1ティックごとに、曲のテンポ (ticks/秒 ÷ 20) だけ時計を進める (テンポが20の約数でなくても、ずれがたまらない)。
 - 鳴らし終えた音は止められないので、フェードで音量を下げるとき、すでに鳴り始めた音は最後まで鳴る (ノートブロックの音は短いので気にならない)。

@@ -3,13 +3,15 @@ package net.tkgon.mc.iruuRPG.bgm;
 import org.bukkit.Location;
 
 /**
- * A box in a world that has a song: whoever stands in it hears the song. When boxes overlap the one with the higher {@code priority} wins, and of equal ones the smaller.
+ * A box in a world (or in every world whose name fits a pattern with {@code *}, e.g. {@code dungeon_*_cave*}: the template and every copy of an instance dungeon) that has a song: whoever stands in it hears the song. When boxes overlap the one with the higher {@code priority} wins, and of equal ones the smaller.
  * {@code min} and {@code max} are block coordinates, both inside the box. {@code fade} is the seconds of the fade when the song starts or ends because of this box.
  */
 public final class BgmVolume {
 
     private final String id;
     private String world;
+    /** Set when {@code world} has a {@code *}: the worlds whose name it fits. */
+    private java.util.regex.Pattern worldPattern;
     private int minX;
     private int minY;
     private int minZ;
@@ -34,6 +36,30 @@ public final class BgmVolume {
 
     public String world() {
         return world;
+    }
+
+    /** Whether a world of this name is one of the volume's worlds. */
+    public boolean inWorld(String name) {
+        return worldPattern != null ? worldPattern.matcher(name).matches() : world.equals(name);
+    }
+
+    /** True when the world is a pattern (with {@code *}) and not the name of one world. */
+    public boolean worldIsPattern() {
+        return worldPattern != null;
+    }
+
+    /** Sets the world (a name, or a pattern with {@code *}). */
+    public void setWorld(String world) {
+        this.world = world;
+        this.worldPattern = null;
+        if (world.indexOf('*') >= 0) {
+            StringBuilder regex = new StringBuilder();
+            for (String part : world.split("\\*", -1)) {
+                if (regex.length() > 0 || world.startsWith("*")) regex.append(".*");
+                regex.append(java.util.regex.Pattern.quote(part));
+            }
+            this.worldPattern = java.util.regex.Pattern.compile(regex.toString());
+        }
     }
 
     public String song() {
@@ -87,7 +113,7 @@ public final class BgmVolume {
 
     /** Puts the box between two corners (any two opposite ones). */
     public void setBox(String world, int[] a, int[] b) {
-        this.world = world;
+        setWorld(world);
         this.minX = Math.min(a[0], b[0]);
         this.minY = Math.min(a[1], b[1]);
         this.minZ = Math.min(a[2], b[2]);
@@ -106,7 +132,7 @@ public final class BgmVolume {
 
     /** Whether the place is in the box grown by {@code margin} blocks on every side (the part just outside, where a player who is leaving does not flicker in and out). */
     public boolean contains(Location at, double margin) {
-        if (at.getWorld() == null || !at.getWorld().getName().equals(world)) return false;
+        if (at.getWorld() == null || !inWorld(at.getWorld().getName())) return false;
         double x = at.getX();
         double y = at.getY();
         double z = at.getZ();

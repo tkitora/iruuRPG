@@ -151,7 +151,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -161,7 +161,7 @@ class BgmTest {
             assertEquals(Math.rint(serverTicks), serverTicks, 1.0E-9, id + ": the tempo divides 20");
             assertTrue(song.seconds() >= 120.0, id + ": at least two minutes (" + song.seconds() + ")");
             assertTrue(song.loops() && song.loopStart() == 64, id + ": loops from bar 5");
-            assertTrue(song.title().matches(".+ \\((Field|Boss)\\d{3}\\)"), id + ": named like 'Title (Field001)': " + song.title());
+            assertTrue(song.title().matches(".+ \\((Field|Boss|Dungeon)\\d{3}\\)"), id + ": named like 'Title (Field001)': " + song.title());
             int[] perTick = new int[song.length()];
             for (int i = 0; i < song.noteCount(); i++) {
                 NbsSong.Note note = song.note(i);
@@ -180,40 +180,143 @@ class BgmTest {
         assertEquals(1280, bundled("atlas_vindicator").length());
         assertEquals("Where the Titan Sleeps (Field002)", bundled("atlas_cave").title());
         assertEquals("The Axe at the Gate (Boss001)", bundled("atlas_vindicator").title());
+        assertEquals(896, bundled("atlas_dungeon").length());
+        assertEquals("Hollow Beneath the Giant (Dungeon001)", bundled("atlas_dungeon").title());
     }
 
-    @Test
-    void bundledSongsAreWrittenAndOnlyUneditedOnesAreReplaced(@TempDir File folder) throws IOException {
+    // ---- songs without a restart --------------------------------------------------------------------------------------------------------
+
+    private static BgmRegistry registryIn(File folder) {
         JavaPlugin plugin = mock(JavaPlugin.class);
         when(plugin.getDataFolder()).thenReturn(folder);
         when(plugin.getLogger()).thenReturn(java.util.logging.Logger.getLogger("test"));
         when(plugin.getResource(org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> BgmTest.class.getResourceAsStream("/" + call.getArgument(0, String.class)));
-        BgmRegistry registry = new BgmRegistry(plugin);
-        registry.reload();
-        assertEquals(3, registry.songs().size());
-        File cave = new File(new File(folder, "bgm"), "atlas_cave.nbs");
-        assertTrue(cave.isFile());
-        byte[] bundled = java.nio.file.Files.readAllBytes(cave.toPath());
+        return new BgmRegistry(plugin);
+    }
 
-        // edited by someone (not the recorded version): left alone
-        byte[] edited = java.util.Arrays.copyOf(bundled, bundled.length - 1);
-        java.nio.file.Files.write(cave.toPath(), edited);
-        new BgmRegistry(plugin).reload();
-        assertEquals(edited.length, cave.length(), "an edited song stays");
-
-        // an older bundled version that nobody edited (it is the recorded one): replaced by the jar's
-        org.bukkit.configuration.file.YamlConfiguration record = new org.bukkit.configuration.file.YamlConfiguration();
-        try {
-            byte[] digest = java.security.MessageDigest.getInstance("SHA-1").digest(edited);
-            StringBuilder hash = new StringBuilder();
-            for (byte value : digest) hash.append(String.format("%02x", value));
-            record.set("atlas_cave", hash.toString());
-        } catch (java.security.NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(exception);
+    private static byte[] resource(String id) throws IOException {
+        try (InputStream in = BgmTest.class.getResourceAsStream("/bgm/" + id + ".nbs")) {
+            return in.readAllBytes();
         }
-        record.save(new File(new File(folder, "bgm"), ".bundled.yml"));
-        new BgmRegistry(plugin).reload();
-        assertEquals(bundled.length, cave.length(), "an unedited older version is replaced");
+    }
+
+    @Test
+    void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        assertEquals(4, registry.songs().size());
+        assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
+        assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
+        assertEquals("bundled", registry.origin("atlas_cave"));
+    }
+
+    @Test
+    void aSongOfTheFolderComesWithoutARestartAndReplacesTheBundledOne(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        assertNull(registry.refreshIfChanged(), "nothing changed");
+        NbsSong bundledCave = registry.song("atlas_cave");
+
+        // a new song comes (the yml repository was pulled)
+        java.nio.file.Files.write(new File(folder, "bgm/new_song.nbs").toPath(), resource("atlas_dungeon"));
+        String changes = registry.refreshIfChanged();
+        assertNotNull(changes);
+        assertTrue(changes.contains("+new_song"), changes);
+        assertEquals("bgm", registry.origin("new_song"));
+        assertSame(bundledCave, registry.song("atlas_cave"), "a song that did not change is not read again (a playing song does not start over)");
+        assertNull(registry.refreshIfChanged());
+
+        // a song of the same id as a bundled one replaces it, and the bundled one is back when the file goes
+        java.nio.file.Files.write(new File(folder, "bgm/atlas_cave.nbs").toPath(), resource("atlas_dungeon"));
+        assertTrue(registry.refreshIfChanged().contains("~atlas_cave"));
+        assertEquals("bgm", registry.origin("atlas_cave"));
+        assertEquals(896, registry.song("atlas_cave").length());
+        assertTrue(new File(folder, "bgm/atlas_cave.nbs").delete());
+        assertTrue(registry.refreshIfChanged().contains("~atlas_cave"));
+        assertEquals("bundled", registry.origin("atlas_cave"));
+        assertEquals(768, registry.song("atlas_cave").length());
+    }
+
+    @Test
+    void aSongThatCannotBeReadIsLeftOutAndTheRestStays(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
+        registry.refreshIfChanged();
+        assertNull(registry.song("broken"));
+        assertEquals(4, registry.songs().size());
+        assertFalse(registry.problems().isEmpty());
+    }
+
+    @Test
+    void copiesOfTheBundledSongsOfAnEarlierVersionAreTakenAwayAndEditedOnesStay(@TempDir File folder) throws IOException {
+        File bgm = new File(folder, "bgm");
+        assertTrue(bgm.mkdirs());
+        java.nio.file.Files.write(new File(bgm, "atlas_cave.nbs").toPath(), resource("atlas_cave"));      // as the earlier version wrote it
+        byte[] edited = java.util.Arrays.copyOf(resource("atlas_vindicator"), resource("atlas_vindicator").length - 1);
+        java.nio.file.Files.write(new File(bgm, "atlas_vindicator.nbs").toPath(), edited);                 // someone changed it
+        java.nio.file.Files.writeString(new File(bgm, ".bundled.yml").toPath(), "atlas_cave: x\n");
+        registryIn(folder).reload();
+        assertFalse(new File(bgm, "atlas_cave.nbs").exists(), "an unedited copy is taken away");
+        assertTrue(new File(bgm, "atlas_vindicator.nbs").isFile(), "an edited one stays");
+        assertFalse(new File(bgm, ".bundled.yml").exists());
+    }
+
+    @Test
+    void volumesCanBeEditedInTheFileAndOurOwnSaveIsNotAChange(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        registry.put(new BgmVolume("a", "world", new int[]{0, 0, 0}, new int[]{9, 9, 9}, "atlas_cave"));
+        assertNull(registry.refreshIfChanged(), "our own write");
+
+        java.nio.file.Files.writeString(new File(folder, "bgm/volumes.yml").toPath(),
+                "volumes:\n  b:\n    world: dungeon_*_cave*\n    min: [0, 0, 0]\n    max: [20, 30, 20]\n    song: atlas_dungeon\n    priority: 2\n");
+        String changes = registry.refreshIfChanged();
+        assertNotNull(changes);
+        assertNull(registry.volume("a"));
+        assertNotNull(registry.volume("b"));
+        assertEquals(2, registry.volume("b").priority());
+    }
+
+    @Test
+    void aPlayerGoesOverToASongThatWasReplacedAndKeepsAnUnchangedOne(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        BgmVolume volume = new BgmVolume("cave", "world", new int[]{0, 0, 0}, new int[]{9, 9, 9}, "atlas_cave");
+        BgmChannel channel = new BgmChannel();
+        channel.follow(volume, registry);
+        assertEquals("Where the Titan Sleeps (Field002)", channel.nowPlaying());
+        assertEquals(1, channel.voiceCount());
+
+        // the volumes are read again, the songs did not change: the same song goes on (no second voice)
+        java.nio.file.Files.writeString(new File(folder, "bgm/volumes.yml").toPath(), "volumes: {}\n");
+        registry.refreshIfChanged();
+        channel.follow(volume, registry);
+        assertEquals(1, channel.voiceCount());
+
+        // the song is replaced by a file of the folder: the new one starts, the old one fades out
+        java.nio.file.Files.write(new File(folder, "bgm/atlas_cave.nbs").toPath(), resource("atlas_dungeon"));
+        registry.refreshIfChanged();
+        channel.follow(volume, registry);
+        assertEquals(2, channel.voiceCount());
+        assertEquals("Hollow Beneath the Giant (Dungeon001)", channel.nowPlaying());
+    }
+
+    @Test
+    void aWorldPatternFitsTheTemplateAndEveryCopyOfAnInstanceDungeon() {
+        BgmVolume volume = new BgmVolume("cave", "dungeon_*_cave*", new int[]{0, 0, 0}, new int[]{9, 9, 9}, "atlas_dungeon");
+        assertTrue(volume.worldIsPattern());
+        assertTrue(volume.inWorld("dungeon_template_cave"));
+        assertTrue(volume.inWorld("dungeon_instance_cave_1"));
+        assertTrue(volume.inWorld("dungeon_instance_cave_27"));
+        assertFalse(volume.inWorld("dungeon_instance_mine_1"));
+        assertFalse(volume.inWorld("world"));
+        BgmVolume plain = new BgmVolume("p", "world", new int[]{0, 0, 0}, new int[]{9, 9, 9}, "a");
+        assertFalse(plain.worldIsPattern());
+        assertTrue(plain.inWorld("world"));
+        assertFalse(plain.inWorld("world_nether"));
+        assertTrue(new BgmVolume("s", "*_nether", new int[]{0, 0, 0}, new int[]{1, 1, 1}, "a").inWorld("world_nether"));
+        assertFalse(new BgmVolume("s", "*_nether", new int[]{0, 0, 0}, new int[]{1, 1, 1}, "a").inWorld("world"));
     }
 
     @Test

@@ -20,7 +20,7 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
     private static final String PERMISSION = "iruurpg.admin";
     private static final List<String> PLAYER_SUBS = List.of("volume", "now");
     private static final List<String> ADMIN_SUBS = List.of("wand", "pos1", "pos2", "create", "redefine", "set", "remove", "list", "info", "tp", "show", "play", "stop", "songs", "reload");
-    private static final List<String> FIELDS = List.of("song", "priority", "volume", "fade", "loop");
+    private static final List<String> FIELDS = List.of("song", "priority", "volume", "fade", "loop", "world");
 
     private final BgmModule module;
 
@@ -103,7 +103,7 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
     private void help(Player player) {
         message(player, "/bgm volume [0-100]  自分のBGMの音量 / /bgm now  いまの曲", NamedTextColor.AQUA);
         if (!player.hasPermission(PERMISSION)) return;
-        message(player, "範囲: wand | pos1 | pos2 | create <id> <曲> [優先度] | redefine <id> | set <id> <song|priority|volume|fade|loop> <値> | remove <id> | list | info <id> | tp <id> | show [id|off]", NamedTextColor.GRAY);
+        message(player, "範囲: wand | pos1 | pos2 | create <id> <曲> [優先度] | redefine <id> | set <id> <song|priority|volume|fade|loop|world> <値> | remove <id> | list | info <id> | tp <id> | show [id|off]", NamedTextColor.GRAY);
         message(player, "曲: songs | play <曲> [loop] | stop | reload   (曲は plugins/iruuRPG/bgm/ の .nbs)", NamedTextColor.GRAY);
     }
 
@@ -167,7 +167,7 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
     private void set(Player player, String[] args) {
         BgmVolume volume = args.length >= 2 ? module.registry().volume(args[1]) : null;
         if (volume == null || args.length < 4 || !FIELDS.contains(args[2].toLowerCase(Locale.ROOT))) {
-            message(player, "使い方: /bgm set <id> <song|priority|volume|fade|loop> <値>", NamedTextColor.RED);
+            message(player, "使い方: /bgm set <id> <song|priority|volume|fade|loop|world> <値>", NamedTextColor.RED);
             return;
         }
         String field = args[2].toLowerCase(Locale.ROOT);
@@ -203,6 +203,13 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
                     return;
                 }
                 volume.setFade(number);
+            }
+            case "world" -> {
+                if (!value.matches("[A-Za-z0-9_.\\-*]{1,80}")) {
+                    message(player, "ワールド名で指定します。* が使えます (例: dungeon_*_cave* = 洞窟ダンジョンのテンプレートと全部のコピー)", NamedTextColor.RED);
+                    return;
+                }
+                volume.setWorld(value);
             }
             default -> {
                 if (!value.equalsIgnoreCase("true") && !value.equalsIgnoreCase("false")) {
@@ -254,9 +261,17 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
 
     private void teleport(Player player, String[] args) {
         BgmVolume volume = args.length >= 2 ? module.registry().volume(args[1]) : null;
-        World world = volume == null ? null : player.getServer().getWorld(volume.world());
+        World world = null;
+        if (volume != null) {
+            for (World candidate : player.getServer().getWorlds()) {
+                if (volume.inWorld(candidate.getName())) {
+                    world = candidate;
+                    break;
+                }
+            }
+        }
         if (volume == null || world == null) {
-            message(player, "使い方: /bgm tp <id> (その範囲の真ん中へ)", NamedTextColor.RED);
+            message(player, volume == null ? "使い方: /bgm tp <id> (その範囲の真ん中へ)" : "その範囲のワールドは、いまありません (ダンジョンのコピーは、入っているときだけあります)", NamedTextColor.RED);
             return;
         }
         int[] min = volume.min();
@@ -293,7 +308,7 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(Component.text(BgmModule.PREFIX + songs.size() + " 曲", NamedTextColor.AQUA));
         for (NbsSong song : songs.values()) {
             sender.sendMessage(Component.text(" " + song.id() + "  「" + song.title() + "」  " + String.format(Locale.ROOT, "%.0f秒  %.1f ticks/秒", song.seconds(), song.ticksPerSecond())
-                    + (song.loops() ? "  ループ位置あり" : ""), NamedTextColor.GRAY));
+                    + (song.loops() ? "  ループ位置あり" : "") + (module.registry().origin(song.id()).equals("bgm") ? "  (bgm フォルダ)" : "  (同梱)"), NamedTextColor.GRAY));
         }
     }
 
@@ -309,8 +324,9 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
     }
 
     private void reload(CommandSender sender) {
-        module.registry().reload();
-        sender.sendMessage(Component.text(BgmModule.PREFIX + "曲 " + module.registry().songs().size() + " / 範囲 " + module.registry().volumes().size() + " を読み直しました", NamedTextColor.GREEN));
+        String changes = module.registry().reload();
+        sender.sendMessage(Component.text(BgmModule.PREFIX + "曲 " + module.registry().songs().size() + " / 範囲 " + module.registry().volumes().size() + " を読み直しました"
+                + (changes.isEmpty() ? "" : "  (" + changes + ")"), NamedTextColor.GREEN));
         for (String problem : module.registry().problems()) sender.sendMessage(Component.text(" ! " + problem, NamedTextColor.RED));
     }
 

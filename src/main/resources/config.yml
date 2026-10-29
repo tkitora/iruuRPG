@@ -583,6 +583,7 @@ model:
 bgm:
   enabled: true
   check-ticks: 10          # 何tickごとに、プレイヤーがどの範囲にいるかを調べるか (10 = 0.5秒)
+  watch-ticks: 100         # 何tickごとに、bgm フォルダの曲と volumes.yml が変わっていないか見るか (100 = 5秒)。変わっていれば、再起動なしで読み直す
 
 # リソースパック (pack/): 入ってきたプレイヤーに、下のパックを送る。サーバー専用パック (server.zip: 草ブロックを全面草にする) と、
 # モデル機能のパック (iruumodel.zip: /iruumodel build が作る) は別のパック。zip は plugins/iruuRPG/resourcepacks/ にある。

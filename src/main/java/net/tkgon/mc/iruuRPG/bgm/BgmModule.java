@@ -51,8 +51,11 @@ public final class BgmModule implements Listener {
     private final Map<UUID, Selection> selections = new HashMap<>();
     private final Set<UUID> warned = new HashSet<>();
     private BukkitTask task;
+    private BukkitTask watchTask;
     private int counter;
     private final int checkInterval;
+    private final int watchInterval;
+    private boolean watchWarned;
 
     /** The two corners a player has picked with the wand (or with /bgm pos1 and pos2). */
     static final class Selection {
@@ -83,6 +86,7 @@ public final class BgmModule implements Listener {
                 return channel == null ? null : channel.nowPlaying();
             });
             module.task = Bukkit.getScheduler().runTaskTimer(plugin, module::tick, 20L, 1L);
+            module.watchTask = Bukkit.getScheduler().runTaskTimer(plugin, module::watch, module.watchInterval, module.watchInterval);
             plugin.getLogger().info("BGM: " + module.registry.songs().size() + " song(s), " + module.registry.volumes().size() + " volume(s).");
             return module;
         } catch (RuntimeException | LinkageError exception) {
@@ -97,10 +101,12 @@ public final class BgmModule implements Listener {
         this.registry = new BgmRegistry(plugin);
         this.wandKey = new NamespacedKey(plugin, "bgm_wand");
         this.checkInterval = Math.max(2, plugin.getConfig().getInt("bgm.check-ticks", 10));
+        this.watchInterval = Math.max(20, plugin.getConfig().getInt("bgm.watch-ticks", 100));
     }
 
     public void stop() {
         if (task != null) task.cancel();
+        if (watchTask != null) watchTask.cancel();
         channels.clear();
         selections.clear();
     }
@@ -123,6 +129,20 @@ public final class BgmModule implements Listener {
 
     Selection selection(Player player) {
         return selections.computeIfAbsent(player.getUniqueId(), id -> new Selection());
+    }
+
+    /**
+     * Songs and volumes are read again when a file changed on disk: a song that the yml repository brought (the plugin pulls it about every minute), one put in
+     * {@code plugins/iruuRPG/bgm/} by hand, or volumes.yml edited by hand. Players who hear a song that changed go over to the new one with a fade.
+     */
+    private void watch() {
+        try {
+            String changed = registry.refreshIfChanged();
+            if (changed != null) plugin.getLogger().info("BGM: changed on disk, read again: " + changed);
+        } catch (RuntimeException exception) {
+            if (!watchWarned) plugin.getLogger().warning("bgm: cannot look for changed files: " + exception);
+            watchWarned = true;
+        }
     }
 
     // ---- running ---------------------------------------------------------------------------------------------------------------------
@@ -224,7 +244,7 @@ public final class BgmModule implements Listener {
             }
             String world = player.getWorld().getName();
             for (BgmVolume volume : registry.volumes().values()) {
-                if (!volume.world().equals(world)) continue;
+                if (!volume.inWorld(world)) continue;
                 if (onlyId != null && !volume.id().equals(onlyId)) continue;
                 outline(player, volume.min(), volume.max(), Color.fromRGB(80, 255, 120));
             }

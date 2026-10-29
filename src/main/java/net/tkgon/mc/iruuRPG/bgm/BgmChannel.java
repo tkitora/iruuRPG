@@ -46,6 +46,11 @@ final class BgmChannel implements BgmVoice.Sink {
         return current;
     }
 
+    /** How many songs are going now (a song that fades out while the next fades in counts too). */
+    int voiceCount() {
+        return voices.size();
+    }
+
     boolean silent() {
         return voices.isEmpty();
     }
