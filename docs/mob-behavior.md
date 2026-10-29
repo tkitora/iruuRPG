@@ -126,6 +126,8 @@ fsm:
 ## 黒板 (Blackboard)
 ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`flying` (いま飛んでいるか)、`altitude` (足元の地面からの高さ。32 まで。飛んでいるときだけ)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
 
+**`phase` (ボスのフェーズ)**: 黒板の `phase` に 1、2、3 … を書くと、それがボスのフェーズとして、ダンジョンの BGM に使われる (`docs/bgm.md`: フェーズが進むと、ボス戦の次の曲に変わる)。最初は `blackboard: {phase: 1}`、次の状態の `enter` で `set-blackboard` の `key: phase, value: 2`。書かないボスは、フェーズ1のまま。
+
 ## 場所を選ぶ問い合わせ (EQS)
 ```yaml
 eqs:

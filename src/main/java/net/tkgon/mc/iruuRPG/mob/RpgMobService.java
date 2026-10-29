@@ -470,6 +470,19 @@ public final class RpgMobService {
     }
 
     private final Map<UUID, BehaviorMob> behaviors = new HashMap<>();
+
+    /** The number {@code key} of the blackboard of a behavior-tree mob, or null when the mob has no behavior tree or has not set it. */
+    public Double behaviorNumber(UUID mobId, String key) {
+        BehaviorMob behavior = behaviors.get(mobId);
+        if (behavior == null || !behavior.runner().hasBlackboard(key)) return null;
+        return behavior.runner().blackboardNumber(key, 0.0);
+    }
+
+    /** Whether a behavior-tree mob has a player as its target now (the vanilla target of other mobs is read from the entity). */
+    public boolean behaviorHasTarget(UUID mobId) {
+        BehaviorMob behavior = behaviors.get(mobId);
+        return behavior != null && behavior.runner().target() != null;
+    }
     /** The poise of the mobs with a model (see Poise), and until when a mob that flinched stands still. */
     private final Poise poise = new Poise();
     private final Map<UUID, Integer> flinchUntil = new HashMap<>();

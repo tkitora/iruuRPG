@@ -22,6 +22,9 @@ import java.util.List;
  * @param bossRoom          where the party is taken by the boss trigger
  * @param roadChests        chests along the way ("chests:" in the file), each with its own table loot/&lt;table&gt;.yml;
  *                          each player opens each once per run, also before the boss
+ * @param bgmRoute          the song that plays from the moment a player enters, looping (null: none); the id of a song of the BGM module
+ * @param bgmBoss           the songs of the boss fight, at most 3: the first when the fight begins, the next ones when the boss goes on to its next phase
+ *                          (a boss that sets {@code phase} on its blackboard); the last one plays on if there are more phases than songs
  */
 public record DungeonDefinition(
         String id,
@@ -43,10 +46,15 @@ public record DungeonDefinition(
         Point chest,
         Point bossTrigger,
         Point bossRoom,
-        List<RoadChest> roadChests
+        List<RoadChest> roadChests,
+        String bgmRoute,
+        List<String> bgmBoss
 ) {
 
     public enum DeathMode { REVIVE, LIVES }
+
+    /** How many songs the boss fight can have. */
+    public static final int BOSS_SONGS = 3;
 
     /** A chest along the way and the name of its loot table (loot/&lt;table&gt;.yml). */
     public record RoadChest(Point at, String table) {
@@ -83,6 +91,14 @@ public record DungeonDefinition(
         deathMode = deathMode == null ? DeathMode.REVIVE : deathMode;
         maxPlayers = Math.max(1, maxPlayers);
         roadChests = roadChests == null ? List.of() : List.copyOf(roadChests);
+        bgmRoute = bgmRoute == null || bgmRoute.isBlank() ? null : bgmRoute.trim().toLowerCase(java.util.Locale.ROOT);
+        List<String> songs = new java.util.ArrayList<>();
+        if (bgmBoss != null) {
+            for (String song : bgmBoss) {
+                if (song != null && !song.isBlank() && songs.size() < BOSS_SONGS) songs.add(song.trim().toLowerCase(java.util.Locale.ROOT));
+            }
+        }
+        bgmBoss = List.copyOf(songs); // (the songs are kept to the front: an empty slot before a song does not count)
     }
 
     /** The template world that is copied for each run. */
@@ -104,47 +120,58 @@ public record DungeonDefinition(
 
     public DungeonDefinition withEntry(Point point) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                point, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
+                point, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withSpawns(List<MobSpawn> newSpawns) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, newSpawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
+                entry, newSpawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withBoss(String newBoss) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, newBoss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
+                entry, spawns, newBoss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withExit(Point newExit) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, newExit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests);
+                entry, spawns, boss, newExit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withRewardRoom(Point newRoom) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, newRoom, chest, bossTrigger, bossRoom, roadChests);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, newRoom, chest, bossTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withChest(Point newChest) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, newChest, bossTrigger, bossRoom, roadChests);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, newChest, bossTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withBossTrigger(Point newTrigger) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, newTrigger, bossRoom, roadChests);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, newTrigger, bossRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withBossRoom(Point newRoom) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, newRoom, roadChests);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, newRoom, roadChests, bgmRoute, bgmBoss);
     }
 
     public DungeonDefinition withRoadChests(List<RoadChest> newChests) {
         return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
-                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, newChests);
+                entry, spawns, boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, newChests, bgmRoute, bgmBoss);
+    }
+
+    /** The same dungeon with other songs (the route song, and the songs of the boss fight). */
+    public DungeonDefinition withBgm(String route, List<String> boss) {
+        return new DungeonDefinition(id, name, description, minLevel, timeLimitSeconds, lives, rewardGold, rewardXp,
+                entry, spawns, this.boss, exit, closeDelaySeconds, deathMode, maxPlayers, rewardRoom, chest, bossTrigger, bossRoom, roadChests, route, boss);
+    }
+
+    /** True when a route song or a boss song is set. */
+    public boolean hasBgm() {
+        return bgmRoute != null || !bgmBoss.isEmpty();
     }
 
     /** The default table name for a new road chest of this dungeon. */

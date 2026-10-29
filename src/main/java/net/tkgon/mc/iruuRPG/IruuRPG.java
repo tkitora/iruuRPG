@@ -329,9 +329,11 @@ public final class IruuRPG extends JavaPlugin {
         this.worldLabels = new net.tkgon.mc.iruuRPG.hud.WorldLabels(this);
         this.worldLabels.start();
         this.dungeonService = new DungeonService(this, dungeonRegistry, mobService, mobRegistry, levelService, profileManager);
+        this.dungeonService.setBgmSettings(bgmSettings);
         this.dungeonService.setWorldLabels(worldLabels);
         this.dungeonMenu = new DungeonMenu(dungeonService);
         this.dungeonEditor = new DungeonEditor(this, dungeonService, mobRegistry);
+        this.dungeonEditor.setBgmSettings(bgmSettings);
         this.fieldSpawnerService = new FieldSpawnerService(this, mobService, mobRegistry);
         this.fieldSpawnerEditor = new FieldSpawnerEditor(this, fieldSpawnerService, mobRegistry);
         this.fieldSpawnerService.setEditing(fieldSpawnerEditor::editing);

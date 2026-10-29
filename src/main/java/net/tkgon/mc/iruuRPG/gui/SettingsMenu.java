@@ -3,6 +3,8 @@ package net.tkgon.mc.iruuRPG.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.tkgon.mc.iruuRPG.bgm.Bgm;
+import net.tkgon.mc.iruuRPG.bgm.BgmMenus;
 import net.tkgon.mc.iruuRPG.bgm.BgmSettings;
 import net.tkgon.mc.iruuRPG.combat.AttackSounds;
 import net.tkgon.mc.iruuRPG.combat.ParticleSettings;
@@ -15,6 +17,7 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.ClickType;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemFlag;
@@ -29,7 +32,7 @@ import java.util.UUID;
 /**
  * The settings screens: the hub (sound, particles, BGM, hotbar menu item), the sound screen (how loud every kind of attack
  * sound is, and whether other players' attack sounds are heard), the particle screen (how much of the particles is
- * shown, and whether other players' particles are) and the BGM screen (how loud the background music is).
+ * shown, and whether other players' particles are), the BGM screen (how loud the background music is) and the screen to listen to the songs.
  */
 public final class SettingsMenu implements Listener {
 
@@ -39,7 +42,12 @@ public final class SettingsMenu implements Listener {
     private static final int PARTICLE_BUTTON = 12;
     private static final int BGM_BUTTON = 14;
     private static final int MENU_ITEM_BUTTON = 16;
-    private static final int BGM_VOLUME = 13;
+    private static final int BGM_VOLUME = 11;
+    private static final int BGM_LISTEN = 15;
+    private static final int LISTEN_PREVIOUS = 45;
+    private static final int LISTEN_STOP = 47;
+    private static final int LISTEN_BACK = 49;
+    private static final int LISTEN_NEXT = 53;
     private static final int PARTICLE_AMOUNT = 11;
     private static final int PARTICLE_OTHERS = 15;
     private static final int[] KIND_SLOTS = {10, 11, 12, 13, 14, 15, 16};
@@ -89,6 +97,72 @@ public final class SettingsMenu implements Listener {
         player.openInventory(inventory);
     }
 
+    /** The screen to listen to the songs of the BGM (a page of 45 songs; click one to play it, the same again to stop). */
+    public void openBgmListen(Player player, int page) {
+        Holder holder = new Holder(player.getUniqueId(), Screen.BGM_LISTEN);
+        holder.songs = bgmSettings.bgm().songs();
+        holder.page = Math.max(0, Math.min(page, BgmMenus.pages(holder.songs.size()) - 1));
+        holder.inventory = Bukkit.createInventory(holder, 54, Component.text("設定 - BGMを聴く"));
+        renderListen(player, holder);
+        player.openInventory(holder.inventory);
+    }
+
+    /** Puts the songs and the buttons in the screen; again, in place, when the song changes (opening a new screen would end the listen). */
+    private void renderListen(Player player, Holder holder) {
+        Inventory inventory = holder.inventory;
+        inventory.clear();
+        Bgm bgm = bgmSettings.bgm();
+        String playing = bgm.previewing(player);
+        List<Bgm.SongInfo> list = BgmMenus.page(holder.songs, holder.page);
+        for (int index = 0; index < list.size(); index++) {
+            Bgm.SongInfo song = list.get(index);
+            boolean on = song.id().equals(playing);
+            inventory.setItem(index, BgmMenus.item(song, on, List.of(BgmMenus.line(on ? "クリックで止める" : "クリックで聴く (くり返し)", NamedTextColor.YELLOW))));
+        }
+        ItemStack frame = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
+        for (int slot = 45; slot < 54; slot++) inventory.setItem(slot, frame);
+        int pages = BgmMenus.pages(holder.songs.size());
+        if (holder.page > 0) inventory.setItem(LISTEN_PREVIOUS, item(Material.ARROW, "前のページ", NamedTextColor.WHITE, List.of(text(holder.page + " / " + pages, NamedTextColor.GRAY))));
+        if (holder.page < pages - 1) inventory.setItem(LISTEN_NEXT, item(Material.ARROW, "次のページ", NamedTextColor.WHITE, List.of(text((holder.page + 2) + " / " + pages, NamedTextColor.GRAY))));
+        List<Component> status = new ArrayList<>();
+        Bgm.SongInfo now = playing == null ? null : bgm.song(playing);
+        status.add(text(now == null ? "いまは聴いていません" : "聴いている曲: " + (now.category().isEmpty() ? now.title() : now.shortTitle()), now == null ? NamedTextColor.GRAY : NamedTextColor.GREEN));
+        if (bgmSettings.percent(player) == 0) status.add(text("BGMの音量が0%です (BGMの設定で上げてください)", NamedTextColor.RED));
+        status.add(text("聴く間、いまのBGMは止まります。閉じると元に戻ります", NamedTextColor.GRAY));
+        inventory.setItem(51, item(Material.PAPER, "試聴", NamedTextColor.YELLOW, status));
+        inventory.setItem(LISTEN_STOP, item(Material.BARRIER, "止める", NamedTextColor.RED, List.of(text("聴いている曲を止める", NamedTextColor.GRAY))));
+        inventory.setItem(LISTEN_BACK, item(Material.ARROW, "戻る", NamedTextColor.GRAY, List.of(text("BGMの設定へ", NamedTextColor.GRAY))));
+    }
+
+    private void onListenClick(Player player, Holder holder, int slot) {
+        Bgm bgm = bgmSettings.bgm();
+        if (slot == LISTEN_BACK) {
+            bgm.stopPreview(player);
+            openBgm(player);
+        } else if (slot == LISTEN_STOP) {
+            bgm.stopPreview(player);
+            renderListen(player, holder);
+        } else if (slot == LISTEN_PREVIOUS && holder.page > 0) {
+            openBgmListen(player, holder.page - 1);
+        } else if (slot == LISTEN_NEXT && holder.page < BgmMenus.pages(holder.songs.size()) - 1) {
+            openBgmListen(player, holder.page + 1);
+        } else if (slot >= 0 && slot < BgmMenus.PER_PAGE) {
+            List<Bgm.SongInfo> list = BgmMenus.page(holder.songs, holder.page);
+            if (slot >= list.size()) return;
+            String id = list.get(slot).id();
+            if (id.equals(bgm.previewing(player))) bgm.stopPreview(player); else bgm.preview(player, id);
+            renderListen(player, holder);
+        }
+    }
+
+    /** Closing the listen screen ends the listen (the BGM that was going on comes back). */
+    @EventHandler
+    public void onClose(InventoryCloseEvent event) {
+        if (event.getPlayer() instanceof Player player && event.getInventory().getHolder() instanceof Holder holder && holder.screen == Screen.BGM_LISTEN) {
+            bgmSettings.bgm().stopPreview(player);
+        }
+    }
+
     public void openBgm(Player player) {
         Holder holder = new Holder(player.getUniqueId(), Screen.BGM);
         Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("設定 - BGM"));
@@ -124,6 +198,10 @@ public final class SettingsMenu implements Listener {
             return;
         }
 
+        if (holder.screen == Screen.BGM_LISTEN) {
+            renderListen(player, holder);
+            return;
+        }
         if (holder.screen == Screen.BGM) {
             int percent = bgmSettings.percent(player);
             String playing = bgmSettings.nowPlaying(player);
@@ -138,6 +216,10 @@ public final class SettingsMenu implements Listener {
             lore.add(text("右クリック: -" + BgmSettings.STEP + "%", NamedTextColor.YELLOW));
             lore.add(text("Shift+左: 100% / Shift+右: 消す", NamedTextColor.YELLOW));
             inventory.setItem(BGM_VOLUME, item(Material.JUKEBOX, "BGMの音量", NamedTextColor.GREEN, lore));
+            inventory.setItem(BGM_LISTEN, item(Material.MUSIC_DISC_MELLOHI, "曲を聴く", NamedTextColor.AQUA, List.of(
+                    text("BGMの曲を、1曲ずつ聴いてみます", NamedTextColor.GRAY),
+                    text(bgmSettings.bgm().songs().size() + " 曲", NamedTextColor.GRAY),
+                    text("クリックで、曲の一覧へ", NamedTextColor.YELLOW))));
             return;
         }
 
@@ -202,6 +284,10 @@ public final class SettingsMenu implements Listener {
         if (event.getClickedInventory() != event.getView().getTopInventory()) return;
 
         int slot = event.getRawSlot();
+        if (holder.screen == Screen.BGM_LISTEN) {
+            onListenClick(player, holder, slot);
+            return;
+        }
         if (slot == BACK) {
             if (holder.screen == Screen.SOUND || holder.screen == Screen.PARTICLE || holder.screen == Screen.BGM) {
                 open(player);
@@ -226,6 +312,10 @@ public final class SettingsMenu implements Listener {
         }
 
         if (holder.screen == Screen.BGM) {
+            if (slot == BGM_LISTEN) {
+                openBgmListen(player, 0);
+                return;
+            }
             if (slot == BGM_VOLUME) {
                 int current = bgmSettings.percent(player);
                 int next = switch (event.getClick()) {
@@ -332,13 +422,17 @@ public final class SettingsMenu implements Listener {
         HUB,
         SOUND,
         PARTICLE,
-        BGM
+        BGM,
+        BGM_LISTEN
     }
 
     private static final class Holder implements MenuHolder {
         private final UUID owner;
         private final Screen screen;
         private Inventory inventory;
+        /** The listen screen: the songs and the page shown. */
+        private List<Bgm.SongInfo> songs = List.of();
+        private int page;
 
         private Holder(UUID owner, Screen screen) {
             this.owner = owner;
