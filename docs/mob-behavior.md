@@ -123,7 +123,7 @@ fsm:
 | `run-eqs` | `query`, `key` (point)、`interval` (1) | 問い合わせの結果の場所を黒板の `key` に書く(`move-to` の `key:` で使う) |
 
 ## 黒板 (Blackboard)
-ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`altitude` (足元の地面からの高さ。32 まで)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
+ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`altitude` (足元の地面からの高さ。32 まで。飛ぶ敵だけ)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
 
 ## 場所を選ぶ問い合わせ (EQS)
 ```yaml
