@@ -92,12 +92,14 @@ class BgmTest {
             data = in.readAllBytes();
         }
         NbsSong song = NbsSong.read("plains_adventure", data);
-        assertEquals("Plains Adventure", song.title());
-        assertEquals(7.0, song.ticksPerSecond(), 1.0E-9);
-        assertEquals(576, song.length());
+        assertEquals("Under an Endless Sky", song.title());
+        assertEquals(20.0 / 3.0, song.ticksPerSecond(), 1.0E-9);
+        assertEquals(1024, song.length());
+        assertEquals(64 * 16, song.length(), "64 bars");
+        assertTrue(song.seconds() > 150.0, "a field song is 2:30 or longer");
         assertTrue(song.loops());
         assertEquals(64, song.loopStart());
-        assertTrue(song.noteCount() > 500);
+        assertTrue(song.noteCount() > 1000);
         for (int i = 0; i < song.noteCount(); i++) {
             NbsSong.Note note = song.note(i);
             assertTrue(note.key() >= 33 && note.key() <= 57, "key " + note.key() + " is outside a note block");
@@ -108,6 +110,41 @@ class BgmTest {
         }
         assertEquals(0, song.firstNoteAt(0));
         assertEquals(song.noteCount(), song.firstNoteAt(song.length()));
+    }
+
+    @Test
+    void theTempoOfTheBundledSongIsADivisorOfTwenty() throws IOException {
+        NbsSong song = bundled();
+        double serverTicksPerSongTick = 20.0 / song.ticksPerSecond();
+        assertEquals(Math.rint(serverTicksPerSongTick), serverTicksPerSongTick, 1.0E-9, "a song tick is a whole number of server ticks");
+    }
+
+    @Test
+    void theBundledSongKeepsTheNotesTogetherLow() throws IOException {
+        NbsSong song = bundled();
+        int[] perTick = new int[song.length()];
+        for (int i = 0; i < song.noteCount(); i++) perTick[song.note(i).tick()]++;
+        int peak = 0;
+        for (int count : perTick) peak = Math.max(peak, count);
+        assertTrue(peak <= 8, "at most 8 notes at the same time (" + peak + ")");
+    }
+
+    @Test
+    void theBundledSongLoopsOnAQuietEnd() throws IOException {
+        // the last two bars are only the guitar, the harp and the chime: no flute, no bass, no drum (the jump back to the loop point is smooth)
+        NbsSong song = bundled();
+        int from = song.length() - 32;
+        java.util.Set<Integer> instruments = new java.util.TreeSet<>();
+        for (int i = song.firstNoteAt(from); i < song.noteCount(); i++) instruments.add(song.note(i).instrument());
+        assertTrue(java.util.Set.of(0, 5, 8).containsAll(instruments), "only guitar, harp and chime at the end: " + instruments);
+        assertTrue(instruments.contains(5) && instruments.contains(0));
+    }
+
+    private static NbsSong bundled() throws IOException {
+        try (InputStream in = BgmTest.class.getResourceAsStream("/bgm/plains_adventure.nbs")) {
+            assertNotNull(in);
+            return NbsSong.read("plains_adventure", in.readAllBytes());
+        }
     }
 
     @Test

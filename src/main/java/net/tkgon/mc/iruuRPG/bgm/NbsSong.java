@@ -147,6 +147,9 @@ public final class NbsSong {
             loopStart = readShort(in);
         }
         double tps = tempo > 0 ? tempo / 100.0 : 10.0;
+        // (the file keeps two decimals: 6.67 is meant as 20 / 3, a song tick of exactly 3 server ticks; this keeps the notes from drifting off the server ticks)
+        double serverTicks = 20.0 / tps;
+        if (Math.abs(serverTicks - Math.rint(serverTicks)) < 0.01 && Math.rint(serverTicks) >= 1.0) tps = 20.0 / Math.rint(serverTicks);
 
         List<int[]> raw = new ArrayList<>(); // tick, layer, instrument, key, velocity, pan
         int tick = -1;
