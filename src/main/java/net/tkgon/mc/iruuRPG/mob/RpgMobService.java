@@ -490,15 +490,23 @@ public final class RpgMobService {
             return;
         }
         Bukkit.getMobGoals().removeAllGoals(mob);
-        if (runner.flying()) {
-            // a flying mob: no gravity, and its own steering instead of the vanilla movement (an unaware mob still moves by its velocity, but its own controls stay still)
-            host.flight = new net.tkgon.mc.iruuRPG.mob.behavior.FlyNavigator(mob, host.home, runner.volume(), runner.flySpeed());
-            mob.setGravity(false);
-            mob.setAware(false);
-        }
+        host.flyVolume = runner.volume();
+        host.flySpeed = runner.flySpeed();
+        host.gravity = definition.gravity();
+        if (runner.flying()) host.setFlying(true);
+        if (runner.walkSpeed() > 0.0) setWalkSpeed(mob, runner.walkSpeed());
         BehaviorMob behavior = new BehaviorMob(runner, host);
         behavior.nextTick = Bukkit.getCurrentTick() + 1 + (int) ((entity.getUniqueId().hashCode() & 0x7fffffff) % Math.max(1, runner.interval()));
         behaviors.put(entity.getUniqueId(), behavior);
+    }
+
+    /**
+     * Makes the mob walk {@code blocksPerSecond} on the ground when its path finder goes at speed 1. A mob's walk goes as the square of its movement speed (its push and its
+     * friction on ordinary ground: about 43 × speed² blocks a second; a zombie's 0.23 is 2.3), so the speed is the root of the pace over 43.
+     */
+    private static void setWalkSpeed(Mob mob, double blocksPerSecond) {
+        AttributeInstance movement = mob.getAttribute(Attribute.GENERIC_MOVEMENT_SPEED);
+        if (movement != null) movement.setBaseValue(Math.sqrt(blocksPerSecond / 43.17));
     }
 
     // ---- the behavior view: a command shows the state of every behavior-tree mob (and its query points) to the player who asked ---------
@@ -715,8 +723,12 @@ public final class RpgMobService {
     private final class BtHost implements net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost {
         private final Mob mob;
         private final Location home;
-        /** The steering of a flying mob (`navigation: fly`); null for a walking one. */
+        /** The steering of a flying mob (`navigation: fly`); null while it walks. */
         private net.tkgon.mc.iruuRPG.mob.behavior.FlyNavigator flight;
+        /** What `set-navigation` needs to make it fly or walk again: its room and pace in the air (no room: it cannot fly), and its gravity on the ground. */
+        private net.tkgon.mc.iruuRPG.mob.behavior.Volume flyVolume;
+        private double flySpeed = 5.0;
+        private boolean gravity = true;
 
         private BtHost(Mob mob, Location home) {
             this.mob = mob;
@@ -774,6 +786,25 @@ public final class RpgMobService {
         @Override
         public boolean flying() {
             return flight != null;
+        }
+
+        @Override
+        public boolean setFlying(boolean fly) {
+            if (fly == (flight != null)) return true;
+            if (fly) {
+                if (flyVolume == null) return false;
+                // no gravity, and its own steering instead of the vanilla movement (an unaware mob still moves by its velocity, but its own controls stay still)
+                mob.getPathfinder().stopPathfinding();
+                flight = new net.tkgon.mc.iruuRPG.mob.behavior.FlyNavigator(mob, home, flyVolume, flySpeed);
+                mob.setGravity(false);
+                mob.setAware(false);
+            } else {
+                flight.stop();
+                flight = null;
+                mob.setGravity(gravity);
+                mob.setAware(true);
+            }
+            return true;
         }
 
         @Override
@@ -1294,6 +1325,11 @@ public final class RpgMobService {
         @Override
         public void lunge(Vector velocity) {
             mob.setVelocity(velocity);
+        }
+
+        @Override
+        public boolean airborne() {
+            return !mob.hasGravity();
         }
 
         @Override

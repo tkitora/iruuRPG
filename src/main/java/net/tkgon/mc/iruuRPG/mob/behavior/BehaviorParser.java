@@ -20,6 +20,8 @@ final class BehaviorParser {
     private final List<String> errors;
     private final String mobId;
     private int nodes;
+    /** A `set-navigation` to fly is in a tree: the mob needs a room to fly in even when it starts walking. */
+    private boolean takesOff;
 
     private BehaviorParser(String mobId, List<String> errors) {
         this.mobId = mobId;
@@ -95,11 +97,17 @@ final class BehaviorParser {
         }
         // how it moves: walking (the vanilla path finder) or flying; the room it moves in round its home
         double flySpeed = 5.0;
+        double walkSpeed = 0.0;
         Object navigation = map.get("navigation");
         String moving = "walk";
         if (navigation instanceof Map<?, ?> navigationMap) {
             moving = Cfg.lower(navigationMap, "mode", "walk");
-            flySpeed = Math.max(0.5, Math.min(40.0, Cfg.number(navigationMap, "speed", flySpeed)));
+            flySpeed = Math.max(0.5, Math.min(40.0, Cfg.number(navigationMap, "fly-speed", Cfg.number(navigationMap, "speed", flySpeed))));
+            walkSpeed = Cfg.number(navigationMap, "walk-speed", 0.0);
+            if (walkSpeed != 0.0 && (walkSpeed < 0.3 || walkSpeed > 20.0)) {
+                error("navigation walk-speed must be 0.3 to 20 blocks a second (" + walkSpeed + ")");
+                walkSpeed = Math.max(0.3, Math.min(20.0, walkSpeed));
+            }
         } else if (navigation != null) {
             moving = String.valueOf(navigation).trim().toLowerCase(Locale.ROOT);
         }
@@ -107,7 +115,7 @@ final class BehaviorParser {
         boolean fly = moving.equals("fly");
         double leash = Cfg.number(blackboard, "leash", 32.0);
         Volume volume = Volume.parse(map.get("volume") instanceof Map<?, ?> volumeMap ? volumeMap : null, leash, errors, "mob " + mobId + " behavior");
-        if (volume == null && fly) volume = new Volume("cylinder", leash, 24.0, 8.0);
+        if (volume == null && (fly || takesOff)) volume = new Volume("cylinder", leash, 24.0, 8.0);
         Map<String, Behavior.Route> routes = new LinkedHashMap<>();
         if (map.get("waypoints") instanceof Map<?, ?> waypointMap) {
             for (Map.Entry<?, ?> entry : waypointMap.entrySet()) {
@@ -121,7 +129,7 @@ final class BehaviorParser {
             if (state.enter() != null) checkQueries(state.enter(), queries, routes);
         }
         return new Behavior(Cfg.flag(map, "debug", false), Math.max(1, (int) Cfg.number(map, "tick-interval", 4.0)), Cfg.number(map, "aggro-range", Cfg.number(blackboard, "aggro-range", 20.0)),
-                Cfg.flag(map, "auto-target", true), queries, states, initial, blackboard, fly, flySpeed, volume, routes);
+                Cfg.flag(map, "auto-target", true), queries, states, initial, blackboard, fly, flySpeed, walkSpeed, volume, routes);
     }
 
     /** One route of `waypoints:`: a list of points, or a map with `points`, `absolute` and `loop`. Null (with an error) when it has no point. */
@@ -193,6 +201,16 @@ final class BehaviorParser {
                     Cfg.flag(map, "face", false), 0.0);
             case "patrol" -> node = new Tasks.Patrol(Cfg.text(map, "route", ""), Cfg.number(map, "speed", 0.8), Cfg.ticks(map, "wait", 0.0), Cfg.number(map, "acceptance", 1.2),
                     (int) Cfg.number(map, "laps", 0.0));
+            case "set-navigation", "navigation" -> {
+                String mode = Cfg.lower(map, "mode", "fly");
+                if (!mode.equals("walk") && !mode.equals("fly")) {
+                    error("set-navigation mode must be walk / fly (" + mode + ")");
+                    mode = "fly";
+                }
+                if (mode.equals("fly")) takesOff = true;
+                node = new Tasks.SetNavigation(mode.equals("fly"), Math.max(0.0, Cfg.number(map, "rise", 0.0)), Cfg.flag(map, "land", true), Cfg.number(map, "speed", 1.0),
+                        Cfg.ticks(map, "timeout", 4.0));
+            }
             case "wait" -> node = new Tasks.Wait(Cfg.ticks(map, "seconds", 1.0), Cfg.ticks(map, "random-deviation", 0.0), Cfg.text(map, "key", ""));
             case "attack" -> node = new Tasks.Attack(Cfg.number(map, "rate", 1.0), Cfg.number(map, "range", -1.0));
             case "shoot" -> node = new Tasks.Shoot(Cfg.number(map, "rate", 1.0));

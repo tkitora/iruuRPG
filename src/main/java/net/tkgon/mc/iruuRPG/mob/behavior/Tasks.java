@@ -544,6 +544,70 @@ final class Tasks {
     }
 
     /**
+     * Changes how the mob moves. {@code fly}: it takes off (no gravity, its own steering) and goes up {@code rise} blocks. {@code walk}: with {@code land} it first flies straight
+     * down to the ground, then walks again (without it, it falls). Running while it goes up or down, for at most {@code timeout} ticks (the change is made all the same); a mob
+     * that already moves that way succeeds at once. Fails only when the mob cannot fly.
+     */
+    static final class SetNavigation extends Task {
+        private final boolean fly;
+        private final double rise;
+        private final boolean land;
+        private final double speed;
+        private final int timeout;
+        private Location goal;
+
+        SetNavigation(boolean fly, double rise, boolean land, double speed, int timeout) {
+            super("set-navigation");
+            this.fly = fly;
+            this.rise = rise;
+            this.land = land;
+            this.speed = speed;
+            this.timeout = timeout;
+        }
+
+        @Override
+        String label() {
+            if (name != null && !name.isBlank()) return name;
+            return "set-navigation(" + (fly ? "fly" : "walk") + ")";
+        }
+
+        @Override
+        void onEnter(Ctx c) {
+            goal = null;
+        }
+
+        @Override
+        void onAbort(Ctx c) {
+            c.host.stopMoving();
+        }
+
+        @Override
+        Status tickNode(Ctx c) {
+            Location here = c.host.mob().getLocation();
+            boolean late = c.now - startedTick > timeout;
+            if (fly) {
+                if (!c.host.flying()) {
+                    if (!c.host.setFlying(true)) return Status.FAILURE;
+                    goal = rise > 0.0 ? here.clone().add(0.0, rise, 0.0) : null;
+                }
+                if (goal == null || late || here.getWorld() != goal.getWorld() || goal.getY() - here.getY() <= 0.6 || !c.host.moveTo(goal, speed)) {
+                    c.host.stopMoving();
+                    return Status.SUCCESS;
+                }
+                return Status.RUNNING;
+            }
+            if (!c.host.flying()) return Status.SUCCESS;
+            double altitude = FlyNavigator.heightAboveGround(here, 32);
+            // (no ground within reach, or the room ends above it: it lets itself fall)
+            if (!land || late || altitude <= 0.4 || altitude >= 32 || !c.host.moveTo(here.clone().subtract(0.0, altitude, 0.0), speed)) {
+                c.host.setFlying(false);
+                return Status.SUCCESS;
+            }
+            return Status.RUNNING;
+        }
+    }
+
+    /**
      * Goes round a route of `waypoints:` (from the point nearest to the mob), waiting {@code wait} ticks at each point; round and round (or back and forth), or {@code laps}
      * times and then succeeds. A point it cannot get to (no path, stuck for 2 s) is skipped. Fails when the route does not exist.
      */

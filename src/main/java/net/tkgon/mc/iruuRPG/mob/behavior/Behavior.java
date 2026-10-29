@@ -21,10 +21,12 @@ final class Behavior {
     final Map<String, State> states;
     final String initial;
     final Map<String, Object> blackboard;
-    /** `navigation: fly`: the mob flies (see {@link FlyNavigator}); {@code flySpeed} is its pace in blocks a second. */
+    /** `navigation: fly`: the mob flies from the start (see {@link FlyNavigator}; `set-navigation` changes it); {@code flySpeed} is its pace in blocks a second. */
     final boolean fly;
     final double flySpeed;
-    /** The room the mob moves in round its home (may be null: no limit; a flying mob always has one). */
+    /** `navigation: {walk-speed}`: the pace of the mob walking at speed 1, blocks a second (0: the one of its kind). */
+    final double walkSpeed;
+    /** The room the mob moves in round its home (may be null: no limit; a mob that flies, from the start or by `set-navigation`, always has one). */
     final Volume volume;
     /** The routes of `patrol`, by name. */
     final Map<String, Route> routes;
@@ -34,7 +36,7 @@ final class Behavior {
     }
 
     Behavior(boolean debug, int tickInterval, double aggroRange, boolean autoTarget, Map<String, EqsQuery> queries, Map<String, State> states, String initial,
-             Map<String, Object> blackboard, boolean fly, double flySpeed, Volume volume, Map<String, Route> routes) {
+             Map<String, Object> blackboard, boolean fly, double flySpeed, double walkSpeed, Volume volume, Map<String, Route> routes) {
         this.debug = debug;
         this.tickInterval = tickInterval;
         this.aggroRange = aggroRange;
@@ -45,6 +47,7 @@ final class Behavior {
         this.blackboard = blackboard;
         this.fly = fly;
         this.flySpeed = flySpeed;
+        this.walkSpeed = walkSpeed;
         this.volume = volume;
         this.routes = routes;
     }

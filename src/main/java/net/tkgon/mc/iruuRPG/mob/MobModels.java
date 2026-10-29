@@ -24,7 +24,10 @@ public interface MobModels {
         return 0.0;
     }
 
-    /** The mob flinches: its model plays `hurt` unless it is in the middle of another one-shot animation. True when it plays (the mob then stands still for a moment). */
+    /**
+     * The mob flinches: its model plays `hurt` (a mob in the air: `fly_hurt`) unless it is in the middle of another one-shot animation. True when it plays (the mob then stands
+     * still for a moment); a model with no such animation does not flinch.
+     */
     default boolean hurt(LivingEntity entity) {
         return false;
     }

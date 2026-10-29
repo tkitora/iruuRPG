@@ -47,6 +47,11 @@ public interface SkillCaster {
     /** Pushes the caster along (the dash template); movement must be on for it to work. */
     void lunge(Vector velocity);
 
+    /** Whether the caster is in the air with no gravity (a flying mob): a dash then goes straight at the aim, up or down, with no hop. */
+    default boolean airborne() {
+        return false;
+    }
+
     /** Moves the caster to {@code to} at once (the teleport template); it keeps its own yaw and pitch unless {@code to} has others. */
     void teleport(Location to);
 
