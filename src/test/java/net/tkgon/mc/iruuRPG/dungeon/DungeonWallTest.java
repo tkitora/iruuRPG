@@ -38,21 +38,43 @@ class DungeonWallTest {
     }
 
     @Test
+    void aBosslessDungeonAlwaysGetsAMob() {
+        List<DungeonDefinition.MobSpawn> spawns = List.of(
+                new DungeonDefinition.MobSpawn("a", 0, 0, 0, 5), new DungeonDefinition.MobSpawn("b", 0, 0, 0, 5));
+        java.util.Random never = new java.util.Random() {
+            @Override
+            public int nextInt(int bound) {
+                return bound == 100 ? 99 : 1; // every chance roll misses; the pick is #2
+            }
+        };
+        boolean[] comes = DungeonWall.roll(spawns, null, never);
+        assertFalse(comes[0]);
+        assertTrue(comes[1]);
+        // with a boss, the boss comes and nothing else is forced
+        comes = DungeonWall.roll(List.of(spawns.get(0), new DungeonDefinition.MobSpawn("boss", 0, 0, 0, 5)), "boss", never);
+        assertFalse(comes[0]);
+        assertTrue(comes[1]);
+    }
+
+    @Test
     void conditions() {
         DungeonWall kills = new DungeonWall(DungeonWall.Condition.KILLS, 5, -1, List.of(A));
-        assertFalse(kills.met(4, 0, 4, false));
-        assertTrue(kills.met(5, 0, 4, false));
+        assertFalse(kills.met(4, 9, 0, 4, false));
+        assertTrue(kills.met(5, 9, 0, 4, false));
+        // only 3 mobs came this run (chance mobs stayed away): 3 kills are enough
+        assertFalse(kills.met(2, 3, 0, 4, false));
+        assertTrue(kills.met(3, 3, 0, 4, false));
 
         DungeonWall gather = new DungeonWall(DungeonWall.Condition.GATHER, 3, -1, List.of(A));
-        assertFalse(gather.met(0, 2, 4, false));
-        assertTrue(gather.met(0, 3, 4, false));
+        assertFalse(gather.met(0, 9, 2, 4, false));
+        assertTrue(gather.met(0, 9, 3, 4, false));
         // only two can stand: two are enough
-        assertTrue(gather.met(0, 2, 2, false));
-        assertFalse(gather.met(0, 0, 0, false));
+        assertTrue(gather.met(0, 9, 2, 2, false));
+        assertFalse(gather.met(0, 9, 0, 0, false));
 
         DungeonWall target = new DungeonWall(DungeonWall.Condition.TARGET, 1, 2, List.of(A));
-        assertFalse(target.met(99, 4, 4, false));
-        assertTrue(target.met(0, 0, 0, true));
+        assertFalse(target.met(99, 9, 4, 4, false));
+        assertTrue(target.met(0, 9, 0, 0, true));
     }
 
     @Test

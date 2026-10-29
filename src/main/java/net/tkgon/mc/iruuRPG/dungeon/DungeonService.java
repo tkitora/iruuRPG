@@ -416,11 +416,12 @@ public final class DungeonService implements Listener {
         world.setGameRule(GameRule.KEEP_INVENTORY, true);
 
         List<DungeonDefinition.MobSpawn> spawns = instance.definition.spawns();
+        java.util.Random random = java.util.concurrent.ThreadLocalRandom.current();
+        boolean[] comes = DungeonWall.roll(spawns, instance.definition.boss(), random);
         for (int index = 0; index < spawns.size(); index++) {
+            if (!comes[index]) continue; // a mob with a chance stays away this run
             DungeonDefinition.MobSpawn spawn = spawns.get(index);
             boolean boss = spawn.mobId().equals(instance.definition.boss());
-            // a mob with a chance may stay away this run (the boss always comes)
-            if (!boss && !DungeonWall.appears(spawn.chance(), java.util.concurrent.ThreadLocalRandom.current().nextInt(100))) continue;
             Location location = spawn.in(world);
             location.getChunk().load();
             int spawnIndex = index;
@@ -1240,7 +1241,10 @@ public final class DungeonService implements Listener {
         DungeonWall wall = instance.walls.get(index);
         Component title = Component.text("閉ざされた道", NamedTextColor.GRAY, TextDecoration.BOLD).append(Component.newline());
         return switch (wall.when()) {
-            case KILLS -> title.append(Component.text("敵を倒す: " + Math.min(trashProgress(instance)[0], wall.count()) + " / " + wall.count(), NamedTextColor.RED));
+            case KILLS -> {
+                int kills = wall.killsNeeded(instance.trashTotal);
+                yield title.append(Component.text("敵を倒す: " + Math.min(trashProgress(instance)[0], kills) + " / " + kills, NamedTextColor.RED));
+            }
             case GATHER -> title.append(Component.text("ここに集まる: " + here + " / " + need + " 人", NamedTextColor.WHITE));
             case TARGET -> instance.spawned.containsKey(wall.target())
                     ? title.append(Component.text("「" + targetName(instance.definition, wall.target()) + "」を倒す", NamedTextColor.RED))
@@ -1269,7 +1273,7 @@ public final class DungeonService implements Listener {
             }
             UUID target = instance.spawned.get(wall.target());
             boolean targetDead = target != null && !instance.mobs.contains(target);
-            if (wall.met(killed, here, standing, targetDead)) {
+            if (wall.met(killed, instance.trashTotal, here, standing, targetDead)) {
                 openWall(instance, index);
             } else {
                 TextDisplay label = instance.wallLabels.get(index);
@@ -1711,6 +1715,7 @@ public final class DungeonService implements Listener {
 
     /** Every second: a column of particles at each placed mob, the entry and the exit, while someone is building. */
     private void tickMarkers() {
+        markerTicks++;
         for (String worldName : markers.keySet()) {
             World world = Bukkit.getWorld(worldName);
             if (world == null || world.getPlayers().isEmpty()) continue;
@@ -1731,12 +1736,21 @@ public final class DungeonService implements Listener {
             List<DungeonWall> walls = registry.walls(id);
             for (int index = 0; index < walls.size(); index++) {
                 Particle.DustOptions dust = new Particle.DustOptions(WALL_COLORS[index % WALL_COLORS.length], 1.2f);
-                for (DungeonWall.Pos pos : walls.get(index).blocks()) {
+                List<DungeonWall.Pos> blocks = walls.get(index).blocks();
+                // a big wall shows a share of its blocks each second, a different share every time
+                int stride = Math.max(1, (blocks.size() + WALL_PARTICLES - 1) / WALL_PARTICLES);
+                int offset = (int) (markerTicks % stride);
+                for (int at = offset; at < blocks.size(); at += stride) {
+                    DungeonWall.Pos pos = blocks.get(at);
                     ParticleFx.to(world).spawnParticle(Particle.REDSTONE, pos.x() + 0.5, pos.y() + 0.5, pos.z() + 0.5, 2, 0.3, 0.3, 0.3, 0.0, dust);
                 }
             }
         }
     }
+
+    /** At most this many blocks of one wall get particles each second while building. */
+    private static final int WALL_PARTICLES = 64;
+    private long markerTicks;
 
     /** The colors of the walls' particles while building (wall #1, #2, ...; then again from the start). */
     private static final org.bukkit.Color[] WALL_COLORS = {
