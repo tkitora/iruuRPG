@@ -490,6 +490,12 @@ public final class RpgMobService {
             return;
         }
         Bukkit.getMobGoals().removeAllGoals(mob);
+        if (runner.flying()) {
+            // a flying mob: no gravity, and its own steering instead of the vanilla movement (an unaware mob still moves by its velocity, but its own controls stay still)
+            host.flight = new net.tkgon.mc.iruuRPG.mob.behavior.FlyNavigator(mob, host.home, runner.volume(), runner.flySpeed());
+            mob.setGravity(false);
+            mob.setAware(false);
+        }
         BehaviorMob behavior = new BehaviorMob(runner, host);
         behavior.nextTick = Bukkit.getCurrentTick() + 1 + (int) ((entity.getUniqueId().hashCode() & 0x7fffffff) % Math.max(1, runner.interval()));
         behaviors.put(entity.getUniqueId(), behavior);
@@ -567,6 +573,53 @@ public final class RpgMobService {
                 else viewer.hideEntity(plugin, display);
             }
             if (points) drawQueryPoints(entry.getValue().runner, near);
+            if (points && entry.getValue().host.flight != null) drawFlight(entry.getValue().host, near);
+        }
+    }
+
+    /** The way a flying mob is going (a line of white specks through the points of its path) and the edge of its room (blue rings at its top and bottom, and at its home). */
+    private void drawFlight(BtHost host, List<Player> viewers) {
+        net.tkgon.mc.iruuRPG.mob.behavior.FlyNavigator flight = host.flight;
+        World world = host.mob.getWorld();
+        List<Vector> path = flight.remaining();
+        Particle.DustOptions line = new Particle.DustOptions(Color.fromRGB(240, 240, 255), 0.9f);
+        for (int index = 1; index < path.size(); index++) {
+            Vector from = path.get(index - 1).clone().add(new Vector(0.0, 0.3, 0.0));
+            Vector way = path.get(index).clone().add(new Vector(0.0, 0.3, 0.0)).subtract(from);
+            double length = way.length();
+            int steps = (int) Math.min(60, Math.ceil(length / 0.5));
+            for (int step = 0; step <= steps; step++) {
+                Location at = from.clone().add(way.clone().multiply(steps == 0 ? 0.0 : (double) step / steps)).toLocation(world);
+                for (Player viewer : viewers) viewer.spawnParticle(Particle.REDSTONE, at, 1, 0, 0, 0, 0, line);
+            }
+        }
+        net.tkgon.mc.iruuRPG.mob.behavior.Volume volume = flight.volume();
+        if (volume == null || Bukkit.getCurrentTick() % 20 >= 2) return;
+        Particle.DustOptions edge = new Particle.DustOptions(Color.fromRGB(70, 140, 255), 1.2f);
+        Location home = host.home;
+        boolean sphere = volume.shape().equals("sphere");
+        double[] heights = sphere ? new double[]{0.0} : new double[]{-volume.down(), 0.0, volume.up()};
+        int count = (int) Math.max(24, Math.min(120, volume.radius() * 3));
+        for (double dy : heights) {
+            for (int index = 0; index < count; index++) {
+                double angle = Math.PI * 2.0 * index / count;
+                double x;
+                double z;
+                if (volume.shape().equals("box")) {
+                    // the square's edge, walked round at the same pace
+                    double t = (double) index / count * 4.0;
+                    int side = (int) t;
+                    double along = (t - side) * 2.0 - 1.0;
+                    double r = volume.radius();
+                    x = switch (side) { case 0 -> r * along; case 1 -> r; case 2 -> -r * along; default -> -r; };
+                    z = switch (side) { case 0 -> -r; case 1 -> r * along; case 2 -> r; default -> -r * along; };
+                } else {
+                    x = Math.cos(angle) * volume.radius();
+                    z = Math.sin(angle) * volume.radius();
+                }
+                Location at = home.clone().add(x, dy + 0.2, z);
+                for (Player viewer : viewers) viewer.spawnParticle(Particle.REDSTONE, at, 1, 0, 0, 0, 0, edge);
+            }
         }
     }
 
@@ -644,6 +697,8 @@ public final class RpgMobService {
                 behaviors.remove(entry.getKey());
                 continue;
             }
+            // a flying mob is steered every tick (the tree only says where to)
+            if (behavior.host.flight != null) behavior.host.flight.tick(flinching(entry.getKey()) || skillBusy.contains(entry.getKey()));
             if (now < behavior.nextTick || flinching(entry.getKey())) continue;
             behavior.nextTick = now + behavior.runner.interval();
             try {
@@ -660,6 +715,8 @@ public final class RpgMobService {
     private final class BtHost implements net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost {
         private final Mob mob;
         private final Location home;
+        /** The steering of a flying mob (`navigation: fly`); null for a walking one. */
+        private net.tkgon.mc.iruuRPG.mob.behavior.FlyNavigator flight;
 
         private BtHost(Mob mob, Location home) {
             this.mob = mob;
@@ -699,17 +756,34 @@ public final class RpgMobService {
 
         @Override
         public boolean moveTo(Location at, double speed) {
+            if (flight != null) return flight.moveTo(at, speed);
             return mob.getPathfinder().moveTo(at, speed);
         }
 
         @Override
         public void stopMoving() {
-            mob.getPathfinder().stopPathfinding();
+            if (flight != null) flight.stop();
+            else mob.getPathfinder().stopPathfinding();
         }
 
         @Override
         public boolean hasPath() {
-            return mob.getPathfinder().hasPath();
+            return flight != null ? flight.hasPath() : mob.getPathfinder().hasPath();
+        }
+
+        @Override
+        public boolean flying() {
+            return flight != null;
+        }
+
+        @Override
+        public Location airSpot(Location at) {
+            return flight == null ? null : flight.airSpot(at);
+        }
+
+        @Override
+        public boolean canReach(Location at) {
+            return flight != null ? flight.canReach(at) : mob.getPathfinder().findPath(at) != null;
         }
 
         @Override
@@ -724,11 +798,14 @@ public final class RpgMobService {
 
         @Override
         public void lookAt(Location at) {
-            mob.lookAt(at);
+            // (a flying mob is unaware: its head does not turn by itself)
+            if (flight != null) face(at);
+            else mob.lookAt(at);
         }
 
         @Override
         public void faceWhileMoving(Entity target) {
+            if (flight != null) flight.face(target);
             if (target == null) {
                 if (models != null) models.face(mob, null, 0);
                 return;

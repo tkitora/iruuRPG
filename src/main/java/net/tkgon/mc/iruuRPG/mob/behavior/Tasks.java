@@ -29,13 +29,15 @@ final class Tasks {
         private final int timeout;
         /** Faces the target all the way (stepping back from it, say) instead of turning to the path. */
         private final boolean face;
+        /** Goes this many blocks above the place (a flying mob that keeps above its target). */
+        private final double height;
         private Location place;
         private int lastPath;
         private int failedPaths;
         private int checkAt;
         private Location checkFrom;
 
-        MoveTo(String mode, String key, String eqs, double speed, double acceptance, int timeout, boolean face) {
+        MoveTo(String mode, String key, String eqs, double speed, double acceptance, int timeout, boolean face, double height) {
             super("move-to");
             this.mode = mode;
             this.key = key;
@@ -44,6 +46,7 @@ final class Tasks {
             this.acceptance = acceptance;
             this.timeout = timeout;
             this.face = face;
+            this.height = height;
         }
 
         /** The query this task uses, or null. */
@@ -92,6 +95,7 @@ final class Tasks {
         private Status move(Ctx c) {
             Location goal = mode.equals("target") ? (c.bb.target == null ? null : c.bb.target.getLocation()) : place;
             if (goal == null || goal.getWorld() == null) return Status.FAILURE;
+            if (height != 0.0) goal = goal.clone().add(0.0, height, 0.0);
             Location here = c.host.mob().getLocation();
             if (here.getWorld() != goal.getWorld()) return Status.FAILURE;
             if (here.distance(goal) <= acceptance) {
@@ -536,6 +540,140 @@ final class Tasks {
                 }
             }
             return Status.RUNNING;
+        }
+    }
+
+    /**
+     * Goes round a route of `waypoints:` (from the point nearest to the mob), waiting {@code wait} ticks at each point; round and round (or back and forth), or {@code laps}
+     * times and then succeeds. A point it cannot get to (no path, stuck for 2 s) is skipped. Fails when the route does not exist.
+     */
+    static final class Patrol extends Task {
+        private final String route;
+        private final double speed;
+        private final int waitTicks;
+        private final double acceptance;
+        private final int laps;
+        private int index;
+        private int step;
+        private int waitUntil;
+        private int lapsDone;
+        private int lastPath;
+        private int failedPaths;
+        private int checkAt;
+        private Location checkFrom;
+
+        Patrol(String route, double speed, int waitTicks, double acceptance, int laps) {
+            super("patrol");
+            this.route = route;
+            this.speed = speed;
+            this.waitTicks = waitTicks;
+            this.acceptance = Math.max(0.5, acceptance);
+            this.laps = Math.max(0, laps);
+        }
+
+        String route() {
+            return route;
+        }
+
+        @Override
+        String label() {
+            return name != null && !name.isBlank() ? name : "patrol " + route + " #" + index;
+        }
+
+        @Override
+        void onEnter(Ctx c) {
+            step = 1;
+            waitUntil = -1;
+            lapsDone = 0;
+            lastPath = -100;
+            failedPaths = 0;
+            checkAt = c.now + 40;
+            Location here = c.host.mob().getLocation();
+            checkFrom = here;
+            index = 0;
+            Behavior.Route r = c.routes.get(route);
+            if (r == null) return;
+            double nearest = Double.MAX_VALUE;
+            for (int at = 0; at < r.points().size(); at++) {
+                Location point = point(c, r, at);
+                if (point == null || point.getWorld() != here.getWorld()) continue;
+                double distance = point.distanceSquared(here);
+                if (distance < nearest) {
+                    nearest = distance;
+                    index = at;
+                }
+            }
+        }
+
+        @Override
+        void onAbort(Ctx c) {
+            c.host.stopMoving();
+        }
+
+        @Override
+        Status tickNode(Ctx c) {
+            Behavior.Route r = c.routes.get(route);
+            if (r == null) return Status.FAILURE;
+            Location point = point(c, r, index);
+            Location here = c.host.mob().getLocation();
+            if (point == null || point.getWorld() != here.getWorld()) return Status.FAILURE;
+            if (waitUntil >= 0) {
+                if (c.now < waitUntil) return Status.RUNNING;
+                waitUntil = -1;
+                return advance(r) ? Status.SUCCESS : Status.RUNNING;
+            }
+            if (here.distance(point) <= acceptance) {
+                c.host.stopMoving();
+                if (waitTicks > 0) {
+                    waitUntil = c.now + waitTicks;
+                    return Status.RUNNING;
+                }
+                return advance(r) ? Status.SUCCESS : Status.RUNNING;
+            }
+            if (c.now >= checkAt) {
+                boolean stuck = checkFrom != null && checkFrom.getWorld() == here.getWorld() && checkFrom.distance(here) < 0.6;
+                checkFrom = here;
+                checkAt = c.now + 40;
+                if (stuck) {
+                    c.host.stopMoving();
+                    lastPath = -100;
+                    return advance(r) ? Status.SUCCESS : Status.RUNNING;
+                }
+            }
+            if (c.now - lastPath >= 8 || !c.host.hasPath()) {
+                lastPath = c.now;
+                if (!c.host.moveTo(point, speed)) {
+                    if (++failedPaths >= 3) {
+                        failedPaths = 0;
+                        return advance(r) ? Status.SUCCESS : Status.RUNNING;
+                    }
+                } else {
+                    failedPaths = 0;
+                }
+            }
+            return Status.RUNNING;
+        }
+
+        /** On to the next point; true when the laps asked for are done. */
+        private boolean advance(Behavior.Route r) {
+            int count = r.points().size();
+            if (count > 1) {
+                if (r.loop()) {
+                    index = (index + 1) % count;
+                } else {
+                    if (index + step < 0 || index + step >= count) step = -step;
+                    index += step;
+                }
+            }
+            if (index == 0 || count == 1) lapsDone++;
+            return laps > 0 && lapsDone >= laps;
+        }
+
+        private static Location point(Ctx c, Behavior.Route r, int at) {
+            org.bukkit.util.Vector v = r.points().get(Math.max(0, Math.min(r.points().size() - 1, at)));
+            if (r.absolute()) return new Location(c.host.mob().getWorld(), v.getX(), v.getY(), v.getZ());
+            Location home = c.host.home();
+            return home == null ? null : home.clone().add(v);
         }
     }
 

@@ -130,6 +130,21 @@ public interface BehaviorHost {
         return 0.0;
     }
 
+    /** Whether the mob flies (`navigation: fly`): it moves through the air of its room instead of walking. */
+    default boolean flying() {
+        return false;
+    }
+
+    /** For a flying mob: a place at or right round {@code at} where it fits in the air, inside its room; null when there is none (and always for a walking mob). */
+    default Location airSpot(Location at) {
+        return null;
+    }
+
+    /** Whether the mob can get to {@code at}: walking, the vanilla path finder finds a path; flying, there is a way through the air of its room. */
+    default boolean canReach(Location at) {
+        return mob().getPathfinder().findPath(at) != null;
+    }
+
     /** Other mobs of the same kind of behavior near {@code at} (for tests that keep away from the crowd). */
     int crowdNear(Location at, double radius);
 }

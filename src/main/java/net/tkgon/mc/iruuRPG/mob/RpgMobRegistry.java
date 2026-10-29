@@ -203,7 +203,7 @@ public final class RpgMobRegistry {
 
     /**
      * A mob that says {@code use: <template>}: the behavior of the template with the mob's own values put over it: a value replaces the template's (debug, tick-interval, aggro-range,
-     * auto-target, mode), `blackboard` adds and replaces key by key, `eqs` replaces a query of the same name and adds the others. `fsm` and `tree` are not taken from a mob that uses a
+     * auto-target, mode, navigation, volume), `blackboard` adds and replaces key by key, `eqs` and `waypoints` replace a query (a route) of the same name and add the others. `fsm` and `tree` are not taken from a mob that uses a
      * template (a warning says so). A template that is not there, or is broken, leaves the mob with its older behavior (null).
      */
     private Map<String, Object> fromTemplate(String id, Map<String, Object> own) {
@@ -221,7 +221,7 @@ public final class RpgMobRegistry {
             String key = entry.getKey();
             if (key.equals("use") || key.equals("fsm") || key.equals("tree")) continue;
             Object value = entry.getValue();
-            if ((key.equals("blackboard") || key.equals("eqs")) && value instanceof Map<?, ?> overrides && merged.get(key) instanceof Map<?, ?> base) {
+            if ((key.equals("blackboard") || key.equals("eqs") || key.equals("waypoints")) && value instanceof Map<?, ?> overrides && merged.get(key) instanceof Map<?, ?> base) {
                 Map<String, Object> combined = new java.util.LinkedHashMap<>();
                 for (Map.Entry<?, ?> item : base.entrySet()) combined.put(String.valueOf(item.getKey()), item.getValue());
                 for (Map.Entry<?, ?> item : overrides.entrySet()) combined.put(String.valueOf(item.getKey()), item.getValue());
@@ -231,7 +231,7 @@ public final class RpgMobRegistry {
             }
         }
         // (the template was checked when it was read; only what the mob put over it is checked again)
-        if (own.containsKey("eqs") && net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.wanted(merged)) {
+        if ((own.containsKey("eqs") || own.containsKey("navigation") || own.containsKey("volume") || own.containsKey("waypoints")) && net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.wanted(merged)) {
             for (String problem : net.tkgon.mc.iruuRPG.mob.behavior.BehaviorRunner.validate(id, merged)) plugin.getLogger().warning("mobs: " + problem);
         }
         return merged;
