@@ -29,7 +29,7 @@ import java.util.TreeSet;
 public final class BgmRegistry {
 
     /** The songs inside the jar ({@code bgm/<id>.nbs}). */
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2");
 
     /** A song read from a file; kept while the file is unchanged, so a reload does not make a playing song start over. */
     private record Read(long length, long modified, NbsSong song) {

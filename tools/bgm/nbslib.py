@@ -10,6 +10,11 @@ BAR = 16
 # the instruments of Note Block Studio (the 16 of the game)
 HARP, BASS, BASEDRUM, SNARE, HAT, GUITAR, FLUTE, BELL, CHIME, XYLOPHONE, IRON_XYLOPHONE, COW_BELL, DIDGERIDOO, BIT, BANJO, PLING = range(16)
 
+# The note blocks do not all sound in the same octaves. BASE is the MIDI number that key 33 (the lowest note, "F#" of the file) really sounds as, for each instrument
+# (Minecraft Wiki): the harp F#3 to F#5, the bass F#1 to F#3, the guitar F#2 to F#4, the flute F#5 to F#7 (two octaves above the harp!), the bell, chime and xylophone F#6 to F#8.
+# A song that is written in the notes of the file (54 to 78) for every instrument puts the flute at E6-F#7, far above the rest: compose in what SOUNDS (put_sound).
+BASE = {HARP: 54, BASS: 30, GUITAR: 42, FLUTE: 78, BELL: 90, CHIME: 90, XYLOPHONE: 90, IRON_XYLOPHONE: 54, COW_BELL: 66, DIDGERIDOO: 30, BIT: 54, BANJO: 54, PLING: 54}
+
 SEMITONES = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
 
 
@@ -30,12 +35,36 @@ def key(midi_note):
     return result
 
 
+def key_for(instrument, sounding):
+    """The key of the file that makes this instrument sound as the MIDI note ``sounding``; the instrument must be able to (two octaves from its lowest note)."""
+    result = sounding - BASE[instrument] + 33
+    assert 33 <= result <= 57, f"instrument {instrument} cannot sound {sounding} (it sounds {BASE[instrument]} to {BASE[instrument] + 24})"
+    return result
+
+
+def sounding_of(instrument, file_key):
+    """What a note of the file really sounds as (a MIDI number); None for the drums, which have no pitch to speak of."""
+    return BASE[instrument] + file_key - 33 if instrument in BASE else None
+
+
 class Layer:
     def __init__(self, name, volume, pan=100):
         self.name = name
         self.volume = volume
         self.pan = pan
         self.notes = {}  # tick -> (instrument, key, velocity)
+
+    def put_sound(self, tick, instrument, sounding, velocity):
+        """A note by what it SOUNDS as (a MIDI number), whatever the instrument: the key of the file is worked out from the instrument."""
+        assert tick not in self.notes, f"{self.name}: two notes at tick {tick}"
+        assert 1 <= velocity <= 100, f"{self.name}: velocity {velocity}"
+        self.notes[tick] = (instrument, key_for(instrument, sounding), velocity)
+
+    def sounding_range(self):
+        """(lowest, highest) MIDI number this layer really sounds, or None when it has no pitched note."""
+        values = [sounding_of(note[0], note[1]) for note in self.notes.values()]
+        values = [value for value in values if value is not None]
+        return (min(values), max(values)) if values else None
 
     def put(self, tick, instrument, midi_note, velocity):
         assert tick not in self.notes, f"{self.name}: two notes at tick {tick}"
@@ -130,8 +159,16 @@ def statistics(layers, length, ticks_per_second):
     return max(per_tick.values()), max(per_second.values()), sum(per_second.values()) / (length / ticks_per_second)
 
 
+def note_name(midi_note):
+    return ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"][midi_note % 12] + str(midi_note // 12 - 1)
+
+
 def report(target, layers, length, ticks_per_second):
     total = sum(len(layer.notes) for layer in layers)
     peak, busiest, average = statistics(layers, length, ticks_per_second)
     print(f"{target}: {length} ticks ({length / ticks_per_second:.1f} s), {len(layers)} layers, {total} notes")
     print(f"at most {peak} notes at once, {busiest} in the busiest second, {average:.1f} a second on average")
+    for layer in layers:
+        pitched = layer.sounding_range()
+        if pitched:
+            print(f"  {layer.name:44s} sounds {note_name(pitched[0])} to {note_name(pitched[1])}")

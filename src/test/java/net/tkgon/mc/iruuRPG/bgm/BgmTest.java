@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -201,11 +201,49 @@ class BgmTest {
         }
     }
 
+    /** What a note of the file really sounds as: the instruments do not sound in the same octaves (the sound of key 33 of each, as a MIDI number). */
+    private static int sounding(int instrument, int key) {
+        int[] base = {54, 30, -1, -1, -1, 42, 78, 90, 90, 90, 54, 66, 30, 54, 54, 54};
+        return base[instrument] < 0 ? -1 : base[instrument] + key - 33;
+    }
+
+    @Test
+    void theLowerVersionsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
+        for (String id : List.of("atlas_dungeon_2", "atlas_vindicator_2")) {
+            NbsSong song = bundled(id);
+            int lowest = Integer.MAX_VALUE;
+            int highest = 0;
+            for (int i = 0; i < song.noteCount(); i++) {
+                NbsSong.Note note = song.note(i);
+                assertFalse(List.of(6, 7, 8, 9).contains(note.instrument()), id + ": the flute, bell, chime and xylophone sound far above the rest (instrument " + note.instrument() + ")");
+                int sound = sounding(note.instrument(), note.key());
+                if (sound < 0) continue;
+                lowest = Math.min(lowest, sound);
+                highest = Math.max(highest, sound);
+            }
+            assertTrue(highest <= 78, id + ": nothing above F#5 (" + highest + ")");
+            assertTrue(lowest >= 30, id + ": nothing below F#1 (" + lowest + ")");
+        }
+        assertEquals(896, bundled("atlas_dungeon_2").length());
+        assertEquals(1280, bundled("atlas_vindicator_2").length());
+        assertEquals("Below the Sleeping Giant (Dungeon002)", bundled("atlas_dungeon_2").title());
+        assertEquals("Raise the Axe (Boss002)", bundled("atlas_vindicator_2").title());
+    }
+
+    @Test
+    void theFirstVersionsKeepTheirFluteAndAreNotChanged() throws IOException {
+        // the songs of Dungeon001 and Boss001 are kept as they were
+        assertEquals("Hollow Beneath the Giant (Dungeon001)", bundled("atlas_dungeon").title());
+        assertEquals(896, bundled("atlas_dungeon").length());
+        assertEquals("The Axe at the Gate (Boss001)", bundled("atlas_vindicator").title());
+        assertEquals(1280, bundled("atlas_vindicator").length());
+    }
+
     @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(4, registry.songs().size());
+        assertEquals(6, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -245,7 +283,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(4, registry.songs().size());
+        assertEquals(6, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
