@@ -98,16 +98,23 @@ public record DungeonWall(Condition when, int count, int target, List<Pos> block
      * Whether the wall opens now.
      *
      * @param killed     mobs (not the boss) killed in this run so far
+     * @param appeared   mobs (not the boss) that came in this run: a kill count above it is lowered to it, so a run
+     *                   where chance mobs stayed away can still open the wall
      * @param gathered   players standing by the wall
      * @param standing   players in the run who could stand by it (not fallen)
      * @param targetDead the target mob appeared in this run and is dead
      */
-    public boolean met(int killed, int gathered, int standing, boolean targetDead) {
+    public boolean met(int killed, int appeared, int gathered, int standing, boolean targetDead) {
         return switch (when) {
-            case KILLS -> killed >= count;
+            case KILLS -> killed >= killsNeeded(appeared);
             case GATHER -> gathered >= needed(standing);
             case TARGET -> targetDead;
         };
+    }
+
+    /** KILLS: how many must die when this many mobs (not the boss) came in the run. */
+    public int killsNeeded(int appeared) {
+        return Math.max(0, Math.min(count, appeared));
     }
 
     /** GATHER: how many must stand by it when this many can (at least 1). */
@@ -136,5 +143,21 @@ public record DungeonWall(Condition when, int count, int target, List<Pos> block
     /** Rolls a placed mob's chance (0-99 from the random source). */
     public static boolean appears(int chance, int roll) {
         return chance >= 100 || roll < chance;
+    }
+
+    /**
+     * Which placed mobs come in this run. The boss always comes. A dungeon without a boss that would get no mob at all
+     * (every mob has a chance and all of them stayed away) gets one of them, picked at random, so the run can begin.
+     */
+    public static boolean[] roll(List<DungeonDefinition.MobSpawn> spawns, String boss, java.util.Random random) {
+        boolean[] comes = new boolean[spawns.size()];
+        boolean any = false;
+        for (int index = 0; index < spawns.size(); index++) {
+            DungeonDefinition.MobSpawn spawn = spawns.get(index);
+            comes[index] = spawn.mobId().equals(boss) || appears(spawn.chance(), random.nextInt(100));
+            any |= comes[index];
+        }
+        if (!any && !spawns.isEmpty()) comes[random.nextInt(spawns.size())] = true;
+        return comes;
     }
 }
