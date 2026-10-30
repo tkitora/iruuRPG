@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -275,7 +275,7 @@ class BgmTest {
 
     @Test
     void theNewerSongsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
-        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2")) {
+        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2")) {
             NbsSong song = bundled(id);
             int lowest = Integer.MAX_VALUE;
             int highest = 0;
@@ -315,10 +315,23 @@ class BgmTest {
     }
 
     @Test
+    void theNecromancerPhasesAreOnePiece() throws IOException {
+        NbsSong one = bundled("necromancer_phase1");
+        NbsSong two = bundled("necromancer_phase2");
+        assertEquals("Hymn for the Unburied (Boss004)", one.title());
+        assertEquals("Hymn for the Unburied, Risen (Boss004)", two.title());
+        assertEquals(832, one.length());
+        assertEquals(one.length(), two.length(), "the same bars");
+        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
+        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
+        assertEquals(0, one.length() % 16, "whole bars (the change waits for a bar line)");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(9, registry.songs().size());
+        assertEquals(11, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -358,7 +371,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(9, registry.songs().size());
+        assertEquals(11, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
