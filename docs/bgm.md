@@ -24,8 +24,8 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `cave_depths` | Where the Crystals Hum (Dungeon003) | クリスタルの洞窟の内部。自然な楽器 = 岩と水、電子音 = クリスタル。不協和音と唸り (hum) を少し | 2:56 | 60 BPM (4 ticks/秒)、C# ドリアン |
 | `colossus_phase1` | Shoulders of Stone (Boss003) | ボス戦フェーズ1: 自然な楽器・ハーフタイム・ベースのソロ | 2:08 | 150 BPM、D マイナー |
 | `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | ボス戦フェーズ2: 電子音・ダブルタイム・8ビットのソロ。**フェーズ1と同じ小節・同じ和音** (移行は次の小節の頭から続けて入れ替わる) | 2:08 | 150 BPM、D マイナー |
-| `necromancer_phase1` | Hymn for the Unburied (Boss004) | ネクロマンサー戦フェーズ1: 自然な楽器・ハーフタイム・時計の音 | 2:05 | 100 BPM、F# マイナー |
-| `necromancer_phase2` | Hymn for the Unburied, Risen (Boss004) | ネクロマンサー戦フェーズ2: 電子音・ダブルタイム。**フェーズ1と同じ小節・同じ和音** | 2:05 | 100 BPM、F# マイナー |
+| `necromancer_phase1` | Reaper's Arc (Boss004) | ネクロマンサー戦フェーズ1: 自然な楽器・スウィング・ギターのソロ (鎌の曲。儀式ではなく疾走) | 2:08 | 150 BPM、G マイナー |
+| `necromancer_phase2` | Reaper's Arc, Sundered (Boss004) | ネクロマンサー戦フェーズ2: ピアノに電子音を重ねる・8ビットのソロ。**フェーズ1と同じ小節・同じ和音** | 2:08 | 150 BPM、G マイナー |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。

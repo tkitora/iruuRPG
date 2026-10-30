@@ -318,9 +318,10 @@ class BgmTest {
     void theNecromancerPhasesAreOnePiece() throws IOException {
         NbsSong one = bundled("necromancer_phase1");
         NbsSong two = bundled("necromancer_phase2");
-        assertEquals("Hymn for the Unburied (Boss004)", one.title());
-        assertEquals("Hymn for the Unburied, Risen (Boss004)", two.title());
-        assertEquals(832, one.length());
+        assertEquals("Reaper's Arc (Boss004)", one.title());
+        assertEquals("Reaper's Arc, Sundered (Boss004)", two.title());
+        assertEquals(1280, one.length());
+        assertEquals(10.0, one.ticksPerSecond(), 1.0E-9, "fast: 150 BPM");
         assertEquals(one.length(), two.length(), "the same bars");
         assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
         assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
