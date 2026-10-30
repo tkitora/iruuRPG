@@ -90,6 +90,15 @@ public interface Bgm {
      */
     void playScene(Player player, String songId, boolean loop, double fadeSeconds);
 
+    /**
+     * Like {@link #playScene}, for a song that is the same piece as the one that plays (the next phase of a boss fight: the same tempo, the same length, the same chord in every bar):
+     * the change waits for the next bar line, and the new song begins at the bar the old one is at, so the music goes on instead of starting over. Songs that do not fit each other
+     * (another tempo or length), or no song playing yet, are played as {@link #playScene} does.
+     */
+    default void playSceneSynced(Player player, String songId, boolean loop, double fadeSeconds) {
+        playScene(player, songId, loop, fadeSeconds);
+    }
+
     /** Ends the scene: its song fades out over {@code fadeSeconds} and the volumes of the world are followed again. */
     void endScene(Player player, double fadeSeconds);
 

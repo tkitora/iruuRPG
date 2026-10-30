@@ -722,6 +722,8 @@ public final class DungeonService implements Listener {
     // ---- the music of a run ------------------------------------------------------------------------------------------------------
 
     private static final double MUSIC_FADE = 2.0;
+    /** The crossfade between the phases of the boss song (the same piece, from the same bar: short). */
+    private static final double PHASE_FADE = 1.5;
     private static final double MUSIC_LEAVE_FADE = 1.0;
     private static final double MUSIC_CLEAR_FADE = 4.0;
     /** The blackboard key of the behavior tree a boss writes its phase to (1, 2, 3 ...). */
@@ -737,8 +739,15 @@ public final class DungeonService implements Listener {
     }
 
     private void musicFor(Instance instance, Player player) {
+        musicFor(instance, player, false);
+    }
+
+    /** {@code synced}: the next phase of the boss fight, which goes on from the same bar (see {@link net.tkgon.mc.iruuRPG.bgm.Bgm#playSceneSynced}). */
+    private void musicFor(Instance instance, Player player, boolean synced) {
         String song = currentSong(instance);
-        if (song != null) bgm().playScene(player, song, true, MUSIC_FADE);
+        if (song == null) return;
+        if (synced) bgm().playSceneSynced(player, song, true, PHASE_FADE);
+        else bgm().playScene(player, song, true, MUSIC_FADE);
     }
 
     /** Every second: the boss fight begins (its first song), and goes on to the next song when the boss goes on to its next phase. */
@@ -755,14 +764,18 @@ public final class DungeonService implements Listener {
         int index = Math.max(instance.musicIndex, DungeonMusic.songIndex(songs.size(), bossPhase(instance)));
         if (index != instance.musicIndex) {
             instance.musicIndex = index;
-            playForAll(instance);
+            playForAll(instance, true);
         }
     }
 
     private void playForAll(Instance instance) {
+        playForAll(instance, false);
+    }
+
+    private void playForAll(Instance instance, boolean synced) {
         for (UUID id : instance.players) {
             Player player = Bukkit.getPlayer(id);
-            if (player != null && player.isOnline() && player.getWorld().equals(instance.world)) musicFor(instance, player);
+            if (player != null && player.isOnline() && player.getWorld().equals(instance.world)) musicFor(instance, player, synced);
         }
     }
 
