@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -470,10 +470,39 @@ class BgmTest {
     }
 
     @Test
+    void theUnkeyedPhasesAreOnePieceThatBuildsUpFromASilenceAndPhaseTwoHasTheBeatFromTheStart() throws IOException {
+        NbsSong one = bundled("unkeyed_phase1");
+        NbsSong two = bundled("unkeyed_phase2");
+        assertEquals("Eyes Without a Key (Boss009)", one.title());
+        assertEquals("Eyes Without a Key, Unwritten (Boss009)", two.title());
+        assertEquals(1216, one.length());
+        assertEquals(one.length(), two.length(), "the same bars");
+        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
+        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
+        assertEquals(64, one.loopStart(), "the click of the intro is played once");
+        int[] drumsInObservation = new int[2];
+        int[] drumsInCollapse = new int[2];
+        for (int phase = 1; phase <= 2; phase++) {
+            NbsSong song = phase == 1 ? one : two;
+            for (int i = 0; i < song.noteCount(); i++) {
+                NbsSong.Note note = song.note(i);
+                int sound = sounding(note.instrument(), note.key());
+                if (note.instrument() == 7 || note.instrument() == 8) assertTrue(sound <= 99, "phase " + phase + ": the bell and the glass stay below D#7 (" + sound + ")");
+                boolean drum = note.instrument() == 2 || note.instrument() == 3;
+                if (drum && note.tick() >= 64 && note.tick() < 64 + 384) drumsInObservation[phase - 1]++;
+                if (drum && note.tick() >= 64 + 768) drumsInCollapse[phase - 1]++;
+            }
+        }
+        assertEquals(0, drumsInObservation[0], "phase 1: the observation has no drums");
+        assertTrue(drumsInObservation[1] > 20, "phase 2: the beat is there from the first bar");
+        assertTrue(drumsInCollapse[0] > 100 && drumsInCollapse[1] > 100, "both: the collapse has the whole drum kit");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(19, registry.songs().size());
+        assertEquals(21, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -513,7 +542,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(19, registry.songs().size());
+        assertEquals(21, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
