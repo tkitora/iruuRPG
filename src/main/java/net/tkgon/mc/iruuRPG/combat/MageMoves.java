@@ -662,7 +662,7 @@ public final class MageMoves {
     private List<double[]> grow(MoveKit kit, Location center, double radius) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         List<double[]> points = new ArrayList<>();
-        int count = (int) number("root-count", 9.0);
+        int count = (int) number("root-count", 13.0);
         for (int index = 0; index < count; index++) {
             double heading = Math.PI * 2.0 * index / count + random.nextDouble(-0.25, 0.25);
             walk(center, center.getX(), center.getZ(), heading, radius * random.nextDouble(0.85, 1.0), points, random, 0);
