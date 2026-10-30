@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -275,7 +275,7 @@ class BgmTest {
 
     @Test
     void theNewerSongsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
-        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2")) {
+        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2")) {
             NbsSong song = bundled(id);
             int lowest = Integer.MAX_VALUE;
             int highest = 0;
@@ -354,10 +354,38 @@ class BgmTest {
     }
 
     @Test
+    void theSecondReaperThemeIsOnePieceAHalfStepHigherAndNarrow() throws IOException {
+        NbsSong one = bundled("reaper_phase1");
+        NbsSong two = bundled("reaper_phase2");
+        assertEquals("Silence of the Scythe (Boss005)", one.title());
+        assertEquals("Silence of the Scythe, Unleashed (Boss005)", two.title());
+        assertEquals(1280, one.length());
+        assertEquals(one.length(), two.length(), "the same bars");
+        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
+        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
+        int[] top = new int[2];
+        for (int phase = 1; phase <= 2; phase++) {
+            NbsSong song = phase == 1 ? one : two;
+            int lowest = Integer.MAX_VALUE;
+            int highest = 0;
+            for (int i = 0; i < song.noteCount(); i++) {   // the melody: the loud notes of the piano
+                NbsSong.Note note = song.note(i);
+                if (note.instrument() != 0 || note.volume() < 0.8f) continue;
+                int sound = sounding(note.instrument(), note.key());
+                lowest = Math.min(lowest, sound);
+                highest = Math.max(highest, sound);
+            }
+            assertTrue(highest - lowest <= 15, "phase " + phase + ": the melody is at most an octave and a minor third wide (" + (highest - lowest) + ")");
+            top[phase - 1] = highest;
+        }
+        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(11, registry.songs().size());
+        assertEquals(13, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -397,7 +425,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(11, registry.songs().size());
+        assertEquals(13, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
