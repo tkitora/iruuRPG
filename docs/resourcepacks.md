@@ -4,7 +4,7 @@
 
 | パック | ファイル | 中身 | 作るもの |
 |---|---|---|---|
-| サーバー専用 | `server.zip` | いまは `grass_block` の6面すべてを草(上面の草のテクスチャ、草の色つき)にする変更だけ | jar に入っている(`src/main/resourcepack/server/`)。起動時に `plugins/iruuRPG/resourcepacks/` へ置く |
+| サーバー専用 | `server.zip` | `grass_block` の6面すべてを草(上面の草のテクスチャ、草の色つき)にする変更と、マインクラフトのゲーム音楽を消す `sounds.json`(iruuRPG のBGMは鳴る。レコードの音は残る) | jar に入っている(`src/main/resourcepack/server/`)。起動時に `plugins/iruuRPG/resourcepacks/` へ置く |
 | モデル専用 | `iruumodel.zip` | `/iruumodel build` が作る、敵モデルのモデルとテクスチャ(docs/models.md) | モデル機能 |
 
 ## 配り方
