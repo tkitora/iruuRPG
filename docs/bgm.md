@@ -26,10 +26,12 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | ボス戦フェーズ2: 電子音・ダブルタイム・8ビットのソロ。**フェーズ1と同じ小節・同じ和音** (移行は次の小節の頭から続けて入れ替わる) | 2:08 | 150 BPM、D マイナー |
 | `necromancer_phase1` | Reaper's Arc (Boss004) | 雪山のリーパー戦フェーズ1: 自然な楽器・ギターのソロ。一つのアーチ形のモチーフ、幅は9度、8小節ごとに全楽器のブレイク | 2:08 | 150 BPM、A マイナー |
 | `necromancer_phase2` | Reaper's Arc, Sundered (Boss004) | 雪山のリーパー戦フェーズ2: ピアノに電子音を重ねる・8ビットのソロ。**フェーズ1と同じ小節・同じ和音の進行で、半音上 (B♭ マイナー)** | 2:08 | 150 BPM、B♭ マイナー |
+| `reaper_phase1` | Silence of the Scythe (Boss005) | 雪山のリーパー戦 (Boss004 の別案) フェーズ1: 最初はメロディとベースだけ・ピアノのソロ | 2:08 | 150 BPM、B マイナー |
+| `reaper_phase2` | Silence of the Scythe, Unleashed (Boss005) | リーパー戦(別案)フェーズ2: 同じメロディをギターの刻みと重い低音で・8ビットのソロ。**フェーズ1と同じ小節・同じ和音の進行で、半音上 (C マイナー)** | 2:08 | 150 BPM、C マイナー |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) / `make_reaper_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - **楽器ごとに、鳴る高さがちがう** (曲を作るとき、いちばん大事な注意)。ファイルの音 (キー 33〜57) は、どの楽器でも同じ25音だが、実際に鳴る高さは楽器で2オクターブ以上ちがう:
 
