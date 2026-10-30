@@ -217,8 +217,9 @@ public final class RpgItemRegistry {
             stacks = new WeaponStackSpec(stackSection.getString("name", "スタック"), stackSection.getInt("gain", 1),
                     stackSection.getInt("max", 5), stackSection.getString("on-max", ""), stackSection.getDouble("decay-seconds", 0.0),
                     stackDisplay(id, stackSection.getConfigurationSection("display")), stackTriggers(id, stackSection));
-            if (skillId.isEmpty()) {
-                plugin.getLogger().warning("items: " + id + ": stacks need a skill of skills/*.yml in `skill:` (the stacks are ignored)");
+            if (skillId.isEmpty() && stacks.gainOn().equals(java.util.Set.of("cast"))) {
+                // without a skill of its own, only a normal attack hit / being hurt / a kill can make them grow
+                plugin.getLogger().warning("items: " + id + ": stacks that grow only from the weapon's skill (gain-on: cast) need a skill of skills/*.yml in `skill:` (the stacks are ignored)");
                 stacks = null;
             } else if (stacks.onMax().isEmpty()) {
                 plugin.getLogger().warning("items: " + id + ": stacks.on-max (the skill cast at the maximum) is missing (the stacks are ignored)");

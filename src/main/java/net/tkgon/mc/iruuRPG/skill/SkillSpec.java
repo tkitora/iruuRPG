@@ -10,11 +10,12 @@ import java.util.List;
  * @param id             the skill id ("" for an unnamed one written inline)
  * @param template       the shape
  * @param look           colors, particle, size, width, sound
- * @param radius         strike / nova: radius; wave: hit width; beam: half width of the beam
- * @param range          sweep / wave / dash / beam / barrage: how far it reaches
+ * @param radius         strike / nova: radius; wave: hit width; beam: half width of the beam; damage: around the one
+ *                       aimed at (0 = only it), or around the caster
+ * @param range          sweep / wave / dash / beam / barrage / damage (aimed): how far it reaches
  * @param angle          sweep: the arc in degrees; wave: the spread between several waves
  * @param orientation    how the arc of a sweep is turned
- * @param windupTicks    the warning before it hits
+ * @param windupTicks    the warning before it hits (damage: only a wait, with no warning)
  * @param cooldownTicks  time before the caster can use it again
  * @param count          barrage: number of bolts; wave: number of waves
  * @param intervalTicks  time between two bolts
@@ -70,26 +71,34 @@ public record SkillSpec(
      * ({@code curve}), the {@code homing*} behavior, how long a bullet flies, its hit size and how far in front of
      * the caster the pattern is. Nova: {@code hitHeight} is how far above or below the ring's center the feet of the
      * one it hits may be (small: it can be jumped over). Sweep: {@code reverse} draws the cut from the caster's left
-     * to the right (the other way round), to follow a model's swing.
+     * to the right (the other way round), to follow a model's swing. Damage: {@code damageMode} is whom it hits.
      */
     public record Extras(boolean lockAim, boolean flatAim, double aimYaw, double aimPitch, double spread,
                          VolleyPattern pattern, double curve, double homingRadius, int homingDelayTicks, double homingTurn,
                          int lifetimeTicks, double hitRadius, double spawnDistance, double hitHeight,
-                         boolean reverse) {
+                         boolean reverse, DamageMode damageMode) {
 
         public static final double DEFAULT_HIT_HEIGHT = 2.5;
 
         public static final Extras NONE = new Extras(false, false, 0.0, 0.0, 0.0,
-                VolleyPattern.RING, 0.9, 0.0, 7, 0.45, 70, 0.9, 2.0, DEFAULT_HIT_HEIGHT, false);
+                VolleyPattern.RING, 0.9, 0.0, 7, 0.45, 70, 0.9, 2.0, DEFAULT_HIT_HEIGHT, false, DamageMode.AIMED);
 
         public Extras {
             pattern = pattern == null ? VolleyPattern.RING : pattern;
+            damageMode = damageMode == null ? DamageMode.AIMED : damageMode;
         }
+
 
         public boolean aimChanged() {
             return lockAim || flatAim;
         }
     }
+
+    /**
+     * Whom a damage skill hits: {@code aimed} = the one enemy aimed at (in the range, not behind a wall) and the
+     * enemies within the radius of it, {@code around} = the enemies within the radius of the caster (or its origin).
+     */
+    public enum DamageMode { AIMED, AROUND }
 
     /** Where a teleport goes: {@code forward} = as far as the range along the facing, {@code behind} = behind the enemy aimed at. */
     public enum TeleportMode { FORWARD, BEHIND }
@@ -140,7 +149,7 @@ public record SkillSpec(
             case STRIKE -> SoundStyle.HEAVY;
             case SWEEP, DASH, WAVE -> SoundStyle.SHARP;
             case BARRAGE, NOVA, BEAM, TELEPORT, VOLLEY -> SoundStyle.MAGIC;
-            case COMBO -> SoundStyle.NONE;
+            case COMBO, DAMAGE -> SoundStyle.NONE;
         };
         SkillLook look = new SkillLook(null, null, 1.0, 1.0, sound);
         return switch (template) {
@@ -151,7 +160,8 @@ public record SkillSpec(
             case WAVE -> new SkillSpec("", "", template, look, 1.3, 16.0, 14, Orientation.HORIZONTAL, 16, 140, 1, 4, 14.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case NOVA -> new SkillSpec("", "", template, look, 5.0, 5.0, 130, Orientation.HORIZONTAL, 16, 180, 1, 4, 10.0, 1.2, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case TELEPORT -> new SkillSpec("", "", template, look, 3.0, 12.0, 130, Orientation.HORIZONTAL, 12, 160, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
-            case VOLLEY -> new SkillSpec("", "", template, look, 1.2, 24.0, 90, Orientation.HORIZONTAL, 12, 200, 6, 4, 22.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, new Extras(false, false, 0.0, 0.0, 0.0, VolleyPattern.RING, 0.9, 8.0, 7, 0.45, 70, 0.9, 2.0, Extras.DEFAULT_HIT_HEIGHT, false));
+            case VOLLEY -> new SkillSpec("", "", template, look, 1.2, 24.0, 90, Orientation.HORIZONTAL, 12, 200, 6, 4, 22.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, new Extras(false, false, 0.0, 0.0, 0.0, VolleyPattern.RING, 0.9, 8.0, 7, 0.45, 70, 0.9, 2.0, Extras.DEFAULT_HIT_HEIGHT, false, DamageMode.AIMED));
+            case DAMAGE -> new SkillSpec("", "", template, look, 0.0, 12.0, 130, Orientation.HORIZONTAL, 0, 100, 1, 4, 12.0, 1.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case COMBO -> new SkillSpec("", "", template, look, 1.0, 1.0, 130, Orientation.HORIZONTAL, 4, 240, 1, 4, 12.0, 0.0, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case BEAM -> new SkillSpec("", "", template, look, 1.0, 14.0, 130, Orientation.HORIZONTAL, 18, 200, 1, 4, 12.0, 1.6, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
         };
@@ -178,6 +188,7 @@ public record SkillSpec(
             case NOVA -> windupTicks + (int) Math.ceil(radius / Math.max(0.1, speed / 20.0)) + 2;
             case BEAM -> windupTicks + 6;
             case TELEPORT -> windupTicks + 2;
+            case DAMAGE -> windupTicks + (count - 1) * intervalTicks + 1;
             case COMBO -> comboTicks();
         };
     }
@@ -203,7 +214,7 @@ public record SkillSpec(
     public SkillSpec withLockedAim() {
         if (extras.lockAim()) return this;
         Extras locked = new Extras(true, extras.flatAim(), extras.aimYaw(), extras.aimPitch(), extras.spread(), extras.pattern(), extras.curve(), extras.homingRadius(),
-                extras.homingDelayTicks(), extras.homingTurn(), extras.lifetimeTicks(), extras.hitRadius(), extras.spawnDistance(), extras.hitHeight(), extras.reverse());
+                extras.homingDelayTicks(), extras.homingTurn(), extras.lifetimeTicks(), extras.hitRadius(), extras.spawnDistance(), extras.hitHeight(), extras.reverse(), extras.damageMode());
         return new SkillSpec(id, name, template, look, radius, range, angle, orientation, windupTicks, cooldownTicks, count, intervalTicks,
                 speed, damageRate, statuses, healRate, knockback, target, cost, description, steps, origin, teleportMode, locked);
     }

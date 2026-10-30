@@ -27,9 +27,9 @@ import java.util.regex.Pattern;
  * skills:
  *   fire_slam:                     # id: lower case letters, digits and _
  *     name: "..."
- *     template: strike             # strike | sweep | barrage | dash | wave | nova | beam | teleport
+ *     template: strike             # strike | sweep | barrage | dash | wave | nova | beam | teleport | volley | damage
  *     look:   { colors: ["#ff5a1e", "#ffd24a", "#ffffff"], particle: FLAME, size: 1.0, width: 1.0, sound: heavy }
- *     shape:  { radius: 3.5, range: 6, angle: 130, orientation: horizontal, mode: forward }   # mode: teleport only (forward | behind)
+ *     shape:  { radius: 3.5, range: 6, angle: 130, orientation: horizontal, mode: forward }   # mode: teleport (forward | behind), damage (aimed | around)
  *     timing: { windup-ticks: 24, cooldown-ticks: 160, count: 1, interval-ticks: 4, speed: 12 }
  *     effects: { damage-rate: 1.8, status: [{type: slow, percent: 40, seconds: 3}], heal-rate: 0, knockback: 0 }
  *     target: enemies
@@ -223,7 +223,7 @@ public final class SkillRegistry {
             SkillTemplate template = SkillTemplate.parse(templateName == null ? null : templateName.toString());
             if (template == null) {
                 plugin.getLogger().warning("skills: " + owner + ": unknown template '" + templateName
-                        + "' (strike / sweep / barrage / dash / wave / nova / beam / teleport) (skipped)");
+                        + "' (strike / sweep / barrage / dash / wave / nova / beam / teleport / volley / damage) (skipped)");
                 return null;
             }
             if (template == SkillTemplate.COMBO) {
@@ -239,8 +239,9 @@ public final class SkillRegistry {
         // look
         SkillLook look = look(owner, start.look(), flat);
 
-        // shape
-        double radius = number(owner, flat, "radius", start.radius(), 1.0, 20.0);
+        // shape (a damage skill may hit only the one aimed at: radius 0)
+        boolean damage = start.template() == SkillTemplate.DAMAGE;
+        double radius = number(owner, flat, "radius", start.radius(), damage ? 0.0 : 1.0, 20.0);
         double range = number(owner, flat, "range", start.range(), 1.0, 40.0);
         double angle = number(owner, flat, "angle", start.angle(), 10.0, 360.0);
         SkillSpec.Orientation orientation = start.orientation();
@@ -253,7 +254,16 @@ public final class SkillRegistry {
         }
 
         SkillSpec.TeleportMode teleportMode = start.teleportMode();
-        if (flat.get("mode") != null) {
+        SkillSpec.DamageMode damageMode = start.extras().damageMode();
+        if (damage && flat.get("mode") != null) {
+            try {
+                damageMode = SkillSpec.DamageMode.valueOf(flat.get("mode").toString().trim().toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("skills: " + owner + ": mode '" + flat.get("mode") + "' is unknown (aimed / around)");
+            }
+            // a circle around the caster needs a size: 4 when none is given
+            if (damageMode == SkillSpec.DamageMode.AROUND && !flat.containsKey("radius") && radius <= 0.0) radius = 4.0;
+        } else if (flat.get("mode") != null) {
             try {
                 teleportMode = SkillSpec.TeleportMode.valueOf(flat.get("mode").toString().trim().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
@@ -262,7 +272,7 @@ public final class SkillRegistry {
         }
 
         // timing
-        int windup = (int) Math.round(number(owner, flat, "windup-ticks", start.windupTicks(), 4, 200));
+        int windup = (int) Math.round(number(owner, flat, "windup-ticks", start.windupTicks(), damage ? 0 : 4, 200));
         int cooldown = (int) Math.round(number(owner, flat, "cooldown-ticks", start.cooldownTicks(), 20, 2400));
         int count = (int) Math.round(number(owner, flat, "count", start.count(), 1, 20));
         int interval = (int) Math.round(number(owner, flat, "interval-ticks", start.intervalTicks(), 2, 100));
@@ -325,7 +335,8 @@ public final class SkillRegistry {
                 number(owner, flat, "hit-radius", old.hitRadius(), 0.3, 3.0),
                 number(owner, flat, "spawn-distance", old.spawnDistance(), 0.0, 8.0),
                 number(owner, flat, "hit-height", old.hitHeight(), 0.2, 8.0),
-                flag(flat, "reverse", old.reverse()));
+                flag(flat, "reverse", old.reverse()),
+                damageMode);
 
         SkillTemplate template = start.template();
         if (template == SkillTemplate.WAVE && count > 5) {

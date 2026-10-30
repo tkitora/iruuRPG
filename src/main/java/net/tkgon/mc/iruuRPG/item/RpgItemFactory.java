@@ -271,13 +271,18 @@ public final class RpgItemFactory {
         if (spec.cost() > 0.0) costParts.add(format(spec.cost()) + " MP");
         costParts.add("CD " + formatTicks(spec.cooldownTicks()));
         lore.add(skillLine("Cost", String.join(" / ", costParts)));
+        addStackLore(lore, definition);
+    }
+
+    /** The lines of a weapon's stacks (none without `stacks:`). */
+    private void addStackLore(List<Component> lore, RpgItemDefinition definition) {
         WeaponStackSpec stacks = definition.stacks();
-        if (stacks != null) {
-            net.tkgon.mc.iruuRPG.skill.SkillSpec burst = generalSkills.forItem("item " + definition.id(), stacks.onMax(), java.util.Map.of());
-            lore.add(skillLine(stacks.name(), stacks.gainOnText() + "たびに" + stacks.gain() + "たまり、" + stacks.max() + "で「"
-                    + (burst == null ? stacks.onMax() : burst.name()) + "」が発動する"));
-            if (stacks.decaySeconds() > 0.0) lore.add(skillText("たまらないまま" + format(stacks.decaySeconds()) + "秒で消える"));
-        }
+        if (stacks == null) return;
+        net.tkgon.mc.iruuRPG.skill.SkillSpec burst = generalSkills == null ? null
+                : generalSkills.forItem("item " + definition.id(), stacks.onMax(), java.util.Map.of());
+        lore.add(skillLine(stacks.name(), stacks.gainOnText() + "たびに" + stacks.gain() + "たまり、" + stacks.max() + "で「"
+                + (burst == null ? stacks.onMax() : burst.name()) + "」が発動する"));
+        if (stacks.decaySeconds() > 0.0) lore.add(skillText("たまらないまま" + format(stacks.decaySeconds()) + "秒で消える"));
     }
 
     private void addSkillLore(List<Component> lore, RpgItemDefinition definition) {
@@ -285,6 +290,15 @@ public final class RpgItemFactory {
             addGeneralSkillLore(lore, definition);
             return;
         }
+        addItemSkillLore(lore, definition);
+        // a weapon without a skill of skills/*.yml may still have stacks (from normal attacks, being hurt, kills)
+        if (definition.stacks() != null) {
+            if (!definition.skill().enabled()) lore.add(Component.empty());
+            addStackLore(lore, definition);
+        }
+    }
+
+    private void addItemSkillLore(List<Component> lore, RpgItemDefinition definition) {
         if (!definition.skill().enabled()) return;
 
         ItemSkillDefinition skill = skillRegistry.definition(definition.skill());

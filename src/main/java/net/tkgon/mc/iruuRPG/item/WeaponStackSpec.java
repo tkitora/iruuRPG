@@ -7,8 +7,10 @@ import net.kyori.adventure.text.format.TextDecoration;
 import java.util.Locale;
 
 /**
- * The stacks of a special weapon (the `stacks:` section of an item): every time the weapon's skill is cast it gains
- * {@code gain} stacks of its own; at {@code max} the stacks are spent and the skill {@code onMax} is cast as well.
+ * The stacks of a special weapon (the `stacks:` section of an item): every time one of its {@code gainOn} things
+ * happens (by default its skill is cast) it gains {@code gain} stacks of its own; at {@code max} the stacks are spent
+ * and the skill {@code onMax} is cast as well. A weapon without a skill can have stacks that grow from the other things
+ * (a normal attack hit, being hurt, a kill).
  * Stacks fade away when the weapon's skill is not cast for {@code decaySeconds} (0 = they never fade).
  * {@code display} is what the player sees (a subtitle) and hears when the count changes.
  */

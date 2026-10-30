@@ -22,6 +22,11 @@ public enum SkillTemplate {
     VOLLEY,
     /** The caster blinks: forward along where they face, or behind the enemy aimed at; optionally a burst on arrival. */
     TELEPORT,
+    /**
+     * Only damage: no warning, no cast effect, no movement. {@code aimed} hits the one enemy aimed at (and those within
+     * the radius of it), {@code around} every enemy within the radius of the caster.
+     */
+    DAMAGE,
     /** Several skills one after another (steps). */
     COMBO;
 
