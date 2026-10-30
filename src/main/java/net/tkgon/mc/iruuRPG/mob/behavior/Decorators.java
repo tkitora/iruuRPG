@@ -318,10 +318,14 @@ final class Decorators {
         }
     }
 
-    /** The node counts as a success whatever it did. */
+    /**
+     * The node counts as a success whatever it did, and also when a condition of it keeps it from being entered or
+     * stops it (see {@link Node#run}): "do it if you can, and go on either way".
+     */
     static final class ForceSuccess extends Decorator {
         ForceSuccess() {
             this.label = "force success";
+            this.forcesSuccess = true;
         }
 
         @Override

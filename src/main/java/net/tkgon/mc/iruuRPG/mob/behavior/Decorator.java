@@ -10,6 +10,8 @@ abstract class Decorator {
     boolean abortSelf;
     /** A selector stops the lower child it is running when this (on a higher child) starts to hold. */
     boolean abortLower;
+    /** The node answers success whatever happens: also when a condition keeps it from being entered or stops it ({@code force-success}). */
+    boolean forcesSuccess;
     String label = "";
 
     boolean canEnter(Ctx c, Node node) {

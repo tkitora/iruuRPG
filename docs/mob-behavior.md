@@ -114,7 +114,7 @@ fsm:
 | `loop` | `count` / `infinite: true` | 繰り返す |
 | `time-limit` | `seconds` | 動き続けたら失敗にして止める |
 | `not` | | 成功と失敗を入れ替える |
-| `force-success` | | 結果を成功にする |
+| `force-success` | | 結果を成功にする。同じノードの条件 (`distance` など) が合わずに入れなかったとき、条件や `time-limit` で止まったときも成功になる (「できればやる、できなくても先へ進む」) |
 `abort: self` は、条件が成り立たなくなったら動いているノードを止める。`abort: lower` は、`selector` の上の子で使い、成り立った瞬間に下の子を止める(`both` は両方)。
 
 ### Service (`services:` に並べる。動いている間、`interval` 秒ごとに実行)
