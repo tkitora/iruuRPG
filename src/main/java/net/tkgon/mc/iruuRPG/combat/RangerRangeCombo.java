@@ -238,8 +238,9 @@ public final class RangerRangeCombo implements ClassCombo {
             }
             default -> {
                 // a volley loosed up into the air that comes down a second later in three steps, 3, 6 and 9 blocks ahead; the arrows are the look of it, the damage is the area
-                Location origin = kit.origin();
-                Vector forward = kit.originFacing();
+                // (where the player stands and looks now, not where the combo began: origin() is the start of the combo)
+                Location origin = kit.player.getLocation();
+                Vector forward = kit.facing();
                 Vector side = new Vector(-forward.getZ(), 0.0, forward.getX());
                 ThreadLocalRandom random = ThreadLocalRandom.current();
                 kit.sound(feet, Sound.ENTITY_ARROW_SHOOT, 1.0f, 0.7f);
