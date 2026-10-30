@@ -221,6 +221,18 @@ final class BehaviorParser {
             case "set-blackboard", "set" -> node = new Tasks.SetBlackboard(Cfg.text(map, "key", ""), map.get("value"));
             case "set-state" -> node = new Tasks.SetState(Cfg.text(map, "state", ""));
             case "clear-target" -> node = new Tasks.ClearTarget(Cfg.ticks(map, "seconds", 5.0));
+            case "summon" -> {
+                String mobId = Cfg.text(map, "mob", "").trim().toLowerCase(Locale.ROOT);
+                if (mobId.isEmpty()) error("summon: mob (the id of the mob to call) is missing");
+                int count = (int) Cfg.number(map, "count", 2.0);
+                double radius = Cfg.number(map, "radius", 4.0);
+                int maxAlive = (int) Cfg.number(map, "max-alive", 6.0);
+                if (count < 1 || count > 10) error("summon: count must be 1 - 10");
+                if (radius < 1.0 || radius > 16.0) error("summon: radius must be 1 - 16");
+                if (maxAlive < 1 || maxAlive > 30) error("summon: max-alive must be 1 - 30");
+                node = new Tasks.Summon(mobId, Math.max(1, Math.min(10, count)), Math.max(1.0, Math.min(16.0, radius)),
+                        Math.max(1, Math.min(30, maxAlive)));
+            }
             case "play-sound" -> {
                 Sound sound;
                 try {

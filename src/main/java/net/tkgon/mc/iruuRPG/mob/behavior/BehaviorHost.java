@@ -120,6 +120,15 @@ public interface BehaviorHost {
     /** The coordinator of a host that has none: nobody else uses it. */
     Coordinator SOLO = new Coordinator();
 
+    /**
+     * Calls up to {@code count} mobs of the kind {@code mobId} round the mob, within {@code radius} blocks, so that no more
+     * than {@code maxAlive} of the ones it called live at once; they go after {@code target} (may be null). They go when it
+     * dies or is gone. How many came (0 when as many as allowed live already); -1 when there is no such mob or no place.
+     */
+    default int summon(String mobId, int count, double radius, int maxAlive, Player target) {
+        return -1;
+    }
+
     /** Plays the animation of the mob's model once (the model feature); false when the mob has no model or the model has no such animation. */
     default boolean playAnimation(String name) {
         return false;

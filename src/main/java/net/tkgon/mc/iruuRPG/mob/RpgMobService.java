@@ -357,6 +357,49 @@ public final class RpgMobService {
         poise.forget(uuid);
         flinchUntil.remove(uuid);
         removeStatusDisplay(uuid);
+        dismissMinions(uuid);
+    }
+
+    /** The mobs that {@code owner} called go with it (no drops): a puff where each stood. */
+    private void dismissMinions(UUID owner) {
+        java.util.Set<UUID> called = minions.remove(owner);
+        if (called == null) return;
+        for (UUID id : called) {
+            Entity minion = Bukkit.getEntity(id);
+            if (!(minion instanceof LivingEntity living) || living.isDead() || !living.isValid()) continue;
+            living.getWorld().spawnParticle(Particle.CLOUD, living.getLocation().add(0.0, living.getHeight() * 0.5, 0.0), 8, 0.3, 0.3, 0.3, 0.02);
+            forget(id);
+            statusEffectService.clear(living);
+            living.remove();
+        }
+    }
+
+    /** How many of the mobs {@code owner} called are alive (the gone ones are dropped from its list). */
+    private int minionsAlive(UUID owner) {
+        java.util.Set<UUID> called = minions.get(owner);
+        if (called == null) return 0;
+        called.removeIf(id -> {
+            Entity minion = Bukkit.getEntity(id);
+            return !(minion instanceof LivingEntity living) || living.isDead() || !living.isValid();
+        });
+        return called.size();
+    }
+
+    /** A place to stand near {@code center}: ground under it and room for a mob two blocks tall, at most 3 blocks up or down. Null when there is none. */
+    private static Location standingSpot(Location center) {
+        World world = center.getWorld();
+        if (world == null) return null;
+        int x = center.getBlockX();
+        int z = center.getBlockZ();
+        int base = center.getBlockY();
+        for (int offset : new int[]{0, 1, -1, 2, -2, 3, -3}) {
+            int y = base + offset;
+            if (y <= world.getMinHeight() || y + 1 >= world.getMaxHeight()) continue;
+            if (!world.getBlockAt(x, y - 1, z).getType().isSolid()) continue;
+            if (!world.getBlockAt(x, y, z).isPassable() || !world.getBlockAt(x, y + 1, z).isPassable()) continue;
+            return new Location(world, x + 0.5, y, z + 0.5, center.getYaw(), 0.0f);
+        }
+        return null;
     }
 
     public void clear() {
@@ -470,6 +513,10 @@ public final class RpgMobService {
     }
 
     private final Map<UUID, BehaviorMob> behaviors = new HashMap<>();
+    /** The mob ids a `summon` asked for that do not exist (warned once each). */
+    private final java.util.Set<String> warnedSummons = new java.util.HashSet<>();
+    /** The mobs each mob called (`summon`): they go when it is gone. */
+    private final Map<UUID, java.util.Set<UUID>> minions = new HashMap<>();
 
     /** The number {@code key} of the blackboard of a behavior-tree mob, or null when the mob has no behavior tree or has not set it. */
     public Double behaviorNumber(UUID mobId, String key) {
@@ -971,6 +1018,41 @@ public final class RpgMobService {
         @Override
         public boolean playAnimation(String name) {
             return models != null && models.play(mob, name);
+        }
+
+        @Override
+        public int summon(String mobId, int count, double radius, int maxAlive, Player target) {
+            if (mobRegistry.find(mobId).isEmpty()) {
+                if (warnedSummons.add(mobId)) plugin.getLogger().warning("mobs: summon: there is no mob '" + mobId + "'");
+                return -1;
+            }
+            int want = Math.min(count, Math.max(0, maxAlive - minionsAlive(mob.getUniqueId())));
+            if (want <= 0) return 0;
+            Location center = mob.getLocation();
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            int came = 0;
+            for (int index = 0; index < want; index++) {
+                Location spot = null;
+                for (int attempt = 0; attempt < 6 && spot == null; attempt++) {
+                    double angle = 2.0 * Math.PI * (index + random.nextDouble()) / want;
+                    double distance = radius * (0.55 + 0.45 * random.nextDouble());
+                    spot = standingSpot(center.clone().add(Math.cos(angle) * distance, 0.0, Math.sin(angle) * distance));
+                }
+                if (spot == null) continue;
+                spot.setYaw((float) Math.toDegrees(Math.atan2(center.getX() - spot.getX(), spot.getZ() - center.getZ())));
+                LivingEntity minion = spawnAt(spot, mobId).orElse(null);
+                if (minion == null) continue;
+                minions.computeIfAbsent(mob.getUniqueId(), ignored -> new java.util.HashSet<>()).add(minion.getUniqueId());
+                if (target != null && minion instanceof Mob called) {
+                    // it goes after the caller's target first (locked like any target, so it does not turn away at once)
+                    targetLocks.put(minion.getUniqueId(), new TargetLock(target.getUniqueId(), System.currentTimeMillis() + TARGET_LOCK_MILLIS));
+                    called.setTarget(target);
+                }
+                spot.getWorld().spawnParticle(Particle.SMOKE_LARGE, spot.clone().add(0.0, 0.5, 0.0), 10, 0.3, 0.4, 0.3, 0.02);
+                came++;
+            }
+            if (came > 0) center.getWorld().playSound(center, org.bukkit.Sound.ENTITY_EVOKER_PREPARE_SUMMON, org.bukkit.SoundCategory.HOSTILE, 1.0f, 0.8f);
+            return came > 0 ? came : -1;
         }
 
         @Override

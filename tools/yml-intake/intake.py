@@ -165,7 +165,7 @@ class Repo:
 
 
 BT_COMPOSITES = ("selector", "sequence", "random", "parallel")
-BT_TASKS = ("move-to", "flee", "wait", "attack", "shoot", "use-skill", "face-target", "set-blackboard", "set-state", "clear-target", "play-sound", "play-animation", "animation-attack", "succeed", "fail")
+BT_TASKS = ("move-to", "flee", "wait", "attack", "shoot", "use-skill", "face-target", "set-blackboard", "set-state", "clear-target", "play-sound", "play-animation", "animation-attack", "summon", "succeed", "fail")
 BT_DECORATORS = ("blackboard", "distance", "hp", "line-of-sight", "chance", "cooldown", "loop", "time-limit", "not", "force-success", "allies", "slot", "group-cooldown")
 BT_SERVICES = ("update-target", "run-eqs")
 
