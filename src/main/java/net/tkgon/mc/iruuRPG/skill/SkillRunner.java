@@ -79,6 +79,7 @@ public final class SkillRunner {
             case BEAM -> beam(caster, spec, aim, onDone);
             case TELEPORT -> teleport(caster, spec, aim, onDone);
             case VOLLEY -> volley(caster, spec, aim, onDone);
+            case DAMAGE -> damage(caster, spec, aim, onDone);
             case COMBO -> onDone.run();
         }
     }
@@ -827,6 +828,91 @@ public final class SkillRunner {
         return caster.location();
     }
 
+    // ---- damage -------------------------------------------------------------------------------------------------------
+
+    /** How far from the line of sight the one aimed at may stand (a damage skill's aimed mode). */
+    private static final double AIM_TOLERANCE = 1.5;
+
+    /**
+     * Only damage: after the windup (a plain wait, nothing is shown), {@code count} hits every {@code interval}. Aimed:
+     * the enemy aimed at and those within the radius of it; around: those within the radius of the caster (or its
+     * origin). Only the hit itself is shown on whoever is hit.
+     */
+    private void damage(SkillCaster caster, SkillSpec spec, Supplier<Location> aim, Runnable onDone) {
+        Location fixed = originPoint(caster, spec, aim);
+        new Guarded(() -> { caster.release(); onDone.run(); }) {
+            private int age;
+            private int hits;
+
+            @Override
+            protected void tick() {
+                if (!caster.valid()) {
+                    cancel();
+                    onDone.run();
+                    return;
+                }
+                if (age >= spec.windupTicks() && (age - spec.windupTicks()) % Math.max(1, spec.intervalTicks()) == 0) {
+                    Location center = fixed == null ? caster.location() : fixed.clone();
+                    java.util.List<LivingEntity> struck = new java.util.ArrayList<>();
+                    if (spec.extras().damageMode() == SkillSpec.DamageMode.AROUND) {
+                        struck.addAll(within(center, caster, spec, spec.radius(), 2.5));
+                    } else {
+                        LivingEntity aimed = aimedTarget(caster, spec, aim.get());
+                        if (aimed != null) {
+                            center = aimed.getLocation();
+                            struck.add(aimed);
+                            if (spec.radius() > 0.0) {
+                                for (LivingEntity near : within(center, caster, spec, spec.radius(), 2.5)) {
+                                    if (!near.equals(aimed)) struck.add(near);
+                                }
+                            }
+                        }
+                    }
+                    if (!struck.isEmpty()) effects.playSkillCastSound(caster.owner(), center, spec.look(), caster.element());
+                    for (LivingEntity victim : struck) hit(caster, spec, victim, center);
+                    hits++;
+                    if (hits >= spec.count()) {
+                        caster.release();
+                        cancel();
+                        onDone.run();
+                        return;
+                    }
+                }
+                age++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /**
+     * The one a damage skill is aimed at: of those in the range and in front, the one nearest to the line from the
+     * caster's eye to the aimed point (at most {@link #AIM_TOLERANCE} from it, plus half its width), not behind a wall.
+     */
+    private LivingEntity aimedTarget(SkillCaster caster, SkillSpec spec, Location at) {
+        Location eye = caster.eye();
+        if (at == null || eye.getWorld() == null || !eye.getWorld().equals(at.getWorld())) return null;
+        Vector direction = at.toVector().subtract(eye.toVector());
+        if (direction.lengthSquared() < 1.0E-6) return null;
+        direction.normalize();
+        LivingEntity best = null;
+        double bestOff = Double.MAX_VALUE;
+        for (LivingEntity candidate : targets(caster, spec)) {
+            if (candidate.equals(caster.owner()) || !candidate.getWorld().equals(eye.getWorld())) continue;
+            Vector toCenter = candidate.getLocation().add(0.0, candidate.getHeight() * 0.5, 0.0).toVector().subtract(eye.toVector());
+            double along = toCenter.dot(direction);
+            if (along < 0.0 || along > spec.range() + candidate.getWidth() * 0.5) continue;
+            double off = toCenter.clone().subtract(direction.clone().multiply(along)).length();
+            if (off > AIM_TOLERANCE + candidate.getWidth() * 0.5 || off >= bestOff) continue;
+            double distance = toCenter.length();
+            if (distance > 1.0E-3) {
+                RayTraceResult wall = eye.getWorld().rayTraceBlocks(eye, toCenter.clone().normalize(), distance, FluidCollisionMode.NEVER, true);
+                if (wall != null) continue;
+            }
+            best = candidate;
+            bestOff = off;
+        }
+        return best;
+    }
+
     // ---- shared -------------------------------------------------------------------------------------------------------
 
     private java.util.List<LivingEntity> within(Location center, SkillCaster caster, SkillSpec spec, double radius, double vertical) {
@@ -859,7 +945,8 @@ public final class SkillRunner {
         java.util.List<LivingEntity> result = new java.util.ArrayList<>();
         if (spec.target() != SkillSpec.Target.ALLIES) result.addAll(caster.candidates());
         if (spec.target() != SkillSpec.Target.ENEMIES) {
-            boolean centered = spec.template() == SkillTemplate.STRIKE || spec.template() == SkillTemplate.NOVA;
+            boolean centered = spec.template() == SkillTemplate.STRIKE || spec.template() == SkillTemplate.NOVA
+                    || (spec.template() == SkillTemplate.DAMAGE && spec.extras().damageMode() == SkillSpec.DamageMode.AROUND);
             for (LivingEntity ally : caster.allyCandidates()) {
                 if (!centered && ally.equals(caster.owner())) continue;
                 result.add(ally);

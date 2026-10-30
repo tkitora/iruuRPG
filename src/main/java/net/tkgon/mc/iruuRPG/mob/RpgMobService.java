@@ -1224,6 +1224,7 @@ public final class RpgMobService {
             case VOLLEY -> sees && distance >= 4.0 && distance <= spec.range();
             case NOVA -> distance <= spec.radius();
             case TELEPORT -> sees && distance >= 4.0 && distance <= spec.range();
+            case DAMAGE -> spec.extras().damageMode() == SkillSpec.DamageMode.AROUND ? distance <= spec.radius() : sees && distance <= spec.range();
             case COMBO -> false;
         };
     }
