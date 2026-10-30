@@ -29,7 +29,7 @@ abstract class Node {
     final Status run(Ctx c) {
         if (!active) {
             for (Decorator decorator : decorators) {
-                if (!decorator.canEnter(c, this)) return Status.FAILURE;
+                if (!decorator.canEnter(c, this)) return forced(Status.FAILURE);
             }
             active = true;
             startedTick = c.now;
@@ -40,14 +40,14 @@ abstract class Node {
             for (Decorator decorator : decorators) {
                 if (decorator.abortSelf && !decorator.canEnter(c, this)) {
                     abort(c);
-                    return Status.FAILURE;
+                    return forced(Status.FAILURE);
                 }
             }
             for (Decorator decorator : decorators) {
                 Status verdict = decorator.during(c, this);
                 if (verdict != null) {
                     abort(c);
-                    return verdict;
+                    return forced(verdict);
                 }
             }
         }
@@ -67,6 +67,13 @@ abstract class Node {
         for (Decorator decorator : decorators) decorator.left(c, this);
         onFinish(c);
         return out;
+    }
+
+    /** A failure that did not come from running the node (a condition said no, a time limit): a success under {@code force-success}. */
+    private Status forced(Status status) {
+        if (status != Status.FAILURE) return status;
+        for (Decorator decorator : decorators) if (decorator.forcesSuccess) return Status.SUCCESS;
+        return status;
     }
 
     /** Stops the node (and what runs under it) where it is. */

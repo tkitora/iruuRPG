@@ -94,10 +94,40 @@ public final class FlyNavigator {
         return fitNear(at, new HashMap<>());
     }
 
+    /** After a stop, the speed left over from the flight is braked away for this many ticks (see {@link #coast}). */
+    private static final int BRAKE_TICKS = 8;
+    /** The velocity the mob had after the last brake (null: nothing to brake). */
+    private Vector coasting;
+    private int brakeTicks;
+
     public void stop() {
-        if (path != null) mob.setVelocity(mob.getVelocity().multiply(0.3));
+        if (path != null) {
+            Vector left = mob.getVelocity().multiply(0.3);
+            mob.setVelocity(left);
+            coasting = left.clone();
+            brakeTicks = BRAKE_TICKS;
+        }
         path = null;
         goal = null;
+    }
+
+    /**
+     * With no path, the speed left from the flight it stopped would carry it on (a dive that missed would slide on
+     * for blocks): it is halved each tick for a few ticks. A push from something else (a knockback, a skill's lunge)
+     * changes the velocity more than the air does, and is left alone.
+     */
+    private void coast() {
+        if (brakeTicks <= 0 || coasting == null) return;
+        Vector now = mob.getVelocity();
+        if (now.distanceSquared(coasting) > 0.04) {
+            brakeTicks = 0;
+            coasting = null;
+            return;
+        }
+        now.multiply(0.5);
+        mob.setVelocity(now);
+        coasting = now.clone();
+        brakeTicks--;
     }
 
     public boolean hasPath() {
@@ -125,6 +155,7 @@ public final class FlyNavigator {
         if (frozen) return;
         Vector here = mob.getLocation().toVector();
         if (path == null) {
+            coast();
             turnToFacing();
             return;
         }

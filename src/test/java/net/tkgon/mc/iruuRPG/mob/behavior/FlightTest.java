@@ -165,4 +165,50 @@ class FlightTest {
         Behavior defaulted = BehaviorParser.parse("flyer", Map.of("navigation", "fly", "blackboard", Map.of("leash", 20), "tree", Map.of("type", "wait")), new ArrayList<>());
         assertEquals(20.0, defaulted.volume.radius(), 1.0E-9);
     }
+
+    /** A mob whose velocity is kept like the server's (setVelocity / getVelocity), the air slowing it by 0.91 a tick. */
+    private static Mob movingMob(World world, Location at, org.bukkit.util.Vector[] velocity) {
+        Mob mob = mob(world, at);
+        when(mob.getVelocity()).thenAnswer(call -> velocity[0].clone());
+        org.mockito.Mockito.doAnswer(call -> {
+            velocity[0] = ((org.bukkit.util.Vector) call.getArgument(0)).clone();
+            return null;
+        }).when(mob).setVelocity(org.mockito.ArgumentMatchers.any(org.bukkit.util.Vector.class));
+        return mob;
+    }
+
+    @Test
+    void aStopBrakesTheSpeedLeftFromTheFlight() {
+        World world = world(Set.of());
+        Location start = new Location(world, 0.5, 70, 0.5);
+        org.bukkit.util.Vector[] velocity = {new org.bukkit.util.Vector(0.9, -0.4, 0.0)};
+        FlyNavigator flight = new FlyNavigator(movingMob(world, start, velocity), start, new Volume("cylinder", 30, 20, 10), 18.0);
+        assertTrue(flight.moveTo(new Location(world, 20.5, 70, 0.5), 1.0));
+        flight.stop();
+        double slid = 0.0;
+        for (int tick = 0; tick < 40; tick++) {
+            flight.tick(false);
+            slid += velocity[0].length();
+            velocity[0].multiply(0.91);
+        }
+        // without the brake: about 0.3 x 0.98 / 0.09 = 3.3 blocks more
+        assertTrue(slid < 0.8, "slid " + slid);
+    }
+
+    @Test
+    void aPushAfterAStopIsNotBraked() {
+        World world = world(Set.of());
+        Location start = new Location(world, 0.5, 70, 0.5);
+        org.bukkit.util.Vector[] velocity = {new org.bukkit.util.Vector(0.9, 0.0, 0.0)};
+        FlyNavigator flight = new FlyNavigator(movingMob(world, start, velocity), start, new Volume("cylinder", 30, 20, 10), 18.0);
+        assertTrue(flight.moveTo(new Location(world, 20.5, 70, 0.5), 1.0));
+        flight.stop();
+        flight.tick(false);
+        // a knockback the other way
+        velocity[0] = new org.bukkit.util.Vector(-0.8, 0.3, 0.0);
+        flight.tick(false);
+        assertEquals(-0.8, velocity[0].getX(), 1.0E-9);
+        flight.tick(false);
+        assertEquals(-0.8, velocity[0].getX(), 1.0E-9);
+    }
 }
