@@ -183,7 +183,7 @@ public final class DamageCalculator {
     }
 
     private CriticalResult criticalResult(PlayerProfile attacker, RpgItemDefinition weapon) {
-        if (weapon.attackType() != AttackType.MELEE || weapon.damageKind() != DamageKind.PHYSICAL) {
+        if (weapon.damageKind() != DamageKind.PHYSICAL) {
             return new CriticalResult(false, 1.0);
         }
 
