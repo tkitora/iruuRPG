@@ -100,11 +100,11 @@ combat:
       seeker-speed: 1.4
       seeker-ticks: 50
       straight-share: 1.4
-      root-radius: 4.0                            # 強攻撃2: 根の半径 / 広がりきるまでのtick / 残るtick / ダメージの間隔tick / 根の数 / 再発動で戻るMP (最大MPの割合、残り時間に比例)
+      root-radius: 6.0                            # 強攻撃2: 根の半径 / 広がりきるまでのtick / 残るtick / ダメージの間隔tick / 根の数 / 再発動で戻るMP (最大MPの割合、残り時間に比例)
       root-spread-ticks: 20
       root-life-ticks: 80
       root-period-ticks: 10
-      root-count: 9
+      root-count: 13
       root-mp-share: 0.12
       spike-count: 6                              # 強攻撃3: スパイクの数 (1ブロックごと) / 1本ごとに奥へ傾く角度 / 高さ / 太さ / 立っているtick
       spike-lean-step: 12.0
