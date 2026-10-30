@@ -173,6 +173,12 @@ public final class BgmModule implements Listener, Bgm {
     }
 
     @Override
+    public void playSceneSynced(Player player, String songId, boolean loop, double fadeSeconds) {
+        NbsSong song = registry.song(songId);
+        if (song != null) channel(player).playSceneSynced(song, loop, fadeSeconds);
+    }
+
+    @Override
     public void endScene(Player player, double fadeSeconds) {
         BgmChannel channel = channels.get(player.getUniqueId());
         if (channel != null) channel.endScene(fadeSeconds);

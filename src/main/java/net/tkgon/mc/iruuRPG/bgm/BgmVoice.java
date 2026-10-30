@@ -24,7 +24,14 @@ final class BgmVoice {
     private boolean finished;
 
     BgmVoice(NbsSong song, String origin, boolean loop, float regionVolume, double fadeInSeconds) {
+        this(song, origin, loop, regionVolume, fadeInSeconds, 0.0);
+    }
+
+    /** {@code startPosition} is the tick of the song to begin at (a song that goes over from another one of the same form begins where that one is). */
+    BgmVoice(NbsSong song, String origin, boolean loop, float regionVolume, double fadeInSeconds, double startPosition) {
         this.song = song;
+        this.position = Math.max(0.0, startPosition);
+        this.next = (int) Math.floor(this.position);
         this.origin = origin;
         this.loop = loop;
         this.regionVolume = regionVolume;
@@ -37,6 +44,11 @@ final class BgmVoice {
 
     String origin() {
         return origin;
+    }
+
+    /** The tick of the song the clock is at (the notes before it have been played). */
+    double position() {
+        return position;
     }
 
     float gain() {

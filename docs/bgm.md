@@ -21,10 +21,13 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `atlas_vindicator` | The Axe at the Gate (Boss001) | アトラスの洞窟のボス (ヴィンディケーター) | 2:08 | 150 BPM (10 ticks/秒)、E マイナー |
 | `atlas_dungeon_2` | Below the Sleeping Giant (Dungeon002) | 洞窟の内部 (Dungeon001 の低音版: ピアノとベース、フルートなし) | 2:14 | 100 BPM、B マイナー |
 | `atlas_vindicator_2` | Raise the Axe (Boss002) | ボス (Boss001 の低音版: ピアノ + ベース。サビはエレピ・ピアノの3度・鉄琴で明るく) | 2:08 | 150 BPM、E マイナー |
+| `cave_depths` | Where the Crystals Hum (Dungeon003) | クリスタルの洞窟の内部。自然な楽器 = 岩と水、電子音 = クリスタル。不協和音と唸り (hum) を少し | 2:56 | 60 BPM (4 ticks/秒)、C# ドリアン |
+| `colossus_phase1` | Shoulders of Stone (Boss003) | ボス戦フェーズ1: 自然な楽器・ハーフタイム・ベースのソロ | 2:08 | 150 BPM、D マイナー |
+| `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | ボス戦フェーズ2: 電子音・ダブルタイム・8ビットのソロ。**フェーズ1と同じ小節・同じ和音** (移行は次の小節の頭から続けて入れ替わる) | 2:08 | 150 BPM、D マイナー |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - **楽器ごとに、鳴る高さがちがう** (曲を作るとき、いちばん大事な注意)。ファイルの音 (キー 33〜57) は、どの楽器でも同じ25音だが、実際に鳴る高さは楽器で2オクターブ以上ちがう:
 
@@ -85,6 +88,7 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 - **ボス戦が始まるとき**: パーティーがボス部屋へ移動するとき (`boss-trigger` のあるダンジョン)、またはボスが傷ついた・狙ってきたとき。始まるとき、道中の曲は2秒でクロスフェードしてボス戦の曲に変わる。
 - **フェーズ**: ボスの行動 (BT) の**黒板の `phase`** (1、2、3 …) を、ボスのフェーズとして読む。BT の状態の `enter` で `set-blackboard key: phase value: 2` のように書くボスだけが、フェーズで曲が変わる。`phase` を書かないボス (今のボス全部) は、フェーズ1のまま = ボス戦の曲 1 が流れ続ける。フェーズは進むだけ (戻っても曲は戻らない)。複数のボスがいるときは、いちばん進んだボスのフェーズ。
 - **ボスを倒したとき** (ダンジョンのクリア): 曲は4秒でフェードアウトして終わる。報酬部屋ではBGMなし (範囲の BGM があればそれが戻る)。
+- **フェーズの移行はなめらか**: ボス曲を、同じ形で作った2曲 (テンポ・小節数・小節ごとの和音・ループ位置が同じ。例: `colossus_phase1` → `colossus_phase2`) にすると、フェーズが変わったとき、曲を最初から流し直さず、**いま鳴っている曲の次の小節の頭で、次の曲を同じ小節から** 1.5秒のクロスフェードで始める (`Bgm.playSceneSynced`)。小節の頭まで待つのは最大でも1小節 (150 BPM で 1.6 秒)。テンポか長さが合わない曲どうしは、従来どおり、すぐクロスフェードして先頭から鳴らす。
 - ダンジョンを出る・失敗・ワールドを出る: 1秒でフェードアウト。途中で入り直したプレイヤーは、そのときの曲 (道中、またはボス戦のフェーズの曲) から始まる。
 - 曲を決めていないダンジョンは、今までどおり無音 (範囲の BGM があれば、それが鳴る)。**ダンジョンの曲が流れている間は、ワールドの範囲 (ボリューム) の曲は鳴らない**。
 - 曲は `bgm/` の `.nbs` (yml リポジトリ経由で、再起動なしに足せる)。曲を消した・名前を変えた場合は、その曲が見つからず、何も流れない (エディターの画面に赤く出る)。

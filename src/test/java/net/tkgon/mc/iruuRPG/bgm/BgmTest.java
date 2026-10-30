@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -185,6 +185,72 @@ class BgmTest {
         assertEquals("Hollow Beneath the Giant (Dungeon001)", bundled("atlas_dungeon").title());
     }
 
+    // ---- the songs of t35: a cave of crystals, and a boss in two phases that go over from bar to bar ------------------------------------------
+
+    @Test
+    void theBossPhasesAreOnePieceAndTheCaveSongIsOurs() throws IOException {
+        NbsSong one = bundled("colossus_phase1");
+        NbsSong two = bundled("colossus_phase2");
+        assertEquals("Shoulders of Stone (Boss003)", one.title());
+        assertEquals("Shoulders of Stone, Unbound (Boss003)", two.title());
+        assertEquals(one.length(), two.length(), "the same bars");
+        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
+        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
+        assertEquals(0, one.length() % 16, "whole bars (the change waits for a bar line)");
+        assertEquals("Where the Crystals Hum (Dungeon003)", bundled("cave_depths").title());
+        assertEquals(704, bundled("cave_depths").length());
+    }
+
+    @Test
+    void aVoiceCanBeginInTheMiddleOfASong() throws IOException {
+        NbsSong song = song(100, true, 0);
+        List<Integer> keys = play(new BgmVoice(song, "scene", true, 1.0f, 0.0, 40.0), 2);
+        assertEquals(List.of(33 + 40, 33 + 41), keys, "it begins at the tick it was told to, not at the start");
+    }
+
+    @Test
+    void thePhaseGoesOverAtTheNextBarLineAndFromTheSameBar(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        BgmChannel channel = new BgmChannel();
+        Player player = player();
+        channel.playScene(registry.song("colossus_phase1"), true, 0.0);
+        for (int tick = 0; tick < 25; tick++) channel.tick(player, 1.0f);  // 10 song ticks a second: the clock is at 12.5
+        channel.playSceneSynced(registry.song("colossus_phase2"), true, 1.5);
+        assertTrue(channel.changePending());
+        assertEquals("Shoulders of Stone (Boss003)", channel.nowPlaying(), "phase 1 goes on until the bar line");
+        assertEquals(1, channel.voiceCount());
+
+        for (int tick = 0; tick < 8; tick++) channel.tick(player, 1.0f);
+        assertFalse(channel.changePending());
+        assertEquals("Shoulders of Stone, Unbound (Boss003)", channel.nowPlaying());
+        assertEquals(2, channel.voiceCount(), "phase 1 fades out while phase 2 fades in");
+        double at = channel.positionOf("colossus_phase2");
+        assertTrue(at >= 16.0 && at < 18.0, "phase 2 is at the bar after the one phase 1 was in (bar line 16): " + at);
+    }
+
+    @Test
+    void songsThatDoNotFitGoOverAtOnceAndEndingTheSceneCancelsTheWait(@TempDir File folder) throws IOException {
+        BgmRegistry registry = registryIn(folder);
+        registry.reload();
+        BgmChannel channel = new BgmChannel();
+        Player player = player();
+        channel.playScene(registry.song("atlas_dungeon"), true, 0.0);
+        for (int tick = 0; tick < 10; tick++) channel.tick(player, 1.0f);
+        channel.playSceneSynced(registry.song("atlas_vindicator"), true, 1.0);
+        assertFalse(channel.changePending(), "another tempo and length: no waiting");
+        assertEquals("The Axe at the Gate (Boss001)", channel.nowPlaying());
+
+        channel.playScene(registry.song("colossus_phase1"), true, 0.0);
+        for (int tick = 0; tick < 25; tick++) channel.tick(player, 1.0f);
+        channel.playSceneSynced(registry.song("colossus_phase2"), true, 1.5);
+        assertTrue(channel.changePending());
+        channel.endScene(1.0);
+        assertFalse(channel.changePending());
+        for (int tick = 0; tick < 40; tick++) channel.tick(player, 1.0f);
+        assertTrue(channel.silent(), "nothing comes back after the scene has ended");
+    }
+
     // ---- songs without a restart --------------------------------------------------------------------------------------------------------
 
     private static BgmRegistry registryIn(File folder) {
@@ -209,7 +275,7 @@ class BgmTest {
 
     @Test
     void theLowerVersionsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
-        for (String id : List.of("atlas_dungeon_2", "atlas_vindicator_2")) {
+        for (String id : List.of("atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2")) {
             NbsSong song = bundled(id);
             int lowest = Integer.MAX_VALUE;
             int highest = 0;
@@ -243,7 +309,7 @@ class BgmTest {
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(6, registry.songs().size());
+        assertEquals(9, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -283,7 +349,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(6, registry.songs().size());
+        assertEquals(9, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 

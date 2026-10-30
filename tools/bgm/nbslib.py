@@ -72,6 +72,16 @@ class Layer:
         self.notes[tick] = (instrument, key(midi_note), velocity)
 
 
+def swell(layer, instrument, sounding, start, length, v_from, v_to, every=4):
+    """A note that is held for ``length`` ticks: a note block dies away at once, so it is struck again every ``every`` ticks while the loudness moves from ``v_from`` to ``v_to``
+    (rising: a swell, falling: a note that fades). The notes are put only where the layer is still free (a note that is there stays)."""
+    steps = max(1, (length - 1) // every)
+    for index, tick in enumerate(range(0, length, every)):
+        if start + tick in layer.notes:
+            continue
+        layer.put_sound(start + tick, instrument, sounding, max(1, min(100, int(round(v_from + (v_to - v_from) * index / steps)))))
+
+
 def parse_bar(text):
     """'F#4:2 A4:2 D5:4' -> [(midi, ticks), ...] ('r' is a rest); the ticks must fill the bar."""
     result = []
@@ -144,6 +154,21 @@ def write_nbs(path, layers, length, ticks_per_second, title, description, loop_s
         out += struct.pack("<bbB", 0, layer.volume, layer.pan)
     out += struct.pack("<b", 0)                                   # no custom instruments
     Path(path).write_bytes(bytes(out))
+
+
+def limit_polyphony(layers, limit):
+    """Where more than ``limit`` notes sound at one tick, takes away the quietest (velocity times the volume of the layer) until ``limit`` are left; returns how many were taken away."""
+    per_tick = {}
+    for layer in layers:
+        for tick, (_, _, vel) in layer.notes.items():
+            per_tick.setdefault(tick, []).append((vel * layer.volume, layer))
+    removed = 0
+    for tick, notes in per_tick.items():
+        notes.sort(key=lambda item: item[0])
+        for _, layer in notes[:max(0, len(notes) - limit)]:
+            del layer.notes[tick]
+            removed += 1
+    return removed
 
 
 def statistics(layers, length, ticks_per_second):

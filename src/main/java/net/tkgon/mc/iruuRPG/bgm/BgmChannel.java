@@ -16,6 +16,8 @@ final class BgmChannel implements BgmVoice.Sink {
 
     private static final double PAN_WIDTH = 2.0;
     private static final double DEFAULT_FADE = 3.0;
+    /** The ticks of a bar of the songs (4/4 in sixteenths): a change between the phases of a song waits for the next bar line. */
+    static final int BAR_TICKS = 16;
     static final String MANUAL = "manual";
     static final String SCENE = "scene";
 
@@ -36,6 +38,22 @@ final class BgmChannel implements BgmVoice.Sink {
     private boolean sceneLoop;
     /** The song a listen (a test or the settings menu) plays now. */
     private NbsSong manualSong;
+    /** A change of the scene song that waits for the next bar line of the song that plays (see {@link #playSceneSynced}). */
+    private Pending pending;
+
+    private static final class Pending {
+        final NbsSong song;
+        final double fade;
+        final double startTick;
+        int serverTicksLeft;
+
+        Pending(NbsSong song, double fade, double startTick, int serverTicksLeft) {
+            this.song = song;
+            this.fade = fade;
+            this.startTick = startTick;
+            this.serverTicksLeft = serverTicksLeft;
+        }
+    }
 
     // (set for the length of one tick, for the sink)
     private Player player;
@@ -55,6 +73,17 @@ final class BgmChannel implements BgmVoice.Sink {
     /** The song of the listen, or null. */
     NbsSong manualSong() {
         return manual ? manualSong : null;
+    }
+
+    /** Where the song of this id is (a tick of the song) in the voice that is not on its way out, or -1; for the tests. */
+    double positionOf(String songId) {
+        for (BgmVoice voice : voices) if (!voice.fadingOut() && voice.song().id().equalsIgnoreCase(songId)) return voice.position();
+        return -1.0;
+    }
+
+    /** True while a change to the next phase waits for the bar line. */
+    boolean changePending() {
+        return pending != null;
     }
 
     /** The volume the player was last found in (null: none). */
@@ -108,6 +137,7 @@ final class BgmChannel implements BgmVoice.Sink {
 
     /** Plays a song by command (a test) or for a listen: the volumes and the scene are not followed until {@link #stopManual}. */
     void playManual(NbsSong song, boolean loop, double fade) {
+        pending = null;
         manual = true;
         manualSong = song;
         for (BgmVoice voice : voices) if (!voice.fadingOut()) voice.fadeOut(fade);
@@ -129,12 +159,42 @@ final class BgmChannel implements BgmVoice.Sink {
      * Under a listen only the song is kept, and it starts when the listen ends.
      */
     void playScene(NbsSong song, boolean loop, double fade) {
+        pending = null;
         sceneSong = song;
         sceneLoop = loop;
         if (!manual) startScene(fade);
     }
 
+    /**
+     * Goes over to the next song of the same piece (the phase of a boss fight): at the next bar line of the song that plays, that one fades out and this one fades in from the same
+     * bar, so the music goes on. When the songs do not fit (another tempo or length), or nothing plays, or a listen is going on, it is {@link #playScene}.
+     */
+    void playSceneSynced(NbsSong song, boolean loop, double fade) {
+        BgmVoice old = null;
+        for (BgmVoice voice : voices) if (voice.origin().equals(SCENE) && !voice.fadingOut() && !voice.done()) old = voice;
+        if (manual || old == null || old.song() == song || !fits(old.song(), song)) {
+            playScene(song, loop, fade);
+            return;
+        }
+        double position = old.position();
+        double line = Math.ceil(position / BAR_TICKS) * BAR_TICKS;  // the next bar line of the song that plays
+        double barTick = line >= song.length() ? line - (song.length() - song.loopStart()) : line;  // (it wraps round to its loop point)
+        int serverTicks = (int) Math.ceil((line - position) / (old.song().ticksPerSecond() / 20.0));
+        sceneSong = song;
+        sceneLoop = loop;
+        pending = new Pending(song, fade, barTick, Math.max(0, serverTicks));
+    }
+
+    /** Two songs are the same piece when they have the same tempo and length (and so the same bars). */
+    private static boolean fits(NbsSong a, NbsSong b) {
+        return a.length() == b.length() && Math.abs(a.ticksPerSecond() - b.ticksPerSecond()) < 1.0E-6;
+    }
+
     private void startScene(double fade) {
+        startScene(fade, 0.0);
+    }
+
+    private void startScene(double fade, double startTick) {
         current = null;
         followedSong = null;
         BgmVoice same = null;
@@ -145,12 +205,13 @@ final class BgmChannel implements BgmVoice.Sink {
         if (same != null) {
             if (same.fadingOut()) same.fadeIn(fade);
         } else {
-            voices.add(new BgmVoice(sceneSong, SCENE, sceneLoop, 1.0f, fade));
+            voices.add(new BgmVoice(sceneSong, SCENE, sceneLoop, 1.0f, fade, startTick));
         }
     }
 
     /** Ends the scene: its song fades out and the volumes are followed again (after a listen, if there is one now). */
     void endScene(double fade) {
+        pending = null;
         if (sceneSong == null) return;
         sceneSong = null;
         current = null;
@@ -160,6 +221,7 @@ final class BgmChannel implements BgmVoice.Sink {
     }
 
     void stopAll() {
+        pending = null;
         voices.clear();
         current = null;
         followedSong = null;
@@ -169,6 +231,15 @@ final class BgmChannel implements BgmVoice.Sink {
     }
 
     void tick(Player target, float master) {
+        if (pending != null) {
+            if (voices.isEmpty() || pending.song != sceneSong) {
+                pending = null;
+            } else if (--pending.serverTicksLeft <= 0) {
+                Pending go = pending;
+                pending = null;
+                startScene(go.fade, go.startTick);
+            }
+        }
         if (voices.isEmpty()) return;
         this.player = target;
         this.base = target.getEyeLocation();
