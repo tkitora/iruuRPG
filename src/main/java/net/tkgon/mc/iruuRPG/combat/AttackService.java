@@ -78,8 +78,15 @@ public final class AttackService {
         if (stackHook != null) stackHook.accept(player, trigger);
     }
 
-    /** A normal attack of the player landed on an enemy. */
+    /** The players whose attack now going on has not given its weapon a "hit" stack yet (see {@link #beginAttack}). */
+    private final java.util.Set<UUID> hitStackOpen = new java.util.HashSet<>();
+
+    /**
+     * A normal attack of the player landed on an enemy. A weapon's stacks grow once for each attack (a swing, a shot, a
+     * step of a combo), however many enemies or how many times it hits.
+     */
     public void normalAttackHit(Player attacker) {
+        if (attacker == null || !hitStackOpen.remove(attacker.getUniqueId())) return;
         stackTrigger(attacker, "hit");
     }
 
@@ -748,10 +755,12 @@ public final class AttackService {
 
     /**
      * A new attack starts (a normal attack, a step of a combo, a skill cast): its hits give an enemy status effects
-     * only once, however many times they hit.
+     * only once, however many times they hit, and the first hit of a normal attack gives the weapon's stacks one "hit".
      */
     public void beginAttack(Player attacker) {
-        if (attacker != null) statusGiven.remove(attacker.getUniqueId());
+        if (attacker == null) return;
+        statusGiven.remove(attacker.getUniqueId());
+        hitStackOpen.add(attacker.getUniqueId());
     }
 
     /** For the next {@code ticks} ticks every hit of the player gives status effects (the assassin's class skill). */
