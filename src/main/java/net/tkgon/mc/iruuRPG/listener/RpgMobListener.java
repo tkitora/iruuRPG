@@ -15,6 +15,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.entity.EntityTransformEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffectType;
@@ -27,6 +28,17 @@ public final class RpgMobListener implements Listener {
     public RpgMobListener(JavaPlugin plugin, RpgMobService mobService) {
         this.plugin = plugin;
         this.mobService = mobService;
+    }
+
+    /**
+     * A monster never turns into another mob (a zombie into a drowned in water, a skeleton into a stray in powder snow, ...): the
+     * new mob would not be the RPG mob it was, and a spawner would no longer count it.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onTransform(EntityTransformEvent event) {
+        if (event.getEntity() instanceof org.bukkit.entity.Monster || mobService.isRpgMob(event.getEntity())) {
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
