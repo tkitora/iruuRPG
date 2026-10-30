@@ -21,7 +21,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * four (ricochet and poison for the next 5 arrows; a small explosion and orange damage for the next 3 normal attacks; see {@link RangerBuffs}), 1 a straight piercing arrow that
  * hits what it passes for 5% only and breaks a trap or a mine of the ranger it meets, with a burst on the enemies round it, 2 a ring a block ahead for 3 s: an arrow through it
  * is 20% faster and stronger and its tip is red, 3 four homing arrows, one every 2 ticks (35% x4), 4 a volley loosed up into the air that falls a second later in three
- * steps, 3, 6 and 9 blocks ahead (an area of 3.2 blocks each, hit twice for 70% each time; the arrows are only the look of it).
+ * steps, 3, 6 and 9 blocks ahead (an area of 3.2 blocks each, from the ground up to 10 blocks, so an enemy in the air is hit too; hit twice for 70% each time; the arrows are only the look of it).
  */
 public final class RangerRangeCombo implements ClassCombo {
 
@@ -286,13 +286,13 @@ public final class RangerRangeCombo implements ClassCombo {
                             kit.shockwave(centre, 0.6, 3.2, 3, 1.0);
                             kit.sound(centre, Sound.ENTITY_ARROW_HIT, 0.8f, 1.2f);
                             kit.sound(centre, Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.6f);
-                            kit.hitAll(kit.around(centre, 3.2), rate);
+                            kit.hitAll(kit.column(centre, 3.2, 10.0), rate);
                             // and a second hit of the same area a moment later
                             kit.later(6L, () -> {
                                 kit.burst(centre.clone().add(0.0, 0.3, 0.0), 1.8);
                                 kit.shockwave(centre, 0.6, 3.2, 3, 0.8);
                                 kit.sound(centre, Sound.ENTITY_ARROW_HIT, 0.7f, 1.0f);
-                                kit.hitAll(kit.around(centre, 3.2), rate);
+                                kit.hitAll(kit.column(centre, 3.2, 10.0), rate);
                             });
                         });
                     });
