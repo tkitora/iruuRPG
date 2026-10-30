@@ -208,13 +208,19 @@ public final class MoveKit {
 
     /** One hit of {@code rate} times the weapon's damage (a ranged weapon hits as a ranged attack, any other as its own kind). */
     public boolean hit(LivingEntity target, double rate) {
-        if (weapon.attackType() == AttackType.RANGE) return attack.strikeRanged(player, target, weapon, rate);
-        if (weapon.attackType() == AttackType.DEPLOY) {
+        boolean landed;
+        if (weapon.attackType() == AttackType.RANGE) {
+            landed = attack.strikeRanged(player, target, weapon, rate);
+        } else if (weapon.attackType() == AttackType.DEPLOY) {
             // placed things hit 10% harder, but however many overlap, an enemy takes the hits of one of them at a time
             if (source != null && !zones.allowDeployHit(player, target, source)) return false;
-            return attack.strike(player, target, weapon, rate * DEPLOY_BONUS);
+            landed = attack.strike(player, target, weapon, rate * DEPLOY_BONUS);
+        } else {
+            landed = attack.strike(player, target, weapon, rate);
         }
-        return attack.strike(player, target, weapon, rate);
+        // a combo's attack is a normal attack: the weapon's "hit" stacks grow (once for the attack)
+        if (landed) attack.normalAttackHit(player);
+        return landed;
     }
 
     /** One hit on each; how many were hit. */
@@ -302,6 +308,7 @@ public final class MoveKit {
     /** One hit of {@code rate} times the damage of {@code hand}'s weapon (and of the other hand's when the double strike fires). */
     public boolean hitHand(AttackService.MeleeHand hand, LivingEntity target, double rate) {
         if (!attack.strike(player, target, hand, rate)) return false;
+        attack.normalAttackHit(player);
         if (hand.doubleStrike()) attack.doubleStrikeHit(player, target, hand);
         return true;
     }
