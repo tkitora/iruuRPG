@@ -175,7 +175,7 @@ public final class AttackSounds {
         accent(owner, kind, at, element, 0.3f);
     }
 
-    // ---- skills made from templates (a sound style each; made by enemies / the test command, so the "enemy" kind) --
+    // ---- skills made from templates (a sound style each, or the skill's own sounds; an enemy's are the "enemy" kind) --
 
     public void skillWindup(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SoundStyle style, Element element) {
         if (style == net.tkgon.mc.iruuRPG.skill.SoundStyle.NONE) return;
@@ -206,6 +206,66 @@ public final class AttackSounds {
                 play(owner, kind, at, Sound.ENTITY_BLAZE_SHOOT, 0.2f, 1.7f);
                 accent(owner, kind, at, element, 0.3f);
             }
+            case FIRE -> {
+                play(owner, kind, at, Sound.ENTITY_BLAZE_SHOOT, 0.7f, 0.9f);
+                play(owner, kind, at, Sound.ITEM_FIRECHARGE_USE, 0.6f, 1.0f);
+                play(owner, kind, at, Sound.ENTITY_GENERIC_BURN, 0.4f, 1.2f);
+            }
+            case ICE -> {
+                play(owner, kind, at, Sound.BLOCK_GLASS_BREAK, 0.6f, 1.4f);
+                play(owner, kind, at, Sound.BLOCK_AMETHYST_BLOCK_BREAK, 0.6f, 1.2f);
+                play(owner, kind, at, Sound.ENTITY_PLAYER_HURT_FREEZE, 0.4f, 1.0f);
+            }
+            case THUNDER -> {
+                play(owner, kind, at, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.5f, 1.2f);
+                play(owner, kind, at, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.2f, 1.6f);
+                play(owner, kind, at, Sound.BLOCK_BEACON_POWER_SELECT, 0.3f, 2.0f);
+            }
+            case WIND -> {
+                play(owner, kind, at, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.6f, 1.4f);
+                play(owner, kind, at, Sound.ENTITY_PHANTOM_SWOOP, 0.5f, 1.3f);
+                play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.4f, 1.4f);
+            }
+            case WATER -> {
+                play(owner, kind, at, Sound.ENTITY_PLAYER_SPLASH_HIGH_SPEED, 0.5f, 1.1f);
+                play(owner, kind, at, Sound.ITEM_BUCKET_EMPTY, 0.6f, 1.0f);
+                play(owner, kind, at, Sound.BLOCK_BUBBLE_COLUMN_UPWARDS_INSIDE, 0.4f, 1.2f);
+            }
+            case EARTH -> {
+                play(owner, kind, at, Sound.BLOCK_STONE_BREAK, 0.8f, 0.6f);
+                play(owner, kind, at, Sound.ENTITY_IRON_GOLEM_DAMAGE, 0.5f, 0.6f);
+                play(owner, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.25f, 0.7f);
+            }
+            case DARK -> {
+                play(owner, kind, at, Sound.ENTITY_WITHER_SHOOT, 0.4f, 1.0f);
+                play(owner, kind, at, Sound.ENTITY_ENDERMAN_TELEPORT, 0.4f, 0.6f);
+                play(owner, kind, at, Sound.ENTITY_PHANTOM_BITE, 0.3f, 0.8f);
+            }
+            case HOLY -> {
+                play(owner, kind, at, Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 1.6f);
+                play(owner, kind, at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.8f, 1.4f);
+                play(owner, kind, at, Sound.ENTITY_PLAYER_LEVELUP, 0.2f, 1.8f);
+            }
+            case BLUNT -> {
+                play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_KNOCKBACK, 0.8f, 0.8f);
+                play(owner, kind, at, Sound.ENTITY_IRON_GOLEM_ATTACK, 0.5f, 0.9f);
+                play(owner, kind, at, Sound.BLOCK_ANVIL_LAND, 0.15f, 1.4f);
+            }
+            case SHOT -> {
+                play(owner, kind, at, Sound.ITEM_CROSSBOW_SHOOT, 0.6f, 1.1f);
+                play(owner, kind, at, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.6f, 1.4f);
+                play(owner, kind, at, Sound.ENTITY_ARROW_SHOOT, 0.5f, 1.2f);
+            }
+            case EXPLOSION -> {
+                play(owner, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.0f);
+                play(owner, kind, at, Sound.ENTITY_FIREWORK_ROCKET_LARGE_BLAST, 0.5f, 0.8f);
+                play(owner, kind, at, Sound.ENTITY_DRAGON_FIREBALL_EXPLODE, 0.3f, 1.2f);
+            }
+            case POISON -> {
+                play(owner, kind, at, Sound.ENTITY_SLIME_SQUISH, 0.7f, 0.8f);
+                play(owner, kind, at, Sound.ENTITY_WITCH_THROW, 0.6f, 0.9f);
+                play(owner, kind, at, Sound.BLOCK_BREWING_STAND_BREW, 0.4f, 1.2f);
+            }
             case NONE -> {
             }
         }
@@ -220,9 +280,30 @@ public final class AttackSounds {
                 play(owner, kind, at, Sound.BLOCK_BONE_BLOCK_HIT, 0.4f, 1.0f);
                 play(owner, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.12f, 2.0f);
             }
+            case FIRE -> {
+                play(owner, kind, at, Sound.ENTITY_GENERIC_BURN, 0.4f, 1.4f);
+                play(owner, kind, at, Sound.ITEM_FIRECHARGE_USE, 0.25f, 1.5f);
+            }
+            case ICE -> play(owner, kind, at, Sound.BLOCK_GLASS_BREAK, 0.35f, 1.8f);
+            case THUNDER -> play(owner, kind, at, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.3f, 1.8f);
+            case WIND -> play(owner, kind, at, Sound.ENTITY_PHANTOM_FLAP, 0.4f, 1.6f);
+            case WATER -> play(owner, kind, at, Sound.ENTITY_GENERIC_SPLASH, 0.5f, 1.2f);
+            case EARTH -> play(owner, kind, at, Sound.BLOCK_STONE_BREAK, 0.6f, 0.8f);
+            case DARK -> play(owner, kind, at, Sound.ENTITY_ENDERMAN_HURT, 0.3f, 0.6f);
+            case HOLY -> play(owner, kind, at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.5f, 1.8f);
+            case BLUNT -> play(owner, kind, at, Sound.ENTITY_PLAYER_ATTACK_STRONG, 0.6f, 0.8f);
+            case SHOT -> play(owner, kind, at, Sound.ENTITY_ARROW_HIT, 0.5f, 1.2f);
+            case EXPLOSION -> play(owner, kind, at, Sound.ENTITY_GENERIC_EXPLODE, 0.25f, 1.4f);
+            case POISON -> play(owner, kind, at, Sound.ENTITY_SLIME_SQUISH_SMALL, 0.6f, 1.0f);
             case NONE -> {
             }
         }
+    }
+
+    /** A skill's own sounds for one moment (its look.sounds), at their own volume and pitch. */
+    public void skillCues(Player owner, Location at, java.util.List<net.tkgon.mc.iruuRPG.skill.SkillSounds.Cue> cues) {
+        SoundKind kind = owner == null ? SoundKind.ENEMY : SoundKind.SKILL;
+        for (net.tkgon.mc.iruuRPG.skill.SkillSounds.Cue cue : cues) play(owner, kind, at, cue.key(), cue.volume(), cue.pitch());
     }
 
     // ---- deployed objects -----------------------------------------------------------------------------------
@@ -295,6 +376,22 @@ public final class AttackSounds {
             float factor = settings.volume(listener, kind) / 100.0f;
             if (factor <= 0.0f) continue;
             listener.playSound(at, sound, SoundCategory.PLAYERS, Math.min(1.0f, volume * master * factor), tuned);
+        }
+    }
+
+    /** {@link #play(Player, SoundKind, Location, Sound, float, float)} for a sound given by its key (a skill's own sounds; a resource pack's too). */
+    private void play(Player owner, SoundKind kind, Location at, String key, float volume, float pitch) {
+        if (at == null || !enabled()) return;
+        World world = at.getWorld();
+        if (world == null) return;
+        float master = (float) Math.max(0.0, plugin.getConfig().getDouble("attack-sounds.volume", 1.0));
+        float jitter = (float) ThreadLocalRandom.current().nextDouble(-0.04, 0.04);
+        float tuned = Math.max(0.5f, Math.min(2.0f, pitch + jitter));
+        for (Player listener : world.getNearbyPlayers(at, HEARING_RANGE)) {
+            if (owner != null && !listener.equals(owner) && !settings.hearOthers(listener)) continue;
+            float factor = settings.volume(listener, kind) / 100.0f;
+            if (factor <= 0.0f) continue;
+            listener.playSound(at, key, SoundCategory.PLAYERS, Math.min(1.0f, volume * master * factor), tuned);
         }
     }
 

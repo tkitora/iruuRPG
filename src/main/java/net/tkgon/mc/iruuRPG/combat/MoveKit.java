@@ -1108,7 +1108,7 @@ public final class MoveKit {
     public void slash(String kind, double radius, double angle, double tilt, double roll, double forward, double drop, double side,
                       double scale, double duration, double delay) {
         ComboStyle.Cut cut = new ComboStyle.Cut(radius, angle, tilt, roll, 0.0, forward, drop, duration, scale, delay, side, kind);
-        net.tkgon.mc.iruuRPG.skill.SkillLook look = slashColors == null ? null : new net.tkgon.mc.iruuRPG.skill.SkillLook(slashColors, null, 1.0, 1.0, null);
+        net.tkgon.mc.iruuRPG.skill.SkillLook look = slashColors == null ? null : new net.tkgon.mc.iruuRPG.skill.SkillLook(slashColors, null, 1.0, 1.0, null, null);
         effects.playStyledSlash(player, weapon, new ComboStyle.Stage(List.of(cut), "swing", 0), look, 0);
     }
 

@@ -7,10 +7,11 @@ import org.bukkit.Particle;
 import java.util.List;
 
 /**
- * What a skill looks like: up to three colors (body / edge / core), the sparkle particle, size and width multipliers
- * and the sound style. A null color list or particle means "from the caster's element" (the old look).
+ * What a skill looks like: up to three colors (body / edge / core), the sparkle particle, size and width multipliers,
+ * the sound style and the skill's own sounds (null: the style's). A null color list or particle means "from the
+ * caster's element" (the old look).
  */
-public record SkillLook(List<Color> colors, Particle particle, double size, double width, SoundStyle sound) {
+public record SkillLook(List<Color> colors, Particle particle, double size, double width, SoundStyle sound, SkillSounds sounds) {
 
     public static final double MIN_SIZE = 0.2;
     public static final double MAX_SIZE = 3.0;
@@ -25,7 +26,7 @@ public record SkillLook(List<Color> colors, Particle particle, double size, doub
 
     /** The look of a skill that sets nothing: colors and sparks from the element. */
     public static SkillLook plain() {
-        return new SkillLook(null, null, 1.0, 1.0, null);
+        return new SkillLook(null, null, 1.0, 1.0, null, null);
     }
 
     /** Body color: the first color, or {@code fallback} (the element's color) when none is set. */
