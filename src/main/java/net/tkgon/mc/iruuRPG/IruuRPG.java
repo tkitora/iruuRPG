@@ -36,6 +36,7 @@ import net.tkgon.mc.iruuRPG.dungeon.DungeonEditor;
 import net.tkgon.mc.iruuRPG.spawner.FieldSpawnerCommand;
 import net.tkgon.mc.iruuRPG.spawner.FieldSpawnerEditor;
 import net.tkgon.mc.iruuRPG.spawner.FieldSpawnerService;
+import net.tkgon.mc.iruuRPG.spawner.SpawnerBlockFinder;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonService;
 import net.tkgon.mc.iruuRPG.gui.DungeonMenu;
@@ -143,6 +144,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.model.ModelModule modelModule;
     private FieldSpawnerService fieldSpawnerService;
     private FieldSpawnerEditor fieldSpawnerEditor;
+    private SpawnerBlockFinder spawnerBlockFinder;
     private RewardChestMenu rewardChestMenu;
     private SidebarService sidebarService;
     private PartyService partyService;
@@ -336,6 +338,7 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonEditor.setBgmSettings(bgmSettings);
         this.fieldSpawnerService = new FieldSpawnerService(this, mobService, mobRegistry);
         this.fieldSpawnerEditor = new FieldSpawnerEditor(this, fieldSpawnerService, mobRegistry);
+        this.spawnerBlockFinder = new SpawnerBlockFinder(this);
         this.fieldSpawnerService.setEditing(fieldSpawnerEditor::editing);
         this.fieldSpawnerEditor.setOtherEditor(dungeonEditor::editing);
         this.dungeonEditor.setOtherEditor(fieldSpawnerEditor::editing);
@@ -419,6 +422,9 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (fieldSpawnerEditor != null) {
             fieldSpawnerEditor.shutdown();
+        }
+        if (spawnerBlockFinder != null) {
+            spawnerBlockFinder.shutdown();
         }
         if (fieldSpawnerService != null) {
             fieldSpawnerService.shutdown();
@@ -554,7 +560,7 @@ public final class IruuRPG extends JavaPlugin {
 
         PluginCommand spawnerCommand = getCommand("spawner");
         if (spawnerCommand != null) {
-            FieldSpawnerCommand spawner = new FieldSpawnerCommand(fieldSpawnerService, fieldSpawnerEditor);
+            FieldSpawnerCommand spawner = new FieldSpawnerCommand(fieldSpawnerService, fieldSpawnerEditor, spawnerBlockFinder);
             spawnerCommand.setExecutor(spawner);
             spawnerCommand.setTabCompleter(spawner);
         }
@@ -637,6 +643,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(dungeonEditor, this);
         getServer().getPluginManager().registerEvents(fieldSpawnerService, this);
         getServer().getPluginManager().registerEvents(fieldSpawnerEditor, this);
+        getServer().getPluginManager().registerEvents(spawnerBlockFinder, this);
         fieldSpawnerService.start();
         fieldSpawnerEditor.start();
         getServer().getPluginManager().registerEvents(rewardChestMenu, this);

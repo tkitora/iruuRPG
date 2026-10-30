@@ -87,8 +87,8 @@ commands:
     description: Instance dungeons (menu, enter, leave; admins build them)
     usage: /dungeon [enter <id> | leave | edit [id] | build|entry|spawn|spawns|clearspawns|save|new|reload ...]
   spawner:
-    description: "Field mob spawners (admins only: edit mode, list, reload)"
-    usage: /spawner [edit | list | reload]
+    description: "Field mob spawners (admins only: edit mode, list, reload; blocks = find, light up and delete the game's own spawner blocks)"
+    usage: /spawner [edit | list | reload | blocks [radius]]
     permission: iruurpg.admin
   trade:
     description: Trade items and gold with another player
