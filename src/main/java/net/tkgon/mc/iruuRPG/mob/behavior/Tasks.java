@@ -316,6 +316,36 @@ final class Tasks {
         }
     }
 
+    /**
+     * Calls mobs to the mob's side (a boss's brood): {@code count} of the kind {@code mob} within {@code radius} blocks, at most
+     * {@code maxAlive} of its own alive at once. Succeeds when they came or as many as allowed live already; fails when the kind
+     * does not exist or there is no place for them.
+     */
+    static final class Summon extends Task {
+        private final String mobId;
+        private final int count;
+        private final double radius;
+        private final int maxAlive;
+
+        Summon(String mobId, int count, double radius, int maxAlive) {
+            super("summon");
+            this.mobId = mobId;
+            this.count = count;
+            this.radius = radius;
+            this.maxAlive = maxAlive;
+        }
+
+        @Override
+        String label() {
+            return name != null && !name.isBlank() ? name : "summon " + mobId + " x" + count;
+        }
+
+        @Override
+        Status tickNode(Ctx c) {
+            return c.host.summon(mobId, count, radius, maxAlive, c.bb.target) >= 0 ? Status.SUCCESS : Status.FAILURE;
+        }
+    }
+
     /** Forgets the target and does not look for another for {@code seconds}. */
     static final class ClearTarget extends Task {
         private final int ticks;
