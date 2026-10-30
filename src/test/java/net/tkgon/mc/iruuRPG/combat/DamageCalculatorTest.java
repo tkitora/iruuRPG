@@ -78,4 +78,22 @@ class DamageCalculatorTest {
         // the orange resist is the one thing that is not skipped: resist 1 halves the damage
         assertEquals(open * 0.5, orangeHit(1.0), open * 0.02);
     }
+
+    private boolean criticalOf(DamageKind kind, AttackType type) {
+        PlayerProfile attacker = new PlayerProfile(UUID.randomUUID(), 20.0, 20.0);
+        attacker.finalStats().set(StatType.WEAPON_DAMAGE, 10.0);
+        attacker.finalStats().set(StatType.CRIT_CHANCE, 1000.0);
+        PlayerProfile victim = new PlayerProfile(UUID.randomUUID(), 20.0, 20.0);
+        RpgItemDefinition weapon = new RpgItemDefinition("test_crit", Material.BOW, ItemVisualOptions.NONE, "test", 1, Rarity.COMMON,
+                Element.RED, kind, type, ItemSkillType.NONE, "", Map.of(), null, new StatSet(), new ElementStatSet(), List.of());
+        return calculator.calculate(new DamageInput(attacker, victim, weapon)).critical();
+    }
+
+    @Test
+    void physicalDamageCanCritWhateverTheAttackType() {
+        assertTrue(criticalOf(DamageKind.PHYSICAL, AttackType.MELEE));
+        assertTrue(criticalOf(DamageKind.PHYSICAL, AttackType.RANGE));
+        assertTrue(criticalOf(DamageKind.PHYSICAL, AttackType.DEPLOY));
+        assertTrue(!criticalOf(DamageKind.MAGIC, AttackType.MELEE));
+    }
 }
