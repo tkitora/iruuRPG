@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 from nbslib import *  # noqa: F401,F403 - the shared helpers
-import make_atlas_dungeon_bgm as base
+import make_atlas_dungeon_v1_bgm as base
 
 TPS = base.TPS
 LOOP_START_BAR = base.LOOP_START_BAR
