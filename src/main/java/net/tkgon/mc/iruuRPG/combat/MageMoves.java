@@ -60,7 +60,7 @@ import java.util.function.IntFunction;
  * <p>Heavy attacks (left click, the number of normal attacks so far): 0 the echo and the re-activations. A heavy attack thrown while the echo is ready is thrown again
  * by itself 2 s later (that one is not echoed again and needs no combo; at most 3 wait at once); the echo then has a cooldown of 8 s, a second shorter for every hit (one
  * for the enemies hit at the same moment). The heavy click with no normal attack before it re-activates what the last heavy attack left: 1 two bolts after the enemy
- * normal attack 1 hit (else one straight bolt ahead), 2 roots that spread over the ground round the player to 4 blocks and hurt what stands on them (one at a time; the
+ * normal attack 1 hit (else one straight bolt ahead), 2 roots that spread over the ground round the player to 6 blocks and hurt what stands on them (one at a time; the
  * echo's are more); re-activated once they are full, they go back into the player as MP for the time they had left, 3 spikes out of the ground every block ahead, each
  * leaning further away; re-activated when they hit something, three more stab the nearest enemy they hit from the air round it, 4 a sphere where the player aims (a block
  * or an enemy) that shrinks for 1 s drawing the enemies in, glows for 2 s and bursts; re-activated while it glows, it bursts at once for less.
@@ -202,6 +202,9 @@ public final class MageMoves {
         return best;
     }
 
+    /** How much farther than its width a shot still meets the enemy it was thrown at (blocks). */
+    private static final double AIMED_SLACK = 0.9;
+
     private static Location middle(LivingEntity target) {
         return target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
     }
@@ -226,8 +229,10 @@ public final class MageMoves {
     /**
      * A shot moved along {@code path} (its place at age 1, 2, ... up to {@code ticks}), tested between two places against the blocks and the enemies
      * ({@code radius} wide); {@code onEnd} gets where it stopped and the enemy it met (null for a block or the end of the path).
+     * {@code aimed} is the enemy the player aimed at (or null): a shot that comes close to it meets it even when it has moved on a little
+     * since the shot left (the shot is slower than the click, an enemy that walks would be missed by a path drawn at the click).
      */
-    private void fly(MoveKit kit, Location start, int ticks, IntFunction<Location> path, double radius, double size, BiConsumer<Location, LivingEntity> onEnd) {
+    private void fly(MoveKit kit, Location start, int ticks, IntFunction<Location> path, double radius, double size, LivingEntity aimed, BiConsumer<Location, LivingEntity> onEnd) {
         Player player = kit.player;
         World world = start.getWorld();
         Location[] trail = {start.clone(), start.clone()};
@@ -242,8 +247,13 @@ public final class MageMoves {
             drawShot(kit, trail[1], from, at, age, size);
             trail[1] = from;
             trail[0] = at;
-            if (result != null || age + 1 >= ticks) {
-                onEnd.accept(at, result != null && result.getHitEntity() instanceof LivingEntity victim ? victim : null);
+            LivingEntity met = result != null && result.getHitEntity() instanceof LivingEntity victim ? victim : null;
+            if (result == null && aimed != null && aimed.isValid() && !aimed.isDead() && aimed.getWorld().equals(world)) {
+                double reach = radius + AIMED_SLACK;
+                if (middle(aimed).distanceSquared(at) <= reach * reach) met = aimed;
+            }
+            if (result != null || met != null || age + 1 >= ticks) {
+                onEnd.accept(at, met);
                 return true;
             }
             return false;
@@ -338,6 +348,7 @@ public final class MageMoves {
         Vector offset = axes[1].clone().multiply(side).add(axes[2].clone().multiply(lift));
         Location start = kit.eye().add(axes[0].clone().multiply(0.5)).add(offset.clone().multiply(0.9)).subtract(0.0, 0.2, 0.0);
         Location aim = kit.aim();
+        LivingEntity aimed = kit.aimed();
         Vector across = aim.toVector().subtract(start.toVector());
         double distance = Math.max(1.0, across.length());
         Vector bend = offset.lengthSquared() < 1.0E-6 ? axes[2].clone() : offset.clone().normalize();
@@ -345,7 +356,9 @@ public final class MageMoves {
         int ticks = (int) Math.max(5, Math.min(16, Math.round(distance / 1.5)));
         muzzle(kit, start, 1.0);
         kit.sound(start, Sfx.MAGE_CAST, 0.55f, 1.05f + (float) (side * 0.06 + lift * 0.1));
-        fly(kit, start, ticks, age -> bezier(start, control, aim, age / (double) ticks), 0.35, 1.0, (at, victim) -> {
+        // the end of the path follows the enemy aimed at while it lives
+        fly(kit, start, ticks, age -> bezier(start, control, aimed != null && aimed.isValid() && !aimed.isDead() && aimed.getWorld().equals(aim.getWorld())
+                ? middle(aimed) : aim, age / (double) ticks), 0.35, 1.0, aimed, (at, victim) -> {
             impact(kit, at, 1.0);
             if (victim != null) hit(cast, victim, rate);
         });
@@ -359,6 +372,7 @@ public final class MageMoves {
         Location eye = kit.eye();
         Location start = eye.clone().add(axes[0].clone().multiply(0.4)).add(offset.clone().multiply(0.8)).subtract(0.0, 0.15, 0.0);
         Location aim = kit.aim();
+        LivingEntity aimed = kit.aimed();
         Vector toAim = aim.toVector().subtract(eye.toVector());
         double distance = toAim.length();
         toAim = distance < 1.0E-6 ? axes[0].clone() : toAim.multiply(1.0 / distance);
@@ -373,7 +387,7 @@ public final class MageMoves {
         muzzle(kit, start, 1.5);
         kit.sound(start, Sfx.MAGE_CAST, 0.75f, 0.85f);
         fly(kit, start, bend + straight, age -> age <= bend ? bezier(start, control, cross, age / (double) bend)
-                : cross.clone().add(onward.clone().multiply(age - bend)), 0.6, 1.6, (at, victim) -> {
+                : cross.clone().add(onward.clone().multiply(age - bend)), 0.6, 1.6, aimed, (at, victim) -> {
             impact(kit, at, 1.5);
             if (victim != null) hit(cast, victim, rate);
         });
@@ -595,7 +609,7 @@ public final class MageMoves {
         muzzle(kit, start, 1.6);
         kit.sound(start, Sfx.MAGE_CAST, 0.9f, 0.8f);
         kit.sound(start, Sfx.MAGE_WIND, 0.5f, 1.2f);
-        fly(kit, start, 11, age -> start.clone().add(way.clone().multiply(age)), 0.5, 1.6, (at, victim) -> {
+        fly(kit, start, 11, age -> start.clone().add(way.clone().multiply(age)), 0.5, 1.6, null, (at, victim) -> {
             impact(kit, at, 1.6);
             if (victim != null) hit(cast, victim, rate);
         });
@@ -607,7 +621,7 @@ public final class MageMoves {
         MoveKit kit = cast.kit();
         Player player = kit.player;
         State state = state(player);
-        double radius = number("root-radius", 4.0);
+        double radius = number("root-radius", 6.0);
         int spread = (int) Math.max(1, number("root-spread-ticks", 20.0));
         int life = (int) Math.max(spread + 10, number("root-life-ticks", 80.0));
         int period = (int) Math.max(2, number("root-period-ticks", 10.0));
