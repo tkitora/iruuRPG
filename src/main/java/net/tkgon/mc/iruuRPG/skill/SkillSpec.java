@@ -151,7 +151,7 @@ public record SkillSpec(
             case BARRAGE, NOVA, BEAM, TELEPORT, VOLLEY -> SoundStyle.MAGIC;
             case COMBO, DAMAGE -> SoundStyle.NONE;
         };
-        SkillLook look = new SkillLook(null, null, 1.0, 1.0, sound);
+        SkillLook look = new SkillLook(null, null, 1.0, 1.0, sound, null);
         return switch (template) {
             case STRIKE -> new SkillSpec("", "", template, look, 3.5, 4.5, 130, Orientation.HORIZONTAL, 24, 160, 1, 4, 12.0, 1.8, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);
             case SWEEP -> new SkillSpec("", "", template, look, 4.5, 4.5, 130, Orientation.HORIZONTAL, 14, 120, 1, 4, 12.0, 1.3, List.of(), 0, null, Target.ENEMIES, 0.0, List.of(), List.of(), null, TeleportMode.FORWARD, Extras.NONE);

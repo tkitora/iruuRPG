@@ -28,7 +28,8 @@ import java.util.regex.Pattern;
  *   fire_slam:                     # id: lower case letters, digits and _
  *     name: "..."
  *     template: strike             # strike | sweep | barrage | dash | wave | nova | beam | teleport | volley | damage
- *     look:   { colors: ["#ff5a1e", "#ffd24a", "#ffffff"], particle: FLAME, size: 1.0, width: 1.0, sound: heavy }
+ *     look:   { colors: ["#ff5a1e", "#ffd24a", "#ffffff"], particle: FLAME, size: 1.0, width: 1.0, sound: heavy,
+ *               sounds: { cast: [{sound: ENTITY_BLAZE_SHOOT, volume: 0.6, pitch: 1.2}] } }   # sounds: optional, see sounds()
  *     shape:  { radius: 3.5, range: 6, angle: 130, orientation: horizontal, mode: forward }   # mode: teleport (forward | behind), damage (aimed | around)
  *     timing: { windup-ticks: 24, cooldown-ticks: 160, count: 1, interval-ticks: 4, speed: 12 }
  *     effects: { damage-rate: 1.8, status: [{type: slow, percent: 40, seconds: 3}], heal-rate: 0, knockback: 0 }
@@ -512,12 +513,92 @@ public final class SkillRegistry {
         if (flat.get("sound") != null) {
             SoundStyle parsed = SoundStyle.parse(flat.get("sound").toString());
             if (parsed == null) {
-                plugin.getLogger().warning("skills: " + owner + ": sound '" + flat.get("sound") + "' is unknown (heavy / sharp / magic / none)");
+                plugin.getLogger().warning("skills: " + owner + ": sound '" + flat.get("sound") + "' is unknown (" + SoundStyle.names() + ")");
             } else {
                 sound = parsed;
             }
         }
-        return new SkillLook(colors, particle, size, width, sound);
+        SkillSounds sounds = oldLook.sounds();
+        if (flat.containsKey("sounds")) {
+            SkillSounds own = sounds(owner, flat.get("sounds"));
+            sounds = sounds == null ? own : sounds.with(own);
+        }
+        return new SkillLook(colors, particle, size, width, sound, sounds);
+    }
+
+    /** The keys of the game's own sounds ("minecraft:entity.blaze.shoot"), to check a skill's sounds against. */
+    private static final Set<String> GAME_SOUNDS = new java.util.HashSet<>();
+
+    static {
+        for (org.bukkit.Sound sound : org.bukkit.Sound.values()) GAME_SOUNDS.add(sound.getKey().toString());
+    }
+
+    private static final Pattern SOUND_KEY = Pattern.compile("[a-z0-9_.-]+:[a-z0-9_./-]+");
+
+    /**
+     * look.sounds: {windup: [...], cast: [...], hit: [...]}, each a list of {sound, volume, pitch} (or of sound names
+     * alone). A sound is a game sound by its name (ENTITY_BLAZE_SHOOT) or key (minecraft:entity.blaze.shoot, or
+     * entity.blaze.shoot), or a resource pack's own key (iruu:skill.boom). A moment left out keeps the style's sound;
+     * an empty list makes it silent. Null when nothing could be read.
+     */
+    private SkillSounds sounds(String owner, Object raw) {
+        Map<String, Object> map = toMap(raw);
+        if (map == null) {
+            plugin.getLogger().warning("skills: " + owner + ": sounds must be a section (windup / cast / hit); ignored");
+            return null;
+        }
+        for (String key : map.keySet()) {
+            if (!List.of("windup", "cast", "hit").contains(key)) {
+                plugin.getLogger().warning("skills: " + owner + ": sounds." + key + " is unknown (windup / cast / hit); ignored");
+            }
+        }
+        return new SkillSounds(cues(owner + ": sounds.windup", map.get("windup")),
+                cues(owner + ": sounds.cast", map.get("cast")), cues(owner + ": sounds.hit", map.get("hit")));
+    }
+
+    /** One moment's sounds; null when the moment is not set (or nothing in it could be read). */
+    private List<SkillSounds.Cue> cues(String where, Object raw) {
+        if (raw == null) return null;
+        List<?> items = raw instanceof List<?> list ? list : List.of(raw);
+        List<SkillSounds.Cue> cues = new ArrayList<>();
+        for (Object item : items) {
+            if (cues.size() >= SkillSounds.MAX_CUES) {
+                plugin.getLogger().warning("skills: " + where + ": at most " + SkillSounds.MAX_CUES + " sounds at one moment; the rest are ignored");
+                break;
+            }
+            Map<String, Object> entry = toMap(item);
+            Object name = entry == null ? item : entry.get("sound");
+            String key = soundKey(name);
+            if (key == null) {
+                plugin.getLogger().warning("skills: " + where + ": sound '" + name + "' is not a sound of the game (a name like ENTITY_BLAZE_SHOOT, or a key like minecraft:entity.blaze.shoot); skipped");
+                continue;
+            }
+            double volume = entry == null ? 1.0 : number(where, entry, "volume", 1.0, SkillSounds.MIN_VOLUME, SkillSounds.MAX_VOLUME);
+            double pitch = entry == null ? 1.0 : number(where, entry, "pitch", 1.0, SkillSounds.MIN_PITCH, SkillSounds.MAX_PITCH);
+            cues.add(new SkillSounds.Cue(key, (float) volume, (float) pitch));
+        }
+        if (cues.isEmpty() && !items.isEmpty()) return null;
+        return cues;
+    }
+
+    /** The key of a sound name: a game sound's name or key, or a resource pack's own key; null when it is neither. */
+    static String soundKey(Object raw) {
+        if (raw == null) return null;
+        String text = raw.toString().trim();
+        if (text.isEmpty()) return null;
+        if (!text.contains(":") && !text.contains(".")) {
+            try {
+                return org.bukkit.Sound.valueOf(text.toUpperCase(Locale.ROOT)).getKey().toString();
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+        }
+        String key = text.toLowerCase(Locale.ROOT);
+        if (!key.contains(":")) key = "minecraft:" + key;
+        if (!SOUND_KEY.matcher(key).matches()) return null;
+        // the game's own sounds must exist; a resource pack's own (another namespace) cannot be checked here
+        if (key.startsWith("minecraft:") && !GAME_SOUNDS.contains(key)) return null;
+        return key;
     }
 
     /**

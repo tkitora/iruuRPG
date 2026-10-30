@@ -974,17 +974,23 @@ public final class AttackEffects {
 
     public void playSkillWindupSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         ParticleFx.mark(owner);
-        sounds.skillWindup(owner, at, styleOf(look), element);
+        net.tkgon.mc.iruuRPG.skill.SkillSounds own = look == null ? null : look.sounds();
+        if (own != null && own.windup() != null) sounds.skillCues(owner, at, own.windup());
+        else sounds.skillWindup(owner, at, styleOf(look), element);
     }
 
     public void playSkillCastSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         ParticleFx.mark(owner);
-        sounds.skillCast(owner, at, styleOf(look), element);
+        net.tkgon.mc.iruuRPG.skill.SkillSounds own = look == null ? null : look.sounds();
+        if (own != null && own.cast() != null) sounds.skillCues(owner, at, own.cast());
+        else sounds.skillCast(owner, at, styleOf(look), element);
     }
 
     public void playSkillHitSound(Player owner, Location at, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         ParticleFx.mark(owner);
-        sounds.skillImpact(owner, at, styleOf(look), element);
+        net.tkgon.mc.iruuRPG.skill.SkillSounds own = look == null ? null : look.sounds();
+        if (own != null && own.hit() != null) sounds.skillCues(owner, at, own.hit());
+        else sounds.skillImpact(owner, at, styleOf(look), element);
     }
 
     private net.tkgon.mc.iruuRPG.skill.SoundStyle styleOf(net.tkgon.mc.iruuRPG.skill.SkillLook look) {
