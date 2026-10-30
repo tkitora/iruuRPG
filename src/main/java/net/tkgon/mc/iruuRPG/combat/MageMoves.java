@@ -149,7 +149,10 @@ public final class MageMoves {
     }
 
     private boolean hit(Player player, RpgItemDefinition weapon, LivingEntity target, double rate) {
-        return attackService.strikeRanged(player, target, weapon, rate);
+        if (!attackService.strikeRanged(player, target, weapon, rate)) return false;
+        // the mage's combo is its normal attack: the weapon's "hit" stacks grow (once for the attack)
+        attackService.normalAttackHit(player);
+        return true;
     }
 
     private void later(long ticks, Runnable action) {
