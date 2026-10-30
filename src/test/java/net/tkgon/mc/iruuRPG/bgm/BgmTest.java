@@ -329,6 +329,31 @@ class BgmTest {
     }
 
     @Test
+    void theNecromancerTuneIsNarrowAndGoesByStepsAndPhaseTwoIsAHalfStepHigher() throws IOException {
+        int[] top = new int[2];
+        for (int phase = 1; phase <= 2; phase++) {
+            NbsSong song = bundled("necromancer_phase" + phase);
+            int lowest = Integer.MAX_VALUE;
+            int highest = 0;
+            int previousTick = -100;
+            int previous = 0;
+            for (int i = 0; i < song.noteCount(); i++) {   // the tune: the loud notes of the piano
+                NbsSong.Note note = song.note(i);
+                if (note.instrument() != 0 || note.volume() < 0.8f) continue;
+                int sound = sounding(note.instrument(), note.key());
+                lowest = Math.min(lowest, sound);
+                highest = Math.max(highest, sound);
+                if (note.tick() - previousTick <= 8) assertTrue(Math.abs(sound - previous) < 6, "phase " + phase + ": a leap of " + Math.abs(sound - previous) + " semitones at tick " + note.tick());
+                previousTick = note.tick();
+                previous = sound;
+            }
+            assertTrue(highest - lowest <= 14, "phase " + phase + ": the tune is at most a ninth wide (" + (highest - lowest) + ")");
+            top[phase - 1] = highest;
+        }
+        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
