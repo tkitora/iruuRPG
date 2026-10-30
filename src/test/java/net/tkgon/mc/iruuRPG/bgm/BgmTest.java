@@ -274,8 +274,8 @@ class BgmTest {
     }
 
     @Test
-    void theLowerVersionsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
-        for (String id : List.of("atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2")) {
+    void theNewerSongsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
+        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2")) {
             NbsSong song = bundled(id);
             int lowest = Integer.MAX_VALUE;
             int highest = 0;
@@ -297,12 +297,21 @@ class BgmTest {
     }
 
     @Test
-    void theFirstVersionsKeepTheirFluteAndAreNotChanged() throws IOException {
-        // the songs of Dungeon001 and Boss001 are kept as they were
+    void theRenewedFirstSongsKeepTheirNamesAndFormAndAreInTheLowRegisterWithAtMostEightNotesAtOnce() throws IOException {
+        // Dungeon001 and Boss001 were written again (no flute, bell or chime: see the test above); the name, the length and the loop point are the same as before
         assertEquals("Hollow Beneath the Giant (Dungeon001)", bundled("atlas_dungeon").title());
         assertEquals(896, bundled("atlas_dungeon").length());
         assertEquals("The Axe at the Gate (Boss001)", bundled("atlas_vindicator").title());
         assertEquals(1280, bundled("atlas_vindicator").length());
+        for (String id : List.of("atlas_dungeon", "atlas_vindicator")) {
+            NbsSong song = bundled(id);
+            assertEquals(64, song.loopStart(), id + ": loops from bar 5");
+            int[] perTick = new int[song.length()];
+            for (int i = 0; i < song.noteCount(); i++) perTick[song.note(i).tick()]++;
+            int peak = 0;
+            for (int count : perTick) peak = Math.max(peak, count);
+            assertTrue(peak <= 8, id + ": at most 8 notes at the same time (" + peak + ")");
+        }
     }
 
     @Test
