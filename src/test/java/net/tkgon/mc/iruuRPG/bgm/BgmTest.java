@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -440,10 +440,40 @@ class BgmTest {
     }
 
     @Test
+    void theWaltzPhasesAreOnePieceInThreeBeatsAndPhaseTwoIsAHalfStepHigher() throws IOException {
+        NbsSong one = bundled("waltz_phase1");
+        NbsSong two = bundled("waltz_phase2");
+        assertEquals("Waltz at the Edge of Dark (Boss008)", one.title());
+        assertEquals("Waltz at the Edge of Dark, Out of Step (Boss008)", two.title());
+        assertEquals(1216, one.length());
+        assertEquals(one.length(), two.length(), "the same bars");
+        assertEquals(10.0, one.ticksPerSecond(), 1.0E-9, "150 BPM");
+        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
+        assertEquals(64, one.loopStart(), "the pickup and five bars of three beats are played once, then the loop starts on a bar line of the game");
+        assertEquals(0, one.length() % 16, "bars of three beats (12 ticks) add up to whole bars of 16 ticks");
+        int[] top = new int[2];
+        for (int phase = 1; phase <= 2; phase++) {
+            NbsSong song = phase == 1 ? one : two;
+            int highest = 0;
+            int firstBeats = 0;
+            for (int i = 0; i < song.noteCount(); i++) {
+                NbsSong.Note note = song.note(i);
+                int sound = sounding(note.instrument(), note.key());
+                if (note.instrument() == 0 && note.volume() >= 0.8f) highest = Math.max(highest, sound);   // the melody: the loud notes of the harp
+                if (note.instrument() == 6) assertTrue(sound <= 91, "phase " + phase + ": the flute only an octave over the melody (" + sound + ")");
+                if (note.instrument() == 1 && note.tick() >= 64 && (note.tick() - 64) % 12 == 0 && note.volume() >= 0.8f) firstBeats++;
+            }
+            assertTrue(firstBeats >= 60, "phase " + phase + ": the bass lands on the first beat of the bars (" + firstBeats + ")");
+            top[phase - 1] = highest;
+        }
+        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(17, registry.songs().size());
+        assertEquals(19, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -483,7 +513,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(17, registry.songs().size());
+        assertEquals(19, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
