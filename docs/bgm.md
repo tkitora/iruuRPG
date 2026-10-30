@@ -30,10 +30,12 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `reaper_phase2` | Silence of the Scythe, Unleashed (Boss005) | リーパー戦(別案)フェーズ2: 同じメロディをギターの刻みと重い低音で・8ビットのソロ。**フェーズ1と同じ小節・同じ和音の進行で、半音上 (C マイナー)** | 2:08 | 150 BPM、C マイナー |
 | `broodmother_phase1` | Mother of a Thousand Legs (Boss006) | ブルードマザー(巨大な蜘蛛の女王)戦フェーズ1: 疾走、スタッカートのベース、スネアの行進、変拍子、長調の一瞬の光 | 2:08 | 150 BPM、C マイナー |
 | `broodmother_phase2` | Mother of a Thousand Legs, Swarming (Boss006) | ブルードマザー戦フェーズ2: 8ビットとエレピの足音を重ねる。**フェーズ1と同じ小節・同じ和音で、半音上 (C# マイナー)** | 2:08 | 150 BPM、C# マイナー |
+| `mirror_phase1` | The Cracked Mirror Laughs (Boss007) | 狂気・嘲笑のボス(まだゲームに居ない)フェーズ1: 半音とトライトーン、ディミニッシュ、ベルとチャイムのトリル、笑うフルート、7拍子と5拍子 | 2:01 | 150 BPM、F# フリジアン・ドミナント |
+| `mirror_phase2` | The Cracked Mirror Laughs, Shattered (Boss007) | フェーズ2: 8ビットが重なり、クラスターが大きくなる。**フェーズ1と同じ小節・同じ和音で、半音上 (G)** | 2:01 | 150 BPM、G フリジアン・ドミナント |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) / `make_reaper_bgm.py` (2曲同時) / `make_broodmother_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) / `make_reaper_bgm.py` (2曲同時) / `make_broodmother_bgm.py` (2曲同時) / `make_mirror_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - **楽器ごとに、鳴る高さがちがう** (曲を作るとき、いちばん大事な注意)。ファイルの音 (キー 33〜57) は、どの楽器でも同じ25音だが、実際に鳴る高さは楽器で2オクターブ以上ちがう:
 
