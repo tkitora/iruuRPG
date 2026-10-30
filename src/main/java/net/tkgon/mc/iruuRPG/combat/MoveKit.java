@@ -174,6 +174,21 @@ public final class MoveKit {
         return result;
     }
 
+    /** The enemies within {@code radius} (flat) of {@code base}, from 2 blocks below it up to {@code height} blocks above it (also those in the air). */
+    public List<LivingEntity> column(Location base, double radius, double height) {
+        List<LivingEntity> result = new ArrayList<>();
+        Location middle = base.clone().add(0.0, (height - 2.0) / 2.0, 0.0);
+        for (Entity entity : base.getWorld().getNearbyEntities(middle, radius, (height + 2.0) / 2.0, radius)) {
+            if (!attack.isAttackTarget(entity, player)) continue;
+            LivingEntity living = (LivingEntity) entity;
+            double dx = living.getLocation().getX() - base.getX();
+            double dz = living.getLocation().getZ() - base.getZ();
+            if (dx * dx + dz * dz > radius * radius) continue;
+            result.add(living);
+        }
+        return result;
+    }
+
     /** The enemies within {@code radius} of the player and {@code halfAngle} degrees of where the player faces. */
     public List<LivingEntity> cone(double radius, double halfAngle) {
         Vector facing = facing();
