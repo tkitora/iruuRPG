@@ -24,10 +24,12 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `cave_depths` | Where the Crystals Hum (Dungeon003) | クリスタルの洞窟の内部。自然な楽器 = 岩と水、電子音 = クリスタル。不協和音と唸り (hum) を少し | 2:56 | 60 BPM (4 ticks/秒)、C# ドリアン |
 | `colossus_phase1` | Shoulders of Stone (Boss003) | ボス戦フェーズ1: 自然な楽器・ハーフタイム・ベースのソロ | 2:08 | 150 BPM、D マイナー |
 | `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | ボス戦フェーズ2: 電子音・ダブルタイム・8ビットのソロ。**フェーズ1と同じ小節・同じ和音** (移行は次の小節の頭から続けて入れ替わる) | 2:08 | 150 BPM、D マイナー |
+| `necromancer_phase1` | Hymn for the Unburied (Boss004) | ネクロマンサー戦フェーズ1: 自然な楽器・ハーフタイム・時計の音 | 2:05 | 100 BPM、F# マイナー |
+| `necromancer_phase2` | Hymn for the Unburied, Risen (Boss004) | ネクロマンサー戦フェーズ2: 電子音・ダブルタイム。**フェーズ1と同じ小節・同じ和音** | 2:05 | 100 BPM、F# マイナー |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - **楽器ごとに、鳴る高さがちがう** (曲を作るとき、いちばん大事な注意)。ファイルの音 (キー 33〜57) は、どの楽器でも同じ25音だが、実際に鳴る高さは楽器で2オクターブ以上ちがう:
 
