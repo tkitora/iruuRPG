@@ -15,7 +15,7 @@ import java.util.UUID;
  * <p>Two kinds of plan: the usual one (a weapon that is not a class's favorite) has one kind of heavy attack that hits
  * harder after more lights and takes longer to recover from. The plans of the combos ({@link ComboSpec}, registered with
  * {@link #register}) have five normal and five heavy attacks, 0 - 4: the other click after the normal attacks thrown so far
- * (none for heavy 0) throws one and ends the chain. The mage's ranged plan ({@link #MAGE}) is the same in an older form.
+ * (none for heavy 0) throws one and ends the chain. The mage's ranged plan ({@link #MAGE}) has a spec of its own too ({@link MageMoves#SPEC}).
  */
 public final class MeleeCombo {
 
@@ -63,7 +63,6 @@ public final class MeleeCombo {
         }
     }
 
-    private static final int LIGHTS = 5;
     private static final int HEAVIES = 5;
 
     private final JavaPlugin plugin;
@@ -143,7 +142,6 @@ public final class MeleeCombo {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
         ComboSpec spec = specs.get(plan);
         if (spec != null) return nextSpec(player, spec);
-        if (MAGE.equals(plan)) return nextMulti(player, plan);
         return nextUsual(player, heavy);
     }
 
@@ -213,37 +211,6 @@ public final class MeleeCombo {
         }
         state[0] = stage;
         return new Step(Kind.LIGHT, stage, 1.0, 0, USUAL, 0, 0, 1.0);
-    }
-
-    private Step nextMulti(Player player, String plan) {
-        long now = System.currentTimeMillis();
-        long[] state = chain(player, plan);
-        int done = now - state[1] > window(plan) ? 0 : (int) state[0];
-
-        // the heavy attacks of these plans are the other click (see heavyByClick): the normal click is always a light attack
-        state[1] = now;
-        int stage = done + 1;
-        shown(player, plan, Math.min(stage, LIGHTS));
-        if (stage >= LIGHTS) {
-            state[0] = 0L;
-            // the finisher: 3 hits of 60% in front
-            double rate = listed(plan + ".multi-hit-rate", 2, 0.6, 0.05, 3.0);
-            int hits = (int) listed(plan + ".multi-hit-counts", 2, 3, 1, 10);
-            return new Step(Kind.FINISHER, LIGHTS, rate, 0, plan, 0, hits - 1, 1.0,
-                    number(plan + ".finisher-area-radius", 3.0, 1.0, 8.0));
-        }
-        state[0] = stage;
-        if (stage == 3 || stage == 4) {
-            // several hits in front: the third light is 3 hits of 40%, the fourth 4 hits of 30%
-            int which = stage - 3;
-            double[] defaults = new double[]{0.3, 0.3};
-            double rate = listed(plan + ".multi-hit-rate", which, defaults[which], 0.05, 2.0);
-            int hits = (int) listed(plan + ".multi-hit-counts", which, new double[]{3, 4}[which], 2, 10);
-            return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, hits - 1, 1.0);
-        }
-        // the mage's first two lights are bolts of their own strength (50% and 80%)
-        double rate = listed(plan + ".light-rate", stage - 1, new double[]{0.5, 0.8}[Math.min(1, stage - 1)], 0.05, 3.0);
-        return new Step(Kind.LIGHT, stage, rate, 0, plan, 0, 0, 1.0);
     }
 
     /** The cooldown of heavy attack {@code index} of {@code plan} in ticks (the config's, else the plan's own). */

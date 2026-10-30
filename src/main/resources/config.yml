@@ -79,34 +79,47 @@ combat:
     # 3 スパイクが当たった敵に空中から追加のスパイク (20%) / 4 輪状の衝撃波 (5%、最大3回))。再発動できないときの強攻撃0は固有ct 3秒。
     mage:
       normal-gap-extra-ticks: 3                   # 通常攻撃と次の通常攻撃の間隔に足すtick数 (右クリックの長押しは1回の扱い)
-      heavy-cooldown-ticks: [60, 0, 0, 0, 0]
-      heavy-damage-multiplier: [0.0, 0.6, 0.15, 0.6, 0.1]   # 1は球の破裂、2は追尾弾1つごと、3はスパイクの1エリアごと、4は球体の1回ごと
-      light-rate: [0.5, 0.8]                      # 通常1 / 通常2 の倍率
-      multi-hit-rate: [0.3, 0.3, 0.6]             # 通常3 / 通常4 / 通常5: 1回ごとのダメージの倍率
-      multi-hit-counts: [3, 4, 3]                 # 通常3 / 通常4 / 通常5: 当たる回数
-      multi-hit-gap-ticks: 1                      # 次の1回 (演出も) までのtick数
-      burst-radius: 3.5                           # 通常5: 魔力バーストの半径
-      reactivate-seconds: 3.0                     # 強攻撃2・3の再発動を受け付ける秒数
-      orb-speed: 1.0                              # 強攻撃1: 球の速さ (ブロック/tick) / 持続秒数 / 破裂の半径
-      orb-fly-seconds: 4.0                        # 強攻撃1: 球が飛び続ける最長の秒数 (当たるか再発動で破裂。何にも当たらず時間が来たら破裂せず消える)
-      orb-radius: 2.5
-      homing-speed: 1.3                           # 強攻撃2: 追尾弾の速さ / 敵を探す半径 / 飛ぶ最長tick数 / 再発動の小さい弾の倍率
-      homing-radius: 18.0
-      homing-ticks: 50
-      homing-small-rate: 0.05
-      spike-stage-ticks: 3                        # 強攻撃3: エリアを作る間隔 / スパイクが出るまで / 1エリアのスパイクの数 / 再発動の倍率と1体あたりの数
-      spike-delay-ticks: 8
-      spikes-per-area: 9
-      air-spike-rate: 0.2
-      air-spikes-each: 3
-      sphere-forward: 3.0                         # 強攻撃4: 球体の位置 (正面何ブロック) / 持続tick / スローにする半径 / スローの強さ(%) と秒数
-      sphere-ticks: 20
-      sphere-radius: 1.5
-      sphere-slow-percent: 30
-      sphere-slow-seconds: 0.5
-      ring-radius: 3.0                            # 強攻撃4の再発動: 輪の半径 / 倍率 / 引き寄せる強さ
-      ring-rate: 0.05
-      ring-pull: 0.55
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 左から弧を描く弾、2 右から、3 左・上・右の3発、4 扇から収束して交差する大きな弾3発、5 当てた敵の足元からの円柱 x2)
+      # hit-rate: [0.85, 0.9, 0.38, 0.45, 0.8]
+      # hit-counts: [1, 1, 3, 3, 2]
+      # 強攻撃1〜4の倍率: 1 追加の弾1発 (当てていないときの直進弾は straight-share 倍)、2 根の1回ごと、3 スパイクの1回 (1体に1回)、4 爆発
+      # heavy-damage-multiplier: [0.0, 0.7, 0.2, 0.9, 1.7]
+      reactivate-seconds: 3.0                     # 強攻撃3の再発動を受け付ける秒数
+      echo-delay-ticks: 40                        # 強攻撃0: 強攻撃がもう一度出るまで / クールタイム秒 / 1回当てるごとに縮む秒 / 同時に待てる数 / もう一度の倍率
+      echo-cooldown-seconds: 8.0
+      echo-cut-seconds: 1.0
+      echo-queue-max: 3
+      echo-rate: 1.0
+      funnel-straight-ticks: 5                    # 通常4: 交差したあと直進するtick数 (1tick 1.5ブロック)
+      pillar-radius: 1.6                          # 通常5: 円柱の半径 / 高さ / 出るまでのtick / 2回目までのtick / 敵を探す距離
+      pillar-height: 4.0
+      pillar-delay-ticks: 5
+      pillar-gap-ticks: 4
+      pillar-reach: 24.0
+      seeker-count: 2                             # 強攻撃1: 通常1が当てた敵への追加の弾の数 / 速さ / 飛ぶ最長tick / 当てていないときの直進弾の倍率
+      seeker-speed: 1.4
+      seeker-ticks: 50
+      straight-share: 1.4
+      root-radius: 4.0                            # 強攻撃2: 根の半径 / 広がりきるまでのtick / 残るtick / ダメージの間隔tick / 根の数 / 再発動で戻るMP (最大MPの割合、残り時間に比例)
+      root-spread-ticks: 20
+      root-life-ticks: 80
+      root-period-ticks: 10
+      root-count: 9
+      root-mp-share: 0.12
+      spike-count: 6                              # 強攻撃3: スパイクの数 (1ブロックごと) / 1本ごとに奥へ傾く角度 / 高さ / 太さ / 立っているtick
+      spike-lean-step: 12.0
+      spike-height: 2.5
+      spike-width: 0.8
+      spike-stand-ticks: 16
+      spike-extra-count: 3                        # 強攻撃3の再発動: 空中からのスパイクの数 / 間隔tick / 1本の倍率
+      spike-extra-gap-ticks: 3
+      spike-extra-rate: 0.3
+      sphere-radius: 4.0                          # 強攻撃4: 球の半径 / 縮むtick / 光るtick / 爆発の半径 / 引き込む強さ / 再発動で即爆発したときの倍率の割合
+      sphere-shrink-ticks: 20
+      sphere-glow-ticks: 40
+      sphere-blast-radius: 3.5
+      sphere-pull: 0.3
+      sphere-early-share: 0.6
     # 戦士のシールド (戦士の近接コンボの強攻撃0「堅陣」と、通常2・強攻撃1で増える): 数 / 軽減する割合 / 残る最長の秒数。受けるたびに1枚なくなる
     warrior:
       shield-count: 3

@@ -43,7 +43,26 @@ public enum Sfx {
             new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.5f)),
     /** Souls let go: a phantom's cry and bones, thin and cold. */
     SOUL(new Layer(Sound.ENTITY_PHANTOM_AMBIENT, 0.4f, 1.1f), new Layer(Sound.ENTITY_SKELETON_AMBIENT, 0.3f, 0.8f),
-            new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.5f, 0.9f));
+            new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.5f, 0.9f)),
+    // the mage's ranged combo: heavier magic, the power heard as air pushed aside and energy gathering
+    /** A bolt let go: an evoker's spell, a thrown trident's rush of air and a wing beat, over a resonating crystal. */
+    MAGE_CAST(new Layer(Sound.ENTITY_EVOKER_CAST_SPELL, 0.45f, 1.35f), new Layer(Sound.ITEM_TRIDENT_THROW, 0.4f, 0.75f),
+            new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.3f, 1.3f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.3f, 1.5f)),
+    /** A bolt that lands: crystal breaking, a dull thump and the spell's echo. */
+    MAGE_IMPACT(new Layer(Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.55f, 1.05f), new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.18f, 1.75f),
+            new Layer(Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.25f, 0.9f)),
+    /** Air torn by a big spell: the dragon's wing, a riptide and a swoop. */
+    MAGE_WIND(new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.4f, 1.2f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.35f, 1.3f),
+            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.3f, 1.5f)),
+    /** Energy gathering: a beacon, a respawn anchor charging, a riptide and the warden drawing breath. */
+    MAGE_SURGE(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.45f, 1.3f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.55f, 1.15f),
+            new Layer(Sound.ITEM_TRIDENT_RIPTIDE_3, 0.35f, 1.2f), new Layer(Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.2f, 1.6f)),
+    /** Magic out of the ground: dripstone falling, crystal and deepslate breaking, the evoker's fangs. */
+    MAGE_GROUND(new Layer(Sound.BLOCK_POINTED_DRIPSTONE_LAND, 0.6f, 0.7f), new Layer(Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.55f, 0.7f),
+            new Layer(Sound.BLOCK_DEEPSLATE_BREAK, 0.55f, 0.6f), new Layer(Sound.ENTITY_EVOKER_FANGS_ATTACK, 0.45f, 0.9f)),
+    /** A great burst: an explosion, the warden's sonic boom, the dragon's wing and a respawn anchor spent. */
+    MAGE_BLAST(new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 0.8f), new Layer(Sound.ENTITY_WARDEN_SONIC_BOOM, 0.35f, 1.3f),
+            new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.55f, 0.7f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.5f, 0.9f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {

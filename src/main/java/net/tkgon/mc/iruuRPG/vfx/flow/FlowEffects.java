@@ -18,6 +18,7 @@ public final class FlowEffects {
         register(new Ripple());
         register(new Orbit());
         register(new Fountain());
+        register(new Collapse());
     }
 
     private FlowEffects() {
@@ -300,6 +301,80 @@ public final class FlowEffects {
             velocity[0] = Math.cos(angle) * outward;
             velocity[1] = args.number("power") * (0.75 + 0.25 * random.nextDouble());
             velocity[2] = Math.sin(angle) * outward;
+        }
+    }
+    // ---- collapse -----------------------------------------------------------------------------------------------------------
+
+    /** A sphere that shrinks: the particles circle the centre on a shell whose radius goes from {@code from} down to {@code to} over {@code shrink} ticks, the late ones pulled in from outside. */
+    static final class Collapse extends BaseFlow {
+        @Override
+        public String id() {
+            return "collapse";
+        }
+
+        @Override
+        public String summary() {
+            return "球殻が回りながら縮んでいく流れ (from から to まで shrink tick で)。あとから生まれた粒は外から吸い込まれる";
+        }
+
+        @Override
+        protected List<Param> own() {
+            return List.of(
+                    Param.number("from", 4.0, 0.5, 8.0, "始まりの球の半径 (ブロック)"),
+                    Param.number("to", 0.6, 0.1, 4.0, "縮んだ先の半径 (ブロック)"),
+                    Param.number("shrink", 20, 1, 200, "縮むのにかかる tick 数"),
+                    Param.number("swirl", 0.18, 0.0, 1.0, "まわる速さ (ブロック/tick)"),
+                    Param.number("grip", 0.35, 0.05, 1.0, "球殻へ引き戻す強さ"));
+        }
+
+        @Override
+        public double inertia() {
+            return 0.5;
+        }
+
+        @Override
+        public VectorField field(FlowArgs args, long seed) {
+            double from = args.number("from");
+            double to = args.number("to");
+            double shrink = args.number("shrink");
+            double swirl = args.number("swirl");
+            double grip = args.number("grip");
+            Random random = new Random(seed);
+            // the axis the shell turns about leans a little, so it does not look like a ring going round
+            double ax = random.nextDouble() * 0.6 - 0.3;
+            double az = random.nextDouble() * 0.6 - 0.3;
+            double al = Math.sqrt(ax * ax + 1.0 + az * az);
+            double wx = ax / al;
+            double wy = 1.0 / al;
+            double wz = az / al;
+            return (x, y, z, t, out) -> {
+                double share = Math.min(1.0, t / shrink);
+                // fast at first, slow at the end: the shell closes in quickly and then holds
+                double radius = to + (from - to) * (1.0 - share) * (1.0 - share);
+                double length = Math.sqrt(x * x + y * y + z * z);
+                if (length < 1.0E-3) {
+                    out[0] = 0.0;
+                    out[1] = 0.0;
+                    out[2] = 0.0;
+                    return;
+                }
+                double k = (radius - length) * grip / length;
+                double scale = swirl / Math.max(0.3, length);
+                out[0] = (wy * z - wz * y) * scale * radius + x * k;
+                out[1] = (wz * x - wx * z) * scale * radius + y * k;
+                out[2] = (wx * y - wy * x) * scale * radius + z * k;
+            };
+        }
+
+        @Override
+        public void spawn(Random random, FlowArgs args, double[] position, double[] velocity) {
+            inBall(random, 1.0, position);
+            double length = Math.max(1.0E-3, Math.sqrt(position[0] * position[0] + position[1] * position[1] + position[2] * position[2]));
+            double radius = args.number("from") * (0.9 + 0.25 * random.nextDouble());
+            for (int axis = 0; axis < 3; axis++) position[axis] = position[axis] / length * radius;
+            velocity[0] = 0.0;
+            velocity[1] = 0.0;
+            velocity[2] = 0.0;
         }
     }
 }
