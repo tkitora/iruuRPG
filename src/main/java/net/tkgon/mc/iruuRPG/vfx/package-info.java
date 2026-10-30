@@ -10,7 +10,7 @@
  *   <li>{@link net.tkgon.mc.iruuRPG.vfx.Fx}: draws lines, rings, spirals (logarithmic), spheres and discs with a gradient, with
  *       distance culling; {@link net.tkgon.mc.iruuRPG.vfx.FxAsync}: works the points of a big effect out off the main thread.</li>
  *   <li>{@link net.tkgon.mc.iruuRPG.vfx.flow.FlowEffects}: light fluid-like flows (turbulence, vortex, ripple, orbit, fountain) of a few hundred
- *       particles moved by a cheap vector field; try them with {@code /vfx list | help | test}. Not for combos yet (see {@code vfx.flow.FlowRunner}).</li>
+ *       particles moved by a cheap vector field; try them with {@code /vfx list | help | test}. The combos use few of them (the mage's heavy 4 runs {@code collapse}).</li>
  * </ul>
  *
  * <p>To make a new effect: pick the shape template, give it a gradient (never one color for the whole effect) and

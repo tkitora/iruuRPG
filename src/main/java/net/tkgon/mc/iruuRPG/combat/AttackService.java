@@ -182,6 +182,7 @@ public final class AttackService {
 
     public void setMageMoves(MageMoves mageMoves) {
         this.mageMoves = mageMoves;
+        meleeCombo.register(MageMoves.SPEC);
     }
 
     public boolean isMage(Player attacker) {
@@ -799,6 +800,13 @@ public final class AttackService {
     /** The normal attack's cooldown of {@code attackType}: {remaining, total} in milliseconds ({0, ...} when ready). */
     public long[] normalCooldown(Player attacker, AttackType attackType) {
         return new long[]{attackCooldowns.remainingMillis(attacker, attackType), attackCooldowns.totalMillis(attacker, attackType)};
+    }
+
+    /** Gives {@code amount} MP back (up to the most the player can have). */
+    public void restoreMp(Player player, double amount) {
+        PlayerProfile profile = profileForPlayer(player);
+        profile.setCurrentMp(profile.currentMp() + Math.max(0.0, amount));
+        playerBars.sync(player, profile);
     }
 
     public boolean consumeMp(Player player, double amount) {
