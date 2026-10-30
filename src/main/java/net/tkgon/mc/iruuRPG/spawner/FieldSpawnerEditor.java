@@ -65,7 +65,8 @@ import java.util.function.Predicate;
  *
  * Tools (slots 1-4, 8 = done): place a spawner (click a block, pick the mob; sneak = the last mob again), set up a
  * spawner (look at it and click: the mob, how many appear, how many live at once, the trigger radius), delete one,
- * and the list of every spawner (left click = teleport there, right click = set it up, sneak + right click = delete).
+ * and the list of every spawner (left click = teleport there, right click = set it up, sneak + right click = delete; a filter
+ * shows only the ones inside a block, which can be deleted one by one or all at once).
  */
 public final class FieldSpawnerEditor implements Listener {
 
@@ -600,6 +601,10 @@ public final class FieldSpawnerEditor implements Listener {
         /** slot -> spawner id */
         private final Map<Integer, String> spawners = new HashMap<>();
         private int page;
+        /** Only the spawners that sit inside a block. */
+        private boolean buriedOnly;
+        /** The bulk delete button was pressed once; the next press deletes. */
+        private boolean confirmBulk;
         private Inventory inventory;
 
         @Override
@@ -609,6 +614,26 @@ public final class FieldSpawnerEditor implements Listener {
     }
 
     private static final int LIST_PER_PAGE = 45;
+    private static final int BULK = 53;
+
+    /** True when the spawner's point is inside a block (a mob cannot stand there); a place that is not loaded is never counted. */
+    private boolean buried(FieldSpawner spawner) {
+        World world = Bukkit.getWorld(spawner.worldName());
+        if (world == null) return false;
+        int x = (int) Math.floor(spawner.x());
+        int y = (int) Math.floor(spawner.y());
+        int z = (int) Math.floor(spawner.z());
+        if (!world.isChunkLoaded(x >> 4, z >> 4)) return false;
+        return !world.getBlockAt(x, y, z).isPassable();
+    }
+
+    private List<FieldSpawner> buriedOf(List<FieldSpawner> spawners) {
+        List<FieldSpawner> buried = new ArrayList<>();
+        for (FieldSpawner spawner : spawners) {
+            if (buried(spawner)) buried.add(spawner);
+        }
+        return buried;
+    }
 
     private void openList(Player player) {
         Lister lister = new Lister();
@@ -644,7 +669,9 @@ public final class FieldSpawnerEditor implements Listener {
         Inventory inventory = lister.inventory;
         inventory.clear();
         lister.spawners.clear();
-        List<FieldSpawner> all = listed(player);
+        List<FieldSpawner> everything = listed(player);
+        List<FieldSpawner> buried = buriedOf(everything);
+        List<FieldSpawner> all = lister.buriedOnly ? buried : everything;
         int pages = Math.max(1, (all.size() + LIST_PER_PAGE - 1) / LIST_PER_PAGE);
         lister.page = Math.max(0, Math.min(lister.page, pages - 1));
         String here = player.getWorld().getName();
@@ -673,8 +700,19 @@ public final class FieldSpawnerEditor implements Listener {
         if (lister.page > 0) inventory.setItem(PREV, button(Material.SPECTRAL_ARROW, "前のページ", NamedTextColor.YELLOW, List.of()));
         if (lister.page < pages - 1) inventory.setItem(NEXT, button(Material.SPECTRAL_ARROW, "次のページ", NamedTextColor.YELLOW,
                 List.of(text("ページ " + (lister.page + 1) + " / " + pages, NamedTextColor.GRAY))));
-        inventory.setItem(FILTER, button(Material.BOOK, "スポナー " + all.size() + " か所", NamedTextColor.GOLD, List.of()));
-        if (all.isEmpty()) inventory.setItem(22, button(Material.PAPER, "スポナーはまだありません", NamedTextColor.GRAY, List.of()));
+        inventory.setItem(FILTER, button(lister.buriedOnly ? Material.STONE : Material.BOOK,
+                lister.buriedOnly ? "絞り込み中: ブロックに埋まっている " + all.size() + " か所" : "スポナー " + all.size() + " か所 (埋まっている " + buried.size() + " か所)",
+                NamedTextColor.GOLD, List.of(
+                        text(lister.buriedOnly ? "クリック: 全部の表示にもどす" : "クリック: ブロックに埋まっているものだけ表示", NamedTextColor.YELLOW),
+                        text("まだ読み込まれていない場所は調べられません", NamedTextColor.GRAY))));
+        if (lister.buriedOnly && !all.isEmpty()) {
+            inventory.setItem(BULK, button(Material.TNT, lister.confirmBulk ? "もう一度押すと、いま絞り込んでいる " + all.size() + " か所を全部消す" : "絞り込んだ " + all.size() + " か所を一括で消す",
+                    NamedTextColor.RED, List.of(
+                            text(lister.confirmBulk ? "本当に消す場合は、もう一度クリック" : "クリックして、確認のあと消します", NamedTextColor.YELLOW),
+                            text("1 つずつ消すなら、しゃがんで右クリック", NamedTextColor.GRAY))));
+        }
+        if (all.isEmpty()) inventory.setItem(22, button(Material.PAPER,
+                lister.buriedOnly ? "埋まっているスポナーはありません" : "スポナーはまだありません", NamedTextColor.GRAY, List.of()));
     }
 
     private void onList(Player player, Lister lister, int slot, org.bukkit.event.inventory.ClickType click) {
@@ -684,8 +722,33 @@ public final class FieldSpawnerEditor implements Listener {
         }
         if (slot == PREV || slot == NEXT) {
             lister.page += slot == NEXT ? 1 : -1;
+            lister.confirmBulk = false;
             renderList(player, lister);
             return;
+        }
+        if (slot == FILTER) {
+            lister.buriedOnly = !lister.buriedOnly;
+            lister.confirmBulk = false;
+            lister.page = 0;
+            renderList(player, lister);
+            return;
+        }
+        if (slot == BULK && lister.buriedOnly) {
+            if (!lister.confirmBulk) {
+                lister.confirmBulk = true;
+            } else {
+                List<FieldSpawner> targets = buriedOf(listed(player));
+                for (FieldSpawner target : targets) service.remove(target);
+                syncLabels();
+                lister.confirmBulk = false;
+                done(player, "ブロックに埋まっているスポナーを " + targets.size() + " か所消した。");
+            }
+            renderList(player, lister);
+            return;
+        }
+        if (lister.confirmBulk) {
+            lister.confirmBulk = false;
+            renderList(player, lister);
         }
         String id = lister.spawners.get(slot);
         FieldSpawner spawner = id == null ? null : service.find(id).orElse(null);
