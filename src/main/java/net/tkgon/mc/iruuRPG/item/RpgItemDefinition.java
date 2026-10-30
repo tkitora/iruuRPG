@@ -5,6 +5,7 @@ import net.tkgon.mc.iruuRPG.combat.DamageKind;
 import net.tkgon.mc.iruuRPG.stat.Element;
 import net.tkgon.mc.iruuRPG.stat.ElementStatSet;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
+import net.tkgon.mc.iruuRPG.stat.StatType;
 import org.bukkit.Material;
 
 import java.util.List;
@@ -127,7 +128,8 @@ public record RpgItemDefinition(
     /**
      * The first word after the level on the item: the item's own `kind-label` if it has one, else 物理 / 魔法, 防具 or 素材
      * for what is not a weapon (an armor kind, or a plain one whose material is a helmet / chestplate / leggings / boots /
-     * shield / elytra is 防具, anything else 素材). Nothing for a special damage kind.
+     * shield / elytra, or that gives any stat (a head, a pumpkin, ...), is 防具; one with only a description is 素材).
+     * Nothing for a special damage kind.
      */
     public String kindText() {
         if (!kindLabel.isEmpty()) return kindLabel;
@@ -135,9 +137,21 @@ public record RpgItemDefinition(
             case PHYSICAL, MAGIC -> damageKind.displayName();
             case ARMOR -> "防具";
             case MATERIAL -> "素材";
-            case NONE -> isArmorMaterial(material) ? "防具" : "素材";
+            case NONE -> isArmorMaterial(material) || givesStats() ? "防具" : "素材";
             case SPECIAL -> "";
         };
+    }
+
+    /** True when the item adds any stat (a plain one, or of an element). */
+    private boolean givesStats() {
+        for (StatType type : StatType.values()) {
+            if (Math.abs(stats.get(type)) > 1.0E-9) return true;
+        }
+        for (Element element : Element.values()) {
+            if (Math.abs(elementStats.damage(element)) > 1.0E-9 || Math.abs(elementStats.damagePercent(element)) > 1.0E-9
+                    || Math.abs(elementStats.resist(element)) > 1.0E-9) return true;
+        }
+        return false;
     }
 
     /** The second word: the item's own `type-label`, else the attack type (近接 / 遠距離 / 設置). Nothing for a special one. */
