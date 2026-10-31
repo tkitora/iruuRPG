@@ -112,6 +112,27 @@ public final class QuestlineService implements Listener {
         this.speakerNames = speakerNames == null ? id -> id : speakerNames;
     }
 
+    private net.tkgon.mc.iruuRPG.cutscene.CutsceneService cutscenes;
+
+    public void setCutscenes(net.tkgon.mc.iruuRPG.cutscene.CutsceneService cutscenes) {
+        this.cutscenes = cutscenes;
+    }
+
+    /** Plays a cutscene for a line; its end fires cutscene-end. One that does not exist counts as ended at once. */
+    private void playCutscene(Player player, String id) {
+        if (cutscenes == null || !cutscenes.exists(id)) {
+            plugin.getLogger().warning("quest: no cutscenes/" + id + ".yml; it counts as ended");
+            Bukkit.getScheduler().runTask(plugin, () -> fire(player, QuestEvent.of("cutscene-end", "cutscene", id)));
+            return;
+        }
+        // played to its end: the line goes on; cut short (the player left): it stays waiting and is played again on the next join
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline()) cutscenes.play(player, id, done -> {
+                if (done && player.isOnline()) fire(player, QuestEvent.of("cutscene-end", "cutscene", id));
+            });
+        });
+    }
+
     public void setIdleLines(Function<String, List<String>> idleLines) {
         this.idleLines = idleLines == null ? id -> List.of() : idleLines;
     }
@@ -342,6 +363,12 @@ public final class QuestlineService implements Listener {
             if (!player.isOnline()) return;
             PlayerGame game = new PlayerGame(player);
             if (engine.evaluate(data(player), game)) changed(player, game);
+            for (LineState state : data(player).lines().values()) {
+                if (state.status == Status.ACTIVE && state.waitingCutscene != null) {
+                    playCutscene(player, state.waitingCutscene);
+                    break;
+                }
+            }
         }, 40L);
     }
 
@@ -663,12 +690,7 @@ public final class QuestlineService implements Listener {
                     player.teleport(new Location(world, act.number("x", 0), act.number("y", 64), act.number("z", 0),
                             (float) act.number("yaw", player.getLocation().getYaw()), (float) act.number("pitch", player.getLocation().getPitch())));
                 }
-                case "cutscene" -> {
-                    // the cutscenes come with the third stage: until then the line does not wait for one that cannot play
-                    String id = act.string("id");
-                    plugin.getLogger().info("quest: cutscene '" + id + "' is not playable yet; it counts as ended");
-                    Bukkit.getScheduler().runTask(plugin, () -> fire(player, QuestEvent.of("cutscene-end", "cutscene", id)));
-                }
+                case "cutscene" -> playCutscene(player, act.string("id"));
                 default -> plugin.getLogger().warning("quest: the action " + act.type() + " is not done by the game");
             }
         }
