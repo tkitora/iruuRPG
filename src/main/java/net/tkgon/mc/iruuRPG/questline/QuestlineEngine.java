@@ -69,6 +69,33 @@ public final class QuestlineEngine {
         this.assignedNpcs = assignedNpcs == null ? line -> Set.of() : assignedNpcs;
     }
 
+    /**
+     * "client" (依頼人) where a line names an NPC (speaker, talk:, npc of npc-talk / item-give) stands for the NPC the
+     * player took the line from; before that, for any NPC that offers it.
+     */
+    public static final String CLIENT = "client";
+
+    /** The NPC "client" stands for in this line for the player: the one they took it from, else its start.npc, else the first NPC it was given to. */
+    public String clientOf(QuestlineData data, Questline line) {
+        LineState state = data.line(line.id());
+        if (state != null && state.client != null) return state.client;
+        if (line.start().npc() != null) return line.start().npc();
+        return assignedNpcs.apply(line.id()).stream().sorted().findFirst().orElse(null);
+    }
+
+    /** True when an NPC id written in a line ({@code written}, maybe "client") means {@code npc}. */
+    private static boolean names(String written, String npc, String client) {
+        return npc.equals(written) || (CLIENT.equals(written) && npc.equals(client));
+    }
+
+    /** The condition with "client" turned into the NPC it stands for (unchanged when it names none). */
+    private static Cond resolve(Cond condition, String client) {
+        if (client == null || !CLIENT.equals(condition.string("npc"))) return condition;
+        Map<String, Object> args = new LinkedHashMap<>(condition.args());
+        args.put("npc", client);
+        return new Cond(condition.type(), args, condition.children());
+    }
+
     /** True when the NPC offers the line (its start.npc, or set on the NPC in the game). */
     public boolean offeredBy(Questline line, String npc) {
         return npc.equals(line.start().npc()) || assignedNpcs.apply(line.id()).contains(npc);
@@ -132,8 +159,13 @@ public final class QuestlineEngine {
 
     /** Starts a line ({@code force}: without its conditions, and again even when it is not repeatable). */
     public boolean start(QuestlineData data, Game game, String id, boolean force) {
+        return start(data, game, id, force, null);
+    }
+
+    /** Starts a line taken from the NPC {@code client} (null: its start.npc or the first NPC it was given to). */
+    public boolean start(QuestlineData data, Game game, String id, boolean force, String client) {
         Run run = new Run(data, game);
-        boolean started = start(run, id, force);
+        boolean started = start(run, id, force, client);
         if (started) settle(run, null);
         return started;
     }
@@ -163,7 +195,7 @@ public final class QuestlineEngine {
             if (entry.getValue().status != Status.ACTIVE) continue;
             Questline line = lines.get(entry.getKey());
             Step step = line == null ? null : line.step(entry.getValue().step);
-            if (step != null && mentions(step, npc)) return true;
+            if (step != null && mentions(step, npc, clientOf(data, line))) return true;
         }
         return false;
     }
@@ -184,8 +216,9 @@ public final class QuestlineEngine {
                 Step to = line.step(transition.to());
                 if (to == null || to.end() != Questline.End.COMPLETE) continue;
                 QuestEvent event = null;
+                String client = clientOf(data, line);
                 for (Cond condition : transition.when()) {
-                    if (!condition.type().equals("event") || !npc.equals(condition.string("npc"))) continue;
+                    if (!condition.type().equals("event") || !names(condition.string("npc"), npc, client)) continue;
                     if ("npc-talk".equals(condition.string("event"))) {
                         event = QuestEvent.of("npc-talk", "npc", npc);
                     } else if ("item-give".equals(condition.string("event"))) {
@@ -209,8 +242,9 @@ public final class QuestlineEngine {
             Questline line = lines.get(entry.getKey());
             Step step = line == null ? null : line.step(entry.getValue().step);
             if (step == null) continue;
+            String client = clientOf(data, line);
             for (Cond condition : eventConditions(step)) {
-                if ("item-give".equals(condition.string("event")) && npc.equals(condition.string("npc")) && condition.string("item") != null) out.add(condition);
+                if ("item-give".equals(condition.string("event")) && names(condition.string("npc"), npc, client) && condition.string("item") != null) out.add(condition);
             }
         }
         return out;
@@ -220,21 +254,23 @@ public final class QuestlineEngine {
     public List<String> usesOf(String npc) {
         List<String> out = new ArrayList<>();
         for (Questline line : lines.values()) {
-            if (offeredBy(line, npc)) out.add(line.id() + " 開始");
+            boolean gives = offeredBy(line, npc);
+            if (gives) out.add(line.id() + " 開始");
+            String client = gives ? npc : null;
             for (Step step : line.steps().values()) {
-                if (!mentions(step, npc)) continue;
-                boolean give = eventConditions(step).stream().anyMatch(c -> "item-give".equals(c.string("event")) && npc.equals(c.string("npc")));
+                if (!mentions(step, npc, client)) continue;
+                boolean give = eventConditions(step).stream().anyMatch(c -> "item-give".equals(c.string("event")) && names(c.string("npc"), npc, client));
                 out.add(line.id() + " › " + step.id() + (give ? " (渡す)" : " (話す)"));
             }
         }
         return out;
     }
 
-    private static boolean mentions(Step step, String npc) {
-        if (step.talk().containsKey(npc)) return true;
+    private static boolean mentions(Step step, String npc, String client) {
+        if (step.talk().containsKey(npc) || (npc.equals(client) && step.talk().containsKey(CLIENT))) return true;
         for (Cond condition : eventConditions(step)) {
             String event = condition.string("event");
-            if (("npc-talk".equals(event) || "item-give".equals(event)) && npc.equals(condition.string("npc"))) return true;
+            if (("npc-talk".equals(event) || "item-give".equals(event)) && names(condition.string("npc"), npc, client)) return true;
         }
         return false;
     }
@@ -354,9 +390,21 @@ public final class QuestlineEngine {
             if (entry.getValue().status != Status.ACTIVE) continue;
             Questline line = lines.get(entry.getKey());
             Step step = line == null ? null : line.step(entry.getValue().step);
-            if (step != null && step.talk().containsKey(npc)) said.addAll(step.talk().get(npc));
+            if (step == null) continue;
+            String client = clientOf(data, line);
+            if (step.talk().containsKey(npc)) said.addAll(asSaid(step.talk().get(npc), client));
+            if (npc.equals(client) && step.talk().containsKey(CLIENT)) said.addAll(asSaid(step.talk().get(CLIENT), client));
         }
         return said;
+    }
+
+    /** The lines with the speaker "client" turned into the NPC it stands for. */
+    public static List<Line> asSaid(List<Line> lines, String client) {
+        List<Line> out = new ArrayList<>();
+        for (Line line : lines) {
+            out.add(CLIENT.equals(line.speaker()) && client != null ? new Line(client, line.text(), line.ticks()) : line);
+        }
+        return out;
     }
 
     /**
@@ -422,6 +470,7 @@ public final class QuestlineEngine {
             Questline line = lines.get(entry.getKey());
             Step step = line == null ? null : line.step(entry.getValue().step);
             if (step == null || step.talk().containsKey(npc) || !offeredBy(line, npc)) continue;
+            if (npc.equals(clientOf(data, line)) && step.talk().containsKey(CLIENT)) continue;
             out.add(line);
         }
         return out;
@@ -452,8 +501,9 @@ public final class QuestlineEngine {
             }
             Step step = line.step(state.step);
             if (step == null) continue;
+            String client = clientOf(run.data, line);
             for (Handler handler : step.on()) {
-                if (event.matches(handler.event())) actions(run, line, handler.actions());
+                if (event.matches(resolve(handler.event(), client))) actions(run, line, handler.actions());
             }
         }
         run.event = outer;
@@ -546,6 +596,10 @@ public final class QuestlineEngine {
     }
 
     private boolean start(Run run, String id, boolean force) {
+        return start(run, id, force, null);
+    }
+
+    private boolean start(Run run, String id, boolean force, String client) {
         Questline line = lines.get(id);
         if (line == null) return false;
         LineState old = run.data.line(id);
@@ -559,6 +613,7 @@ public final class QuestlineEngine {
         LineState state = new LineState(Status.ACTIVE, line.initial(), run.game.now());
         state.runs = old == null ? 0 : old.runs;
         run.data.lines().put(id, state);
+        state.client = client != null ? client : clientOf(run.data, line);
         run.changed = true;
         run.game.started(line);
         enterStep(run, line, state, line.initial());
@@ -632,7 +687,7 @@ public final class QuestlineEngine {
         String lineId = line == null ? null : line.id();
         return switch (condition.type()) {
             case "flag" -> flagHolds(run.data, lineId, condition);
-            case "event" -> event != null && event.matches(condition);
+            case "event" -> event != null && event.matches(line == null ? condition : resolve(condition, clientOf(run.data, line)));
             case "item" -> itemCount(run, line, condition.string("item"), "ignore".equalsIgnoreCase(condition.string("existing"))) >= condition.number("amount", 1);
             case "level" -> {
                 int level = run.game.level();

@@ -38,6 +38,8 @@ public final class QuestlineData {
         public String waitingCutscene;
         /** The exclusive line that put this one on hold (it goes on by itself when that one ends); null = held by hand or by a newer main line. */
         public String pausedBy;
+        /** The NPC the player took the line from: what "client" (依頼人) stands for in this line. */
+        public String client;
 
         public LineState(Status status, String step, long stepSince) {
             this.status = status;
@@ -73,6 +75,7 @@ public final class QuestlineData {
             root.set(at + ".runs", state.runs);
             if (state.waitingCutscene != null) root.set(at + ".waiting-cutscene", state.waitingCutscene);
             if (state.pausedBy != null) root.set(at + ".paused-by", state.pausedBy);
+            if (state.client != null) root.set(at + ".client", state.client);
             for (var flag : state.flags.entrySet()) root.set(at + ".flags." + flag.getKey(), flag.getValue());
         }
         for (var flag : flags.entrySet()) root.set("flags." + flag.getKey(), flag.getValue());
@@ -92,6 +95,7 @@ public final class QuestlineData {
                 state.runs = line.getInt("runs", 0);
                 state.waitingCutscene = line.getString("waiting-cutscene");
                 state.pausedBy = line.getString("paused-by");
+                state.client = line.getString("client");
                 ConfigurationSection own = line.getConfigurationSection("flags");
                 if (own != null) {
                     for (String key : own.getKeys(false)) state.flags.put(key, own.get(key));

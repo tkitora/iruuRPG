@@ -89,7 +89,8 @@ public final class QuestlineService implements Listener {
     private final Map<UUID, Offer> offers = new HashMap<>();
     private static final long OFFER_MILLIS = 120_000L;
 
-    private record Offer(String line, long until) {
+    /** An offer: the line, until when it stands, and the NPC it came from (the line's client, 依頼人). */
+    private record Offer(String line, long until, String npc) {
     }
 
     private record Area(String key, String world, double x, double y, double z, double radius) {
@@ -388,13 +389,13 @@ public final class QuestlineService implements Listener {
         List<Questline> offered = engine.offers(data(player), new PlayerGame(player), npc);
         if (offered.isEmpty()) return false;
         Questline line = offered.get(0);
-        for (Line said : line.start().offer()) say(player, said, null);
-        say(player, null, () -> offerButtons(player, line));
+        for (Line said : QuestlineEngine.asSaid(line.start().offer(), npc)) say(player, said, null);
+        say(player, null, () -> offerButtons(player, line, npc));
         return true;
     }
 
-    private void offerButtons(Player player, Questline line) {
-        offers.put(player.getUniqueId(), new Offer(line.id(), System.currentTimeMillis() + OFFER_MILLIS));
+    private void offerButtons(Player player, Questline line, String npc) {
+        offers.put(player.getUniqueId(), new Offer(line.id(), System.currentTimeMillis() + OFFER_MILLIS, npc));
         Component accept = Component.text("[受ける]", NamedTextColor.GREEN, TextDecoration.BOLD)
                 .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/questline accept " + line.id()))
                 .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text("「" + line.name() + "」を受ける")));
@@ -410,7 +411,12 @@ public final class QuestlineService implements Listener {
             player.sendMessage(Component.text("[クエスト] もう一度、話しかけてください。", NamedTextColor.GRAY));
             return;
         }
-        if (!start(player, id, false)) player.sendMessage(Component.text("[クエスト] 今は受けられません。", NamedTextColor.GRAY));
+        PlayerGame game = new PlayerGame(player);
+        if (engine.start(data(player), game, id, false, offer.npc())) {
+            save(player);
+        } else {
+            player.sendMessage(Component.text("[クエスト] 今は受けられません。", NamedTextColor.GRAY));
+        }
     }
 
     public void decline(Player player) {
@@ -765,7 +771,11 @@ public final class QuestlineService implements Listener {
         public void perform(Questline line, Act act) {
             if (ending != null && (line == null || !line.id().equals(ending))) flushRewards();
             switch (act.type()) {
-                case "say" -> say(player, new Line(act.string("speaker"), act.string("text"), (int) act.number("ticks", -1)), null);
+                case "say" -> {
+                    String speaker = act.string("speaker");
+                    if (QuestlineEngine.CLIENT.equals(speaker) && line != null) speaker = engine.clientOf(data(player), line);
+                    say(player, new Line(speaker, act.string("text"), (int) act.number("ticks", -1)), null);
+                }
                 case "title" -> {
                     long ticks = (long) act.number("ticks", 60);
                     player.showTitle(Title.title(Component.text(String.valueOf(act.args().getOrDefault("title", "")), NamedTextColor.GOLD),

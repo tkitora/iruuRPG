@@ -225,7 +225,8 @@ public final class NpcService implements Listener {
 
     /** Gives an NPC another id (the quest lines that name the old one must be changed too). False when the new id is taken or not allowed. */
     public boolean rename(Npc npc, String newId) {
-        if (!newId.matches("[a-z0-9_]{1,40}") || npcs.containsKey(newId)) return false;
+        // "client" is the quest lines' name for the NPC a line was taken from (依頼人): no NPC may have it
+        if (!newId.matches("[a-z0-9_]{1,40}") || npcs.containsKey(newId) || newId.equals(net.tkgon.mc.iruuRPG.questline.QuestlineEngine.CLIENT)) return false;
         despawn(npc.id());
         npcs.remove(npc.id());
         Npc renamed = new Npc(newId, npc.name(), new Location(null, 0, 0, 0), npc.look());
