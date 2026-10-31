@@ -175,6 +175,13 @@ class QuestlineEngineTest {
         assertEquals("a", data.line("broken").step);
 
         assertNull(QuestlineParser.parse("x", yaml("id: x\ninitial: nope\nsteps: { a: {} }"), Set.of(), new ArrayList<>()));
+
+        // a dot would split the key in the player's file: such a flag is left out, such a file is not loaded
+        List<String> idWarnings = new ArrayList<>();
+        Questline dotted = QuestlineParser.parse("ok", yaml("initial: a\nflags: { \"bad.name\": { type: bool }, good: { type: bool } }\nsteps: { a: {} }"), Set.of(), idWarnings);
+        assertEquals(Set.of("good"), dotted.flags().keySet());
+        assertTrue(String.join("\n", idWarnings).contains("bad.name"));
+        assertNull(QuestlineParser.parse("bad.line", yaml("initial: a\nsteps: { a: {} }"), Set.of(), new ArrayList<>()));
     }
 
     @Test
