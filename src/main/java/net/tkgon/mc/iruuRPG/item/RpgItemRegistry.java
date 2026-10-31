@@ -291,6 +291,15 @@ public final class RpgItemRegistry {
 
         String[] parts = raw.split(":");
         String materialName = parts[0].trim().toUpperCase(Locale.ROOT);
+        int firstOption = 1;
+        // leather:helm / chest / legs / boots[:r,g,b]: the leather armor of that slot (plain "leather" is the material item)
+        if (materialName.equals("LEATHER") && parts.length > 1) {
+            String slot = leatherSlot(parts[1].trim());
+            if (slot != null) {
+                materialName = slot;
+                firstOption = 2;
+            }
+        }
         Material material = Material.matchMaterial(materialName);
         if (material == null) {
             plugin.getLogger().warning("items: unknown material '" + materialName + "' for item " + id);
@@ -301,9 +310,17 @@ public final class RpgItemRegistry {
         String skinTexture = firstString(section, "skin", "head-skin", "headSkin", "texture");
         Color leatherColor = parseColor(firstString(section, "color", "leather-color", "leatherColor", "rgb", "dye-color"));
 
-        for (int i = 1; i < parts.length; i++) {
+        for (int i = firstOption; i < parts.length; i++) {
             String token = parts[i].trim();
             if (token.isBlank()) continue;
+
+            // a bare color: "29, 179, 154" or "#1DB39A"
+            if (token.matches("\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*,\\s*\\d{1,3}\\s*") || token.matches("#[0-9A-Fa-f]{6}")) {
+                Color color = parseColor(token);
+                if (color != null) leatherColor = color;
+                else plugin.getLogger().warning("items: " + id + ": color '" + token + "' is out of 0-255");
+                continue;
+            }
 
             if (token.equalsIgnoreCase("glint")) {
                 glint = true;
@@ -333,6 +350,17 @@ public final class RpgItemRegistry {
         }
 
         return new MaterialSpec(material, new ItemVisualOptions(glint, skinTexture, leatherColor));
+    }
+
+    /** The leather armor material for a slot word (helm / helmet / head, chest / chestplate, legs / leggings, boots / feet), or null. */
+    static String leatherSlot(String word) {
+        return switch (word.toLowerCase(Locale.ROOT)) {
+            case "helm", "helmet", "head", "cap" -> "LEATHER_HELMET";
+            case "chest", "chestplate", "body", "tunic" -> "LEATHER_CHESTPLATE";
+            case "legs", "leggings", "pants" -> "LEATHER_LEGGINGS";
+            case "boots", "feet" -> "LEATHER_BOOTS";
+            default -> null;
+        };
     }
 
     private Color parseColor(String raw) {
