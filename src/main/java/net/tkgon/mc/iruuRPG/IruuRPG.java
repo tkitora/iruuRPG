@@ -126,6 +126,7 @@ public final class IruuRPG extends JavaPlugin {
     private QuestService questService;
     private net.tkgon.mc.iruuRPG.questline.QuestlineService questlineService;
     private net.tkgon.mc.iruuRPG.npc.NpcService npcService;
+    private net.tkgon.mc.iruuRPG.questline.QuestMobs questMobs;
     private net.tkgon.mc.iruuRPG.npc.NpcEditor npcEditor;
     private QuestBoardMenu questBoardMenu;
     private CraftRegistry craftRegistry;
@@ -464,6 +465,9 @@ public final class IruuRPG extends JavaPlugin {
         if (tutorialService != null) {
             tutorialService.shutdown();
         }
+        if (questMobs != null) {
+            questMobs.shutdown();
+        }
         if (npcEditor != null) {
             npcEditor.shutdown();
         }
@@ -537,6 +541,11 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(npcEditor, this);
         this.npcService.start();
         this.npcEditor.start();
+        this.questMobs = new net.tkgon.mc.iruuRPG.questline.QuestMobs(this, questlineService, mobService);
+        this.questMobs.setModels(modelModule);
+        net.tkgon.mc.iruuRPG.questline.QuestMobs.setParties(partyService);
+        getServer().getPluginManager().registerEvents(questMobs, this);
+        this.questMobs.start();
         PluginCommand npcCommand = getCommand("npc");
         if (npcCommand != null) {
             var npc = new net.tkgon.mc.iruuRPG.npc.NpcCommand(npcService, npcEditor);

@@ -223,6 +223,18 @@ public final class RpgMobService {
     }
 
     /** Called once per player who gets credit for a kill (dealt at least 5% of the mob's max HP), with the mob's id. */
+    private java.util.function.BiPredicate<LivingEntity, Player> targetFilter = (mob, player) -> true;
+
+    /** Which players a mob may go after at all (a quest's mob: only its owner and their party). */
+    public void setTargetFilter(java.util.function.BiPredicate<LivingEntity, Player> targetFilter) {
+        this.targetFilter = targetFilter == null ? (mob, player) -> true : targetFilter;
+    }
+
+    /** The status display (name and HP) over a mob, if it has one now. */
+    public Entity statusDisplayOf(LivingEntity mob) {
+        return statusDisplay(mob);
+    }
+
     public void setKillHook(java.util.function.BiConsumer<Player, String> killHook) {
         this.killHook = killHook;
     }
@@ -1853,7 +1865,8 @@ public final class RpgMobService {
                 && player.isValid()
                 && !player.isDead()
                 && player.getGameMode() == GameMode.ADVENTURE
-                && player.getWorld().equals(entity.getWorld());
+                && player.getWorld().equals(entity.getWorld())
+                && targetFilter.test(entity, player);
     }
 
     /**
