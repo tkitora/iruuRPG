@@ -146,6 +146,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.tools.brush.BrushModule brushModule;
     private net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule proceduralModule;
     private net.tkgon.mc.iruuRPG.pack.ResourcePackService resourcePackService;
+    private net.tkgon.mc.iruuRPG.itempack.ItemPackService itemPackService;
     private net.tkgon.mc.iruuRPG.model.ModelModule modelModule;
     private FieldSpawnerService fieldSpawnerService;
     private FieldSpawnerEditor fieldSpawnerEditor;
@@ -204,6 +205,10 @@ public final class IruuRPG extends JavaPlugin {
         this.classSkillRegistry = new ClassSkillRegistry(this);
         this.classSkillRegistry.reload();
         this.itemFactory = new RpgItemFactory(this, itemIdentifier, itemSkillRegistry);
+        // the pack of the items' looks (a base item that wears another vanilla item's texture, by custom model data): made from the items' texture:
+        this.itemPackService = new net.tkgon.mc.iruuRPG.itempack.ItemPackService(this, () -> itemRegistry.all().values());
+        this.itemPackService.rebuild();
+        this.itemFactory.setCustomModelData(itemPackService::numberOf);
         this.skillRegistry = new net.tkgon.mc.iruuRPG.skill.SkillRegistry(this);
         this.skillRegistry.reload();
         this.classSkillRegistry.setGeneralSkills(skillRegistry);
@@ -829,6 +834,7 @@ public final class IruuRPG extends JavaPlugin {
         classRegistry.reload();
         classSkillRegistry.reload();
         itemRegistry.reload();
+        itemPackService.rebuild();
         mobRegistry.reload();
         questRegistry.reload();
         questlineService.reload();
