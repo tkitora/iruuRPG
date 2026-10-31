@@ -250,6 +250,100 @@ public final class QuestlineEngine {
         return out;
     }
 
+    /** Speakers that are not NPCs. */
+    private static final Set<String> NOT_NPCS = Set.of("narration", "player", CLIENT);
+
+    /**
+     * Every NPC id the quest lines need, with where ("line: 受注" / "line › step: 話す" ...): start.npc, the speakers of
+     * offers, talk and say, the keys of talk:, and the npc of npc-talk / item-give ("narration", "player" and "client"
+     * are not NPC ids).
+     */
+    public Map<String, List<String>> neededNpcs() {
+        Map<String, List<String>> out = new java.util.TreeMap<>();
+        java.util.function.BiConsumer<String, String> need = (npc, where) -> {
+            if (npc == null || NOT_NPCS.contains(npc)) return;
+            List<String> uses = out.computeIfAbsent(npc, key -> new ArrayList<>());
+            if (!uses.contains(where)) uses.add(where);
+        };
+        for (Questline line : lines.values()) {
+            need.accept(line.start().npc(), line.id() + ": 受注");
+            for (Line said : line.start().offer()) need.accept(said.speaker(), line.id() + ": 申し出");
+            for (Step step : line.steps().values()) {
+                String at = line.id() + " › " + step.id();
+                for (var talk : step.talk().entrySet()) {
+                    need.accept(talk.getKey(), at + ": 話しかける");
+                    for (Line said : talk.getValue()) need.accept(said.speaker(), at + ": 話す");
+                }
+                List<Act> actions = new ArrayList<>(step.enter());
+                actions.addAll(step.exit());
+                for (Handler handler : step.on()) actions.addAll(handler.actions());
+                for (Act act : actions) if (act.type().equals("say")) need.accept(act.string("speaker"), at + ": 話す");
+                for (Cond condition : eventConditions(step)) {
+                    String event = condition.string("event");
+                    if ("npc-talk".equals(event)) need.accept(condition.string("npc"), at + ": 話しかける");
+                    if ("item-give".equals(event)) need.accept(condition.string("npc"), at + ": 渡す");
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * What is wrong with what a line depends on: NPCs it needs that are not in the world ({@code npcsInWorld}), lines it
+     * names that do not exist (start.when quest, quest-complete, start-quest), itself as a condition, and lines whose
+     * start conditions wait on each other in a ring (none of them can start). Empty when all is well.
+     */
+    public List<String> dependencyProblems(String id, Set<String> npcsInWorld) {
+        Questline line = lines.get(id);
+        List<String> out = new ArrayList<>();
+        if (line == null) return out;
+        for (var entry : neededNpcs().entrySet()) {
+            if (npcsInWorld.contains(entry.getKey())) continue;
+            if (entry.getValue().stream().anyMatch(use -> use.startsWith(id + ":") || use.startsWith(id + " ›"))) out.add("NPC " + entry.getKey() + " がいない");
+        }
+        for (String other : linesNamedBy(line)) {
+            if (other.equals(id)) out.add("自分自身を条件にしている");
+            else if (!lines.containsKey(other)) out.add("クエスト " + other + " がない");
+        }
+        if (startRing(id, id, new java.util.HashSet<>())) out.add("受ける条件 (start.when) がクエストどうしで輪になっている");
+        return out;
+    }
+
+    /** The lines a line names: in start.when (quest), quest-complete events and start-quest actions. */
+    public Set<String> linesNamedBy(Questline line) {
+        Set<String> out = new java.util.LinkedHashSet<>();
+        List<Cond> conditions = new ArrayList<>(line.start().when());
+        List<Act> actions = new ArrayList<>();
+        for (Step step : line.steps().values()) {
+            for (Transition transition : step.transitions()) conditions.addAll(transition.when());
+            for (Handler handler : step.on()) {
+                conditions.add(handler.event());
+                actions.addAll(handler.actions());
+            }
+            actions.addAll(step.enter());
+            actions.addAll(step.exit());
+        }
+        for (Cond condition : QuestlineParser.flatten(conditions)) {
+            if (condition.type().equals("quest") && condition.string("quest") != null) out.add(condition.string("quest"));
+            if (condition.type().equals("event") && "quest-complete".equals(condition.string("event")) && condition.string("quest") != null) out.add(condition.string("quest"));
+        }
+        for (Act act : actions) if (act.type().equals("start-quest") && act.string("quest") != null) out.add(act.string("quest"));
+        return out;
+    }
+
+    /** True when following the lines start.when waits on from {@code at} comes back to {@code from}. */
+    private boolean startRing(String from, String at, Set<String> seen) {
+        Questline line = lines.get(at);
+        if (line == null || !seen.add(at)) return false;
+        for (Cond condition : QuestlineParser.flatten(line.start().when())) {
+            if (!condition.type().equals("quest")) continue;
+            String other = condition.string("quest");
+            if (other == null || other.equals(at)) continue;
+            if (other.equals(from) || startRing(from, other, seen)) return true;
+        }
+        return false;
+    }
+
     /** Where an NPC is used: "line 開始" for the lines it offers, "line › step (話す / 渡す)" for the steps that wait on it. */
     public List<String> usesOf(String npc) {
         List<String> out = new ArrayList<>();

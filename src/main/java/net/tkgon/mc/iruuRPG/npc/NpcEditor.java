@@ -518,6 +518,19 @@ public final class NpcEditor implements Listener {
         }
     }
 
+    /** The NPC ids the quests need and the NPCs in the world; {@code switching}: the NPC whose id a click gives. */
+    private static final class Needs extends Menu {
+        private final String switching;
+        private final List<String> ids = new ArrayList<>();
+
+        private Needs(String switching) {
+            this.switching = switching;
+        }
+    }
+
+    private static final class Deps extends Menu {
+    }
+
     private static final class Lister extends Menu {
         private final List<String> ids = new ArrayList<>();
     }
@@ -569,6 +582,8 @@ public final class NpcEditor implements Listener {
         else if (holder instanceof Setup setup) onSetup(player, setup, slot, click);
         else if (holder instanceof Lister lister) onList(player, lister, slot, click);
         else if (holder instanceof QuestPicker picker) onQuestPick(player, picker, slot);
+        else if (holder instanceof Needs needs) onNeeds(player, needs, slot);
+        else if (holder instanceof Deps && slot == 49) openNeeds(player, null);
         else if (holder instanceof Debug debug) onDebug(player, session, debug, slot);
         else if (holder instanceof LineMenu line) onLine(player, session, line, slot, click);
     }
@@ -654,7 +669,8 @@ public final class NpcEditor implements Listener {
         idle.add("左: 1行足す / しゃがんでクリック: 全部消す");
         inventory.setItem(14, icon(Material.WRITABLE_BOOK, "アイドルの言葉 (クエストが無いとき)", NamedTextColor.WHITE, idle, false));
         inventory.setItem(15, icon(Material.PAPER, "id: " + npc.id(), NamedTextColor.GRAY,
-                List.of("クエストの yml は、この id で NPC を指す", "クリック: id を変える (クエスト側も直すこと)"), false));
+                List.of("クエストの yml は、この id で NPC を指す", "クリック: クエストが必要としている id の一覧から選んで付け替える",
+                        "しゃがんでクリック: id を入力する"), false));
         List<String> quests = new ArrayList<>();
         for (Questline line : questlines.engine().lines().values()) {
             if (questlines.engine().offeredBy(line, npc.id())) quests.add("・" + line.name());
@@ -714,7 +730,10 @@ public final class NpcEditor implements Listener {
                     suggest(player, npc.id() + " のアイドルの言葉を1行入力:", "/npc idle " + npc.id() + " add ");
                 }
             }
-            case 15 -> suggest(player, npc.id() + " の新しい id (英小文字・数字・_) を入力:", "/npc rename " + npc.id() + " ");
+            case 15 -> {
+                if (click.isShiftClick()) suggest(player, npc.id() + " の新しい id (英小文字・数字・_) を入力:", "/npc rename " + npc.id() + " ");
+                else openNeeds(player, npc.id());
+            }
             case 16 -> openDebug(player, npc);
             case 19 -> openQuestPicker(player, npc);
             case 22 -> {
@@ -768,6 +787,96 @@ public final class NpcEditor implements Listener {
         openQuestPicker(player, npc);
     }
 
+    // what the quests need: the NPC ids (in the world or not) and each line's dependencies
+
+    private void openNeeds(Player player, String switching) {
+        Needs needs = new Needs(switching);
+        Inventory inventory = create(needs, 54, switching == null ? "クエストが必要としている NPC" : "付け替える id を選ぶ: " + switching);
+        Map<String, List<String>> needed = questlines.engine().neededNpcs();
+        java.util.TreeSet<String> all = new java.util.TreeSet<>(needed.keySet());
+        for (Npc npc : npcs.all()) all.add(npc.id());
+        for (String id : all) {
+            if (needs.ids.size() >= 45) break;
+            boolean exists = npcs.find(id).isPresent();
+            List<String> uses = needed.getOrDefault(id, List.of());
+            List<String> lore = new ArrayList<>();
+            if (exists) lore.add("いる: " + npcs.find(id).get().name());
+            else lore.add("いない (クエストは必要としている)");
+            if (uses.isEmpty()) lore.add("どのクエストにも使われていない");
+            for (int index = 0; index < uses.size() && index < 8; index++) lore.add("・" + uses.get(index));
+            if (uses.size() > 8) lore.add("ほか " + (uses.size() - 8) + " か所");
+            if (switching != null) lore.add(exists ? (id.equals(switching) ? "今の id" : "もう使われている") : "クリック: " + switching + " をこの id にする");
+            else lore.add(exists ? "クリック: この NPC の設定" : "置いた NPC の設定 → id から、この id に付け替える");
+            Material material = exists ? (uses.isEmpty() ? Material.GRAY_DYE : Material.LIME_DYE) : Material.RED_DYE;
+            NamedTextColor color = exists ? (uses.isEmpty() ? NamedTextColor.GRAY : NamedTextColor.GREEN) : NamedTextColor.RED;
+            inventory.setItem(needs.ids.size(), icon(material, id, color, lore, id.equals(switching)));
+            needs.ids.add(id);
+        }
+        inventory.setItem(49, icon(Material.ARROW, switching == null ? "一覧に戻る" : "設定に戻る", NamedTextColor.WHITE, List.of(), false));
+        inventory.setItem(53, icon(Material.WRITABLE_BOOK, "クエストの依存", NamedTextColor.AQUA, List.of("各クエストの依存の状態"), false));
+        player.openInventory(inventory);
+    }
+
+    private void onNeeds(Player player, Needs needs, int slot) {
+        if (slot == 49) {
+            if (needs.switching == null) openList(player);
+            else npcs.find(needs.switching).ifPresent(npc -> openSetup(player, npc));
+            return;
+        }
+        if (slot == 53) {
+            openDeps(player);
+            return;
+        }
+        if (slot < 0 || slot >= needs.ids.size()) return;
+        String id = needs.ids.get(slot);
+        Npc existing = npcs.find(id).orElse(null);
+        if (needs.switching == null) {
+            if (existing != null) openSetup(player, existing);
+            else hint(player, id + " はまだいない。置いた NPC の設定 → id から付け替えてください。");
+            return;
+        }
+        Npc npc = npcs.find(needs.switching).orElse(null);
+        if (npc == null || existing != null) return;
+        if (npcs.rename(npc, id)) {
+            refresh();
+            done(player, needs.switching + " を " + id + " にした。");
+            npcs.find(id).ifPresent(renamed -> openSetup(player, renamed));
+        } else {
+            hint(player, id + " には付け替えられない。");
+        }
+    }
+
+    private void openDeps(Player player) {
+        Deps deps = new Deps();
+        Inventory inventory = create(deps, 54, "クエストの依存");
+        java.util.Set<String> inWorld = new java.util.HashSet<>();
+        for (Npc npc : npcs.all()) inWorld.add(npc.id());
+        QuestlineEngine engine = questlines.engine();
+        Map<String, List<String>> needed = engine.neededNpcs();
+        int slot = 0;
+        for (Questline line : engine.lines().values()) {
+            if (slot >= 45) break;
+            List<String> problems = engine.dependencyProblems(line.id(), inWorld);
+            List<String> lore = new ArrayList<>();
+            lore.add(line.id() + " / " + (line.main() ? "メイン" : "サブ"));
+            List<String> mine = new ArrayList<>();
+            for (var entry : needed.entrySet()) {
+                if (entry.getValue().stream().anyMatch(use -> use.startsWith(line.id() + ":") || use.startsWith(line.id() + " ›"))) {
+                    mine.add(entry.getKey() + (inWorld.contains(entry.getKey()) ? " ✔" : " ✘"));
+                }
+            }
+            lore.add("NPC: " + (mine.isEmpty() ? "なし" : String.join(", ", mine)));
+            java.util.Set<String> named = engine.linesNamedBy(line);
+            if (!named.isEmpty()) lore.add("クエスト: " + String.join(", ", named.stream().map(id -> id + (engine.line(id) != null ? " ✔" : " ✘")).toList()));
+            if (problems.isEmpty()) lore.add("依存: 正常");
+            for (String problem : problems) lore.add("✘ " + problem);
+            inventory.setItem(slot++, icon(problems.isEmpty() ? Material.BOOK : Material.REDSTONE, line.name(),
+                    problems.isEmpty() ? NamedTextColor.GREEN : NamedTextColor.RED, lore, false));
+        }
+        inventory.setItem(49, icon(Material.ARROW, "必要な NPC の一覧に戻る", NamedTextColor.WHITE, List.of(), false));
+        player.openInventory(inventory);
+    }
+
     // the list
 
     private void openList(Player player) {
@@ -777,7 +886,11 @@ public final class NpcEditor implements Listener {
         Location here = player.getLocation();
         sorted.sort(Comparator.comparingDouble(npc -> npc.worldName().equals(here.getWorld().getName())
                 ? here.distanceSquared(new Location(here.getWorld(), npc.x(), npc.y(), npc.z())) : Double.MAX_VALUE));
-        for (int index = 0; index < sorted.size() && index < 54; index++) {
+        inventory.setItem(49, icon(Material.KNOWLEDGE_BOOK, "クエストが必要としている NPC", NamedTextColor.GOLD,
+                List.of("クエストが使う NPC の id と、いるか・いないか"), false));
+        inventory.setItem(50, icon(Material.WRITABLE_BOOK, "クエストの依存", NamedTextColor.AQUA,
+                List.of("各クエストが必要な NPC・クエストと、その状態"), false));
+        for (int index = 0; index < sorted.size() && index < 45; index++) {
             Npc npc = sorted.get(index);
             lister.ids.add(npc.id());
             List<String> lore = new ArrayList<>();
@@ -792,6 +905,14 @@ public final class NpcEditor implements Listener {
     }
 
     private void onList(Player player, Lister lister, int slot, ClickType click) {
+        if (slot == 49) {
+            openNeeds(player, null);
+            return;
+        }
+        if (slot == 50) {
+            openDeps(player);
+            return;
+        }
         if (slot >= lister.ids.size()) return;
         Npc npc = npcs.find(lister.ids.get(slot)).orElse(null);
         if (npc == null) return;
