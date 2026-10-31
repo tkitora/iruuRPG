@@ -1,11 +1,12 @@
 # リソースパック (pack/)
 
-サーバーが配るリソースパックは**2つ、別々**:
+サーバーが配るリソースパックは**3つ、別々**:
 
 | パック | ファイル | 中身 | 作るもの |
 |---|---|---|---|
 | サーバー専用 | `server.zip` | `grass_block` の6面すべてを草(上面の草のテクスチャ、草の色つき)にする変更と、マインクラフトのゲーム音楽を消す `sounds.json`(iruuRPG のBGMは鳴る。レコードの音は残る) | jar に入っている(`src/main/resourcepack/server/`)。起動時に `plugins/iruuRPG/resourcepacks/` へ置く |
 | モデル専用 | `iruumodel.zip` | `/iruumodel build` が作る、敵モデルのモデルとテクスチャ(docs/models.md) | モデル機能 |
+| アイテムの見た目 | `iruuitem.zip` | アイテムが「基盤のアイテム(剣・弓・棒・皮の防具など)」の上に、別のバニラのアイテムの見た目を重ねるための、custom model data の割り当て(下の「アイテムの見た目」) | アイテム機能(`itempack/`) |
 
 ## 配り方
 - `config.yml` の `resourcepack:`。`enabled: true` で、入ってきたプレイヤーに送る(1秒後)。パックごとに `enabled` / `required`。ファイルが無いパックは送らない。
@@ -20,3 +21,13 @@
 - 配信をやめる: `resourcepack.enabled: false`。
 - サーバー専用パックをやめる: `resourcepack.packs.server.enabled: false`(`resourcepacks/server.zip` と、jar の `src/main/resourcepack/`、`build.gradle` の `serverResourcePack` で全部)。
 - コードは `pack/` の2ファイルと、`IruuRPG.java` の `resourcePackService`、`IruuRPGCommand` の `pack` だけ。
+
+## アイテムの見た目 (`iruuitem.zip`、`itempack/`)
+アイテムは、種類ごとの**基盤のアイテム**(物理近接 = 剣・斧 / 物理遠距離 = 弓・クロスボウ / 魔法近接 = くわ / 魔法遠距離 = ブレイズロッド / 設置 = グローストーン・シーランタン / 防具 = 皮の防具 / 素材 = 棒)の上に、**別のバニラのアイテムの見た目**を重ねる。新しい絵は描かない。
+- パックは、アイテムごとの `(id, 基盤, 見た目)` から作る(`ItemPackBuilder`)。見た目が基盤と同じなら何もしない(custom model data も付けない)。
+- 基盤のアイテムのモデルは、**バニラのファイルをそのまま**(`src/main/resources/itempack/base/<アイテム>.json`、1.20.4 のもの)読み、その override の**あとに**、見た目ごとの `custom_model_data` の override を足す(ゲームは「合う最後の override」を使うので、弓の引く動作や防具の模様のバニラの override は残る)。
+- 見た目のモデルは、見た目のバニラのアイテムを指すだけ: 剣・斧・くわ・ブレイズロッドの基盤で、見た目が平らな絵のアイテムなら `item/handheld` + その絵(剣と同じ持ち方)、弓・クロスボウなら基盤のモデルを親にして絵だけ替える、ほかは見た目のアイテムのモデルをまるごと(ブロックは立体のまま)。名前空間は `iruurpg`。
+- custom model data の番号は、`plugins/iruuRPG/resourcepacks/item-cmd-index.yml`(`id: 番号`)に残す(`ItemCmdIndex`)。**番号は変えない・使い回さない**(プレイヤーの手元のアイテムが、その番号を持っているため)。最初の番号は 1000000(モデル機能の部品は 8100000 以上で、別のアイテム `PAPER` に付くので、ぶつからない)。
+- 同じ入力なら同じバイトの zip になる(hash が変わるのは、見た目が変わったときだけ)。
+- 注意: 基盤のモデルを置き換えるので、**基盤のバニラの override は、1.20.4 のファイルのもの**だけになる(ほかのパックが同じ基盤のモデルを変えていると、後に読まれた方が勝つ)。
+- 配る: `config.yml` の `resourcepack.packs.items`(ファイルが無い間は送られない)。
