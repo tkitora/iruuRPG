@@ -39,10 +39,11 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `circuit_phase1` | Holy Circuit (Boss010) | 引き算と5楽器だけで作ったボス曲フェーズ1: ピアノ風のプリングが賛美歌をうたい、ギターのピチカートがせわしなく刻む(神聖だが狂気的)。同時に鳴るのは最大5音、3分の2の地点で8小節、ベースとドラムが完全に止まる | 2:03 | 200 BPM、D ドリアン |
 | `circuit_phase2` | Holy Circuit, Overclocked (Boss010) | フェーズ2: 同じ5楽器のまま、**フェーズ1と同じ小節・同じ和音で半音上 (E♭ ドリアン)**、キックが毎拍、ギターが早い段から転がる(3連) | 2:03 | 200 BPM、E♭ ドリアン |
 | `cloud_light` | Light Between the Clouds (Field003) | 儚いようで明るいフィールド曲: ハープの旋律に、ギターのさざ波、やわらかいベース、遅れて返る薄いこだま(アイアンザイロフォン)。ドラムなし。雨の部分は旋律のない高い雫だけ | 2:34 | 75 BPM、G メジャー |
+| `cloud_remembered` | Clouds Remembered (Field004) | 明るく流れるフィールド曲(Field003 の第2案): 止まらない16分のギターのさざ波、ハープの旋律、暖かい低音。ドラムなし。3分の1に G マイナーの静かな部分、3分の2で半音上がる | 2:05 | 100 BPM、B♭ メジャー → B メジャー |
 
   曲ごとの記録 (用途・構成・モチーフ・ログ・チェック) は [bgm-songs.md](bgm-songs.md)、作曲のルールは [bgm-rules.md](bgm-rules.md)。
 - 対応: Note Block Studio の全バージョン (旧形式〜v5)。テンポ、ループの開始位置、レイヤーの音量と左右、ノートの強さ (velocity) と左右を使う。音の高さの微調整 (pitch) とカスタム楽器は無視する (カスタム楽器のノートは鳴らさない)。
-- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) / `make_reaper_bgm.py` (2曲同時) / `make_broodmother_bgm.py` (2曲同時) / `make_mirror_bgm.py` (2曲同時) / `make_waltz_bgm.py` (2曲同時) / `make_unkeyed_bgm.py` (2曲同時) / `make_circuit_bgm.py` (2曲同時) / `make_cloud_bgm.py` が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
+- 曲の作り方 (同梱の曲): `python3 tools/bgm/make_plains_bgm.py` / `make_atlas_cave_bgm.py` / `make_atlas_dungeon_bgm.py` / `make_atlas_boss_bgm.py` / `make_atlas_dungeon2_bgm.py` / `make_atlas_boss2_bgm.py` / `make_atlas_dungeon3_bgm.py` / `make_atlas_boss3_bgm.py` (2曲同時) / `make_necromancer_bgm.py` (2曲同時) / `make_reaper_bgm.py` (2曲同時) / `make_broodmother_bgm.py` (2曲同時) / `make_mirror_bgm.py` (2曲同時) / `make_waltz_bgm.py` (2曲同時) / `make_unkeyed_bgm.py` (2曲同時) / `make_circuit_bgm.py` (2曲同時) / `make_cloud_bgm.py` / `make_cloud2_bgm.py` が `src/main/resources/bgm/` の曲を作る (毎回同じ中身。共通部分は `nbslib.py`)。手で作った曲は、Note Block Studio で保存して上の場所へ置くだけでよい。
 - テンポは 20 を割り切る値 (20、10、6.67 = 20/3、5 ticks/秒) にする。読み込むとき、20/3 に近い値 (6.67 など) は 20/3 ちょうどにそろえる (曲の1tickがサーバーの3tickきっかり)。
 - **楽器ごとに、鳴る高さがちがう** (曲を作るとき、いちばん大事な注意)。ファイルの音 (キー 33〜57) は、どの楽器でも同じ25音だが、実際に鳴る高さは楽器で2オクターブ以上ちがう:
 
