@@ -575,7 +575,7 @@ class BgmTest {
     }
 
     @Test
-    void theGateSongIsDeepHasADipWithoutBassAndAClimaxOverADPedal() throws IOException {
+    void theGateSongIsDeepAndSparklesHasADipWithoutBassAndAClimaxOverADPedal() throws IOException {
         NbsSong song = bundled("gate_gravity");
         assertEquals("The Gate Where Gravity Turns (Dungeon004)", song.title());
         assertEquals(832, song.length());
@@ -583,15 +583,23 @@ class BgmTest {
         int dip = 14 * 16;       // intro 4 bars + A 10 bars, then the dip of 4 bars
         int climax = 26 * 16;    // ... + the rise of 8 bars, then the climax of 8 bars
         int deep = 0;
+        int sparkle = 0;
         for (int i = 0; i < song.noteCount(); i++) {
             NbsSong.Note note = song.note(i);
             int sound = sounding(note.instrument(), note.key());
-            assertTrue(note.instrument() != 6 && note.instrument() != 7 && note.instrument() != 8, "no flute, bell or chime: it is a deep piece");
+            assertTrue(note.instrument() != 6, "no flute");
+            if (note.instrument() == 7 || note.instrument() == 8) {
+                assertTrue(sound >= 90 && sound <= 99, "the bell and the chime stay between F#6 and D#7 (" + sound + ")");
+                assertTrue(note.volume() <= 0.25f, "and quiet (" + note.volume() + ")");
+            }
+            if (note.instrument() == 8) sparkle++;
             if (note.instrument() == 1 || note.instrument() == 12) deep++;
             if (note.tick() >= dip && note.tick() < dip + 4 * 16) assertTrue(note.instrument() != 1 && note.instrument() != 12, "the bass is gone in the dip");
             if (note.tick() >= climax && note.tick() < climax + 8 * 16 && (note.instrument() == 1 || note.instrument() == 12)) assertEquals(38, sound, "the climax stands on a D pedal");
         }
-        assertTrue(deep * 3 >= song.noteCount(), "a third of the notes are the bass and the drone (" + deep + " of " + song.noteCount() + ")");
+        assertTrue(deep * 5 >= song.noteCount(), "a fifth of the notes are still the bass and the drone (" + deep + " of " + song.noteCount() + ")");
+        double perSecond = sparkle / song.seconds();
+        assertTrue(perSecond >= 2.5 && perSecond <= 5.0, "a steady stream of sparkle, 2.5 to 5 notes a second (" + perSecond + ")");
     }
 
     @Test
