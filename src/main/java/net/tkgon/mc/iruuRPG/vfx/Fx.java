@@ -23,7 +23,7 @@ public final class Fx {
     private static final double FAR_SKIP_ALL_SQUARED = 64.0 * 64.0;
     private static final double FAR_THIN_SQUARED = 40.0 * 40.0;
 
-    private static final Fx NOTHING = new Fx(null, 1, false);
+    private static final Fx NOTHING = new Fx(null, 1, false, 1.0, 1.0);
 
     /** Dust is drawn at this fraction of the size asked for (finer particles); {@code vfx.size-scale}. */
     private static volatile double sizeScale = 0.8;
@@ -43,22 +43,38 @@ public final class Fx {
         density = Math.max(0.5, Math.min(3.0, config.getDouble("vfx.density", 2.2))) * DENSITY_BOOST;
     }
 
-    private static double size(double asked) {
-        return Math.max(0.3, asked * sizeScale);
+    private double size(double asked) {
+        return Math.max(0.3, asked * sizeScale * small);
     }
 
-    private static int count(int asked, int max) {
-        return (int) Math.max(4, Math.min(max, Math.round(asked * density)));
+    private int count(int asked, int max) {
+        return (int) Math.max(4, Math.min(max, Math.round(asked * density * thin)));
+    }
+
+    /** A count of loose particles after {@link #scaled} (0 stays 0: it means one particle thrown along its offset). */
+    private int loose(int count) {
+        return count <= 1 || thin >= 1.0 ? count : Math.max(1, (int) Math.round(count * thin));
     }
 
     private final ParticleFx.Sink sink;
     private final int step;
     private final boolean active;
+    /** This effect's own share of the points and of their size ({@link #scaled}: a class whose effects fill the screen draws fewer, smaller ones). */
+    private final double thin;
+    private final double small;
 
-    private Fx(ParticleFx.Sink sink, int step, boolean active) {
+    private Fx(ParticleFx.Sink sink, int step, boolean active, double thin, double small) {
         this.sink = sink;
         this.step = step;
         this.active = active;
+        this.thin = thin;
+        this.small = small;
+    }
+
+    /** The same effect with {@code points} times the points (shapes, lines and loose particles) and {@code size} times their size. */
+    public Fx scaled(double points, double size) {
+        if (!active || (points == 1.0 && size == 1.0)) return this;
+        return new Fx(sink, step, true, thin * Math.max(0.1, Math.min(1.0, points)), small * Math.max(0.3, Math.min(1.5, size)));
     }
 
     /** For an effect around {@code hint} in {@code world} made by {@code owner} (null: nobody's). */
@@ -79,7 +95,7 @@ public final class Fx {
             if (distance < nearest) nearest = distance;
         }
         if (nearest > FAR_SKIP_ALL_SQUARED) return NOTHING;
-        return new Fx(ParticleFx.to(owner, world), nearest > FAR_THIN_SQUARED ? 2 : 1, true);
+        return new Fx(ParticleFx.to(owner, world), nearest > FAR_THIN_SQUARED ? 2 : 1, true, 1.0, 1.0);
     }
 
     public boolean active() {
@@ -88,7 +104,7 @@ public final class Fx {
 
     /** The same effect, but everyone except its owner sees it. */
     public Fx exceptOwner() {
-        return active ? new Fx(sink.exceptOwner(), step, true) : this;
+        return active ? new Fx(sink.exceptOwner(), step, true, thin, small) : this;
     }
 
     /** 1 normally, 2 for a far effect: how many of the points to step over in a loop of one's own. */
@@ -101,19 +117,19 @@ public final class Fx {
     /** One dust particle at ({@code x}, {@code y}, {@code z}) of the color at {@code t} of {@code gradient}. */
     public void dust(double x, double y, double z, Gradient gradient, double t, double size) {
         if (!active) return;
-        sink.spawnParticle(Particle.REDSTONE, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(t, Math.max(0.3, size * sparseScale)));
+        sink.spawnParticle(Particle.REDSTONE, x, y, z, 1, 0.0, 0.0, 0.0, 0.0, gradient.dust(t, Math.max(0.3, size * sparseScale * small)));
     }
 
     /** Any particle (sparks and the like), kept or dropped by the same distance culling. */
     public void particle(Particle particle, double x, double y, double z, int count, double ox, double oy, double oz, double extra) {
         if (!active) return;
-        sink.spawnParticle(particle, x, y, z, count, ox, oy, oz, extra);
+        sink.spawnParticle(particle, x, y, z, loose(count), ox, oy, oz, extra);
     }
 
     /** A particle with data (a block's crack, dust of a given color, ...), kept or dropped by the same distance culling. */
     public <T> void particle(Particle particle, double x, double y, double z, int count, double ox, double oy, double oz, double extra, T data) {
         if (!active) return;
-        sink.spawnParticle(particle, x, y, z, count, ox, oy, oz, extra, data);
+        sink.spawnParticle(particle, x, y, z, loose(count), ox, oy, oz, extra, data);
     }
 
     // ---- shapes ------------------------------------------------------------------------------------------------------------
@@ -132,7 +148,7 @@ public final class Fx {
         double dz = to.getZ() - from.getZ();
         double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (length < 1.0E-6) return;
-        int points = Math.max(1, (int) Math.ceil(length / spacing * density));
+        int points = Math.max(1, (int) Math.ceil(length / spacing * density * thin));
         double fineSize = size(size);
         for (int index = 0; index <= points; index += step) {
             double along = index / (double) points;

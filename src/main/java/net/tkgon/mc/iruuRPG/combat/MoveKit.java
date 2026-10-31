@@ -283,6 +283,22 @@ public final class MoveKit {
         target.setVelocity(toward.normalize().multiply(power).setY(0.1));
     }
 
+    /**
+     * A slow pull toward {@code to}: {@code speed} blocks a tick added (flat) to how the target moves, not set over it, so the target keeps
+     * walking and one that moves away faster than the pull gets out.
+     */
+    public void drift(LivingEntity target, Location to, double speed) {
+        Vector toward = to.toVector().subtract(target.getLocation().toVector()).setY(0.0);
+        if (toward.lengthSquared() < 0.04) return;
+        if (!allowKnock(target, speed)) return;
+        // (capped: in the air nothing slows it down, so the pull would add up; the inward speed stays at most 2.5 times one step)
+        Vector way = toward.normalize();
+        Vector velocity = target.getVelocity();
+        double inward = velocity.getX() * way.getX() + velocity.getZ() * way.getZ();
+        double add = Math.min(speed, speed * 2.5 - inward);
+        if (add > 0.0) target.setVelocity(velocity.add(way.multiply(add)));
+    }
+
     public void lift(LivingEntity target, double power) {
         if (!allowKnock(target, power)) return;
         target.setVelocity(new Vector(target.getVelocity().getX() * 0.3, power, target.getVelocity().getZ() * 0.3));
@@ -1096,12 +1112,29 @@ public final class MoveKit {
     }
 
     public Fx fx(Location at) {
-        return Fx.of(player, at.getWorld(), at);
+        return Fx.of(player, at.getWorld(), at).scaled(vfxPoints(), vfxSize());
+    }
+
+    private double vfxPoints = Double.NaN;
+    private double vfxSize = Double.NaN;
+
+    /**
+     * The share of the points of this kit's effects ({@code combat.combo.<class>.vfx-density}; 1 = as drawn): the mage's effects fill much
+     * of the view, so its plan draws fewer (and, {@link #vfxSize}, smaller) particles.
+     */
+    private double vfxPoints() {
+        if (Double.isNaN(vfxPoints)) vfxPoints = plugin.getConfig().getDouble("combat.combo." + classId() + ".vfx-density", "mage".equals(classId()) ? 0.6 : 1.0);
+        return vfxPoints;
+    }
+
+    private double vfxSize() {
+        if (Double.isNaN(vfxSize)) vfxSize = plugin.getConfig().getDouble("combat.combo." + classId() + ".vfx-size", "mage".equals(classId()) ? 0.85 : 1.0);
+        return vfxSize;
     }
 
     /** A line in the palette: a deep tail going to a bright head. */
     public void line(Location from, Location to, double t0, double t1, double size) {
-        Fx.of(player, from.getWorld(), from).line(from, to, palette, t0, t1, 2.5, size, 0.3, null, 1);
+        fx(from).line(from, to, palette, t0, t1, 2.5, size, 0.3, null, 1);
     }
 
     /** A ring on the ground widening from {@code r0} to {@code r1} over {@code ticks} ticks (an exponential curve): a shock wave. */
@@ -1161,7 +1194,7 @@ public final class MoveKit {
     }
 
     public void particle(Particle particle, Location at, int count, double spread, double speed) {
-        Fx.of(player, at.getWorld(), at).particle(particle, at.getX(), at.getY(), at.getZ(), count, spread, spread, spread, speed);
+        fx(at).particle(particle, at.getX(), at.getY(), at.getZ(), count, spread, spread, spread, speed);
     }
 
     /** A bright burst of dust where something struck: a small sphere shell and a ring. */
