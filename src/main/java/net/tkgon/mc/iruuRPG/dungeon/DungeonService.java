@@ -1178,11 +1178,7 @@ public final class DungeonService implements Listener {
             profileManager.save(player);
             if (roll.xp() > 0) levelService.addXp(player, roll.xp());
             if (reward != null) {
-                int left = roll.amount();
-                while (left > 0) {
-                    ItemStack stack = reward.clone();
-                    stack.setAmount(Math.min(left, stack.getMaxStackSize()));
-                    left -= stack.getAmount();
+                for (ItemStack stack : net.tkgon.mc.iruuRPG.item.UniqueItems.pieces(reward, roll.amount())) {
                     for (ItemStack rest : player.getInventory().addItem(stack).values()) {
                         player.getWorld().dropItemNaturally(player.getLocation(), rest);
                     }

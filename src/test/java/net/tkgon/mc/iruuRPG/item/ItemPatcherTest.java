@@ -264,7 +264,87 @@ class ItemPatcherTest {
         stamped.getPersistentDataContainer().set(identifier.keys().itemRev(), PersistentDataType.STRING, patcher.fingerprints().get("test_sword"));
         expected.setItemMeta(stamped);
         assertEquals(expected, patched);
-        assertTrue(patched.isSimilar(factory.create(sword())), "stacks with a new one");
+        // a weapon or armor carries its own mark: it never stacks, not even with a new one
+        assertTrue(!patched.isSimilar(factory.create(sword())), "a sword never stacks with a new one");
+        // a material from before is only stamped too, and stacks with one made now
+        ItemStack oldStone = factory.create(registry.find("test_stone").orElseThrow());
+        ItemMeta stoneMeta = oldStone.getItemMeta();
+        stoneMeta.getPersistentDataContainer().remove(identifier.keys().itemRev());
+        oldStone.setItemMeta(stoneMeta);
+        ItemStack stampedStone = patcher.patch(oldStone);
+        assertNotNull(stampedStone);
+        assertTrue(stampedStone.isSimilar(factory.create(registry.find("test_stone").orElseThrow())), "a material stacks with a new one");
+    }
+
+    @Test
+    void weaponsAndArmorNeverStackMaterialsDo() {
+        ItemStack one = factory.create(sword());
+        ItemStack two = factory.create(sword());
+        assertTrue(UniqueItems.isUnique(one));
+        assertTrue(!one.isSimilar(two), "two swords made one after the other do not stack");
+        ItemStack stone = factory.create(registry.find("test_stone").orElseThrow());
+        assertTrue(!UniqueItems.isUnique(stone));
+        assertTrue(stone.isSimilar(factory.create(registry.find("test_stone").orElseThrow())));
+        assertEquals(3, UniqueItems.pieces(one, 3).size(), "handed out one by one");
+        assertEquals(1, UniqueItems.pieces(stone, 3).size());
+    }
+
+    @Test
+    void theMigrationMarksOldItemsAndSplitsTheirStacksKeepingWhatIsTheirs() {
+        // a sword from before items stopped stacking: no mark, a stack of 3, crafted stats of its own
+        ItemStack old = factory.create(sword());
+        ItemMeta meta = old.getItemMeta();
+        UniqueItems.unmark(meta);
+        meta.getPersistentDataContainer().set(identifier.keys().bonusStats(), PersistentDataType.STRING, "strength=4");
+        old.setItemMeta(meta);
+        old.setAmount(3);
+
+        assertNull(patcher.patch(old.clone()), "migration off: an up-to-date item is left alone");
+        ItemStack[] off = {old.clone(), null, null, null};
+        assertTrue(patcher.split(off).isEmpty());
+        assertEquals(3, off[0].getAmount(), "migration off: nothing is split");
+
+        patcher.setMigrate(true);
+        patcher.takeCounts();
+        ItemStack marked = patcher.patch(old.clone());
+        assertNotNull(marked);
+        assertTrue(UniqueItems.isUnique(marked));
+        assertEquals("strength=4", marked.getItemMeta().getPersistentDataContainer().get(identifier.keys().bonusStats(), PersistentDataType.STRING));
+        assertEquals(1, patcher.takeCounts().marked);
+        assertNull(patcher.patch(marked), "marked once, then left alone");
+
+        ItemStack[] contents = {marked, null, null};
+        List<ItemStack> overflow = patcher.split(contents);
+        ItemPatcher.Counts counts = patcher.takeCounts();
+        assertTrue(overflow.isEmpty());
+        assertEquals(1, counts.split);
+        assertEquals(2, counts.splitItems);
+        for (ItemStack piece : contents) {
+            assertEquals(1, piece.getAmount());
+            assertTrue(UniqueItems.isUnique(piece));
+            assertEquals("strength=4", piece.getItemMeta().getPersistentDataContainer().get(identifier.keys().bonusStats(), PersistentDataType.STRING), "each piece keeps the crafted stats");
+        }
+        assertTrue(!contents[0].isSimilar(contents[1]) && !contents[1].isSimilar(contents[2]), "each piece has its own mark");
+
+        ItemStack[] full = {marked.clone(), new ItemStack(Material.DIRT)};
+        full[0].setAmount(3);
+        assertEquals(2, patcher.split(full).size(), "the two that do not fit are answered");
+        // a material stack is never split
+        ItemStack[] stones = {factory.create(registry.find("test_stone").orElseThrow()), null};
+        stones[0].setAmount(10);
+        assertTrue(patcher.split(stones).isEmpty());
+        assertEquals(10, stones[0].getAmount());
+        patcher.setMigrate(false);
+    }
+
+    @Test
+    void aRebuiltItemKeepsItsMark() throws IOException {
+        ItemStack sword = factory.create(sword());
+        String mark = sword.getItemMeta().getPersistentDataContainer().get(UniqueItems.KEY, PersistentDataType.STRING);
+        changeYaml("新しい剣", "新しい説明");
+        ItemStack patched = patcher.patch(sword);
+        assertNotNull(patched);
+        assertEquals(mark, patched.getItemMeta().getPersistentDataContainer().get(UniqueItems.KEY, PersistentDataType.STRING));
     }
 
     @Test

@@ -2135,7 +2135,7 @@ public final class RpgMobService {
         World world = entity.getWorld();
         Location location = entity.getLocation();
         int amount = drop.rollAmount(random);
-        int maxStackSize = Math.max(1, definition.material().getMaxStackSize());
+        int maxStackSize = definition.unstackable() ? 1 : Math.max(1, definition.material().getMaxStackSize());
         while (amount > 0) {
             int stackAmount = Math.min(amount, maxStackSize);
             ItemStack itemStack = itemFactory.create(definition);

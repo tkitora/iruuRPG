@@ -40,6 +40,18 @@ import java.util.function.Function;
  *   <li>a storage is patched whenever it is read from its file, and a placed container (chest, barrel, shulker box...)
  *       whenever it is opened.</li>
  * </ul>
+ * <p>
+ * The move to items that never stack ({@code item-migration.mode}, see design/item-foundation-2026-10-31.md):
+ * <ul>
+ *   <li>{@code off} (the default): as above; weapons and armor made from now on carry their own mark (UniqueItems).</li>
+ *   <li>{@code dry-run}: nothing is changed at all (also no ordinary patch): what would be done is written to
+ *       plugins/iruuRPG/item-migration-report.txt (the market and storages at the switch, each player when they join).</li>
+ *   <li>{@code apply}: weapons and armor without a mark get one and their stacks are split (one per slot; what does not
+ *       fit goes to the ender chest, then to the player's feet). Before a player's items are changed, their inventory
+ *       and ender chest are saved to plugins/iruuRPG/backups/item-migration/&lt;time&gt;/&lt;uuid&gt;.yml; before the market
+ *       and the storages, their files are copied there. While on, every join checks the player again.</li>
+ * </ul>
+ * A change of mode counts as a new version (everyone is looked at again).
  */
 public final class ItemPatchService implements Listener {
 
@@ -55,6 +67,9 @@ public final class ItemPatchService implements Listener {
     private final Set<Keeper> keepers = new LinkedHashSet<>();
     private Consumer<Player> afterPlayerPatch = player -> { };
     private int version;
+    private String mode = "off";
+    /** The backup folder of this run of the migration (one per reload / start in apply mode). */
+    private File backupFolder;
 
     public ItemPatchService(JavaPlugin plugin, ItemPatcher patcher) {
         this.plugin = plugin;
@@ -96,11 +111,28 @@ public final class ItemPatchService implements Listener {
         }
     }
 
+    private static String readMode(String raw) {
+        String value = raw == null ? "off" : raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (value) {
+            case "dry-run", "dryrun", "dry" -> "dry-run";
+            case "apply" -> "apply";
+            default -> "off";
+        };
+    }
+
+    public String mode() {
+        return mode;
+    }
+
     private Set<String> refreshNow() {
         patcher.setEnabled(plugin.getConfig().getBoolean("item-patch.enabled", true));
+        mode = readMode(plugin.getConfig().getString("item-migration.mode", "off"));
+        patcher.setMigrate(!mode.equals("off"));
+        backupFolder = null;
         Map<String, String> now = patcher.computeFingerprints();
         YamlConfiguration yaml = file.exists() ? YamlConfiguration.loadConfiguration(file) : null;
         Map<String, String> before = new HashMap<>();
+        String modeBefore = yaml == null ? "off" : yaml.getString("migration-mode", "off");
         if (yaml != null) {
             version = yaml.getInt("version", 0);
             ConfigurationSection items = yaml.getConfigurationSection("items");
@@ -113,9 +145,11 @@ public final class ItemPatchService implements Listener {
             if (yaml == null || (old != null && !old.equals(entry.getValue()))) changed.add(entry.getKey());
         }
         patcher.setFingerprints(now);
-        if (!changed.isEmpty()) version++;
-        if (!changed.isEmpty() || !now.equals(before)) save(now);
-        if (changed.isEmpty()) return changed;
+        boolean modeChanged = !mode.equals(modeBefore);
+        if (!changed.isEmpty() || modeChanged) version++;
+        if (!changed.isEmpty() || modeChanged || !now.equals(before)) save(now);
+        if (changed.isEmpty() && !modeChanged) return changed;
+        if (modeChanged) plugin.getLogger().info("items: item-migration.mode " + modeBefore + " -> " + mode + ", item version " + version);
 
         plugin.getLogger().info("items: " + changed.size() + " item definition(s) changed, item version " + version
                 + " (" + String.join(", ", changed.stream().limit(10).toList()) + (changed.size() > 10 ? ", ..." : "") + ")");
@@ -124,8 +158,18 @@ public final class ItemPatchService implements Listener {
             return changed;
         }
         patcher.takeCounts();
-        for (Keeper keeper : keepers) keeper.patchItems(patcher::patch);
+        if (mode.equals("dry-run")) {
+            // only looked at: every result is thrown away
+            for (Keeper keeper : keepers) keeper.patchItems(item -> {
+                patcher.patch(item == null ? null : item.clone());
+                return null;
+            });
+        } else {
+            if (mode.equals("apply")) backupFiles();
+            for (Keeper keeper : keepers) keeper.patchItems(patcher::patch);
+        }
         ItemPatcher.Counts stored = patcher.takeCounts();
+        report("market and storages", stored);
         int players = 0;
         ItemPatcher.Counts online = new ItemPatcher.Counts();
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -139,6 +183,7 @@ public final class ItemPatchService implements Listener {
     private void save(Map<String, String> fingerprints) {
         YamlConfiguration yaml = new YamlConfiguration();
         yaml.set("version", version);
+        yaml.set("migration-mode", mode);
         for (Map.Entry<String, String> entry : new java.util.TreeMap<>(fingerprints).entrySet()) yaml.set("items." + entry.getKey(), entry.getValue());
         try {
             yaml.save(file);
@@ -155,12 +200,30 @@ public final class ItemPatchService implements Listener {
     /** {@code total}: the counts are added there (one log line for all), else logged for this player. */
     private int patchPlayer(Player player, ItemPatcher.Counts total) {
         if (!patcher.enabled()) return 0;
+        if (mode.equals("dry-run")) {
+            ItemPatcher.Counts counts = lookAtPlayer(player);
+            report("player " + player.getName() + " (" + player.getUniqueId() + ")", counts);
+            if (total != null) total.add(counts);
+            return 0;
+        }
+        if (mode.equals("apply")) {
+            ItemPatcher.Counts would = lookAtPlayer(player);
+            if (!would.any()) return 0;
+            backupPlayer(player);
+            report("player " + player.getName() + " (" + player.getUniqueId() + ")", would);
+        }
         patcher.takeCounts();
         int changed = 0;
         ItemStack[] contents = player.getInventory().getContents();
         int count = patcher.patchAll(contents);
-        if (count > 0) player.getInventory().setContents(contents);
+        java.util.List<ItemStack> overflow = patcher.split(contents);
+        boolean split = !overflow.isEmpty() || hasSplit(contents, player.getInventory().getContents());
+        if (count > 0 || split) player.getInventory().setContents(contents);
         changed += count;
+        // the pieces of a split stack that found no room: the ender chest, then the player's feet
+        for (ItemStack rest : player.getEnderChest().addItem(overflow.toArray(new ItemStack[0])).values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), rest);
+        }
 
         ItemStack cursor = patcher.patch(player.getItemOnCursor());
         if (cursor != null) {
@@ -188,8 +251,18 @@ public final class ItemPatchService implements Listener {
         try {
             patcher.takeCounts();
             int changed = 0;
+            if (mode.equals("dry-run")) {
+                for (ItemStack[] array : arrays) {
+                    ItemStack[] copy = new ItemStack[array.length];
+                    for (int slot = 0; slot < array.length; slot++) copy[slot] = array[slot] == null ? null : array[slot].clone();
+                    patcher.patchAll(copy);
+                }
+                report(where, patcher.takeCounts());
+                return 0;
+            }
             for (ItemStack[] array : arrays) changed += patcher.patchAll(array);
             ItemPatcher.Counts counts = patcher.takeCounts();
+            report(where, counts);
             if (counts.any()) plugin.getLogger().info("items: " + where + ": " + counts);
             return changed;
         } catch (RuntimeException e) {
@@ -202,8 +275,117 @@ public final class ItemPatchService implements Listener {
     private int patchInventory(Inventory inventory) {
         ItemStack[] contents = inventory.getContents();
         int count = patcher.patchAll(contents);
-        if (count > 0) inventory.setContents(contents);
+        java.util.List<ItemStack> overflow = patcher.split(contents);
+        if (count > 0 || !overflow.isEmpty() || hasSplit(contents, inventory.getContents())) inventory.setContents(contents);
+        // what a split stack cannot place in the same container stays there as it was (one stack): put back on its first piece
+        for (ItemStack rest : overflow) {
+            for (ItemStack item : contents) {
+                if (item != null && item.isSimilar(rest)) {
+                    item.setAmount(item.getAmount() + rest.getAmount());
+                    break;
+                }
+            }
+        }
+        if (!overflow.isEmpty()) {
+            inventory.setContents(contents);
+            plugin.getLogger().warning("items: a container had no room to split " + overflow.size() + " stacked item(s); left in it");
+        }
         return count;
+    }
+
+    private static boolean hasSplit(ItemStack[] after, ItemStack[] before) {
+        for (int slot = 0; slot < after.length && slot < before.length; slot++) {
+            ItemStack a = after[slot];
+            ItemStack b = before[slot];
+            if ((a == null) != (b == null)) return true;
+            if (a != null && a.getAmount() != b.getAmount()) return true;
+        }
+        return false;
+    }
+
+    // ---- the migration: looking only, the report, the backups --------------------------------------------------------------
+
+    /** What patching the player would do (on copies: nothing changes). */
+    private ItemPatcher.Counts lookAtPlayer(Player player) {
+        patcher.takeCounts();
+        for (ItemStack[] contents : java.util.List.of(player.getInventory().getContents(), player.getEnderChest().getContents())) {
+            ItemStack[] copy = new ItemStack[contents.length];
+            for (int slot = 0; slot < contents.length; slot++) copy[slot] = contents[slot] == null ? null : contents[slot].clone();
+            patcher.patchAll(copy);
+            patcher.split(copy);
+        }
+        ItemStack cursor = player.getItemOnCursor();
+        if (cursor != null && !cursor.getType().isAir()) patcher.patch(cursor.clone());
+        return patcher.takeCounts();
+    }
+
+    private void report(String where, ItemPatcher.Counts counts) {
+        if (mode.equals("off") || !counts.any()) return;
+        File out = new File(plugin.getDataFolder(), "item-migration-report.txt");
+        String line = java.time.LocalDateTime.now().withNano(0) + " [" + mode + "] " + where + ": " + counts + System.lineSeparator();
+        try {
+            java.nio.file.Files.writeString(out.toPath(), line, java.nio.charset.StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.CREATE, java.nio.file.StandardOpenOption.APPEND);
+        } catch (IOException e) {
+            plugin.getLogger().warning("items: could not write " + out.getName() + ": " + e.getMessage());
+        }
+    }
+
+    private File backupFolder() {
+        if (backupFolder == null) {
+            String stamp = java.time.LocalDateTime.now().withNano(0).toString().replace(':', '-');
+            backupFolder = new File(plugin.getDataFolder(), "backups/item-migration/" + stamp);
+        }
+        return backupFolder;
+    }
+
+    /** The player's inventory and ender chest, as they are, before the migration changes them. */
+    private void backupPlayer(Player player) {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.set("name", player.getName());
+        yaml.set("inventory", java.util.Arrays.asList(player.getInventory().getContents()));
+        yaml.set("ender-chest", java.util.Arrays.asList(player.getEnderChest().getContents()));
+        try {
+            File folder = backupFolder();
+            if (!folder.exists() && !folder.mkdirs()) throw new IOException("cannot make " + folder);
+            yaml.save(new File(folder, player.getUniqueId() + "-" + System.currentTimeMillis() + ".yml"));
+        } catch (IOException e) {
+            plugin.getLogger().severe("items: could not back up " + player.getName() + " before the migration: " + e.getMessage());
+            throw new IllegalStateException("no backup, no migration", e);
+        }
+    }
+
+    /** The market's and the storages' files, copied before the migration changes them. */
+    private void backupFiles() {
+        File folder = backupFolder();
+        for (String name : new String[]{"market", "storage"}) {
+            File source = new File(plugin.getDataFolder(), name);
+            if (!source.isDirectory()) continue;
+            File target = new File(folder, name);
+            try (var files = java.nio.file.Files.walk(source.toPath())) {
+                for (java.nio.file.Path path : (Iterable<java.nio.file.Path>) files::iterator) {
+                    java.nio.file.Path to = target.toPath().resolve(source.toPath().relativize(path).toString());
+                    if (java.nio.file.Files.isDirectory(path)) java.nio.file.Files.createDirectories(to);
+                    else java.nio.file.Files.copy(path, to, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                plugin.getLogger().severe("items: could not back up " + name + "/ before the migration: " + e.getMessage());
+                throw new IllegalStateException("no backup, no migration", e);
+            }
+        }
+        plugin.getLogger().info("items: backed up market/ and storage/ to " + folder.getPath());
+    }
+
+    /** Puts a player's inventory and ender chest back as a backup file has them (the restore of the migration). */
+    public boolean restore(Player player, File backup) {
+        if (!backup.isFile()) return false;
+        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(backup);
+        java.util.List<?> inventory = yaml.getList("inventory");
+        java.util.List<?> ender = yaml.getList("ender-chest");
+        if (inventory == null || ender == null) return false;
+        player.getInventory().setContents(inventory.stream().map(item -> item instanceof ItemStack stack ? stack : null).toArray(ItemStack[]::new));
+        player.getEnderChest().setContents(ender.stream().map(item -> item instanceof ItemStack stack ? stack : null).toArray(ItemStack[]::new));
+        return true;
     }
 
     private static boolean isPlaced(InventoryHolder holder) {
@@ -219,7 +401,8 @@ public final class ItemPatchService implements Listener {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             if (!player.isOnline()) return;
             Integer checked = player.getPersistentDataContainer().get(checkedKey, PersistentDataType.INTEGER);
-            if (checked != null && checked >= version) return;
+            // while the migration applies, every join looks again (stacks taken out of the market or a storage are split then)
+            if (checked != null && checked >= version && !mode.equals("apply")) return;
             if (!patcher.enabled()) return; // checked again once the patch is on
             patchPlayer(player);
             player.getPersistentDataContainer().set(checkedKey, PersistentDataType.INTEGER, version);
@@ -230,7 +413,7 @@ public final class ItemPatchService implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onOpen(InventoryOpenEvent event) {
-        if (!patcher.enabled()) return;
+        if (!patcher.enabled() || mode.equals("dry-run")) return;
         // only the container opened (no look through the world)
         Inventory top = event.getInventory();
         if (!isPlaced(top.getHolder(false))) return;
