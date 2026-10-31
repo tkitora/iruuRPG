@@ -682,12 +682,7 @@ public final class QuestlineService implements Listener {
             plugin.getLogger().warning("quest: no item '" + item + "' to give");
             return false;
         }
-        int left = Math.max(1, amount);
-        while (left > 0) {
-            ItemStack stack = itemFactory.create(definition);
-            int size = Math.min(left, stack.getMaxStackSize());
-            stack.setAmount(size);
-            left -= size;
+        for (ItemStack stack : net.tkgon.mc.iruuRPG.item.UniqueItems.pieces(itemFactory.create(definition), Math.max(1, amount))) {
             for (ItemStack rest : player.getInventory().addItem(stack).values()) {
                 player.getWorld().dropItemNaturally(player.getLocation(), rest);
             }

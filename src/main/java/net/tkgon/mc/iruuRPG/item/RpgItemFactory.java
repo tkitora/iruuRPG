@@ -60,7 +60,17 @@ public final class RpgItemFactory {
     public ItemStack create(RpgItemDefinition definition) {
         ItemStack item = build(definition, definition.rarity(), null, null);
         stamp(item, definition);
+        markUnique(item, definition);
         return item;
+    }
+
+    /** A weapon or armor gets its own mark (UniqueItems): it never stacks. Not on the plain item the fingerprint is taken from. */
+    private void markUnique(ItemStack item, RpgItemDefinition definition) {
+        if (!definition.unstackable()) return;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return;
+        UniqueItems.mark(meta);
+        item.setItemMeta(meta);
     }
 
     /** The item as the yaml alone makes it, without the fingerprint (what the fingerprint is taken from). */
@@ -81,6 +91,7 @@ public final class RpgItemFactory {
         ItemStack item = build(definition, rarity, bonus, elementBonus);
         identifier.setBonusStats(item, bonus);
         stamp(item, definition);
+        markUnique(item, definition);
         return item;
     }
 

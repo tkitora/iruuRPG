@@ -239,12 +239,8 @@ public final class MarketService implements Listener {
     }
 
     private void giveItems(Player player, ItemStack template, int quantity) {
-        int left = quantity;
-        int max = template.getMaxStackSize();
-        while (left > 0) {
-            ItemStack stack = template.clone();
-            stack.setAmount(Math.min(max, left));
-            left -= stack.getAmount();
+        // a weapon or armor comes one by one, each with its own mark (it never stacks)
+        for (ItemStack stack : net.tkgon.mc.iruuRPG.item.UniqueItems.pieces(template, quantity)) {
             for (ItemStack rest : player.getInventory().addItem(stack).values()) {
                 player.getWorld().dropItemNaturally(player.getLocation(), rest);
             }
@@ -266,15 +262,8 @@ public final class MarketService implements Listener {
     // ---- pick-up box --------------------------------------------------------------------------------------------------
 
     private void addReturn(UUID owner, ItemStack template, int quantity) {
-        int max = template.getMaxStackSize();
-        int left = quantity;
         List<ItemStack> box = returns.computeIfAbsent(owner, key -> new ArrayList<>());
-        while (left > 0) {
-            ItemStack stack = template.clone();
-            stack.setAmount(Math.min(max, left));
-            left -= stack.getAmount();
-            box.add(stack);
-        }
+        box.addAll(net.tkgon.mc.iruuRPG.item.UniqueItems.pieces(template, quantity));
     }
 
     /** Pays out waiting sale money and hands over returned items (what does not fit stays in the box). */

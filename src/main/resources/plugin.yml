@@ -106,6 +106,10 @@ commands:
   questline:
     description: "The buttons under an NPC's quest offer (accept / decline)"
     usage: /questline accept <line> | decline
+  itemmigration:
+    description: "The move to weapons and armor that never stack (admins only): status, restore a player's backup"
+    usage: /itemmigration status | restore <player> [backup]
+    permission: iruurpg.admin
   questadmin:
     description: "Quest lines (admins only): look at / start / move / flag / pause / reset a player's quest lines, try events, reload"
     usage: /questadmin <info|start|step|flag|pause|resume|reset|talk|event|reload|warnings> ...

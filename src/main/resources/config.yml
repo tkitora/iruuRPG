@@ -6,6 +6,13 @@ rarity:
 item-patch:
   enabled: true
 
+# 素材以外 (武器・防具) をスタックさせない移行 (design/item-foundation-2026-10-31.md)。off / dry-run / apply
+#   off: 何もしない (新しく作る武器・防具は、もとから重ならない)
+#   dry-run: 何も変えず、何を何個どう変えるかを plugins/iruuRPG/item-migration-report.txt に書く (プレイヤーはログインしたとき)
+#   apply: 重なっている武器・防具を 1 個ずつに分け、印を付ける。変える前に backups/item-migration/ にバックアップ。/itemmigration restore で戻せる
+item-migration:
+  mode: "off"            # 引用符が要る (YAML では off が「いいえ」になる)
+
 player:
   level-cap: 256
   first-release-level-cap: 20

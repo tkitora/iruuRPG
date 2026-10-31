@@ -735,6 +735,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(travelMenu, this);
         getServer().getPluginManager().registerEvents(storageMenu, this);
         getServer().getPluginManager().registerEvents(itemPatchService, this);
+        PluginCommand itemMigrationCommand = getCommand("itemmigration");
+        if (itemMigrationCommand != null) itemMigrationCommand.setExecutor(new net.tkgon.mc.iruuRPG.item.ItemMigrationCommand(this, itemPatchService));
         getServer().getPluginManager().registerEvents(craftService, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),

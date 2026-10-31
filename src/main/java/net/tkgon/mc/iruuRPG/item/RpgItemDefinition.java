@@ -121,6 +121,11 @@ public record RpgItemDefinition(
                 elementStats, description, comboStyle, kindLabel, typeLabel, classUse);
     }
 
+    /** Never stacks (each one carries its own mark, see UniqueItems): a weapon or armor; materials (and the rest) stack. */
+    public boolean unstackable() {
+        return marked() || "防具".equals(kindText());
+    }
+
     public boolean isWeaponLike() {
         return attackType != AttackType.SPECIAL || !damageKind.noDamage();
     }

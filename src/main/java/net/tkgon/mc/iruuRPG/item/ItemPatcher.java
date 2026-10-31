@@ -15,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -80,6 +81,20 @@ public final class ItemPatcher {
         stampNewItems();
     }
 
+    /**
+     * The move to items that never stack (item-migration.mode apply / dry-run): a weapon or armor without its own mark
+     * gets one, and {@link #split} breaks stacks of them up. Off: the marks are left as they are (new items still get one).
+     */
+    private boolean migrate;
+
+    public void setMigrate(boolean migrate) {
+        this.migrate = migrate;
+    }
+
+    public boolean migrate() {
+        return migrate;
+    }
+
     public boolean enabled() {
         return enabled;
     }
@@ -109,6 +124,11 @@ public final class ItemPatcher {
     public static final class Counts {
         /** Built again: the yaml changed what the item shows. */
         public int rebuilt;
+        /** Given its own mark (a weapon or armor made before items stopped stacking). */
+        public int marked;
+        /** Stacks of a weapon or armor broken up, and the items that made beyond the first of each. */
+        public int split;
+        public int splitItems;
         /** Only stamped with the fingerprint: the item was already what the yaml makes (an item from before the fingerprints). */
         public int stamped;
         /** Building it again failed: the item was left as it was. */
@@ -118,18 +138,22 @@ public final class ItemPatcher {
 
         public void add(Counts other) {
             rebuilt += other.rebuilt;
+            marked += other.marked;
+            split += other.split;
+            splitItems += other.splitItems;
             stamped += other.stamped;
             failed += other.failed;
             rarityUnread += other.rarityUnread;
         }
 
         public boolean any() {
-            return rebuilt + stamped + failed + rarityUnread > 0;
+            return rebuilt + marked + split + stamped + failed + rarityUnread > 0;
         }
 
         @Override
         public String toString() {
-            return "rebuilt " + rebuilt + ", stamped only " + stamped + ", failed " + failed + ", crafted rarity not readable " + rarityUnread;
+            return "rebuilt " + rebuilt + ", stamped only " + stamped + ", failed " + failed + ", crafted rarity not readable " + rarityUnread
+                    + (marked + split > 0 ? ", marked (never stack) " + marked + ", stacks split " + split + " (+" + splitItems + " items)" : "");
         }
     }
 
@@ -167,7 +191,17 @@ public final class ItemPatcher {
 
         ItemMeta old = item.getItemMeta();
         PersistentDataContainer oldData = old.getPersistentDataContainer();
-        if (want.equals(oldData.get(identifier.keys().itemRev(), PersistentDataType.STRING))) return null;
+        boolean needsMark = migrate && definition.unstackable() && !oldData.has(UniqueItems.KEY, PersistentDataType.STRING);
+        if (want.equals(oldData.get(identifier.keys().itemRev(), PersistentDataType.STRING))) {
+            if (!needsMark) return null;
+            // up to date, but from before items stopped stacking: only the mark is added
+            ItemStack marked = item.clone();
+            ItemMeta markedMeta = marked.getItemMeta();
+            UniqueItems.mark(markedMeta);
+            marked.setItemMeta(markedMeta);
+            counts.marked++;
+            return marked;
+        }
 
         boolean crafted = oldData.has(identifier.keys().bonusStats(), PersistentDataType.STRING);
         Rarity rarity = null;
@@ -183,6 +217,10 @@ public final class ItemPatcher {
 
         ItemMeta meta = fresh.getItemMeta();
         if (meta == null) return null;
+        // the factory gave the fresh item a mark of its own: an item keeps its old mark (copied below), gets one only while migrating
+        String freshMark = meta.getPersistentDataContainer().get(UniqueItems.KEY, PersistentDataType.STRING);
+        UniqueItems.unmark(meta);
+        if (needsMark && freshMark != null) meta.getPersistentDataContainer().set(UniqueItems.KEY, PersistentDataType.STRING, freshMark);
         // everything the item keeps in its data stays (crafted stats, and any key added later); the factory's keys are the same ones
         oldData.copyTo(meta.getPersistentDataContainer(), true);
         // enchantments put on the item (LUCK is the definition's glint, which the factory decides)
@@ -198,7 +236,9 @@ public final class ItemPatcher {
         ItemStack stamped = item.clone();
         ItemMeta stampedMeta = stamped.getItemMeta();
         stamp(stampedMeta, want, rarity);
+        if (needsMark && freshMark != null) stampedMeta.getPersistentDataContainer().set(UniqueItems.KEY, PersistentDataType.STRING, freshMark);
         stamped.setItemMeta(stampedMeta);
+        if (needsMark) counts.marked++;
         if (stamped.equals(fresh)) {
             counts.stamped++;
             return stamped;
@@ -210,6 +250,47 @@ public final class ItemPatcher {
     private void stamp(ItemMeta meta, String want, Rarity rarity) {
         meta.getPersistentDataContainer().set(identifier.keys().itemRev(), PersistentDataType.STRING, want);
         if (rarity != null) meta.getPersistentDataContainer().set(identifier.keys().rarity(), PersistentDataType.INTEGER, rarity.tier());
+    }
+
+    /**
+     * Breaks up stacks of a weapon or armor (more than one in a slot) in place: the first stays, the others go one by
+     * one, each with a new mark, into the empty slots of the same array; what does not fit is answered. Only while
+     * migrating (else nothing).
+     */
+    public List<ItemStack> split(ItemStack[] contents) {
+        List<ItemStack> overflow = new java.util.ArrayList<>();
+        if (!migrate || contents == null) return overflow;
+        for (int slot = 0; slot < contents.length; slot++) {
+            ItemStack item = contents[slot];
+            if (item == null || item.getAmount() <= 1 || !item.hasItemMeta()) continue;
+            String id = identifier.itemId(item).orElse(null);
+            RpgItemDefinition definition = id == null ? null : registry.find(id).orElse(null);
+            if (definition == null || !definition.unstackable()) continue;
+            int extra = item.getAmount() - 1;
+            ItemStack first = item.clone();
+            first.setAmount(1);
+            contents[slot] = first;
+            counts.split++;
+            counts.splitItems += extra;
+            ItemStack template = first.clone();
+            ItemMeta templateMeta = template.getItemMeta();
+            UniqueItems.mark(templateMeta); // (pieces gives each one its own new mark anyway)
+            template.setItemMeta(templateMeta);
+            for (ItemStack piece : UniqueItems.pieces(template, extra)) {
+                int free = firstEmpty(contents, slot + 1);
+                if (free < 0) free = firstEmpty(contents, 0);
+                if (free >= 0) contents[free] = piece;
+                else overflow.add(piece);
+            }
+        }
+        return overflow;
+    }
+
+    private static int firstEmpty(ItemStack[] contents, int from) {
+        for (int slot = from; slot < contents.length; slot++) {
+            if (contents[slot] == null || contents[slot].getType().isAir()) return slot;
+        }
+        return -1;
     }
 
     /** Patches the array in place; answers how many stacks changed. */
