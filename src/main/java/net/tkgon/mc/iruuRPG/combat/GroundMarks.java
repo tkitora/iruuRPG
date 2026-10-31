@@ -1,7 +1,9 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import net.kyori.adventure.key.Key;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.TextColor;
+import net.tkgon.mc.iruuRPG.markpack.MarkGlyphs;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -25,35 +27,37 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The ground mark of an attack's reach (where a hit will land), drawn with text displays of "■" laid flat on the ground (facing up,
- * like the top of a block) and turned and stretched so that they tile the area: a circle and a fan are tiled ring by ring (each piece
- * turned along its radius), a box (a line attack) row by row. The pieces overlap a little so no gap shows.
+ * The ground mark of an attack's reach (where a hit will land): a circle, a fan or a box, its inside and its rim each with their own color and
+ * opacity, drawn with text displays laid flat on the ground (facing up, like the top of a block). Each display shows one glyph of the font
+ * {@code iruurpg:marks} ({@link MarkGlyphs}: a disc, a wedge or a square, with or without a rim) stretched to its piece, so a circle is 1 or 2
+ * displays, a box 1 or 5, a fan 1 or 2 per wedge (90° = one wedge). The pieces never overlap: a see-through mark has the same strength
+ * everywhere. The font comes with the server's pack {@code iruumark.zip}.
  * <p>
- * The shapes are worked out in the mark's own frame ({@code forward} / {@code right} blocks from its origin), so a mark that follows its
- * caster is only moved and turned ({@link Mark#place}). A mark lives until {@link Mark#remove}, or, when it is kept alive by calls
- * ({@link Mark#keepAlive}), until it has not been kept for a while. The displays are not saved with the world, and
- * {@link #removeAll()} (on disable) takes away what is left.
+ * The shapes are worked out in the mark's own frame ({@code forward} / {@code right} blocks from its origin), so a mark that follows its caster is
+ * only moved and turned ({@link Mark#place}). A mark lives until {@link Mark#remove}, or, when it is kept alive by calls ({@link Mark#keepAlive}),
+ * until it has not been kept for a while. The displays are not saved with the world, and {@link #removeAll()} (on disable) takes away what is left.
  * <p>
- * Config {@code combat.effects.ground-mark}: {@code enabled} (false = the old particle outlines), the glyph's size and centre at scale 1
- * (to line the pieces up; check them in game with {@code outline: true}, which draws the old outline too), the piece size, the most pieces
- * of one mark and the opacity.
+ * Config {@code combat.effects.ground-mark}: {@code enabled} (false = the old particle outlines), {@code outline} (draw both, to compare), and the
+ * default look of the attacks' marks ({@link #style(Color)}).
  */
 public final class GroundMarks {
+
+    /** How a mark looks: the inside and the rim (color, opacity 0..255), and the rim's width in blocks (0 = no rim). */
+    public record Style(Color fill, int fillOpacity, Color rim, int rimOpacity, double rimWidth) {
+        boolean hasRim() {
+            return rimWidth > 0.0 && rimOpacity > 0;
+        }
+    }
 
     /** A piece in the mark's frame: its centre ({@code forward}, {@code right}), its size across and along, and its turn from forward (radians, towards right). */
     public record Cell(double forward, double right, double across, double along, double turn) {
     }
 
-    /** The glyph's numbers (blocks at scale 1). */
-    public record Glyph(String text, double size, double centerX, double centerY, double overlap, int opacity) {
-        static Glyph of(ConfigurationSection section) {
-            if (section == null) return new Glyph("■", 0.15, -0.0125, 0.1375, 1.12, 150);
-            return new Glyph(section.getString("text", "■"), clamp(section.getDouble("glyph-size", 0.15), 0.01, 2.0),
-                    section.getDouble("glyph-center-x", -0.0125), section.getDouble("glyph-center-y", 0.1375),
-                    clamp(section.getDouble("overlap", 1.12), 1.0, 2.0), (int) clamp(section.getInt("opacity", 150), 26, 255));
-        }
+    /** One display of a mark: the glyph, where and how big it is, and its color. */
+    public record Piece(char glyph, Cell cell, Color color, int opacity) {
     }
 
+    private static final Key FONT = Key.key(MarkGlyphs.FONT);
     private static final String TAG = "iruurpg_ground_mark";
     /** Every mark still on the ground (to take them away on disable and when they run out). */
     private static final Set<Mark> LIVE = Collections.synchronizedSet(new LinkedHashSet<>());
@@ -77,101 +81,104 @@ public final class GroundMarks {
         return section == null || section.getBoolean("enabled", true);
     }
 
-    /** Whether the old particle outline is drawn as well (to check that the pieces line up with the real reach). */
+    /** Whether the old particle outline is drawn as well (to check that a mark lines up with the real reach). */
     public boolean outlineToo() {
         ConfigurationSection section = config();
         return section != null && section.getBoolean("outline", false);
     }
 
-    private double cellSize() {
+    /**
+     * The look of an attack's mark in {@code color} (config: {@code fill-opacity}, {@code rim-opacity}, {@code rim-width} in blocks, and
+     * {@code rim-whiten}, how much lighter the rim is).
+     */
+    public Style style(Color color) {
         ConfigurationSection section = config();
-        return clamp(section == null ? 0.75 : section.getDouble("cell", 0.75), 0.2, 4.0);
-    }
-
-    private int maxCells() {
-        ConfigurationSection section = config();
-        return (int) clamp(section == null ? 160 : section.getInt("max-cells", 160), 8, 600);
+        int fillOpacity = section == null ? 90 : section.getInt("fill-opacity", 90);
+        int rimOpacity = section == null ? 210 : section.getInt("rim-opacity", 210);
+        double rimWidth = section == null ? 0.15 : section.getDouble("rim-width", 0.15);
+        double whiten = clamp(section == null ? 0.35 : section.getDouble("rim-whiten", 0.35), 0.0, 1.0);
+        Color rim = Color.fromRGB((int) Math.round(color.getRed() + (255 - color.getRed()) * whiten),
+                (int) Math.round(color.getGreen() + (255 - color.getGreen()) * whiten), (int) Math.round(color.getBlue() + (255 - color.getBlue()) * whiten));
+        return new Style(color, fillOpacity, rim, rimOpacity, rimWidth);
     }
 
     // ---- shapes (in the mark's frame) ---------------------------------------------------------------------------------
 
     /** A disc of {@code radius} whose centre is {@code forward} blocks ahead. */
-    public List<Cell> circle(double forward, double radius) {
-        return circle(forward, radius, cellSize(), maxCells());
-    }
-
-    /** A fan of {@code radius} and {@code angleDegrees} (the whole opening) from the origin, opening forward. */
-    public List<Cell> fan(double radius, double angleDegrees) {
-        return fan(radius, angleDegrees, cellSize(), maxCells());
-    }
-
-    /** A box {@code length} long (forward) and {@code width} wide, starting {@code forward} blocks ahead. */
-    public List<Cell> box(double forward, double length, double width) {
-        return box(forward, length, width, cellSize(), maxCells());
-    }
-
-    static List<Cell> circle(double forward, double radius, double cell, int max) {
-        List<Cell> cells = sector(radius, Math.PI * 2.0, cell, max);
-        if (forward == 0.0) return cells;
-        List<Cell> moved = new ArrayList<>(cells.size());
-        for (Cell c : cells) moved.add(new Cell(c.forward() + forward, c.right(), c.across(), c.along(), c.turn()));
-        return moved;
-    }
-
-    static List<Cell> fan(double radius, double angleDegrees, double cell, int max) {
-        return sector(radius, Math.toRadians(clamp(angleDegrees, 1.0, 360.0)), cell, max);
-    }
-
-    /** Rings from the centre out; each ring cut into pieces about {@code cell} long round it, each turned along its radius. */
-    private static List<Cell> sector(double radius, double opening, double cell, int max) {
-        if (radius <= 0.0) return List.of();
-        double size = cell;
-        for (int guard = 0; guard < 40; guard++) {
-            List<Cell> cells = new ArrayList<>();
-            int rings = Math.max(1, (int) Math.ceil(radius / size));
-            double depth = radius / rings;
-            for (int ring = 0; ring < rings; ring++) {
-                double middle = (ring + 0.5) * depth;
-                int pieces = Math.max(ring == 0 && opening >= Math.PI * 2.0 - 1.0E-6 ? 3 : 1, (int) Math.ceil(middle * opening / size));
-                double step = opening / pieces;
-                for (int piece = 0; piece < pieces; piece++) {
-                    double angle = -opening / 2.0 + (piece + 0.5) * step;
-                    // across = the arc of the ring's outer edge (so the outer pieces meet), along = the ring's depth
-                    double across = Math.max(0.05, (ring + 1) * depth * step);
-                    cells.add(new Cell(Math.cos(angle) * middle, Math.sin(angle) * middle, Math.min(across, 2.0 * (ring + 1) * depth), depth, angle));
-                }
-            }
-            if (cells.size() <= max) return cells;
-            size *= 1.25;
+    public static List<Piece> circle(double forward, double radius, Style style) {
+        List<Piece> pieces = new ArrayList<>();
+        if (radius <= 0.0) return pieces;
+        Cell cell = new Cell(forward, 0.0, radius * 2.0, radius * 2.0, 0.0);
+        if (!style.hasRim()) {
+            addFill(pieces, MarkGlyphs.disc(MarkGlyphs.Part.WHOLE, -1), cell, style);
+            return pieces;
         }
-        return List.of();
+        int rim = MarkGlyphs.nearestRim(style.rimWidth() / radius);
+        addFill(pieces, MarkGlyphs.disc(MarkGlyphs.Part.FILL, rim), cell, style);
+        pieces.add(new Piece(MarkGlyphs.disc(MarkGlyphs.Part.RIM, rim), cell, style.rim(), opacity(style.rimOpacity())));
+        return pieces;
     }
 
-    static List<Cell> box(double forward, double length, double width, double cell, int max) {
-        if (length <= 0.0 || width <= 0.0) return List.of();
-        double size = cell;
-        for (int guard = 0; guard < 40; guard++) {
-            int rows = Math.max(1, (int) Math.ceil(length / size));
-            int columns = Math.max(1, (int) Math.ceil(width / size));
-            if (rows * columns <= max || guard == 39) {
-                List<Cell> cells = new ArrayList<>(rows * columns);
-                double along = length / rows, across = width / columns;
-                for (int row = 0; row < rows; row++) {
-                    for (int column = 0; column < columns; column++) {
-                        cells.add(new Cell(forward + (row + 0.5) * along, -width / 2.0 + (column + 0.5) * across, across, along, 0.0));
-                    }
-                }
-                return cells;
+    /** A fan of {@code radius} and {@code angleDegrees} (the whole opening, rounded to whole degrees) from the origin, opening forward. */
+    public static List<Piece> fan(double radius, double angleDegrees, Style style) {
+        int degrees = (int) Math.round(clamp(angleDegrees, 1.0, 360.0));
+        if (degrees >= 360) return circle(0.0, radius, style);
+        List<Piece> pieces = new ArrayList<>();
+        if (radius <= 0.0) return pieces;
+        List<Integer> parts = MarkGlyphs.split(degrees);
+        int rim = style.hasRim() ? MarkGlyphs.nearestRim(style.rimWidth() / radius) : -1;
+        double turn = -Math.toRadians(degrees) / 2.0;
+        for (int index = 0; index < parts.size(); index++) {
+            int angle = parts.get(index);
+            Cell cell = new Cell(0.0, 0.0, radius * 2.0, radius * 2.0, turn);
+            if (rim < 0) {
+                addFill(pieces, MarkGlyphs.wedge(angle, MarkGlyphs.Part.WHOLE, -1, MarkGlyphs.Sides.NONE), cell, style);
+            } else {
+                // the straight rims only on the fan's own two sides (the first wedge's start, the last wedge's end)
+                MarkGlyphs.Sides sides = MarkGlyphs.Sides.of(index == 0, index == parts.size() - 1);
+                addFill(pieces, MarkGlyphs.wedge(angle, MarkGlyphs.Part.FILL, rim, sides), cell, style);
+                pieces.add(new Piece(MarkGlyphs.wedge(angle, MarkGlyphs.Part.RIM, rim, sides), cell, style.rim(), opacity(style.rimOpacity())));
             }
-            size *= 1.25;
+            turn += Math.toRadians(angle);
         }
-        return List.of();
+        return pieces;
+    }
+
+    /** A box {@code length} long (forward) and {@code width} wide, starting {@code forward} blocks ahead: the inside, and the rim as 4 strips round it. */
+    public static List<Piece> box(double forward, double length, double width, Style style) {
+        List<Piece> pieces = new ArrayList<>();
+        if (length <= 0.0 || width <= 0.0) return pieces;
+        char square = MarkGlyphs.square();
+        double t = style.hasRim() ? Math.min(style.rimWidth(), Math.min(length, width) / 2.0) : 0.0;
+        if (t <= 0.0) {
+            addFill(pieces, square, new Cell(forward + length / 2.0, 0.0, width, length, 0.0), style);
+            return pieces;
+        }
+        if (length > 2 * t && width > 2 * t) addFill(pieces, square, new Cell(forward + length / 2.0, 0.0, width - 2 * t, length - 2 * t, 0.0), style);
+        Color rim = style.rim();
+        int rimOpacity = opacity(style.rimOpacity());
+        pieces.add(new Piece(square, new Cell(forward + t / 2.0, 0.0, width, t, 0.0), rim, rimOpacity));                  // back
+        pieces.add(new Piece(square, new Cell(forward + length - t / 2.0, 0.0, width, t, 0.0), rim, rimOpacity));         // front
+        if (length > 2 * t) {
+            pieces.add(new Piece(square, new Cell(forward + length / 2.0, -width / 2.0 + t / 2.0, t, length - 2 * t, 0.0), rim, rimOpacity));
+            pieces.add(new Piece(square, new Cell(forward + length / 2.0, width / 2.0 - t / 2.0, t, length - 2 * t, 0.0), rim, rimOpacity));
+        }
+        return pieces;
+    }
+
+    private static void addFill(List<Piece> pieces, char glyph, Cell cell, Style style) {
+        if (style.fillOpacity() > 0) pieces.add(new Piece(glyph, cell, style.fill(), opacity(style.fillOpacity())));
+    }
+
+    /** The game shows text of opacity 0..3 as fully opaque; anything that low is raised a little. */
+    private static int opacity(int value) {
+        return (int) clamp(value, 4, 255);
     }
 
     // ---- turning a piece ----------------------------------------------------------------------------------------------
 
     /**
-     * The turn of a flat piece: the glyph's face points up, its up (local y) along {@code way} and its right (local x) across it.
+     * The turn of a flat piece: the glyph's face points up, its up (local y) along {@code way} and its right (local x) across it, to the right.
      * (A text display is drawn in its x / y plane, facing +z.)
      */
     static Quaternionf flatAlong(double wayX, double wayZ) {
@@ -179,12 +186,12 @@ public final class GroundMarks {
         return new Quaternionf().rotateY((float) yaw).rotateX((float) (-Math.PI / 2.0));
     }
 
-    static Transformation transformation(Glyph glyph, double across, double along, double wayX, double wayZ) {
+    /** Stretches the glyph to {@code across} x {@code along}, lays it flat along the way and puts its centre on the display's place. */
+    static Transformation transformation(double across, double along, double wayX, double wayZ) {
         Quaternionf turn = flatAlong(wayX, wayZ);
-        float scaleX = (float) (across / glyph.size() * glyph.overlap());
-        float scaleY = (float) (along / glyph.size() * glyph.overlap());
-        // move the glyph's centre (after scaling and turning) onto the entity's place
-        Vector3f center = new Vector3f((float) glyph.centerX() * scaleX, (float) glyph.centerY() * scaleY, 0.0f);
+        float scaleX = (float) (across / MarkGlyphs.GLYPH);
+        float scaleY = (float) (along / MarkGlyphs.GLYPH);
+        Vector3f center = new Vector3f((float) MarkGlyphs.CENTER_X * scaleX, 0.0f, 0.0f);
         turn.transform(center);
         return new Transformation(center.negate(), turn, new Vector3f(scaleX, scaleY, 1.0f), new Quaternionf());
     }
@@ -192,11 +199,11 @@ public final class GroundMarks {
     // ---- marks --------------------------------------------------------------------------------------------------------
 
     /**
-     * Shows a mark at {@code origin}, its frame turned to {@code facing} (flat), in {@code color}. {@code ticks} > 0: it goes by itself then;
-     * otherwise it stays until removed or until it is not kept alive.
+     * Shows a mark at {@code origin}, its frame turned to {@code facing} (flat). {@code ticks} > 0: it goes by itself then; otherwise it stays until
+     * removed or until it is not kept alive.
      */
-    public Mark show(Location origin, Vector facing, List<Cell> cells, Color color, int ticks) {
-        Mark mark = new Mark(cells, Glyph.of(config()), color);
+    public Mark show(Location origin, Vector facing, List<Piece> pieces, int ticks) {
+        Mark mark = new Mark(pieces);
         mark.place(origin, facing);
         mark.expiresAt = ticks > 0 ? now() + ticks : now() + 10;
         LIVE.add(mark);
@@ -205,13 +212,13 @@ public final class GroundMarks {
     }
 
     /**
-     * A mark that follows repeated calls with the same {@code key} (a skill's task calls this every few ticks during its wind-up): made
-     * the first time, then moved; it goes {@code keepTicks} after the last call.
+     * A mark that follows repeated calls with the same {@code key} (a skill's task calls this every few ticks during its wind-up): made the first
+     * time, then moved; it goes {@code keepTicks} after the last call.
      */
-    public Mark follow(Object key, Location origin, Vector facing, java.util.function.Supplier<List<Cell>> cells, Color color, int keepTicks) {
+    public Mark follow(Object key, Location origin, Vector facing, java.util.function.Supplier<List<Piece>> pieces, int keepTicks) {
         Mark mark = keyed.get(key);
         if (mark == null || mark.removed) {
-            mark = show(origin, facing, cells.get(), color, 0);
+            mark = show(origin, facing, pieces.get(), 0);
             keyed.put(key, mark);
         } else {
             mark.place(origin, facing);
@@ -258,19 +265,15 @@ public final class GroundMarks {
 
     /** One mark: its pieces (one text display each). */
     public static final class Mark {
-        private final List<Cell> cells;
-        private final Glyph glyph;
-        private final Color color;
+        private final List<Piece> pieces;
         private final List<TextDisplay> displays = new ArrayList<>();
         private Location lastOrigin;
         private Vector lastFacing;
         private long expiresAt;
         private boolean removed;
 
-        private Mark(List<Cell> cells, Glyph glyph, Color color) {
-            this.cells = cells;
-            this.glyph = glyph;
-            this.color = color;
+        private Mark(List<Piece> pieces) {
+            this.pieces = pieces;
         }
 
         /** Keeps the mark for {@code ticks} more. */
@@ -289,11 +292,14 @@ public final class GroundMarks {
             boolean turned = lastFacing == null || lastFacing.dot(forward) <= 0.9998;
             Vector right = new Vector(-forward.getZ(), 0.0, forward.getX());
             World world = origin.getWorld();
-            for (int index = 0; index < cells.size(); index++) {
-                Cell cell = cells.get(index);
+            // one height for the whole mark (the ground under its origin): the pieces are large, and they must not step apart
+            double y = groundY(world, origin.getX(), origin.getY(), origin.getZ()) + 0.02;
+            for (int index = 0; index < pieces.size(); index++) {
+                Piece piece = pieces.get(index);
+                Cell cell = piece.cell();
                 double x = origin.getX() + forward.getX() * cell.forward() + right.getX() * cell.right();
                 double z = origin.getZ() + forward.getZ() * cell.forward() + right.getZ() * cell.right();
-                Location at = new Location(world, x, groundY(world, x, origin.getY(), z) + 0.02, z);
+                Location at = new Location(world, x, y, z);
                 // the piece's own way: forward turned by its angle towards right
                 double wayX = forward.getX() * Math.cos(cell.turn()) + right.getX() * Math.sin(cell.turn());
                 double wayZ = forward.getZ() * Math.cos(cell.turn()) + right.getZ() * Math.sin(cell.turn());
@@ -301,17 +307,18 @@ public final class GroundMarks {
                     TextDisplay display = displays.get(index);
                     if (!display.isValid()) continue;
                     display.teleport(at);
-                    if (turned) display.setTransformation(transformation(glyph, cell.across(), cell.along(), wayX, wayZ));
+                    if (turned) display.setTransformation(transformation(cell.across(), cell.along(), wayX, wayZ));
                 } else {
-                    Transformation shape = transformation(glyph, cell.across(), cell.along(), wayX, wayZ);
+                    Transformation shape = transformation(cell.across(), cell.along(), wayX, wayZ);
                     displays.add(world.spawn(at, TextDisplay.class, spawned -> {
-                        spawned.text(Component.text(glyph.text(), TextColor.color(color.asRGB())));
+                        spawned.text(Component.text(String.valueOf(piece.glyph())).font(FONT).color(TextColor.color(piece.color().asRGB())));
                         spawned.setBillboard(Display.Billboard.FIXED);
                         spawned.setDefaultBackground(false);
                         spawned.setBackgroundColor(Color.fromARGB(0, 0, 0, 0));
                         spawned.setShadowed(false);
                         spawned.setSeeThrough(false);
-                        spawned.setTextOpacity((byte) glyph.opacity());
+                        spawned.setAlignment(TextDisplay.TextAlignment.CENTER);
+                        spawned.setTextOpacity((byte) piece.opacity());
                         spawned.setBrightness(new Display.Brightness(15, 15));
                         spawned.setLineWidth(1000);
                         spawned.setRotation(0.0f, 0.0f);
@@ -340,7 +347,7 @@ public final class GroundMarks {
         }
     }
 
-    /** The top of the ground under ({@code x}, {@code z}) near {@code y} (a block or so up or down), else {@code y}. */
+    /** The top of the ground under ({@code x}, {@code z}) near {@code y} (a block up to a few down), else {@code y}. */
     private static double groundY(World world, double x, double y, double z) {
         int bx = (int) Math.floor(x), bz = (int) Math.floor(z), top = (int) Math.floor(y + 1.0);
         for (int by = top; by >= top - 4; by--) {

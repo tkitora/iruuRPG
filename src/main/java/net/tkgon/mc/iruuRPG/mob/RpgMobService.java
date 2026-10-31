@@ -1049,13 +1049,14 @@ public final class RpgMobService {
             Vector way = facing;
             net.tkgon.mc.iruuRPG.combat.GroundMarks marks = attackEffects == null ? null : attackEffects.groundMarks();
             if (marks != null && marks.enabled()) {
-                // the area filled on the ground (text displays) until the hit; gone early if the mob dies
-                java.util.List<net.tkgon.mc.iruuRPG.combat.GroundMarks.Cell> cells = switch (area.shape()) {
-                    case "cone" -> marks.fan(area.radius(), area.angle());
-                    case "line" -> marks.box(area.forward(), area.radius(), area.width());
-                    default -> marks.circle(area.forward(), area.radius());
+                // the area filled on the ground (the marks' font, inside + rim) until the hit; gone early if the mob dies
+                net.tkgon.mc.iruuRPG.combat.GroundMarks.Style style = marks.style(Color.fromRGB(230, 40, 30));
+                java.util.List<net.tkgon.mc.iruuRPG.combat.GroundMarks.Piece> pieces = switch (area.shape()) {
+                    case "cone" -> net.tkgon.mc.iruuRPG.combat.GroundMarks.fan(area.radius(), area.angle(), style);
+                    case "line" -> net.tkgon.mc.iruuRPG.combat.GroundMarks.box(area.forward(), area.radius(), area.width(), style);
+                    default -> net.tkgon.mc.iruuRPG.combat.GroundMarks.circle(area.forward(), area.radius(), style);
                 };
-                net.tkgon.mc.iruuRPG.combat.GroundMarks.Mark mark = marks.show(base, way, cells, Color.fromRGB(230, 40, 30), ticks);
+                net.tkgon.mc.iruuRPG.combat.GroundMarks.Mark mark = marks.show(base, way, pieces, ticks);
                 for (int tick = 4; tick < ticks; tick += 4) {
                     Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!mob.isValid() || mob.isDead()) mark.remove(); }, tick);
                 }

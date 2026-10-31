@@ -7,11 +7,13 @@
 | サーバー専用 | `server.zip` | `grass_block` の6面すべてを草(上面の草のテクスチャ、草の色つき)にする変更と、マインクラフトのゲーム音楽を消す `sounds.json`(iruuRPG のBGMは鳴る。レコードの音は残る) | jar に入っている(`src/main/resourcepack/server/`)。起動時に `plugins/iruuRPG/resourcepacks/` へ置く |
 | モデル専用 | `iruumodel.zip` | `/iruumodel build` が作る、敵モデルのモデルとテクスチャ(docs/models.md) | モデル機能 |
 | アイテムの見た目 | `iruuitem.zip` | アイテムが「基盤のアイテム(剣・弓・棒・皮の防具など)」の上に、別のバニラのアイテムの見た目を重ねるための、custom model data の割り当て(下の「アイテムの見た目」) | アイテム機能(`itempack/`) |
+| 地面の印 | `iruumark.zip` | 攻撃の範囲の印のフォント `iruurpg:marks`(円・扇・四角の形。中身と外周の組。私用領域 U+E000〜。標準のフォントは変えない) | 起動時にプラグインが描いて作る(`markpack/`、`combat/GroundMarks`) |
 
 ## 配り方
 - `config.yml` の `resourcepack:`。`enabled: true` で、入ってきたプレイヤーに送る(1秒後)。パックごとに `enabled` / `required`。ファイルが無いパックは送らない。
 - 場所は `base-url`(zip を配る Web サーバー。`plugins/iruuRPG/resourcepacks/` を配ればよい)。Web サーバーが無いときは、`host.enabled: true` でプラグイン内蔵の小さな配信を使える(`host.port` をプレイヤーに開け、`host.public-host` に公開アドレスを書く。GET だけ、`packs` の zip だけ)。
-- **3つのパック(`server` / `models` / `items`)は、config.yml に書いていなくても送る**(ファイルがあれば)。デプロイは config.yml に新しい最上位の節しか足さないので、あとから `resourcepack.packs` に足したパックは、既存のファイルには入らない。config に `packs.<名前>:` があれば、そちらが勝つ(`enabled: false` で止める、`file`、`required`)。
+- **4つのパック(`server` / `models` / `items` / `marks`)は、config.yml に書いていなくても送る**(ファイルがあれば)。デプロイは config.yml に新しい最上位の節しか足さないので、あとから `resourcepack.packs` に足したパックは、既存のファイルには入らない。config に `packs.<名前>:` があれば、そちらが勝つ(`enabled: false` で止める、`file`、`required`)。
+- 地面の印のパック(`marks`)は、作り直して中身が変わったとき (プラグインの更新)、ログイン中のプレイヤーにも送り直す。
 - アイテムの見た目のパック(`items`)は、yml が変わって作り直されたとき、**ログイン中のプレイヤーにも自動で送り直す**(あとから入る人は、入るときに送る)。クライアントでは古いパックと置き換わる。
 - パックごとに固定のIDで送るので、パックを作り直すと、クライアントでは古いのが置き換わる(増えない)。URL の `?h=` は、古いキャッシュを避けるためのハッシュ。
 - `/iruurpg pack` … 場所と、各パックの大きさ・sha1。`/iruurpg pack send` … 自分に送り直す。
