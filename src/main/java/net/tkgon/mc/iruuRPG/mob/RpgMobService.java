@@ -1047,6 +1047,20 @@ public final class RpgMobService {
             facing.normalize();
             Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
             Vector way = facing;
+            net.tkgon.mc.iruuRPG.combat.GroundMarks marks = attackEffects == null ? null : attackEffects.groundMarks();
+            if (marks != null && marks.enabled()) {
+                // the area filled on the ground (text displays) until the hit; gone early if the mob dies
+                java.util.List<net.tkgon.mc.iruuRPG.combat.GroundMarks.Cell> cells = switch (area.shape()) {
+                    case "cone" -> marks.fan(area.radius(), area.angle());
+                    case "line" -> marks.box(area.forward(), area.radius(), area.width());
+                    default -> marks.circle(area.forward(), area.radius());
+                };
+                net.tkgon.mc.iruuRPG.combat.GroundMarks.Mark mark = marks.show(base, way, cells, Color.fromRGB(230, 40, 30), ticks);
+                for (int tick = 4; tick < ticks; tick += 4) {
+                    Bukkit.getScheduler().runTaskLater(plugin, () -> { if (!mob.isValid() || mob.isDead()) mark.remove(); }, tick);
+                }
+                if (!marks.outlineToo()) return;
+            }
             for (int tick = 0; tick < ticks; tick += 4) {
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {
                     if (mob.isValid() && !mob.isDead()) drawArea(area, base, way, right, Particle.REDSTONE, 1.0f, false);

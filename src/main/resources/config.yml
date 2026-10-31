@@ -230,6 +230,19 @@ combat:
     rotation-degrees-per-tick: 4.0
   effects:
     particle-size: 0.85
+    # 攻撃の当たる範囲の地面の印 (敵の行動の telegraph・スキルの溜め): 「■」の文字の表示 (text display) を、地面に寝かせて (ブロックの上面と同じ向き)、
+    # 回したり伸ばしたりして、範囲の形 (円・扇・長方形) に敷き詰める。enabled: false = 今までのパーティクルの輪郭
+    ground-mark:
+      enabled: true
+      text: "■"
+      glyph-size: 0.15          # 拡大 1 のときの「■」の見える大きさ (ブロック)。並べたときに、すき間・はみ出しが出たら直す
+      glyph-center-x: -0.0125   # 拡大 1 のときの「■」の中心 (表示の原点から、ブロック)。印が範囲からずれて見えたら直す
+      glyph-center-y: 0.1375
+      overlap: 1.12             # 1 枚を、マスより少し大きくして、すき間を隠す
+      cell: 0.75                # 1 枚の大きさの目安 (ブロック)。広い範囲は、枚数が max-cells に収まるまで大きくする
+      max-cells: 160
+      opacity: 150              # 26〜255
+      outline: false            # true = 今までのパーティクルの輪郭も出す (印が範囲と合っているかを、ゲームで確かめるとき)
     melee-slash:
       enabled: true
       tilt: 45                  # 斬撃の傾き。向いている方向に水平な薙ぎを、横軸まわりに何度傾けるか (0 = 立てる、90 = 寝かせる)。視線の上下は無視する
