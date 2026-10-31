@@ -28,6 +28,8 @@ public final class PlayerProfile {
     private final java.util.Set<String> completedSubQuests = new java.util.LinkedHashSet<>();
     private String subQuestDay = "";
     private final Map<String, String> activeClassSkills = new HashMap<>();
+    // quest lines (see questline package): the state of every line and the shared flags
+    private final net.tkgon.mc.iruuRPG.questline.QuestlineData questlines = new net.tkgon.mc.iruuRPG.questline.QuestlineData();
 
     private final StatSet baseStats = new StatSet();
     private final StatSet equipmentStats = new StatSet();
@@ -129,6 +131,10 @@ public final class PlayerProfile {
 
     public void setCurrency(long currency) {
         this.currency = Math.max(0L, currency);
+    }
+
+    public net.tkgon.mc.iruuRPG.questline.QuestlineData questlines() {
+        return questlines;
     }
 
     public Map<String, Integer> questProgress() {

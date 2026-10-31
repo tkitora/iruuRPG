@@ -130,6 +130,13 @@ public final class LevelService {
         return required > 0L && profile.xp() >= required && profile.level() < levelCap();
     }
 
+    private java.util.function.BiConsumer<Player, Integer> levelUpHook;
+
+    /** What runs after each level gained by XP (player, the new level): the quest lines. */
+    public void setLevelUpHook(java.util.function.BiConsumer<Player, Integer> levelUpHook) {
+        this.levelUpHook = levelUpHook;
+    }
+
     public boolean tryLevelUp(Player player) {
         PlayerProfile profile = profileManager.getOrCreate(player);
         if (!canLevelUp(profile)) {
@@ -146,6 +153,13 @@ public final class LevelService {
         syncAfterLevelChange(player, profile, true);
         playLevelUpEffects(player);
         player.sendMessage("[iruuRPG] Level Up! Lv " + profile.level());
+        if (levelUpHook != null) {
+            try {
+                levelUpHook.accept(player, profile.level());
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "level: the level up hook failed", e);
+            }
+        }
         return true;
     }
 

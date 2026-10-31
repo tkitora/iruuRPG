@@ -213,7 +213,21 @@ public final class CraftService implements Listener {
         return true;
     }
 
+    private java.util.function.BiConsumer<Player, String> completeHook;
+
+    /** What runs when a craft is finished (player, the id of the item made): the quest lines. */
+    public void setCompleteHook(java.util.function.BiConsumer<Player, String> completeHook) {
+        this.completeHook = completeHook;
+    }
+
     private void complete(Player player, CraftRecipe recipe, ItemStack result) {
+        if (completeHook != null) {
+            try {
+                completeHook.accept(player, recipe.resultItemId());
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "craft: the complete hook failed", e);
+            }
+        }
         PlayerProfile profile = profileManager.getOrCreate(player);
         int before = level(player);
         profile.setCraftXp(profile.craftXp() + 1);

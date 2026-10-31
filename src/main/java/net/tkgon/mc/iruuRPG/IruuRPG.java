@@ -124,6 +124,7 @@ public final class IruuRPG extends JavaPlugin {
     private TutorialService tutorialService;
     private QuestRegistry questRegistry;
     private QuestService questService;
+    private net.tkgon.mc.iruuRPG.questline.QuestlineService questlineService;
     private QuestBoardMenu questBoardMenu;
     private CraftRegistry craftRegistry;
     private CraftService craftService;
@@ -298,13 +299,19 @@ public final class IruuRPG extends JavaPlugin {
         this.questRegistry.reload();
         this.questService = new QuestService(this, questRegistry, profileManager, itemIdentifier);
         this.questBoardMenu = new QuestBoardMenu(questService);
+        this.questlineService = new net.tkgon.mc.iruuRPG.questline.QuestlineService(this, profileManager, itemIdentifier, itemRegistry, itemFactory, levelService);
+        this.questlineService.reload();
+        this.questlineService.start();
+        this.levelService.setLevelUpHook(questlineService::onLevelUp);
         this.mobService.setKillHook((player, mobId) -> {
             questService.onMobKilled(player, mobId);
+            questlineService.onMobKilled(player, mobId);
             itemSkillService.onStackTrigger(player, "kill");
         });
         this.craftRegistry = new CraftRegistry(this);
         this.craftRegistry.reload();
         this.craftService = new CraftService(this, craftRegistry, profileManager, itemIdentifier, itemRegistry, itemFactory);
+        this.craftService.setCompleteHook(questlineService::onCrafted);
         this.craftMenu = new CraftMenu(this, craftService, itemRegistry, itemFactory);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.mainMenu.setCraftMenu(craftMenu);
@@ -384,6 +391,7 @@ public final class IruuRPG extends JavaPlugin {
         this.statusEffectService.startTask();
         this.mainMenuItemService.startTask();
         this.marketService.startTask();
+        this.dungeonService.setClearHook(questlineService::onDungeonCleared);
         this.dungeonService.start();
         this.sidebarService.start();
         this.ymlSyncService = new YmlSyncService(this, this::reloadWithReport);
@@ -449,6 +457,9 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (tutorialService != null) {
             tutorialService.shutdown();
+        }
+        if (questlineService != null) {
+            questlineService.shutdown();
         }
         if (profileManager != null) {
             profileManager.saveAll();
@@ -584,6 +595,13 @@ public final class IruuRPG extends JavaPlugin {
             questCommand.setTabCompleter(quest);
         }
 
+        PluginCommand questAdminCommand = getCommand("questadmin");
+        if (questAdminCommand != null) {
+            var questAdmin = new net.tkgon.mc.iruuRPG.questline.QuestAdminCommand(questlineService);
+            questAdminCommand.setExecutor(questAdmin);
+            questAdminCommand.setTabCompleter(questAdmin);
+        }
+
         TutorialCommand tutorialCommand = new TutorialCommand(tutorialService);
         for (String name : new String[]{"tutorialstart", "tutorialstop"}) {
             PluginCommand tutorial = getCommand(name);
@@ -634,6 +652,7 @@ public final class IruuRPG extends JavaPlugin {
         // registered first so the tutorial locks cancel events before the combat listeners act on them
         getServer().getPluginManager().registerEvents(new TutorialListener(tutorialService), this);
         getServer().getPluginManager().registerEvents(questBoardMenu, this);
+        getServer().getPluginManager().registerEvents(questlineService, this);
         getServer().getPluginManager().registerEvents(craftMenu, this);
         getServer().getPluginManager().registerEvents(marketMenu, this);
         getServer().getPluginManager().registerEvents(marketService, this);
@@ -757,6 +776,7 @@ public final class IruuRPG extends JavaPlugin {
         itemRegistry.reload();
         mobRegistry.reload();
         questRegistry.reload();
+        questlineService.reload();
         craftRegistry.reload();
         questService.rerollNow();
         // the items whose yaml changed: the market, the storages and the players online at once (each player is looked at once more when joining)

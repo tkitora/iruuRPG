@@ -69,6 +69,7 @@ public final class PlayerProfileStorage {
         profile.setXp(yaml.getLong("xp", profile.xp()));
         loadClassData(profile, yaml.getConfigurationSection("class"));
         loadQuestData(profile, yaml.getConfigurationSection("quest"));
+        profile.questlines().readFrom(yaml);
         profile.setCraftXp(yaml.getLong("craft.xp", 0L));
 
         ConfigurationSection baseStats = yaml.getConfigurationSection("base-stats");
@@ -109,6 +110,7 @@ public final class PlayerProfileStorage {
         for (var entry : profile.questProgress().entrySet()) {
             yaml.set("quest.active." + entry.getKey(), entry.getValue());
         }
+        profile.questlines().writeTo(yaml);
         yaml.set("class.id", profile.classId());
         yaml.set("class.chosen", profile.classChosen());
         for (var entry : profile.classLevels().entrySet()) {
