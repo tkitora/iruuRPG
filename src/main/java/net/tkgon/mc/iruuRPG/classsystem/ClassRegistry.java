@@ -114,7 +114,19 @@ public final class ClassRegistry {
         }
 
         definitions.put(normalizedId, new ClassDefinition(normalizedId, name, icon, section.getStringList("description"), growth, growthElements, spendNodes, milestones, innate,
-                section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false)));
+                section.getConfigurationSection("combo-style") == null ? java.util.Map.of() : section.getConfigurationSection("combo-style").getValues(false),
+                section.getString("catchphrase", ""), section.getStringList("features"), comboGuide(section.getConfigurationSection("combo-guide"))));
+    }
+
+    /** combo-guide: one list of lines per kind of weapon (melee / range / deploy), in that order. */
+    private static Map<String, List<String>> comboGuide(ConfigurationSection section) {
+        Map<String, List<String>> guide = new java.util.LinkedHashMap<>();
+        if (section == null) return guide;
+        for (String key : section.getKeys(false)) {
+            List<String> lines = section.getStringList(key);
+            if (!lines.isEmpty()) guide.put(key.toLowerCase(java.util.Locale.ROOT), lines);
+        }
+        return guide;
     }
 
     private ClassNodeDefinition loadMilestone(String id, ConfigurationSection section) {
