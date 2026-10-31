@@ -34,6 +34,12 @@ public final class QuestlineParser {
             Map.entry("say", "text"), Map.entry("title", ""), Map.entry("sound", "sound"), Map.entry("give-item", "item"),
             Map.entry("take-item", "item"), Map.entry("reward", ""), Map.entry("cutscene", "id"), Map.entry("teleport", "x"),
             Map.entry("start-quest", "quest"), Map.entry("complete", ""), Map.entry("fail", ""));
+    /**
+     * What an id of a line or a flag may be: they become keys of the player's file (questlines.&lt;line&gt;.flags.&lt;flag&gt;),
+     * where a dot would split them into levels and the value would not come back.
+     */
+    static final java.util.regex.Pattern ID = java.util.regex.Pattern.compile("[A-Za-z0-9_\\-]{1,64}");
+
     /** The condition that stands in for one that could not be read: it never holds. */
     static final String NEVER = "never";
 
@@ -66,6 +72,10 @@ public final class QuestlineParser {
     private Questline line(String fileId, Map<?, ?> raw, Set<String> sharedFlags) {
         if (raw == null) {
             warn("", "empty file");
+            return null;
+        }
+        if (!ID.matcher(fileId).matches()) {
+            warn("", "the file name may only have letters, digits, _ and -: the line is not loaded");
             return null;
         }
         String id = text(raw.get("id"), fileId);
@@ -175,6 +185,10 @@ public final class QuestlineParser {
         if (rawFlags == null) return flags;
         for (Map.Entry<?, ?> entry : rawFlags.entrySet()) {
             String id = String.valueOf(entry.getKey());
+            if (!ID.matcher(id).matches()) {
+                warn(where + "." + id, "a flag name may only have letters, digits, _ and -: dropped");
+                continue;
+            }
             Map<?, ?> spec = map(entry.getValue());
             if (spec == null) spec = Map.of();
             String type = text(spec.get("type"), "bool").toLowerCase(Locale.ROOT);
