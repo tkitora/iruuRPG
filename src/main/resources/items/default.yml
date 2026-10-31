@@ -65,7 +65,8 @@ items:
         white: 15
 
   debug_overlord_blade:
-    material: NETHERITE_SWORD
+    material: IRON_SWORD
+    texture: netherite_sword
     name: Debug Overlord Blade
     required-level: 1
     rarity: MYTHIC
