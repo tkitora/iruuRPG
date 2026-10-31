@@ -111,6 +111,84 @@ public final class QuestlineEngine {
         return started;
     }
 
+    /** True when the line could be started now (not running, repeatable if done before, its conditions hold); nothing changes. */
+    public boolean canStart(QuestlineData data, Game game, String id) {
+        Questline line = lines.get(id);
+        if (line == null) return false;
+        LineState old = data.line(id);
+        if (old != null && (old.status == Status.ACTIVE || old.status == Status.PAUSED || !line.repeatable())) return false;
+        return allHold(new Run(data, game), line, line.start().when(), null);
+    }
+
+    /** The lines an NPC offers (their start.npc is it) that could be started now. */
+    public List<Questline> offers(QuestlineData data, Game game, String npc) {
+        List<Questline> out = new ArrayList<>();
+        for (Questline line : lines.values()) {
+            if (npc.equals(line.start().npc()) && canStart(data, game, line.id())) out.add(line);
+        }
+        return out;
+    }
+
+    /** True when an active line of the player waits on this NPC now (talk for it, or a talk / give event of it, in the current step). */
+    public boolean waitsOn(QuestlineData data, String npc) {
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getValue().status != Status.ACTIVE) continue;
+            Questline line = lines.get(entry.getKey());
+            Step step = line == null ? null : line.step(entry.getValue().step);
+            if (step != null && mentions(step, npc)) return true;
+        }
+        return false;
+    }
+
+    /** The items an NPC takes now: the item-give events of the current steps of the active lines (npc, item, amount). */
+    public List<Cond> gives(QuestlineData data, String npc) {
+        List<Cond> out = new ArrayList<>();
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getValue().status != Status.ACTIVE) continue;
+            Questline line = lines.get(entry.getKey());
+            Step step = line == null ? null : line.step(entry.getValue().step);
+            if (step == null) continue;
+            for (Cond condition : eventConditions(step)) {
+                if ("item-give".equals(condition.string("event")) && npc.equals(condition.string("npc")) && condition.string("item") != null) out.add(condition);
+            }
+        }
+        return out;
+    }
+
+    /** Where an NPC is used: "line 開始" for the lines it offers, "line › step (話す / 渡す)" for the steps that wait on it. */
+    public List<String> usesOf(String npc) {
+        List<String> out = new ArrayList<>();
+        for (Questline line : lines.values()) {
+            if (npc.equals(line.start().npc())) out.add(line.id() + " 開始");
+            for (Step step : line.steps().values()) {
+                if (!mentions(step, npc)) continue;
+                boolean give = eventConditions(step).stream().anyMatch(c -> "item-give".equals(c.string("event")) && npc.equals(c.string("npc")));
+                out.add(line.id() + " › " + step.id() + (give ? " (渡す)" : " (話す)"));
+            }
+        }
+        return out;
+    }
+
+    private static boolean mentions(Step step, String npc) {
+        if (step.talk().containsKey(npc)) return true;
+        for (Cond condition : eventConditions(step)) {
+            String event = condition.string("event");
+            if (("npc-talk".equals(event) || "item-give".equals(event)) && npc.equals(condition.string("npc"))) return true;
+        }
+        return false;
+    }
+
+    private static List<Cond> eventConditions(Step step) {
+        List<Cond> conditions = new ArrayList<>();
+        for (Transition transition : step.transitions()) conditions.addAll(transition.when());
+        for (Handler handler : step.on()) conditions.add(handler.event());
+        List<Cond> out = new ArrayList<>();
+        for (Cond condition : QuestlineParser.flatten(conditions)) {
+            if (condition.type().equals("event")) out.add(condition);
+        }
+        return out;
+    }
+
     /** Puts a line on a step (a debug tool: the old step's exit is not run, the new step's enter is). */
     public boolean setStep(QuestlineData data, Game game, String id, String stepId) {
         Questline line = lines.get(id);

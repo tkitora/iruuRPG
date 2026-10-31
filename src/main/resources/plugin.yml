@@ -99,6 +99,13 @@ commands:
     aliases:
       - fm
       - freemarket
+  npc:
+    description: "NPCs of the quest lines (admins only): edit mode, list, reload, name / rename / idle / look / tp"
+    usage: /npc [edit | list | reload | name | rename | idle | look | tp] ...
+    permission: iruurpg.admin
+  questline:
+    description: "The buttons under an NPC's quest offer (accept / decline)"
+    usage: /questline accept <line> | decline
   questadmin:
     description: "Quest lines (admins only): look at / start / move / flag / pause / reset a player's quest lines, try events, reload"
     usage: /questadmin <info|start|step|flag|pause|resume|reset|talk|event|reload|warnings> ...

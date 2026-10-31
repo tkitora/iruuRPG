@@ -125,6 +125,8 @@ public final class IruuRPG extends JavaPlugin {
     private QuestRegistry questRegistry;
     private QuestService questService;
     private net.tkgon.mc.iruuRPG.questline.QuestlineService questlineService;
+    private net.tkgon.mc.iruuRPG.npc.NpcService npcService;
+    private net.tkgon.mc.iruuRPG.npc.NpcEditor npcEditor;
     private QuestBoardMenu questBoardMenu;
     private CraftRegistry craftRegistry;
     private CraftService craftService;
@@ -458,6 +460,12 @@ public final class IruuRPG extends JavaPlugin {
         if (tutorialService != null) {
             tutorialService.shutdown();
         }
+        if (npcEditor != null) {
+            npcEditor.shutdown();
+        }
+        if (npcService != null) {
+            npcService.shutdown();
+        }
         if (questlineService != null) {
             questlineService.shutdown();
         }
@@ -513,6 +521,26 @@ public final class IruuRPG extends JavaPlugin {
         this.resourcePackService = net.tkgon.mc.iruuRPG.pack.ResourcePackService.start(this);
         this.modelModule = net.tkgon.mc.iruuRPG.model.ModelModule.start(this);
         mobService.setModels(modelModule);
+
+        // the NPCs of the quest lines: their listener goes first, so a click on an NPC is cancelled before the weapon and skill listeners see it
+        this.npcService = new net.tkgon.mc.iruuRPG.npc.NpcService(this, questlineService);
+        this.npcService.setModels(modelModule);
+        this.npcEditor = new net.tkgon.mc.iruuRPG.npc.NpcEditor(this, npcService, questlineService);
+        this.npcEditor.setOtherEditor(player -> fieldSpawnerEditor.editing(player) || dungeonEditor.editing(player));
+        this.fieldSpawnerEditor.setOtherEditor(player -> dungeonEditor.editing(player) || npcEditor.editing(player));
+        this.dungeonEditor.setOtherEditor(player -> fieldSpawnerEditor.editing(player) || npcEditor.editing(player));
+        getServer().getPluginManager().registerEvents(npcService, this);
+        getServer().getPluginManager().registerEvents(npcEditor, this);
+        this.npcService.start();
+        this.npcEditor.start();
+        PluginCommand npcCommand = getCommand("npc");
+        if (npcCommand != null) {
+            var npc = new net.tkgon.mc.iruuRPG.npc.NpcCommand(npcService, npcEditor);
+            npcCommand.setExecutor(npc);
+            npcCommand.setTabCompleter(npc);
+        }
+        PluginCommand questlineCommand = getCommand("questline");
+        if (questlineCommand != null) questlineCommand.setExecutor(new net.tkgon.mc.iruuRPG.questline.QuestlineCommand(questlineService));
 
         PluginCommand vfxCommand = getCommand("vfx");
         if (vfxCommand != null) {

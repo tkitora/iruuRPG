@@ -93,7 +93,7 @@ public record Questline(
     public record FlagSpec(String id, boolean number, double min, double max, String description, boolean external) {
     }
 
-    static double number(Object value, double fallback) {
+    public static double number(Object value, double fallback) {
         if (value instanceof Number number) return number.doubleValue();
         if (value instanceof Boolean bool) return bool ? 1.0 : 0.0;
         if (value != null) {
