@@ -266,6 +266,17 @@ public final class MarketService implements Listener {
         box.addAll(net.tkgon.mc.iruuRPG.item.UniqueItems.pieces(template, quantity));
     }
 
+    /**
+     * Keeps items for the player in the pick-up box (taken with /market). Used by the item migration for the pieces of a
+     * split stack that fit neither the inventory nor the ender chest, so nothing is dropped on the ground.
+     */
+    public void keepForPickup(UUID owner, List<ItemStack> stacks) {
+        if (stacks.isEmpty()) return;
+        List<ItemStack> box = returns.computeIfAbsent(owner, key -> new ArrayList<>());
+        for (ItemStack stack : stacks) if (stack != null && !stack.getType().isAir()) box.add(stack.clone());
+        save();
+    }
+
     /** Pays out waiting sale money and hands over returned items (what does not fit stays in the box). */
     public void claim(Player player) {
         claimFor(player, player.getUniqueId());

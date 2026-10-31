@@ -398,6 +398,7 @@ public final class IruuRPG extends JavaPlugin {
                 itemRegistry, itemFactory, itemIdentifier, () -> getConfig().getString("rarity.mark", "*"), getLogger()::warning));
         this.itemPatchService.addKeeper(marketService::patchItems);
         this.itemPatchService.addKeeper(storageMenu::patchItems);
+        this.itemPatchService.setOverflowBox(marketService::keepForPickup);
         this.storageService.setPatch(itemPatchService::patchLoaded);
         this.itemPatchService.setAfterPlayerPatch(player -> {
             PlayerProfile profile = equipmentService.recalculate(player);
