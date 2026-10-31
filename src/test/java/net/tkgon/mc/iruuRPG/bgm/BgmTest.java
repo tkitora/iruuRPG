@@ -504,12 +504,13 @@ class BgmTest {
         NbsSong two = bundled("circuit_phase2");
         assertEquals("Holy Circuit (Boss010)", one.title());
         assertEquals("Holy Circuit, Overclocked (Boss010)", two.title());
-        assertEquals(1600, one.length());
+        assertEquals(2464, one.length());
+        assertEquals(20.0, one.ticksPerSecond(), 1.0E-9, "200 BPM: a quarter note is 6 ticks");
         assertEquals(one.length(), two.length(), "the same bars");
         assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
         assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        int breakStart = 64 + 64 * 16;   // the break: bars 64 to 71 of the loop
-        int breakEnd = breakStart + 8 * 16;
+        int breakStart = 64 + 64 * 24;   // the break: bars 64 to 71 of the loop (bars of 24 ticks)
+        int breakEnd = breakStart + 8 * 24;
         for (int phase = 1; phase <= 2; phase++) {
             NbsSong song = phase == 1 ? one : two;
             java.util.Set<Integer> instruments = new java.util.TreeSet<>();
