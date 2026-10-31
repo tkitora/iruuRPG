@@ -37,6 +37,7 @@ public final class AttackEffects {
     private final JavaPlugin plugin;
     private final SlashVfx slashVfx;
     private final AttackSounds sounds;
+    private final GroundMarks groundMarks;
     /** Alternates the tilt of a player's basic slashes (left-handed / right-handed look). */
     private final Map<UUID, Boolean> slashSide = new ConcurrentHashMap<>();
 
@@ -44,6 +45,12 @@ public final class AttackEffects {
         this.plugin = plugin;
         this.slashVfx = new SlashVfx(plugin);
         this.sounds = new AttackSounds(plugin, soundSettings);
+        this.groundMarks = new GroundMarks(plugin);
+    }
+
+    /** The ground marks of an attack's reach (text displays tiled on the ground). */
+    public GroundMarks groundMarks() {
+        return groundMarks;
     }
 
     public AttackSounds sounds() {
@@ -751,6 +758,55 @@ public final class AttackEffects {
             if (index % 8 == 0) r.spark(world, point);
         }
     }
+
+    /** How long a skill's ground mark stays after its last call (the skills call every 4 ticks while they wind up). */
+    private static final int TELEGRAPH_KEEP_TICKS = 6;
+
+    private Color telegraphColor(net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        return mix(resolve(look, element).body, Color.RED, 0.35);
+    }
+
+    /**
+     * The ground mark of a coming ground slam / nova, filled (a disc of text displays) and kept while {@code owner} (the skill's task)
+     * keeps calling. With the ground marks off (config), the old ring of particles.
+     */
+    public void playSkillTelegraphRing(Object owner, Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (center != null && center.getWorld() != null && groundMarks.enabled()) {
+            groundMarks.follow(java.util.List.of(owner, "ring", Math.round(radius * 4)), center, null, () -> groundMarks.circle(0.0, radius), telegraphColor(look, element), TELEGRAPH_KEEP_TICKS);
+            if (!groundMarks.outlineToo()) return;
+        }
+        playSkillTelegraphRing(center, radius, look, element);
+    }
+
+    /** The ground mark of a coming sweep: a filled fan in front of the caster (see the ring). */
+    public void playSkillTelegraphArc(Object owner, Location origin, float yaw, double radius, double sweepDegrees,
+                                      net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (origin != null && origin.getWorld() != null && groundMarks.enabled()) {
+            double yawRad = Math.toRadians(yaw);
+            Vector facing = new Vector(-Math.sin(yawRad), 0.0, Math.cos(yawRad));
+            groundMarks.follow(java.util.List.of(owner, "fan", Math.round(radius * 4), Math.round(sweepDegrees)), origin, facing,
+                    () -> groundMarks.fan(radius, sweepDegrees), telegraphColor(look, element), TELEGRAPH_KEEP_TICKS);
+            if (!groundMarks.outlineToo()) return;
+        }
+        playSkillTelegraphArc(origin, yaw, radius, sweepDegrees, look, element);
+    }
+
+    /** The mark of a coming dash / wave / beam: a filled strip on the ground under the path (see the ring). */
+    public void playSkillTelegraphLine(Object owner, Location from, Location to, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
+        if (from != null && to != null && from.getWorld() != null && groundMarks.enabled()) {
+            Vector path = to.toVector().subtract(from.toVector()).setY(0.0);
+            double length = path.length();
+            if (length > 1.0E-6) {
+                groundMarks.follow(java.util.List.of(owner, "line", Math.round(length * 2)), from, path,
+                        () -> groundMarks.box(0.0, length, LINE_MARK_WIDTH), telegraphColor(look, element), TELEGRAPH_KEEP_TICKS);
+                if (!groundMarks.outlineToo()) return;
+            }
+        }
+        playSkillTelegraphLine(from, to, look, element);
+    }
+
+    /** The width of a dash / wave / beam's ground mark (blocks). */
+    private static final double LINE_MARK_WIDTH = 1.2;
 
     /** The ground mark of a coming ground slam / nova: a ring (and a fainter inner one) in the skill's colors. */
     public void playSkillTelegraphRing(Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
