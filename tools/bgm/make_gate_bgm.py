@@ -9,7 +9,7 @@ the tune and the chords here are our own. What the measurements said (tools/bgm/
   - Tempo about 96 BPM, the notes in a flow of about sixteenths when they move (the most common gap is 0.16 s). FIRST EDITION READ THIS WRONG: it counted the notes over the whole sound, which the bass fills,
     and called the piece sparse (3 notes a second, almost none from 48 to 72 s). Counting the notes in the HIGH bands only (1 to 5 kHz) gives a STEADY STREAM of 3 to 5 notes a second from the first bar to
     the last - also under the droning climax (4 to 5 a second there), and only about 2 a second in the quiet dip at a third: the sparkle never stops. Taken (second edition): a stream of quiet high chime notes
-    (an arpeggio of the chord, 2 / 3.5 / 4.5 a second by the part), a bell glint every second bar in the loud parts, and a guitar that ripples in sixteenths under the tune.
+    (an arpeggio of the chord, 3.5 / 4.5 a second by the part, none in the quiet parts (the intro, the dip, the outro)), a bell glint every second bar in the loud parts, and a guitar that ripples in sixteenths under the tune.
   - DEEP, and still bright on top: the centre of the sound is only 230 to 500 Hz and 71 percent of the energy is below 250 Hz, but 8 percent is above 1 kHz (the sparkle, quiet but steady). Taken: the bass and
     the didgeridoo carry the piece (struck again as they fade, loud) and the chime (F#6 to D#7, very quiet, the same limit as the bells of the other songs) glitters over them; the lonely feeling stays.
   - Key: B-flat major with its relative G minor; a long section at 56 to 72 s sits on a D (the dominant of G minor) with the E and the C# around it, and the loudest part of the piece is there (the loudness
@@ -80,11 +80,12 @@ RIPPLE = (0, 1, 2, 3, 2, 1, 3, 2, 0, 1, 2, 3, 1, 2, 3, 2)
 
 # the sparkle: which ticks of the bar (16 ticks) get a note, by density (low about 2 a second, mid about 3.5, high about 4.5 at 6.67 ticks a second)
 SPARKLE = {
+    "none": (),                  # the quiet parts (the intro, the dip, the outro): no chime at all - it was a nuisance there
     "low": (0, 4, 7, 10, 13),
     "mid": (0, 2, 3, 6, 8, 10, 11, 14),
     "high": (0, 2, 3, 4, 6, 8, 9, 10, 12, 14, 15),
 }
-SPARKLE_DENSITY = {"intro": "low", "A": "mid", "dip": "low", "rise": "high", "climax": "high", "return": "mid", "outro": "low"}
+SPARKLE_DENSITY = {"intro": "none", "A": "mid", "dip": "none", "rise": "high", "climax": "high", "return": "mid", "outro": "none"}
 
 
 def sparkle_notes(tones):

@@ -551,6 +551,8 @@ class BgmTest {
                 assertTrue(note.volume() <= 0.35f, "and quiet (" + note.volume() + ")");
             }
             if (note.instrument() == 8) sparkle++;
+            boolean quiet = note.tick() < 64 || (note.tick() >= 64 + 16 * 16 && note.tick() < 64 + 24 * 16) || note.tick() >= 832 - 4 * 16;   // the intro, the calm part, the outro
+            if (quiet) assertTrue(note.instrument() != 7 && note.instrument() != 8, "no chime and no bell in the quiet parts (tick " + note.tick() + ")");
             if (note.instrument() == 5) guitar++;
             if (note.instrument() == 0 && note.volume() >= 0.8f) {
                 if (note.tick() < lift) before = Math.max(before, sound);
@@ -559,7 +561,7 @@ class BgmTest {
         }
         assertTrue(guitar > 500, "the ripple of sixteenths never stops (" + guitar + ")");
         double perSecond = sparkle / song.seconds();
-        assertTrue(perSecond >= 3.0 && perSecond <= 5.0, "a steady stream of sparkle, 3 to 5 notes a second (" + perSecond + ")");
+        assertTrue(perSecond >= 2.5 && perSecond <= 5.0, "a stream of sparkle in the loud parts, 2.5 to 5 notes a second on average (" + perSecond + ")");
         assertEquals(before + 1, after, "the lift is a half step higher");
     }
 
@@ -582,6 +584,8 @@ class BgmTest {
                 assertTrue(note.volume() <= 0.25f, "and quiet (" + note.volume() + ")");
             }
             if (note.instrument() == 8) sparkle++;
+            boolean quiet = note.tick() < 64 || (note.tick() >= dip && note.tick() < dip + 4 * 16) || note.tick() >= 832 - 4 * 16;   // the intro, the dip, the outro
+            if (quiet) assertTrue(note.instrument() != 7 && note.instrument() != 8, "no chime and no bell in the quiet parts (tick " + note.tick() + ")");
             if (note.instrument() == 1 || note.instrument() == 12) deep++;
             if (note.tick() >= dip && note.tick() < dip + 4 * 16) assertTrue(note.instrument() != 1 && note.instrument() != 12, "the bass is gone in the dip");
             if (note.tick() >= climax && note.tick() < climax + 8 * 16 && (note.instrument() == 1 || note.instrument() == 12)) assertEquals(38, sound, "the climax stands on a D pedal");

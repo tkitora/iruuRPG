@@ -10,13 +10,13 @@ supplied: LaTale Music, Cloud9, 96 s), NOT from its notes: nothing of its melody
   - Tempo about 95 BPM, the notes in a flow of sixteenths (the most common gap between two notes is 0.16 s). Taken: 100 BPM (the nearest the note blocks have, 6.67 ticks a second) and a guitar ripple in sixteenths
     from the first bar to the last.
   - SPARKLE: counted band by band the high notes are a steady stream of 3.6 to 4.3 notes a second (1 to 5 kHz) from the first bar to the last (only 2 to 2.6 in the calm part), and a third of the energy (32 percent)
-    is above 1 kHz (11 percent above 2 kHz): the brightness of the piece. Taken: a stream of quiet chime notes (F#6 to D#7, an arpeggio of the chord, 4.6 a second in the loud parts, 3.3 in the middle, 2 in the intro,
-    the calm part and the outro) with a bell glint on every second bar; and the louder the sparkle, the less the tune has to carry.
+    is above 1 kHz (11 percent above 2 kHz): the brightness of the piece. Taken: a stream of quiet chime notes (F#6 to D#7, an arpeggio of the chord, 4.6 a second in the loud parts, 3.3 in the middle, NONE in the intro,
+    the calm part and the outro: a chime that goes on ringing in a quiet part was a nuisance, the user said so) with a bell glint on every second bar; and the louder the sparkle, the less the tune has to carry.
   - A major key (B-flat), with the relative minor (G minor) as a calm episode, and the whole piece LIFTED A HALF STEP (B-flat -> B) after two thirds of the time (at 64 s of 96 s). Taken: the calm episode of G minor at
     a third, the half-step lift at two thirds (the guide's rule for a lift), then a quiet outro that fades; the loop starts again in B-flat.
   - The low part is strong too (46 percent below 250 Hz): a warm bed. Taken: a bass struck four times a bar as it fades, and the guitar, the harp and the iron xylophone echo.
   - The level rises in the first twelve seconds, stays high, dips for one calm part of about eight seconds in the low register and ends with a fade. Taken: an intro that fades in, the calm part (8 bars: no tune, low and
-    slow, the sparkle thinner), and a fade at the end.
+    slow, no sparkle at all), and a fade at the end.
 Form (bars of 16 ticks, 2.4 seconds): intro 4 (the ripple fades in), A 8, A again 8 (with the echo), the calm part 8 (G minor, low), A once more 8 (the third below added), the LIFT 12 (everything half a step higher,
 a new tune that climbs to the highest note, a glint of the bell), the outro 4 (fading); 52 bars = 2:05; it loops from bar 5 (tick 64). No drums.
 Nothing here is random: the same file comes out every time. The design record is in docs/bgm-songs.md.
@@ -72,13 +72,14 @@ RIPPLE = (0, 1, 2, 3, 2, 1, 3, 2, 0, 1, 2, 3, 1, 2, 3, 2)   # the guitar: a sixt
 LOW_RIPPLE = (0, 1, 0, 2, 0, 1, 0, 2)                         # the calm part: slower (an eighth each) and low
 
 
-# the sparkle: which ticks of the bar (16 ticks) get a note, by density (low about 2 a second, mid 3.3, high 4.6 at 6.67 ticks a second)
+# the sparkle: which ticks of the bar (16 ticks) get a note, by density (mid 3.3 a second, high 4.6 at 6.67 ticks a second); none in the quiet parts
 SPARKLE = {
+    "none": (),                  # the quiet parts (the intro, the calm part, the outro): no chime at all - it was a nuisance there
     "low": (0, 4, 7, 10, 13),
     "mid": (0, 2, 3, 6, 8, 10, 11, 14),
     "high": (0, 2, 3, 4, 6, 8, 9, 10, 12, 14, 15),
 }
-SPARKLE_DENSITY = {"intro": "low", "A": "mid", "A2": "high", "calm": "low", "A3": "high", "lift": "high", "outro": "low"}
+SPARKLE_DENSITY = {"intro": "none", "A": "mid", "A2": "high", "calm": "none", "A3": "high", "lift": "high", "outro": "none"}
 
 
 def sparkle_notes(tones):
@@ -138,7 +139,7 @@ def build():
             if not (name == "intro" and index < 1):
                 swell(bass, BASS, root, start, BAR, (64 if name != "calm" else 48) * fade, (30 if name != "calm" else 22) * fade, 4)
 
-            # ---- the sparkle: a steady stream of quiet chime notes (F#6 to D#7), an arpeggio of the chord; thinner in the intro, the calm part and the outro
+            # ---- the sparkle: a steady stream of quiet chime notes (F#6 to D#7), an arpeggio of the chord; none in the intro, the calm part and the outro
             notes = sparkle_notes(tones)
             if notes:
                 for number, tick in enumerate(SPARKLE[SPARKLE_DENSITY[name]]):
