@@ -447,6 +447,26 @@ class QuestlineEngineTest {
     }
 
     @Test
+    void theNpcsTheLinesNeedAndWhatIsWrongWithTheirDependencies() {
+        QuestlineEngine engine = engine(new ArrayList<>(), BOAR_HUNT, AFTER);
+        Map<String, List<String>> needed = engine.neededNpcs();
+        assertEquals(Set.of("atlas_farmer"), needed.keySet(), "narration is not an NPC");
+        assertTrue(needed.get("atlas_farmer").contains("boar_hunt: 受注"));
+        assertTrue(needed.get("atlas_farmer").contains("boar_hunt › report: 話しかける"));
+
+        List<String> problems = engine.dependencyProblems("boar_hunt", Set.of());
+        assertTrue(problems.contains("NPC atlas_farmer がいない"), problems.toString());
+        assertTrue(problems.contains("クエスト tutorial_intro がない"), problems.toString());
+        assertEquals(List.of("クエスト tutorial_intro がない"), engine.dependencyProblems("boar_hunt", Set.of("atlas_farmer")));
+        assertEquals(List.of(), engine.dependencyProblems("after", Set.of()), "after needs boar_hunt, which exists");
+
+        Questline a = line("id: a\nstart: { npc: x, when: [ { type: quest, quest: b } ] }\ninitial: s\nsteps: { s: { end: complete } }");
+        Questline b = line("id: b\nstart: { npc: x, when: [ { type: quest, quest: a } ] }\ninitial: s\nsteps: { s: { end: complete } }");
+        QuestlineEngine ring = new QuestlineEngine(Map.of("a", a, "b", b), QuestlineParser.FlagBook.EMPTY);
+        assertTrue(ring.dependencyProblems("a", Set.of("x")).contains("受ける条件 (start.when) がクエストどうしで輪になっている"));
+    }
+
+    @Test
     void anAreaEventMatchesTheSameArea() {
         Questline.Cond filter = new Questline.Cond("event", Map.of("event", "area-enter", "world", "world", "x", 10, "y", 64, "z", -5, "radius", 4), List.of());
         QuestEvent inside = QuestEvent.of("area-enter", "area", QuestEvent.areaKey(filter.args()));
