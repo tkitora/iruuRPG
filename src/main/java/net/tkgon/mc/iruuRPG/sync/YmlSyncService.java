@@ -19,7 +19,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * it reloads the data on the main thread and writes reload-report.txt. Comparing with the last loaded commit (not just
  * before/after the pull) also catches files updated from outside the plugin (a script that pulled first), and a HEAD
  * that moved even when this pull failed. /iruurpg sync does the same at once and answers with the report.
- * A failing pull (local changes, no network, no git) is logged once, not every minute, and never stops the plugin.
+ * The pull is done in two steps, {@code git fetch origin <branch>} then {@code git merge --ff-only origin/<branch>},
+ * so a failure says which step failed. A failure (local changes, no network, no git) is logged with the last lines of
+ * git's output; the same failure is logged again at most every ten minutes, and it never stops the plugin.
  */
 public final class YmlSyncService {
 
@@ -29,12 +31,17 @@ public final class YmlSyncService {
     }
 
     private static final int REPLY_LINES = 20;
-    private static final long GIT_TIMEOUT_SECONDS = 30;
+    private static final long GIT_TIMEOUT_SECONDS = 60;
+    /** How many of the last lines of git's output a failure shows in the log. */
+    private static final int ERROR_LINES = 5;
+    /** The same failure is logged again after this long (it was logged only once before, which hid what went on). */
+    private static final long REPEAT_WARNING_MILLIS = 10 * 60 * 1000L;
 
     private final JavaPlugin plugin;
     private final Reloader reloader;
     private final AtomicBoolean running = new AtomicBoolean();
     private volatile String lastWarning;
+    private volatile long lastWarningAt;
     /** The commit the loaded data comes from (set after the start-up load and after every reload). */
     private volatile String lastLoaded;
 
@@ -80,19 +87,19 @@ public final class YmlSyncService {
                     return;
                 }
                 String before = revParse(folder);
-                GitResult pull = git(folder, "pull", "--ff-only", "origin", branch);
+                GitResult pull = pull(folder, branch);
                 if (pull.code() != 0) {
                     // a new file in the repository clashes with an untracked file of the same name (for example a
                     // file the jar put there): the repository wins; the local file is kept as <name>.bak-<millis>
                     List<String> blocking = untrackedInTheWay(pull.output());
                     if (!blocking.isEmpty() && moveAside(folder, blocking)) {
                         plugin.getLogger().info("yml-sync: moved aside untracked files in the way: " + String.join(", ", blocking));
-                        pull = git(folder, "pull", "--ff-only", "origin", branch);
+                        pull = pull(folder, branch);
                     }
                 }
                 if (pull.code() != 0) {
-                    warnOnce("yml-sync: git pull failed: " + firstLine(pull.output()));
-                    reply(requester, "[同期] git pull に失敗: " + firstLine(pull.output()), NamedTextColor.RED);
+                    warnOnce("yml-sync: " + pull.step() + " failed (exit " + pull.code() + "): " + lastLines(pull.output(), ERROR_LINES));
+                    reply(requester, "[同期] " + pull.step() + " に失敗: " + lastLines(pull.output(), ERROR_LINES), NamedTextColor.RED);
                 } else {
                     lastWarning = null; // the next failure is worth a log line again
                 }
@@ -187,15 +194,33 @@ public final class YmlSyncService {
         Bukkit.getScheduler().runTask(plugin, () -> requester.sendMessage(Component.text(message, color)));
     }
 
+    /** Logs a warning; the same one again only after {@link #REPEAT_WARNING_MILLIS}. */
     private void warnOnce(String message) {
-        if (message.equals(lastWarning)) return;
+        long now = System.currentTimeMillis();
+        if (message.equals(lastWarning) && now - lastWarningAt < REPEAT_WARNING_MILLIS) return;
         lastWarning = message;
+        lastWarningAt = now;
         plugin.getLogger().warning(message);
+    }
+
+    /** The pull in two steps (fetch, then a fast-forward merge of what was fetched): the result says which step it stopped at. */
+    private GitResult pull(File folder, String branch) {
+        GitResult fetch = git(folder, "fetch", "origin", branch);
+        if (fetch.code() != 0) return fetch.as("git fetch");
+        GitResult merge = git(folder, "merge", "--ff-only", "origin/" + branch);
+        return merge.as("git merge --ff-only");
     }
 
     // ---- git ---------------------------------------------------------------------------------------------------------
 
-    private record GitResult(int code, String output) {
+    private record GitResult(int code, String output, String step) {
+        GitResult(int code, String output) {
+            this(code, output, "git");
+        }
+
+        GitResult as(String step) {
+            return new GitResult(code, output, step);
+        }
     }
 
     private String revParse(File folder) {
@@ -213,12 +238,24 @@ public final class YmlSyncService {
         builder.environment().put("GIT_TERMINAL_PROMPT", "0"); // never wait for a password
         try {
             Process process = builder.start();
+            // read while it runs (a full pipe would make git wait for ever)
+            java.io.ByteArrayOutputStream buffer = new java.io.ByteArrayOutputStream();
+            Thread reader = new Thread(() -> {
+                try {
+                    process.getInputStream().transferTo(buffer);
+                } catch (IOException ignored) {
+                    // the process ended or was killed
+                }
+            }, "iruuRPG-yml-sync-git");
+            reader.setDaemon(true);
+            reader.start();
             if (!process.waitFor(GIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly();
-                return new GitResult(-1, "timed out after " + GIT_TIMEOUT_SECONDS + "s");
+                reader.join(1000L);
+                return new GitResult(-1, buffer.toString(StandardCharsets.UTF_8) + "\ntimed out after " + GIT_TIMEOUT_SECONDS + "s");
             }
-            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            return new GitResult(process.exitValue(), output);
+            reader.join(5000L);
+            return new GitResult(process.exitValue(), buffer.toString(StandardCharsets.UTF_8));
         } catch (IOException e) {
             return new GitResult(-1, "git could not run: " + e.getMessage());
         } catch (InterruptedException e) {
@@ -227,12 +264,14 @@ public final class YmlSyncService {
         }
     }
 
-    private static String firstLine(String text) {
+    /** The last {@code count} non-blank lines, joined with " | " (git's error is at the end, after "From ..."). */
+    static String lastLines(String text, int count) {
         if (text == null || text.isBlank()) return "(出力なし)";
+        List<String> lines = new java.util.ArrayList<>();
         for (String line : text.split("\n")) {
-            if (!line.isBlank()) return line.trim();
+            if (!line.isBlank()) lines.add(line.trim());
         }
-        return text.trim();
+        return String.join(" | ", lines.subList(Math.max(0, lines.size() - count), lines.size()));
     }
 
     private static String shortSha(String sha) {
