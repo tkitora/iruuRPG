@@ -21,7 +21,7 @@
 #   finish              暗転 → 物語の開始地点へテレポート → 後始末
 
 # 台本のバージョン。jar の方が新しいと、サーバー上の debug.yml は .bak に退避されて入れ替わる
-version: 5
+version: 6
 
 steps:
   - narrate: "プレイヤーは下を向いている。"
@@ -74,7 +74,7 @@ steps:
   - say: "クラスも自称するもんだ。好きに選んでいいぞ"
   - narrate: "クラスを選択するUIが出現する。"
     do: open_class_menu
-  - narrate: "最初の武器 (杖・短剣・ランタン) が渡される。動けるようになった。"
+  - narrate: "最初の武器 (杖・剣・ランタン) が渡される。動けるようになった。"
     ticks: 20
     do: give_weapon
   - narrate: "NPCは少し横に移動する。さっきまでNPCがいた位置に、ねずみが現れる。"
@@ -99,5 +99,5 @@ extra:
   # クラスを選んだあとに渡す最初の武器 (items/starter.yml)。ホットバーの左から順に置き、選んだクラスが得意な最初の1つを持たせる
   starter-items:
     - starter_staff
-    - starter_dagger
+    - starter_sword
     - starter_lantern
