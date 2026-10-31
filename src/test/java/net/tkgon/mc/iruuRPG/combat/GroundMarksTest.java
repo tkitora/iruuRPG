@@ -1,5 +1,7 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import net.tkgon.mc.iruuRPG.markpack.MarkGlyphs;
+import org.bukkit.Color;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.junit.jupiter.api.Test;
@@ -10,6 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GroundMarksTest {
+
+    private static final GroundMarks.Style RIMMED = new GroundMarks.Style(Color.RED, 90, Color.WHITE, 210, 0.3);
+    private static final GroundMarks.Style PLAIN = new GroundMarks.Style(Color.RED, 90, Color.WHITE, 0, 0.0);
 
     private static void near(double expected, double actual) {
         assertEquals(expected, actual, 1.0E-4);
@@ -24,61 +29,98 @@ class GroundMarksTest {
             near(0, face.x); near(1, face.y); near(0, face.z);
             Vector3f top = turn.transform(new Vector3f(0, 1, 0));
             near(way[0], top.x); near(0, top.y); near(way[1], top.z);
+            // local +x is the right of the way (right of facing +z is -x)
             Vector3f side = turn.transform(new Vector3f(1, 0, 0));
-            near(0, side.y);
-            near(0, side.x * way[0] + side.z * way[1]);
+            near(-way[1], side.x); near(0, side.y); near(way[0], side.z);
         }
     }
 
     @Test
-    void theGlyphCentreLandsOnThePiece() {
-        GroundMarks.Glyph glyph = new GroundMarks.Glyph("■", 0.15, -0.0125, 0.1375, 1.0, 150);
-        var shape = GroundMarks.transformation(glyph, 0.6, 0.9, 0, 1);
-        // a point at the glyph's centre (local) goes to the entity's place
-        Vector3f centre = new Vector3f((float) glyph.centerX(), (float) glyph.centerY(), 0);
+    void theGlyphCentreLandsOnThePieceAndItIsStretchedToIt() {
+        var shape = GroundMarks.transformation(0.6, 0.9, 0, 1);
+        Vector3f centre = new Vector3f((float) MarkGlyphs.CENTER_X, 0, 0);
         centre.mul(shape.getScale());
         shape.getLeftRotation().transform(centre);
         centre.add(shape.getTranslation());
         near(0, centre.x); near(0, centre.y); near(0, centre.z);
-        near(0.6 / 0.15, shape.getScale().x);
-        near(0.9 / 0.15, shape.getScale().y);
+        near(0.6 / MarkGlyphs.GLYPH, shape.getScale().x);
+        near(0.9 / MarkGlyphs.GLYPH, shape.getScale().y);
     }
 
-    /** Whether a point (forward, right) is inside one of the pieces (each a rectangle turned by its angle). */
-    private static boolean covered(List<GroundMarks.Cell> cells, double f, double r) {
-        for (GroundMarks.Cell c : cells) {
-            double df = f - c.forward(), dr = r - c.right();
-            double along = df * Math.cos(c.turn()) + dr * Math.sin(c.turn());
-            double across = -df * Math.sin(c.turn()) + dr * Math.cos(c.turn());
-            if (Math.abs(along) <= c.along() / 2.0 + 1.0E-6 && Math.abs(across) <= c.across() / 2.0 * 1.12 + 1.0E-6) return true;
+    @Test
+    void aCircleIsOneOrTwoPiecesWithTheNearestRim() {
+        assertEquals(1, GroundMarks.circle(0, 4, PLAIN).size());
+        List<GroundMarks.Piece> pieces = GroundMarks.circle(2, 4, RIMMED);
+        assertEquals(2, pieces.size());
+        near(8, pieces.get(0).cell().across());
+        near(2, pieces.get(0).cell().forward());
+        assertEquals(MarkGlyphs.disc(MarkGlyphs.Part.FILL, MarkGlyphs.nearestRim(0.3 / 4)), pieces.get(0).glyph());
+        assertEquals(MarkGlyphs.disc(MarkGlyphs.Part.RIM, MarkGlyphs.nearestRim(0.3 / 4)), pieces.get(1).glyph());
+        assertEquals(Color.WHITE, pieces.get(1).color());
+    }
+
+    @Test
+    void aFanIsWedgesSideBySideWithStraightRimsOnlyOnItsOwnSides() {
+        assertEquals(List.of(90, 10), MarkGlyphs.split(100));
+        assertEquals(List.of(90, 30), MarkGlyphs.split(120));
+        assertEquals(List.of(30, 5, 2), MarkGlyphs.split(37));
+        assertEquals(2, GroundMarks.fan(5, 90, RIMMED).size());
+        List<GroundMarks.Piece> pieces = GroundMarks.fan(5, 100, RIMMED);
+        assertEquals(4, pieces.size());
+        int rim = MarkGlyphs.nearestRim(0.3 / 5);
+        assertEquals(MarkGlyphs.wedge(90, MarkGlyphs.Part.FILL, rim, MarkGlyphs.Sides.FIRST), pieces.get(0).glyph());
+        assertEquals(MarkGlyphs.wedge(10, MarkGlyphs.Part.FILL, rim, MarkGlyphs.Sides.SECOND), pieces.get(2).glyph());
+        near(Math.toRadians(-50), pieces.get(0).cell().turn());
+        near(Math.toRadians(40), pieces.get(2).cell().turn());
+        assertEquals(1, GroundMarks.circle(0, 5, PLAIN).size());
+        assertEquals(2, GroundMarks.fan(5, 360, RIMMED).size());
+    }
+
+    @Test
+    void aBoxIsItsInsideAndFourStripsThatDoNotOverlap() {
+        List<GroundMarks.Piece> pieces = GroundMarks.box(1, 6, 2, RIMMED);
+        assertEquals(5, pieces.size());
+        double area = 0;
+        for (GroundMarks.Piece piece : pieces) area += piece.cell().across() * piece.cell().along();
+        near(12, area);   // the pieces add up to the box: no overlap, no gap
+        assertEquals(1, GroundMarks.box(1, 6, 2, PLAIN).size());
+    }
+
+    @Test
+    void theInsideAndTheRimOfAGlyphFitTogether() {
+        for (MarkGlyphs.Glyph fill : MarkGlyphs.all()) {
+            if (fill.part() != MarkGlyphs.Part.FILL) continue;
+            MarkGlyphs.Glyph rim = MarkGlyphs.all().stream().filter(g -> g.kind() == fill.kind() && g.angle() == fill.angle() && g.part() == MarkGlyphs.Part.RIM
+                    && g.rim() == fill.rim() && g.sides() == fill.sides()).findFirst().orElseThrow();
+            MarkGlyphs.Glyph whole = MarkGlyphs.all().stream().filter(g -> g.kind() == fill.kind() && g.angle() == fill.angle() && g.part() == MarkGlyphs.Part.WHOLE)
+                    .findFirst().orElseThrow();
+            for (double u = -0.97; u < 1; u += 0.13) {
+                for (double v = -0.97; v < 1; v += 0.13) {
+                    boolean in = MarkGlyphs.outside(fill, u, v) < 0, onRim = MarkGlyphs.outside(rim, u, v) < 0, inWhole = MarkGlyphs.outside(whole, u, v) < 0;
+                    assertTrue(!(in && onRim), "overlap " + fill + " at " + u + "," + v);
+                    assertEquals(inWhole, in || onRim, "gap " + fill + " at " + u + "," + v);
+                }
+            }
         }
-        return false;
     }
 
     @Test
-    void aCircleIsTiledWithoutHolesAndKeepsInsideItsEdge() {
-        List<GroundMarks.Cell> cells = GroundMarks.circle(2.0, 4.0, 0.75, 160);
-        assertTrue(cells.size() <= 160);
-        for (double a = 0; a < Math.PI * 2; a += 0.21) {
-            for (double d = 0.05; d < 3.9; d += 0.17) assertTrue(covered(cells, 2.0 + Math.cos(a) * d, Math.sin(a) * d), "hole at " + a + " / " + d);
+    void theFontPackHasEveryGlyphAndStaysSmall() throws Exception {
+        byte[] pack = MarkGlyphs.pack();
+        assertTrue(pack.length < 4_000_000, "pack " + pack.length + " bytes");
+        try (var zip = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(pack))) {
+            int pictures = 0;
+            boolean font = false;
+            for (var entry = zip.getNextEntry(); entry != null; entry = zip.getNextEntry()) {
+                if (entry.getName().startsWith("assets/iruurpg/textures/font/marks/")) pictures++;
+                if (entry.getName().equals("assets/iruurpg/font/marks.json")) font = true;
+            }
+            assertEquals(MarkGlyphs.all().size(), pictures);
+            assertTrue(font);
         }
-        for (GroundMarks.Cell c : cells) assertTrue(Math.hypot(c.forward() - 2.0, c.right()) <= 4.0);
-    }
-
-    @Test
-    void aFanOpensForwardOnly() {
-        List<GroundMarks.Cell> cells = GroundMarks.fan(5.0, 90.0, 0.75, 160);
-        for (GroundMarks.Cell c : cells) assertTrue(Math.abs(Math.atan2(c.right(), c.forward())) <= Math.toRadians(45.0) + 1.0E-6);
-        assertTrue(covered(cells, 3.0, 0.0));
-        assertTrue(covered(cells, 3.0, 2.5));
-    }
-
-    @Test
-    void aBoxIsAGridAheadAndBigAreasUseBiggerPieces() {
-        List<GroundMarks.Cell> cells = GroundMarks.box(1.0, 6.0, 2.0, 0.75, 160);
-        assertEquals(8 * 3, cells.size());
-        for (GroundMarks.Cell c : cells) { assertTrue(c.forward() > 1.0 && c.forward() < 7.0); assertTrue(Math.abs(c.right()) < 1.0); }
-        assertTrue(GroundMarks.circle(0.0, 20.0, 0.75, 160).size() <= 160);
-        assertTrue(GroundMarks.box(0.0, 30.0, 10.0, 0.75, 160).size() <= 160);
+        // every glyph's last column has some alpha (so the game gives it its full width)
+        for (MarkGlyphs.Glyph glyph : List.of(MarkGlyphs.all().get(0), MarkGlyphs.all().get(5), MarkGlyphs.all().get(40))) {
+            assertTrue((MarkGlyphs.image(glyph).getRGB(MarkGlyphs.SIZE - 1, 0) >>> 24) > 0);
+        }
     }
 }

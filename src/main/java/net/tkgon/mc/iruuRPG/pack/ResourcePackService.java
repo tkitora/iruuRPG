@@ -97,6 +97,7 @@ public final class ResourcePackService implements Listener {
     static {
         BUILT_IN.put("models", "iruumodel.zip");
         BUILT_IN.put("items", "iruuitem.zip");
+        BUILT_IN.put("marks", "iruumark.zip");
     }
 
     private List<Pack> packs() {

@@ -767,12 +767,12 @@ public final class AttackEffects {
     }
 
     /**
-     * The ground mark of a coming ground slam / nova, filled (a disc of text displays) and kept while {@code owner} (the skill's task)
+     * The ground mark of a coming ground slam / nova, filled (a disc of the marks' font) and kept while {@code owner} (the skill's task)
      * keeps calling. With the ground marks off (config), the old ring of particles.
      */
     public void playSkillTelegraphRing(Object owner, Location center, double radius, net.tkgon.mc.iruuRPG.skill.SkillLook look, Element element) {
         if (center != null && center.getWorld() != null && groundMarks.enabled()) {
-            groundMarks.follow(java.util.List.of(owner, "ring", Math.round(radius * 4)), center, null, () -> groundMarks.circle(0.0, radius), telegraphColor(look, element), TELEGRAPH_KEEP_TICKS);
+            groundMarks.follow(java.util.List.of(owner, "ring", Math.round(radius * 4)), center, null, () -> GroundMarks.circle(0.0, radius, groundMarks.style(telegraphColor(look, element))), TELEGRAPH_KEEP_TICKS);
             if (!groundMarks.outlineToo()) return;
         }
         playSkillTelegraphRing(center, radius, look, element);
@@ -785,7 +785,7 @@ public final class AttackEffects {
             double yawRad = Math.toRadians(yaw);
             Vector facing = new Vector(-Math.sin(yawRad), 0.0, Math.cos(yawRad));
             groundMarks.follow(java.util.List.of(owner, "fan", Math.round(radius * 4), Math.round(sweepDegrees)), origin, facing,
-                    () -> groundMarks.fan(radius, sweepDegrees), telegraphColor(look, element), TELEGRAPH_KEEP_TICKS);
+                    () -> GroundMarks.fan(radius, sweepDegrees, groundMarks.style(telegraphColor(look, element))), TELEGRAPH_KEEP_TICKS);
             if (!groundMarks.outlineToo()) return;
         }
         playSkillTelegraphArc(origin, yaw, radius, sweepDegrees, look, element);
@@ -798,7 +798,7 @@ public final class AttackEffects {
             double length = path.length();
             if (length > 1.0E-6) {
                 groundMarks.follow(java.util.List.of(owner, "line", Math.round(length * 2)), from, path,
-                        () -> groundMarks.box(0.0, length, LINE_MARK_WIDTH), telegraphColor(look, element), TELEGRAPH_KEEP_TICKS);
+                        () -> GroundMarks.box(0.0, length, LINE_MARK_WIDTH, groundMarks.style(telegraphColor(look, element))), TELEGRAPH_KEEP_TICKS);
                 if (!groundMarks.outlineToo()) return;
             }
         }
