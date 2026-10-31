@@ -167,6 +167,12 @@ public final class ModelModule implements Listener, MobModels {
     }
 
     @Override
+    public java.util.List<org.bukkit.entity.Entity> parts(LivingEntity entity) {
+        ModelInstance instance = instances.get(entity.getUniqueId());
+        return instance == null ? java.util.List.of() : instance.parts();
+    }
+
+    @Override
     public void detach(LivingEntity entity) {
         ModelInstance instance = instances.remove(entity.getUniqueId());
         if (instance != null) {

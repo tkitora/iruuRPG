@@ -30,6 +30,11 @@ final class ModelInstance {
     private final double scale;
     private final int period;
     private final List<ItemDisplay> displays = new ArrayList<>();
+
+    /** The display entities of the model now. */
+    List<org.bukkit.entity.Entity> parts() {
+        return new ArrayList<>(displays);
+    }
     private final List<Matrix4f> last = new ArrayList<>();
     private final boolean hideBase;
     /** The mob's name and life above the model (an invisible mob's own name is not drawn by the game). */

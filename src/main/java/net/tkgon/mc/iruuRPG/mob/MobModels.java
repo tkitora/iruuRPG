@@ -36,6 +36,11 @@ public interface MobModels {
     default void face(LivingEntity entity, org.bukkit.entity.Entity target, int untilTick) {
     }
 
+    /** The display entities that draw the mob's model (none when it has no model): a quest's mob hides them from other players too. */
+    default java.util.List<org.bukkit.entity.Entity> parts(LivingEntity entity) {
+        return java.util.List.of();
+    }
+
     /** Takes the model off the mob. */
     void detach(LivingEntity entity);
 }
