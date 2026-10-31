@@ -271,33 +271,31 @@ public final class QuestlineService implements Listener {
     }
 
     /**
-     * The player right-clicked an NPC. In order: a line it offers (its offer is said, then the buttons to take it or not);
-     * else the items it takes now are taken (item-give), its talk of the current steps is said and npc-talk fires; with
-     * nothing of the quests for it, one of its idle lines.
+     * The player right-clicked an NPC. What the active lines want of it comes first: the items it takes now are taken
+     * (item-give), its talk of the current steps is said and npc-talk fires; then, if it offers a line that can be
+     * started, its offer is said with the buttons to take it or not. With neither, one of its idle lines. (So a line
+     * that waits on this NPC never gets stuck behind an offer the player keeps turning down.)
      */
     public void interact(Player player, String npc) {
         if (talking.contains(player.getUniqueId())) return;
         QuestlineData data = data(player);
-        PlayerGame game = new PlayerGame(player);
-        List<Questline> offered = engine.offers(data, game, npc);
-        if (!offered.isEmpty()) {
-            Questline line = offered.get(0);
-            for (Line said : line.start().offer()) say(player, said, null);
-            say(player, null, () -> offerButtons(player, line));
-            return;
-        }
         List<Cond> gives = new ArrayList<>();
         for (Cond give : engine.gives(data, npc)) {
             int amount = (int) give.number("amount", 1);
             if (count(player, give.string("item")) >= amount) gives.add(give);
         }
         List<Line> lines = engine.talk(data, npc);
-        if (lines.isEmpty() && gives.isEmpty() && !engine.waitsOn(data, npc)) {
-            List<String> idle = idleLines.apply(npc);
-            if (!idle.isEmpty()) {
-                int turn = idleTurn.merge(player.getUniqueId(), 1, Integer::sum);
-                say(player, new Line(npc, idle.get(Math.floorMod(turn - 1, idle.size())), -1), null);
+        boolean waits = engine.waitsOn(data, npc);
+        if (!waits && lines.isEmpty() && gives.isEmpty()) {
+            if (!offer(player, npc)) {
+                List<String> idle = idleLines.apply(npc);
+                if (!idle.isEmpty()) {
+                    int turn = idleTurn.merge(player.getUniqueId(), 1, Integer::sum);
+                    say(player, new Line(npc, idle.get(Math.floorMod(turn - 1, idle.size())), -1), null);
+                }
+                say(player, null, () -> fire(player, QuestEvent.of("npc-talk", "npc", npc)));
             }
+            return;
         }
         for (Line line : lines) say(player, line, null);
         say(player, null, () -> {
@@ -309,7 +307,19 @@ public final class QuestlineService implements Listener {
                 fire(player, QuestEvent.of("item-give", "npc", npc, "item", item, "amount", amount));
             }
             fire(player, QuestEvent.of("npc-talk", "npc", npc));
+            // what the NPC offers comes after (paced after the talk), once the lines it waited on had their turn
+            if (player.isOnline()) offer(player, npc);
         });
+    }
+
+    /** Says the offer of the first line this NPC offers now, then the buttons. False when it offers none. */
+    private boolean offer(Player player, String npc) {
+        List<Questline> offered = engine.offers(data(player), new PlayerGame(player), npc);
+        if (offered.isEmpty()) return false;
+        Questline line = offered.get(0);
+        for (Line said : line.start().offer()) say(player, said, null);
+        say(player, null, () -> offerButtons(player, line));
+        return true;
     }
 
     private void offerButtons(Player player, Questline line) {
