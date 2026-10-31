@@ -66,6 +66,26 @@ public final class CraftMenu implements Listener {
 
     private enum Screen { LIST, CONFIRM, WORKING, RESULT }
 
+    /** The kinds of the list (the tabs on the bottom edge): what the recipe makes. */
+    private enum Kind {
+        WEAPON("武器", Material.IRON_SWORD, 47),
+        ARMOR("装備", Material.IRON_CHESTPLATE, 49),
+        OTHER("その他", Material.CHEST, 51);
+
+        private final String label;
+        private final Material icon;
+        private final int slot;
+
+        Kind(String label, Material icon, int slot) {
+            this.label = label;
+            this.icon = icon;
+            this.slot = slot;
+        }
+    }
+
+    private static final int PREVIOUS_SLOT = 45;
+    private static final int NEXT_SLOT = 53;
+
     private final JavaPlugin plugin;
     private final CraftService service;
     private final RpgItemRegistry itemRegistry;
@@ -109,12 +129,51 @@ public final class CraftMenu implements Listener {
         holder.header = item(Material.ANVIL, "クラフトレベル " + level, NamedTextColor.GOLD, info, false);
         inventory.setItem(INFO_SLOT, holder.header);
 
-        List<CraftRecipe> recipes = service.registry().all();
-        for (int index = 0; index < recipes.size() && index < RECIPE_SLOTS.length; index++) {
-            CraftRecipe recipe = recipes.get(index);
+        // the tabs on the bottom edge: 武器 / 装備 / その他, each sorted by the level the item needs (lowest first)
+        Map<Kind, List<CraftRecipe>> byKind = new java.util.EnumMap<>(Kind.class);
+        for (Kind kind : Kind.values()) byKind.put(kind, new ArrayList<>());
+        for (CraftRecipe recipe : service.registry().all()) byKind.get(kindOf(recipe)).add(recipe);
+        for (List<CraftRecipe> list : byKind.values()) {
+            list.sort(java.util.Comparator.comparingInt(this::requiredLevel).thenComparing(CraftRecipe::name));
+        }
+        for (Kind kind : Kind.values()) {
+            if (kind == Kind.OTHER && byKind.get(kind).isEmpty()) continue;
+            boolean shown = kind == holder.kind;
+            inventory.setItem(kind.slot, item(kind.icon, kind.label + " (" + byKind.get(kind).size() + ")", shown ? NamedTextColor.GOLD : NamedTextColor.WHITE,
+                    List.of(text(shown ? "表示中 (必要レベルの低い順)" : "クリックで切り替え", NamedTextColor.GRAY)), shown));
+            holder.slots.put(kind.slot, "kind:" + kind.name());
+        }
+
+        List<CraftRecipe> recipes = byKind.get(holder.kind);
+        int pages = Math.max(1, (recipes.size() + RECIPE_SLOTS.length - 1) / RECIPE_SLOTS.length);
+        holder.page = Math.max(0, Math.min(holder.page, pages - 1));
+        int first = holder.page * RECIPE_SLOTS.length;
+        for (int index = 0; index < RECIPE_SLOTS.length && first + index < recipes.size(); index++) {
+            CraftRecipe recipe = recipes.get(first + index);
             inventory.setItem(RECIPE_SLOTS[index], recipeItem(player, recipe, level));
             holder.slots.put(RECIPE_SLOTS[index], recipe.id());
         }
+        if (recipes.isEmpty()) inventory.setItem(CENTER, item(Material.PAPER, "作れるものがありません", NamedTextColor.GRAY, List.of(), false));
+        if (holder.page > 0) {
+            inventory.setItem(PREVIOUS_SLOT, item(Material.ARROW, "前のページ", NamedTextColor.YELLOW, List.of(text((holder.page + 1) + " / " + pages, NamedTextColor.GRAY)), false));
+            holder.slots.put(PREVIOUS_SLOT, "page:-1");
+        }
+        if (holder.page < pages - 1) {
+            inventory.setItem(NEXT_SLOT, item(Material.ARROW, "次のページ", NamedTextColor.YELLOW, List.of(text((holder.page + 1) + " / " + pages, NamedTextColor.GRAY)), false));
+            holder.slots.put(NEXT_SLOT, "page:1");
+        }
+    }
+
+    /** What a recipe makes: a weapon (melee / ranged / deployed), armor (防具), or anything else (materials ...). */
+    private Kind kindOf(CraftRecipe recipe) {
+        RpgItemDefinition definition = itemRegistry.find(recipe.resultItemId()).orElse(null);
+        if (definition == null) return Kind.OTHER;
+        if (definition.marked()) return Kind.WEAPON;
+        return "防具".equals(definition.kindText()) ? Kind.ARMOR : Kind.OTHER;
+    }
+
+    private int requiredLevel(CraftRecipe recipe) {
+        return itemRegistry.find(recipe.resultItemId()).map(RpgItemDefinition::requiredLevel).orElse(Integer.MAX_VALUE);
     }
 
     private void renderConfirm(Player player, Holder holder, CraftRecipe recipe) {
@@ -292,10 +351,25 @@ public final class CraftMenu implements Listener {
         if (action == null) return;
 
         switch (holder.screen) {
-            case LIST -> service.registry().find(action).ifPresent(recipe -> {
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
-                wipeIn(player, holder, () -> renderConfirm(player, holder, recipe));
-            });
+            case LIST -> {
+                if (action.startsWith("kind:")) {
+                    holder.kind = Kind.valueOf(action.substring(5));
+                    holder.page = 0;
+                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.4f);
+                    renderList(player, holder);
+                    return;
+                }
+                if (action.startsWith("page:")) {
+                    holder.page += Integer.parseInt(action.substring(5));
+                    player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.6f, 1.2f);
+                    renderList(player, holder);
+                    return;
+                }
+                service.registry().find(action).ifPresent(recipe -> {
+                    player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.5f, 1.2f);
+                    wipeIn(player, holder, () -> renderConfirm(player, holder, recipe));
+                });
+            }
             case CONFIRM -> {
                 if (action.equals("craft") && holder.recipe != null) {
                     startWorking(player, holder, holder.recipe);
@@ -502,6 +576,9 @@ public final class CraftMenu implements Listener {
         private final List<BukkitTask> tasks = new ArrayList<>();
         private Inventory inventory;
         private Screen screen = Screen.LIST;
+        /** The tab of the list and its page (kept while going to a recipe and back). */
+        private Kind kind = Kind.WEAPON;
+        private int page;
         private CraftRecipe recipe;
         private ItemStack result;
         private ItemStack header;
