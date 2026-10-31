@@ -66,6 +66,11 @@ public final class MainMenu implements Listener {
     private PartyMenu partyMenu;
     private TravelMenu travelMenu;
     private SettingsMenu settingsMenu;
+    private QuestLogMenu questLogMenu;
+
+    public void setQuestLogMenu(QuestLogMenu questLogMenu) {
+        this.questLogMenu = questLogMenu;
+    }
 
     public void setSettingsMenu(SettingsMenu settingsMenu) {
         this.settingsMenu = settingsMenu;
@@ -107,6 +112,10 @@ public final class MainMenu implements Listener {
                 Component.text("見つけた地点へ移動します", NamedTextColor.GRAY),
                 Component.text("数秒その場で待つと、光に包まれて移動", NamedTextColor.GRAY)
         )));
+        if (questLogMenu != null) {
+            inventory.setItem(13, button(Material.WRITABLE_BOOK, "クエスト", NamedTextColor.GOLD, List.of(
+                    Component.text("進行中のクエストの確認・中断・再開", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false))));
+        }
         inventory.setItem(20, button(Material.COMPASS, "ステータス", NamedTextColor.AQUA, List.of(
                 Component.text("現在の能力値を確認します", NamedTextColor.GRAY)
         )));
@@ -157,6 +166,9 @@ public final class MainMenu implements Listener {
         if (!isOwner(event.getView(), player)) return;
 
         switch (event.getRawSlot()) {
+            case 13 -> {
+                if (questLogMenu != null) questLogMenu.open(player);
+            }
             case 20 -> statsMenu.open(player);
             case 22 -> skillTreeMenu.open(player);
             case 24 -> {
