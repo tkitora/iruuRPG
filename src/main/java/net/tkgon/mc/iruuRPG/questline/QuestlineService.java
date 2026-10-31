@@ -95,7 +95,8 @@ public final class QuestlineService implements Listener {
     private record Area(String key, String world, double x, double y, double z, double radius) {
     }
 
-    private record Talk(Component text, long ticks, Runnable after) {
+    /** One line of talk in a player's queue; npc and said: the NPC whose head shows it, and its words. */
+    private record Talk(Component text, long ticks, Runnable after, String npc, String said) {
     }
 
     public QuestlineService(JavaPlugin plugin, PlayerProfileManager profileManager, ItemIdentifier itemIdentifier,
@@ -106,6 +107,24 @@ public final class QuestlineService implements Listener {
         this.itemRegistry = itemRegistry;
         this.itemFactory = itemFactory;
         this.levelService = levelService;
+    }
+
+    /** Shows a line of talk over an NPC's head, to one player, for some ticks (the NPCs; nothing until they exist). */
+    public interface SpeechBubbles {
+        void show(Player player, String npc, String text, long ticks);
+    }
+
+    private SpeechBubbles bubbles = (player, npc, text, ticks) -> { };
+    private Function<String, Set<String>> assignedNpcs = line -> Set.of();
+
+    public void setSpeechBubbles(SpeechBubbles bubbles) {
+        this.bubbles = bubbles == null ? (player, npc, text, ticks) -> { } : bubbles;
+    }
+
+    /** The NPCs each line is offered by besides its start.npc (npcs.yml quests:, chosen in /npc edit). */
+    public void setAssignedNpcs(Function<String, Set<String>> assignedNpcs) {
+        this.assignedNpcs = assignedNpcs == null ? line -> Set.of() : assignedNpcs;
+        engine.setAssignedNpcs(this.assignedNpcs);
     }
 
     public void setSpeakerNames(Function<String, String> speakerNames) {
@@ -189,6 +208,7 @@ public final class QuestlineService implements Listener {
             }
         }
         engine = new QuestlineEngine(lines, book);
+        engine.setAssignedNpcs(assignedNpcs);
         areas = collectAreas(lines.values(), book);
         lastWarnings = List.copyOf(warnings);
         for (int index = 0; index < warnings.size() && index < MAX_LOGGED_WARNINGS; index++) {
@@ -237,9 +257,45 @@ public final class QuestlineService implements Listener {
         QuestlineData data = data(player);
         try {
             PlayerGame game = new PlayerGame(player);
-            if (engine.fire(data, game, event)) changed(player, game);
+            Map<String, String[]> before = progressNow(data);
+            if (engine.fire(data, game, event)) {
+                changed(player, game);
+                tellProgress(player, data, before);
+            }
         } catch (RuntimeException e) {
             plugin.getLogger().log(Level.WARNING, "quest: " + event.name() + " for " + player.getName() + " failed", e);
+        }
+    }
+
+    /** For every active line whose step shows a progress: that step and the value of its flag now. */
+    private Map<String, String[]> progressNow(QuestlineData data) {
+        Map<String, String[]> out = new HashMap<>();
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getValue().status != Status.ACTIVE) continue;
+            Questline line = engine.line(entry.getKey());
+            Questline.Step step = line == null ? null : line.step(entry.getValue().step);
+            if (step == null || step.progress() == null) continue;
+            out.put(entry.getKey(), new String[]{step.id(), String.valueOf((long) Questline.number(engine.read(data, line.id(), step.progress().flag()), 0))});
+        }
+        return out;
+    }
+
+    /**
+     * A progress that moved is told in the chat: [クエスト名]  討伐:イノシシ [1/5]. It is read from the step the line
+     * was in, so the last one (which moves the line on) is told too.
+     */
+    private void tellProgress(Player player, QuestlineData data, Map<String, String[]> before) {
+        for (var entry : before.entrySet()) {
+            Questline line = engine.line(entry.getKey());
+            Questline.Step step = line == null ? null : line.step(entry.getValue()[0]);
+            if (step == null || step.progress() == null || data.line(line.id()) == null) continue;
+            long now = (long) Questline.number(engine.read(data, line.id(), step.progress().flag()), 0);
+            if (String.valueOf(now).equals(entry.getValue()[1])) continue;
+            String label = step.progress().label() != null ? step.progress().label() : step.name() != null ? step.name() : "進み具合";
+            player.sendMessage(Component.text("[" + line.name() + "]  ", NamedTextColor.AQUA)
+                    .append(Component.text(label + " ", NamedTextColor.WHITE))
+                    .append(Component.text("[" + now + "/" + step.progress().max() + "]", now >= step.progress().max() ? NamedTextColor.GOLD : NamedTextColor.GREEN)));
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.4f, now >= step.progress().max() ? 2.0f : 1.6f);
         }
     }
 
@@ -348,14 +404,26 @@ public final class QuestlineService implements Listener {
         }
     }
 
-    /** The mark over an NPC for this player: "!" when it offers a line, "?" when an active line waits on it, else null. */
+    /**
+     * The mark over an NPC for this player: "✔" when talking to it now finishes a line, "?" when an active line waits on
+     * it, "!" when it offers a line, else null.
+     */
     public String marker(Player player, String npc) {
         QuestlineData data = data(player);
+        PlayerGame game = new PlayerGame(player);
+        if (engine.ready(data, game, npc)) return "✔";
         if (engine.waitsOn(data, npc)) return "?";
         for (Questline line : engine.lines().values()) {
-            if (npc.equals(line.start().npc()) && engine.canStart(data, new PlayerGame(player), line.id())) return "!";
+            if (engine.offeredBy(line, npc) && engine.canStart(data, game, line.id())) return "!";
         }
         return null;
+    }
+
+    /** The name of the exclusive line running now for the player (other than {@code except}), or null. */
+    public String exclusiveName(Player player, String except) {
+        String id = engine.exclusiveRunning(data(player), except);
+        Questline line = id == null ? null : engine.line(id);
+        return line == null ? id : line.name();
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -486,7 +554,7 @@ public final class QuestlineService implements Listener {
     }
 
     public boolean pause(Player player, String id) {
-        boolean done = engine.pause(data(player), id);
+        boolean done = engine.pause(data(player), new PlayerGame(player), id);
         if (done) save(player);
         return done;
     }
@@ -520,8 +588,10 @@ public final class QuestlineService implements Listener {
     private void say(Player player, Line line, Runnable after) {
         Component text = line == null ? null : talkText(player, line);
         long ticks = line == null ? 0L : line.ticks() >= 0 ? line.ticks() : readTicks(line.text());
+        String speaker = line == null ? null : line.speaker();
+        boolean npc = speaker != null && !speaker.equalsIgnoreCase("narration") && !speaker.equalsIgnoreCase("player");
         Deque<Talk> queue = talkQueues.computeIfAbsent(player.getUniqueId(), id -> new ArrayDeque<>());
-        queue.add(new Talk(text, ticks, after));
+        queue.add(new Talk(text, ticks, after, npc ? speaker : null, line == null ? null : "「" + line.text() + "」"));
         if (talking.add(player.getUniqueId())) nextTalk(player);
     }
 
@@ -535,6 +605,7 @@ public final class QuestlineService implements Listener {
         if (talk.text() != null) {
             player.sendMessage(talk.text());
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_AMBIENT, 0.25f, 1.4f);
+            if (talk.npc() != null) bubbles.show(player, talk.npc(), talk.said(), Math.max(20L, talk.ticks()));
         }
         if (talk.after() != null) talk.after().run();
         Bukkit.getScheduler().runTaskLater(plugin, () -> nextTalk(player), Math.max(1L, talk.ticks()));
@@ -803,6 +874,19 @@ public final class QuestlineService implements Listener {
         @Override
         public void warn(String message) {
             plugin.getLogger().warning("quest: " + player.getName() + ": " + message);
+        }
+
+        @Override
+        public void held(Questline line, Questline by) {
+            moved = true;
+            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」は保留にした (「" + by.name() + "」"
+                    + (by.exclusive() ? "が終わると、続きから再開する)。" : "を進めるため。メニューの「中断中」から再開できる)。"), NamedTextColor.YELLOW));
+        }
+
+        @Override
+        public void released(Questline line) {
+            moved = true;
+            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」を再開した。", NamedTextColor.AQUA));
         }
     }
 }

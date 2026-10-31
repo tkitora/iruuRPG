@@ -116,10 +116,44 @@ public final class QuestlineParser {
                 rawStart == null ? List.of() : conditions(rawStart.get("when"), "start.when"),
                 rawStart == null ? List.of() : lines(rawStart.get("offer"), "start.offer"));
 
-        Questline line = new Questline(id, text(raw.get("name"), id), text(raw.get("category"), "main"),
+        String category = text(raw.get("category"), "sub").toLowerCase(Locale.ROOT);
+        if (!category.equals("main") && !category.equals("sub")) {
+            if (!category.equals("event")) warn("category", "'" + category + "' is not main / sub: sub is used");
+            category = "sub";
+        }
+        boolean exclusive = exclusive(raw.get("priority"), steps.values());
+        Questline line = new Questline(id, text(raw.get("name"), id), category, exclusive,
                 strings(raw.get("description")), bool(raw.get("repeatable")), start, flags, initial, steps);
         checkFlags(line, sharedFlags);
         return line;
+    }
+
+    /**
+     * priority: parallel (runs beside other lines) / exclusive (puts the others on hold while it runs) / auto (the default:
+     * exclusive when a step plays a cutscene or moves the player, else parallel).
+     */
+    private boolean exclusive(Object raw, java.util.Collection<Step> steps) {
+        String priority = text(raw, "auto").toLowerCase(Locale.ROOT);
+        switch (priority) {
+            case "exclusive" -> {
+                return true;
+            }
+            case "parallel" -> {
+                return false;
+            }
+            case "auto" -> {
+            }
+            default -> warn("priority", "'" + priority + "' is not auto / parallel / exclusive: auto is used");
+        }
+        for (Step step : steps) {
+            List<Act> actions = new ArrayList<>(step.enter());
+            actions.addAll(step.exit());
+            for (Handler handler : step.on()) actions.addAll(handler.actions());
+            for (Act act : actions) {
+                if (act.type().equals("cutscene") || act.type().equals("teleport")) return true;
+            }
+        }
+        return false;
     }
 
     private Step step(String id, Map<?, ?> raw, String where) {
@@ -136,7 +170,8 @@ public final class QuestlineParser {
         Questline.Progress progress = null;
         Map<?, ?> rawProgress = map(raw.get("progress"));
         if (rawProgress != null && rawProgress.get("flag") != null) {
-            progress = new Questline.Progress(rawProgress.get("flag").toString(), (int) Questline.number(rawProgress.get("max"), 0));
+            progress = new Questline.Progress(rawProgress.get("flag").toString(), (int) Questline.number(rawProgress.get("max"), 0),
+                    text(rawProgress.get("label"), null));
         }
         Map<String, List<Line>> talk = new LinkedHashMap<>();
         Map<?, ?> rawTalk = map(raw.get("talk"));

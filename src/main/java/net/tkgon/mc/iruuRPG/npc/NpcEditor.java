@@ -509,6 +509,15 @@ public final class NpcEditor implements Listener {
         }
     }
 
+    private static final class QuestPicker extends Menu {
+        private final String npc;
+        private final List<String> lines = new ArrayList<>();
+
+        private QuestPicker(String npc) {
+            this.npc = npc;
+        }
+    }
+
     private static final class Lister extends Menu {
         private final List<String> ids = new ArrayList<>();
     }
@@ -559,6 +568,7 @@ public final class NpcEditor implements Listener {
         if (holder instanceof Picker) onPick(player, session, slot);
         else if (holder instanceof Setup setup) onSetup(player, setup, slot, click);
         else if (holder instanceof Lister lister) onList(player, lister, slot, click);
+        else if (holder instanceof QuestPicker picker) onQuestPick(player, picker, slot);
         else if (holder instanceof Debug debug) onDebug(player, session, debug, slot);
         else if (holder instanceof LineMenu line) onLine(player, session, line, slot, click);
     }
@@ -645,6 +655,14 @@ public final class NpcEditor implements Listener {
         inventory.setItem(14, icon(Material.WRITABLE_BOOK, "アイドルの言葉 (クエストが無いとき)", NamedTextColor.WHITE, idle, false));
         inventory.setItem(15, icon(Material.PAPER, "id: " + npc.id(), NamedTextColor.GRAY,
                 List.of("クエストの yml は、この id で NPC を指す", "クリック: id を変える (クエスト側も直すこと)"), false));
+        List<String> quests = new ArrayList<>();
+        for (Questline line : questlines.engine().lines().values()) {
+            if (questlines.engine().offeredBy(line, npc.id())) quests.add("・" + line.name());
+        }
+        if (quests.isEmpty()) quests.add("(なし)");
+        quests.add("");
+        quests.add("クリック: 一覧から選ぶ");
+        inventory.setItem(19, icon(Material.WRITABLE_BOOK, "この NPC が出すクエスト", NamedTextColor.GOLD, quests, false));
         inventory.setItem(16, icon(Material.SPYGLASS, "クエストのデバッグ", NamedTextColor.YELLOW, List.of("この NPC のクエストをフラグ単位で"), false));
         inventory.setItem(22, icon(Material.BARRIER, "この NPC を消す", NamedTextColor.RED, List.of("しゃがんでクリック"), false));
         player.openInventory(inventory);
@@ -698,6 +716,7 @@ public final class NpcEditor implements Listener {
             }
             case 15 -> suggest(player, npc.id() + " の新しい id (英小文字・数字・_) を入力:", "/npc rename " + npc.id() + " ");
             case 16 -> openDebug(player, npc);
+            case 19 -> openQuestPicker(player, npc);
             case 22 -> {
                 if (!click.isShiftClick()) return;
                 player.closeInventory();
@@ -707,6 +726,46 @@ public final class NpcEditor implements Listener {
             default -> {
             }
         }
+    }
+
+    // the quests an NPC offers (chosen from the list of every quest line; saved in npcs.yml quests:)
+
+    private void openQuestPicker(Player player, Npc npc) {
+        QuestPicker picker = new QuestPicker(npc.id());
+        Inventory inventory = create(picker, 54, "クエストを選ぶ: " + npc.id());
+        List<Questline> all = new ArrayList<>(questlines.engine().lines().values());
+        all.sort(Comparator.comparing((Questline line) -> !line.main()).thenComparing(Questline::id));
+        for (int index = 0; index < all.size() && index < 45; index++) {
+            Questline line = all.get(index);
+            picker.lines.add(line.id());
+            boolean fixed = npc.id().equals(line.start().npc());
+            boolean chosen = npc.quests().contains(line.id());
+            List<String> lore = new ArrayList<>();
+            lore.add(line.id() + " / " + (line.main() ? "メイン" : "サブ") + (line.exclusive() ? " / ほかと並行しない" : ""));
+            if (line.start().npc() != null && !fixed) lore.add("yml の受注先: " + line.start().npc());
+            lore.add(fixed ? "yml でこの NPC が受注先 (ここでは外せない)" : chosen ? "この NPC が出す — クリックで外す" : "クリック: この NPC が出すようにする");
+            inventory.setItem(index, icon(line.main() ? Material.WRITABLE_BOOK : Material.BOOK, line.name(),
+                    fixed || chosen ? NamedTextColor.GREEN : NamedTextColor.WHITE, lore, fixed || chosen));
+        }
+        inventory.setItem(49, icon(Material.ARROW, "設定に戻る", NamedTextColor.WHITE, List.of(), false));
+        player.openInventory(inventory);
+    }
+
+    private void onQuestPick(Player player, QuestPicker picker, int slot) {
+        Npc npc = npcs.find(picker.npc).orElse(null);
+        if (npc == null) return;
+        if (slot == 49) {
+            openSetup(player, npc);
+            return;
+        }
+        if (slot < 0 || slot >= picker.lines.size()) return;
+        String line = picker.lines.get(slot);
+        Questline definition = questlines.engine().line(line);
+        if (definition == null || npc.id().equals(definition.start().npc())) return;
+        if (!npc.quests().remove(line)) npc.quests().add(line);
+        npcs.save();
+        refresh();
+        openQuestPicker(player, npc);
     }
 
     // the list

@@ -36,6 +36,8 @@ public final class QuestlineData {
         public int runs;
         /** The cutscene the line waits for (saved: a player who left during it sees it again when they come back). */
         public String waitingCutscene;
+        /** The exclusive line that put this one on hold (it goes on by itself when that one ends); null = held by hand or by a newer main line. */
+        public String pausedBy;
 
         public LineState(Status status, String step, long stepSince) {
             this.status = status;
@@ -70,6 +72,7 @@ public final class QuestlineData {
             root.set(at + ".step-since", state.stepSince);
             root.set(at + ".runs", state.runs);
             if (state.waitingCutscene != null) root.set(at + ".waiting-cutscene", state.waitingCutscene);
+            if (state.pausedBy != null) root.set(at + ".paused-by", state.pausedBy);
             for (var flag : state.flags.entrySet()) root.set(at + ".flags." + flag.getKey(), flag.getValue());
         }
         for (var flag : flags.entrySet()) root.set("flags." + flag.getKey(), flag.getValue());
@@ -88,6 +91,7 @@ public final class QuestlineData {
                 LineState state = new LineState(status, line.getString("step", ""), line.getLong("step-since", 0L));
                 state.runs = line.getInt("runs", 0);
                 state.waitingCutscene = line.getString("waiting-cutscene");
+                state.pausedBy = line.getString("paused-by");
                 ConfigurationSection own = line.getConfigurationSection("flags");
                 if (own != null) {
                     for (String key : own.getKeys(false)) state.flags.put(key, own.get(key));

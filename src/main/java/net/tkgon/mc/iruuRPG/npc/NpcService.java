@@ -91,6 +91,17 @@ public final class NpcService implements Listener {
         this.file = new File(plugin.getDataFolder(), "npcs.yml");
         questlines.setSpeakerNames(id -> find(id).map(Npc::name).orElse(id));
         questlines.setIdleLines(id -> find(id).map(Npc::idle).orElse(List.of()));
+        questlines.setSpeechBubbles(this::speak);
+        questlines.setAssignedNpcs(this::npcsOffering);
+    }
+
+    /** The NPCs that offer a line because it was chosen for them in the editor. */
+    private Set<String> npcsOffering(String line) {
+        Set<String> out = new HashSet<>();
+        for (Npc npc : npcs.values()) {
+            if (npc.quests().contains(line)) out.add(npc.id());
+        }
+        return out;
     }
 
     public void setModels(MobModels models) {
@@ -137,6 +148,7 @@ public final class NpcService implements Listener {
             Npc npc = new Npc(id, entry.getString("name", id), new Location(null, 0, 0, 0), parsed);
             npc.set(entry.getString("world", "world"), entry.getDouble("x"), entry.getDouble("y"), entry.getDouble("z"), (float) entry.getDouble("yaw"));
             npc.idle().addAll(entry.getStringList("idle"));
+            npc.quests().addAll(entry.getStringList("quests"));
             npcs.put(id, npc);
         }
     }
@@ -171,6 +183,7 @@ public final class NpcService implements Listener {
                 }
             }
             if (!npc.idle().isEmpty()) yaml.set(at + ".idle", new ArrayList<>(npc.idle()));
+            if (!npc.quests().isEmpty()) yaml.set(at + ".quests", new ArrayList<>(npc.quests()));
         }
         try {
             yaml.save(file);
@@ -218,6 +231,7 @@ public final class NpcService implements Listener {
         Npc renamed = new Npc(newId, npc.name(), new Location(null, 0, 0, 0), npc.look());
         renamed.set(npc.worldName(), npc.x(), npc.y(), npc.z(), npc.yaw());
         renamed.idle().addAll(npc.idle());
+        renamed.quests().addAll(npc.quests());
         npcs.put(newId, renamed);
         save();
         spawnIfLoaded(renamed);
@@ -271,9 +285,11 @@ public final class NpcService implements Listener {
             models.attach(entity, section);
         }
         double height = models != null && models.height(entity) > 0 ? models.height(entity) : entity.getHeight();
-        TextDisplay take = mark(at.clone().add(0, height + 0.75, 0), "!", NamedTextColor.YELLOW);
-        TextDisplay waiting = mark(at.clone().add(0, height + 0.75, 0), "?", NamedTextColor.AQUA);
-        marks.put(npc.id(), new TextDisplay[]{take, waiting});
+        Location over = at.clone().add(0, height + 0.75, 0);
+        TextDisplay take = mark(over, "!", NamedTextColor.YELLOW);
+        TextDisplay waiting = mark(over, "?", NamedTextColor.AQUA);
+        TextDisplay ready = mark(over, "✔", NamedTextColor.GREEN);
+        marks.put(npc.id(), new TextDisplay[]{take, waiting, ready});
     }
 
     private LivingEntity create(Npc npc, Location at) {
@@ -466,11 +482,12 @@ public final class NpcService implements Listener {
         entity.setRotation(yaw, Math.max(-40f, Math.min(40f, pitch)));
     }
 
+    /** The marks of the NPC, in the order of {@link #MARKS}: each player sees at most one, their own. */
+    private static final List<String> MARKS = List.of("!", "?", "✔");
+
     private void updateMarks(Npc npc, LivingEntity entity) {
-        TextDisplay[] pair = marks.get(npc.id());
-        if (pair == null) return;
-        Set<UUID> takeSees = markViewers.computeIfAbsent(pair[0].getUniqueId(), id -> new HashSet<>());
-        Set<UUID> waitSees = markViewers.computeIfAbsent(pair[1].getUniqueId(), id -> new HashSet<>());
+        TextDisplay[] displays = marks.get(npc.id());
+        if (displays == null) return;
         Set<UUID> near = new HashSet<>();
         for (Player player : entity.getWorld().getPlayers()) {
             if (player.getLocation().distanceSquared(entity.getLocation()) > MARK_RANGE * MARK_RANGE) continue;
@@ -481,17 +498,67 @@ public final class NpcService implements Listener {
             } catch (RuntimeException e) {
                 mark = null;
             }
-            show(player, pair[0], takeSees, "!".equals(mark));
-            show(player, pair[1], waitSees, "?".equals(mark));
+            for (int index = 0; index < displays.length; index++) {
+                Set<UUID> viewers = markViewers.computeIfAbsent(displays[index].getUniqueId(), id -> new HashSet<>());
+                show(player, displays[index], viewers, MARKS.get(index).equals(mark));
+            }
         }
-        for (Set<UUID> viewers : List.of(takeSees, waitSees)) {
+        for (TextDisplay display : displays) {
+            Set<UUID> viewers = markViewers.computeIfAbsent(display.getUniqueId(), id -> new HashSet<>());
             for (UUID id : new ArrayList<>(viewers)) {
                 if (near.contains(id)) continue;
                 Player gone = Bukkit.getPlayer(id);
-                if (gone != null) gone.hideEntity(plugin, viewers == takeSees ? pair[0] : pair[1]);
+                if (gone != null) gone.hideEntity(plugin, display);
                 viewers.remove(id);
             }
         }
+    }
+
+    // ---- speech over the head (one player; the tutorial's look) ---------------------------------------------------------
+
+    private final Map<UUID, Map<String, TextDisplay>> speech = new HashMap<>();
+    private final Map<UUID, Long> speechUntil = new HashMap<>();
+
+    /** Shows the words over the NPC's head to this player for {@code ticks}; the next line replaces it. */
+    private void speak(Player player, String npcId, String text, long ticks) {
+        Npc npc = npcs.get(npcId);
+        LivingEntity entity = npc == null ? null : entity(npc);
+        if (entity == null || !entity.getWorld().equals(player.getWorld())) return;
+        double height = models != null && models.height(entity) > 0 ? models.height(entity) : entity.getHeight();
+        Location over = entity.getLocation().add(0, height + 1.5, 0);
+        Map<String, TextDisplay> mine = speech.computeIfAbsent(player.getUniqueId(), id -> new HashMap<>());
+        TextDisplay display = mine.get(npcId);
+        Component words = Component.text(text, NamedTextColor.WHITE);
+        if (display == null || !display.isValid()) {
+            display = over.getWorld().spawn(over, TextDisplay.class, spawned -> {
+                spawned.setVisibleByDefault(false);
+                spawned.setBillboard(Display.Billboard.CENTER);
+                spawned.setLineWidth(220);
+                spawned.setBackgroundColor(org.bukkit.Color.fromARGB(205, 0, 0, 0));
+                spawned.setShadowed(true);
+                spawned.setSeeThrough(false);
+                spawned.setPersistent(false);
+                spawned.addScoreboardTag(TAG);
+                spawned.setTransformation(new Transformation(new Vector3f(), new AxisAngle4f(), new Vector3f(1.35f, 1.35f, 1.35f), new AxisAngle4f()));
+                spawned.text(words);
+            });
+            player.showEntity(plugin, display);
+            mine.put(npcId, display);
+        } else {
+            display.text(words);
+            display.teleport(over);
+        }
+        long until = System.currentTimeMillis() + ticks * 50L + 600L;
+        speechUntil.put(display.getUniqueId(), until);
+        TextDisplay shown = display;
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            Long end = speechUntil.get(shown.getUniqueId());
+            if (end == null || System.currentTimeMillis() < end - 50L) return; // a newer line keeps it
+            speechUntil.remove(shown.getUniqueId());
+            shown.remove();
+            Map<String, TextDisplay> left = speech.get(player.getUniqueId());
+            if (left != null) left.values().remove(shown);
+        }, ticks + 12L);
     }
 
     private void show(Player player, TextDisplay display, Set<UUID> viewers, boolean visible) {
