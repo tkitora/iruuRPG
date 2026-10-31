@@ -288,7 +288,7 @@ public final class NpcService implements Listener {
         Location over = at.clone().add(0, height + 0.75, 0);
         TextDisplay take = mark(over, "!", NamedTextColor.YELLOW);
         TextDisplay waiting = mark(over, "?", NamedTextColor.AQUA);
-        TextDisplay ready = mark(over, "✔", NamedTextColor.GREEN);
+        TextDisplay ready = mark(over, "✔", YELLOW_GREEN);
         marks.put(npc.id(), new TextDisplay[]{take, waiting, ready});
     }
 
@@ -344,7 +344,10 @@ public final class NpcService implements Listener {
         entity.setRotation(npc.yaw(), 0f);
     }
 
-    private TextDisplay mark(Location at, String text, NamedTextColor color) {
+    /** 黄緑 (yellow green): the "can be finished now" mark. */
+    private static final net.kyori.adventure.text.format.TextColor YELLOW_GREEN = net.kyori.adventure.text.format.TextColor.color(0x9ACD32);
+
+    private TextDisplay mark(Location at, String text, net.kyori.adventure.text.format.TextColor color) {
         return at.getWorld().spawn(at, TextDisplay.class, display -> {
             display.text(Component.text(text, color, TextDecoration.BOLD));
             display.setBillboard(Display.Billboard.CENTER);
