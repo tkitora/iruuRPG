@@ -63,6 +63,15 @@ public final class ItemPackBuilder {
      * @param flat      whether a vanilla item is a flat picture under {@code item/<name>} (not a block, not a model drawn by the game)
      */
     public static Result build(List<Look> looks, ItemCmdIndex index, Function<String, String> templates, Predicate<String> flat) throws IOException {
+        return build(looks, index, templates, flat, name -> null);
+    }
+
+    /**
+     * @param tinted the picture (PNG) of a vanilla item that the game colors by itself (a fern is gray in its file and green in the game): the
+     *               same picture already colored, or null for an item that needs none. It is put in the pack as the look's own texture.
+     */
+    public static Result build(List<Look> looks, ItemCmdIndex index, Function<String, String> templates, Predicate<String> flat,
+                               Function<String, byte[]> tinted) throws IOException {
         List<String> warnings = new ArrayList<>();
         TreeMap<String, byte[]> files = new TreeMap<>();
         JsonObject mcmeta = new JsonObject();
@@ -89,7 +98,9 @@ public final class ItemPackBuilder {
             }
             String group = group(base);
             String modelPath = group + "/" + texture;
-            JsonObject model = lookModel(base, texture, flat);
+            byte[] colored = tinted.apply(texture);
+            JsonObject model = colored != null ? tintedModel(base, texture) : lookModel(base, texture, flat);
+            if (colored != null) files.put("assets/" + NAMESPACE + "/textures/item/tinted/" + texture + ".png", colored);
             files.put("assets/" + NAMESPACE + "/models/item/" + modelPath + ".json", json(model));
             int number = index.assign(look.itemId());
             numbers.put(look.itemId(), number);
@@ -159,6 +170,16 @@ public final class ItemPackBuilder {
             // the whole vanilla model of the look: a block stays a block, a flat item stays flat
             model.addProperty("parent", "minecraft:item/" + texture);
         }
+        return model;
+    }
+
+    /** The model of a look whose picture is the colored copy in the pack ({@code textures/item/tinted/<name>.png}). */
+    static JsonObject tintedModel(String base, String texture) {
+        JsonObject model = new JsonObject();
+        model.addProperty("parent", HANDHELD.contains(base) ? "minecraft:item/handheld" : BOWS.contains(base) ? "minecraft:item/" + base : "minecraft:item/generated");
+        JsonObject textures = new JsonObject();
+        textures.addProperty("layer0", NAMESPACE + ":item/tinted/" + texture);
+        model.add("textures", textures);
         return model;
     }
 

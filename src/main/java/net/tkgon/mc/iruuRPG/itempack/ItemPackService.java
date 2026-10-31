@@ -61,7 +61,7 @@ public final class ItemPackService {
             }
             ItemCmdIndex index = new ItemCmdIndex(new File(folder(), "item-cmd-index.yml"));
             index.load();
-            ItemPackBuilder.Result result = ItemPackBuilder.build(looks, index, this::template, ItemPackService::flat);
+            ItemPackBuilder.Result result = ItemPackBuilder.build(looks, index, this::template, ItemPackService::flat, this::tinted);
             index.save();
             for (String warning : result.warnings()) plugin.getLogger().warning("itempack: " + warning);
             numbers = Map.copyOf(result.numbers());
@@ -93,6 +93,16 @@ public final class ItemPackService {
     static boolean flat(String name) {
         Material material = Material.matchMaterial(name.toUpperCase(Locale.ROOT));
         return material != null && material.isItem() && !material.isBlock() && !NOT_FLAT.contains(name);
+    }
+
+    /** The colored picture the plugin carries for a vanilla item the game colors itself ({@code itempack/tinted/<name>.png}), or null. */
+    private byte[] tinted(String name) {
+        if (!name.matches("[a-z0-9_]+")) return null;
+        try (InputStream in = plugin.getResource("itempack/tinted/" + name + ".png")) {
+            return in == null ? null : in.readAllBytes();
+        } catch (IOException exception) {
+            return null;
+        }
     }
 
     private String template(String base) {
