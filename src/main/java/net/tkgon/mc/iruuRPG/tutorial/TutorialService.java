@@ -7,7 +7,9 @@ import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.classsystem.ClassService;
 import net.tkgon.mc.iruuRPG.combat.TutorialDamageHook;
 import net.tkgon.mc.iruuRPG.equipment.EquipmentService;
+import net.tkgon.mc.iruuRPG.gui.ClassInfo;
 import net.tkgon.mc.iruuRPG.gui.ClassSelectMenu;
+import net.tkgon.mc.iruuRPG.item.ClassUse;
 import net.tkgon.mc.iruuRPG.hud.PlayerBars;
 import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
 import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
@@ -114,7 +116,7 @@ public final class TutorialService implements TutorialDamageHook {
                 player.getWalkSpeed(),
                 player.getFlySpeed(),
                 player.getInventory().getHeldItemSlot(),
-                player.getInventory().getItem(0) == null ? null : player.getInventory().getItem(0).clone(),
+                hotbar(player, STARTER_SLOTS),
                 profile.classLevels(),
                 profile.classId(),
                 profile.classChosen()
@@ -262,13 +264,13 @@ public final class TutorialService implements TutorialDamageHook {
         speak(session, line);
     }
 
-    /** The class menu was closed without a choice: open it again. */
+    /** The class menu was closed without a choice: open it again (not when it only went from the list to the confirmation). */
     void onClassMenuClosed(Player player) {
         TutorialSession session = sessions.get(player.getUniqueId());
         if (session == null || !session.waitingClassMenu) return;
 
         Bukkit.getScheduler().runTask(plugin, () -> {
-            if (session.waitingClassMenu && !session.stopped && player.isOnline()) {
+            if (session.waitingClassMenu && !session.stopped && player.isOnline() && !classSelectMenu.isViewing(player)) {
                 openClassMenu(session, player);
             }
         });
@@ -523,33 +525,88 @@ public final class TutorialService implements TutorialDamageHook {
     }
 
     private void openClassMenu(TutorialSession session, Player player) {
-        Map<String, String> speech = new HashMap<>();
-        var section = script.yaml().getConfigurationSection("extra.class-speech");
-        if (section != null) {
-            for (String key : section.getKeys(false)) {
-                speech.put(key, "「" + section.getString(key, "") + "」");
-            }
-        }
-        classSelectMenu.open(player, speech, classId -> onClassChosen(session, classId));
+        classSelectMenu.open(player, classId -> onClassChosen(session, classId));
     }
 
+    /** The class is chosen (and confirmed, the menu closed): the light of the class rises around the player, then the script goes on. */
     private void onClassChosen(TutorialSession session, String classId) {
         if (session.stopped) return;
         session.chosenClass = classId;
         session.waitingClassMenu = false;
-        resume(session, 10L);
+        Player player = Bukkit.getPlayer(session.playerId);
+        if (player == null) return;
+        spiral(session, player, ClassInfo.color(classId), () -> resume(session, 10L));
     }
 
-    private void giveWeaponAndUnlock(TutorialSession session, Player player) {
-        String weaponId = script.yaml().getString("extra.class-weapon." + session.chosenClass, "starter_sword");
-        var definition = itemRegistry.find(weaponId).orElse(null);
-        if (definition == null) {
-            player.sendMessage("[iruuRPG] 最初の武器が見つかりません: " + weaponId + " (items/starter.yml)");
-        } else {
-            ItemStack weapon = itemFactory.create(definition);
-            player.getInventory().setItem(0, weapon);
-            player.getInventory().setHeldItemSlot(0);
+    private static final int SPIRAL_TICKS = 40;
+    private static final double SPIRAL_HEIGHT = 2.4;
+    private static final double SPIRAL_RADIUS = 1.0;
+    private static final double SPIRAL_TURNS = 2.5;
+
+    /**
+     * Two strands of light in the color of the class rise from the player's feet, turning around them, and burst
+     * above their head; then {@code done}.
+     */
+    private void spiral(TutorialSession session, Player player, Color color, Runnable done) {
+        Particle.DustOptions dust = new Particle.DustOptions(color, 1.3f);
+        Particle.DustOptions spark = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 0.8f);
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.5f);
+        animate(session, SPIRAL_TICKS, progress -> {
+            Location feet = player.getLocation();
+            // three points per strand and tick, so the line stays unbroken
+            for (int sub = 0; sub < 3; sub++) {
+                double t = Math.max(0.0, progress - sub / (3.0 * SPIRAL_TICKS));
+                double radius = SPIRAL_RADIUS * (1.0 - 0.35 * t);
+                for (int strand = 0; strand < 2; strand++) {
+                    double angle = 2.0 * Math.PI * (SPIRAL_TURNS * t + 0.5 * strand);
+                    Location at = feet.clone().add(Math.cos(angle) * radius, SPIRAL_HEIGHT * t, Math.sin(angle) * radius);
+                    player.spawnParticle(Particle.REDSTONE, at, 1, 0, 0, 0, 0, sub == 0 ? spark : dust);
+                    if (sub == 0) player.spawnParticle(Particle.REDSTONE, at, 2, 0.04, 0.04, 0.04, 0, dust);
+                }
+            }
+            int tick = Math.round(progress * SPIRAL_TICKS);
+            if (tick % 8 == 0) {
+                player.playSound(feet, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 0.8f + progress);
+            }
+        }, () -> {
+            Location top = player.getLocation().add(0, SPIRAL_HEIGHT, 0);
+            player.spawnParticle(Particle.REDSTONE, top, 40, 0.5, 0.3, 0.5, 0, dust);
+            player.spawnParticle(Particle.END_ROD, top, 16, 0.2, 0.2, 0.2, 0.08);
+            player.playSound(top, Sound.ENTITY_PLAYER_LEVELUP, 0.7f, 1.3f);
+            player.playSound(top, Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.8f, 1.2f);
+            done.run();
+        });
+    }
+
+    private static final int STARTER_SLOTS = 3;
+
+    private static ItemStack[] hotbar(Player player, int count) {
+        ItemStack[] items = new ItemStack[count];
+        for (int slot = 0; slot < count; slot++) {
+            ItemStack item = player.getInventory().getItem(slot);
+            items[slot] = item == null ? null : item.clone();
         }
+        return items;
+    }
+
+    /**
+     * Gives the starter weapons (extra.starter-items: the staff, the dagger and the lantern) in the first hotbar slots,
+     * holding the first one that is a favorite of the chosen class, and unlocks moving and attacking.
+     */
+    private void giveWeaponAndUnlock(TutorialSession session, Player player) {
+        List<String> ids = script.yaml().getStringList("extra.starter-items");
+        if (ids.isEmpty()) ids = List.of("starter_staff", "starter_dagger", "starter_lantern");
+        int held = -1;
+        for (int index = 0; index < ids.size() && index < STARTER_SLOTS; index++) {
+            var definition = itemRegistry.find(ids.get(index)).orElse(null);
+            if (definition == null) {
+                player.sendMessage("[iruuRPG] 最初の武器が見つかりません: " + ids.get(index) + " (items/starter.yml)");
+                continue;
+            }
+            player.getInventory().setItem(index, itemFactory.create(definition));
+            if (held < 0 && definition.classUse(session.chosenClass) == ClassUse.FAVORITE) held = index;
+        }
+        player.getInventory().setHeldItemSlot(Math.max(0, held));
 
         session.moveLocked = false;
         session.attackLocked = false;
@@ -657,18 +714,24 @@ public final class TutorialService implements TutorialDamageHook {
 
         PlayerProfile profile = profileManager.getOrCreate(player);
         if (aborted) {
-            player.getInventory().setItem(0, session.snapshot.slotItem());
+            ItemStack[] items = session.snapshot.slotItems();
+            for (int slot = 0; slot < items.length; slot++) {
+                player.getInventory().setItem(slot, items[slot]);
+            }
             player.getInventory().setHeldItemSlot(session.snapshot.heldSlot());
             player.teleport(session.snapshot.location());
 
             profile.classLevels().clear();
             profile.setClassId("");
             profile.setClassChosen(false);
-        } else if (session.snapshot.slotItem() != null) {
-            // the starter weapon took the first hotbar slot: give the old item back
-            var leftover = player.getInventory().addItem(session.snapshot.slotItem());
-            for (ItemStack item : leftover.values()) {
-                player.getWorld().dropItemNaturally(player.getLocation(), item);
+        } else {
+            // the starter weapons took the first hotbar slots: give the old items back
+            for (ItemStack old : session.snapshot.slotItems()) {
+                if (old == null) continue;
+                var leftover = player.getInventory().addItem(old);
+                for (ItemStack item : leftover.values()) {
+                    player.getWorld().dropItemNaturally(player.getLocation(), item);
+                }
             }
         }
 

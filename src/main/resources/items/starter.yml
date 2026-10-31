@@ -1,4 +1,4 @@
-# 最初に渡される、一番弱い武器 (チュートリアルで、選んだクラスに応じて渡される)。
+# 最初に渡される、一番弱い武器。チュートリアルでクラスを選ぶと、杖・短剣・ランタンの3つが渡される。
 # どれも必要レベル1。チュートリアル中だけ、与えるダメージが99に制限される (コード側)。
 items:
   starter_sword:
@@ -29,6 +29,13 @@ items:
       range-damage: 3
     description:
       - "最初に渡される、一番弱い杖。"
+    # 得意 = favorite (クラスのコンボが出る) / 使用可 = usable / 使用不可 = unusable
+    classes:
+      warrior: unusable
+      mage: favorite
+      gifted: favorite
+      healer: usable
+      assassin: unusable
   starter_lantern:
     material: SEA_LANTERN
     name: "見習いのランタン"
@@ -43,6 +50,13 @@ items:
       stability: 20
     description:
       - "最初に渡される、一番弱いランタン。置くと勝手に攻撃する。"
+    # 得意 = favorite (クラスのコンボが出る) / 使用可 = usable / 使用不可 = unusable
+    classes:
+      warrior: usable
+      mage: favorite
+      gifted: favorite
+      healer: favorite
+      assassin: usable
   starter_green_staff:
     material: STICK
     name: "見習いの緑杖"
@@ -71,3 +85,10 @@ items:
       melee-damage: 3
     description:
       - "最初に渡される、一番弱い短剣。"
+    # 得意 = favorite (クラスのコンボが出る) / 使用可 = usable / 使用不可 = unusable
+    classes:
+      warrior: favorite
+      mage: usable
+      gifted: usable
+      healer: favorite
+      assassin: favorite

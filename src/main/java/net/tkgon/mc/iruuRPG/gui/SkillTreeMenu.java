@@ -42,13 +42,18 @@ import java.util.UUID;
 
 /**
  * Skill menu: a row of SP spend nodes (left click +1 level, right click -1, shift+left +5)
- * and a row of milestone nodes that unlock for free as SP is spent.
+ * and a row of milestone nodes that unlock for free as SP is spent. The class card sits in the top left corner and the
+ * combo guides (one per kind of weapon) in the bottom right one.
  */
 public final class SkillTreeMenu implements Listener {
 
     private static final Component TITLE = Component.text("iruuRPG スキル");
     private static final int SIZE = 54;
     private static final int INFO_SLOT = 4;
+    /** The class card (the same words as the class menu) in the top left corner. */
+    private static final int CLASS_SLOT = 0;
+    /** The combo guides (melee, range, deploy) in the bottom right corner. */
+    private static final int GUIDE_START_SLOT = 51;
     private static final int RESET_SLOT = 49;
     private static final int BACK_SLOT = 45;
     private static final int SPEND_LABEL_SLOT = 9;
@@ -169,6 +174,11 @@ public final class SkillTreeMenu implements Listener {
                 List.of(text("全ノードのレベルを0に戻します", NamedTextColor.GRAY), text("(SPは全額戻ります)", NamedTextColor.GRAY))));
         if (definition == null) return;
 
+        inventory.setItem(CLASS_SLOT, ClassInfo.icon(definition, List.of()));
+        for (int index = 0; index < ClassInfo.GUIDE_KINDS.size(); index++) {
+            ItemStack guide = ClassInfo.comboGuide(definition, ClassInfo.GUIDE_KINDS.get(index));
+            if (guide != null) inventory.setItem(GUIDE_START_SLOT + index, guide);
+        }
         inventory.setItem(SPEND_LABEL_SLOT, button(Material.EXPERIENCE_BOTTLE, "SPで強化", NamedTextColor.GREEN, List.of(
                 text("ノードの1レベルを上げるのに 1SP を使う。上限なし", NamedTextColor.GRAY),
                 text("SPは " + classService.levelsPerPoint() + "Lv ごとに 1 獲得 (最大 " + classService.maxPoints() + ")", NamedTextColor.GRAY),

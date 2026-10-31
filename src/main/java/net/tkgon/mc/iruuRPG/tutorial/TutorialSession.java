@@ -79,13 +79,15 @@ final class TutorialSession {
             float walkSpeed,
             float flySpeed,
             int heldSlot,
-            ItemStack slotItem,
+            /** The items of the first hotbar slots before the starter weapons took them (null = empty). */
+            ItemStack[] slotItems,
             Map<String, Integer> classLevels,
             String classId,
             boolean classChosen
     ) {
         Snapshot {
             classLevels = new HashMap<>(classLevels);
+            slotItems = slotItems.clone();
         }
     }
 }
