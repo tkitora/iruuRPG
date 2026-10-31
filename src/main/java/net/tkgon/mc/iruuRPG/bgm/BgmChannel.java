@@ -15,6 +15,8 @@ import java.util.List;
 final class BgmChannel implements BgmVoice.Sink {
 
     private static final double PAN_WIDTH = 2.0;
+    /** A player that moves farther than this in a tick (0.02 blocks) is walking. */
+    private static final double MOVING_SQUARED = 0.0004;
     private static final double DEFAULT_FADE = 3.0;
     /** The ticks of a bar of the songs (4/4 in sixteenths): a change between the phases of a song waits for the next bar line. */
     static final int BAR_TICKS = 16;
@@ -60,6 +62,10 @@ final class BgmChannel implements BgmVoice.Sink {
     private Location base;
     private double rightX;
     private double rightZ;
+    /** True while the player walks (they moved this tick): the notes then follow them (see {@link #note}). */
+    private boolean moving;
+    /** Where the player was at the last tick, to see whether they move. */
+    private Location lastBase;
 
     boolean manual() {
         return manual;
@@ -243,6 +249,11 @@ final class BgmChannel implements BgmVoice.Sink {
         if (voices.isEmpty()) return;
         this.player = target;
         this.base = target.getEyeLocation();
+        double dx = lastBase == null ? 0.0 : base.getX() - lastBase.getX();
+        double dy = lastBase == null ? 0.0 : base.getY() - lastBase.getY();
+        double dz = lastBase == null ? 0.0 : base.getZ() - lastBase.getZ();
+        moving = lastBase != null && lastBase.getWorld() == base.getWorld() && dx * dx + dy * dy + dz * dz > MOVING_SQUARED;
+        lastBase = base.clone();
         double yaw = Math.toRadians(base.getYaw());
         this.rightX = -Math.cos(yaw);
         this.rightZ = -Math.sin(yaw);
@@ -262,6 +273,12 @@ final class BgmChannel implements BgmVoice.Sink {
         while (folded < 33) folded += 12;
         while (folded > 57) folded -= 12;
         float pitch = (float) Math.pow(2.0, (folded - 45) / 12.0);
+        if (moving) {
+            // a sound played at a place stays there: a walking player leaves a note that rings for a second or two behind and it fades out (the
+            // music seems to break off). Played from the player it goes with them (without the stereo spread, which is only 2 blocks anyway).
+            player.playSound(player, SOUNDS[instrument], SoundCategory.MUSIC, volume, pitch);
+            return;
+        }
         Location at = base;
         if (pan != 0.0f) at = base.clone().add(rightX * pan * PAN_WIDTH, 0.0, rightZ * pan * PAN_WIDTH);
         player.playSound(at, SOUNDS[instrument], SoundCategory.MUSIC, volume, pitch);
