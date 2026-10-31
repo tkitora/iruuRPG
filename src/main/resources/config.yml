@@ -463,6 +463,8 @@ sidebar:
 yml-sync:
   enabled: true
   interval-seconds: 60
+  # 自動の同期は、時計の何秒に動くか (0〜59)。毎分 0 秒に動くほかの仕事 (同じフォルダを pull するスクリプト) と、git のロックで、ぶつからないように
+  second: 30
   branch: main
 
 # パーティー (/party、仲間内のチャットは /p)。ログアウトや再起動のあとも続く (plugins/iruuRPG/parties.yml)

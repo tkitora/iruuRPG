@@ -64,10 +64,33 @@ public final class YmlSyncService {
             File folder = plugin.getDataFolder();
             if (new File(folder, ".git").exists()) lastLoaded = revParse(folder);
         });
-        long interval = Math.max(10, plugin.getConfig().getLong("yml-sync.interval-seconds", 60)) * 20L;
-        Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-            if (enabled()) sync(null);
-        }, interval, interval);
+        scheduleNext();
+    }
+
+    /**
+     * The automatic sync runs at second {@code yml-sync.second} (default 30) of the clock, every interval: away from the
+     * top of the minute, when other jobs on the server (a script that pulls the same folder every minute) hold git's
+     * locks. A tick timer drifts with the server's load, and when it fell on the same second as such a job, every pull
+     * failed for minutes on end while a /iruurpg sync by hand went through.
+     */
+    private void scheduleNext() {
+        long intervalMillis = Math.max(10, plugin.getConfig().getLong("yml-sync.interval-seconds", 60)) * 1000L;
+        long second = Math.floorMod(plugin.getConfig().getLong("yml-sync.second", 30), 60);
+        long ticks = Math.max(20L, millisToNext(System.currentTimeMillis(), intervalMillis, second * 1000L) / 50L);
+        Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
+            try {
+                if (enabled()) sync(null);
+            } finally {
+                scheduleNext();
+            }
+        }, ticks);
+    }
+
+    /** Milliseconds from {@code now} to the next time that is {@code offset} past a multiple of {@code interval} (at least 1 s). */
+    static long millisToNext(long now, long interval, long offset) {
+        long next = Math.floorDiv(now - offset, interval) * interval + interval + offset;
+        long wait = next - now;
+        return wait < 1000L ? wait + interval : wait;
     }
 
     /** Pulls now; reloads when the commit changed. {@code requester} (may be null) gets the result in chat. */
@@ -203,12 +226,42 @@ public final class YmlSyncService {
         plugin.getLogger().warning(message);
     }
 
-    /** The pull in two steps (fetch, then a fast-forward merge of what was fetched): the result says which step it stopped at. */
+    /**
+     * The pull in two steps (fetch, then a fast-forward merge of what was fetched): the result says which step it stopped
+     * at. A step that failed on one of git's locks (another git in the same folder at that moment) is tried again a few
+     * seconds later, twice at most.
+     */
     private GitResult pull(File folder, String branch) {
-        GitResult fetch = git(folder, "fetch", "origin", branch);
+        GitResult fetch = retryOnLock(() -> git(folder, "fetch", "origin", branch));
         if (fetch.code() != 0) return fetch.as("git fetch");
-        GitResult merge = git(folder, "merge", "--ff-only", "origin/" + branch);
+        GitResult merge = retryOnLock(() -> git(folder, "merge", "--ff-only", "origin/" + branch));
         return merge.as("git merge --ff-only");
+    }
+
+    private static final int LOCK_RETRIES = 2;
+    private static final long LOCK_RETRY_MILLIS = 4000L;
+
+    private GitResult retryOnLock(java.util.function.Supplier<GitResult> step) {
+        GitResult result = step.get();
+        for (int attempt = 0; attempt < LOCK_RETRIES && result.code() != 0 && lockedOut(result.output()); attempt++) {
+            plugin.getLogger().info("yml-sync: git is busy in the folder (" + lastLines(result.output(), 1) + "); trying again");
+            try {
+                Thread.sleep(LOCK_RETRY_MILLIS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return result;
+            }
+            result = step.get();
+        }
+        return result;
+    }
+
+    /** True when git stopped because another git held a lock in the same repository. */
+    static boolean lockedOut(String output) {
+        if (output == null) return false;
+        String text = output.toLowerCase(java.util.Locale.ROOT);
+        return text.contains(".lock") || text.contains("cannot lock ref") || text.contains("unable to create")
+                || text.contains("another git process");
     }
 
     // ---- git ---------------------------------------------------------------------------------------------------------
