@@ -170,6 +170,11 @@ public interface BehaviorHost {
     record Guard(double reduction, double power, double lift, int recoilTicks) {
     }
 
+    /** How many hits the mob took lately from players standing far from it (the blackboard's ranged-hits). */
+    default int rangedHits() {
+        return 0;
+    }
+
     /** Raises the guard (null lowers it). */
     default void guard(Guard guard) {
     }

@@ -116,7 +116,7 @@ fsm:
 | `time-limit` | `seconds` | 動き続けたら失敗にして止める |
 | `not` | | 成功と失敗を入れ替える |
 | `force-success` | | 結果を成功にする。同じノードの条件 (`distance` など) が合わずに入れなかったとき、条件や `time-limit` で止まったときも成功になる (「できればやる、できなくても先へ進む」) |
-| `guard` | `reduction` (0.6 = 60%), `recoil: {power, lift}`, `recoil-cooldown` (秒) | ガード。付けたノードが動いている間だけ、受けるダメージを `reduction` の割合だけ減らし、攻撃してきたプレイヤー (6 ブロック以内) を少しのけぞらせる (`recoil-cooldown` 秒に 1 回)。ガード中はひるまない (poise が溜まらない)。盾の音と火花が出る。ノードが終わる・止まると解ける |
+| `guard` | `reduction` (0.6 = 60%), `recoil: {power, lift}`, `recoil-cooldown` (秒) | ガード。付けたノードが動いている間だけ、受けるダメージを `reduction` の割合だけ減らし、攻撃してきたプレイヤー (6 ブロック以内で、手に持つ武器が近接のとき。遠距離・設置の武器ではのけぞらせない) を少しのけぞらせる (`recoil-cooldown` 秒に 1 回)。ガード中はひるまない (poise が溜まらない)。盾の音と火花が出る。ノードが終わる・止まると解ける |
 `abort: self` は、条件が成り立たなくなったら動いているノードを止める。`abort: lower` は、`selector` の上の子で使い、成り立った瞬間に下の子を止める(`both` は両方)。
 
 ### Service (`services:` に並べる。動いている間、`interval` 秒ごとに実行)
@@ -126,7 +126,7 @@ fsm:
 | `run-eqs` | `query`, `key` (point)、`interval` (1) | 問い合わせの結果の場所を黒板の `key` に書く(`move-to` の `key:` で使う) |
 
 ## 黒板 (Blackboard)
-ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`flying` (いま飛んでいるか)、`altitude` (足元の地面からの高さ。32 まで。飛んでいるときだけ)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
+ランナーが毎回更新するキー: `has-target` (真偽)、`distance` (目標まで)、`in-sight` (目標が見えるか)、`hp` (0〜1)、`state` (いまの状態)、`home-distance` (出た場所からの距離)、`in-volume` (動ける範囲の中にいるか。範囲がなければ true)、`flying` (いま飛んでいるか)、`altitude` (足元の地面からの高さ。32 まで。飛んでいるときだけ)、`allies-near` (まわり `ally-range` (既定8)ブロックにいる、同じ種類の動いている敵の数)、`attackers` (同じ目標に、いま攻撃の枠を持っている仲間の数)、`ranged-hits` (直近 6 秒に、5 ブロック以上離れたプレイヤーから受けた攻撃の回数。遠距離・設置・届く長いスキル。時間がたつと減る)。ほかは `blackboard:`・`set-blackboard`・`run-eqs` が書く。
 
 **`phase` (ボスのフェーズ)**: 黒板の `phase` に 1、2、3 … を書くと、それがボスのフェーズとして、ダンジョンの BGM に使われる (`docs/bgm.md`: フェーズが進むと、ボス戦の次の曲に変わる)。最初は `blackboard: {phase: 1}`、次の状態の `enter` で `set-blackboard` の `key: phase, value: 2`。書かないボスは、フェーズ1のまま。
 

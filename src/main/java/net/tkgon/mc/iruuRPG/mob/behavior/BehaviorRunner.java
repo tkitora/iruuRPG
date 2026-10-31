@@ -160,6 +160,7 @@ public final class BehaviorRunner {
         ctx.bb.target = target;
         ctx.bb.set("has-target", target != null);
         ctx.bb.set("hp", host.hpRatio());
+        ctx.bb.set("ranged-hits", host.rangedHits());
         org.bukkit.Location home = host.home();
         org.bukkit.Location here = host.mob().getLocation();
         ctx.bb.set("home-distance", home == null || home.getWorld() != here.getWorld() ? 9999.0 : home.distance(here));

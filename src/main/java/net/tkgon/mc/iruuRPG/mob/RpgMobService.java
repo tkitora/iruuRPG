@@ -170,11 +170,39 @@ public final class RpgMobService {
     private final Map<UUID, net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost.Guard> guards = new HashMap<>();
     private final Map<UUID, Integer> guardRecoilAt = new HashMap<>();
     private static final double GUARD_RECOIL_REACH = 6.0;
+    /** A hit from a player at least this far away counts in ranged-hits, for this long. */
+    private static final double RANGED_HIT_DISTANCE = 5.0;
+    private static final long RANGED_HIT_MILLIS = 6000L;
+    private final Map<UUID, java.util.ArrayDeque<Long>> rangedHits = new HashMap<>();
+    /** Whether a player attacks in melee now (their weapon in hand is a melee one): only then a guard pushes them back. */
+    private java.util.function.Predicate<Player> meleeAttacker = player -> true;
+
+    public void setMeleeAttacker(java.util.function.Predicate<Player> meleeAttacker) {
+        this.meleeAttacker = meleeAttacker == null ? player -> true : meleeAttacker;
+    }
+
+    /** Remembers a hit from a player standing far from the mob (ranged weapons, placed weapons, long skills). */
+    private void countRangedHit(LivingEntity entity, Player attacker) {
+        if (attacker == null || !attacker.getWorld().equals(entity.getWorld())) return;
+        if (attacker.getLocation().distanceSquared(entity.getLocation()) < RANGED_HIT_DISTANCE * RANGED_HIT_DISTANCE) return;
+        rangedHits.computeIfAbsent(entity.getUniqueId(), id -> new java.util.ArrayDeque<>()).addLast(System.currentTimeMillis());
+    }
+
+    /** The hits from far away in the last few seconds. */
+    private int rangedHitsOf(UUID mob) {
+        java.util.ArrayDeque<Long> hits = rangedHits.get(mob);
+        if (hits == null) return 0;
+        long since = System.currentTimeMillis() - RANGED_HIT_MILLIS;
+        while (!hits.isEmpty() && hits.peekFirst() < since) hits.pollFirst();
+        if (hits.isEmpty()) rangedHits.remove(mob);
+        return hits.size();
+    }
 
     public boolean applyDamage(LivingEntity entity, double damage, Player attacker) {
         MobRuntime runtime = runtime(entity);
         if (runtime == null) return false;
         if (damage <= 0.0) return true;
+        countRangedHit(entity, attacker);
         var guard = guards.get(entity.getUniqueId());
         if (guard != null) damage = guarded(entity, guard, damage, attacker);
 
@@ -204,7 +232,7 @@ public final class RpgMobService {
         entity.getWorld().playSound(at, org.bukkit.Sound.ITEM_SHIELD_BLOCK, 0.8f, 0.9f);
         net.tkgon.mc.iruuRPG.combat.ParticleFx.to(entity.getWorld()).spawnParticle(org.bukkit.Particle.CRIT, at, 8, 0.3, 0.3, 0.3, 0.1);
         int now = Bukkit.getCurrentTick();
-        if (attacker != null && attacker.getWorld().equals(entity.getWorld())
+        if (attacker != null && attacker.getWorld().equals(entity.getWorld()) && meleeAttacker.test(attacker)
                 && attacker.getLocation().distanceSquared(entity.getLocation()) <= GUARD_RECOIL_REACH * GUARD_RECOIL_REACH
                 && now - guardRecoilAt.getOrDefault(entity.getUniqueId(), Integer.MIN_VALUE / 2) >= guard.recoilTicks()) {
             guardRecoilAt.put(entity.getUniqueId(), now);
@@ -396,6 +424,7 @@ public final class RpgMobService {
         poise.forget(uuid);
         guards.remove(uuid);
         guardRecoilAt.remove(uuid);
+        rangedHits.remove(uuid);
         flinchUntil.remove(uuid);
         removeStatusDisplay(uuid);
         dismissMinions(uuid);
@@ -834,6 +863,11 @@ public final class RpgMobService {
         private BtHost(Mob mob, Location home) {
             this.mob = mob;
             this.home = home;
+        }
+
+        @Override
+        public int rangedHits() {
+            return rangedHitsOf(mob.getUniqueId());
         }
 
         @Override
