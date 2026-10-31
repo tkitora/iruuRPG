@@ -257,45 +257,53 @@ public final class QuestlineService implements Listener {
         QuestlineData data = data(player);
         try {
             PlayerGame game = new PlayerGame(player);
-            Map<String, String[]> before = progressNow(data);
-            if (engine.fire(data, game, event)) {
-                changed(player, game);
-                tellProgress(player, data, before);
-            }
+            if (engine.fire(data, game, event)) changed(player, game);
+            tellProgress(player);
         } catch (RuntimeException e) {
             plugin.getLogger().log(Level.WARNING, "quest: " + event.name() + " for " + player.getName() + " failed", e);
         }
     }
 
-    /** For every active line whose step shows a progress: that step and the value of its flag now. */
-    private Map<String, String[]> progressNow(QuestlineData data) {
-        Map<String, String[]> out = new HashMap<>();
+    /** The progress last told to each player, per line: the step and its value (so only a change is told). */
+    private final Map<UUID, Map<String, String[]>> toldProgress = new HashMap<>();
+
+    /** "3 / 5" of a line for the player (a flag, or the items they have), or null. */
+    public String progressText(Player player, String id) {
+        return engine.progress(data(player), new PlayerGame(player), id);
+    }
+
+    /**
+     * Tells in the chat every progress that changed since it was last told: [クエスト名]  討伐:イノシシ [1/5]. It is read
+     * from the step the line was in when last told, so the last one (which moves the line on) is told too; a progress
+     * seen for the first time is only remembered.
+     */
+    private void tellProgress(Player player) {
+        QuestlineData data = data(player);
+        PlayerGame game = new PlayerGame(player);
+        Map<String, String[]> told = toldProgress.computeIfAbsent(player.getUniqueId(), id -> new HashMap<>());
+        for (var entry : new ArrayList<>(told.entrySet())) {
+            Questline line = engine.line(entry.getKey());
+            Questline.Step step = line == null ? null : line.step(entry.getValue()[0]);
+            LineState state = data.line(entry.getKey());
+            if (step == null || step.progress() == null || state == null || state.status == Status.PAUSED) continue;
+            long now = engine.progressValue(data, game, line, step);
+            if (String.valueOf(now).equals(entry.getValue()[1])) continue;
+            entry.getValue()[1] = String.valueOf(now);
+            String label = step.progress().label() != null ? step.progress().label() : step.name() != null ? step.name() : "進み具合";
+            boolean full = now >= step.progress().max();
+            player.sendMessage(Component.text("[" + line.name() + "]  ", NamedTextColor.AQUA)
+                    .append(Component.text(label + " ", NamedTextColor.WHITE))
+                    .append(Component.text("[" + Math.min(now, step.progress().max()) + "/" + step.progress().max() + "]", full ? NamedTextColor.GOLD : NamedTextColor.GREEN)));
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.4f, full ? 2.0f : 1.6f);
+        }
+        // remember the steps as they are now (a new step starts from its value now, untold)
+        told.clear();
         for (var entry : data.lines().entrySet()) {
             if (entry.getValue().status != Status.ACTIVE) continue;
             Questline line = engine.line(entry.getKey());
             Questline.Step step = line == null ? null : line.step(entry.getValue().step);
             if (step == null || step.progress() == null) continue;
-            out.put(entry.getKey(), new String[]{step.id(), String.valueOf((long) Questline.number(engine.read(data, line.id(), step.progress().flag()), 0))});
-        }
-        return out;
-    }
-
-    /**
-     * A progress that moved is told in the chat: [クエスト名]  討伐:イノシシ [1/5]. It is read from the step the line
-     * was in, so the last one (which moves the line on) is told too.
-     */
-    private void tellProgress(Player player, QuestlineData data, Map<String, String[]> before) {
-        for (var entry : before.entrySet()) {
-            Questline line = engine.line(entry.getKey());
-            Questline.Step step = line == null ? null : line.step(entry.getValue()[0]);
-            if (step == null || step.progress() == null || data.line(line.id()) == null) continue;
-            long now = (long) Questline.number(engine.read(data, line.id(), step.progress().flag()), 0);
-            if (String.valueOf(now).equals(entry.getValue()[1])) continue;
-            String label = step.progress().label() != null ? step.progress().label() : step.name() != null ? step.name() : "進み具合";
-            player.sendMessage(Component.text("[" + line.name() + "]  ", NamedTextColor.AQUA)
-                    .append(Component.text(label + " ", NamedTextColor.WHITE))
-                    .append(Component.text("[" + now + "/" + step.progress().max() + "]", now >= step.progress().max() ? NamedTextColor.GOLD : NamedTextColor.GREEN)));
-            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.4f, now >= step.progress().max() ? 2.0f : 1.6f);
+            told.put(line.id(), new String[]{step.id(), String.valueOf(engine.progressValue(data, game, line, step))});
         }
     }
 
@@ -340,8 +348,15 @@ public final class QuestlineService implements Listener {
             int amount = (int) give.number("amount", 1);
             if (count(player, give.string("item")) >= amount) gives.add(give);
         }
-        List<Line> lines = engine.talk(data, npc);
-        boolean waits = engine.waitsOn(data, npc);
+        List<Line> lines = new ArrayList<>(engine.talk(data, npc));
+        // a line this NPC gave whose step has nothing for it to say: it says at least where the player stands
+        for (Questline line : engine.statusFor(data, npc)) {
+            Questline.Step step = line.step(data.line(line.id()).step);
+            String progress = engine.progress(data, new PlayerGame(player), line.id());
+            String goal = step.name() != null ? step.name() : "続きを進めよう";
+            lines.add(new Line(npc, "「" + line.name() + "」の件だな。" + goal + (progress == null ? "" : " (" + progress.replace(" ", "") + ")"), -1));
+        }
+        boolean waits = engine.waitsOn(data, npc) || !lines.isEmpty();
         if (!waits && lines.isEmpty() && gives.isEmpty()) {
             if (!offer(player, npc)) {
                 List<String> idle = idleLines.apply(npc);
@@ -430,7 +445,11 @@ public final class QuestlineService implements Listener {
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         ItemStack stack = event.getItem().getItemStack();
-        itemIdentifier.itemId(stack).ifPresent(id -> fire(player, QuestEvent.of("item-pickup", "item", id, "amount", stack.getAmount())));
+        // one tick later, when the stack is in the inventory (an item condition or an item progress then counts it)
+        itemIdentifier.itemId(stack).ifPresent(id -> {
+            int amount = stack.getAmount();
+            Bukkit.getScheduler().runTask(plugin, () -> fire(player, QuestEvent.of("item-pickup", "item", id, "amount", amount)));
+        });
     }
 
     @EventHandler
@@ -458,6 +477,7 @@ public final class QuestlineService implements Listener {
         talking.remove(id);
         offers.remove(id);
         idleTurn.remove(id);
+        toldProgress.remove(id);
         dirty.remove(id); // the profile is saved on quit anyway
     }
 
@@ -486,6 +506,7 @@ public final class QuestlineService implements Listener {
             PlayerGame game = new PlayerGame(player);
             try {
                 if (engine.evaluate(data(player), game)) changed(player, game);
+                tellProgress(player);
             } catch (RuntimeException e) {
                 plugin.getLogger().log(Level.WARNING, "quest: settling " + player.getName() + " failed", e);
             }

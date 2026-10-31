@@ -100,7 +100,7 @@ public final class QuestLogMenu implements Listener {
             Questline line = questlines.engine().line(entry.getKey());
             if (line == null) continue;
             holder.ids.add(entry.getKey());
-            inventory.setItem(slot++, lineItem(data, line, state, tab));
+            inventory.setItem(slot++, lineItem(player, line, state, tab));
         }
         if (holder.ids.isEmpty()) {
             inventory.setItem(22, item(Material.PAPER, tab == Tab.ACTIVE ? "進行中のクエストはありません" : "ありません", NamedTextColor.GRAY,
@@ -110,14 +110,14 @@ public final class QuestLogMenu implements Listener {
         player.openInventory(inventory);
     }
 
-    private ItemStack lineItem(QuestlineData data, Questline line, LineState state, Tab tab) {
+    private ItemStack lineItem(Player player, Questline line, LineState state, Tab tab) {
         List<Component> lore = new ArrayList<>();
         for (String description : line.description()) lore.add(text(description, NamedTextColor.WHITE));
         Questline.Step step = line.step(state.step);
         if (tab != Tab.DONE) {
             lore.add(Component.empty());
             if (step != null && step.name() != null) lore.add(text("目標: " + step.name(), NamedTextColor.AQUA));
-            String progress = questlines.engine().progress(data, line.id());
+            String progress = questlines.progressText(player, line.id());
             if (progress != null) lore.add(text("進み具合: " + progress, NamedTextColor.GREEN));
             lore.add(Component.empty());
             lore.add(text(tab == Tab.ACTIVE ? "シフト+クリック: 中断する (進み具合は残る)" : "クリック: 再開する", NamedTextColor.GRAY));

@@ -54,8 +54,12 @@ public record Questline(
 
     public enum End { COMPLETE, FAIL }
 
-    /** "3 / 5" on the menu: the value of a flag against a maximum; label is what the chat says it counts ("討伐:イノシシ"). */
-    public record Progress(String flag, int max, String label) {
+    /**
+     * "3 / 5" on the menu: the value of a flag, or the number of an item the player has ({@code item}; with
+     * {@code ignoreExisting} only what they got since the step began), against a maximum; label is what the chat says it
+     * counts ("討伐:イノシシ").
+     */
+    public record Progress(String flag, String item, boolean ignoreExisting, int max, String label) {
     }
 
     /** One line of talk: an NPC id, "narration" or "player", the text and how long it stays (-1 = from its length). */

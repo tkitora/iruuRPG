@@ -153,7 +153,7 @@ public final class QuestAdminCommand implements CommandExecutor, TabCompleter {
             if (only != null && !only.equals(entry.getKey())) continue;
             LineState state = entry.getValue();
             Questline line = engine.line(entry.getKey());
-            String progress = engine.progress(data, entry.getKey());
+            String progress = service.progressText(target, entry.getKey());
             sender.sendMessage(Component.text("  " + entry.getKey() + (line == null ? " (読み込まれていない)" : " 「" + line.name() + "」"), NamedTextColor.AQUA)
                     .append(Component.text(" " + state.status.key() + " › " + state.step + (progress == null ? "" : " (" + progress + ")")
                             + (state.runs > 0 ? " 完了" + state.runs + "回" : ""), NamedTextColor.WHITE)));

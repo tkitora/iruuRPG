@@ -169,9 +169,12 @@ public final class QuestlineParser {
         }
         Questline.Progress progress = null;
         Map<?, ?> rawProgress = map(raw.get("progress"));
-        if (rawProgress != null && rawProgress.get("flag") != null) {
-            progress = new Questline.Progress(rawProgress.get("flag").toString(), (int) Questline.number(rawProgress.get("max"), 0),
-                    text(rawProgress.get("label"), null));
+        if (rawProgress != null && (rawProgress.get("flag") != null || rawProgress.get("item") != null)) {
+            progress = new Questline.Progress(text(rawProgress.get("flag"), null), text(rawProgress.get("item"), null),
+                    ignoreExisting(rawProgress, where + ".progress"), (int) Questline.number(rawProgress.get("max"), 0), text(rawProgress.get("label"), null));
+            if (progress.flag() != null && progress.item() != null) warn(where + ".progress", "both flag and item: the flag is used");
+        } else if (rawProgress != null) {
+            warn(where + ".progress", "needs flag or item: no progress is shown");
         }
         Map<String, List<Line>> talk = new LinkedHashMap<>();
         Map<?, ?> rawTalk = map(raw.get("talk"));
@@ -212,6 +215,13 @@ public final class QuestlineParser {
         if (raw.get("on-event") != null) return raw.get("on-event");
         if (raw.get("on") != null) return raw.get("on");
         return raw.get(Boolean.TRUE);
+    }
+
+    /** existing: count (the default: what the player had before the step counts too) / ignore (only what they get after). */
+    private boolean ignoreExisting(Map<?, ?> raw, String where) {
+        String existing = text(raw.get("existing"), "count").toLowerCase(Locale.ROOT);
+        if (!existing.equals("count") && !existing.equals("ignore")) warn(where, "existing '" + existing + "' is not count / ignore: count is used");
+        return existing.equals("ignore");
     }
 
     private Map<String, FlagSpec> flags(Object raw, String where) {
@@ -291,6 +301,7 @@ public final class QuestlineParser {
             warn(where, type + " needs '" + needs + "': it never holds");
             return new Cond(NEVER, Map.of(), List.of());
         }
+        if (type.equals("item")) ignoreExisting(raw, where);
         if (type.equals("event")) {
             String event = raw.get("event").toString().toLowerCase(Locale.ROOT);
             if (!QuestEvent.KNOWN.containsKey(event)) warn(where, "event '" + event + "' is not supported by the plugin: it never happens");
