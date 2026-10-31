@@ -52,6 +52,26 @@ public final class QuestlineEngine {
         void finished(Questline line, Questline.End end);
 
         void warn(String message);
+
+        /** A line was put on hold by another ({@code by}: the line that started or came back). */
+        default void held(Questline line, Questline by) {
+        }
+
+        /** A line held by an exclusive one goes on again, now that it ended or stopped. */
+        default void released(Questline line) {
+        }
+    }
+
+    /** The NPCs a line is offered by besides its start.npc (set in the game: npcs.yml quests:). */
+    private java.util.function.Function<String, Set<String>> assignedNpcs = line -> Set.of();
+
+    public void setAssignedNpcs(java.util.function.Function<String, Set<String>> assignedNpcs) {
+        this.assignedNpcs = assignedNpcs == null ? line -> Set.of() : assignedNpcs;
+    }
+
+    /** True when the NPC offers the line (its start.npc, or set on the NPC in the game). */
+    public boolean offeredBy(Questline line, String npc) {
+        return npc.equals(line.start().npc()) || assignedNpcs.apply(line.id()).contains(npc);
     }
 
     private final Map<String, Questline> lines;
@@ -115,6 +135,7 @@ public final class QuestlineEngine {
     public boolean canStart(QuestlineData data, Game game, String id) {
         Questline line = lines.get(id);
         if (line == null) return false;
+        if (exclusiveRunning(data, id) != null) return false;
         LineState old = data.line(id);
         if (old != null && (old.status == Status.ACTIVE || old.status == Status.PAUSED || !line.repeatable())) return false;
         return allHold(new Run(data, game), line, line.start().when(), null);
@@ -124,7 +145,7 @@ public final class QuestlineEngine {
     public List<Questline> offers(QuestlineData data, Game game, String npc) {
         List<Questline> out = new ArrayList<>();
         for (Questline line : lines.values()) {
-            if (npc.equals(line.start().npc()) && canStart(data, game, line.id())) out.add(line);
+            if (offeredBy(line, npc) && canStart(data, game, line.id())) out.add(line);
         }
         return out;
     }
@@ -136,6 +157,39 @@ public final class QuestlineEngine {
             Questline line = lines.get(entry.getKey());
             Step step = line == null ? null : line.step(entry.getValue().step);
             if (step != null && mentions(step, npc)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * True when talking to the NPC now would finish an active line: a transition of its current step to an end step
+     * (complete) waits on talking to or giving to this NPC, and everything else it needs holds already (for a give: the
+     * player has the items).
+     */
+    public boolean ready(QuestlineData data, Game game, String npc) {
+        Run run = new Run(data, game);
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getValue().status != Status.ACTIVE || entry.getValue().waitingCutscene != null) continue;
+            Questline line = lines.get(entry.getKey());
+            Step step = line == null ? null : line.step(entry.getValue().step);
+            if (step == null) continue;
+            for (Transition transition : step.transitions()) {
+                Step to = line.step(transition.to());
+                if (to == null || to.end() != Questline.End.COMPLETE) continue;
+                QuestEvent event = null;
+                for (Cond condition : transition.when()) {
+                    if (!condition.type().equals("event") || !npc.equals(condition.string("npc"))) continue;
+                    if ("npc-talk".equals(condition.string("event"))) {
+                        event = QuestEvent.of("npc-talk", "npc", npc);
+                    } else if ("item-give".equals(condition.string("event"))) {
+                        int amount = (int) condition.number("amount", 1);
+                        if (game.itemCount(condition.string("item")) >= amount) {
+                            event = QuestEvent.of("item-give", "npc", npc, "item", condition.string("item"), "amount", amount);
+                        }
+                    }
+                }
+                if (event != null && allHold(run, line, transition.when(), event)) return true;
+            }
         }
         return false;
     }
@@ -159,7 +213,7 @@ public final class QuestlineEngine {
     public List<String> usesOf(String npc) {
         List<String> out = new ArrayList<>();
         for (Questline line : lines.values()) {
-            if (npc.equals(line.start().npc())) out.add(line.id() + " 開始");
+            if (offeredBy(line, npc)) out.add(line.id() + " 開始");
             for (Step step : line.steps().values()) {
                 if (!mentions(step, npc)) continue;
                 boolean give = eventConditions(step).stream().anyMatch(c -> "item-give".equals(c.string("event")) && npc.equals(c.string("npc")));
@@ -206,19 +260,70 @@ public final class QuestlineEngine {
         return true;
     }
 
-    public boolean pause(QuestlineData data, String id) {
+    /** Puts a line on hold by hand (the lines an exclusive one held go on again). */
+    public boolean pause(QuestlineData data, Game game, String id) {
         LineState state = data.line(id);
         if (state == null || state.status != Status.ACTIVE) return false;
         state.status = Status.PAUSED;
+        state.pausedBy = null;
+        release(data, game, id);
         return true;
     }
 
+    /**
+     * Takes a line off hold. Not while an exclusive line runs; a main line puts the running main line on hold, an
+     * exclusive one every running line.
+     */
     public boolean resume(QuestlineData data, Game game, String id) {
         LineState state = data.line(id);
-        if (state == null || state.status != Status.PAUSED) return false;
+        Questline line = lines.get(id);
+        if (state == null || line == null || state.status != Status.PAUSED) return false;
+        if (exclusiveRunning(data, id) != null) return false;
+        hold(data, game, line);
         state.status = Status.ACTIVE;
+        state.pausedBy = null;
         evaluate(data, game);
         return true;
+    }
+
+    /** The exclusive line running now other than {@code except}, or null. */
+    public String exclusiveRunning(QuestlineData data, String except) {
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getKey().equals(except) || entry.getValue().status != Status.ACTIVE) continue;
+            Questline other = lines.get(entry.getKey());
+            if (other != null && other.exclusive()) return entry.getKey();
+        }
+        return null;
+    }
+
+    /** Before {@code line} runs: an exclusive line holds every running line (and takes them back later); a main line holds the running main line. */
+    private void hold(QuestlineData data, Game game, Questline line) {
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getKey().equals(line.id()) || entry.getValue().status != Status.ACTIVE) continue;
+            Questline other = lines.get(entry.getKey());
+            if (other == null) continue;
+            if (line.exclusive()) {
+                entry.getValue().status = Status.PAUSED;
+                entry.getValue().pausedBy = line.id();
+                game.held(other, line);
+            } else if (line.main() && other.main()) {
+                entry.getValue().status = Status.PAUSED;
+                entry.getValue().pausedBy = null;
+                game.held(other, line);
+            }
+        }
+    }
+
+    /** The lines {@code id} held go on again (it ended, stopped or was put on hold). */
+    private void release(QuestlineData data, Game game, String id) {
+        for (var entry : data.lines().entrySet()) {
+            LineState state = entry.getValue();
+            if (state.status != Status.PAUSED || !id.equals(state.pausedBy)) continue;
+            state.pausedBy = null;
+            state.status = Status.ACTIVE;
+            Questline other = lines.get(entry.getKey());
+            if (other != null) game.released(other);
+        }
     }
 
     /** Writes a flag ({@code lineId} null: a shared one; value null clears it) and lets the lines settle. */
@@ -380,6 +485,7 @@ public final class QuestlineEngine {
     private void finish(Run run, Questline line, LineState state, Questline.End end) {
         state.status = end == Questline.End.COMPLETE ? Status.COMPLETED : Status.FAILED;
         state.waitingCutscene = null;
+        release(run.data, run.game, line.id());
         if (end == Questline.End.COMPLETE) state.runs++;
         run.changed = true;
         run.game.finished(line, end);
@@ -399,8 +505,10 @@ public final class QuestlineEngine {
         if (old != null && (old.status == Status.ACTIVE || old.status == Status.PAUSED)) return false;
         if (!force) {
             if (old != null && !line.repeatable()) return false;
+            if (exclusiveRunning(run.data, id) != null) return false;
             if (!allHold(run, line, line.start().when(), null)) return false;
         }
+        hold(run.data, run.game, line);
         LineState state = new LineState(Status.ACTIVE, line.initial(), run.game.now());
         state.runs = old == null ? 0 : old.runs;
         run.data.lines().put(id, state);
@@ -413,7 +521,7 @@ public final class QuestlineEngine {
     private boolean autoStart(Run run) {
         boolean any = false;
         for (Questline line : lines.values()) {
-            if (line.start().npc() != null || run.data.line(line.id()) != null) continue;
+            if (line.start().npc() != null || !assignedNpcs.apply(line.id()).isEmpty() || run.data.line(line.id()) != null) continue;
             if (start(run, line.id(), false)) any = true;
         }
         return any;

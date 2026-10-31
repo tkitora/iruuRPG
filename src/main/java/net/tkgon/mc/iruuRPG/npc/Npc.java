@@ -49,6 +49,8 @@ public final class Npc {
     private float yaw;
     private Look look;
     private final List<String> idle = new ArrayList<>();
+    /** The quest lines this NPC offers besides those whose start.npc names it (chosen in /npc edit). */
+    private final List<String> quests = new ArrayList<>();
 
     public Npc(String id, String name, Location at, Look look) {
         this.id = id;
@@ -124,6 +126,10 @@ public final class Npc {
 
     public List<String> idle() {
         return idle;
+    }
+
+    public List<String> quests() {
+        return quests;
     }
 
     /** The chunk it stands in (chunk x, chunk z). */

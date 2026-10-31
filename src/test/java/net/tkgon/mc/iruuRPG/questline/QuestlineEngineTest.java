@@ -239,7 +239,7 @@ class QuestlineEngineTest {
         QuestlineData data = new QuestlineData();
         FakeGame game = new FakeGame();
         engine.setStep(data, game, "boar_hunt", "kill");
-        assertTrue(engine.pause(data, "boar_hunt"));
+        assertTrue(engine.pause(data, game, "boar_hunt"));
         engine.fire(data, game, QuestEvent.of("mob-kill", "mob", "wild_boar"));
         assertNull(data.line("boar_hunt").flags.get("boar_kills"));
         assertTrue(engine.resume(data, game, "boar_hunt"));
@@ -301,6 +301,57 @@ class QuestlineEngineTest {
         engine.fire(data, game, QuestEvent.of("item-give", "npc", "atlas_smith", "item", "iron_ore", "amount", 3));
         assertEquals(Status.COMPLETED, data.line("deliver").status);
         assertFalse(engine.waitsOn(data, "atlas_smith"));
+    }
+
+    private static Questline line(String yamlText) {
+        Map<?, ?> raw = yaml(yamlText);
+        return QuestlineParser.parse(raw.get("id").toString(), raw, Set.of(), new ArrayList<>());
+    }
+
+    @Test
+    void oneMainAtATimeAndAnExclusiveLineHoldsTheOthersUntilItEnds() {
+        String steps = "start: { npc: giver }\ninitial: a\nsteps:\n  a: { transitions: [ { to: z, when: { type: event, event: npc-talk, npc: n } } ] }\n  z: { end: complete }\n";
+        Questline main1 = line("id: main1\ncategory: main\n" + steps);
+        Questline main2 = line("id: main2\ncategory: main\n" + steps);
+        Questline side = line("id: side\ncategory: sub\n" + steps);
+        Questline scene = line("id: scene\ncategory: sub\nstart: { npc: giver }\ninitial: a\nsteps:\n  a:\n    enter: [ { type: cutscene, id: intro, wait: false } ]\n"
+                + "    transitions: [ { to: z, when: { type: event, event: npc-talk, npc: m } } ]\n  z: { end: complete }\n");
+        assertTrue(scene.exclusive(), "a cutscene makes a line exclusive (priority auto)");
+        assertFalse(side.exclusive());
+        assertTrue(line("id: p\npriority: parallel\n" + steps.replace("initial", "category: sub\ninitial")).exclusive() == false);
+        QuestlineEngine engine = new QuestlineEngine(Map.of("main1", main1, "main2", main2, "side", side, "scene", scene), QuestlineParser.FlagBook.EMPTY);
+        QuestlineData data = new QuestlineData();
+        FakeGame game = new FakeGame();
+
+        engine.start(data, game, "main1", false);
+        engine.start(data, game, "side", false);
+        engine.start(data, game, "main2", false);
+        assertEquals(Status.PAUSED, data.line("main1").status, "a new main line holds the old one");
+        assertEquals(Status.ACTIVE, data.line("side").status, "a sub line runs beside it ");
+
+        engine.start(data, game, "scene", false);
+        assertEquals(Status.PAUSED, data.line("main2").status);
+        assertEquals(Status.PAUSED, data.line("side").status);
+        assertFalse(engine.resume(data, game, "main1"), "nothing comes back while the exclusive line runs");
+        engine.fire(data, game, QuestEvent.of("npc-talk", "npc", "m"));
+        assertEquals(Status.COMPLETED, data.line("scene").status);
+        assertEquals(Status.ACTIVE, data.line("main2").status, "what it held goes on again");
+        assertEquals(Status.ACTIVE, data.line("side").status);
+        assertEquals(Status.PAUSED, data.line("main1").status, "the main line held by a newer main stays held");
+    }
+
+    @Test
+    void anNpcIsReadyWhenTalkingToItFinishesALine() {
+        QuestlineEngine engine = engine(new ArrayList<>(), BOAR_HUNT);
+        QuestlineData data = new QuestlineData();
+        FakeGame game = new FakeGame();
+        engine.setStep(data, game, "boar_hunt", "kill");
+        assertFalse(engine.ready(data, game, "atlas_farmer"));
+        assertTrue(engine.waitsOn(data, "atlas_farmer") == false);
+        engine.setStep(data, game, "boar_hunt", "report");
+        assertTrue(engine.ready(data, game, "atlas_farmer"));
+        engine.setAssignedNpcs(line -> line.equals("boar_hunt") ? Set.of("someone") : Set.of());
+        assertTrue(engine.offeredBy(engine.line("boar_hunt"), "someone"));
     }
 
     @Test

@@ -164,6 +164,9 @@ public final class QuestLogMenu implements Listener {
             if (questlines.resume(player, id)) {
                 player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.8f, 1.2f);
                 player.sendMessage(Component.text("[クエスト] 再開した。", NamedTextColor.AQUA));
+            } else {
+                String running = questlines.exclusiveName(player, id);
+                if (running != null) player.sendMessage(Component.text("[クエスト] 「" + running + "」の途中なので、今は再開できない。", NamedTextColor.GRAY));
             }
             open(player, Tab.PAUSED);
         }

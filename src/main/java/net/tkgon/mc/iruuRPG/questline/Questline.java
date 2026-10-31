@@ -12,6 +12,7 @@ public record Questline(
         String id,
         String name,
         String category,
+        boolean exclusive,
         List<String> description,
         boolean repeatable,
         Start start,
@@ -19,6 +20,11 @@ public record Questline(
         String initial,
         Map<String, Step> steps
 ) {
+
+    /** A main line: only one runs at a time (starting another puts the running one on hold). */
+    public boolean main() {
+        return "main".equals(category);
+    }
 
     public Step step(String stepId) {
         return stepId == null ? null : steps.get(stepId);
@@ -48,8 +54,8 @@ public record Questline(
 
     public enum End { COMPLETE, FAIL }
 
-    /** "3 / 5" on the menu: the value of a flag against a maximum. */
-    public record Progress(String flag, int max) {
+    /** "3 / 5" on the menu: the value of a flag against a maximum; label is what the chat says it counts ("討伐:イノシシ"). */
+    public record Progress(String flag, int max, String label) {
     }
 
     /** One line of talk: an NPC id, "narration" or "player", the text and how long it stays (-1 = from its length). */
