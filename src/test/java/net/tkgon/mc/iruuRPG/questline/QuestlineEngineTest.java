@@ -414,6 +414,39 @@ class QuestlineEngineTest {
     }
 
     @Test
+    void clientIsTheNpcThePlayerTookTheLineFrom() {
+        Questline errand = line("""
+                id: errand
+                initial: ask
+                steps:
+                  ask:
+                    talk:
+                      client: [ { speaker: client, text: "頼んだよ" } ]
+                    transitions: [ { to: z, when: { type: event, event: npc-talk, npc: client } } ]
+                  z: { end: complete }
+                """);
+        QuestlineEngine engine = new QuestlineEngine(Map.of("errand", errand), QuestlineParser.FlagBook.EMPTY);
+        engine.setAssignedNpcs(line -> Set.of("baker", "smith"));
+        FakeGame game = new FakeGame();
+        QuestlineData data = new QuestlineData();
+        assertEquals(1, engine.offers(data, game, "baker").size(), "every NPC it was given to offers it");
+        assertEquals(1, engine.offers(data, game, "smith").size());
+        assertTrue(engine.usesOf("smith").contains("errand › ask (話す)"));
+
+        engine.start(data, game, "errand", false, "smith");
+        assertEquals("smith", data.line("errand").client);
+        assertTrue(engine.talk(data, "baker").isEmpty(), "only the client talks");
+        assertEquals("smith", engine.talk(data, "smith").get(0).speaker(), "speaker client is the client");
+        assertTrue(engine.waitsOn(data, "smith"));
+        assertFalse(engine.waitsOn(data, "baker"));
+        engine.fire(data, game, QuestEvent.of("npc-talk", "npc", "baker"));
+        assertEquals("ask", data.line("errand").step);
+        assertTrue(engine.ready(data, game, "smith"));
+        engine.fire(data, game, QuestEvent.of("npc-talk", "npc", "smith"));
+        assertEquals(Status.COMPLETED, data.line("errand").status);
+    }
+
+    @Test
     void anAreaEventMatchesTheSameArea() {
         Questline.Cond filter = new Questline.Cond("event", Map.of("event", "area-enter", "world", "world", "x", 10, "y", 64, "z", -5, "radius", 4), List.of());
         QuestEvent inside = QuestEvent.of("area-enter", "area", QuestEvent.areaKey(filter.args()));
