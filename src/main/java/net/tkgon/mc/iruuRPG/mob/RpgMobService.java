@@ -166,10 +166,17 @@ public final class RpgMobService {
         return applyDamage(entity, damage, null);
     }
 
+    /** The mobs guarding now (BT decorator guard) and when each last pushed an attacker back. */
+    private final Map<UUID, net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost.Guard> guards = new HashMap<>();
+    private final Map<UUID, Integer> guardRecoilAt = new HashMap<>();
+    private static final double GUARD_RECOIL_REACH = 6.0;
+
     public boolean applyDamage(LivingEntity entity, double damage, Player attacker) {
         MobRuntime runtime = runtime(entity);
         if (runtime == null) return false;
         if (damage <= 0.0) return true;
+        var guard = guards.get(entity.getUniqueId());
+        if (guard != null) damage = guarded(entity, guard, damage, attacker);
 
         PlayerProfile profile = runtime.profile();
         double beforeHp = profile.currentHp();
@@ -184,8 +191,28 @@ public final class RpgMobService {
         applyHealth(entity, profile);
         updateName(entity);
         // (the damage of the game's mobs goes round the vanilla damage event, so the model is told here)
-        if (models != null && !runtime.definition().model().isEmpty()) hitPoise(entity, runtime, beforeHp - profile.currentHp());
+        if (guard == null && models != null && !runtime.definition().model().isEmpty()) hitPoise(entity, runtime, beforeHp - profile.currentHp());
         return true;
+    }
+
+    /**
+     * A hit on a guarding mob: the damage is cut, a shield sound and sparks show the block, and the attacker (if close)
+     * is pushed back a little, at most once per the guard's recoil time.
+     */
+    private double guarded(LivingEntity entity, net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost.Guard guard, double damage, Player attacker) {
+        Location at = entity.getLocation().add(0.0, entity.getHeight() * 0.6, 0.0);
+        entity.getWorld().playSound(at, org.bukkit.Sound.ITEM_SHIELD_BLOCK, 0.8f, 0.9f);
+        net.tkgon.mc.iruuRPG.combat.ParticleFx.to(entity.getWorld()).spawnParticle(org.bukkit.Particle.CRIT, at, 8, 0.3, 0.3, 0.3, 0.1);
+        int now = Bukkit.getCurrentTick();
+        if (attacker != null && attacker.getWorld().equals(entity.getWorld())
+                && attacker.getLocation().distanceSquared(entity.getLocation()) <= GUARD_RECOIL_REACH * GUARD_RECOIL_REACH
+                && now - guardRecoilAt.getOrDefault(entity.getUniqueId(), Integer.MIN_VALUE / 2) >= guard.recoilTicks()) {
+            guardRecoilAt.put(entity.getUniqueId(), now);
+            Vector away = attacker.getLocation().toVector().subtract(entity.getLocation().toVector()).setY(0.0);
+            if (away.lengthSquared() > 1.0E-6) away.normalize().multiply(guard.power());
+            attacker.setVelocity(attacker.getVelocity().add(away.setY(guard.lift())));
+        }
+        return damage * (1.0 - guard.reduction());
     }
 
     /**
@@ -367,6 +394,8 @@ public final class RpgMobService {
         skillStarted.remove(uuid);
         behaviors.remove(uuid);
         poise.forget(uuid);
+        guards.remove(uuid);
+        guardRecoilAt.remove(uuid);
         flinchUntil.remove(uuid);
         removeStatusDisplay(uuid);
         dismissMinions(uuid);
@@ -805,6 +834,12 @@ public final class RpgMobService {
         private BtHost(Mob mob, Location home) {
             this.mob = mob;
             this.home = home;
+        }
+
+        @Override
+        public void guard(net.tkgon.mc.iruuRPG.mob.behavior.BehaviorHost.Guard guard) {
+            if (guard == null) guards.remove(mob.getUniqueId());
+            else guards.put(mob.getUniqueId(), guard);
         }
 
         @Override

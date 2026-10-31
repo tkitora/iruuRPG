@@ -161,4 +161,16 @@ public interface BehaviorHost {
 
     /** Other mobs of the same kind of behavior near {@code at} (for tests that keep away from the crowd). */
     int crowdNear(Location at, double radius);
+
+    /**
+     * A guard while a node with the decorator {@code guard} runs: the damage the mob takes is cut by {@code reduction}
+     * (0.6 = 60 %), a player hitting it is pushed back a little ({@code power} sideways, {@code lift} up; at most once per
+     * {@code recoilTicks}), and it does not flinch.
+     */
+    record Guard(double reduction, double power, double lift, int recoilTicks) {
+    }
+
+    /** Raises the guard (null lowers it). */
+    default void guard(Guard guard) {
+    }
 }

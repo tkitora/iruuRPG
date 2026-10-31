@@ -306,6 +306,29 @@ final class Decorators {
         }
     }
 
+    /**
+     * The mob guards while the node runs ({@link BehaviorHost#guard}): less damage, attackers pushed back, no flinching.
+     * It raises the guard when the node is entered and lowers it when the node ends or is stopped.
+     */
+    static final class Guard extends Decorator {
+        private final BehaviorHost.Guard guard;
+
+        Guard(BehaviorHost.Guard guard) {
+            this.guard = guard;
+            this.label = "guard " + Math.round(guard.reduction() * 100) + "%";
+        }
+
+        @Override
+        void entered(Ctx c, Node node) {
+            c.host.guard(guard);
+        }
+
+        @Override
+        void left(Ctx c, Node node) {
+            c.host.guard(null);
+        }
+    }
+
     /** Turns success into failure and failure into success. */
     static final class Inverter extends Decorator {
         Inverter() {

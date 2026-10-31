@@ -116,6 +116,7 @@ fsm:
 | `time-limit` | `seconds` | 動き続けたら失敗にして止める |
 | `not` | | 成功と失敗を入れ替える |
 | `force-success` | | 結果を成功にする。同じノードの条件 (`distance` など) が合わずに入れなかったとき、条件や `time-limit` で止まったときも成功になる (「できればやる、できなくても先へ進む」) |
+| `guard` | `reduction` (0.6 = 60%), `recoil: {power, lift}`, `recoil-cooldown` (秒) | ガード。付けたノードが動いている間だけ、受けるダメージを `reduction` の割合だけ減らし、攻撃してきたプレイヤー (6 ブロック以内) を少しのけぞらせる (`recoil-cooldown` 秒に 1 回)。ガード中はひるまない (poise が溜まらない)。盾の音と火花が出る。ノードが終わる・止まると解ける |
 `abort: self` は、条件が成り立たなくなったら動いているノードを止める。`abort: lower` は、`selector` の上の子で使い、成り立った瞬間に下の子を止める(`both` は両方)。
 
 ### Service (`services:` に並べる。動いている間、`interval` 秒ごとに実行)

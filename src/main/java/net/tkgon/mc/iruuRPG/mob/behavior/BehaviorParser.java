@@ -308,6 +308,12 @@ final class BehaviorParser {
             case "time-limit" -> decorator = new Decorators.TimeLimit(Cfg.ticks(map, "seconds", 5.0));
             case "not", "inverter" -> decorator = new Decorators.Inverter();
             case "force-success" -> decorator = new Decorators.ForceSuccess();
+            case "guard" -> {
+                Map<?, ?> recoil = map.get("recoil") instanceof Map<?, ?> inner ? inner : Map.of();
+                double reduction = Math.max(0.0, Math.min(0.95, Cfg.number(map, "reduction", 0.6)));
+                decorator = new Decorators.Guard(new BehaviorHost.Guard(reduction, Math.max(0.0, Cfg.number(recoil, "power", 0.5)),
+                        Math.max(0.0, Cfg.number(recoil, "lift", 0.1)), Math.max(1, Cfg.ticks(map, "recoil-cooldown", 0.2))));
+            }
             default -> {
                 error("unknown decorator '" + type + "'");
                 return;
