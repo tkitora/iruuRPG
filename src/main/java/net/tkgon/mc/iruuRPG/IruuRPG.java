@@ -127,6 +127,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.questline.QuestlineService questlineService;
     private net.tkgon.mc.iruuRPG.npc.NpcService npcService;
     private net.tkgon.mc.iruuRPG.questline.QuestMobs questMobs;
+    private net.tkgon.mc.iruuRPG.cutscene.CutsceneService cutsceneService;
     private net.tkgon.mc.iruuRPG.npc.NpcEditor npcEditor;
     private QuestBoardMenu questBoardMenu;
     private CraftRegistry craftRegistry;
@@ -305,6 +306,9 @@ public final class IruuRPG extends JavaPlugin {
         this.questlineService = new net.tkgon.mc.iruuRPG.questline.QuestlineService(this, profileManager, itemIdentifier, itemRegistry, itemFactory, levelService);
         this.questlineService.reload();
         this.questlineService.start();
+        this.cutsceneService = new net.tkgon.mc.iruuRPG.cutscene.CutsceneService(this);
+        this.cutsceneService.sweep();
+        this.questlineService.setCutscenes(cutsceneService);
         this.levelService.setLevelUpHook(questlineService::onLevelUp);
         this.mobService.setKillHook((player, mobId) -> {
             questService.onMobKilled(player, mobId);
@@ -468,6 +472,9 @@ public final class IruuRPG extends JavaPlugin {
         if (questMobs != null) {
             questMobs.shutdown();
         }
+        if (cutsceneService != null) {
+            cutsceneService.shutdown();
+        }
         if (npcEditor != null) {
             npcEditor.shutdown();
         }
@@ -545,6 +552,7 @@ public final class IruuRPG extends JavaPlugin {
         this.questMobs.setModels(modelModule);
         net.tkgon.mc.iruuRPG.questline.QuestMobs.setParties(partyService);
         getServer().getPluginManager().registerEvents(questMobs, this);
+        getServer().getPluginManager().registerEvents(cutsceneService, this);
         this.questMobs.start();
         PluginCommand npcCommand = getCommand("npc");
         if (npcCommand != null) {
@@ -639,6 +647,7 @@ public final class IruuRPG extends JavaPlugin {
         PluginCommand questAdminCommand = getCommand("questadmin");
         if (questAdminCommand != null) {
             var questAdmin = new net.tkgon.mc.iruuRPG.questline.QuestAdminCommand(questlineService);
+            questAdmin.setCutscenes(cutsceneService);
             questAdminCommand.setExecutor(questAdmin);
             questAdminCommand.setTabCompleter(questAdmin);
         }

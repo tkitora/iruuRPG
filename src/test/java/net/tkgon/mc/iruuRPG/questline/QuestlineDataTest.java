@@ -19,6 +19,7 @@ class QuestlineDataTest {
         state.flags.put("boar_kills", 3L);
         state.flags.put("talked_wife", true);
         state.runs = 2;
+        state.waitingCutscene = "farm_intro";
         data.lines().put("boar_hunt", state);
         data.flags().put("atlas_trusted", true);
 
@@ -35,6 +36,7 @@ class QuestlineDataTest {
         assertEquals("kill", back.step);
         assertEquals(1234L, back.stepSince);
         assertEquals(2, back.runs);
+        assertEquals("farm_intro", back.waitingCutscene, "a player who left during a cutscene sees it again");
         assertEquals(3L, Questline.number(back.flags.get("boar_kills"), 0) == 3 ? 3L : -1L);
         assertEquals(true, back.flags.get("talked_wife"));
         assertEquals(true, read.flags().get("atlas_trusted"));

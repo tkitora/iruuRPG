@@ -25,9 +25,14 @@ import java.util.Set;
  */
 public final class QuestAdminCommand implements CommandExecutor, TabCompleter {
 
-    private static final List<String> SUBCOMMANDS = List.of("info", "start", "step", "flag", "pause", "resume", "reset", "talk", "event", "reload", "warnings");
+    private static final List<String> SUBCOMMANDS = List.of("info", "start", "step", "flag", "pause", "resume", "reset", "talk", "event", "cutscene", "reload", "warnings");
 
     private final QuestlineService service;
+    private net.tkgon.mc.iruuRPG.cutscene.CutsceneService cutscenes;
+
+    public void setCutscenes(net.tkgon.mc.iruuRPG.cutscene.CutsceneService cutscenes) {
+        this.cutscenes = cutscenes;
+    }
 
     public QuestAdminCommand(QuestlineService service) {
         this.service = service;
@@ -96,6 +101,22 @@ public final class QuestAdminCommand implements CommandExecutor, TabCompleter {
                         done ? NamedTextColor.GREEN : NamedTextColor.YELLOW));
             }
             case "reset" -> reset(sender, target, args);
+            case "cutscene" -> {
+                if (args.length < 3 || cutscenes == null) {
+                    usage(sender);
+                    return true;
+                }
+                if (args[2].equalsIgnoreCase("stop")) {
+                    cutscenes.stop(target, true);
+                    return true;
+                }
+                if (!cutscenes.exists(args[2])) {
+                    sender.sendMessage(Component.text("[クエスト] cutscenes/" + args[2] + ".yml がありません。", NamedTextColor.RED));
+                    return true;
+                }
+                cutscenes.play(target, args[2], done -> sender.sendMessage(Component.text("[クエスト] カットシーン " + args[2]
+                        + (done ? " が終わりました。" : " は途中で終わりました。"), NamedTextColor.GRAY)));
+            }
             case "talk" -> {
                 if (args.length < 3) {
                     usage(sender);
@@ -223,6 +244,7 @@ public final class QuestAdminCommand implements CommandExecutor, TabCompleter {
                 /questadmin reset <player> <line|all> [confirm]
                 /questadmin talk <player> <npc>
                 /questadmin event <player> <event> [key=value ...]
+                /questadmin cutscene <player> <id|stop>
                 /questadmin reload | warnings""", NamedTextColor.GRAY));
     }
 
