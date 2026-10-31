@@ -29,7 +29,7 @@ import java.util.TreeSet;
 public final class BgmRegistry {
 
     /** The songs inside the jar ({@code bgm/<id>.nbs}). */
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2", "circuit_phase1", "circuit_phase2", "cloud_light", "cloud_remembered");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2", "circuit_phase1", "circuit_phase2", "cloud_light", "cloud_remembered", "gate_gravity");
 
     /** A song read from a file; kept while the file is unchanged, so a reload does not make a playing song start over. */
     private record Read(long length, long modified, NbsSong song) {

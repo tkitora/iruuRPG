@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2", "circuit_phase1", "circuit_phase2", "cloud_light", "cloud_remembered");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2", "circuit_phase1", "circuit_phase2", "cloud_light", "cloud_remembered", "gate_gravity");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -575,10 +575,30 @@ class BgmTest {
     }
 
     @Test
+    void theGateSongIsDeepHasADipWithoutBassAndAClimaxOverADPedal() throws IOException {
+        NbsSong song = bundled("gate_gravity");
+        assertEquals("The Gate Where Gravity Turns (Dungeon004)", song.title());
+        assertEquals(832, song.length());
+        assertEquals(20.0 / 3.0, song.ticksPerSecond(), 1.0E-9, "100 BPM");
+        int dip = 14 * 16;       // intro 4 bars + A 10 bars, then the dip of 4 bars
+        int climax = 26 * 16;    // ... + the rise of 8 bars, then the climax of 8 bars
+        int deep = 0;
+        for (int i = 0; i < song.noteCount(); i++) {
+            NbsSong.Note note = song.note(i);
+            int sound = sounding(note.instrument(), note.key());
+            assertTrue(note.instrument() != 6 && note.instrument() != 7 && note.instrument() != 8, "no flute, bell or chime: it is a deep piece");
+            if (note.instrument() == 1 || note.instrument() == 12) deep++;
+            if (note.tick() >= dip && note.tick() < dip + 4 * 16) assertTrue(note.instrument() != 1 && note.instrument() != 12, "the bass is gone in the dip");
+            if (note.tick() >= climax && note.tick() < climax + 8 * 16 && (note.instrument() == 1 || note.instrument() == 12)) assertEquals(38, sound, "the climax stands on a D pedal");
+        }
+        assertTrue(deep * 3 >= song.noteCount(), "a third of the notes are the bass and the drone (" + deep + " of " + song.noteCount() + ")");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(25, registry.songs().size());
+        assertEquals(26, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -618,7 +638,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(25, registry.songs().size());
+        assertEquals(26, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
