@@ -547,6 +547,13 @@ public final class DungeonService implements Listener {
         if (player.isOnline()) player.teleport(home == null ? fallback() : home);
     }
 
+    private java.util.function.BiConsumer<Player, String> clearHook;
+
+    /** What runs for every player in a dungeon when it is cleared (player, dungeon id): the quest lines. */
+    public void setClearHook(java.util.function.BiConsumer<Player, String> clearHook) {
+        this.clearHook = clearHook;
+    }
+
     private void clear(Instance instance) {
         if (instance.state != State.ACTIVE) return;
         instance.state = State.CLEARED;
@@ -569,6 +576,13 @@ public final class DungeonService implements Listener {
                 if (definition.rewardXp() > 0) levelService.addXp(player, definition.rewardXp());
             }
             bgm().endScene(player, MUSIC_CLEAR_FADE); // (the boss is down: the music fades away)
+            if (clearHook != null) {
+                try {
+                    clearHook.accept(player, definition.id());
+                } catch (RuntimeException e) {
+                    plugin.getLogger().log(java.util.logging.Level.WARNING, "dungeon: the clear hook failed", e);
+                }
+            }
             String sub = room ? "5秒後に移動" : "";
             player.showTitle(Title.title(Component.text("CLEAR!", NamedTextColor.GOLD, TextDecoration.BOLD),
                     Component.text(sub, NamedTextColor.YELLOW),

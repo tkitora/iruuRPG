@@ -1,0 +1,611 @@
+package net.tkgon.mc.iruuRPG.questline;
+
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.title.Title;
+import net.tkgon.mc.iruuRPG.item.ItemIdentifier;
+import net.tkgon.mc.iruuRPG.item.RpgItemFactory;
+import net.tkgon.mc.iruuRPG.item.RpgItemRegistry;
+import net.tkgon.mc.iruuRPG.player.LevelService;
+import net.tkgon.mc.iruuRPG.player.PlayerProfile;
+import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
+import net.tkgon.mc.iruuRPG.questline.Questline.Act;
+import net.tkgon.mc.iruuRPG.questline.Questline.Cond;
+import net.tkgon.mc.iruuRPG.questline.Questline.Line;
+import net.tkgon.mc.iruuRPG.questline.QuestlineData.LineState;
+import net.tkgon.mc.iruuRPG.questline.QuestlineData.Status;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Sound;
+import org.bukkit.World;
+import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
+import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
+import org.yaml.snakeyaml.Yaml;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.logging.Level;
+
+/**
+ * The quest lines in the game: reads questlines/*.yml and flags/flags.yml (the yml repository's; the plugin never
+ * writes there), turns what happens to players into {@link QuestEvent}s for the {@link QuestlineEngine}, and does
+ * the actions that touch the game (talk, titles, sounds, items, rewards). Talk is paced per player. A step or status
+ * change is saved at once; flag changes are saved every half minute (and on quit).
+ */
+public final class QuestlineService implements Listener {
+
+    private static final long AREA_PERIOD = 10L;
+    private static final long SETTLE_PERIOD = 20L;
+    private static final long SAVE_PERIOD = 600L;
+    private static final int MAX_LOGGED_WARNINGS = 40;
+
+    private final JavaPlugin plugin;
+    private final PlayerProfileManager profileManager;
+    private final ItemIdentifier itemIdentifier;
+    private final RpgItemRegistry itemRegistry;
+    private final RpgItemFactory itemFactory;
+    private final LevelService levelService;
+    private QuestlineEngine engine = new QuestlineEngine(Map.of(), QuestlineParser.FlagBook.EMPTY);
+    private List<String> lastWarnings = List.of();
+    /** Every area of an area-enter condition, by its key. */
+    private Map<String, Area> areas = Map.of();
+    /** The areas each player is in now (an area event fires when one is entered). */
+    private final Map<UUID, Set<String>> insideAreas = new HashMap<>();
+    private final Map<UUID, Deque<Talk>> talkQueues = new HashMap<>();
+    private final Set<UUID> talking = new HashSet<>();
+    private final Set<UUID> dirty = new HashSet<>();
+    private final List<BukkitTask> tasks = new ArrayList<>();
+    /** The name of a speaker id (the NPCs, when they exist); the id itself until then. */
+    private Function<String, String> speakerNames = id -> id;
+
+    private record Area(String key, String world, double x, double y, double z, double radius) {
+    }
+
+    private record Talk(Component text, long ticks, Runnable after) {
+    }
+
+    public QuestlineService(JavaPlugin plugin, PlayerProfileManager profileManager, ItemIdentifier itemIdentifier,
+                            RpgItemRegistry itemRegistry, RpgItemFactory itemFactory, LevelService levelService) {
+        this.plugin = plugin;
+        this.profileManager = profileManager;
+        this.itemIdentifier = itemIdentifier;
+        this.itemRegistry = itemRegistry;
+        this.itemFactory = itemFactory;
+        this.levelService = levelService;
+    }
+
+    public void setSpeakerNames(Function<String, String> speakerNames) {
+        this.speakerNames = speakerNames == null ? id -> id : speakerNames;
+    }
+
+    public void start() {
+        tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, this::tickAreas, AREA_PERIOD, AREA_PERIOD));
+        tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, this::tickSettle, SETTLE_PERIOD, SETTLE_PERIOD));
+        tasks.add(Bukkit.getScheduler().runTaskTimer(plugin, this::flush, SAVE_PERIOD, SAVE_PERIOD));
+    }
+
+    public void shutdown() {
+        for (BukkitTask task : tasks) task.cancel();
+        tasks.clear();
+        flush();
+    }
+
+    public QuestlineEngine engine() {
+        return engine;
+    }
+
+    public List<String> lastWarnings() {
+        return lastWarnings;
+    }
+
+    // ---- loading ----------------------------------------------------------------------------------------------------
+
+    /** Reads the quest files again. Never throws: what is wrong is logged and left out. Returns the number of lines. */
+    public int reload() {
+        List<String> warnings = new ArrayList<>();
+        QuestlineParser.FlagBook book = QuestlineParser.FlagBook.EMPTY;
+        File flagsFile = new File(plugin.getDataFolder(), "flags/flags.yml");
+        if (flagsFile.isFile()) {
+            Object raw = read(flagsFile, warnings);
+            if (raw instanceof Map<?, ?> map) book = QuestlineParser.parseFlags(map, warnings);
+        }
+        Map<String, Questline> lines = new LinkedHashMap<>();
+        File folder = new File(plugin.getDataFolder(), "questlines");
+        File[] files = folder.listFiles((dir, name) -> name.toLowerCase(Locale.ROOT).endsWith(".yml"));
+        if (files != null) {
+            java.util.Arrays.sort(files);
+            for (File file : files) {
+                String id = file.getName().substring(0, file.getName().length() - 4);
+                Object raw = read(file, warnings);
+                if (!(raw instanceof Map<?, ?> map)) {
+                    if (raw != null) warnings.add("questlines/" + file.getName() + ": not a map");
+                    continue;
+                }
+                try {
+                    Questline line = QuestlineParser.parse(id, map, book.flags().keySet(), warnings);
+                    if (line != null) lines.put(id, line);
+                } catch (RuntimeException e) {
+                    warnings.add("questlines/" + file.getName() + ": could not be read (" + e + ")");
+                }
+            }
+        }
+        engine = new QuestlineEngine(lines, book);
+        areas = collectAreas(lines.values(), book);
+        lastWarnings = List.copyOf(warnings);
+        for (int index = 0; index < warnings.size() && index < MAX_LOGGED_WARNINGS; index++) {
+            plugin.getLogger().warning("quest: " + warnings.get(index));
+        }
+        if (warnings.size() > MAX_LOGGED_WARNINGS) {
+            plugin.getLogger().warning("quest: ... and " + (warnings.size() - MAX_LOGGED_WARNINGS) + " more (/questadmin warnings)");
+        }
+        plugin.getLogger().info("quest: " + lines.size() + " quest line(s), " + book.flags().size() + " shared flag(s)");
+        return lines.size();
+    }
+
+    private Object read(File file, List<String> warnings) {
+        try (Reader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8)) {
+            return new Yaml().load(reader);
+        } catch (IOException | RuntimeException e) {
+            warnings.add(file.getName() + ": not valid yml (" + e.getMessage() + ")");
+            return null;
+        }
+    }
+
+    private static Map<String, Area> collectAreas(java.util.Collection<Questline> lines, QuestlineParser.FlagBook book) {
+        List<Cond> conditions = new ArrayList<>();
+        for (Questline line : lines) {
+            for (Questline.Step step : line.steps().values()) {
+                for (Questline.Transition transition : step.transitions()) conditions.addAll(transition.when());
+                for (Questline.Handler handler : step.on()) conditions.add(handler.event());
+            }
+        }
+        for (Questline.Handler rule : book.rules()) conditions.add(rule.event());
+        Map<String, Area> out = new LinkedHashMap<>();
+        for (Cond condition : QuestlineParser.flatten(conditions)) {
+            if (!condition.type().equals("event") || !"area-enter".equals(condition.string("event"))) continue;
+            String key = QuestEvent.areaKey(condition.args());
+            out.put(key, new Area(key, condition.string("world") == null ? "world" : condition.string("world"),
+                    condition.number("x", 0), condition.number("y", 0), condition.number("z", 0), condition.number("radius", 3)));
+        }
+        return out;
+    }
+
+    // ---- events -----------------------------------------------------------------------------------------------------
+
+    /** Something happened to the player: the quest lines hear it. */
+    public void fire(Player player, QuestEvent event) {
+        if (player == null || !player.isOnline()) return;
+        QuestlineData data = data(player);
+        try {
+            PlayerGame game = new PlayerGame(player);
+            if (engine.fire(data, game, event)) changed(player, game);
+        } catch (RuntimeException e) {
+            plugin.getLogger().log(Level.WARNING, "quest: " + event.name() + " for " + player.getName() + " failed", e);
+        }
+    }
+
+    public void onMobKilled(Player player, String mobId) {
+        fire(player, QuestEvent.of("mob-kill", "mob", mobId));
+    }
+
+    public void onDungeonCleared(Player player, String dungeonId) {
+        fire(player, QuestEvent.of("dungeon-clear", "dungeon", dungeonId));
+    }
+
+    public void onCrafted(Player player, String itemId) {
+        fire(player, QuestEvent.of("craft", "item", itemId));
+    }
+
+    public void onLevelUp(Player player, int level) {
+        fire(player, QuestEvent.of("level-up", "level", level));
+    }
+
+    /**
+     * The player talks to an NPC: the talk of the current steps for it is said (paced), then npc-talk fires. While a
+     * talk is being said, another click on the NPC does nothing.
+     */
+    public void talk(Player player, String npc) {
+        if (talking.contains(player.getUniqueId())) return;
+        List<Line> lines = engine.talk(data(player), npc);
+        for (Line line : lines) say(player, line, null);
+        say(player, null, () -> fire(player, QuestEvent.of("npc-talk", "npc", npc)));
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPickup(EntityPickupItemEvent event) {
+        if (!(event.getEntity() instanceof Player player)) return;
+        ItemStack stack = event.getItem().getItemStack();
+        itemIdentifier.itemId(stack).ifPresent(id -> fire(player, QuestEvent.of("item-pickup", "item", id, "amount", stack.getAmount())));
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        // after the profile is loaded: lines that start by themselves, or moved on while the player was away
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            PlayerGame game = new PlayerGame(player);
+            if (engine.evaluate(data(player), game)) changed(player, game);
+        }, 40L);
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onQuit(PlayerQuitEvent event) {
+        UUID id = event.getPlayer().getUniqueId();
+        insideAreas.remove(id);
+        talkQueues.remove(id);
+        talking.remove(id);
+        dirty.remove(id); // the profile is saved on quit anyway
+    }
+
+    private void tickAreas() {
+        if (areas.isEmpty()) return;
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!hasActive(player)) continue;
+            Set<String> before = insideAreas.computeIfAbsent(player.getUniqueId(), id -> new HashSet<>());
+            Location at = player.getLocation();
+            for (Area area : areas.values()) {
+                boolean inside = at.getWorld() != null && at.getWorld().getName().equals(area.world())
+                        && square(at.getX() - area.x()) + square(at.getY() - area.y()) + square(at.getZ() - area.z()) <= square(area.radius());
+                if (inside && before.add(area.key())) {
+                    fire(player, QuestEvent.of("area-enter", "area", area.key()));
+                } else if (!inside) {
+                    before.remove(area.key());
+                }
+            }
+        }
+    }
+
+    /** Conditions that change without an event (time in the step, items, level) are looked at once a second. */
+    private void tickSettle() {
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            if (!hasActive(player)) continue;
+            PlayerGame game = new PlayerGame(player);
+            try {
+                if (engine.evaluate(data(player), game)) changed(player, game);
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(Level.WARNING, "quest: settling " + player.getName() + " failed", e);
+            }
+        }
+    }
+
+    private boolean hasActive(Player player) {
+        for (LineState state : data(player).lines().values()) {
+            if (state.status == Status.ACTIVE) return true;
+        }
+        return false;
+    }
+
+    private static double square(double value) {
+        return value * value;
+    }
+
+    // ---- saving -----------------------------------------------------------------------------------------------------
+
+    private QuestlineData data(Player player) {
+        return profileManager.getOrCreate(player).questlines();
+    }
+
+    private void changed(Player player, PlayerGame game) {
+        if (game.moved) {
+            profileManager.save(player);
+            dirty.remove(player.getUniqueId());
+        } else {
+            dirty.add(player.getUniqueId());
+        }
+    }
+
+    /** Saves the players whose flags changed since the last save. */
+    public void flush() {
+        for (UUID id : new ArrayList<>(dirty)) {
+            Player player = Bukkit.getPlayer(id);
+            if (player != null) profileManager.save(player);
+        }
+        dirty.clear();
+    }
+
+    public void save(Player player) {
+        profileManager.save(player);
+        dirty.remove(player.getUniqueId());
+    }
+
+    // ---- admin ------------------------------------------------------------------------------------------------------
+
+    public boolean start(Player player, String id, boolean force) {
+        PlayerGame game = new PlayerGame(player);
+        boolean started = engine.start(data(player), game, id, force);
+        if (started) save(player);
+        return started;
+    }
+
+    public boolean setStep(Player player, String id, String step) {
+        boolean done = engine.setStep(data(player), new PlayerGame(player), id, step);
+        if (done) save(player);
+        return done;
+    }
+
+    public boolean writeFlag(Player player, String lineId, String flag, Object value) {
+        boolean done = engine.writeFlag(data(player), new PlayerGame(player), lineId, flag, value);
+        if (done) save(player);
+        return done;
+    }
+
+    public boolean pause(Player player, String id) {
+        boolean done = engine.pause(data(player), id);
+        if (done) save(player);
+        return done;
+    }
+
+    public boolean resume(Player player, String id) {
+        boolean done = engine.resume(data(player), new PlayerGame(player), id);
+        if (done) save(player);
+        return done;
+    }
+
+    /** Forgets the lines (their state and own flags); {@code all} also forgets the shared flags. */
+    public void reset(Player player, java.util.Collection<String> ids, boolean all) {
+        QuestlineData data = data(player);
+        if (all) {
+            data.lines().clear();
+            data.flags().clear();
+        } else {
+            for (String id : ids) data.lines().remove(id);
+        }
+        insideAreas.remove(player.getUniqueId());
+        save(player);
+    }
+
+    public QuestlineData dataOf(Player player) {
+        return data(player);
+    }
+
+    // ---- what the actions do in the game ----------------------------------------------------------------------------
+
+    /** Says one line of talk (or, line null, only runs {@code after} once the lines before it are said). */
+    private void say(Player player, Line line, Runnable after) {
+        Component text = line == null ? null : talkText(player, line);
+        long ticks = line == null ? 0L : line.ticks() >= 0 ? line.ticks() : readTicks(line.text());
+        Deque<Talk> queue = talkQueues.computeIfAbsent(player.getUniqueId(), id -> new ArrayDeque<>());
+        queue.add(new Talk(text, ticks, after));
+        if (talking.add(player.getUniqueId())) nextTalk(player);
+    }
+
+    private void nextTalk(Player player) {
+        Deque<Talk> queue = talkQueues.get(player.getUniqueId());
+        Talk talk = queue == null ? null : queue.poll();
+        if (talk == null || !player.isOnline()) {
+            talking.remove(player.getUniqueId());
+            return;
+        }
+        if (talk.text() != null) {
+            player.sendMessage(talk.text());
+            player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_AMBIENT, 0.25f, 1.4f);
+        }
+        if (talk.after() != null) talk.after().run();
+        Bukkit.getScheduler().runTaskLater(plugin, () -> nextTalk(player), Math.max(1L, talk.ticks()));
+    }
+
+    private Component talkText(Player player, Line line) {
+        String speaker = line.speaker() == null ? "narration" : line.speaker();
+        if (speaker.equalsIgnoreCase("narration")) {
+            return Component.text(line.text(), NamedTextColor.GRAY).decorate(TextDecoration.ITALIC);
+        }
+        String name = speaker.equalsIgnoreCase("player") ? player.getName() : speakerNames.apply(speaker);
+        return Component.text(name + " ", NamedTextColor.GOLD).append(Component.text("「" + line.text() + "」", NamedTextColor.WHITE));
+    }
+
+    /** 1.2 s + 0.15 s per character, between 2 s and 8 s (the same pace as the tutorial). */
+    static long readTicks(String text) {
+        double seconds = 1.2 + 0.15 * text.length();
+        return Math.max(40L, Math.min(160L, Math.round(seconds * 20.0)));
+    }
+
+    private int count(Player player, String item) {
+        int total = 0;
+        for (ItemStack stack : player.getInventory().getContents()) {
+            if (stack == null) continue;
+            if (itemIdentifier.itemId(stack).map(item::equals).orElse(false)) total += stack.getAmount();
+        }
+        return total;
+    }
+
+    private void take(Player player, String item, int amount) {
+        int left = amount;
+        ItemStack[] contents = player.getInventory().getContents();
+        for (int slot = 0; slot < contents.length && left > 0; slot++) {
+            ItemStack stack = contents[slot];
+            if (stack == null || !itemIdentifier.itemId(stack).map(item::equals).orElse(false)) continue;
+            int used = Math.min(left, stack.getAmount());
+            stack.setAmount(stack.getAmount() - used);
+            player.getInventory().setItem(slot, stack.getAmount() <= 0 ? null : stack);
+            left -= used;
+        }
+    }
+
+    /** Gives RPG items; what does not fit falls at the player's feet. False when the item does not exist. */
+    private boolean give(Player player, String item, int amount) {
+        var definition = itemRegistry.find(item).orElse(null);
+        if (definition == null) {
+            plugin.getLogger().warning("quest: no item '" + item + "' to give");
+            return false;
+        }
+        int left = Math.max(1, amount);
+        while (left > 0) {
+            ItemStack stack = itemFactory.create(definition);
+            int size = Math.min(left, stack.getMaxStackSize());
+            stack.setAmount(size);
+            left -= size;
+            for (ItemStack rest : player.getInventory().addItem(stack).values()) {
+                player.getWorld().dropItemNaturally(player.getLocation(), rest);
+            }
+        }
+        return true;
+    }
+
+    private String currencyName() {
+        return plugin.getConfig().getString("quest.currency-name", "ゴールド");
+    }
+
+    /** The game of one player, for one call into the engine. */
+    private final class PlayerGame implements QuestlineEngine.Game {
+        private final Player player;
+        private boolean moved;
+
+        private PlayerGame(Player player) {
+            this.player = player;
+        }
+
+        @Override
+        public long now() {
+            return System.currentTimeMillis();
+        }
+
+        @Override
+        public int level() {
+            return profileManager.getOrCreate(player).level();
+        }
+
+        @Override
+        public String classId() {
+            return profileManager.getOrCreate(player).classId();
+        }
+
+        @Override
+        public int itemCount(String item) {
+            return item == null ? 0 : count(player, item);
+        }
+
+        @Override
+        public void takeItem(String item, int amount) {
+            if (item != null) take(player, item, amount);
+        }
+
+        @Override
+        public void perform(Questline line, Act act) {
+            switch (act.type()) {
+                case "say" -> say(player, new Line(act.string("speaker"), act.string("text"), (int) act.number("ticks", -1)), null);
+                case "title" -> {
+                    long ticks = (long) act.number("ticks", 60);
+                    player.showTitle(Title.title(Component.text(String.valueOf(act.args().getOrDefault("title", "")), NamedTextColor.GOLD),
+                            Component.text(String.valueOf(act.args().getOrDefault("subtitle", "")), NamedTextColor.YELLOW),
+                            Title.Times.times(Duration.ofMillis(300), Duration.ofMillis(ticks * 50L), Duration.ofMillis(600))));
+                }
+                case "sound" -> {
+                    try {
+                        Sound sound = Sound.valueOf(act.string("sound").toUpperCase(Locale.ROOT).replace('.', '_'));
+                        player.playSound(player.getLocation(), sound, (float) act.number("volume", 1.0), (float) act.number("pitch", 1.0));
+                    } catch (IllegalArgumentException e) {
+                        plugin.getLogger().warning("quest: no sound '" + act.string("sound") + "'");
+                    }
+                }
+                case "give-item" -> give(player, act.string("item"), (int) act.number("amount", 1));
+                case "take-item" -> take(player, act.string("item"), (int) act.number("amount", 1));
+                case "reward" -> reward(act);
+                case "teleport" -> {
+                    World world = act.string("world") == null ? player.getWorld() : Bukkit.getWorld(act.string("world"));
+                    if (world == null) {
+                        plugin.getLogger().warning("quest: no world '" + act.string("world") + "' to teleport to");
+                        return;
+                    }
+                    player.teleport(new Location(world, act.number("x", 0), act.number("y", 64), act.number("z", 0),
+                            (float) act.number("yaw", player.getLocation().getYaw()), (float) act.number("pitch", player.getLocation().getPitch())));
+                }
+                case "cutscene" -> {
+                    // the cutscenes come with the third stage: until then the line does not wait for one that cannot play
+                    String id = act.string("id");
+                    plugin.getLogger().info("quest: cutscene '" + id + "' is not playable yet; it counts as ended");
+                    Bukkit.getScheduler().runTask(plugin, () -> fire(player, QuestEvent.of("cutscene-end", "cutscene", id)));
+                }
+                default -> plugin.getLogger().warning("quest: the action " + act.type() + " is not done by the game");
+            }
+        }
+
+        private void reward(Act act) {
+            List<String> parts = new ArrayList<>();
+            long money = (long) act.number("money", 0);
+            if (money > 0) {
+                PlayerProfile profile = profileManager.getOrCreate(player);
+                profile.setCurrency(profile.currency() + money);
+                parts.add(money + " " + currencyName());
+            }
+            long exp = (long) act.number("exp", 0);
+            if (exp > 0) {
+                levelService.addXp(player, exp);
+                parts.add("経験値 " + exp);
+            }
+            if (act.args().get("items") instanceof List<?> items) {
+                for (Object raw : items) {
+                    if (!(raw instanceof Map<?, ?> item) || item.get("item") == null) continue;
+                    String id = item.get("item").toString();
+                    int amount = (int) Questline.number(item.get("amount"), 1);
+                    if (give(player, id, amount)) {
+                        String name = itemRegistry.find(id).map(definition -> definition.name()).orElse(id);
+                        parts.add(name + " ×" + amount);
+                    }
+                }
+            }
+            if (!parts.isEmpty()) {
+                player.sendMessage(Component.text("[クエスト] 報酬: " + String.join(" / ", parts), NamedTextColor.GOLD));
+            }
+        }
+
+        @Override
+        public void started(Questline line) {
+            moved = true;
+            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」を始めた。", NamedTextColor.AQUA));
+            player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.8f, 1.0f);
+        }
+
+        @Override
+        public void stepChanged(Questline line, Questline.Step step) {
+            moved = true;
+            if (step.end() == null && step.name() != null) {
+                player.sendMessage(Component.text("[クエスト] " + line.name() + ": ", NamedTextColor.AQUA)
+                        .append(Component.text(step.name(), NamedTextColor.WHITE)));
+            }
+        }
+
+        @Override
+        public void finished(Questline line, Questline.End end) {
+            moved = true;
+            boolean complete = end == Questline.End.COMPLETE;
+            player.showTitle(Title.title(
+                    Component.text(complete ? "クエスト完了" : "クエスト失敗", complete ? NamedTextColor.GOLD : NamedTextColor.RED, TextDecoration.BOLD),
+                    Component.text(line.name(), NamedTextColor.YELLOW),
+                    Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(3), Duration.ofMillis(800))));
+            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」" + (complete ? "を達成した!" : "に失敗した。"),
+                    complete ? NamedTextColor.GOLD : NamedTextColor.RED));
+            player.playSound(player.getLocation(), complete ? Sound.UI_TOAST_CHALLENGE_COMPLETE : Sound.ENTITY_VILLAGER_NO, 0.7f, 1.0f);
+        }
+
+        @Override
+        public void warn(String message) {
+            plugin.getLogger().warning("quest: " + player.getName() + ": " + message);
+        }
+    }
+}
