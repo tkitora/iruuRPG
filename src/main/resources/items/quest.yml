@@ -1,7 +1,10 @@
 # 依頼用の素材アイテム (架空)。依頼ボードの「納品」に使う。
+# このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる (yml リポジトリが持つようになったら、そちらが勝つ)
+version: 2
 items:
   goblin_fang:
-    material: BONE
+    material: STICK
+    texture: bone
     name: "ゴブリンの牙"
     required-level: 1
     rarity: COMMON
@@ -12,7 +15,8 @@ items:
       - "ゴブリンから取れる、ぎざぎざの牙。"
       - "依頼の納品に使う。"
   boar_meat:
-    material: PORKCHOP
+    material: STICK
+    texture: porkchop
     name: "イノシシの肉"
     required-level: 1
     rarity: COMMON
@@ -23,7 +27,8 @@ items:
       - "脂の乗ったイノシシの肉。"
       - "依頼の納品に使う。"
   moon_herb:
-    material: FERN
+    material: STICK
+    texture: fern
     name: "月光草"
     required-level: 1
     rarity: COMMON
