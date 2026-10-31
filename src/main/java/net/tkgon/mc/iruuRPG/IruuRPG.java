@@ -245,6 +245,11 @@ public final class IruuRPG extends JavaPlugin {
                 statusEffectService
         );
         this.mobService = new RpgMobService(this, mobRegistry, itemRegistry, itemFactory, levelService, statusEffectService);
+        // a guard pushes back only melee attackers: not a ranged or a placed weapon in hand (bare hands and non-RPG items count as melee)
+        this.mobService.setMeleeAttacker(player -> itemIdentifier.itemId(player.getInventory().getItemInMainHand())
+                .flatMap(itemRegistry::find)
+                .map(weapon -> weapon.attackType() == net.tkgon.mc.iruuRPG.combat.AttackType.MELEE || weapon.attackType() == net.tkgon.mc.iruuRPG.combat.AttackType.SPECIAL)
+                .orElse(true));
         this.attackEffectsRef = attackEffects;
         this.mobService.setAttackEffects(attackEffects);
         this.mobService.setTauntCheck(player -> classService.hasSkill(profileManager.getOrCreate(player), "warrior_taunt"));
