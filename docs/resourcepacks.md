@@ -11,6 +11,8 @@
 ## 配り方
 - `config.yml` の `resourcepack:`。`enabled: true` で、入ってきたプレイヤーに送る(1秒後)。パックごとに `enabled` / `required`。ファイルが無いパックは送らない。
 - 場所は `base-url`(zip を配る Web サーバー。`plugins/iruuRPG/resourcepacks/` を配ればよい)。Web サーバーが無いときは、`host.enabled: true` でプラグイン内蔵の小さな配信を使える(`host.port` をプレイヤーに開け、`host.public-host` に公開アドレスを書く。GET だけ、`packs` の zip だけ)。
+- **3つのパック(`server` / `models` / `items`)は、config.yml に書いていなくても送る**(ファイルがあれば)。デプロイは config.yml に新しい最上位の節しか足さないので、あとから `resourcepack.packs` に足したパックは、既存のファイルには入らない。config に `packs.<名前>:` があれば、そちらが勝つ(`enabled: false` で止める、`file`、`required`)。
+- アイテムの見た目のパック(`items`)は、yml が変わって作り直されたとき、**ログイン中のプレイヤーにも自動で送り直す**(あとから入る人は、入るときに送る)。クライアントでは古いパックと置き換わる。
 - パックごとに固定のIDで送るので、パックを作り直すと、クライアントでは古いのが置き換わる(増えない)。URL の `?h=` は、古いキャッシュを避けるためのハッシュ。
 - `/iruurpg pack` … 場所と、各パックの大きさ・sha1。`/iruurpg pack send` … 自分に送り直す。
 

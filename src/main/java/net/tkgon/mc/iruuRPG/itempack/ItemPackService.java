@@ -51,13 +51,13 @@ public final class ItemPackService {
         return folder;
     }
 
-    /** Makes the pack from the items now. Safe to call again (after every reload of the items). */
-    public void rebuild() {
+    /** Makes the pack from the items now. Safe to call again (after every reload of the items). Returns true when the pack file was written (changed). */
+    public boolean rebuild() {
         try {
             List<ItemPackBuilder.Look> looks = looks(items.get());
             if (looks.isEmpty()) {
                 numbers = Map.of();
-                return;
+                return false;
             }
             ItemCmdIndex index = new ItemCmdIndex(new File(folder(), "item-cmd-index.yml"));
             index.load();
@@ -66,14 +66,16 @@ public final class ItemPackService {
             for (String warning : result.warnings()) plugin.getLogger().warning("itempack: " + warning);
             numbers = Map.copyOf(result.numbers());
             File zip = new File(folder(), PACK_FILE);
-            if (zip.isFile() && java.util.Arrays.equals(Files.readAllBytes(zip.toPath()), result.zip())) return;
+            if (zip.isFile() && java.util.Arrays.equals(Files.readAllBytes(zip.toPath()), result.zip())) return false;
             // (written by a temporary file and renamed, so a client never fetches half a pack)
             File temp = new File(zip.getParentFile(), zip.getName() + ".tmp");
             Files.write(temp.toPath(), result.zip());
             Files.move(temp.toPath(), zip.toPath(), StandardCopyOption.REPLACE_EXISTING);
             plugin.getLogger().info("itempack: " + PACK_FILE + " updated (" + result.numbers().size() + " item(s) with another look)");
+            return true;
         } catch (IOException | RuntimeException exception) {
             plugin.getLogger().warning("itempack: the pack of the items' looks could not be made: " + exception);
+            return false;
         }
     }
 

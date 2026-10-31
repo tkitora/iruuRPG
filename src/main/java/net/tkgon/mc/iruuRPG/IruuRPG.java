@@ -836,7 +836,8 @@ public final class IruuRPG extends JavaPlugin {
         classRegistry.reload();
         classSkillRegistry.reload();
         itemRegistry.reload();
-        itemPackService.rebuild();
+        // the pack of the items' looks changed: the players online get the new one (a player who joins later is offered it anyway)
+        if (itemPackService.rebuild() && resourcePackService != null) resourcePackService.resend("items");
         mobRegistry.reload();
         questRegistry.reload();
         questlineService.reload();
