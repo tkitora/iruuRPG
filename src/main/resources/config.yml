@@ -122,12 +122,18 @@ combat:
       spike-extra-count: 3                        # 強攻撃3の再発動: 空中からのスパイクの数 / 間隔tick / 1本の倍率
       spike-extra-gap-ticks: 3
       spike-extra-rate: 0.3
-      sphere-radius: 4.0                          # 強攻撃4: 球の半径 / 縮むtick / 光るtick / 爆発の半径 / 引き込む強さ / 再発動で即爆発したときの倍率の割合
-      sphere-shrink-ticks: 20
-      sphere-glow-ticks: 40
+      # 強攻撃4: 球の半径 / 爆発まで縮み続けるtick / いちばん小さくなって光る (ハイライト・フラッシュ) tick / 爆発の半径 /
+      # 引き寄せ (1tickに足す速さ。敵の動きに足すだけなので、それより速く離れる敵は抜け出せる) / 再発動で即爆発を受け付け始めるtick / そのときの倍率の割合 / 殻の粒の数
+      sphere-radius: 4.0
+      sphere-shrink-ticks: 50
+      sphere-highlight-ticks: 8
       sphere-blast-radius: 3.5
-      sphere-pull: 0.3
+      sphere-pull: 0.035
+      sphere-early-after-ticks: 20
       sphere-early-share: 0.6
+      sphere-flow-count: 140
+      vfx-density: 0.6                            # メイジの演出の粒の量 / 大きさ (1 = 減らさない)。画面を占めすぎないように
+      vfx-size: 0.85
     # 戦士のシールド (戦士の近接コンボの強攻撃0「堅陣」と、通常2・強攻撃1で増える): 数 / 軽減する割合 / 残る最長の秒数。受けるたびに1枚なくなる
     warrior:
       shield-count: 3

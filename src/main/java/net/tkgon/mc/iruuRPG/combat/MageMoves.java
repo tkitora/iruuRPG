@@ -58,12 +58,13 @@ import java.util.function.IntFunction;
  * out of the ground under every enemy normal attacks 1 - 4 of this round hit (where the player aims when they hit none).
  *
  * <p>Heavy attacks (left click, the number of normal attacks so far): 0 the echo and the re-activations. A heavy attack thrown while the echo is ready is thrown again
- * by itself 2 s later (that one is not echoed again and needs no combo; at most 3 wait at once); the echo then has a cooldown of 8 s, a second shorter for every hit (one
- * for the enemies hit at the same moment). The heavy click with no normal attack before it re-activates what the last heavy attack left: 1 two bolts after the enemy
+ * by itself 2 s later (that one is not echoed again and needs no combo; at most 3 wait at once); the echo then has a cooldown of 8 s, a second shorter for every attack that hits
+ * (once per attack, however many times or enemies it hits). The heavy click with no normal attack before it re-activates what the last heavy attack left: 1 two bolts after the enemy
  * normal attack 1 hit (else one straight bolt ahead), 2 roots that spread over the ground round the player to 6 blocks and hurt what stands on them (one at a time; the
  * echo's are more); re-activated once they are full, they go back into the player as MP for the time they had left, 3 spikes out of the ground every block ahead, each
  * leaning further away; re-activated when they hit something, three more stab the nearest enemy they hit from the air round it, 4 a sphere where the player aims (a block
- * or an enemy) that shrinks for 1 s drawing the enemies in, glows for 2 s and bursts; re-activated while it glows, it bursts at once for less.
+ * or an enemy) that shrinks until it bursts (2.5 s), drawing the enemies in slowly (one that walks away faster gets out); at its smallest it lights up and
+ * flashes, then bursts; re-activated after its first second, it bursts at once for less.
  */
 public final class MageMoves {
 
@@ -80,8 +81,38 @@ public final class MageMoves {
     private record Pending(int untilTick, Runnable action) {
     }
 
-    /** One attack: the kit it is made with, the normal attack it is (0 for a heavy one) and whether it is the echo of one. */
-    private record Cast(MoveKit kit, int stage, boolean echo) {
+    /**
+     * One attack: the kit it is made with, the normal attack it is (0 for a heavy one) and whether it is the echo of one; {@code cut} = it has
+     * already shortened the echo's cooldown (one attack does so once, however many times it hits).
+     */
+    private static final class Cast {
+        private final MoveKit kit;
+        private final int stage;
+        private final boolean echo;
+        private boolean cut;
+
+        Cast(MoveKit kit, int stage, boolean echo) {
+            this.kit = kit;
+            this.stage = stage;
+            this.echo = echo;
+        }
+
+        MoveKit kit() {
+            return kit;
+        }
+
+        int stage() {
+            return stage;
+        }
+
+        boolean echo() {
+            return echo;
+        }
+
+        /** The same attack thrown again by a re-activation (a new attack: it may shorten the cooldown again). */
+        Cast again() {
+            return new Cast(kit, stage, echo);
+        }
     }
 
     /** The roots of heavy 2: the points of the roots over the ground ({x, y, z, distance from the middle}), how old and how long they live. */
@@ -113,7 +144,6 @@ public final class MageMoves {
         private final Set<LivingEntity> firstHits = new LinkedHashSet<>();
         private int echoReadyTick;
         private int echoQueued;
-        private int lastCutTick = -1;
         private Material overlay;
         private Pending pending;
         private final List<Roots> roots = new ArrayList<>();
@@ -158,7 +188,7 @@ public final class MageMoves {
 
     // ---- hits and the echo's cooldown ----------------------------------------------------------------------------------------
 
-    /** One hit of {@code rate}; a hit shortens the echo's cooldown (once for all the enemies hit in the same tick). */
+    /** One hit of {@code rate}; the first hit of an attack shortens the echo's cooldown (an attack that hits many times, or many enemies, does so once). */
     private boolean hit(Cast cast, LivingEntity target, double rate) {
         if (target == null || target.isDead() || !target.isValid()) return false;
         if (!cast.kit().hit(target, rate)) return false;
@@ -167,8 +197,8 @@ public final class MageMoves {
         if (cast.stage() >= 1 && cast.stage() <= 4) state.chainHits.add(target);
         if (cast.stage() == 1) state.firstHits.add(target);
         int now = Bukkit.getCurrentTick();
-        if (state.lastCutTick != now) {
-            state.lastCutTick = now;
+        if (!cast.cut) {
+            cast.cut = true;
             if (state.echoReadyTick > now) {
                 state.echoReadyTick = Math.max(now, state.echoReadyTick - (int) Math.round(number("echo-cut-seconds", 1.0) * 20.0));
                 showEcho(player, state);
@@ -797,7 +827,7 @@ public final class MageMoves {
         }
         // it hit something: three more can stab the nearest of them from the air
         kit.later(count, () -> {
-            if (!hitList.isEmpty()) offer(state, reactivateTicks(), () -> airSpikes(cast, hitList));
+            if (!hitList.isEmpty()) offer(state, reactivateTicks(), () -> airSpikes(cast.again(), hitList));
         });
     }
 
@@ -872,8 +902,8 @@ public final class MageMoves {
     }
 
     /**
-     * A crystal spike from {@code base} along {@code axis}, {@code length} long and {@code width} wide at its foot: three blocks (amethyst at the foot, the element's
-     * glass above, each narrower) that grow out in 3 ticks, stand a moment and sink back; dust along it and the ground's crumbs at the foot.
+     * A crystal spike from {@code base} along {@code axis}, {@code length} long and {@code width} wide at its foot: three blocks of the element's glass
+     * (each narrower; all glass, so no element looks unlike the others) that grow out in 3 ticks, stand a moment and sink back; dust along it and the ground's crumbs at the foot.
      */
     private void crystal(MoveKit kit, Location base, Vector axis, double length, double width) {
         World world = base.getWorld();
@@ -889,7 +919,7 @@ public final class MageMoves {
             double[] part = parts[index];
             float w = (float) (width * part[2]);
             Transformation flat = shape(turn, w * 0.3f, 0.0f, 0.02f);
-            Material material = index == 0 ? Material.AMETHYST_BLOCK : shell;
+            Material material = shell;
             made.add(world.spawn(at, BlockDisplay.class, display -> {
                 display.setBlock(material.createBlockData());
                 display.setPersistent(false);
@@ -936,7 +966,7 @@ public final class MageMoves {
         return new Transformation(offset, new Quaternionf(turn), new Vector3f(w, h, w), new Quaternionf());
     }
 
-    // 4: a sphere that shrinks drawing the enemies in, glows and bursts
+    // 4: a sphere that shrinks until it bursts, drawing the enemies in slowly; at its smallest it lights up and flashes
 
     private void collapse(Cast cast, double rate) {
         MoveKit kit = cast.kit();
@@ -952,12 +982,14 @@ public final class MageMoves {
             center = back.lengthSquared() < 1.0E-6 ? hit : hit.clone().add(back.normalize().multiply(0.6));
         }
         double radius = number("sphere-radius", 4.0);
-        int shrink = (int) Math.max(1, number("sphere-shrink-ticks", 20.0));
-        int glow = (int) Math.max(1, number("sphere-glow-ticks", 40.0));
+        int shrink = (int) Math.max(1, number("sphere-shrink-ticks", 50.0));
+        int highlight = (int) Math.max(1, number("sphere-highlight-ticks", 8.0));
+        int earlyFrom = (int) Math.max(0, Math.min(shrink, number("sphere-early-after-ticks", 20.0)));
         double blast = number("sphere-blast-radius", 3.5);
-        double pull = number("sphere-pull", 0.3);
-        double core = 0.6;
+        double drift = number("sphere-pull", 0.035);
+        double core = 0.5;
         Gradient gradient = kit.palette();
+        Gradient light = Palettes.mixed(kit.weapon.element(), 0.1);
         boolean[] done = {false};
         java.util.function.DoubleConsumer explode = share -> {
             if (done[0]) return;
@@ -970,12 +1002,12 @@ public final class MageMoves {
         };
         kit.sound(center, Sfx.MAGE_SURGE, 0.9f, 0.9f);
         kit.sound(center, Sfx.MAGE_WIND, 0.7f, 0.8f);
-        // the shell drawn in by the vfx flow "collapse"
+        // the shell drawn in by the vfx flow "collapse", over the whole shrink
         FlowEffect flow = FlowEffects.find("collapse");
         if (flow != null) {
             try {
-                FlowArgs args = FlowArgs.parse(flow.params(), List.of("from=" + radius, "to=" + core, "shrink=" + shrink, "count=240", "life=24", "size=1.0",
-                        "color1=" + hex(gradient.at(0.25)), "color2=" + hex(gradient.at(1.0))));
+                FlowArgs args = FlowArgs.parse(flow.params(), List.of("from=" + radius, "to=" + core, "shrink=" + shrink, "count=" + (int) number("sphere-flow-count", 140.0),
+                        "life=24", "size=0.9", "color1=" + hex(gradient.at(0.25)), "color2=" + hex(gradient.at(1.0))));
                 FlowRunner.start(plugin, player, FlowOrigin.fixed(center), flow, args, shrink);
             } catch (IllegalArgumentException ignored) {
                 // (the numbers of the config out of the flow's range: the sphere is drawn without it)
@@ -992,38 +1024,33 @@ public final class MageMoves {
                 }
                 ParticleFx.mark(player);
                 Fx fx = kit.fx(center);
+                if (age == earlyFrom) {
+                    // from here on, the heavy click with nothing before it bursts it at once, for less
+                    offer(state, shrink + highlight - earlyFrom, () -> explode.accept(number("sphere-early-share", 0.6)));
+                }
                 if (age < shrink) {
+                    // the sphere (and what it draws in) shrinks the whole time until it bursts
                     double t = (age + 1.0) / shrink;
-                    double r = core + (radius - core) * (1.0 - t) * (1.0 - t);
-                    fx.sphereShell(center, r, age * 0.25, (int) (36 + 24 * r), gradient, 1.0);
+                    double r = core + (radius - core) * (1.0 - t) * (1.0 - 0.35 * t);
+                    if (age % 2 == 0) fx.sphereShell(center, r, age * 0.25, (int) (20 + 14 * r), gradient, 0.9);
                     double tilt = age * 0.15;
-                    fx.ring(center, X_AXIS, new Vector(0.0, Trig.sin(tilt), Trig.cos(tilt)), r * 1.05, 36, gradient, 0.8, 0.2, 0.9);
-                    for (LivingEntity victim : kit.around(center, r + 1.5)) kit.pull(victim, center, pull * (0.6 + 0.4 * t));
-                    if (age % 5 == 0) kit.sound(center, Sfx.MAGE_WIND, 0.45f, 0.8f + 0.5f * (float) t);
-                } else if (age < shrink + glow) {
+                    if (age % 3 == 0) fx.ring(center, X_AXIS, new Vector(0.0, Trig.sin(tilt), Trig.cos(tilt)), r * 1.05, 28, gradient, 0.8, 0.2, 0.8);
+                    // a slow, steady pull: added to how the enemy moves, so one that walks away faster gets out
+                    for (LivingEntity victim : kit.around(center, r + 1.0)) kit.drift(victim, center, drift);
+                    if (age % 6 == 0) kit.sound(center, Sfx.MAGE_WIND, 0.4f, 0.8f + 0.6f * (float) t);
+                } else if (age < shrink + highlight) {
+                    // at its smallest: it lights up white and flashes, then bursts
                     int lit = age - shrink;
                     if (lit == 0) {
-                        // glowing: the heavy click with nothing before it bursts it at once, for less
-                        offer(state, glow, () -> explode.accept(number("sphere-early-share", 0.6)));
-                        kit.sound(center, Sfx.MAGE_SURGE, 0.8f, 1.5f);
-                    }
-                    double beat = 0.5 + 0.5 * Trig.sin(lit * 0.6);
-                    fx.sphereShell(center, core * (0.85 + 0.25 * beat), lit * 0.5, 34, gradient, 1.4);
-                    fx.dust(center.getX(), center.getY(), center.getZ(), gradient, 1.0, 2.6 + beat);
-                    fx.particle(Particle.END_ROD, center.getX(), center.getY(), center.getZ(), 2, 0.25, 0.25, 0.25, 0.03);
-                    if (lit % 2 == 0) {
-                        ThreadLocalRandom random = ThreadLocalRandom.current();
-                        for (int ray = 0; ray < 3; ray++) {
-                            Vector out = new Vector(random.nextGaussian(), random.nextGaussian(), random.nextGaussian());
-                            if (out.lengthSquared() < 1.0E-6) continue;
-                            fx.line(center, center.clone().add(out.normalize().multiply(1.0 + beat)), gradient, 1.0, 0.4, 1.0, 0.8, 0.2, null, 1);
-                        }
-                    }
-                    if (lit % 10 == 0) {
                         fx.particle(Particle.FLASH, center.getX(), center.getY(), center.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
-                        kit.sound(center, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.6f, 0.8f + 0.8f * lit / glow);
+                        fx.particle(Particle.END_ROD, center.getX(), center.getY(), center.getZ(), 16, 0.05, 0.05, 0.05, 0.25);
+                        kit.sound(center, Sfx.MAGE_SURGE, 0.9f, 1.6f);
+                        kit.sound(center, Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.7f, 1.4f);
                     }
-                    for (LivingEntity victim : kit.around(center, 2.2)) kit.pull(victim, center, 0.12);
+                    double swell = 1.0 + 0.6 * lit / highlight;
+                    fx.sphereShell(center, core * swell, lit * 0.6, 30, light, 1.5);
+                    fx.dust(center.getX(), center.getY(), center.getZ(), light, 1.0, 3.0 * swell);
+                    if (lit % 3 == 0) fx.particle(Particle.FLASH, center.getX(), center.getY(), center.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
                 } else {
                     explode.accept(1.0);
                     cancel();

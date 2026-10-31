@@ -1120,8 +1120,9 @@ public final class AttackService {
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
         boolean applied = applyDirectDamage(attacker, victim, finalDamage);
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
+        // the number shows also for the hit that kills (its place was taken before the damage); the status effects only on a victim that lives
+        if (applied) attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
         if (applied && hasRemainingHealth(victim)) {
-            attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             boolean statuses = statusAllowed(attacker, victim, weapon, snapshot);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             if (classEffectService != null) {
@@ -1198,8 +1199,9 @@ public final class AttackService {
         double finalDamage = modifiedCustomDamage(attacker, victim, weapon, damage);
         boolean applied = applyRangeDamage(attacker, victim, finalDamage);
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
+        // the number shows also for the hit that kills (its place was taken before the damage); the status effects only on a victim that lives
+        if (applied) attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
         if (applied && hasRemainingHealth(victim)) {
-            attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
             boolean statuses = statusAllowed(attacker, victim, weapon, snapshot);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
             if (classEffectService != null) {
