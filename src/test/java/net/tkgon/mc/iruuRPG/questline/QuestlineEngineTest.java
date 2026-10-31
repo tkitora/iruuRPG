@@ -105,7 +105,8 @@ class QuestlineEngineTest {
         @Override public long now() { return now; }
         @Override public int level() { return level; }
         @Override public String classId() { return "warrior"; }
-        @Override public int itemCount(String item) { return 0; }
+        final Map<String, Integer> items = new HashMap<>();
+        @Override public int itemCount(String item) { return items.getOrDefault(item, 0); }
         @Override public void takeItem(String item, int amount) { log.add("take " + item); }
         @Override public void perform(Questline line, Questline.Act act) { performed.add(act.type()); }
         @Override public void started(Questline line) { log.add("start " + line.id()); }
@@ -203,7 +204,7 @@ class QuestlineEngineTest {
 
         for (int kill = 0; kill < 4; kill++) engine.fire(data, game, QuestEvent.of("mob-kill", "mob", "wild_boar"));
         engine.fire(data, game, QuestEvent.of("mob-kill", "mob", "forest_wolf"));
-        assertEquals("4 / 5", engine.progress(data, "boar_hunt"));
+        assertEquals("4 / 5", engine.progress(data, game, "boar_hunt"));
         assertEquals(1L, data.flags().get("wolves_total"), "the shared rule counts outside the quest");
         engine.fire(data, game, QuestEvent.of("mob-kill", "mob", "wild_boar"));
         assertEquals("report", data.line("boar_hunt").step);
@@ -352,6 +353,64 @@ class QuestlineEngineTest {
         assertTrue(engine.ready(data, game, "atlas_farmer"));
         engine.setAssignedNpcs(line -> line.equals("boar_hunt") ? Set.of("someone") : Set.of());
         assertTrue(engine.offeredBy(engine.line("boar_hunt"), "someone"));
+    }
+
+    @Test
+    void itemsCountByTheStackAndWhatWasHeldBeforeCanBeLeftOut() {
+        Questline picked = line("""
+                id: picked
+                start: { npc: guard }
+                flags: { fangs: { type: number, max: 3 } }
+                initial: collect
+                steps:
+                  collect:
+                    progress: { flag: fangs, max: 3 }
+                    on-event:
+                      - event: { type: event, event: item-pickup, item: fang }
+                        do: [ { type: add-flag, flag: fangs, value: amount } ]
+                    transitions: [ { to: z, when: { type: flag, flag: fangs, op: ">=", value: 3 } } ]
+                  z: { end: complete }
+                """);
+        Questline held = line("""
+                id: held
+                start: { npc: guard }
+                initial: collect
+                steps:
+                  collect:
+                    progress: { item: fang, max: 3, existing: ignore }
+                    transitions: [ { to: z, when: { type: item, item: fang, amount: 3, existing: ignore } } ]
+                  z: { end: complete }
+                """);
+        QuestlineEngine engine = new QuestlineEngine(Map.of("picked", picked, "held", held), QuestlineParser.FlagBook.EMPTY);
+        FakeGame game = new FakeGame();
+        QuestlineData data = new QuestlineData();
+        engine.start(data, game, "picked", false);
+        engine.fire(data, game, QuestEvent.of("item-pickup", "item", "fang", "amount", 2));
+        assertEquals("2 / 3", engine.progress(data, game, "picked"), "a stack of 2 counts 2");
+        engine.fire(data, game, QuestEvent.of("item-pickup", "item", "fang", "amount", 1));
+        assertEquals(Status.COMPLETED, data.line("picked").status);
+
+        game.items.put("fang", 5);
+        QuestlineData second = new QuestlineData();
+        engine.start(second, game, "held", false);
+        assertEquals(Status.ACTIVE, second.line("held").status, "the 5 held before the step do not count");
+        assertEquals("0 / 3", engine.progress(second, game, "held"));
+        game.items.put("fang", 7);
+        assertEquals("2 / 3", engine.progress(second, game, "held"));
+        game.items.put("fang", 8);
+        engine.evaluate(second, game);
+        assertEquals(Status.COMPLETED, second.line("held").status);
+    }
+
+    @Test
+    void anNpcWithoutTalkForTheStepStillHasTheLinesItGave() {
+        QuestlineEngine engine = engine(new ArrayList<>(), BOAR_HUNT);
+        QuestlineData data = new QuestlineData();
+        FakeGame game = new FakeGame();
+        engine.setStep(data, game, "boar_hunt", "kill");
+        assertEquals(List.of("boar_hunt"), engine.statusFor(data, "atlas_farmer").stream().map(Questline::id).toList());
+        engine.setStep(data, game, "boar_hunt", "report");
+        assertTrue(engine.statusFor(data, "atlas_farmer").isEmpty(), "the report step has its own talk");
     }
 
     @Test

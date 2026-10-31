@@ -94,9 +94,16 @@ public final class QuestlineEngine {
         return lines.get(id);
     }
 
+    /** The key under which a line keeps how many of an item the player had when the step began (existing: ignore). */
+    static String baseKey(String item) {
+        return "_base_" + item;
+    }
+
     private static final class Run {
         final QuestlineData data;
         final Game game;
+        /** The event being handled (for a value taken from it: add-flag value: amount). */
+        QuestEvent event;
         int budget = MOVE_BUDGET;
         boolean changed;
 
@@ -386,15 +393,38 @@ public final class QuestlineEngine {
         return false;
     }
 
-    /** "3 / 5" for a step with a progress, else null. */
-    public String progress(QuestlineData data, String id) {
+    /** "3 / 5" for a step with a progress, else null ({@code game} null: an item progress reads 0). */
+    public String progress(QuestlineData data, Game game, String id) {
         Questline line = lines.get(id);
         LineState state = data.line(id);
         if (line == null || state == null) return null;
         Step step = line.step(state.step);
         if (step == null || step.progress() == null) return null;
-        Object value = read(data, id, step.progress().flag());
-        return (long) Questline.number(value, 0) + " / " + step.progress().max();
+        return progressValue(data, game, line, step) + " / " + step.progress().max();
+    }
+
+    /** The value of a step's progress now: its flag, or the number of its item (game null: 0). */
+    public long progressValue(QuestlineData data, Game game, Questline line, Step step) {
+        Questline.Progress progress = step.progress();
+        if (progress.flag() != null) return (long) Questline.number(read(data, line.id(), progress.flag()), 0);
+        if (game == null) return 0;
+        return itemCount(new Run(data, game), line, progress.item(), progress.ignoreExisting());
+    }
+
+    /**
+     * The active lines this NPC gave (start.npc or set in the game) whose current step has no talk for it: what it can
+     * at least say is where the player stands (the line, its goal, its progress).
+     */
+    public List<Questline> statusFor(QuestlineData data, String npc) {
+        List<Questline> out = new ArrayList<>();
+        for (var entry : data.lines().entrySet()) {
+            if (entry.getValue().status != Status.ACTIVE) continue;
+            Questline line = lines.get(entry.getKey());
+            Step step = line == null ? null : line.step(entry.getValue().step);
+            if (step == null || step.talk().containsKey(npc) || !offeredBy(line, npc)) continue;
+            out.add(line);
+        }
+        return out;
     }
 
     /** A flag's value: the line's own when it declares it, else the shared one. */
@@ -406,6 +436,8 @@ public final class QuestlineEngine {
     // ---- the work -------------------------------------------------------------------------------------------------
 
     private void dispatch(Run run, QuestEvent event) {
+        QuestEvent outer = run.event;
+        run.event = event;
         for (Handler rule : book.rules()) {
             if (event.matches(rule.event())) actions(run, null, rule.actions());
         }
@@ -424,6 +456,7 @@ public final class QuestlineEngine {
                 if (event.matches(handler.event())) actions(run, line, handler.actions());
             }
         }
+        run.event = outer;
     }
 
     private void settle(Run run, QuestEvent event) {
@@ -468,6 +501,7 @@ public final class QuestlineEngine {
         Step step = line.step(stepId);
         state.step = stepId;
         state.stepSince = run.game.now();
+        recordBases(run, state, step);
         run.game.stepChanged(line, step);
         actions(run, line, step.enter());
         if (state.status != Status.ACTIVE || !stepId.equals(state.step)) return; // an enter action finished or moved it
@@ -480,6 +514,19 @@ public final class QuestlineEngine {
             if (entered.matches(handler.event())) actions(run, line, handler.actions());
         }
         advance(run, line.id(), entered);
+    }
+
+    /** At the start of a step: how many of each item counted with existing: ignore the player has now (the line's own record). */
+    private static void recordBases(Run run, LineState state, Step step) {
+        state.flags.keySet().removeIf(key -> key.startsWith("_base_"));
+        List<String> items = new ArrayList<>();
+        List<Cond> conditions = new ArrayList<>();
+        for (Transition transition : step.transitions()) conditions.addAll(transition.when());
+        for (Cond condition : QuestlineParser.flatten(conditions)) {
+            if (condition.type().equals("item") && "ignore".equalsIgnoreCase(condition.string("existing"))) items.add(condition.string("item"));
+        }
+        if (step.progress() != null && step.progress().item() != null && step.progress().ignoreExisting()) items.add(step.progress().item());
+        for (String item : items) state.flags.put(baseKey(item), (long) run.game.itemCount(item));
     }
 
     private void finish(Run run, Questline line, LineState state, Questline.End end) {
@@ -542,7 +589,10 @@ public final class QuestlineEngine {
                     String flag = act.string("flag");
                     Map<String, Object> store = store(run.data, lineId, flag);
                     if (store != null) {
-                        double next = Questline.number(store.get(flag), 0) + act.number("value", 1);
+                        // value: amount = how many the event was about (a stack picked up counts each item)
+                        double add = "amount".equalsIgnoreCase(act.string("value"))
+                                ? (run.event == null ? 1 : Questline.number(run.event.args().get("amount"), 1)) : act.number("value", 1);
+                        double next = Questline.number(store.get(flag), 0) + add;
                         store.put(flag, clamp(spec(lineId, flag), next));
                     }
                     run.changed = true;
@@ -583,7 +633,7 @@ public final class QuestlineEngine {
         return switch (condition.type()) {
             case "flag" -> flagHolds(run.data, lineId, condition);
             case "event" -> event != null && event.matches(condition);
-            case "item" -> run.game.itemCount(condition.string("item")) >= condition.number("amount", 1);
+            case "item" -> itemCount(run, line, condition.string("item"), "ignore".equalsIgnoreCase(condition.string("existing"))) >= condition.number("amount", 1);
             case "level" -> {
                 int level = run.game.level();
                 yield level >= condition.number("min", Double.NEGATIVE_INFINITY) && level <= condition.number("max", Double.POSITIVE_INFINITY);
@@ -607,6 +657,15 @@ public final class QuestlineEngine {
             }
             default -> false;
         };
+    }
+
+    /** How many of the item count for the line: all the player has, or (ignoreExisting) only what came since the step began. */
+    private static int itemCount(Run run, Questline line, String item, boolean ignoreExisting) {
+        int have = run.game.itemCount(item);
+        if (!ignoreExisting || line == null) return have;
+        LineState state = run.data.line(line.id());
+        Object base = state == null ? null : state.flags.get(baseKey(item));
+        return Math.max(0, have - (int) Questline.number(base, 0));
     }
 
     private boolean flagHolds(QuestlineData data, String lineId, Cond condition) {

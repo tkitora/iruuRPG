@@ -834,13 +834,13 @@ public final class NpcEditor implements Listener {
             Questline line = engine.line(id);
             if (line == null) continue;
             debug.lines.add(id);
-            inventory.setItem(slot++, lineIcon(engine, data, line));
+            inventory.setItem(slot++, lineIcon(target, engine, data, line));
         }
         if (lineIds.isEmpty()) inventory.setItem(22, icon(Material.GRAY_DYE, "この NPC を使うクエストはありません", NamedTextColor.GRAY, List.of(), false));
         player.openInventory(inventory);
     }
 
-    private ItemStack lineIcon(QuestlineEngine engine, QuestlineData data, Questline line) {
+    private ItemStack lineIcon(Player target, QuestlineEngine engine, QuestlineData data, Questline line) {
         LineState state = data.line(line.id());
         List<String> lore = new ArrayList<>();
         lore.add("id: " + line.id());
@@ -848,7 +848,7 @@ public final class NpcEditor implements Listener {
             lore.add("状態: 未開始");
         } else {
             lore.add("状態: " + state.status.key() + " / ステップ: " + state.step);
-            String progress = engine.progress(data, line.id());
+            String progress = questlines.progressText(target, line.id());
             if (progress != null) lore.add("進み具合: " + progress);
             for (var flag : state.flags.entrySet()) lore.add("  " + flag.getKey() + " = " + flag.getValue());
         }
@@ -890,7 +890,7 @@ public final class NpcEditor implements Listener {
         LineState state = data.line(lineId);
         LineMenu menu = new LineMenu(npcId, lineId);
         Inventory inventory = create(menu, 54, lineId + " (" + target.getName() + ")");
-        inventory.setItem(4, lineIcon(questlines.engine(), data, line));
+        inventory.setItem(4, lineIcon(target, questlines.engine(), data, line));
         int slot = 9;
         for (Questline.Step step : line.steps().values()) {
             if (slot >= 27) break;
