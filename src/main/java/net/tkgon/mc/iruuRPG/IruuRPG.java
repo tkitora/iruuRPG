@@ -318,6 +318,10 @@ public final class IruuRPG extends JavaPlugin {
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
         this.mainMenu.setCraftMenu(craftMenu);
         this.mainMenu.setQuestBoardMenu(questBoardMenu);
+        var questLogMenu = new net.tkgon.mc.iruuRPG.gui.QuestLogMenu(questlineService);
+        questLogMenu.setMainMenu(mainMenu);
+        this.mainMenu.setQuestLogMenu(questLogMenu);
+        getServer().getPluginManager().registerEvents(questLogMenu, this);
         this.statsMenu.setMainMenu(mainMenu);
         this.skillTreeMenu.setMainMenu(mainMenu);
         this.classSelectMenu.setMainMenu(mainMenu);

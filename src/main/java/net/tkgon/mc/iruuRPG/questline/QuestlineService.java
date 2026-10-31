@@ -564,10 +564,44 @@ public final class QuestlineService implements Listener {
         return plugin.getConfig().getString("quest.currency-name", "ゴールド");
     }
 
+    /** Completion: a fanfare and gold light rising around the player for a second and a half (only they see it). */
+    private void celebrate(Player player) {
+        player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.7f, 1.0f);
+        player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.3f);
+        org.bukkit.Particle.DustOptions gold = new org.bukkit.Particle.DustOptions(org.bukkit.Color.fromRGB(255, 210, 80), 1.2f);
+        new org.bukkit.scheduler.BukkitRunnable() {
+            private int tick;
+
+            @Override
+            public void run() {
+                if (!player.isOnline() || tick > 30) {
+                    cancel();
+                    return;
+                }
+                Location feet = player.getLocation();
+                double height = tick * 0.08;
+                for (int arm = 0; arm < 3; arm++) {
+                    double angle = tick * 0.45 + arm * (Math.PI * 2 / 3);
+                    Location at = feet.clone().add(Math.cos(angle) * 0.9, height, Math.sin(angle) * 0.9);
+                    player.spawnParticle(org.bukkit.Particle.REDSTONE, at, 2, 0.03, 0.03, 0.03, 0, gold);
+                }
+                if (tick == 30) {
+                    player.spawnParticle(org.bukkit.Particle.TOTEM, feet.clone().add(0, 2.4, 0), 40, 0.4, 0.3, 0.4, 0.25);
+                    player.spawnParticle(org.bukkit.Particle.END_ROD, feet.clone().add(0, 2.4, 0), 12, 0.2, 0.2, 0.2, 0.05);
+                    player.playSound(feet, Sound.ENTITY_FIREWORK_ROCKET_TWINKLE, 0.6f, 1.2f);
+                }
+                tick++;
+            }
+        }.runTaskTimer(plugin, 0L, 1L);
+    }
+
     /** The game of one player, for one call into the engine. */
     private final class PlayerGame implements QuestlineEngine.Game {
         private final Player player;
         private boolean moved;
+        /** The line entering its end step now: its rewards are shown with the completion, not on their own. */
+        private String ending;
+        private final List<String> endingRewards = new ArrayList<>();
 
         private PlayerGame(Player player) {
             this.player = player;
@@ -600,6 +634,7 @@ public final class QuestlineService implements Listener {
 
         @Override
         public void perform(Questline line, Act act) {
+            if (ending != null && (line == null || !line.id().equals(ending))) flushRewards();
             switch (act.type()) {
                 case "say" -> say(player, new Line(act.string("speaker"), act.string("text"), (int) act.number("ticks", -1)), null);
                 case "title" -> {
@@ -662,38 +697,75 @@ public final class QuestlineService implements Listener {
                     }
                 }
             }
-            if (!parts.isEmpty()) {
+            if (parts.isEmpty()) return;
+            if (ending != null) {
+                endingRewards.addAll(parts);
+            } else {
                 player.sendMessage(Component.text("[クエスト] 報酬: " + String.join(" / ", parts), NamedTextColor.GOLD));
             }
+        }
+
+        private void flushRewards() {
+            if (!endingRewards.isEmpty()) {
+                player.sendMessage(Component.text("[クエスト] 報酬: " + String.join(" / ", endingRewards), NamedTextColor.GOLD));
+                endingRewards.clear();
+            }
+            ending = null;
         }
 
         @Override
         public void started(Questline line) {
             moved = true;
-            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」を始めた。", NamedTextColor.AQUA));
+            player.showTitle(Title.title(Component.text("クエスト開始", NamedTextColor.AQUA),
+                    Component.text(line.name(), NamedTextColor.WHITE),
+                    Title.Times.times(Duration.ofMillis(250), Duration.ofMillis(1800), Duration.ofMillis(500))));
+            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」を始めた。メニューの「クエスト」で確認できる。", NamedTextColor.AQUA));
             player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 0.8f, 1.0f);
+            player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 0.6f, 1.4f);
         }
 
         @Override
         public void stepChanged(Questline line, Questline.Step step) {
             moved = true;
+            if (step.end() != null) {
+                ending = line.id();
+                return;
+            }
+            if (ending != null) flushRewards();
             if (step.end() == null && step.name() != null) {
                 player.sendMessage(Component.text("[クエスト] " + line.name() + ": ", NamedTextColor.AQUA)
                         .append(Component.text(step.name(), NamedTextColor.WHITE)));
             }
         }
 
+        /**
+         * The end of a line, for the player alone: a title, a framed note in the chat with the rewards of the end step,
+         * and (completed) a fanfare with light rising around them; (failed) a low sound.
+         */
         @Override
         public void finished(Questline line, Questline.End end) {
             moved = true;
             boolean complete = end == Questline.End.COMPLETE;
+            List<String> rewards = new ArrayList<>(endingRewards);
+            endingRewards.clear();
+            ending = null;
+            NamedTextColor color = complete ? NamedTextColor.GOLD : NamedTextColor.RED;
             player.showTitle(Title.title(
-                    Component.text(complete ? "クエスト完了" : "クエスト失敗", complete ? NamedTextColor.GOLD : NamedTextColor.RED, TextDecoration.BOLD),
+                    Component.text(complete ? "クエスト達成" : "クエスト失敗", color, TextDecoration.BOLD),
                     Component.text(line.name(), NamedTextColor.YELLOW),
                     Title.Times.times(Duration.ofMillis(300), Duration.ofSeconds(3), Duration.ofMillis(800))));
-            player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」" + (complete ? "を達成した!" : "に失敗した。"),
-                    complete ? NamedTextColor.GOLD : NamedTextColor.RED));
-            player.playSound(player.getLocation(), complete ? Sound.UI_TOAST_CHALLENGE_COMPLETE : Sound.ENTITY_VILLAGER_NO, 0.7f, 1.0f);
+            String rule = "━━━━━━━━━━━━━━━━━━";
+            player.sendMessage(Component.text(rule, color));
+            player.sendMessage(Component.text(complete ? " クエスト達成! " : " クエスト失敗 ", color, TextDecoration.BOLD)
+                    .append(Component.text("「" + line.name() + "」", NamedTextColor.WHITE).decoration(TextDecoration.BOLD, false)));
+            for (String reward : rewards) player.sendMessage(Component.text("  報酬  " + reward, NamedTextColor.YELLOW));
+            player.sendMessage(Component.text(rule, color));
+            if (complete) {
+                celebrate(player);
+            } else {
+                player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_NO, 0.7f, 0.9f);
+                player.playSound(player.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, 0.5f, 1.2f);
+            }
         }
 
         @Override
