@@ -179,6 +179,7 @@ public final class IruuRPG extends JavaPlugin {
 
         // plugin-owned data files: bring older copies on the server up to date (the old copy is kept as a backup)
         ResourceSync.sync(this, "items/craft.yml");
+        ResourceSync.sync(this, "items/quest.yml");
         ResourceSync.sync(this, "crafting/recipes.yml");
         ResourceSync.sync(this, "items/dungeon.yml");
         ResourceSync.sync(this, "mobs/dungeon.yml");
