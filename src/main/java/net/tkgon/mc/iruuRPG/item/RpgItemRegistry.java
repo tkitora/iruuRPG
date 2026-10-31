@@ -349,7 +349,32 @@ public final class RpgItemRegistry {
             }
         }
 
-        return new MaterialSpec(material, new ItemVisualOptions(glint, skinTexture, leatherColor));
+        // slot: helmet / chestplate / leggings / boots: the leather armor of that slot is the base (the yml may name the slot instead of the material)
+        String slot = section.getString("slot", "").trim();
+        if (!slot.isEmpty()) {
+            String piece = leatherSlot(slot);
+            if (piece == null) {
+                plugin.getLogger().warning("items: " + id + ": slot '" + slot + "' is not helmet / chestplate / leggings / boots (ignored)");
+            } else {
+                if (!material.name().startsWith("LEATHER_")) {
+                    plugin.getLogger().warning("items: " + id + ": slot: " + slot + " makes the base " + piece + " (material " + material.name() + " is not used)");
+                }
+                material = Material.valueOf(piece);
+            }
+        }
+        // texture: the vanilla item whose look is put over the base (custom model data and the resource pack)
+        String texture = section.getString("texture", "").trim();
+        if (!texture.isEmpty()) {
+            String name = texture.toLowerCase(Locale.ROOT).replace("minecraft:", "");
+            Material look = Material.matchMaterial(name);
+            if (look == null || !look.isItem()) {
+                plugin.getLogger().warning("items: " + id + ": texture '" + texture + "' is not a vanilla item (the base's own look is used)");
+                texture = "";
+            } else {
+                texture = name;
+            }
+        }
+        return new MaterialSpec(material, new ItemVisualOptions(glint, skinTexture, leatherColor, texture));
     }
 
     /** The leather armor material for a slot word (helm / helmet / head, chest / chestplate, legs / leggings, boots / feet), or null. */
