@@ -82,6 +82,15 @@ public final class QuestlineService implements Listener {
     private final List<BukkitTask> tasks = new ArrayList<>();
     /** The name of a speaker id (the NPCs, when they exist); the id itself until then. */
     private Function<String, String> speakerNames = id -> id;
+    /** What an NPC says when no quest has anything for it (npcs.yml idle:). */
+    private Function<String, List<String>> idleLines = id -> List.of();
+    private final Map<UUID, Integer> idleTurn = new HashMap<>();
+    /** The line each player was just offered (by an NPC), and until when the offer stands. */
+    private final Map<UUID, Offer> offers = new HashMap<>();
+    private static final long OFFER_MILLIS = 120_000L;
+
+    private record Offer(String line, long until) {
+    }
 
     private record Area(String key, String world, double x, double y, double z, double radius) {
     }
@@ -101,6 +110,10 @@ public final class QuestlineService implements Listener {
 
     public void setSpeakerNames(Function<String, String> speakerNames) {
         this.speakerNames = speakerNames == null ? id -> id : speakerNames;
+    }
+
+    public void setIdleLines(Function<String, List<String>> idleLines) {
+        this.idleLines = idleLines == null ? id -> List.of() : idleLines;
     }
 
     public void start() {
@@ -236,6 +249,84 @@ public final class QuestlineService implements Listener {
         say(player, null, () -> fire(player, QuestEvent.of("npc-talk", "npc", npc)));
     }
 
+    /**
+     * The player right-clicked an NPC. In order: a line it offers (its offer is said, then the buttons to take it or not);
+     * else the items it takes now are taken (item-give), its talk of the current steps is said and npc-talk fires; with
+     * nothing of the quests for it, one of its idle lines.
+     */
+    public void interact(Player player, String npc) {
+        if (talking.contains(player.getUniqueId())) return;
+        QuestlineData data = data(player);
+        PlayerGame game = new PlayerGame(player);
+        List<Questline> offered = engine.offers(data, game, npc);
+        if (!offered.isEmpty()) {
+            Questline line = offered.get(0);
+            for (Line said : line.start().offer()) say(player, said, null);
+            say(player, null, () -> offerButtons(player, line));
+            return;
+        }
+        List<Cond> gives = new ArrayList<>();
+        for (Cond give : engine.gives(data, npc)) {
+            int amount = (int) give.number("amount", 1);
+            if (count(player, give.string("item")) >= amount) gives.add(give);
+        }
+        List<Line> lines = engine.talk(data, npc);
+        if (lines.isEmpty() && gives.isEmpty() && !engine.waitsOn(data, npc)) {
+            List<String> idle = idleLines.apply(npc);
+            if (!idle.isEmpty()) {
+                int turn = idleTurn.merge(player.getUniqueId(), 1, Integer::sum);
+                say(player, new Line(npc, idle.get(Math.floorMod(turn - 1, idle.size())), -1), null);
+            }
+        }
+        for (Line line : lines) say(player, line, null);
+        say(player, null, () -> {
+            for (Cond give : gives) {
+                String item = give.string("item");
+                int amount = (int) give.number("amount", 1);
+                if (count(player, item) < amount) continue;
+                take(player, item, amount);
+                fire(player, QuestEvent.of("item-give", "npc", npc, "item", item, "amount", amount));
+            }
+            fire(player, QuestEvent.of("npc-talk", "npc", npc));
+        });
+    }
+
+    private void offerButtons(Player player, Questline line) {
+        offers.put(player.getUniqueId(), new Offer(line.id(), System.currentTimeMillis() + OFFER_MILLIS));
+        Component accept = Component.text("[受ける]", NamedTextColor.GREEN, TextDecoration.BOLD)
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/questline accept " + line.id()))
+                .hoverEvent(net.kyori.adventure.text.event.HoverEvent.showText(Component.text("「" + line.name() + "」を受ける")));
+        Component decline = Component.text("[やめておく]", NamedTextColor.GRAY)
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand("/questline decline"));
+        player.sendMessage(Component.text("[クエスト] 「" + line.name() + "」 ", NamedTextColor.AQUA).append(accept).append(Component.text(" ")).append(decline));
+    }
+
+    /** The player takes the line they were just offered (the [受ける] button). */
+    public void accept(Player player, String id) {
+        Offer offer = offers.remove(player.getUniqueId());
+        if (offer == null || !offer.line().equals(id) || offer.until() < System.currentTimeMillis()) {
+            player.sendMessage(Component.text("[クエスト] もう一度、話しかけてください。", NamedTextColor.GRAY));
+            return;
+        }
+        if (!start(player, id, false)) player.sendMessage(Component.text("[クエスト] 今は受けられません。", NamedTextColor.GRAY));
+    }
+
+    public void decline(Player player) {
+        if (offers.remove(player.getUniqueId()) != null) {
+            player.sendMessage(Component.text("[クエスト] また今度にした。", NamedTextColor.GRAY));
+        }
+    }
+
+    /** The mark over an NPC for this player: "!" when it offers a line, "?" when an active line waits on it, else null. */
+    public String marker(Player player, String npc) {
+        QuestlineData data = data(player);
+        if (engine.waitsOn(data, npc)) return "?";
+        for (Questline line : engine.lines().values()) {
+            if (npc.equals(line.start().npc()) && engine.canStart(data, new PlayerGame(player), line.id())) return "!";
+        }
+        return null;
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPickup(EntityPickupItemEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
@@ -260,6 +351,8 @@ public final class QuestlineService implements Listener {
         insideAreas.remove(id);
         talkQueues.remove(id);
         talking.remove(id);
+        offers.remove(id);
+        idleTurn.remove(id);
         dirty.remove(id); // the profile is saved on quit anyway
     }
 

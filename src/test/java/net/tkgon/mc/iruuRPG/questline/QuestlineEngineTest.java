@@ -264,6 +264,39 @@ class QuestlineEngineTest {
     }
 
     @Test
+    void anNpcOffersAndWaitsAndTakes() {
+        String give = """
+                id: deliver
+                initial: bring
+                start: { npc: atlas_smith }
+                steps:
+                  bring:
+                    transitions:
+                      - { to: done, when: { type: event, event: item-give, npc: atlas_smith, item: iron_ore, amount: 3 } }
+                  done: { end: complete }
+                """;
+        QuestlineEngine engine = engine(new ArrayList<>(), BOAR_HUNT, give);
+        QuestlineData data = new QuestlineData();
+        FakeGame game = new FakeGame();
+        // boar_hunt needs the tutorial: not offered; deliver has no conditions: offered
+        assertEquals(List.of("deliver"), engine.offers(data, game, "atlas_smith").stream().map(Questline::id).toList());
+        assertTrue(engine.offers(data, game, "atlas_farmer").isEmpty());
+        data.lines().put("tutorial_intro", new QuestlineData.LineState(Status.COMPLETED, "x", 0));
+        assertEquals(List.of("boar_hunt"), engine.offers(data, game, "atlas_farmer").stream().map(Questline::id).toList());
+
+        engine.start(data, game, "deliver", false);
+        assertTrue(engine.offers(data, game, "atlas_smith").isEmpty(), "a running line is not offered again");
+        assertTrue(engine.waitsOn(data, "atlas_smith"));
+        assertEquals("iron_ore", engine.gives(data, "atlas_smith").get(0).string("item"));
+        assertEquals(List.of("deliver 開始", "deliver › bring (渡す)"), engine.usesOf("atlas_smith"));
+        engine.fire(data, game, QuestEvent.of("item-give", "npc", "atlas_smith", "item", "iron_ore", "amount", 2));
+        assertEquals("bring", data.line("deliver").step, "too few");
+        engine.fire(data, game, QuestEvent.of("item-give", "npc", "atlas_smith", "item", "iron_ore", "amount", 3));
+        assertEquals(Status.COMPLETED, data.line("deliver").status);
+        assertFalse(engine.waitsOn(data, "atlas_smith"));
+    }
+
+    @Test
     void anAreaEventMatchesTheSameArea() {
         Questline.Cond filter = new Questline.Cond("event", Map.of("event", "area-enter", "world", "world", "x", 10, "y", 64, "z", -5, "radius", 4), List.of());
         QuestEvent inside = QuestEvent.of("area-enter", "area", QuestEvent.areaKey(filter.args()));

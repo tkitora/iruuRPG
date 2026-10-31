@@ -1756,6 +1756,7 @@ public final class AttackService {
                 && !(entity instanceof Player)
                 && !(entity instanceof ArmorStand)
                 && !DeployService.isDeployEntity(entity)
+                && !net.tkgon.mc.iruuRPG.npc.NpcService.isNpc(entity)
                 && !(isTutorialProtected(living) && !tutorialHook.isOwnTarget(attacker, living));
     }
 
