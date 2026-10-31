@@ -43,6 +43,15 @@ public final class RpgItemFactory {
 
     /** The fingerprint of an item's current yaml (set by the item patch), stamped on every item made, or null. */
     private java.util.function.Function<String, String> revision = id -> null;
+    /**
+     * The custom model data of an item (the number the resource pack's override of its base material answers to, for
+     * its {@code texture:}); null = none. Set by the item pack (the texture tree's ItemPackBuilder and its index).
+     */
+    private java.util.function.Function<RpgItemDefinition, Integer> customModelData = definition -> null;
+
+    public void setCustomModelData(java.util.function.Function<RpgItemDefinition, Integer> customModelData) {
+        this.customModelData = customModelData == null ? definition -> null : customModelData;
+    }
 
     public void setRevision(java.util.function.Function<String, String> revision) {
         this.revision = revision == null ? id -> null : revision;
@@ -110,6 +119,9 @@ public final class RpgItemFactory {
         if (options.hasLeatherColor() && meta instanceof LeatherArmorMeta leatherArmorMeta) {
             leatherArmorMeta.setColor(options.leatherColor());
         }
+
+        Integer model = customModelData.apply(definition);
+        if (model != null) meta.setCustomModelData(model);
     }
 
     private Component displayName(RpgItemDefinition definition, Rarity itemRarity) {
