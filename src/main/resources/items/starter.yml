@@ -1,4 +1,4 @@
-# 最初に渡される、一番弱い武器。チュートリアルでクラスを選ぶと、杖・短剣・ランタンの3つが渡される。
+# 最初に渡される、一番弱い武器。チュートリアルでクラスを選ぶと、杖・剣・ランタンの3つが渡される。
 # どれも必要レベル1。チュートリアル中だけ、与えるダメージが99に制限される (コード側)。
 items:
   starter_sword:
@@ -15,6 +15,13 @@ items:
       melee-damage: 3
     description:
       - "最初に渡される、一番弱い剣。"
+    # 得意 = favorite (クラスのコンボが出る) / 使用可 = usable / 使用不可 = unusable
+    classes:
+      warrior: favorite
+      mage: usable
+      gifted: usable
+      healer: favorite
+      assassin: favorite
   starter_staff:
     material: BLAZE_ROD
     name: "見習いの杖"
@@ -85,10 +92,3 @@ items:
       melee-damage: 3
     description:
       - "最初に渡される、一番弱い短剣。"
-    # 得意 = favorite (クラスのコンボが出る) / 使用可 = usable / 使用不可 = unusable
-    classes:
-      warrior: favorite
-      mage: usable
-      gifted: usable
-      healer: favorite
-      assassin: favorite

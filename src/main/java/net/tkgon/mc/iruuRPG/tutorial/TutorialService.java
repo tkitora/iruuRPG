@@ -590,12 +590,12 @@ public final class TutorialService implements TutorialDamageHook {
     }
 
     /**
-     * Gives the starter weapons (extra.starter-items: the staff, the dagger and the lantern) in the first hotbar slots,
+     * Gives the starter weapons (extra.starter-items: the staff, the sword and the lantern) in the first hotbar slots,
      * holding the first one that is a favorite of the chosen class, and unlocks moving and attacking.
      */
     private void giveWeaponAndUnlock(TutorialSession session, Player player) {
         List<String> ids = script.yaml().getStringList("extra.starter-items");
-        if (ids.isEmpty()) ids = List.of("starter_staff", "starter_dagger", "starter_lantern");
+        if (ids.isEmpty()) ids = List.of("starter_staff", "starter_sword", "starter_lantern");
         int held = -1;
         for (int index = 0; index < ids.size() && index < STARTER_SLOTS; index++) {
             var definition = itemRegistry.find(ids.get(index)).orElse(null);
