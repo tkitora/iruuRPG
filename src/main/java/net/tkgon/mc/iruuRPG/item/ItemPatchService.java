@@ -66,6 +66,8 @@ public final class ItemPatchService implements Listener {
     private final NamespacedKey checkedKey;
     private final Set<Keeper> keepers = new LinkedHashSet<>();
     private Consumer<Player> afterPlayerPatch = player -> { };
+    /** Where the pieces of a split stack go when the inventory and the ender chest are full (the market's pick-up box). */
+    private java.util.function.BiConsumer<java.util.UUID, java.util.List<ItemStack>> overflowBox;
     private int version;
     private String mode = "off";
     /** The backup folder of this run of the migration (one per reload / start in apply mode). */
@@ -85,6 +87,11 @@ public final class ItemPatchService implements Listener {
     /** Run for a player whose items changed (stats and bars follow the new items). */
     public void setAfterPlayerPatch(Consumer<Player> afterPlayerPatch) {
         this.afterPlayerPatch = afterPlayerPatch == null ? player -> { } : afterPlayerPatch;
+    }
+
+    /** Sets the box for split pieces with no room (without one, they are dropped at the player's feet, for that player only). */
+    public void setOverflowBox(java.util.function.BiConsumer<java.util.UUID, java.util.List<ItemStack>> overflowBox) {
+        this.overflowBox = overflowBox;
     }
 
     public ItemPatcher patcher() {
@@ -220,10 +227,9 @@ public final class ItemPatchService implements Listener {
         boolean split = !overflow.isEmpty() || hasSplit(contents, player.getInventory().getContents());
         if (count > 0 || split) player.getInventory().setContents(contents);
         changed += count;
-        // the pieces of a split stack that found no room: the ender chest, then the player's feet
-        for (ItemStack rest : player.getEnderChest().addItem(overflow.toArray(new ItemStack[0])).values()) {
-            player.getWorld().dropItemNaturally(player.getLocation(), rest);
-        }
+        // the pieces of a split stack that found no room: the ender chest, then the market's pick-up box (nothing on the ground)
+        java.util.List<ItemStack> rest = new java.util.ArrayList<>(player.getEnderChest().addItem(overflow.toArray(new ItemStack[0])).values());
+        if (!rest.isEmpty()) keepOverflow(player, rest);
 
         ItemStack cursor = patcher.patch(player.getItemOnCursor());
         if (cursor != null) {
@@ -243,6 +249,25 @@ public final class ItemPatchService implements Listener {
         if (total != null) total.add(counts);
         else if (counts.any()) plugin.getLogger().info("items: " + player.getName() + ": " + counts);
         return changed;
+    }
+
+    private void keepOverflow(Player player, java.util.List<ItemStack> rest) {
+        int pieces = rest.stream().mapToInt(ItemStack::getAmount).sum();
+        if (overflowBox != null) {
+            try {
+                overflowBox.accept(player.getUniqueId(), rest);
+                player.sendMessage(Component.text("[アイテム] 重ならなくなったアイテムが " + pieces + " 個、持ち物とエンダーチェストに入りきらなかった。フリマ (/market) の受け取りから受け取れる。", NamedTextColor.YELLOW));
+                plugin.getLogger().info("items: " + player.getName() + ": " + pieces + " split piece(s) put in the market pick-up box");
+                return;
+            } catch (RuntimeException e) {
+                plugin.getLogger().log(java.util.logging.Level.WARNING, "items: could not put split pieces in the pick-up box; dropping them for " + player.getName(), e);
+            }
+        }
+        for (ItemStack stack : rest) {
+            org.bukkit.entity.Item dropped = player.getWorld().dropItemNaturally(player.getLocation(), stack);
+            dropped.setOwner(player.getUniqueId());
+        }
+        player.sendMessage(Component.text("[アイテム] 入りきらなかったアイテム " + pieces + " 個を、足元に落とした (拾えるのは本人だけ)。", NamedTextColor.YELLOW));
     }
 
     /** Patches item arrays read from somewhere (a storage file), logging what was done; answers how many stacks changed. */
