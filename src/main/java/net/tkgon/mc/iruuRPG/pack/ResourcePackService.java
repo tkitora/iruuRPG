@@ -84,19 +84,36 @@ public final class ResourcePackService implements Listener {
     // ---- which packs, and where they are --------------------------------------------------------------------------------------
 
     /** A pack as the config describes it. */
-    private record Pack(String name, String file, boolean required) {
+    record Pack(String name, String file, boolean required) {
+    }
+
+    /**
+     * The packs the plugin makes itself, with their file names: sent when the file is there, even if the server's config.yml does not list them
+     * (the deploy only adds whole top-level sections, so a pack added to {@code resourcepack.packs} later is never written into an existing file).
+     * An entry in the config ({@code enabled: false}, another file, {@code required}) still wins.
+     */
+    private static final Map<String, String> BUILT_IN = new LinkedHashMap<>(Map.of("server", "server.zip"));
+
+    static {
+        BUILT_IN.put("models", "iruumodel.zip");
+        BUILT_IN.put("items", "iruuitem.zip");
     }
 
     private List<Pack> packs() {
+        return resolve(plugin.getConfig().getConfigurationSection("resourcepack.packs"));
+    }
+
+    /** The packs to offer: the ones the config names and the built-in ones (see {@link #BUILT_IN}); {@code section} may be null. */
+    static List<Pack> resolve(org.bukkit.configuration.ConfigurationSection section) {
         List<Pack> list = new java.util.ArrayList<>();
-        var section = plugin.getConfig().getConfigurationSection("resourcepack.packs");
-        if (section == null) return list;
-        for (String name : section.getKeys(false)) {
-            var pack = section.getConfigurationSection(name);
-            if (pack == null || !pack.getBoolean("enabled", true)) continue;
-            String file = pack.getString("file", name + ".zip");
+        java.util.Set<String> named = new java.util.LinkedHashSet<>(section == null ? java.util.Set.of() : section.getKeys(false));
+        for (String name : BUILT_IN.keySet()) named.add(name);
+        for (String name : named) {
+            var pack = section == null ? null : section.getConfigurationSection(name);
+            if (pack != null && !pack.getBoolean("enabled", true)) continue;
+            String file = pack == null ? BUILT_IN.get(name) : pack.getString("file", BUILT_IN.getOrDefault(name, name + ".zip"));
             if (file == null || file.contains("/") || file.contains("\\") || file.contains("..")) continue;
-            list.add(new Pack(name, file, pack.getBoolean("required", false)));
+            list.add(new Pack(name, file, pack != null && pack.getBoolean("required", false)));
         }
         return list;
     }
@@ -159,6 +176,33 @@ public final class ResourcePackService implements Listener {
             for (int index = 0; index < 20; index++) bytes[index] = (byte) Integer.parseInt(hash.substring(index * 2, index * 2 + 2), 16);
             // (one id per pack: a changed pack replaces the old one on the client instead of adding another)
             UUID id = UUID.nameUUIDFromBytes(("iruurpg:" + pack.name()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            player.addResourcePack(id, base + pack.file() + "?h=" + hash.substring(0, 8), bytes, prompt, pack.required());
+            sent++;
+        }
+        return sent;
+    }
+
+    /**
+     * Offers every player online the pack {@code name} again (when its file changed while they play: the pack of the items is made again after the
+     * yml changes, and a player who joined earlier has the old one). The client replaces the old one (one id per pack). Returns how many players.
+     */
+    public int resend(String name) {
+        if (!plugin.getConfig().getBoolean("resourcepack.enabled", false)) return 0;
+        String base = baseUrl();
+        if (base == null) return 0;
+        Pack pack = null;
+        for (Pack candidate : packs()) if (candidate.name().equals(name)) pack = candidate;
+        if (pack == null) return 0;
+        File file = new File(folder(), pack.file());
+        if (!file.isFile()) return 0;
+        String hash = hash(file);
+        if (hash == null) return 0;
+        byte[] bytes = new byte[20];
+        for (int index = 0; index < 20; index++) bytes[index] = (byte) Integer.parseInt(hash.substring(index * 2, index * 2 + 2), 16);
+        UUID id = UUID.nameUUIDFromBytes(("iruurpg:" + pack.name()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        String prompt = plugin.getConfig().getString("resourcepack.prompt", "iruuRPG のリソースパック");
+        int sent = 0;
+        for (Player player : plugin.getServer().getOnlinePlayers()) {
             player.addResourcePack(id, base + pack.file() + "?h=" + hash.substring(0, 8), bytes, prompt, pack.required());
             sent++;
         }
