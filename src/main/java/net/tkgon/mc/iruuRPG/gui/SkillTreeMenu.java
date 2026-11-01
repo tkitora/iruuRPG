@@ -91,6 +91,13 @@ public final class SkillTreeMenu implements Listener {
         this.playerBars = playerBars;
     }
 
+    /** The ULT's cooldown of a class in seconds (the class's skill of F cools down for it, not its own: the redesign of 2026-11-02). */
+    private java.util.function.ToDoubleFunction<String> ultSeconds = classId -> -1.0;
+
+    public void setUltSeconds(java.util.function.ToDoubleFunction<String> ultSeconds) {
+        this.ultSeconds = ultSeconds == null ? classId -> -1.0 : ultSeconds;
+    }
+
     public void open(Player player) {
         PlayerProfile profile = equipmentService.recalculate(player);
         classService.ensureProfile(profile);
@@ -176,8 +183,7 @@ public final class SkillTreeMenu implements Listener {
 
         inventory.setItem(CLASS_SLOT, ClassInfo.icon(definition, List.of()));
         for (int index = 0; index < ClassInfo.GUIDE_KINDS.size(); index++) {
-            ItemStack guide = ClassInfo.comboGuide(definition, ClassInfo.GUIDE_KINDS.get(index),
-                    net.tkgon.mc.iruuRPG.combat.HeavyInput.bindingsOf(org.bukkit.Bukkit.getPlayer(profile.uuid())));
+            ItemStack guide = ClassInfo.comboGuide(definition, ClassInfo.GUIDE_KINDS.get(index));
             if (guide != null) inventory.setItem(GUIDE_START_SLOT + index, guide);
         }
         inventory.setItem(SPEND_LABEL_SLOT, button(Material.EXPERIENCE_BOTTLE, "SPで強化", NamedTextColor.GREEN, List.of(
@@ -303,14 +309,15 @@ public final class SkillTreeMenu implements Listener {
         for (String description : node.description()) {
             lore.add(text(description, NamedTextColor.GRAY));
         }
+        // (the class's skill of F is the ULT, shift + F: the redesign of 2026-11-02)
+        boolean ult = node.hotKey() == net.tkgon.mc.iruuRPG.classsystem.ClassHotKey.F;
         if (!node.skillName().isBlank()) {
-            classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill));
+            double seconds = ult ? ultSeconds.applyAsDouble(profile.classId()) : -1.0;
+            classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill, seconds));
         }
         if (node.hotKey() != null) {
-            // (t138: the class's skill of F is the special, Q → F by default)
-            boolean special = node.hotKey() == net.tkgon.mc.iruuRPG.classsystem.ClassHotKey.F && net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle();
-            lore.add(line("操作", special ? net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS.get(net.tkgon.mc.iruuRPG.combat.KeyBindings.Action.ULTIMATE).label(true)
-                    + " (必殺)" : node.hotKey().displayName(), NamedTextColor.YELLOW));
+            lore.add(line("操作", ult ? net.tkgon.mc.iruuRPG.combat.SkillInput.keys(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT, true) + " (ULT)"
+                    : node.hotKey().displayName(), NamedTextColor.YELLOW));
         }
         return item(node.icon(), node.nodeName(), color, lore, unlocked);
     }
@@ -339,11 +346,14 @@ public final class SkillTreeMenu implements Listener {
         };
     }
 
-    private void appendSkillLore(List<Component> lore, ClassSkillDefinition skill) {
+    /** The lines of a class skill; {@code cooldownSeconds}: its cooldown when it is not its own (the ULT's), else -1. */
+    private void appendSkillLore(List<Component> lore, ClassSkillDefinition skill, double cooldownSeconds) {
                 if (skill.cost() > 0.0) {
             lore.add(line("消費MP", String.valueOf((long) Math.ceil(skill.cost())), NamedTextColor.AQUA));
         }
-        if (skill.cooldownTicks() > 0) {
+        if (cooldownSeconds >= 0.0) {
+            lore.add(line("クールタイム", (long) Math.ceil(cooldownSeconds) + "秒", NamedTextColor.YELLOW));
+        } else if (skill.cooldownTicks() > 0) {
             lore.add(line("クールタイム", (long) Math.ceil(skill.cooldownTicks() / 20.0) + "秒", NamedTextColor.YELLOW));
         }
         for (String description : skill.description()) {

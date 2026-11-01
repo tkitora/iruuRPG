@@ -461,11 +461,11 @@ public final class AttackService {
         if (cooldown > 0) attacker.setCooldown(weapon.material(), cooldown);
     }
 
-    // ---- the heavy attacks chosen by the buttons (see HeavyInput) ---------------------------------------------------------------
+    // ---- the heavy attacks (小・中・大 of SkillSlots until the classes' own moves are made) ----------------------------------------------------
 
     /**
-     * Whether the weapon in hand has heavy attacks: a class's combo with it, the mage's ranged combo, or the usual chain of a melee weapon. The
-     * buttons of such a weapon go through {@link HeavyInput}.
+     * Whether the weapon in hand has heavy attacks: a class's combo with it, the mage's ranged combo, or the usual chain of a melee weapon (小・中・大
+     * throw its first three until the class's own moves are made, see {@link SkillSlots}).
      */
     public boolean hasHeavies(Player attacker, RpgItemDefinition weapon) {
         if (weapon == null || !weapon.isWeaponLike() || !comboOn()) return false;
@@ -477,12 +477,12 @@ public final class AttackService {
     public static final int HEAVY_ATTACKS = 6;
 
     /** Which button a click is for this weapon: the left one is the normal attack of a melee weapon, the right one of a ranged or deployed one. */
-    public static HeavyInput.Button button(RpgItemDefinition weapon, boolean rightClick) {
+    public static SkillInput.Button button(RpgItemDefinition weapon, boolean rightClick) {
         boolean melee = weapon.attackType() == AttackType.MELEE;
-        return melee != rightClick ? HeavyInput.Button.NORMAL : HeavyInput.Button.OTHER;
+        return melee != rightClick ? SkillInput.Button.NORMAL : SkillInput.Button.OTHER;
     }
 
-    /** A number key (or the double press of shift): heavy attack {@code index} of the weapon in hand. False when it has none (the key is only a key). */
+    /** The keys of a skill (小・中・大): heavy attack {@code index} of the weapon in hand. False when it has none. */
     public boolean heavyByKey(Player attacker, int index) {
         RpgItemDefinition weapon = weaponInMainHand(attacker);
         if (!hasHeavies(attacker, weapon)) return false;
@@ -496,7 +496,7 @@ public final class AttackService {
         return true;
     }
 
-    /** Heavy attack {@code index} (0 - 4: 強1 - 強5) of the weapon in hand, chosen by the buttons. */
+    /** Heavy attack {@code index} (0 - 5: skills 1 - 6, 強1 - 強5 were 0 - 4) of the weapon in hand. */
     public void heavyAttack(Player attacker, RpgItemDefinition weapon, int index) {
         if (!canUseItem(attacker, weapon)) {
             sendLevelRequirement(attacker, weapon);

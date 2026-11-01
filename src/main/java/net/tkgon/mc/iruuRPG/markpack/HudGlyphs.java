@@ -17,20 +17,20 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The icons of the heavy attacks on the action bar, as the glyphs of a font of our own ({@code iruurpg:hud}, in the pack of the ground marks): a
- * rounded square for each heavy attack (1 - 5) of each class, the shade that covers an icon while its heavy attack cools down, small digits for the
- * seconds left, and spaces (negative ones too) to put them in place. The glyphs stand above the line of text (their pictures are taller than the
- * icon, which is at their top), so the row of icons is drawn over the status line without moving it.
+ * The icons of the skills on the action bar, as the glyphs of a font of our own ({@code iruurpg:hud}, in the pack of the ground marks): a rounded
+ * square for each skill of each class (小・中・大・util・ULT, the redesign of 2026-11-02) and the weapon's skill, the shade that covers an icon while
+ * its skill cools down, small digits for the seconds left, the labels of the keys, and spaces (negative ones too) to put them in place. The glyphs
+ * stand above the line of text (their pictures are taller than the icon, which is at their top), so the row of icons is drawn over the status line
+ * without moving it.
  *
- * <p>Code points: icon n (1 - 6) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
- * U+E220 + d; the special of class c (t140) U+E107 + 16 c, the weapon's skill U+E180 and its locked icon U+E181, the lock laid over a special there is
- * not yet U+E230;
- * the key label of two keys (t138) U+E240 + 4 first + second (first F 0 / Q 1; second F 0 / Q 1 / left button 2 / right button 3);
- * the spaces U+E2F0 on. The pictures of the special and the weapon's skill come from the texture tree's {@code hud/ultimate_<class>.png},
- * {@code hud/itemskill.png} and {@code hud/itemskill_locked.png}, the lock's from {@code hud/lock.png} (16 x 16, drawn over the greyed icon), else
- * placeholders are drawn (the locked weapon skill's: its icon greyed under the lock). A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
- * above the icon, so they hide neither the icon nor its cooldown. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
- * one, else a placeholder is drawn: the class's color with the number in white.
+ * <p>Code points: 小・中・大・util of class c ({@link #CLASSES}) are U+E101 - U+E104 + 16 c, its ULT (the special of t140) U+E107 + 16 c; the
+ * weapon's skill U+E180 and its locked icon U+E181, the lock laid over a skill there is not yet U+E230; shade k (1 - 16 rows of 16 covered)
+ * U+E200 + k; digit d U+E220 + d; the key labels ({@link #KEY_LABELS}) U+E240 on; the spaces U+E2F0 on. The pictures are the texture tree's
+ * ({@code hud/small_<class>.png}, {@code medium_}, {@code large_}, {@code util_}, {@code ultimate_<class>.png}, {@code itemskill.png},
+ * {@code itemskill_locked.png}, {@code lock.png}; 16 x 16) when there are some; 小・中・大 else take the pictures of the skills 1 - 3 of t138
+ * ({@code hud/heavy_<class>_<n>.png}), which they throw until the class's own moves are made, and the rest placeholders (the class's color with
+ * the number or a mark in white; the locked weapon skill's: its icon greyed under the lock). A key label is a picture of its own (7 of them, not
+ * one per icon), drawn over the icon's place: the keys stand just above the icon, so they hide neither the icon nor its cooldown.
  */
 public final class HudGlyphs {
 
@@ -39,9 +39,16 @@ public final class HudGlyphs {
     public static final List<String> CLASSES = List.of("warrior", "assassin", "mage", "gifted", "healer", "generic");
     /** The placeholder colors of the classes (the same order). */
     private static final int[] COLORS = {0xD9483B, 0x8E4FD1, 0x3F7BE0, 0x4CAF50, 0xE0B43F, 0x8A8A8A};
-    /** How many icons a class has (skills 1 - 6 of t138). */
-    public static final int ICONS = 6;
-    /** The room between the skills' icons and the special's and weapon skill's (t140: half an icon). */
+    /** How many icons of their own a class's skills have besides the ULT's: 小・中・大・util. */
+    public static final int ICONS = 4;
+    /** The names of the skills' pictures, 小・中・大・util and the ULT ({@code hud/<name>_<class>.png}). */
+    private static final String[] SKILL_NAMES = {"small", "medium", "large", "util", "ultimate"};
+    /**
+     * The labels of the keys (U+E240 on): Q → left, Q → right, Q → Q, F, shift + F, the left button, the right button. The letters: f, q, l (left),
+     * r (right), s (shift).
+     */
+    public static final List<String> KEY_LABELS = List.of("ql", "qr", "qq", "f", "sf", "l", "r");
+    /** The room between the skills' icons and the weapon skill's (t140: half an icon). */
     public static final int HALF = 8;
     /** The side of an icon (pixels = font pixels). */
     public static final int ICON = 16;
@@ -54,8 +61,9 @@ public final class HudGlyphs {
     private static final int DIGIT_WIDTH = 5;
     /** How much taller a key label's picture is than an icon's: its keys are in these rows, just above the icon. */
     private static final int KEY_RAISE = 8;
-    /** The keys of a label in a 3 x 5 pixel font: F, Q, the left button (L), the right button (R), and the arrow between them. */
-    private static final String[] KEY_LETTERS = {"111100110100100", "111101101110011", "100100100100111", "110101110101101"};
+    /** The keys of a label in a 3 x 5 pixel font: F, Q, the left button (L), the right button (R), shift (an arrow up), and the arrow between them. */
+    private static final String KEY_KEYS = "fqlrs";
+    private static final String[] KEY_LETTERS = {"111100110100100", "111101101110011", "100100100100111", "110101110101101", "010111010010010"};
     private static final String KEY_ARROW = "100010001010100";
     private static final int[] SPACES = {1, 2, 4, 8, 16, 32, 64, 128};
     private static final String[] DIGITS = {
@@ -70,13 +78,19 @@ public final class HudGlyphs {
         return index < 0 ? CLASSES.size() - 1 : index;
     }
 
+    /** Icon {@code number} (1 - 4: 小・中・大・util) of a class. */
     public static char icon(String classId, int number) {
         return (char) (0xE100 + 16 * classIndex(classId) + Math.max(1, Math.min(ICONS, number)));
     }
 
-    /** The icon of the special of a class (t140). */
+    /** The icon of the ULT of a class (the special of t140). */
     public static char special(String classId) {
         return (char) (0xE107 + 16 * classIndex(classId));
+    }
+
+    /** The icon of skill {@code index} of a class: 0 - 3 小・中・大・util, 4 the ULT. */
+    public static char skill(String classId, int index) {
+        return index >= ICONS ? special(classId) : icon(classId, index + 1);
     }
 
     /** The icon of the weapon's skill (t140). */
@@ -103,12 +117,11 @@ public final class HudGlyphs {
         return (char) (0xE220 + Math.max(0, Math.min(9, digit)));
     }
 
-    /**
-     * The label of two keys: {@code first} 0 (F) / 1 (Q), {@code second} 0 (F) / 1 (Q) / 2 (the left button) / 3 (the right button). Its color
-     * is the text's.
-     */
-    public static char keyLabel(int first, int second) {
-        return (char) (0xE240 + 4 * Math.max(0, Math.min(1, first)) + Math.max(0, Math.min(3, second)));
+    /** The label of keys ({@link #KEY_LABELS}: "ql", "f" ...); its color is the text's. */
+    public static char keyLabel(String keys) {
+        int index = KEY_LABELS.indexOf(keys);
+        if (index < 0) throw new IllegalArgumentException("no key label " + keys);
+        return (char) (0xE240 + index);
     }
 
     /** A space of +-2^i pixels ({@code negative}: to the left). */
@@ -246,21 +259,27 @@ public final class HudGlyphs {
         return r << 16 | g << 8 | b;
     }
 
-    /** The icon of the resources ({@code hud/heavy_<class>_<n>.png}) when there is a 16 x 16 one, else the placeholder. */
+    /**
+     * The icon of skill {@code number} (1 - 4: 小・中・大・util) of a class: the texture tree's picture ({@code hud/small_<class>.png} ...) when there
+     * is a 16 x 16 one; 小・中・大 else the picture of skill 1 - 3 of t138 ({@code hud/heavy_<class>_<n>.png}); else the placeholder.
+     */
     static BufferedImage iconImage(int classIndex, int number) {
-        String path = "/hud/heavy_" + CLASSES.get(classIndex) + "_" + number + ".png";
-        try (InputStream in = HudGlyphs.class.getResourceAsStream(path)) {
-            if (in != null) {
-                BufferedImage image = ImageIO.read(in);
-                if (image != null && image.getWidth() == ICON && image.getHeight() == ICON) return image;
-            }
-        } catch (IOException ignored) {
-            // the placeholder
-        }
-        return placeholder(classIndex, number);
+        String classId = CLASSES.get(classIndex);
+        BufferedImage fallback = number == 4 ? utilPlaceholder(classIndex) : resourceImage("heavy_" + classId + "_" + number, placeholder(classIndex, number));
+        return resourceImage(SKILL_NAMES[number - 1] + "_" + classId, fallback);
     }
 
-    /** A placeholder of the special: the rounded square in the class's color with a white star. */
+    /** A placeholder of util: the rounded square in the class's color with a white double arrow (a dash). */
+    static BufferedImage utilPlaceholder(int classIndex) {
+        BufferedImage image = placeholderSquare(COLORS[classIndex]);
+        String[] arrows = {"1001000", "0100100", "0010010", "0001001", "0010010", "0100100", "1001000"};
+        for (int row = 0; row < arrows.length; row++) {
+            for (int col = 0; col < 7; col++) if (arrows[row].charAt(col) == '1') image.setRGB(4 + col, 4 + row, 0xFFFFFFFF);
+        }
+        return image;
+    }
+
+    /** A placeholder of the ULT (the special): the rounded square in the class's color with a white star. */
     static BufferedImage specialPlaceholder(int classIndex) {
         BufferedImage image = placeholderSquare(COLORS[classIndex]);
         String[] star = {"0001000", "0001000", "0011100", "1111111", "0111110", "0011100", "0110110", "1100011"};
@@ -362,18 +381,23 @@ public final class HudGlyphs {
     }
 
     /**
-     * The label of two keys (white with a dark rim, its color is the text's): the first key, an arrow, the second key, 13 x 7 in the middle of the
-     * icon's width, in the rows above the icon.
+     * The label of keys ({@link #KEY_LABELS}; white with a dark rim, its color is the text's): Q, an arrow and the second key; or shift and F side
+     * by side; or one key. In the middle of the icon's width, in the rows above the icon.
      */
-    static BufferedImage keyImage(int first, int second) {
+    static BufferedImage keyImage(String keys) {
         BufferedImage image = new BufferedImage(ICON, 7, BufferedImage.TYPE_INT_ARGB);
-        String[] glyphs = {KEY_LETTERS[first], KEY_ARROW, KEY_LETTERS[second]};
-        int left = (ICON - 13) / 2 + 1;
+        java.util.List<String> glyphs = new java.util.ArrayList<>();
+        for (int at = 0; at < keys.length(); at++) {
+            if (at > 0 && keys.charAt(0) == 'q') glyphs.add(KEY_ARROW);
+            glyphs.add(KEY_LETTERS[KEY_KEYS.indexOf(keys.charAt(at))]);
+        }
+        int width = glyphs.size() * 4 - 1;
+        int left = (ICON - width) / 2;
         for (int pass = 0; pass < 2; pass++) {
-            for (int g = 0; g < glyphs.length; g++) {
+            for (int g = 0; g < glyphs.size(); g++) {
                 for (int row = 0; row < 5; row++) {
                     for (int col = 0; col < 3; col++) {
-                        if (glyphs[g].charAt(row * 3 + col) != '1') continue;
+                        if (glyphs.get(g).charAt(row * 3 + col) != '1') continue;
                         int x = left + g * 4 + col, y = 1 + row;
                         if (pass == 1) {
                             image.setRGB(x, y, 0xFFFFFFFF);
@@ -409,15 +433,12 @@ public final class HudGlyphs {
     /** Adds the font {@code iruurpg:hud} and its pictures to the files of a pack. */
     public static void addTo(Map<String, byte[]> files) throws IOException {
         JsonArray providers = new JsonArray();
+        // (the names are the texture tree's: small_<class> ... ultimate_<class>, itemskill, itemskill_locked)
         for (int c = 0; c < CLASSES.size(); c++) {
             for (int n = 1; n <= ICONS; n++) {
-                bitmap(providers, files, "heavy_" + CLASSES.get(c) + "_" + n, icon(CLASSES.get(c), n), picture(ICON, iconImage(c, n), 0));
+                bitmap(providers, files, SKILL_NAMES[n - 1] + "_" + CLASSES.get(c), icon(CLASSES.get(c), n), picture(ICON, iconImage(c, n), 0));
             }
-        }
-        // (t140) the specials, the weapon's skill and the lock
-        // (the names are the texture tree's: ultimate_<class>, itemskill, itemskill_locked)
-        for (int c = 0; c < CLASSES.size(); c++) {
-            bitmap(providers, files, "special_" + CLASSES.get(c), special(CLASSES.get(c)), picture(ICON, resourceImage("ultimate_" + CLASSES.get(c), specialPlaceholder(c)), 0));
+            bitmap(providers, files, "ultimate_" + CLASSES.get(c), special(CLASSES.get(c)), picture(ICON, resourceImage("ultimate_" + CLASSES.get(c), specialPlaceholder(c)), 0));
         }
         BufferedImage item = resourceImage("itemskill", itemSkillPlaceholder());
         bitmap(providers, files, "item_skill", itemSkill(), picture(ICON, item, 0));
@@ -426,12 +447,9 @@ public final class HudGlyphs {
         for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
         for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
         // (a key label's picture is KEY_RAISE taller with the same bottom: its keys are just above the icon)
-        for (int first = 0; first < 2; first++) {
-            for (int second = 0; second < 4; second++) {
-                // (a file of a resource pack is named in lower case only: a capital makes the whole font unreadable for a vanilla client)
-                bitmap(providers, files, "key_" + "fq".charAt(first) + "fqlr".charAt(second), keyLabel(first, second),
-                        picture(ICON, PICTURE + KEY_RAISE, keyImage(first, second), 0));
-            }
+        for (String keys : KEY_LABELS) {
+            // (a file of a resource pack is named in lower case only: a capital makes the whole font unreadable for a vanilla client)
+            bitmap(providers, files, "key_" + keys, keyLabel(keys), picture(ICON, PICTURE + KEY_RAISE, keyImage(keys), 0));
         }
         JsonObject space = new JsonObject();
         space.addProperty("type", "space");
