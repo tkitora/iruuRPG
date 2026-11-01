@@ -39,8 +39,9 @@ import java.util.UUID;
  * loads). Whether a shader pack of Iris or OptiFine is on cannot be known: their APIs run in the client only and tell the server nothing (a
  * marker sent to such a player shows nothing, as it has no size).
  *
- * <p>Limits: vanilla rendering only (a shader pack of Iris or OptiFine replaces it); the bloom comes from the opaque world (water, particles,
- * clouds and the hand are drawn after it, so they do not glow themselves).
+ * <p>Limits: vanilla rendering only (a shader pack of Iris or OptiFine replaces it); the effect is made from the opaque world (water,
+ * particles, clouds and the hand are drawn after it, so they are not shifted themselves). (The bloom of t125 and the darkening of t126 were
+ * taken away in t129.)
  */
 public final class ScreenEffects implements Listener {
 
@@ -55,9 +56,8 @@ public final class ScreenEffects implements Listener {
 
     /** The effects; the slot is the marker's green and its place in the corner (slots 1 - 8 are read by the shaders). */
     public enum Effect {
-        BLOOM(1, "ブルーム (明るいところが光ってにじむ)"),
-        /** Black over the whole screen but the GUI, its alpha strength / 200 (100 gives 0.5): a plain check that the shaders work (t126). */
-        DARKEN(2, "画面を暗くする (黒を重ねる。強さ 100 で不透明度 0.5、200 以上で真っ黒)");
+        /** Chromatic aberration (t129): red shifted out from the middle of the screen, blue in, more towards the sides; 100 shifts 1.2 % of the distance. */
+        CHROMATIC(1, "色収差 (赤と青が、画面の外側ほどずれる。強さ 100 で、中心からの距離の 1.2 %)");
 
         private final int slot;
         private final String summary;
