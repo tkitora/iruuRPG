@@ -31,7 +31,8 @@ import java.util.Locale;
  * stands above the line, centred over the ranged gauge, and half an icon after them the weapon's skill (t140). An icon is greyed and shaded from
  * the top while its skill cools down, with the seconds left on it, and greyed under a lock when there is nothing on it (a skill whose move is not
  * made yet, a ULT not unlocked, a weapon with no skill). Each has the label of its keys above it, as they are pressed with the weapon in hand;
- * while a Q waits for its second key, the labels that go on from it (小・中・大) are yellow and the others grey (and the gauges show).
+ * while a Q waits for its second key, the labels that go on from it (小・中・大) are yellow and the others grey (and the gauges show). A deployed
+ * weapon shows only the ULT and its own skill. While the ULT can be re-activated, a bright rim blinks on its icon (and the gauges show).
  */
 public final class PlayerHud {
 
@@ -81,8 +82,8 @@ public final class PlayerHud {
         if (attackService == null || mode.equals("off")) return false;
         if (mode.equals("always")) return true;
         long now = System.currentTimeMillis();
-        // a Q waits for its second key: the labels show which keys go on from it
-        if (SkillInput.qWaiting(player)) {
+        // a Q waits for its second key (the labels show which keys go on from it), or the ULT can be re-activated (its icon blinks)
+        if (SkillInput.qWaiting(player) || ultRecastable(player)) {
             lastActive.put(player.getUniqueId(), now);
             return true;
         }
@@ -177,6 +178,13 @@ public final class PlayerHud {
         return HudGlyphs.keyLabel(melee ? "r" : "l");
     }
 
+    /** How long the ULT's rim is on, and then off, while it can be re-activated. */
+    private static final int BLINK_TICKS = 5;
+
+    private boolean ultRecastable(Player player) {
+        return classSkills != null && classSkills.ultRecastable(player);
+    }
+
     /** {@code hud.heavy-icons} (default true): the row of the skills' icons with the gauges. */
     private boolean heavyIconsOn() {
         return plugin.getConfig().getBoolean("hud.heavy-icons", true);
@@ -189,10 +197,18 @@ public final class PlayerHud {
         boolean melee = weapon.attackType() == AttackType.MELEE;
         java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();
         for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
+            // (a deployed weapon has no 小・中・大・util: only the ULT and its own skill)
+            if (weapon.attackType() == AttackType.DEPLOY && slot != SkillSlots.Slot.ULT) continue;
             boolean afterQ = slot.ordinal() <= SkillSlots.Slot.LARGE.ordinal();
             // (each kind of weapon has its own icons and cooldowns of 小・中・大・util)
-            icons.add(icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), skillSlots.cooldown(player, slot, weapon),
-                    keyGlyph(slot, melee), keyColor(player, afterQ)));
+            HudGlyphs.Icon icon = icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), skillSlots.cooldown(player, slot, weapon),
+                    keyGlyph(slot, melee), keyColor(player, afterQ));
+            // the ULT that can be re-activated now blinks: its bright rim is on and off every 5 ticks
+            if (slot == SkillSlots.Slot.ULT && ultRecastable(player)) {
+                icon = new HudGlyphs.Icon(icon.glyph(), icon.coolingShare(), icon.seconds(), icon.key(), icon.keyColor(), icon.locked(),
+                        org.bukkit.Bukkit.getCurrentTick() / BLINK_TICKS % 2 == 0);
+            }
+            icons.add(icon);
         }
         HudGlyphs.Icon item;
         if (itemSkills != null && itemSkills.hasKeySkill(weapon)) {

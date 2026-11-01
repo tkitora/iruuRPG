@@ -16,7 +16,8 @@
 | 通常攻撃 | 通常のボタンだけ | 左 | 右 |
 
 - Q は、`combat.skill-slots.key-window-ticks` (20 tick) の間、2 つ目のキーを待つ。Q だけでは何も出ない。F は Q の待ちを消す。
-- キーは武器を持っているときだけ。Shift+Q (設置の武器) は、設置を消す。
+- キーは武器を持っているときだけ。
+- 設置の武器には、小・中・大・util は無い (ULT とアイテムスキルだけ。ユーザーの希望、2026-11-02)。Q は何もせず、Shift+Q で設置を消す (改編の前と同じ)。
 - 別のボタンの押しっぱなしは、アイテムスキル 1 回。
 - 読むのは `combat/SkillInput`、出すのは `listener/CombatListener#skillClick`・`onSwapKey`・`onDropKey`。
 
@@ -53,10 +54,12 @@
 
 ## アクションバー
 武器を持っていてゲージが出ているとき、ゲージの上に 小・中・大・util・ULT のアイコン、半分あけてアイテムスキルのアイコン。上にキーの表示 (持っている武器での左右)。Q が待っている間は、小・中・大 のキーが黄色、ほかは灰色。
+- 設置の武器では、ULT とアイテムスキルのアイコンだけ。
+- ULT を今押すと再発動になる間 (本能開放・SATUJIN・流星・聖域の強化後)、ULT のアイコンに明るい縁が 5 tick ごとに点滅する (`hud/highlight.png`、無ければ仮の縁)。その間はゲージも出る。
 
 絵 (16×16、`src/main/resources/hud/`、テクスチャ担当の名前):
-- 小・中・大・util のアイコンは、クラスと武器の種類ごとに別 (U+E400 + 16×クラス + 4×種類)。絵は、見つかった最初のもの:
-  1. `small_<class>_<kind>.png` (`medium_`・`large_`・`util_`。`<kind>` は melee / range / deploy)
+- 小・中・大・util のアイコンは、クラスと武器の種類ごとに別 (近接・遠距離。U+E400 + 16×クラス + 4×種類)。絵は、見つかった最初のもの:
+  1. `small_<class>_<kind>.png` (`medium_`・`large_`・`util_`。`<kind>` は melee / range)
   2. 得意武器 (と、技の無い generic) なら `small_<class>.png` など
   3. その武器で出すスキルの絵 `heavy_<class>_<n>.png` (得意でない武器はテンプレートのスキル1〜4)
 - `ultimate_<class>.png` (ULT。武器に関係なく 1 つ。`<class>` は warrior / assassin / mage / gifted / healer / generic)

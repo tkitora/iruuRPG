@@ -227,6 +227,14 @@ public final class ClassSkillListener implements Listener {
         return new long[]{left, Math.max(left, total)};
     }
 
+    /** Whether a press of the ULT now would re-activate it (an upgraded skill that is up): its icon on the action bar blinks then. */
+    public boolean ultRecastable(Player player) {
+        String skillId = classService.activeSkill(profileManager.getOrCreate(player), ClassHotKey.F);
+        if (skillId == null || skillId.isBlank()) return false;
+        ClassSkillDefinition skill = skillRegistry.find(skillId).orElse(null);
+        return skill != null && classSkillService.canRecast(player, skill);
+    }
+
     private void startCooldown(Player player, ClassSkillDefinition skill, boolean ult) {
         double ticks = ult ? ultCooldownSeconds(player) * 20.0 : skill.cooldownTicks();
         long millis = Math.round(ticks * attackService.skillCooldownMultiplier(player)) * 50L;

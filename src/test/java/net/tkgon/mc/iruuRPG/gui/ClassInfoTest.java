@@ -31,10 +31,11 @@ class ClassInfoTest {
                     String label = "弱" + stage + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
-                // スキル1 - スキル6 (t138: the heavy attacks 強1 - 強5 are skills 1 - 5, and skill 6 is new)
+                // スキル1 - スキル6 (t138: the heavy attacks 強1 - 強5 are skills 1 - 5, and skill 6 is new); a deployed weapon has none since the
+                // redesign of 2026-11-02 (only the ULT and its own skill)
                 for (int heavy = 1; heavy <= 6; heavy++) {
                     String label = "スキル" + heavy + ":";
-                    assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
+                    assertEquals(kind.equals("deploy") ? 0 : 1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
                 for (String line : lines) {
                     assertEquals(line.chars().filter(c -> c == '【').count(), line.chars().filter(c -> c == '】').count(), id + ": " + line);

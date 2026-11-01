@@ -245,6 +245,8 @@ public final class CombatListener implements Listener {
      * the weapon's normal attack.
      */
     private boolean skillClick(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
+        // (a deployed weapon has no 小・中: a Q of another weapon does not wait for its click)
+        if (weapon.attackType() == AttackType.DEPLOY) SkillInput.forgetQ(attacker);
         SkillInput.Click click = SkillInput.click(attacker, AttackService.button(weapon, rightClick));
         switch (click.kind()) {
             case SKILL -> {
@@ -264,14 +266,19 @@ public final class CombatListener implements Listener {
         }
     }
 
-    /** F with a weapon in hand: util, or the ULT with shift; nothing changes hands. The editors and the tutorial come first. */
+    /**
+     * F with a weapon in hand: util, or the ULT with shift; nothing changes hands. A deployed weapon has no util (only the ULT and its own skill:
+     * the user's wish of 2026-11-02). The editors and the tutorial come first.
+     */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onSwapKey(org.bukkit.event.player.PlayerSwapHandItemsEvent event) {
         Player player = event.getPlayer();
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
         if (weapon == null || !weapon.isWeaponLike()) return;
         event.setCancelled(true);
-        skillSlots.use(player, SkillInput.pressF(player), weapon);
+        SkillSlots.Slot slot = SkillInput.pressF(player);
+        if (weapon.attackType() == AttackType.DEPLOY && slot != SkillSlots.Slot.ULT) return;
+        skillSlots.use(player, slot, weapon);
     }
 
     private void meleeClick(Player attacker, RpgItemDefinition weapon) {
@@ -380,8 +387,9 @@ public final class CombatListener implements Listener {
 
     /**
      * The Q key (and Ctrl + Q) of the hotbar never drops anything (items are given by trading): with a weapon in hand it is the first key of 小・中
-     * (Q and then a button) or either Q of 大 (Q → Q); shift + Q with a deployed weapon of the class's combo takes its placement away. A drop from
-     * an inventory screen is left as it is; the editors and the menu item (which cancel the drop first) come before.
+     * (Q and then a button) or either Q of 大 (Q → Q); a deployed weapon has none of them (as before the redesign of 2026-11-02, the user's wish):
+     * shift + Q with it takes its placement away. A drop from an inventory screen is left as it is; the editors and the menu item (which cancel the
+     * drop first) come before.
      */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDropKey(PlayerDropItemEvent event) {
@@ -396,7 +404,9 @@ public final class CombatListener implements Listener {
         if (!isWeapon) return;
         boolean sneaking = player.isSneaking();
         // the key is read now (its tick), what it does runs when the item is back in the hand
-        SkillSlots.Slot slot = SkillInput.pressQ(player);
+        boolean deployed = weapon.attackType() == AttackType.DEPLOY;
+        if (deployed) SkillInput.forgetQ(player);
+        SkillSlots.Slot slot = deployed ? null : SkillInput.pressQ(player);
         // (the item is back in the hand after the event)
         org.bukkit.Bukkit.getScheduler().runTask(attackService.plugin(), () -> {
             if (!player.isOnline() || player.isDead()) return;

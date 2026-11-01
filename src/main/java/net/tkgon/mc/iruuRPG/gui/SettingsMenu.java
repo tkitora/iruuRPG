@@ -126,6 +126,7 @@ public final class SettingsMenu implements Listener {
         help.add(text("Q を押してから、すぐに 2 つ目のキーを押す", NamedTextColor.GRAY));
         help.add(text("Q のあとのクリックは 小・中、Q だけでは何も出ない", NamedTextColor.GRAY));
         help.add(text("近接と遠距離では、左右のボタンが入れ替わる", NamedTextColor.GRAY));
+        help.add(text("設置の武器は ULT だけ (Shift+Q で設置を消す)", NamedTextColor.GRAY));
         inventory.setItem(KEY_HELP, item(Material.PAPER, "キー操作", NamedTextColor.WHITE, help));
     }
 
