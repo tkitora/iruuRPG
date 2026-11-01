@@ -6,13 +6,14 @@
 |---|---|---|---|
 | サーバー専用 | `server.zip` | `grass_block` の6面すべてを草(上面の草のテクスチャ、草の色つき)にする変更と、マインクラフトのゲーム音楽を消す `sounds.json`(iruuRPG のBGMは鳴る。レコードの音は残る) | jar に入っている(`src/main/resourcepack/server/`)。起動時に `plugins/iruuRPG/resourcepacks/` へ置く |
 | モデル専用 | `iruumodel.zip` | `/iruumodel build` が作る、敵モデルのモデルとテクスチャ(docs/models.md) | モデル機能 |
+| スキルのアイコン | `iruuskill.zip` | 強攻撃(強1〜強5)のアイコンのフォント(下の「スキルのアイコン」) | `skillpack/` |
 | アイテムの見た目 | `iruuitem.zip` | アイテムが「基盤のアイテム(剣・弓・棒・皮の防具など)」の上に、別のバニラのアイテムの見た目を重ねるための、custom model data の割り当て(下の「アイテムの見た目」) | アイテム機能(`itempack/`) |
 | 地面の印 | `iruumark.zip` | 攻撃の範囲の印のフォント `iruurpg:marks`(円・扇・四角の形。中身と外周の組。私用領域 U+E000〜。標準のフォントは変えない) | 起動時にプラグインが描いて作る(`markpack/`、`combat/GroundMarks`) |
 
 ## 配り方
 - `config.yml` の `resourcepack:`。`enabled: true` で、入ってきたプレイヤーに送る(1秒後)。パックごとに `enabled` / `required`。ファイルが無いパックは送らない。
 - 場所は `base-url`(zip を配る Web サーバー。`plugins/iruuRPG/resourcepacks/` を配ればよい)。Web サーバーが無いときは、`host.enabled: true` でプラグイン内蔵の小さな配信を使える(`host.port` をプレイヤーに開け、`host.public-host` に公開アドレスを書く。GET だけ、`packs` の zip だけ)。
-- **4つのパック(`server` / `models` / `items` / `marks`)は、config.yml に書いていなくても送る**(ファイルがあれば)。デプロイは config.yml に新しい最上位の節しか足さないので、あとから `resourcepack.packs` に足したパックは、既存のファイルには入らない。config に `packs.<名前>:` があれば、そちらが勝つ(`enabled: false` で止める、`file`、`required`)。
+- **5つのパック(`server` / `models` / `items` / `marks` / `skills`)は、config.yml に書いていなくても送る**(ファイルがあれば)。デプロイは config.yml に新しい最上位の節しか足さないので、あとから `resourcepack.packs` に足したパックは、既存のファイルには入らない。config に `packs.<名前>:` があれば、そちらが勝つ(`enabled: false` で止める、`file`、`required`)。
 - 地面の印のパック(`marks`)は、作り直して中身が変わったとき (プラグインの更新)、ログイン中のプレイヤーにも送り直す。
 - アイテムの見た目のパック(`items`)は、yml が変わって作り直されたとき、**ログイン中のプレイヤーにも自動で送り直す**(あとから入る人は、入るときに送る)。クライアントでは古いパックと置き換わる。
 - パックごとに固定のIDで送るので、パックを作り直すと、クライアントでは古いのが置き換わる(増えない)。URL の `?h=` は、古いキャッシュを避けるためのハッシュ。
@@ -37,3 +38,10 @@
 - 配る: `config.yml` の `resourcepack.packs.items`(ファイルが無い間は送られない)。
 - **アイテム自身の絵**: `texture:` にバニラのアイテム名でない名前(`a-z0-9_`)を書き、**`plugins/iruuRPG/item-textures/<名前>.png`**(16x16 の PNG。yml のリポジトリの `item-textures/` が、そのまま入る)を置くと、その絵が見た目になる(パックの `assets/iruurpg/textures/item/custom/`。持ち方は基盤のまま)。PNG が無く、バニラのアイテムでもない名前は、警告を出して基盤の見た目のまま。
 - **ゲームが色を付けるバニラのアイテム**(シダ・草・つる・葉など): 絵は灰色で、基盤の上では色が付かず白く出る。プラグインが、色付きの絵を `itempack/tinted/<名前>.png` に持っていれば、それをパックに入れる(今は `fern`)。
+
+## スキルのアイコン (`iruuskill.zip`、`skillpack/`)
+強攻撃(強1〜強5)のアイコンを、自分のフォント `iruurpg:skillicons` の文字として持つ(private-use の U+F000 から。地面の印のフォント `iruurpg:marks` は U+E000〜U+E1F7 で、重ならない)。色つきの絵なので、文字の色は白で出す。
+- 名前: `<クラスid>_<n>`(`warrior_1`)。文字: `0xF000 + クラスの番号 × 0x10 + n`。クラスの番号は warrior 0 / mage 1 / healer 2 / gifted 3 / assassin 4、n は 1〜5(各クラスの n = 0 と 6〜F は、あとのために空けてある)。`SkillGlyphs.of(classId, n)` が 1 文字を返す。
+- 大きさ: 高さ `SkillGlyphs.HEIGHT` = 16、上がり `ASCENT` = 15(アクション・バーの文字は高さ 8)。
+- 今の絵は仮: クラスの色の丸めた四角に、白い数字(強の番号)。**本物の絵は、名前で差し替える**: `plugins/iruuRPG/skill-icons/<名前>.png`(正方形の PNG なら大きさは自由。yml のリポジトリの `skill-icons/` が同期で入る)があれば、それを使う。パックは、プラグインの起動時に作り直す(絵を足したら、再起動か、次のデプロイで反映)。
+- パックが変わったら、ログイン中のプレイヤーに送り直す(`resend("skills")`)。
