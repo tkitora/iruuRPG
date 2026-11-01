@@ -154,7 +154,14 @@ public final class MeleeCombo {
         if (step != null) {
             long[] state = chain(player, plan);
             long now = System.currentTimeMillis();
-            if (now - state[1] <= window(plan)) state[1] = now;
+            if (!plugin.getConfig().getBoolean("combat.heavy-input.keep-chain", true)) {
+                // (as before t116: a heavy attack ends the chain)
+                state[0] = 0L;
+                state[1] = now;
+                shown(player, plan, 0);
+            } else if (now - state[1] <= window(plan)) {
+                state[1] = now;
+            }
         }
         return step;
     }
@@ -215,17 +222,24 @@ public final class MeleeCombo {
 
     /**
      * The cooldowns the heavy attacks 強2 - 強5 have when the plan's own is 0 (they used to need the normal attacks before them, and had none):
-     * 3, 4, 5 and 6 s.
+     * {@code combat.heavy-input.later-cooldown-ticks}, 3, 4, 5 and 6 s by default.
      */
-    private static final int[] LATER_COOLDOWN_TICKS = {0, 60, 80, 100, 120};
+    private static final int[] LATER_COOLDOWN_TICKS = {60, 80, 100, 120};
 
     /** The cooldown of heavy attack {@code index} of {@code plan} in ticks (the config's, else the plan's own). */
     public int heavyCooldownTicks(String plan, int index) {
         ComboSpec spec = specs.get(plan);
         int at = Math.max(0, Math.min(HEAVIES - 1, index));
         int own = spec == null ? (at == 0 ? 60 : 0) : spec.heavyCooldownTicks()[at];
-        if (own == 0 && at > 0) own = LATER_COOLDOWN_TICKS[at];
+        if (own == 0 && at > 0) own = (int) Math.round(laterCooldown(at - 1));
         return (int) Math.round(listed(plan + ".heavy-cooldown-ticks", at, own, 0, 1200));
+    }
+
+    private double laterCooldown(int index) {
+        java.util.List<?> list = plugin.getConfig().getList("combat.heavy-input.later-cooldown-ticks");
+        if (list == null || list.isEmpty()) return LATER_COOLDOWN_TICKS[index];
+        Object item = list.get(Math.min(index, list.size() - 1));
+        return item instanceof Number number ? Math.max(0, Math.min(1200, number.doubleValue())) : LATER_COOLDOWN_TICKS[index];
     }
 
     /** Heavy attack {@code index} of {@code plan}, or null while its own cooldown runs. */

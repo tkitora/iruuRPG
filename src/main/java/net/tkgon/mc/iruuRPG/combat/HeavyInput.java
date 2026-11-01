@@ -89,6 +89,7 @@ public final class HeavyInput implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSneak(PlayerToggleSneakEvent event) {
         if (!event.isSneaking()) return;
+        if (plugin != null && !plugin.getConfig().getBoolean("combat.heavy-input.double-shift", true)) return;
         Player player = event.getPlayer();
         if (!sneakDown(player.getUniqueId(), Bukkit.getCurrentTick())) return;
         // (a third press right after is the first of a new pair)

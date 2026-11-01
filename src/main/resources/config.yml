@@ -70,8 +70,17 @@ combat:
   # 強攻撃の入力 (武器の通常攻撃のボタン = 近接は左、遠距離・設置は右。もう一方を「別のボタン」とする):
   # 別→別 = 強1、別→通常 = 強2、Shift+別 = 強3、Shift+通常 = 強4、Shift を2回 = 強5。
   # window-ticks: 2つ目のボタン (Shift の2回目) を待つ時間。1つ目だけでは何も出ない
+  # keep-chain: true なら、強攻撃のあとも通常攻撃のコンボが続く (false: 強攻撃でコンボが1段目に戻る、t116 より前の動き)
+  # double-shift: false にすると、Shift の2回押し (強5) を使わない
+  # later-cooldown-ticks: コンボの設定 (heavy-cooldown-ticks) が無いときの、強2〜強5 のクールタイム (tick)。強1 は各コンボの値
   heavy-input:
     window-ticks: 8
+    keep-chain: true
+    double-shift: true
+    later-cooldown-ticks: [60, 80, 100, 120]
+  # Q キー: 持っている武器のスキルを出す。keep-items: true なら、ホットバーの Q / Ctrl+Q で何も落とさない (false: 武器以外は今までどおり落とせる)
+  q-key:
+    keep-items: true
   # 近接の弱・強コンボ (クラスのコンボがない武器): 左クリックが弱、強攻撃の入力 (heavy-input のどれでも) が強。弱を light-count 回つなげた最後が「最終段」
   combo:
     enabled: true
@@ -146,7 +155,7 @@ combat:
       shield-cut: 0.4
     # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃 強1〜強5 (heavy-input の入力で選ぶ)。
     # 設定のリスト (heavy-damage-multiplier / heavy-cooldown-ticks) は強1〜強5 の順 (番号 0〜4)。強攻撃のあとも、通常攻撃のコンボは続く。
-    # heavy-cooldown-ticks を書かないとき、強2〜強5 のクールタイムは 60 / 80 / 100 / 120 tick (強1 は各コンボの値)。
+    # heavy-cooldown-ticks を書かないとき、強2〜強5 のクールタイムは heavy-input.later-cooldown-ticks (60 / 80 / 100 / 120 tick。強1 は各コンボの値)。
     # plan 名: cleric_melee / cleric_range / cleric_deploy、ranger_melee / ranger_range / ranger_deploy、mage_melee / mage_deploy (遠距離のメイジは mage)、
     #          assassin_melee / assassin_range / assassin_deploy、warrior_melee / warrior_range / warrior_deploy。
     # アサシンの近接コンボは、得意な武器を持てば常に使える。戦士の近接コンボは、守り (受けるダメージが減る・シールド) と一撃の重さ。
@@ -569,8 +578,11 @@ hud:
   # 近接 (赤) / 遠距離 (青) / 設置 (白) の「通常攻撃」のクールタイムのゲージ [||||||||||]: HP・MPの横に出る。
   # 通常攻撃が使えるときは緑、クールタイム中は進み具合を各色のうすい色で出す。
   # (アイテムのクールダウン表示は、武器のスキルだけ。スキルのクールタイムはゲージには出さない)
-  # auto = どれかの通常攻撃がクールタイム中か、ダメージを与えていて DPS が 0 でない間 (終わって1.5秒まで) だけ出す (ふだんは HP / MP / DEF / Lv / XP の表示)、always = いつも出す、off = 出さない
+  # auto = どれかの通常攻撃か強攻撃がクールタイム中か、ダメージを与えていて DPS が 0 でない間 (終わって1.5秒まで) だけ出す (ふだんは HP / MP / DEF / Lv / XP の表示)、always = いつも出す、off = 出さない
   cooldown-gauges: auto
+  # ゲージが出ている間、持っている武器の強1〜強5 のアイコン (フォント iruurpg:hud) を、遠距離のゲージの上に並べる。クールタイム中は暗くなり、残りの秒が重なる
+  # (強攻撃ごとのクールタイムがある武器だけ: クラスのコンボの近接・遠距離と、メイジの杖)。false で出さない
+  heavy-icons: true
 
 # プロシージャルツール (/proceduraltool、別名 /treetool)。木・岩・スパイク・結晶・クモの巣を、部位ごとに選んだブロックで作る
 treetool:

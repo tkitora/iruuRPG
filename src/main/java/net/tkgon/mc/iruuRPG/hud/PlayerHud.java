@@ -75,8 +75,8 @@ public final class PlayerHud {
                 return true;
             }
         }
-        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
-        for (int index = 0; index < 5; index++) {
+        RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
+        for (int index = 0; weapon != null && index < 5; index++) {
             if (attackService.heavyCooldown(player, weapon, index)[0] > 0L) {
                 lastActive.put(player.getUniqueId(), now);
                 return true;
@@ -128,12 +128,17 @@ public final class PlayerHud {
                 .append(Component.text(String.format(Locale.ROOT, "%.1f", status.remainingMillis() / 1000.0) + "s", NamedTextColor.WHITE));
     }
 
+    /** {@code hud.heavy-icons} (default true): the row of the heavy attacks' icons with the gauges. */
+    private boolean heavyIconsOn() {
+        return plugin.getConfig().getBoolean("hud.heavy-icons", true);
+    }
+
     /**
      * The icons of the heavy attacks of the weapon in hand (null when they have no cooldowns of their own: a deployed weapon's, the usual chain's,
      * none). They take no room in the line.
      */
     private Component heavyIcons(Player player) {
-        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
         if (weapon == null || !attackService.heavyIconsShown(player, weapon)) return null;
         String classId = attackService.heavyIconClass(player, weapon);
         java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();

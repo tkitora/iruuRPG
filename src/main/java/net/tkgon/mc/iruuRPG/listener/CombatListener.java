@@ -363,9 +363,12 @@ public final class CombatListener implements Listener {
         Player player = event.getPlayer();
         Integer screen = screenDropTick.get(player.getUniqueId());
         if (screen != null && screen == org.bukkit.Bukkit.getCurrentTick()) return;
-        event.setCancelled(true);
         RpgItemDefinition weapon = attackService.definitionOf(event.getItemDrop().getItemStack());
-        if (weapon == null || !weapon.isWeaponLike()) return;
+        boolean isWeapon = weapon != null && weapon.isWeaponLike();
+        // combat.q-key.keep-items (default true): false lets Q drop what is not a weapon, as before
+        if (!isWeapon && !attackService.plugin().getConfig().getBoolean("combat.q-key.keep-items", true)) return;
+        event.setCancelled(true);
+        if (!isWeapon) return;
         boolean sneaking = player.isSneaking();
         // (the item is back in the hand after the event)
         org.bukkit.Bukkit.getScheduler().runTask(attackService.plugin(), () -> {
