@@ -17,13 +17,15 @@ public final class SlotMoves {
      * The warrior (a melee weapon): 小 the colossus strike, a great downward cut ahead (skill 4), 中 the whirlwind (skill 3), 大 the shield bash
      * that leaves the shields round it (skill 1), util the shield rush with no push (skill 5). The cleric ("healer", a melee weapon): 小 the shield
      * bash (skill 2), 中 the pillar of light at the aim (skill 4), 大 the spinning prayer round it (skill 3), util the sanctuary that heals and hurts
-     * (skill 1).
+     * (skill 1). The assassin (a melee weapon): 小 the crossing clones that cut the line ahead twice (skill 4), 中 the decoy that strikes the enemies
+     * near it and stays (skill 1), 大 the blade storm (skill 3), util the shadow run that leaves a decoy (skill 6).
      */
     private static final Map<String, Own> OWN = Map.of(
             "mage", new Own(AttackType.RANGE, new int[]{5, 3, 4, 0}),
             "gifted", new Own(AttackType.RANGE, new int[]{1, 5, 4, 0}),
             "warrior", new Own(AttackType.MELEE, new int[]{3, 2, 0, 4}),
-            "healer", new Own(AttackType.MELEE, new int[]{1, 3, 2, 0}));
+            "healer", new Own(AttackType.MELEE, new int[]{1, 3, 2, 0}),
+            "assassin", new Own(AttackType.MELEE, new int[]{3, 0, 2, 5}));
 
     /** A class's favorite kind of weapon, and the heavy attacks its 小・中・大・util throw with it. */
     record Own(AttackType favorite, int[] heavies) {

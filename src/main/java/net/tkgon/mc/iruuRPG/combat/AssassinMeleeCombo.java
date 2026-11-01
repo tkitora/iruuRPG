@@ -16,12 +16,15 @@ import java.util.List;
  *
  * <p>Normal: 1 a fang cross (two cuts, 50% x2), 2 a step in (a dash that stops at the first enemy it touches, then two cuts, 60% x2), 3 a shadow clone (a clone steps in from
  * behind the nearest enemy and strikes, 130%, confuses a little), 4 whirling blades (a spin of 4 cuts, 25% each on everyone round, 12 ticks), 5 an execution (two clones
- * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a grey clone (it is flung the way the assassin faces and stands there for 4.5 s;
+ * strike the aimed enemy from both sides, 75% each, and the assassin cuts the others near for 40%). Heavy: 0 a grey clone, a decoy (it is flung the way the assassin faces and stands there for 4.5 s, striking the nearest enemy near it every half a second for 20%;
  * cooldown 8 s; during the item swap skill it is a flat dash to the front instead (the clones of the skill follow it, once in half a second), 3% to everyone along the way, cooldown 2 ticks; 強1 again, up to twice, makes one more clone and then sends the clones charging forward, 15% each; the first heavy attack
  * after one was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage), 1 a shuriken (a small bright head with a thin streak, fast, 12 blocks in all; each clone of the item swap skill throws one too) that bounces up to three times, half the damage lost at each bounce
  * (three of them in the item swap skill), 2 a blade storm (a spin for 1.2 s, 16% every 3 ticks on
  * everyone round, takes 40% less damage meanwhile), 3 crossing clones (two clones run through the line ahead from both ends, 60% on all in the way each), 4 a phantom execution
  * (afterimages, then three clones close on the nearest enemy: 50% each and confusion).
+ *
+ * <p>The skills of the redesign of 2026-11-02 ({@link SlotMoves}): 小 the crossing clones (heavy 3), 中 the decoy (0), 大 the blade storm (2), util the
+ * shadow run that leaves a decoy where it started (5).
  *
  * <p>The class skill (SATUJIN, F) puts the assassin in a frenzy for some seconds: the blows are 20% stronger (35% when upgraded), the normal attacks come faster, a clone
  * strikes an enemy that is out of reach before a normal attack, every normal attack is followed by the cut of a shadow round the assassin (40%), and the status effects
@@ -231,11 +234,13 @@ public final class AssassinMeleeCombo extends BaseCombo {
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {
             case 0 -> {
-                // a grey clone is flung the way the assassin faces and stands there (4.5 s): 強1 again makes one more, and again sends them charging; nothing else (cooldown 8 s)
+                // a grey clone, a decoy, is flung the way the assassin faces and stands there (4.5 s), striking the nearest enemy near it every half a second
+                // (decoy-hit-rate, 20%); 強1 again makes one more, and again sends them charging (cooldown 8 s)
                 Location at = kit.ground(feet.clone().add(facing.clone().multiply(kit.number(PLAN, "stand-clone-distance", 5.0))));
                 double yaw = Math.toDegrees(Math.atan2(-facing.getX(), facing.getZ()));
                 int life = (int) Math.round(kit.number(PLAN, "stand-clone-seconds", 4.5) * 20.0);
-                AssassinClones.standOne(kit, at, yaw, life);
+                AssassinClones.standDecoy(kit, at, yaw, life, rate * kit.number(PLAN, "decoy-hit-rate", 0.2),
+                        (int) Math.round(kit.number(PLAN, "decoy-hit-ticks", 10.0)), kit.number(PLAN, "decoy-reach", 3.5));
                 AssassinClones.beginCast(kit);
                 kit.sound(at, Sfx.WIND, 0.6f, 1.6f);
             }
@@ -327,12 +332,17 @@ public final class AssassinMeleeCombo extends BaseCombo {
         }
     }
 
-    /** Skill 6 (t138): the assassin runs 7 blocks ahead as a shadow (nothing can hurt it on the way), cutting every enemy it passes once; they are confused. */
+    /**
+     * Skill 6 (t138): the assassin runs 7 blocks ahead as a shadow (nothing can hurt it on the way), cutting every enemy it passes once; they are
+     * confused. A grey clone, a decoy, stays where it started (util-decoy-seconds, 3 s: util of the redesign of 2026-11-02).
+     */
     private void sixth(MoveKit kit, double rate) {
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing().clone().setY(0.0);
         if (facing.lengthSquared() < 1.0E-6) return;
         facing.normalize();
+        AssassinClones.standOne(kit, kit.ground(feet), Math.toDegrees(Math.atan2(-facing.getX(), facing.getZ())),
+                (int) Math.round(kit.number(PLAN, "util-decoy-seconds", 3.0) * 20.0));
         Location from = feet.clone().add(0.0, 1.0, 0.0);
         java.util.List<org.bukkit.entity.LivingEntity> passed = kit.corridor(from, facing, 7.0, 1.5);
         kit.invulnerable(10);
