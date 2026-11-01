@@ -367,8 +367,10 @@ public final class RpgItemRegistry {
         if (!texture.isEmpty()) {
             String name = texture.toLowerCase(Locale.ROOT).replace("minecraft:", "");
             Material look = Material.matchMaterial(name);
-            if (look == null || !look.isItem()) {
-                plugin.getLogger().warning("items: " + id + ": texture '" + texture + "' is not a vanilla item (the base's own look is used)");
+            // (a name that is not a vanilla item is an own drawing: item-textures/<name>.png in the plugin's folder)
+            boolean own = name.matches("[a-z0-9_]+") && new File(plugin.getDataFolder(), "item-textures/" + name + ".png").isFile();
+            if ((look == null || !look.isItem()) && !own) {
+                plugin.getLogger().warning("items: " + id + ": texture '" + texture + "' is not a vanilla item and has no item-textures/" + name + ".png (the base's own look is used)");
                 texture = "";
             } else {
                 texture = name;
