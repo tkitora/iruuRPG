@@ -9,6 +9,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerResourcePackStatusEvent;
+import org.bukkit.event.player.PlayerResourcePackStatusEvent.Status;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
@@ -32,8 +34,13 @@ import java.util.UUID;
  * from the blue), draws the effect, and takes the square away. The marker follows the player (a display with no size is never culled, so it
  * only has to be near).
  *
- * <p>Limits: vanilla rendering only (a shader pack of Iris or OptiFine replaces it); the effect is drawn over the opaque world (water, particles,
- * clouds, the hand and the GUI are drawn after it, so they do not glow themselves).
+ * <p>A marker is sent only to a player whose client has the shaders (t128): the client tells the server how the marks' pack went (by the pack's
+ * id); while it was declined, could not be downloaded or failed to load, the effect is kept but its marker is not sent (it is when the pack
+ * loads). Whether a shader pack of Iris or OptiFine is on cannot be known: their APIs run in the client only and tell the server nothing (a
+ * marker sent to such a player shows nothing, as it has no size).
+ *
+ * <p>Limits: vanilla rendering only (a shader pack of Iris or OptiFine replaces it); the bloom comes from the opaque world (water, particles,
+ * clouds and the hand are drawn after it, so they do not glow themselves).
  */
 public final class ScreenEffects implements Listener {
 
@@ -96,6 +103,8 @@ public final class ScreenEffects implements Listener {
 
     private final JavaPlugin plugin;
     private final Map<UUID, Map<Effect, Marker>> markers = new HashMap<>();
+    /** The last status of the marks' pack (the one with the shaders) each player's client told. */
+    private final Map<UUID, Status> packStatus = new HashMap<>();
     private BukkitTask task;
     private long ticks;
 
@@ -131,15 +140,42 @@ public final class ScreenEffects implements Listener {
     }
 
     /**
-     * Shows {@code effect} to {@code player} at {@code strength} (1 - 255, 100 usual) for {@code durationTicks} (0 or less: until it is switched
-     * off); an effect already shown takes the new strength and time.
+     * Whether a client with the marks' pack in this status has the shaders: yes when it loaded it or is getting it, and when nothing is known (no
+     * pack was offered, or not yet); no when it declined it, could not download it, or it failed to load (a shader that does not compile does that).
      */
-    public void show(Player player, Effect effect, int strength, long durationTicks) {
+    static boolean hasShaders(Status status) {
+        if (status == null) return true;
+        return switch (status) {
+            case SUCCESSFULLY_LOADED, ACCEPTED, DOWNLOADED -> true;
+            default -> false;
+        };
+    }
+
+    public boolean hasShaders(Player player) {
+        return hasShaders(packStatus.get(player.getUniqueId()));
+    }
+
+    /** The last status of the marks' pack the player's client told (null: nothing yet). */
+    public Status packStatus(Player player) {
+        return packStatus.get(player.getUniqueId());
+    }
+
+    /**
+     * Shows {@code effect} to {@code player} at {@code strength} (1 - 255, 100 usual) for {@code durationTicks} (0 or less: until it is switched
+     * off); an effect already shown takes the new strength and time. False when the player's client has not the shaders: the effect is kept, and
+     * its marker is sent when the pack loads.
+     */
+    public boolean show(Player player, Effect effect, int strength, long durationTicks) {
         Marker marker = markers.computeIfAbsent(player.getUniqueId(), id -> new EnumMap<>(Effect.class)).computeIfAbsent(effect, e -> new Marker());
         marker.strength = clampStrength(strength);
         marker.until = durationTicks > 0 ? ticks + durationTicks : -1;
+        if (!hasShaders(player)) {
+            remove(marker);
+            return false;
+        }
         if (marker.display != null && marker.display.isValid()) marker.display.setGlowColorOverride(markerColor(effect, marker.strength));
         else marker.display = spawn(player, effect, marker.strength);
+        return true;
     }
 
     /** Switches {@code effect} off for {@code player}; false when it was not on. */
@@ -168,7 +204,10 @@ public final class ScreenEffects implements Listener {
         return shown;
     }
 
-    /** Ends the effects whose time is over, and keeps each marker near its player (a new one in another world, or after it was unloaded). */
+    /**
+     * Ends the effects whose time is over, and keeps each marker near its player (a new one in another world, or after it was unloaded); a
+     * marker is taken away while the player's client has not the shaders, and made again when it has.
+     */
     private void tick() {
         ticks += 5;
         var players = markers.entrySet().iterator();
@@ -191,6 +230,10 @@ public final class ScreenEffects implements Listener {
     }
 
     private void follow(Player player, Effect effect, Marker marker) {
+        if (!hasShaders(player)) {
+            remove(marker);
+            return;
+        }
         ItemDisplay display = marker.display;
         if (display != null && display.isValid() && display.getWorld().equals(player.getWorld())) {
             if (display.getLocation().distanceSquared(player.getLocation()) > FOLLOW * FOLLOW) display.teleport(player.getLocation());
@@ -223,7 +266,18 @@ public final class ScreenEffects implements Listener {
     }
 
     @EventHandler
+    public void onPackStatus(PlayerResourcePackStatusEvent event) {
+        if (!net.tkgon.mc.iruuRPG.pack.ResourcePackService.packId("marks").equals(event.getID())) return;
+        packStatus.put(event.getPlayer().getUniqueId(), event.getStatus());
+        if (event.getStatus() == Status.FAILED_RELOAD) {
+            plugin.getLogger().warning("screenfx: " + event.getPlayer().getName() + " could not load the marks' pack (FAILED_RELOAD): if the shaders"
+                    + " do not compile on that client, screen-effects.enabled: false takes them out of the pack");
+        }
+    }
+
+    @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         hideAll(event.getPlayer());
+        packStatus.remove(event.getPlayer().getUniqueId());
     }
 }

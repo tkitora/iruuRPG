@@ -79,7 +79,11 @@ public final class ScreenEffectsCommand implements TabExecutor {
             case "status" -> {
                 for (Player player : targets(sender, args.length > 1 ? args[1] : null)) {
                     Map<Effect, Integer> shown = effects.shown(player);
-                    sender.sendMessage(PREFIX + player.getName() + ": " + (shown.isEmpty() ? "なし" : shown.toString().toLowerCase(Locale.ROOT)));
+                    var status = effects.packStatus(player);
+                    sender.sendMessage(PREFIX + player.getName() + ": " + (shown.isEmpty() ? "なし" : shown.toString().toLowerCase(Locale.ROOT))
+                            + " / パック (iruumark.zip): " + (status == null ? "不明" : status.name().toLowerCase(Locale.ROOT))
+                            + (effects.hasShaders(player) ? "" : " → 目印を送っていない")
+                            + " / クライアント: " + player.getClientBrandName());
                 }
             }
             default -> effect(sender, args);
@@ -106,11 +110,16 @@ public final class ScreenEffectsCommand implements TabExecutor {
             return;
         }
         List<Player> players = targets(sender, on.target());
-        for (Player player : players) effects.show(player, effect, on.strength(), Math.round(on.seconds() * 20.0));
+        List<String> held = new ArrayList<>();
+        for (Player player : players) if (!effects.show(player, effect, on.strength(), Math.round(on.seconds() * 20.0))) held.add(player.getName());
         if (!players.isEmpty()) {
-            sender.sendMessage(PREFIX + effect.id() + " (強さ " + on.strength() + ") を " + players.size() + " 人に出しました"
+            sender.sendMessage(PREFIX + effect.id() + " (強さ " + on.strength() + ") を " + (players.size() - held.size()) + " 人に出しました"
                     + (on.seconds() > 0 ? " (" + on.seconds() + " 秒)。" : "。/screenfx " + effect.id() + " off で消えます。"));
-            sender.sendMessage(PREFIX + "見えるのは、サーバーのリソースパックを入れていて、シェーダーパック (Iris・OptiFine) を使っていない人だけです。");
+            if (!held.isEmpty()) {
+                sender.sendMessage(PREFIX + "シェーダー入りのパック (iruumark.zip) を読み込めていない人には、目印を送っていません (読み込めたら出ます): "
+                        + String.join(", ", held));
+            }
+            sender.sendMessage(PREFIX + "シェーダーパック (Iris・OptiFine) を使っている人には見えません (サーバーからは分かりません)。");
         }
     }
 

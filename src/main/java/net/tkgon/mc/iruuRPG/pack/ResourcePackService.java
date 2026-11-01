@@ -161,6 +161,14 @@ public final class ResourcePackService implements Listener {
         }, 20L);
     }
 
+    /**
+     * The id the pack {@code name} is offered with (the client tells its status by it, see PlayerResourcePackStatusEvent#getID). One id per
+     * pack: a changed pack replaces the old one on the client instead of adding another.
+     */
+    public static UUID packId(String name) {
+        return UUID.nameUUIDFromBytes(("iruurpg:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+    }
+
     /** Offers the player every pack that is switched on and there; returns how many were offered (0 with the service off or no address). */
     public int send(Player player) {
         if (!plugin.getConfig().getBoolean("resourcepack.enabled", false)) return 0;
@@ -175,9 +183,7 @@ public final class ResourcePackService implements Listener {
             if (hash == null) continue;
             byte[] bytes = new byte[20];
             for (int index = 0; index < 20; index++) bytes[index] = (byte) Integer.parseInt(hash.substring(index * 2, index * 2 + 2), 16);
-            // (one id per pack: a changed pack replaces the old one on the client instead of adding another)
-            UUID id = UUID.nameUUIDFromBytes(("iruurpg:" + pack.name()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-            player.addResourcePack(id, base + pack.file() + "?h=" + hash.substring(0, 8), bytes, prompt, pack.required());
+            player.addResourcePack(packId(pack.name()), base + pack.file() + "?h=" + hash.substring(0, 8), bytes, prompt, pack.required());
             sent++;
         }
         return sent;
@@ -200,7 +206,7 @@ public final class ResourcePackService implements Listener {
         if (hash == null) return 0;
         byte[] bytes = new byte[20];
         for (int index = 0; index < 20; index++) bytes[index] = (byte) Integer.parseInt(hash.substring(index * 2, index * 2 + 2), 16);
-        UUID id = UUID.nameUUIDFromBytes(("iruurpg:" + pack.name()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        UUID id = packId(pack.name());
         String prompt = plugin.getConfig().getString("resourcepack.prompt", "iruuRPG のリソースパック");
         int sent = 0;
         for (Player player : plugin.getServer().getOnlinePlayers()) {
