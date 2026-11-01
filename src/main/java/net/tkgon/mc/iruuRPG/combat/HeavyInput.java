@@ -5,6 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -15,14 +16,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 
 /**
- * Which heavy attack (強1 - 強5, index 0 - 4) the buttons choose. The weapon's normal button is the left one with a melee weapon and the right one
- * with a ranged or deployed one; the other button is the other one:
+ * Which heavy attack (強1 - 強5, index 0 - 4) the player chooses. The weapon's normal button is the left one with a melee weapon and the right one
+ * with a ranged or deployed one; the other button is the other one. Two styles ({@code combat.heavy-input.style}):
  * <ul>
- *   <li>other, other: 強1; other, normal: 強2 (the second within {@code combat.heavy-input.window-ticks} of the first; the first alone does nothing);</li>
- *   <li>shift + other: 強3; shift + normal: 強4;</li>
- *   <li>shift pressed twice within the window: 強5 (a press of shift that was used for a shift + click does not count).</li>
+ *   <li>{@code number} (t119, the default): the other button and then the number key 1 - 5 within {@code number-window-ticks}: 強1 - 強5. The hotbar
+ *   does not move for that key; a number key with no other button before it moves the hotbar as usual, and the other button alone does nothing.
+ *   The client tells the server nothing when the key of the slot already held is pressed, so the weapon is best kept in slot 6 - 9.</li>
+ *   <li>{@code buttons} (t116): other, other: 強1; other, normal: 強2 (the second within {@code window-ticks} of the first; the first alone does
+ *   nothing); shift + other: 強3; shift + normal: 強4; shift pressed twice within the window: 強5 (a press of shift that was used for a shift +
+ *   click does not count). A held button repeats its click every 4 ticks, so holding the other button throws 強1 again and again.</li>
  * </ul>
- * A held button repeats its click every 4 ticks, so holding the other button throws 強1 again and again (as fast as its cooldown allows).
  */
 public final class HeavyInput implements Listener {
 
@@ -42,15 +45,21 @@ public final class HeavyInput implements Listener {
     private static final Map<UUID, Integer> SNEAK_DOWN = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> SNEAK_USED = new ConcurrentHashMap<>();
 
-    /** Throws heavy attack {@code index} of the weapon in hand for the double press of shift; false when the weapon has none. */
-    private final BiPredicate<Player, Integer> doubleShift;
+    /** Throws heavy attack {@code index} of the weapon in hand (for a number key, or the double press of shift); false when the weapon has none. */
+    private final BiPredicate<Player, Integer> heavyByKey;
 
-    public HeavyInput(JavaPlugin owner, BiPredicate<Player, Integer> doubleShift) {
+    public HeavyInput(JavaPlugin owner, BiPredicate<Player, Integer> heavyByKey) {
         plugin = owner;
-        this.doubleShift = doubleShift;
+        this.heavyByKey = heavyByKey;
+    }
+
+    /** True for the style of the number keys (t119), false for the buttons' (t116). */
+    public static boolean numberKeys() {
+        return plugin == null || !"buttons".equalsIgnoreCase(plugin.getConfig().getString("combat.heavy-input.style", "number"));
     }
 
     static int windowTicks() {
+        if (numberKeys()) return plugin == null ? 20 : Math.max(2, Math.min(100, plugin.getConfig().getInt("combat.heavy-input.number-window-ticks", 20)));
         return plugin == null ? 8 : Math.max(2, Math.min(40, plugin.getConfig().getInt("combat.heavy-input.window-ticks", 8)));
     }
 
@@ -65,6 +74,15 @@ public final class HeavyInput implements Listener {
     static int click(UUID id, boolean sneaking, Button button, int now) {
         int[] last = LAST_CLICK.put(id, new int[]{now, button.ordinal()});
         if (last != null && last[0] == now && last[1] == button.ordinal()) return NOTHING;
+        if (numberKeys()) {
+            // the other button waits for a number key; the normal button is the normal attack (and ends the wait)
+            if (button == Button.OTHER) {
+                WAITING.put(id, now);
+                return NOTHING;
+            }
+            WAITING.remove(id);
+            return NORMAL_ATTACK;
+        }
         if (sneaking) {
             SNEAK_USED.put(id, true);
             WAITING.remove(id);
@@ -80,20 +98,41 @@ public final class HeavyInput implements Listener {
         return open ? 1 : NORMAL_ATTACK;
     }
 
-    /** True while a press of the other button waits for its second button. */
-    public static boolean waiting(Player player) {
+    /** True while a press of the other button waits for its second button (the buttons' style: a left click then is a press, not an echo). */
+    public static boolean waitingButton(Player player) {
+        if (numberKeys()) return false;
         Integer first = WAITING.get(player.getUniqueId());
         return first != null && Bukkit.getCurrentTick() - first <= windowTicks();
     }
 
+    /**
+     * A number key (hotbar slot {@code slot}, 0 - 8) is pressed: the index of the heavy attack it throws (the other button was pressed just before,
+     * and the key is 1 - 5), else -1. The wait ends either way.
+     */
+    static int numberKey(UUID id, int slot, int now) {
+        if (!numberKeys()) return -1;
+        Integer first = WAITING.remove(id);
+        if (first == null || now - first > windowTicks() || slot < 0 || slot > 4) return -1;
+        return slot;
+    }
+
+    /** The other button and then a number key: the heavy attack, and the hotbar stays where it is (the tutorial's lock comes first). */
+    @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+    public void onNumberKey(PlayerItemHeldEvent event) {
+        Player player = event.getPlayer();
+        int index = numberKey(player.getUniqueId(), event.getNewSlot(), Bukkit.getCurrentTick());
+        if (index < 0) return;
+        if (heavyByKey.test(player, index)) event.setCancelled(true);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSneak(PlayerToggleSneakEvent event) {
-        if (!event.isSneaking()) return;
+        if (!event.isSneaking() || numberKeys()) return;
         if (plugin != null && !plugin.getConfig().getBoolean("combat.heavy-input.double-shift", true)) return;
         Player player = event.getPlayer();
         if (!sneakDown(player.getUniqueId(), Bukkit.getCurrentTick())) return;
         // (a third press right after is the first of a new pair)
-        if (doubleShift.test(player, 4)) SNEAK_DOWN.remove(player.getUniqueId());
+        if (heavyByKey.test(player, 4)) SNEAK_DOWN.remove(player.getUniqueId());
     }
 
     /** Shift is pressed: true when it is the second press of a pair (the first within the window, and not used for a shift + click). */

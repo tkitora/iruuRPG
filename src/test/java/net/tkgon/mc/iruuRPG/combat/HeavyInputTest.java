@@ -16,14 +16,56 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/** t116: the buttons choose the heavy attack (強1 - 強5), each heavy attack cools down on its own, and the chain of normal attacks goes on. */
+/**
+ * The heavy attack (強1 - 強5) chosen by the other button and a number key (t119, the default), or by the buttons (t116, style: buttons); each heavy
+ * attack cools down on its own, and the chain of normal attacks goes on.
+ */
 class HeavyInputTest {
 
     private static final HeavyInput.Button N = HeavyInput.Button.NORMAL;
     private static final HeavyInput.Button O = HeavyInput.Button.OTHER;
 
+    /** Sets the style of the input (the plugin of HeavyInput is static: each test sets its own). */
+    private static void style(String style) {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        YamlConfiguration config = new YamlConfiguration();
+        if (style != null) config.set("combat.heavy-input.style", style);
+        when(plugin.getConfig()).thenReturn(config);
+        new HeavyInput(plugin, (player, index) -> true);
+    }
+
+    @Test
+    void theOtherButtonAndANumberKeyChooseTheHeavyAttack() {
+        style(null);
+        assertTrue(HeavyInput.numberKeys());
+        UUID id = UUID.randomUUID();
+        // a number key with no other button before it moves the hotbar
+        assertEquals(-1, HeavyInput.numberKey(id, 2, 10));
+        // the other button alone is nothing; then key 3 (slot 2) within 20 ticks: 強3
+        assertEquals(HeavyInput.NOTHING, HeavyInput.click(id, false, O, 20));
+        assertEquals(2, HeavyInput.numberKey(id, 2, 35));
+        // the wait is over after the key
+        assertEquals(-1, HeavyInput.numberKey(id, 2, 36));
+        // too late
+        assertEquals(HeavyInput.NOTHING, HeavyInput.click(id, false, O, 100));
+        assertEquals(-1, HeavyInput.numberKey(id, 0, 121));
+        // keys 6 - 9 are only the hotbar
+        HeavyInput.click(id, false, O, 200);
+        assertEquals(-1, HeavyInput.numberKey(id, 5, 202));
+        // the normal button is the normal attack and ends the wait; shift changes nothing
+        HeavyInput.click(id, false, O, 300);
+        assertEquals(HeavyInput.NORMAL_ATTACK, HeavyInput.click(id, true, N, 303));
+        assertEquals(-1, HeavyInput.numberKey(id, 0, 305));
+        HeavyInput.click(id, true, O, 400);
+        assertEquals(4, HeavyInput.numberKey(id, 4, 401));
+        // no double press of shift in this style (the event handler skips it)
+        HeavyInput.forget(id);
+    }
+
     @Test
     void theButtonsChooseTheHeavyAttack() {
+        style("buttons");
+        assertFalse(HeavyInput.numberKeys());
         UUID id = UUID.randomUUID();
         // other, other: 強1 (index 0); the first alone is nothing
         assertEquals(HeavyInput.NOTHING, HeavyInput.click(id, false, O, 100));
@@ -46,6 +88,7 @@ class HeavyInputTest {
 
     @Test
     void aHeldOtherButtonThrows強1AgainAndAgain() {
+        style("buttons");
         UUID id = UUID.randomUUID();
         int thrown = 0;
         // the client repeats a held button every 4 ticks
@@ -56,6 +99,7 @@ class HeavyInputTest {
 
     @Test
     void shiftTwiceIs強5ButNotAfterAShiftClick() {
+        style("buttons");
         UUID id = UUID.randomUUID();
         assertFalse(HeavyInput.sneakDown(id, 10));
         assertTrue(HeavyInput.sneakDown(id, 15));

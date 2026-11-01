@@ -479,8 +479,8 @@ public final class AttackService {
         return melee != rightClick ? HeavyInput.Button.NORMAL : HeavyInput.Button.OTHER;
     }
 
-    /** The double press of shift: heavy attack {@code index} of the weapon in hand. False when it has none (the press is only a press). */
-    public boolean heavyByShift(Player attacker, int index) {
+    /** A number key (or the double press of shift): heavy attack {@code index} of the weapon in hand. False when it has none (the key is only a key). */
+    public boolean heavyByKey(Player attacker, int index) {
         RpgItemDefinition weapon = weaponInMainHand(attacker);
         if (!hasHeavies(attacker, weapon)) return false;
         if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) return true;
