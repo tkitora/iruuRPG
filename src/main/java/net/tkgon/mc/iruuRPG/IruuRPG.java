@@ -751,6 +751,7 @@ public final class IruuRPG extends JavaPlugin {
         // what two keys do (t138, the style of the keys): each player's own choice
         this.keyBindings = new net.tkgon.mc.iruuRPG.combat.KeyBindings(this);
         net.tkgon.mc.iruuRPG.combat.HeavyInput.setBindings(keyBindings);
+        settingsMenu.setKeyBindings(keyBindings);
         getServer().getPluginManager().registerEvents(keyBindings, this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);

@@ -129,7 +129,7 @@ public final class KeyBindings implements Listener {
         return actionOf(data(player), pattern);
     }
 
-    static Action actionOf(Map<Action, Pattern> bindings, Pattern pattern) {
+    public static Action actionOf(Map<Action, Pattern> bindings, Pattern pattern) {
         for (Map.Entry<Action, Pattern> entry : bindings.entrySet()) if (entry.getValue().equals(pattern)) return entry.getKey();
         return null;
     }

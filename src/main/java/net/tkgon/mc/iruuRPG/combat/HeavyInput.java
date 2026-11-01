@@ -67,6 +67,11 @@ public final class HeavyInput implements Listener {
         bindings = keyBindings;
     }
 
+    /** A player's choices of what the keys do (the defaults when there are no bindings). */
+    public static Map<KeyBindings.Action, KeyBindings.Pattern> bindingsOf(Player player) {
+        return bindings == null || player == null ? KeyBindings.DEFAULTS : bindings.of(player);
+    }
+
     private static String style() {
         return plugin == null ? "keys" : plugin.getConfig().getString("combat.heavy-input.style", "keys");
     }

@@ -97,6 +97,11 @@ public final class ClassInfo {
      * notes; 【】 are what the attack does to the enemy). Null when the class yml has no lines for it.
      */
     static ItemStack comboGuide(ClassDefinition definition, AttackType kind) {
+        return comboGuide(definition, kind, net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS);
+    }
+
+    /** The combo guide with the keys of {@code bindings} (a player's own choice, t138). */
+    static ItemStack comboGuide(ClassDefinition definition, AttackType kind, java.util.Map<net.tkgon.mc.iruuRPG.combat.KeyBindings.Action, net.tkgon.mc.iruuRPG.combat.KeyBindings.Pattern> bindings) {
         String key = kind.name().toLowerCase(java.util.Locale.ROOT);
         List<String> lines = definition.comboGuide().get(key);
         if (lines == null || lines.isEmpty()) return null;
@@ -114,10 +119,10 @@ public final class ClassInfo {
         };
         List<Component> lore = new ArrayList<>();
         lore.add(plain("得意な武器 (黄色の印) で出せるコンボ", NamedTextColor.GRAY));
-        for (String how : controls(kind)) {
+        for (String how : controls(kind, bindings)) {
             lore.add(plain(how, NamedTextColor.DARK_AQUA));
         }
-        lore.add(plain("強の番号 = その前に出した弱の数", NamedTextColor.DARK_AQUA));
+        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) lore.add(plain("キーは、設定の「キー操作」で変えられます", NamedTextColor.DARK_AQUA));
         lore.add(plain("【】は敵への効果", NamedTextColor.DARK_GRAY));
         lore.add(Component.empty());
         for (String line : lines) {
@@ -136,16 +141,16 @@ public final class ClassInfo {
         return item;
     }
 
-    private static List<String> controls(AttackType kind) {
+    private static List<String> controls(AttackType kind, java.util.Map<net.tkgon.mc.iruuRPG.combat.KeyBindings.Action, net.tkgon.mc.iruuRPG.combat.KeyBindings.Pattern> bindings) {
         if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) {
-            // (t138: F or Q and then a second key; these are the defaults, each player can change them in the settings)
+            // (t138: F or Q and then a second key, the player's own choice of the settings)
             List<String> lines = new java.util.ArrayList<>();
             lines.add(switch (kind) {
                 case MELEE -> "左クリック: 通常 (弱1→弱5)";
                 case RANGE -> "右クリック: 通常 (弱1→弱5)";
                 default -> "右クリック: 1回目で設置、その後は弱";
             });
-            lines.addAll(net.tkgon.mc.iruuRPG.combat.KeyBindings.describe(net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS, kind == AttackType.MELEE));
+            lines.addAll(net.tkgon.mc.iruuRPG.combat.KeyBindings.describe(bindings, kind == AttackType.MELEE));
             if (kind != AttackType.MELEE && kind != AttackType.RANGE) lines.add("(スキルは設置ごとに1回) Shift+Q: 設置を消す");
             return lines;
         }
