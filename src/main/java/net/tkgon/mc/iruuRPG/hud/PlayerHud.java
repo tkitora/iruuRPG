@@ -7,6 +7,8 @@ import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.listener.ClassSkillListener;
+import net.tkgon.mc.iruuRPG.combat.HeavyInput;
+import net.tkgon.mc.iruuRPG.combat.KeyBindings;
 import net.tkgon.mc.iruuRPG.markpack.HudGlyphs;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
@@ -26,6 +28,8 @@ import java.util.Locale;
  *
  * <p>With the gauges, a weapon whose heavy attacks have cooldowns of their own shows a row of their icons (強1 - 強5, {@link HudGlyphs}) above the
  * line, centred over the ranged gauge: an icon is greyed and shaded from the top while its heavy attack cools down, with the seconds left on it.
+ * In the style of the keys (t138) each icon has the label of the two keys that do it above it (the player's own choice), and the class skill
+ * its keys in front of its name; while a first key waits, the labels that go on from it are yellow and the others grey (and the gauges show).
  */
 public final class PlayerHud {
 
@@ -37,6 +41,7 @@ public final class PlayerHud {
     private final JavaPlugin plugin;
     private AttackService attackService;
     private ClassSkillListener classSkills;
+    private KeyBindings keyBindings;
 
     public PlayerHud(JavaPlugin plugin, LevelService levelService) {
         this.plugin = plugin;
@@ -46,6 +51,11 @@ public final class PlayerHud {
     /** Where the class skill's cooldown comes from. */
     public void setClassSkills(ClassSkillListener classSkills) {
         this.classSkills = classSkills;
+    }
+
+    /** What each player's two keys do (the labels of the style of the keys). */
+    public void setKeyBindings(KeyBindings keyBindings) {
+        this.keyBindings = keyBindings;
     }
 
     /** Where the normal attack cooldowns come from. */
@@ -63,6 +73,11 @@ public final class PlayerHud {
         if (attackService == null || mode.equals("off")) return false;
         if (mode.equals("always")) return true;
         long now = System.currentTimeMillis();
+        // a first key waits for its second: the labels show which keys go on from it
+        if (HeavyInput.keyStyle() && HeavyInput.pendingKey(player) != null) {
+            lastActive.put(player.getUniqueId(), now);
+            return true;
+        }
         // damage is being dealt (the DPS is not 0: also when only skills hit), or the class skill's total is up
         var meter = attackService.damageMeter();
         if (meter.dps(player.getUniqueId()) > 0.0 || meter.skillTotalShown(player.getUniqueId())) {
@@ -123,9 +138,39 @@ public final class PlayerHud {
         }
         ClassSkillListener.HudStatus status = classSkills == null ? null : classSkills.hudStatus(player);
         if (status == null) return Component.empty();
-        if (status.remainingMillis() <= 0L) return Component.text(status.name() + " OK", NamedTextColor.GREEN);
-        return Component.text(status.name() + " ", NamedTextColor.GRAY)
+        Component keys = Component.empty();
+        if (HeavyInput.keyStyle()) {
+            // (the class skill is the special: its two keys in front of it)
+            KeyBindings.Pattern pattern = patternOf(player, KeyBindings.Action.ULTIMATE);
+            RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+            keys = Component.text(pattern.label(weapon == null || weapon.attackType() == AttackType.MELEE) + " ", TextColor.color(keyColor(player, pattern)));
+        }
+        if (status.remainingMillis() <= 0L) return keys.append(Component.text(status.name() + " OK", NamedTextColor.GREEN));
+        return keys.append(Component.text(status.name() + " ", NamedTextColor.GRAY))
                 .append(Component.text(String.format(Locale.ROOT, "%.1f", status.remainingMillis() / 1000.0) + "s", NamedTextColor.WHITE));
+    }
+
+    private KeyBindings.Pattern patternOf(Player player, KeyBindings.Action action) {
+        return keyBindings == null ? KeyBindings.DEFAULTS.get(action) : keyBindings.patternOf(player, action);
+    }
+
+    /** The color of a label: white, or while a first key waits, yellow when the label goes on from it and grey when not. */
+    private static int keyColor(Player player, KeyBindings.Pattern pattern) {
+        KeyBindings.Key waiting = HeavyInput.pendingKey(player);
+        if (waiting == null) return 0xFFFFFF;
+        return pattern.first() == waiting ? 0xFFE14D : 0x707070;
+    }
+
+    /** The glyph of a label ({@link HudGlyphs#keyLabel}) as the keys are pressed with the weapon ({@code melee}: its normal button is the left one). */
+    static char keyGlyph(KeyBindings.Pattern pattern, boolean melee) {
+        int first = pattern.first() == KeyBindings.Key.F ? 0 : 1;
+        int second = switch (pattern.second()) {
+            case F -> 0;
+            case Q -> 1;
+            case OTHER -> melee ? 3 : 2;
+            case NORMAL -> melee ? 2 : 3;
+        };
+        return HudGlyphs.keyLabel(first, second);
     }
 
     /** {@code hud.heavy-icons} (default true): the row of the heavy attacks' icons with the gauges. */
@@ -142,10 +187,18 @@ public final class PlayerHud {
         if (weapon == null || !attackService.heavyIconsShown(player, weapon)) return null;
         String classId = attackService.heavyIconClass(player, weapon);
         java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();
+        boolean melee = weapon.attackType() == AttackType.MELEE;
         for (int index = 0; index < 5; index++) {
             long[] cooldown = attackService.heavyCooldown(player, weapon, index);
             double share = cooldown[0] <= 0L || cooldown[1] <= 0L ? 0.0 : Math.min(1.0, (double) cooldown[0] / cooldown[1]);
-            icons.add(new HudGlyphs.Icon(classId, index + 1, share, (int) Math.ceil(cooldown[0] / 1000.0)));
+            int seconds = (int) Math.ceil(cooldown[0] / 1000.0);
+            if (!HeavyInput.keyStyle()) {
+                icons.add(new HudGlyphs.Icon(classId, index + 1, share, seconds));
+                continue;
+            }
+            // (t138: the keys of skill index + 1 above its icon)
+            KeyBindings.Pattern pattern = patternOf(player, KeyBindings.Action.values()[index]);
+            icons.add(new HudGlyphs.Icon(classId, index + 1, share, seconds, keyGlyph(pattern, melee), keyColor(player, pattern)));
         }
         return HudGlyphs.row(icons);
     }
