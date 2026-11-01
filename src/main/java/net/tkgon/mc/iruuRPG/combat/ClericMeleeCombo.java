@@ -24,7 +24,7 @@ public final class ClericMeleeCombo implements ClassCombo {
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
             new double[]{0.46, 0.3, 0.77, 0.46, 1.08}, new int[]{1, 2, 1, 2, 1},
-            new double[]{0.13, 0.77, 0.12, 0.85, 0.68}, new int[]{160, 0, 0, 0, 0}, 40);
+            new double[]{0.13, 0.77, 0.12, 0.85, 0.68, 1.2}, new int[]{160, 0, 0, 0, 0, 0}, 40);
 
     @Override
     public String classId() {
@@ -181,7 +181,7 @@ public final class ClericMeleeCombo implements ClassCombo {
                     }
                 });
             }
-            default -> {
+            case 4 -> {
                 // a wide sanctuary ring: the enemies in it are hurt, the cleric is healed (nothing holds the enemies: the cleric's combo has no restraint)
                 kit.shockwave(feet, 1.5, 5.2, 6, 1.2);
                 kit.sound(feet, Sound.BLOCK_BEACON_DEACTIVATE, 1.0f, 1.5f);
@@ -194,6 +194,22 @@ public final class ClericMeleeCombo implements ClassCombo {
                 double spin = Trig.sin(0.0);
                 kit.fx(feet).sphereShell(feet.clone().add(0.0, 1.0, 0.0), 1.4, spin, 32, kit.palette(), 1.0);
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a hammer of light falls on the enemy ahead (2.5 blocks round it are struck), and the allies near the cleric are healed 3%. */
+    private void sixth(MoveKit kit, double rate) {
+        org.bukkit.entity.LivingEntity target = kit.nearest(5.0, 50.0);
+        Location at = target != null ? target.getLocation() : kit.ground(kit.player.getLocation().add(kit.facing().clone().setY(0.0).multiply(2.5)));
+        kit.sound(at, Sfx.MAGIC, 1.0f, 0.7f);
+        kit.pillar(at, 0.9, 5.0);
+        kit.later(4L, () -> {
+            kit.shockwave(at, 0.5, 2.5, 4, 1.1);
+            kit.sound(at, Sfx.METAL_HEAVY, 0.9f, 1.2f);
+            for (org.bukkit.entity.LivingEntity victim : kit.around(at, 2.5)) kit.hit(victim, rate);
+            kit.healAllies(kit.player.getLocation(), 6.0, 3.0);
+        });
     }
 }

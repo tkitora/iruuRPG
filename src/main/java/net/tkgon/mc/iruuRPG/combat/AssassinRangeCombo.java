@@ -24,7 +24,7 @@ public final class AssassinRangeCombo extends BaseCombo {
     public AssassinRangeCombo() {
         super("assassin", AttackType.RANGE, new ComboSpec(PLAN,
                 new double[]{0.37, 0.5, 0.42, 0.07, 0.35}, new int[]{2, 2, 3, 1, 5},
-                new double[]{0.06, 0.24, 1.3, 0.35, 0.2}, new int[]{120, 0, 0, 0, 0}, 40));
+                new double[]{0.06, 0.24, 1.3, 0.35, 0.2, 0.2}, new int[]{120, 0, 0, 0, 0, 0}, 40));
     }
 
     /** A sword that sweeps across the front of the mage, from one side to the other (3 ticks), cutting what is in the cone at the middle. */
@@ -163,7 +163,7 @@ public final class AssassinRangeCombo extends BaseCombo {
                     kit.later(index, () -> Blades.seek(kit, start, heading.clone().add(new Vector(0.0, 0.3, 0.0)), 1.3, 36, 12.0, rate, null));
                 }
             }
-            default -> {
+            case 4 -> {
                 // a storm of six swords round the aim for 1.2 s: everyone in it is cut every 4 ticks and drawn in
                 Location center = ComboParts.target(kit);
                 kit.sound(center, Sfx.MAGIC, 1.0f, 0.9f);
@@ -183,6 +183,14 @@ public final class AssassinRangeCombo extends BaseCombo {
                     }
                 }, zone -> kit.shockwave(center, 1.0, 3.2, 3, 1.0));
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a thousand needles: seven fast needles fanned out over 60 degrees at once. */
+    private void sixth(MoveKit kit, double rate) {
+        kit.sound(kit.eye(), Sfx.WIND, 0.9f, 1.6f);
+        ComboParts.fanBolts(kit, 7, 60.0, rate, 1.8, 14.0);
     }
 }

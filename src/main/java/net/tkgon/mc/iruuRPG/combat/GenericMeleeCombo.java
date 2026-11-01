@@ -19,7 +19,7 @@ public final class GenericMeleeCombo extends BaseCombo {
     public GenericMeleeCombo() {
         super("*", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.4, 0.54, 0.68, 0.81, 0.95}, new int[]{1, 1, 1, 2, 1},
-                new double[]{0.5, 0.6, 0.7, 1.0, 1.4}, new int[]{60, 0, 0, 0, 0}, 36));
+                new double[]{0.5, 0.6, 0.7, 1.0, 1.4, 1.3}, new int[]{60, 0, 0, 0, 0, 0}, 36));
     }
 
     @Override
@@ -106,12 +106,29 @@ public final class GenericMeleeCombo extends BaseCombo {
                     kit.hitAll(kit.around(land, 3.4), rate);
                 });
             }
-            default -> {
+            case 4 -> {
                 Location from = kit.eye().subtract(0.0, 0.4, 0.0);
                 kit.slash("drop", 3.0, 160.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.4, 0.16, 0.0);
                 kit.sound(feet, Sfx.WIND_BURST, 1.0f, 0.9f);
                 CombatLine.wave(kit, from, kit.axes()[0], 7.0, 1.6, rate);
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a lunge ahead (5 blocks at most) to the first enemy, run through with a thrust. */
+    private void sixth(MoveKit kit, double rate) {
+        Vector facing = kit.facing().clone().setY(0.0);
+        if (facing.lengthSquared() < 1.0E-6) return;
+        facing.normalize();
+        kit.sound(kit.player.getLocation(), Sfx.WIND_BURST, 0.9f, 1.1f);
+        kit.dashToContact(facing, 1.1, 5, 1.6, (end, touched) -> {
+            kit.slash("line", 2.6, 60.0, 0.0, 0.0, 1.6, 0.3, 0.0, 1.2, 0.12, 0.0);
+            kit.sound(end, Sfx.METAL, 0.8f, 1.1f);
+            for (org.bukkit.entity.LivingEntity victim : kit.cone(3.2, 35.0)) {
+                if (kit.hit(victim, rate)) kit.push(victim, end.toVector(), 0.4, 0.1);
+            }
+        });
     }
 }

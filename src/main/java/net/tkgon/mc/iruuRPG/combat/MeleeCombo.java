@@ -64,7 +64,7 @@ public final class MeleeCombo {
         }
     }
 
-    private static final int HEAVIES = 5;
+    private static final int HEAVIES = 6;
 
     private final JavaPlugin plugin;
     /** The combos described by a {@link ComboSpec} (the newer ones), by plan. */
@@ -174,9 +174,9 @@ public final class MeleeCombo {
 
     public double heavyMultiplier(String plan, int index) {
         ComboSpec spec = specs.get(plan);
-        if (spec != null) return listed(plan + ".heavy-damage-multiplier", index, spec.heavyRates()[Math.max(0, Math.min(4, index))], 0, 20);
-        double[] defaults = new double[]{0.0, 0.6, 0.15, 0.6, 0.1};
-        return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(4, index))], 0, 20);
+        if (spec != null) return listed(plan + ".heavy-damage-multiplier", index, spec.heavyRates()[Math.max(0, Math.min(HEAVIES - 1, index))], 0, 20);
+        double[] defaults = new double[]{0.0, 0.6, 0.15, 0.6, 0.1, 0.6};
+        return listed(plan + ".heavy-damage-multiplier", index, defaults[Math.max(0, Math.min(HEAVIES - 1, index))], 0, 20);
     }
 
     private long window() {
@@ -222,9 +222,9 @@ public final class MeleeCombo {
 
     /**
      * The cooldowns the heavy attacks 強2 - 強5 have when the plan's own is 0 (they used to need the normal attacks before them, and had none):
-     * {@code combat.heavy-input.later-cooldown-ticks}, 3, 4, 5 and 6 s by default.
+     * {@code combat.heavy-input.later-cooldown-ticks}, 3, 4, 5, 6 and 7 s by default (the last for skill 6 of t138).
      */
-    private static final int[] LATER_COOLDOWN_TICKS = {60, 80, 100, 120};
+    private static final int[] LATER_COOLDOWN_TICKS = {60, 80, 100, 120, 140};
 
     /** The cooldown of heavy attack {@code index} of {@code plan} in ticks (the config's, else the plan's own). */
     public int heavyCooldownTicks(String plan, int index) {

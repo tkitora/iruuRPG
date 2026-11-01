@@ -32,7 +32,7 @@ public final class MageMeleeCombo extends BaseCombo {
     public MageMeleeCombo() {
         super("mage", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.29, 0.79, 0.32, 1.18, 1.38}, new int[]{2, 1, 3, 1, 1},
-                new double[]{0.1, 0.2, 0.36, 1.1, 1.25}, new int[]{120, 0, 0, 0, 0}, 40));
+                new double[]{0.1, 0.2, 0.36, 1.1, 1.25, 1.35}, new int[]{120, 0, 0, 0, 0, 0}, 40));
     }
 
     /** The scythe is slower than the other melee weapons: at least this many ticks between two normal attacks. */
@@ -308,7 +308,7 @@ public final class MageMeleeCombo extends BaseCombo {
                 });
                 arm(kit, 3, 10, 36, rate * 0.6);
             }
-            default -> {
+            case 4 -> {
                 // three short dashes, a cut at the end of each, and a last cut
                 for (int index = 0; index < 3; index++) {
                     int which = index;
@@ -329,6 +329,8 @@ public final class MageMeleeCombo extends BaseCombo {
                 });
                 arm(kit, 4, 22, 50, rate * 0.5);
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
     }
 
@@ -427,5 +429,22 @@ public final class MageMeleeCombo extends BaseCombo {
                 }
             }
         }
+    }
+
+    /** Skill 6 (t138): a soul reap: the enemies round (5 blocks) are drawn in to the scythe, then one full circle cuts them and slows them. */
+    private void sixth(MoveKit kit, double rate) {
+        Location feet = kit.player.getLocation();
+        java.util.List<org.bukkit.entity.LivingEntity> round = kit.around(feet, 5.0);
+        kit.sound(feet, Sfx.REAP, 1.0f, 0.6f);
+        for (org.bukkit.entity.LivingEntity victim : round) kit.pull(victim, feet, 0.7);
+        kit.shockwave(feet, 5.0, 1.2, 6, 1.0);
+        kit.later(6L, () -> {
+            Location at = kit.player.getLocation();
+            kit.slash("arc", 3.6, 360.0, 85.0, 0.0, 0.0, 0.5, 0.0, 1.4, 0.2, 0.0);
+            kit.sound(at, Sfx.REAP, 1.0f, 0.8f);
+            for (org.bukkit.entity.LivingEntity victim : kit.around(at, 3.8)) {
+                if (kit.hit(victim, rate)) kit.slow(victim, 40.0, 1.5);
+            }
+        });
     }
 }

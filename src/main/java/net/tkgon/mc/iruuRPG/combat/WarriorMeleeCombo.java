@@ -24,7 +24,7 @@ public final class WarriorMeleeCombo extends BaseCombo {
     public WarriorMeleeCombo() {
         super("warrior", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.67, 0.89, 1.12, 1.34, 1.56}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.0, 0.6, 0.24, 1.5, 0.8}, new int[]{360, 0, 0, 0, 0}, 40));
+                new double[]{0.0, 0.6, 0.24, 1.5, 0.8, 1.2}, new int[]{360, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -141,7 +141,7 @@ public final class WarriorMeleeCombo extends BaseCombo {
                     if (kit.hit(target, rate)) kit.lift(target, 0.45);
                 });
             }
-            default -> {
+            case 4 -> {
                 // a shield rush: under a guard, six blocks, everything in the way is struck and pushed aside; more with a shield up
                 double boost = kit.shields() > 0 ? 1.4 : 1.0;
                 Location from = feet.clone().add(0.0, 1.0, 0.0);
@@ -155,6 +155,31 @@ public final class WarriorMeleeCombo extends BaseCombo {
                     kit.shockwave(end, 0.8, 3.0, 4, 1.1);
                     kit.sound(end, Sfx.METAL_HEAVY, 0.9f, 0.9f);
                 });
+            }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
+        }
+    }
+
+    /** Skill 6 (t138): a slam that splits the ground in three fissures fanned out ahead (-25, 0, 25 degrees, 7 blocks); each enemy on them is struck once and thrown up a little. */
+    private void sixth(MoveKit kit, double rate) {
+        Location feet = kit.player.getLocation();
+        Vector facing = kit.facing().clone().setY(0.0);
+        if (facing.lengthSquared() < 1.0E-6) return;
+        facing.normalize();
+        kit.guard(0.3, 10);
+        kit.slash("drop", 3.0, 120.0, 5.0, 0.0, 1.6, 0.4, 0.0, 1.4, 0.16, 0.0);
+        kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.55f);
+        java.util.Set<org.bukkit.entity.LivingEntity> struck = new java.util.HashSet<>();
+        Location from = feet.clone().add(0.0, 0.5, 0.0);
+        for (int side = -1; side <= 1; side++) {
+            Vector way = facing.clone().rotateAroundY(Math.toRadians(25.0 * side));
+            for (int along = 1; along <= 6; along++) {
+                Location at = feet.clone().add(way.clone().multiply(along * 1.15)).add(0.0, 0.2, 0.0);
+                kit.later(along, () -> kit.fx(at).flatRing(at, 0.6, 12, kit.palette(), 0.5, 0.2, 1.0));
+            }
+            for (org.bukkit.entity.LivingEntity target : kit.corridor(from, way, 7.0, 1.2)) {
+                if (struck.add(target) && kit.hit(target, rate)) kit.lift(target, 0.35);
             }
         }
     }

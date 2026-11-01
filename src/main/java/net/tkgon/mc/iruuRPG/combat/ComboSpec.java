@@ -2,7 +2,7 @@ package net.tkgon.mc.iruuRPG.combat;
 
 /**
  * The numbers of a class's combo with one kind of weapon: five normal attacks (the fifth is the finisher; each can hit
- * several times) and five heavy attacks, number 0 - 4 (強1 - 強5, chosen by the buttons: {@link HeavyInput}). All can be set in the
+ * several times) and six heavy attacks, number 0 - 5 (skills 1 - 6 of t138; 0 - 4 were 強1 - 強5: {@link HeavyInput}). All can be set in the
  * config under {@code combat.combo.<plan>} ({@code hit-rate}, {@code heavy-damage-multiplier}, {@code heavy-cooldown-ticks},
  * {@code window-ticks}, {@code normal-gap-ticks}); these are the defaults.
  *
@@ -14,8 +14,8 @@ package net.tkgon.mc.iruuRPG.combat;
 public record ComboSpec(String plan, double[] rates, int[] hits, double[] heavyRates, int[] heavyCooldownTicks, int windowTicks) {
 
     public ComboSpec {
-        if (rates.length != 5 || hits.length != 5 || heavyRates.length != 5 || heavyCooldownTicks.length != 5) {
-            throw new IllegalArgumentException("a combo has five normal and five heavy attacks");
+        if (rates.length != 5 || hits.length != 5 || heavyRates.length != 6 || heavyCooldownTicks.length != 6) {
+            throw new IllegalArgumentException("a combo has five normal and six heavy attacks");
         }
     }
 }

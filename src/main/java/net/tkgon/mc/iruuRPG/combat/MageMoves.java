@@ -71,7 +71,7 @@ public final class MageMoves {
     /** The numbers of the combo (normal 1 - 5: the damage of each hit and the hits; heavy 1 - 4: what each one says); the config's {@code combat.combo.mage} sets them. */
     static final ComboSpec SPEC = new ComboSpec(MeleeCombo.MAGE,
             new double[]{0.85, 0.9, 0.38, 0.45, 0.8}, new int[]{1, 1, 3, 3, 2},
-            new double[]{0.0, 0.7, 0.2, 0.9, 1.7}, new int[]{0, 0, 0, 0, 0}, 40);
+            new double[]{0.0, 0.7, 0.2, 0.9, 1.7, 0.6}, new int[]{0, 0, 0, 0, 0, 0}, 40);
 
     private static final Vector X_AXIS = new Vector(1.0, 0.0, 0.0);
     private static final Vector Y_AXIS = new Vector(0.0, 1.0, 0.0);
@@ -550,7 +550,9 @@ public final class MageMoves {
             case 1 -> seekers(cast, rate, marked);
             case 2 -> roots(cast, rate);
             case 3 -> spikes(cast, rate);
-            default -> collapse(cast, rate);
+            case 4 -> collapse(cast, rate);
+            // (skill 6, t138)
+            default -> chainLightning(cast, rate);
         }
     }
 
@@ -967,6 +969,47 @@ public final class MageMoves {
     }
 
     // 4: a sphere that shrinks until it bursts, drawing the enemies in slowly; at its smallest it lights up and flashes
+
+    /**
+     * Skill 6 (t138): lightning to the aimed enemy (else the nearest ahead, 16 blocks), then on to the nearest enemy not struck yet within 5 blocks, four times; each
+     * struck once.
+     */
+    private void chainLightning(Cast cast, double rate) {
+        MoveKit kit = cast.kit();
+        LivingEntity first = kit.nearest(16.0, 30.0);
+        Location from = kit.eye();
+        kit.sound(from, Sfx.MAGE_CAST, 0.9f, 1.4f);
+        if (first == null) {
+            kit.line(from, kit.aim(), 0.1, 1.0, 1.1);
+            return;
+        }
+        List<LivingEntity> struck = new java.util.ArrayList<>();
+        LivingEntity current = first;
+        for (int link = 0; link < 5 && current != null; link++) {
+            Location to = current.getLocation().add(0.0, current.getHeight() * 0.5, 0.0);
+            Location start = from;
+            LivingEntity target = current;
+            kit.later(link * 2L, () -> {
+                kit.line(start, to, 0.0, 1.0, 1.2);
+                kit.burst(to, 1.2);
+                kit.sound(to, org.bukkit.Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.5f, 1.6f);
+                kit.hit(target, rate);
+            });
+            struck.add(current);
+            from = to;
+            LivingEntity next = null;
+            double best = 5.0 * 5.0;
+            for (LivingEntity near : kit.around(to, 5.0)) {
+                if (struck.contains(near)) continue;
+                double distance = near.getLocation().distanceSquared(to);
+                if (distance < best) {
+                    best = distance;
+                    next = near;
+                }
+            }
+            current = next;
+        }
+    }
 
     private void collapse(Cast cast, double rate) {
         MoveKit kit = cast.kit();

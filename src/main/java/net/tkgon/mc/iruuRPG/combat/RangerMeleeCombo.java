@@ -19,7 +19,7 @@ public final class RangerMeleeCombo extends BaseCombo {
     public RangerMeleeCombo() {
         super("gifted", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.32, 0.29, 1.09, 0.26, 1.52}, new int[]{2, 3, 1, 5, 1},
-                new double[]{0.21, 1.02, 0.34, 1.1, 1.28}, new int[]{100, 0, 0, 0, 0}, 40));
+                new double[]{0.21, 1.02, 0.34, 1.1, 1.28, 1.3}, new int[]{100, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -133,7 +133,7 @@ public final class RangerMeleeCombo extends BaseCombo {
                     if (kit.hit(target, rate)) kit.slow(target, 60.0, 2.0);
                 }
             }
-            default -> {
+            case 4 -> {
                 // a run through the line: everything in the way is cut once, the ranger comes out the other side
                 kit.sound(feet, Sfx.WIND, 1.0f, 0.6f);
                 Location from = feet.clone().add(0.0, 1.0, 0.0);
@@ -142,6 +142,25 @@ public final class RangerMeleeCombo extends BaseCombo {
                 kit.invulnerable(8);
                 kit.dash(facing, 1.4, 5, end -> kit.shockwave(end, 0.8, 2.6, 3, 1.0));
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a leap ahead (nothing can hurt the ranger in the air) and a plunge: everything within 2.8 blocks of the landing is struck and pushed out. */
+    private void sixth(MoveKit kit, double rate) {
+        Vector facing = kit.facing().clone().setY(0.0);
+        if (facing.lengthSquared() < 1.0E-6) facing = new Vector(0.0, 0.0, 1.0);
+        facing.normalize();
+        kit.invulnerable(14);
+        kit.sound(kit.player.getLocation(), Sfx.WIND_BURST, 1.0f, 1.2f);
+        kit.leap(facing, 0.9, 0.55, land -> {
+            kit.slash("drop", 2.8, 140.0, 5.0, 0.0, 0.8, 0.4, 0.0, 1.3, 0.14, 0.0);
+            kit.shockwave(land, 0.6, 2.8, 4, 1.1);
+            kit.sound(land, Sfx.METAL_HEAVY, 0.9f, 1.1f);
+            for (org.bukkit.entity.LivingEntity victim : kit.around(land, 2.8)) {
+                if (kit.hit(victim, rate)) kit.push(victim, land.toVector(), 0.5, 0.2);
+            }
+        });
     }
 }

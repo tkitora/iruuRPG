@@ -21,7 +21,7 @@ public final class AssassinDeployCombo extends BaseCombo {
     public AssassinDeployCombo() {
         super("assassin", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.2, 0.1, 1.0, 0.1, 0.2}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.2, 1.2, 0.4, 0.07, 0.2}, new int[]{140, 0, 0, 0, 0}, 40));
+                new double[]{0.2, 1.2, 0.4, 0.07, 0.2, 0.25}, new int[]{140, 0, 0, 0, 0, 0}, 40));
     }
 
     private void smoke(MoveKit kit, Location at, double radius) {
@@ -126,12 +126,31 @@ public final class AssassinDeployCombo extends BaseCombo {
                     kit.later(index, () -> canister(kit, key, spot, 1.8, rate, 6, 0.0, 50));
                 }
             }
-            default -> {
+            case 4 -> {
                 // a veil of night: the aim goes dark and what stands in it is cut again and again
                 kit.sound(target, Sfx.MAGIC_DARK, 1.0f, 0.7f);
                 ComboParts.sigil(kit, "assassin_night", target, 4.6, rate, 50, 10, here ->
                         kit.fx(here).particle(org.bukkit.Particle.SQUID_INK, here.getX(), here.getY() + 1.0, here.getZ(), 10, 2.0, 0.8, 2.0, 0.01));
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a trap of poison mist at the aim for 2.5 s: every 10 ticks it hurts and slows what is in it, and confuses it. */
+    private void sixth(MoveKit kit, double rate) {
+        Location target = kit.ground(ComboParts.target(kit));
+        kit.sound(target, Sfx.MAGIC_DARK, 0.8f, 0.8f);
+        ComboParts.sigil(kit, "assassin_mist", target, 3.2, rate, 50, 10, here -> {
+            for (org.bukkit.entity.LivingEntity victim : kit.around(here, 3.2)) {
+                kit.slow(victim, 35.0, 1.0);
+                kit.confuse(victim, 20.0);
+            }
+            for (int index = 0; index < 6; index++) {
+                double angle = Math.PI * 2.0 * index / 6.0;
+                Location puff = here.clone().add(Math.cos(angle) * 1.8, 0.4, Math.sin(angle) * 1.8);
+                kit.fx(puff).flatRing(puff, 0.6, 10, kit.palette(), 0.2, 0.3, 1.2);
+            }
+        });
     }
 }

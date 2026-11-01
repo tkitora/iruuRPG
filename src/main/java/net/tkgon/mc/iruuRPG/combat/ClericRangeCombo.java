@@ -24,7 +24,7 @@ public final class ClericRangeCombo extends BaseCombo {
     public ClericRangeCombo() {
         super("healer", AttackType.RANGE, new ComboSpec(PLAN,
                 new double[]{0.34, 0.3, 1.14, 0.34, 1.59}, new int[]{2, 3, 1, 4, 1},
-                new double[]{0.2, 0.15, 0.4, 1.4, 0.3}, new int[]{160, 0, 0, 0, 0}, 40));
+                new double[]{0.2, 0.15, 0.4, 1.4, 0.3, 0.7}, new int[]{160, 0, 0, 0, 0, 0}, 40));
     }
 
     /** A mending light round the cleric: the allies within 8 blocks (the cleric too) are healed a little and a ring of light spreads. */
@@ -158,7 +158,7 @@ public final class ClericRangeCombo extends BaseCombo {
                     }
                 });
             }
-            default -> {
+            case 4 -> {
                 // a beam from the sky on the aim for a second
                 kit.sound(target, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.0f);
                 kit.every(21, age -> {
@@ -174,6 +174,21 @@ public final class ClericRangeCombo extends BaseCombo {
                     return false;
                 });
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a halo of light spreads from the cleric to 6 blocks: it strikes the enemies it passes and heals the allies within it 4%. */
+    private void sixth(MoveKit kit, double rate) {
+        Location feet = kit.player.getLocation();
+        kit.sound(feet, Sfx.MAGIC, 1.0f, 1.3f);
+        kit.shockwave(feet, 0.8, 6.0, 8, 1.2);
+        kit.healAllies(feet, 6.0, 4.0);
+        kit.later(3L, () -> {
+            for (org.bukkit.entity.LivingEntity victim : kit.around(feet, 6.0)) {
+                if (kit.hit(victim, rate)) kit.push(victim, feet.toVector(), 0.3, 0.1);
+            }
+        });
     }
 }

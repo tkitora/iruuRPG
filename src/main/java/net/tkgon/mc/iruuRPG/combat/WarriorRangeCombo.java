@@ -20,7 +20,7 @@ public final class WarriorRangeCombo extends BaseCombo {
     public WarriorRangeCombo() {
         super("warrior", AttackType.RANGE, new ComboSpec(PLAN,
                 new double[]{0.73, 0.48, 0.61, 0.48, 1.7}, new int[]{1, 2, 2, 3, 1},
-                new double[]{0.25, 1.3, 0.15, 1.2, 1.5}, new int[]{150, 0, 0, 0, 0}, 40));
+                new double[]{0.25, 1.3, 0.15, 1.2, 1.5, 0.7}, new int[]{150, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -144,7 +144,7 @@ public final class WarriorRangeCombo extends BaseCombo {
                     kit.hit(hooked, rate);
                 });
             }
-            default -> {
+            case 4 -> {
                 Location start = ComboParts.hand(kit);
                 Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
                 kit.sound(start, Sound.ITEM_CROSSBOW_SHOOT, 1.0f, 0.5f);
@@ -157,6 +157,32 @@ public final class WarriorRangeCombo extends BaseCombo {
                     }
                 });
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a great axe thrown spinning to the aim (12 blocks at most) and back to the hand, cutting what it passes, both ways. */
+    private void sixth(MoveKit kit, double rate) {
+        Location start = ComboParts.hand(kit);
+        Vector direction = kit.aim().toVector().subtract(start.toVector());
+        double length = Math.min(12.0, Math.max(4.0, direction.length()));
+        if (direction.lengthSquared() < 1.0E-6) return;
+        direction.normalize();
+        Location far = start.clone().add(direction.clone().multiply(length));
+        kit.sound(start, Sfx.WIND_BURST, 1.0f, 0.6f);
+        kit.slash("arc", 2.6, 160.0, 80.0, 0.0, 1.6, 0.3, 0.0, 1.3, 0.14, 0.0);
+        kit.line(start, far, 0.2, 1.0, 1.6);
+        kit.hitAll(kit.corridor(start, direction, length, 1.3), rate);
+        kit.later(8L, () -> {
+            Location home = ComboParts.hand(kit);
+            Vector back = home.toVector().subtract(far.toVector());
+            double distance = back.length();
+            if (distance < 0.5) return;
+            back.normalize();
+            kit.sound(far, Sfx.WIND, 0.9f, 0.8f);
+            kit.line(far, home, 0.2, 1.0, 1.6);
+            kit.hitAll(kit.corridor(far, back, distance, 1.3), rate);
+        });
     }
 }

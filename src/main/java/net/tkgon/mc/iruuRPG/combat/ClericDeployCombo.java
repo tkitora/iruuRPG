@@ -22,7 +22,7 @@ public final class ClericDeployCombo extends BaseCombo {
     public ClericDeployCombo() {
         super("healer", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.2, 0.15, 0.25, 0.12, 0.2}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.15, 0.2, 1.0, 0.07, 0.2}, new int[]{160, 0, 0, 0, 0}, 40));
+                new double[]{0.15, 0.2, 1.0, 0.07, 0.2, 0.15}, new int[]{160, 0, 0, 0, 0, 0}, 40));
     }
 
     /**
@@ -97,12 +97,20 @@ public final class ClericDeployCombo extends BaseCombo {
                     kit.later(index, () -> ComboParts.turretAt(kit, key, spot, 50, 10, 7.0, rate, null));
                 }
             }
-            default -> {
+            case 4 -> {
                 kit.sound(target, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.2f);
                 ComboParts.sigil(kit, "cleric_deploy_great", target, 6.0, rate, 50, 10, ignored -> {
                     if (kit.player.getLocation().distanceSquared(target) <= 36.0) kit.healCapped(1.2);
                 });
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a lighthouse of prayer at the aim for 3 s: every 10 ticks it hurts the enemies round it and heals the allies by it 2%. */
+    private void sixth(MoveKit kit, double rate) {
+        Location target = ComboParts.target(kit);
+        ComboParts.place(kit, "healer_lighthouse", target, 60, 10, 3.6, rate, 0.0, 2.0, here -> kit.pillar(here, 0.5, 3.0));
     }
 }
