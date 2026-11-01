@@ -6,6 +6,7 @@ import net.tkgon.mc.iruuRPG.classsystem.ClassSkillDefinition;
 import net.tkgon.mc.iruuRPG.classsystem.ClassSkillRegistry;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.ClassSkillService;
+import net.tkgon.mc.iruuRPG.combat.SkillSlots;
 import net.tkgon.mc.iruuRPG.gui.MainMenuItemService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
@@ -15,12 +16,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
-import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.Cancellable;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 import java.util.HashMap;
@@ -122,32 +121,22 @@ public final class ClassSkillListener implements Listener {
         if (hand == EquipmentSlot.HAND && rightClickGuard.classRecent(player)) event.setCancelled(true);
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onDrop(PlayerDropItemEvent event) {
-        // (the style of the keys: Q is the first or second of two keys, read by the combat listener)
-        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) return;
-        if (mainMenuItemService.isMenuItem(event.getItemDrop().getItemStack())) return;
-        if (!tryTrigger(event.getPlayer(), ClassHotKey.Q)) return;
+    // (F and Q are the keys of the skills, read by the combat listener: the class's skill of F is the ULT, shift + F)
 
-        event.setCancelled(true);
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onSwap(PlayerSwapHandItemsEvent event) {
-        // (the style of the keys: F is the first or second of two keys, and the class's skill of F is the special: Q → F by default)
-        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) return;
-        if (mainMenuItemService.isMenuItem(event.getMainHandItem()) || mainMenuItemService.isMenuItem(event.getOffHandItem())) return;
-        if (!tryTrigger(event.getPlayer(), ClassHotKey.F)) return;
-
-        event.setCancelled(true);
-    }
-
-    /** The class's special (t138): its active skill of F. True when it was cast or told why not; false when the class has none yet. */
+    /**
+     * The ULT (shift + F, the redesign of 2026-11-02): the class's active skill of F, cooling down for the ULT's cooldown
+     * ({@code combat.skill-slots.cooldown-seconds}, 100 s) instead of its own. True when it was cast or told why not; false when the class has
+     * none yet.
+     */
     public boolean special(Player player) {
-        return tryTrigger(player, ClassHotKey.F);
+        return tryTrigger(player, ClassHotKey.F, true);
     }
 
     private boolean tryTrigger(Player player, ClassHotKey hotKey) {
+        return tryTrigger(player, hotKey, false);
+    }
+
+    private boolean tryTrigger(Player player, ClassHotKey hotKey, boolean ult) {
         PlayerProfile profile = profileManager.getOrCreate(player);
         String skillId = classService.activeSkill(profile, hotKey);
         if (skillId == null || skillId.isBlank()) return false;
@@ -178,7 +167,7 @@ public final class ClassSkillListener implements Listener {
             return true;
         }
 
-        startCooldown(player, skill);
+        startCooldown(player, skill, ult);
         // the damage dealt while the skill is up is counted for the action bar
         double activeSeconds = skill.values().getOrDefault("active-seconds", skill.values().getOrDefault("duration-seconds", 6.0));
         attackService.damageMeter().startSkill(player.getUniqueId(), Math.round(activeSeconds * 1000.0));
@@ -222,7 +211,7 @@ public final class ClassSkillListener implements Listener {
     }
 
     /**
-     * The special (the class's skill of F, t138) as the action bar's icon shows it (t140): {milliseconds left, the whole cooldown}, or null when the class has
+     * The ULT (the class's skill of F) as the action bar's icon shows it (t140): {milliseconds left, the whole cooldown}, or null when the class has
      * none yet (the icon is locked).
      */
     public long[] specialCooldown(Player player) {
@@ -238,12 +227,19 @@ public final class ClassSkillListener implements Listener {
         return new long[]{left, Math.max(left, total)};
     }
 
-    private void startCooldown(Player player, ClassSkillDefinition skill) {
-        long millis = Math.round(skill.cooldownTicks() * attackService.skillCooldownMultiplier(player)) * 50L;
+    private void startCooldown(Player player, ClassSkillDefinition skill, boolean ult) {
+        double ticks = ult ? ultCooldownSeconds(player) * 20.0 : skill.cooldownTicks();
+        long millis = Math.round(ticks * attackService.skillCooldownMultiplier(player)) * 50L;
         cooldownUntilMillis
                 .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
                 .put(skill.id().toLowerCase(Locale.ROOT), System.currentTimeMillis() + millis);
         cooldownTotalMillis.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>()).put(skill.id().toLowerCase(Locale.ROOT), millis);
+    }
+
+    /** The ULT's cooldown of the player's class in seconds. */
+    private double ultCooldownSeconds(Player player) {
+        return SkillSlots.cooldownSeconds(attackService.plugin().getConfig().getConfigurationSection("combat.skill-slots.cooldown-seconds"),
+                profileManager.getOrCreate(player).classId(), SkillSlots.Slot.ULT);
     }
 
     private long remainingCooldownMillis(Player player, String skillId) {

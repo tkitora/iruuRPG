@@ -160,7 +160,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.bgm.BgmSettings bgmSettings;
     private net.tkgon.mc.iruuRPG.bgm.BgmModule bgmModule;
     private net.tkgon.mc.iruuRPG.screenfx.ScreenEffects screenEffects;
-    private net.tkgon.mc.iruuRPG.combat.KeyBindings keyBindings;
+    private net.tkgon.mc.iruuRPG.combat.SkillSlots skillSlots;
     private net.tkgon.mc.iruuRPG.combat.SniperMode sniperMode;
     private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
     private AttackEffects attackEffectsRef;
@@ -310,6 +310,8 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
         this.skillTreeMenu = new SkillTreeMenu(equipmentService, classService, classSkillRegistry, profileManager, playerBars);
+        skillTreeMenu.setUltSeconds(classId -> net.tkgon.mc.iruuRPG.combat.SkillSlots.cooldownSeconds(
+                getConfig().getConfigurationSection("combat.skill-slots.cooldown-seconds"), classId, net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT));
         this.classSelectMenu = new ClassSelectMenu(equipmentService, classService, profileManager, playerBars);
         this.tutorialService = new TutorialService(this, profileManager, equipmentService, classService, classSelectMenu, itemRegistry, itemFactory, playerBars);
         this.attackService.setTutorialHook(tutorialService);
@@ -433,7 +435,7 @@ public final class IruuRPG extends JavaPlugin {
         PlayerHud playerHud = new PlayerHud(this, levelService);
         playerHud.setCooldowns(attackService);
         playerHud.setClassSkills(classSkillListener);
-        playerHud.setKeyBindings(keyBindings);
+        playerHud.setSkillSlots(skillSlots);
         playerHud.setItemSkills(itemSkillService);
         PlayerHudTask.start(this, profileManager, playerBars, levelService, playerHud);
         PlayerResourceTask.start(this, profileManager, playerBars);
@@ -747,13 +749,11 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(particleSettings, this);
         getServer().getPluginManager().registerEvents(bgmSettings, this);
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.ClickSignals(this), this);
-        // the heavy attacks chosen by the other button and a number key (or by the buttons and shift: see HeavyInput)
-        getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.HeavyInput(this, attackService::heavyByKey), this);
-        // what two keys do (t138, the style of the keys): each player's own choice
-        this.keyBindings = new net.tkgon.mc.iruuRPG.combat.KeyBindings(this);
-        net.tkgon.mc.iruuRPG.combat.HeavyInput.setBindings(keyBindings);
-        settingsMenu.setKeyBindings(keyBindings);
-        getServer().getPluginManager().registerEvents(keyBindings, this);
+        // the skills (小・中・大・util・ULT, the redesign of 2026-11-02) and their keys (Q and a button or Q, F, shift + F)
+        getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.SkillInput(this), this);
+        this.skillSlots = new net.tkgon.mc.iruuRPG.combat.SkillSlots(this, player -> profileManager.getOrCreate(player).classId(),
+                attackService::skillCooldownMultiplier);
+        getServer().getPluginManager().registerEvents(skillSlots, this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
@@ -772,7 +772,7 @@ public final class IruuRPG extends JavaPlugin {
                 new EquipmentChangeListener(this, equipmentService, playerBars),
                 this
         );
-        CombatListener combatListener = new CombatListener(attackService, deployService, itemSkillService, rightClickGuard);
+        CombatListener combatListener = new CombatListener(attackService, deployService, itemSkillService, rightClickGuard, skillSlots);
         getServer().getPluginManager().registerEvents(combatListener, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerResourceListener(profileManager, playerBars),
@@ -800,7 +800,8 @@ public final class IruuRPG extends JavaPlugin {
         );
         this.classSkillListener = new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard);
         getServer().getPluginManager().registerEvents(classSkillListener, this);
-        combatListener.setSpecial(classSkillListener::special);
+        // (a skill whose move its class does not have yet does what it did before)
+        skillSlots.setFallback(new net.tkgon.mc.iruuRPG.listener.SkillFallback(attackService, classSkillListener));
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.listener.FrenzyCageListener(this, classEffectService), this);
     }
 

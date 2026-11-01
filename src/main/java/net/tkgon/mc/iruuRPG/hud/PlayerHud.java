@@ -7,9 +7,9 @@ import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.listener.ClassSkillListener;
-import net.tkgon.mc.iruuRPG.combat.HeavyInput;
 import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
-import net.tkgon.mc.iruuRPG.combat.KeyBindings;
+import net.tkgon.mc.iruuRPG.combat.SkillInput;
+import net.tkgon.mc.iruuRPG.combat.SkillSlots;
 import net.tkgon.mc.iruuRPG.markpack.HudGlyphs;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
@@ -27,11 +27,11 @@ import java.util.Locale;
  * cooldown overlay, not shown here.) {@code hud.cooldown-gauges}: {@code auto} (only while a normal attack or a heavy attack is cooling down or damage is
  * being dealt, else the usual status line with defense, level and XP), {@code always}, or {@code off}.
  *
- * <p>With the gauges, a weapon whose heavy attacks have cooldowns of their own shows a row of their icons (強1 - 強5, {@link HudGlyphs}) above the
- * line, centred over the ranged gauge: an icon is greyed and shaded from the top while its heavy attack cools down, with the seconds left on it.
- * In the style of the keys (t138) each icon has the label of the two keys that do it above it (the player's own choice); while a first key waits, the labels that go
- * on from it are yellow and the others grey (and the gauges show). Half an icon after the skills come the icons of the special (the class's skill) and the weapon's
- * skill (t140), with their keys and cooldowns; each is greyed under a lock when there is none (the class has no special yet, the weapon no skill).
+ * <p>With the gauges and a weapon in hand, a row of the icons of the class's skills (小・中・大・util・ULT, {@link SkillSlots}; {@link HudGlyphs})
+ * stands above the line, centred over the ranged gauge, and half an icon after them the weapon's skill (t140). An icon is greyed and shaded from
+ * the top while its skill cools down, with the seconds left on it, and greyed under a lock when there is nothing on it (a skill whose move is not
+ * made yet, a ULT not unlocked, a weapon with no skill). Each has the label of its keys above it, as they are pressed with the weapon in hand;
+ * while a Q waits for its second key, the labels that go on from it (小・中・大) are yellow and the others grey (and the gauges show).
  */
 public final class PlayerHud {
 
@@ -43,7 +43,7 @@ public final class PlayerHud {
     private final JavaPlugin plugin;
     private AttackService attackService;
     private ClassSkillListener classSkills;
-    private KeyBindings keyBindings;
+    private SkillSlots skillSlots;
     private ItemSkillService itemSkills;
 
     public PlayerHud(JavaPlugin plugin, LevelService levelService) {
@@ -61,9 +61,9 @@ public final class PlayerHud {
         this.itemSkills = itemSkills;
     }
 
-    /** What each player's two keys do (the labels of the style of the keys). */
-    public void setKeyBindings(KeyBindings keyBindings) {
-        this.keyBindings = keyBindings;
+    /** Where the skills and their cooldowns come from (their icons). */
+    public void setSkillSlots(SkillSlots skillSlots) {
+        this.skillSlots = skillSlots;
     }
 
     /** Where the normal attack cooldowns come from. */
@@ -81,8 +81,8 @@ public final class PlayerHud {
         if (attackService == null || mode.equals("off")) return false;
         if (mode.equals("always")) return true;
         long now = System.currentTimeMillis();
-        // a first key waits for its second: the labels show which keys go on from it
-        if (HeavyInput.keyStyle() && HeavyInput.pendingKey(player) != null) {
+        // a Q waits for its second key: the labels show which keys go on from it
+        if (SkillInput.qWaiting(player)) {
             lastActive.put(player.getUniqueId(), now);
             return true;
         }
@@ -98,9 +98,12 @@ public final class PlayerHud {
                 return true;
             }
         }
-        RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
-        for (int index = 0; weapon != null && index < AttackService.HEAVY_ATTACKS; index++) {
-            if (attackService.heavyCooldown(player, weapon, index)[0] > 0L) {
+        RpgItemDefinition weapon = heavyIconsOn() && skillSlots != null ? attackService.weaponInMainHand(player) : null;
+        for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
+            // (not for the ULT's long cooldown)
+            if (weapon == null || !weapon.isWeaponLike() || slot == SkillSlots.Slot.ULT) continue;
+            long[] cooldown = skillSlots.cooldown(player, slot, weapon);
+            if (cooldown != null && cooldown[0] > 0L) {
                 lastActive.put(player.getUniqueId(), now);
                 return true;
             }
@@ -152,78 +155,58 @@ public final class PlayerHud {
                 .append(Component.text(String.format(Locale.ROOT, "%.1f", status.remainingMillis() / 1000.0) + "s", NamedTextColor.WHITE));
     }
 
-    private KeyBindings.Pattern patternOf(Player player, KeyBindings.Action action) {
-        return keyBindings == null ? KeyBindings.DEFAULTS.get(action) : keyBindings.patternOf(player, action);
+    /** The color of a label: white, or while a Q waits, yellow when the label goes on from it (小・中・大) and grey when not. */
+    private static int keyColor(Player player, boolean afterQ) {
+        if (!SkillInput.qWaiting(player)) return 0xFFFFFF;
+        return afterQ ? 0xFFE14D : 0x707070;
     }
 
-    /** The color of a label: white, or while a first key waits, yellow when the label goes on from it and grey when not. */
-    private static int keyColor(Player player, KeyBindings.Pattern pattern) {
-        KeyBindings.Key waiting = HeavyInput.pendingKey(player);
-        if (waiting == null) return 0xFFFFFF;
-        return pattern.first() == waiting ? 0xFFE14D : 0x707070;
+    /** The glyph of the keys of a skill ({@link HudGlyphs#keyLabel}) as they are pressed with the weapon ({@code melee}: its normal button is the left one). */
+    static char keyGlyph(SkillSlots.Slot slot, boolean melee) {
+        return HudGlyphs.keyLabel(switch (slot) {
+            case SMALL -> melee ? "ql" : "qr";
+            case MEDIUM -> melee ? "qr" : "ql";
+            case LARGE -> "qq";
+            case UTIL -> "f";
+            case ULT -> "sf";
+        });
     }
 
-    /** The glyph of a label ({@link HudGlyphs#keyLabel}) as the keys are pressed with the weapon ({@code melee}: its normal button is the left one). */
-    static char keyGlyph(KeyBindings.Pattern pattern, boolean melee) {
-        int first = pattern.first() == KeyBindings.Key.F ? 0 : 1;
-        int second = switch (pattern.second()) {
-            case F -> 0;
-            case Q -> 1;
-            case OTHER -> melee ? 3 : 2;
-            case NORMAL -> melee ? 2 : 3;
-        };
-        return HudGlyphs.keyLabel(first, second);
+    /** The glyph of the button of the weapon's skill: its other button, the right one with a melee weapon and the left one with another. */
+    static char itemKeyGlyph(boolean melee) {
+        return HudGlyphs.keyLabel(melee ? "r" : "l");
     }
 
-    /** {@code hud.heavy-icons} (default true): the row of the heavy attacks' icons with the gauges. */
+    /** {@code hud.heavy-icons} (default true): the row of the skills' icons with the gauges. */
     private boolean heavyIconsOn() {
         return plugin.getConfig().getBoolean("hud.heavy-icons", true);
     }
 
-    /**
-     * The icons of the heavy attacks of the weapon in hand (none when they have no cooldowns of their own: a deployed weapon's, the usual chain's), and after them in the
-     * style of the keys the special's and the weapon skill's (t140); null with no weapon in hand. They take no room in the line.
-     */
+    /** The icons of the class's skills and, half an icon after them, the weapon's skill (t140); null with no weapon in hand. They take no room in the line. */
     private Component heavyIcons(Player player, PlayerProfile profile) {
-        RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
+        RpgItemDefinition weapon = heavyIconsOn() && skillSlots != null ? attackService.weaponInMainHand(player) : null;
         if (weapon == null || !weapon.isWeaponLike()) return null;
         boolean melee = weapon.attackType() == AttackType.MELEE;
-        java.util.List<HudGlyphs.Icon> extras = new java.util.ArrayList<>();
-        if (HeavyInput.keyStyle()) {
-            KeyBindings.Pattern special = patternOf(player, KeyBindings.Action.ULTIMATE);
-            long[] specialCooldown = classSkills == null ? null : classSkills.specialCooldown(player);
-            extras.add(extra(HudGlyphs.special(profile.classId()), specialCooldown, special, melee, player));
-            KeyBindings.Pattern item = patternOf(player, KeyBindings.Action.ITEM);
-            if (itemSkills != null && itemSkills.hasKeySkill(weapon)) {
-                extras.add(extra(HudGlyphs.itemSkill(), itemSkills.hudCooldown(player, weapon.attackType()), item, melee, player));
-            } else {
-                // (a weapon with no skill: the locked icon of its own, t140)
-                extras.add(new HudGlyphs.Icon(HudGlyphs.itemSkillLocked(), 0.0, 0, keyGlyph(item, melee), keyColor(player, item), false));
-            }
-        }
-        if (!attackService.heavyIconsShown(player, weapon)) return extras.isEmpty() ? null : HudGlyphs.row(java.util.List.of(), extras);
-        String classId = attackService.heavyIconClass(player, weapon);
         java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();
-        for (int index = 0; index < AttackService.HEAVY_ATTACKS; index++) {
-            long[] cooldown = attackService.heavyCooldown(player, weapon, index);
-            double share = cooldown[0] <= 0L || cooldown[1] <= 0L ? 0.0 : Math.min(1.0, (double) cooldown[0] / cooldown[1]);
-            int seconds = (int) Math.ceil(cooldown[0] / 1000.0);
-            if (!HeavyInput.keyStyle()) {
-                icons.add(new HudGlyphs.Icon(classId, index + 1, share, seconds));
-                continue;
-            }
-            // (t138: the keys of skill index + 1 above its icon)
-            KeyBindings.Pattern pattern = patternOf(player, KeyBindings.Action.values()[index]);
-            icons.add(new HudGlyphs.Icon(classId, index + 1, share, seconds, keyGlyph(pattern, melee), keyColor(player, pattern)));
+        for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
+            boolean afterQ = slot.ordinal() <= SkillSlots.Slot.LARGE.ordinal();
+            icons.add(icon(HudGlyphs.skill(profile.classId(), slot.ordinal()), skillSlots.cooldown(player, slot, weapon), keyGlyph(slot, melee), keyColor(player, afterQ)));
         }
-        return HudGlyphs.row(icons, extras);
+        HudGlyphs.Icon item;
+        if (itemSkills != null && itemSkills.hasKeySkill(weapon)) {
+            item = icon(HudGlyphs.itemSkill(), itemSkills.hudCooldown(player, weapon.attackType()), itemKeyGlyph(melee), keyColor(player, false));
+        } else {
+            // (a weapon with no skill: the locked icon of its own, t140)
+            item = new HudGlyphs.Icon(HudGlyphs.itemSkillLocked(), 0.0, 0, itemKeyGlyph(melee), keyColor(player, false), false);
+        }
+        return HudGlyphs.row(icons, java.util.List.of(item));
     }
 
-    /** The icon of the special or the weapon's skill: {@code cooldown} {left, whole} in milliseconds, or null when there is none (locked). */
-    private static HudGlyphs.Icon extra(char glyph, long[] cooldown, KeyBindings.Pattern pattern, boolean melee, Player player) {
-        if (cooldown == null) return new HudGlyphs.Icon(glyph, 0.0, 0, keyGlyph(pattern, melee), keyColor(player, pattern), true);
+    /** An icon: {@code cooldown} {left, whole} in milliseconds, or null when there is nothing on it (locked). */
+    private static HudGlyphs.Icon icon(char glyph, long[] cooldown, char key, int keyColor) {
+        if (cooldown == null) return new HudGlyphs.Icon(glyph, 0.0, 0, key, keyColor, true);
         double share = cooldown[0] <= 0L || cooldown[1] <= 0L ? 0.0 : Math.min(1.0, (double) cooldown[0] / cooldown[1]);
-        return new HudGlyphs.Icon(glyph, share, (int) Math.ceil(cooldown[0] / 1000.0), keyGlyph(pattern, melee), keyColor(player, pattern), false);
+        return new HudGlyphs.Icon(glyph, share, (int) Math.ceil(cooldown[0] / 1000.0), key, keyColor, false);
     }
 
     /**

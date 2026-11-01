@@ -44,6 +44,20 @@ class ClassInfoTest {
     }
 
     @Test
+    void theControlsAreTheKeysOfTheSkills() {
+        // the redesign of 2026-11-02: the buttons change sides with a ranged weapon
+        List<String> melee = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE);
+        assertEquals("左クリック: 通常 (弱1→弱5)", melee.get(0));
+        assertEquals("Q→左: 小 / Q→右: 中 / Q→Q: 大", melee.get(1));
+        assertEquals("F: util / Shift+F: ULT", melee.get(2));
+        assertEquals("右クリック: アイテムスキル", melee.get(3));
+        List<String> ranged = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.RANGE);
+        assertEquals("Q→右: 小 / Q→左: 中 / Q→Q: 大", ranged.get(1));
+        assertEquals("左クリック: アイテムスキル", ranged.get(3));
+        assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY).stream().anyMatch(line -> line.contains("Shift+Q: 設置を消す")));
+    }
+
+    @Test
     void guideLineColorsTheLabelAndTheEffects() {
         List<TextComponent> parts = flatten(ClassInfo.guideLine("強3: 溜めて一撃【打ち上げ】"));
         assertEquals("強3:", parts.get(0).content());

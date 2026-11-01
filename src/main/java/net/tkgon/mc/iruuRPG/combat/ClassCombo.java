@@ -17,7 +17,7 @@ public interface ClassCombo {
     /** Normal attack {@code step.stage()} (1 - 5). */
     void normal(MoveKit kit, MeleeCombo.Step step);
 
-    /** Heavy attack {@code step.heavyIndex()} (0 - 4: 強1 - 強5, chosen by the buttons, {@link HeavyInput}). */
+    /** Heavy attack {@code step.heavyIndex()} (0 - 5: skills 1 - 6; 小・中・大 of {@link SkillSlots} throw 0 - 2). */
     void heavy(MoveKit kit, MeleeCombo.Step step);
 
     /** The least number of ticks between two normal attacks of this combo (the weapon's own cooldown may be longer). */

@@ -57,7 +57,7 @@ import java.util.function.IntFunction;
  * from the right, 2 ticks apart, 4 three big bolts fanned out one after the other that come together just before the aim, cross and fly on straight, 5 a pillar of magic
  * out of the ground under every enemy normal attacks 1 - 4 of this round hit (where the player aims when they hit none).
  *
- * <p>Heavy attacks (強1 - 強5 by the buttons, {@link HeavyInput}; heavy 0 - 4 here): 0 the echo and the re-activations. A heavy attack thrown while the echo is ready is thrown again
+ * <p>Heavy attacks (強1 - 強5, heavy 0 - 4 here; 小・中・大 of {@link SkillSlots} throw 0 - 2): 0 the echo and the re-activations. A heavy attack thrown while the echo is ready is thrown again
  * by itself 2 s later (that one is not echoed again and needs no combo; at most 3 wait at once); the echo then has a cooldown of 8 s, a second shorter for every attack that hits
  * (once per attack, however many times or enemies it hits). 強1 (heavy 0) re-activates what the last heavy attack left: 1 two bolts after the enemy
  * normal attack 1 hit (else one straight bolt ahead), 2 roots that spread over the ground round the player to 6 blocks and hurt what stands on them (one at a time; the

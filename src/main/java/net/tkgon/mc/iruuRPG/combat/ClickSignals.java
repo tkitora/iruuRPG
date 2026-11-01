@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
  *   turns that into a left click in the air (the animation event of the off hand follows it in the same tick);</li>
  *   <li>a right button held down sends the click again every few ticks, with arm swings in between;</li>
  *   <li>the drop key (Q): the client swings the main hand with every drop it sends, and the server turns that into a left click in the air (t144:
- *   in the style of the keys it came as the second key of a Q, so Q, Q was Q, left);</li>
+ *   it came as the second key of a Q, so Q, Q was Q, left);</li>
  *   <li>the first moments after a heavy attack.</li>
  * </ul>
  * So a left click only counts ({@link #left}) when no right click came just before, no drop key was just pressed, no heavy attack has just
@@ -113,21 +113,15 @@ public final class ClickSignals implements Listener {
      * thrown right after a normal one (the right click) in the air has to count, as it does on an enemy.
      */
     public static boolean leftPossible(Player player) {
-        return leftPossible(player.getUniqueId(), Bukkit.getCurrentTick(), HeavyInput.waitingButton(player));
+        return leftPossible(player.getUniqueId(), Bukkit.getCurrentTick());
     }
 
-    static boolean leftPossible(UUID id, int now, boolean waitingButton) {
+    static boolean leftPossible(UUID id, int now) {
         Integer locked = LEFT_LOCKED_UNTIL_TICK.get(id);
         if (locked != null && now < locked) return false;
         // the swing the client sends with a drop (Q) is no press of the left button (t144)
         Integer drop = LAST_DROP_TICK.get(id);
         if (drop != null && now - drop >= 0 && now - drop <= DROP_SWING_TICKS) return false;
-        // the right button waits for its second button (right, left: 強2): a left click 2 ticks or more after it is that press (the arm swings
-        // that follow a right click come in its tick or the next), also on a block
-        if (waitingButton) {
-            Integer right = LAST_RIGHT_TICK.get(id);
-            return right == null || now - right >= 2;
-        }
         // A right click on a block (a melee weapon's heavy attack, a held button) is followed by arm swings of the
         // client and the plugin (the off hand's) for a while; none of them is a press of the left button.
         Integer onBlock = LAST_RIGHT_BLOCK_TICK.get(id);

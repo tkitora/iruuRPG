@@ -10,11 +10,11 @@ import java.util.UUID;
 /**
  * The light / heavy chain of melee attacks. A left click is a light attack: {@code light-count} lights in a row (each
  * within {@code window-ticks} of the one before) end with the finisher, the last light, which hits harder. A heavy
- * input ({@link HeavyInput}) is a heavy attack, thrown after the lights done so far; it ends the chain.
+ * input (小・中・大 of {@link SkillSlots}) is a heavy attack, thrown after the lights done so far; it ends the chain.
  *
  * <p>Two kinds of plan: the usual one (a weapon that is not a class's favorite) has one kind of heavy attack that hits
  * harder after more lights and takes longer to recover from. The plans of the combos ({@link ComboSpec}, registered with
- * {@link #register}) have five normal and five heavy attacks: heavy 0 - 4 (強1 - 強5) is chosen by the buttons ({@link HeavyInput}), each has a
+ * {@link #register}) have five normal and five heavy attacks: heavy 0 - 4 (強1 - 強5; 小・中・大 of {@link SkillSlots} throw 0 - 2), each has a
  * cooldown of its own, and the chain of normal attacks goes on after it. The mage's ranged plan ({@link #MAGE}) has a spec of its own too
  * ({@link MageMoves#SPEC}).
  */

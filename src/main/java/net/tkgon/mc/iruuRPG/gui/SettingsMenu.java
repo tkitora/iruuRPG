@@ -7,9 +7,9 @@ import net.tkgon.mc.iruuRPG.bgm.Bgm;
 import net.tkgon.mc.iruuRPG.bgm.BgmMenus;
 import net.tkgon.mc.iruuRPG.bgm.BgmSettings;
 import net.tkgon.mc.iruuRPG.combat.AttackSounds;
-import net.tkgon.mc.iruuRPG.combat.HeavyInput;
-import net.tkgon.mc.iruuRPG.combat.KeyBindings;
 import net.tkgon.mc.iruuRPG.combat.ParticleSettings;
+import net.tkgon.mc.iruuRPG.combat.SkillInput;
+import net.tkgon.mc.iruuRPG.combat.SkillSlots;
 import net.tkgon.mc.iruuRPG.combat.SoundKind;
 import net.tkgon.mc.iruuRPG.combat.SoundSettings;
 import org.bukkit.Bukkit;
@@ -35,8 +35,7 @@ import java.util.UUID;
  * The settings screens: the hub (sound, particles, BGM, hotbar menu item, keys), the sound screen (how loud every kind of attack
  * sound is, and whether other players' attack sounds are heard), the particle screen (how much of the particles is
  * shown, and whether other players' particles are), the BGM screen (how loud the background music is), the screen to listen to the songs,
- * and the keys (t138): what each of the 8 actions is done by, one of the 8 patterns of two keys ({@link KeyBindings}); choosing a pattern for an
- * action gives the action that had it the action's old one.
+ * and the keys: which keys do the skills ({@link SkillInput}; the redesign of 2026-11-02 has the same keys for everyone, so this only shows them).
  */
 public final class SettingsMenu implements Listener {
 
@@ -58,9 +57,8 @@ public final class SettingsMenu implements Listener {
     private static final int RESET = 20;
     private static final int OTHERS = 24;
     private static final int KEYS_BUTTON = 22;
-    /** The keys' screens: the 8 actions (or the 8 patterns) in the middle row, the reset and the explanation in the bottom row. */
+    /** The keys' screen: the skills, the weapon's skill and the normal attack in the middle row, the explanation in the bottom row. */
     private static final int KEY_FIRST = 10;
-    private static final int KEY_RESET = 20;
     private static final int KEY_HELP = 22;
 
     private final SoundSettings soundSettings;
@@ -69,7 +67,6 @@ public final class SettingsMenu implements Listener {
     private final ParticleSettings particleSettings;
     private final BgmSettings bgmSettings;
     private MainMenu mainMenu;
-    private KeyBindings keyBindings;
 
     public SettingsMenu(SoundSettings soundSettings, AttackSounds attackSounds, MainMenuItemService menuItemService, ParticleSettings particleSettings, BgmSettings bgmSettings) {
         this.particleSettings = particleSettings;
@@ -83,11 +80,7 @@ public final class SettingsMenu implements Listener {
         this.mainMenu = mainMenu;
     }
 
-    public void setKeyBindings(KeyBindings keyBindings) {
-        this.keyBindings = keyBindings;
-    }
-
-    /** The keys: the 8 actions and their two keys. */
+    /** The keys: what each key does. */
     public void openKeys(Player player) {
         Holder holder = new Holder(player.getUniqueId(), Screen.KEYS);
         holder.inventory = Bukkit.createInventory(holder, SIZE, Component.text("設定 - キー操作"));
@@ -95,67 +88,44 @@ public final class SettingsMenu implements Listener {
         player.openInventory(holder.inventory);
     }
 
-    /** The 8 patterns to choose from for {@code action}. */
-    public void openKeyChoice(Player player, KeyBindings.Action action) {
-        Holder holder = new Holder(player.getUniqueId(), Screen.KEY_CHOICE);
-        holder.action = action;
-        holder.inventory = Bukkit.createInventory(holder, SIZE, Component.text("キー操作 - " + action.label()));
-        render(player, holder);
-        player.openInventory(holder.inventory);
-    }
-
-    /** The keys of a pattern: one label when they have no button, else as with a melee weapon and as with a ranged one. */
-    static String patternText(KeyBindings.Pattern pattern) {
-        String melee = pattern.label(true), ranged = pattern.label(false);
+    /** The keys of a skill with a melee and with a ranged weapon: one text when they are the same. */
+    static String keysText(SkillSlots.Slot slot) {
+        String melee = SkillInput.keys(slot, true), ranged = SkillInput.keys(slot, false);
         return melee.equals(ranged) ? melee : melee + " (近接) / " + ranged + " (遠距離)";
     }
 
-    private static Material actionIcon(KeyBindings.Action action) {
-        return switch (action) {
-            case ULTIMATE -> Material.NETHER_STAR;
-            case ITEM -> Material.ENCHANTED_BOOK;
+    private static Material slotIcon(SkillSlots.Slot slot) {
+        return switch (slot) {
+            case UTIL -> Material.FEATHER;
+            case ULT -> Material.NETHER_STAR;
             default -> Material.IRON_SWORD;
         };
     }
 
-    private void renderKeys(Player player, Holder holder) {
+    private void renderKeys(Holder holder) {
         Inventory inventory = holder.inventory;
-        java.util.Map<KeyBindings.Action, KeyBindings.Pattern> bindings = keyBindings.of(player);
-        KeyBindings.Action[] actions = KeyBindings.Action.values();
-        if (holder.screen == Screen.KEYS) {
-            for (int index = 0; index < actions.length; index++) {
-                KeyBindings.Action action = actions[index];
-                ItemStack item = item(actionIcon(action), action.label(), NamedTextColor.GOLD, List.of(
-                        text(patternText(bindings.get(action)), NamedTextColor.WHITE),
-                        text(switch (action) {
-                            case ULTIMATE -> "クラスの必殺 (クラススキル)";
-                            case ITEM -> "持っている武器のスキル";
-                            default -> "コンボの" + action.label() + (action.heavyIndex() < 5 ? " (以前の強" + (action.heavyIndex() + 1) + ")" : "");
-                        }, NamedTextColor.GRAY),
-                        text("クリックで、キーを選ぶ", NamedTextColor.YELLOW)));
-                if (action.heavyIndex() >= 0) item.setAmount(action.heavyIndex() + 1);
-                inventory.setItem(KEY_FIRST + index, item);
-            }
-            inventory.setItem(KEY_RESET, item(Material.BARRIER, "初期の割り当てに戻す", NamedTextColor.RED, List.of(
-                    text("F→F スキル1 … Q→Q アイテムスキル", NamedTextColor.GRAY))));
-        } else {
-            KeyBindings.Pattern current = bindings.get(holder.action);
-            for (int index = 0; index < KeyBindings.Pattern.ALL.size(); index++) {
-                KeyBindings.Pattern pattern = KeyBindings.Pattern.ALL.get(index);
-                KeyBindings.Action holderOf = KeyBindings.actionOf(bindings, pattern);
-                boolean mine = pattern.equals(current);
-                List<Component> lore = new ArrayList<>();
-                lore.add(text(mine ? "いまの " + holder.action.label() + " のキー" : "いま: " + holderOf.label(), mine ? NamedTextColor.GREEN : NamedTextColor.GRAY));
-                if (!mine) lore.add(text("選ぶと、" + holderOf.label() + " は " + patternText(current) + " になる", NamedTextColor.GRAY));
-                if (!mine) lore.add(text("クリックで、これにする", NamedTextColor.YELLOW));
-                inventory.setItem(KEY_FIRST + index, item(mine ? Material.LIME_DYE : Material.TRIPWIRE_HOOK, patternText(pattern), mine ? NamedTextColor.GREEN : NamedTextColor.AQUA, lore));
-            }
+        SkillSlots.Slot[] slots = SkillSlots.Slot.values();
+        for (int index = 0; index < slots.length; index++) {
+            SkillSlots.Slot slot = slots[index];
+            ItemStack item = item(slotIcon(slot), slot.label(), NamedTextColor.GOLD, List.of(
+                    text(keysText(slot), NamedTextColor.WHITE),
+                    text(switch (slot) {
+                        case UTIL -> "クラスの移動・補助の技";
+                        case ULT -> "クラスの必殺技 (クラススキル)";
+                        default -> "クラスの技 (小さいほど、クールタイムが短い)";
+                    }, NamedTextColor.GRAY)));
+            if (slot.heavyIndex() >= 0) item.setAmount(slot.heavyIndex() + 1);
+            inventory.setItem(KEY_FIRST + index, item);
         }
+        inventory.setItem(KEY_FIRST + slots.length, item(Material.ENCHANTED_BOOK, "アイテムスキル", NamedTextColor.GOLD, List.of(
+                text(SkillInput.itemSkillKeys(true) + " (近接) / " + SkillInput.itemSkillKeys(false) + " (遠距離)", NamedTextColor.WHITE),
+                text("持っている武器のスキル", NamedTextColor.GRAY))));
+        inventory.setItem(KEY_FIRST + slots.length + 1, item(Material.WOODEN_SWORD, "通常攻撃", NamedTextColor.GOLD, List.of(
+                text("左クリック (近接) / 右クリック (遠距離・設置)", NamedTextColor.WHITE))));
         List<Component> help = new ArrayList<>();
-        help.add(text("F か Q を押してから、すぐに 2 つ目のキーを押す", NamedTextColor.GRAY));
-        help.add(text("2 つ目: F・Q・武器のボタン (近接は左が通常、右が別)", NamedTextColor.GRAY));
-        help.add(text("通常のボタンだけなら、ふつうの攻撃", NamedTextColor.GRAY));
-        if (!HeavyInput.keyStyle()) help.add(text("いまのサーバーの設定では、この操作は使われていません", NamedTextColor.RED));
+        help.add(text("Q を押してから、すぐに 2 つ目のキーを押す", NamedTextColor.GRAY));
+        help.add(text("Q のあとのクリックは 小・中、Q だけでは何も出ない", NamedTextColor.GRAY));
+        help.add(text("近接と遠距離では、左右のボタンが入れ替わる", NamedTextColor.GRAY));
         inventory.setItem(KEY_HELP, item(Material.PAPER, "キー操作", NamedTextColor.WHITE, help));
     }
 
@@ -281,17 +251,14 @@ public final class SettingsMenu implements Listener {
                     text("現在: " + (hidden ? "表示しない" : "表示する"), hidden ? NamedTextColor.RED : NamedTextColor.GREEN),
                     text("建築の邪魔なときは消せます (/menu でメニューを開けます)", NamedTextColor.GRAY),
                     text("クリックで切り替え", NamedTextColor.YELLOW))));
-            if (keyBindings != null) {
-                inventory.setItem(KEYS_BUTTON, item(Material.TRIPWIRE_HOOK, "キー操作", NamedTextColor.YELLOW, List.of(
-                        text("スキル1〜6・必殺・アイテムスキルを出すキーを、", NamedTextColor.GRAY),
-                        text("8 通り (F か Q と、2 つ目のキー) から選びます", NamedTextColor.GRAY),
-                        text("クリックで開く", NamedTextColor.YELLOW))));
-            }
+            inventory.setItem(KEYS_BUTTON, item(Material.TRIPWIRE_HOOK, "キー操作", NamedTextColor.YELLOW, List.of(
+                    text("小・中・大・util・ULT・アイテムスキルを出すキー", NamedTextColor.GRAY),
+                    text("クリックで開く", NamedTextColor.YELLOW))));
             return;
         }
 
-        if (holder.screen == Screen.KEYS || holder.screen == Screen.KEY_CHOICE) {
-            renderKeys(player, holder);
+        if (holder.screen == Screen.KEYS) {
+            renderKeys(holder);
             return;
         }
 
@@ -386,9 +353,7 @@ public final class SettingsMenu implements Listener {
             return;
         }
         if (slot == BACK) {
-            if (holder.screen == Screen.KEY_CHOICE) {
-                openKeys(player);
-            } else if (holder.screen == Screen.SOUND || holder.screen == Screen.PARTICLE || holder.screen == Screen.BGM || holder.screen == Screen.KEYS) {
+            if (holder.screen == Screen.SOUND || holder.screen == Screen.PARTICLE || holder.screen == Screen.BGM || holder.screen == Screen.KEYS) {
                 open(player);
             } else if (mainMenu != null) {
                 mainMenu.open(player);
@@ -406,30 +371,12 @@ public final class SettingsMenu implements Listener {
             } else if (slot == MENU_ITEM_BUTTON) {
                 menuItemService.setHidden(player, !menuItemService.isHidden(player));
                 render(player, holder);
-            } else if (slot == KEYS_BUTTON && keyBindings != null) {
+            } else if (slot == KEYS_BUTTON) {
                 openKeys(player);
             }
             return;
         }
-
-        if (holder.screen == Screen.KEYS) {
-            int index = slot - KEY_FIRST;
-            if (index >= 0 && index < KeyBindings.Action.values().length) {
-                openKeyChoice(player, KeyBindings.Action.values()[index]);
-            } else if (slot == KEY_RESET) {
-                keyBindings.reset(player);
-                render(player, holder);
-            }
-            return;
-        }
-        if (holder.screen == Screen.KEY_CHOICE) {
-            int index = slot - KEY_FIRST;
-            if (index >= 0 && index < KeyBindings.Pattern.ALL.size()) {
-                keyBindings.set(player, holder.action, KeyBindings.Pattern.ALL.get(index));
-                openKeys(player);
-            }
-            return;
-        }
+        if (holder.screen == Screen.KEYS) return;
 
         if (holder.screen == Screen.BGM) {
             if (slot == BGM_LISTEN) {
@@ -512,10 +459,10 @@ public final class SettingsMenu implements Listener {
 
     private ItemStack back(Screen screen) {
         ItemStack item = MenuButtons.back();
-        if (screen == Screen.SOUND || screen == Screen.PARTICLE || screen == Screen.BGM || screen == Screen.KEYS || screen == Screen.KEY_CHOICE) {
+        if (screen == Screen.SOUND || screen == Screen.PARTICLE || screen == Screen.BGM || screen == Screen.KEYS) {
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
-                meta.lore(List.of(text(screen == Screen.KEY_CHOICE ? "キー操作へ戻る" : "設定へ戻る", NamedTextColor.GRAY)));
+                meta.lore(List.of(text("設定へ戻る", NamedTextColor.GRAY)));
                 item.setItemMeta(meta);
             }
         }
@@ -544,8 +491,7 @@ public final class SettingsMenu implements Listener {
         PARTICLE,
         BGM,
         BGM_LISTEN,
-        KEYS,
-        KEY_CHOICE
+        KEYS
     }
 
     private static final class Holder implements MenuHolder {
@@ -555,8 +501,6 @@ public final class SettingsMenu implements Listener {
         /** The listen screen: the songs and the page shown. */
         private List<Bgm.SongInfo> songs = List.of();
         private int page;
-        /** The choice of keys: the action they are chosen for. */
-        private KeyBindings.Action action;
 
         private Holder(UUID owner, Screen screen) {
             this.owner = owner;

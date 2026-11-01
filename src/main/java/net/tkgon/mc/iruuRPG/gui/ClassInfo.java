@@ -97,11 +97,6 @@ public final class ClassInfo {
      * notes; 【】 are what the attack does to the enemy). Null when the class yml has no lines for it.
      */
     static ItemStack comboGuide(ClassDefinition definition, AttackType kind) {
-        return comboGuide(definition, kind, net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS);
-    }
-
-    /** The combo guide with the keys of {@code bindings} (a player's own choice, t138). */
-    static ItemStack comboGuide(ClassDefinition definition, AttackType kind, java.util.Map<net.tkgon.mc.iruuRPG.combat.KeyBindings.Action, net.tkgon.mc.iruuRPG.combat.KeyBindings.Pattern> bindings) {
         String key = kind.name().toLowerCase(java.util.Locale.ROOT);
         List<String> lines = definition.comboGuide().get(key);
         if (lines == null || lines.isEmpty()) return null;
@@ -119,10 +114,9 @@ public final class ClassInfo {
         };
         List<Component> lore = new ArrayList<>();
         lore.add(plain("得意な武器 (黄色の印) で出せるコンボ", NamedTextColor.GRAY));
-        for (String how : controls(kind, bindings)) {
+        for (String how : controls(kind)) {
             lore.add(plain(how, NamedTextColor.DARK_AQUA));
         }
-        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) lore.add(plain("キーは、設定の「キー操作」で変えられます", NamedTextColor.DARK_AQUA));
         lore.add(plain("【】は敵への効果", NamedTextColor.DARK_GRAY));
         lore.add(Component.empty());
         for (String line : lines) {
@@ -141,32 +135,24 @@ public final class ClassInfo {
         return item;
     }
 
-    private static List<String> controls(AttackType kind, java.util.Map<net.tkgon.mc.iruuRPG.combat.KeyBindings.Action, net.tkgon.mc.iruuRPG.combat.KeyBindings.Pattern> bindings) {
-        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) {
-            // (t138: F or Q and then a second key, the player's own choice of the settings)
-            List<String> lines = new java.util.ArrayList<>();
-            lines.add(switch (kind) {
-                case MELEE -> "左クリック: 通常 (弱1→弱5)";
-                case RANGE -> "右クリック: 通常 (弱1→弱5)";
-                default -> "右クリック: 1回目で設置、その後は弱";
-            });
-            lines.addAll(net.tkgon.mc.iruuRPG.combat.KeyBindings.describe(bindings, kind == AttackType.MELEE));
-            if (kind != AttackType.MELEE && kind != AttackType.RANGE) lines.add("(スキルは設置ごとに1回) Shift+Q: 設置を消す");
-            return lines;
-        }
-        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.numberKeys()) {
-            return switch (kind) {
-                case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右クリック→数字キー1〜5: 強1〜強5", "Q: 武器のスキル");
-                case RANGE -> List.of("右クリック: 弱 (弱1→弱5)", "左クリック→数字キー1〜5: 強1〜強5", "Q: 武器のスキル");
-                default -> List.of("右クリック: 1回目で設置、その後は弱", "左クリック→数字キー1〜5: 強1〜強5 (設置ごとに1回)", "Shift+Q: 設置を消す");
-            };
-        }
-        return switch (kind) {
-            case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右→右: 強1 / 右→左: 強2", "Shift+右: 強3 / Shift+左: 強4", "Shift 2回: 強5", "Q: 武器のスキル");
-            case RANGE -> List.of("右クリック: 弱 (弱1→弱5)", "左→左: 強1 / 左→右: 強2", "Shift+左: 強3 / Shift+右: 強4", "Shift 2回: 強5", "Q: 武器のスキル");
-            default -> List.of("右クリック: 1回目で設置、その後は弱", "左→左: 強1 / 左→右: 強2", "Shift+左: 強3 / Shift+右: 強4", "Shift 2回: 強5 (強は設置ごとに1回)",
-                    "Shift+Q: 設置を消す");
-        };
+    /** How the attacks are thrown with a kind of weapon (the keys of the redesign of 2026-11-02, {@link net.tkgon.mc.iruuRPG.combat.SkillInput}). */
+    static List<String> controls(AttackType kind) {
+        boolean melee = kind == AttackType.MELEE;
+        List<String> lines = new java.util.ArrayList<>();
+        lines.add(switch (kind) {
+            case MELEE -> "左クリック: 通常 (弱1→弱5)";
+            case RANGE -> "右クリック: 通常 (弱1→弱5)";
+            default -> "右クリック: 1回目で設置、その後は弱";
+        });
+        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot, melee) + ": " + slot.label();
+        lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.SMALL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.MEDIUM)
+                + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.LARGE));
+        lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.UTIL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT));
+        if (melee || kind == AttackType.RANGE) lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(melee) + ": アイテムスキル");
+        else lines.add("(スキルは設置ごとに1回) Shift+Q: 設置を消す");
+        // (until the class's own moves are made, 小・中・大 throw the skills 1 - 3 of the lines below)
+        lines.add("小・中・大 は、いまは下のスキル1〜3");
+        return lines;
     }
 
     /** "弱1: text【effect】": the label colored by 弱 / 強 (スキル since t138), the text white, what is in 【】 aqua; ※ lines gray. */
