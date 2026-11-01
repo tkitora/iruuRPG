@@ -23,10 +23,12 @@ import java.util.Map;
  * icon, which is at their top), so the row of icons is drawn over the status line without moving it.
  *
  * <p>Code points: icon n (1 - 6) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
- * U+E220 + d; the special of class c (t140) U+E107 + 16 c, the weapon's skill U+E180, the lock laid over an icon whose skill there is not U+E230;
+ * U+E220 + d; the special of class c (t140) U+E107 + 16 c, the weapon's skill U+E180 and its locked icon U+E181, the lock laid over a special there is
+ * not yet U+E230;
  * the key label of two keys (t138) U+E240 + 4 first + second (first F 0 / Q 1; second F 0 / Q 1 / left button 2 / right button 3);
- * the spaces U+E2F0 on. The pictures of the special and the weapon's skill come from {@code hud/special_<class>.png} and {@code hud/item_skill.png}, the
- * lock's from {@code hud/lock.png} (16 x 16, drawn over the greyed icon), else placeholders are drawn. A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
+ * the spaces U+E2F0 on. The pictures of the special and the weapon's skill come from the texture tree's {@code hud/ultimate_<class>.png},
+ * {@code hud/itemskill.png} and {@code hud/itemskill_locked.png}, the lock's from {@code hud/lock.png} (16 x 16, drawn over the greyed icon), else
+ * placeholders are drawn (the locked weapon skill's: its icon greyed under the lock). A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
  * above the icon, so they hide neither the icon nor its cooldown. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
  * one, else a placeholder is drawn: the class's color with the number in white.
  */
@@ -82,7 +84,12 @@ public final class HudGlyphs {
         return '\uE180';
     }
 
-    /** The lock laid over the greyed icon of a skill there is not (t140). */
+    /** The icon of the weapon's skill when the weapon has none (t140): its own picture, drawn as it is. */
+    public static char itemSkillLocked() {
+        return '\uE181';
+    }
+
+    /** The lock laid over the greyed icon of a special there is not yet (t140). */
     public static char lock() {
         return '\uE230';
     }
@@ -284,6 +291,25 @@ public final class HudGlyphs {
         return image;
     }
 
+    /** A locked icon made of {@code icon}: greyed as a cooling icon is, under the lock. */
+    static BufferedImage lockedPlaceholder(BufferedImage icon) {
+        BufferedImage lock = lockPlaceholder();
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON; y++) {
+            for (int x = 0; x < ICON; x++) {
+                int argb = icon.getRGB(x, y);
+                if ((argb >>> 24) == 0) continue;
+                int r = (argb >> 16 & 0xFF) * 0x8C / 255, g = (argb >> 8 & 0xFF) * 0x8C / 255, b = (argb & 0xFF) * 0x8C / 255;
+                int over = lock.getRGB(x, y), alpha = over >>> 24;
+                r = (r * (255 - alpha) + (over >> 16 & 0xFF) * alpha) / 255;
+                g = (g * (255 - alpha) + (over >> 8 & 0xFF) * alpha) / 255;
+                b = (b * (255 - alpha) + (over & 0xFF) * alpha) / 255;
+                image.setRGB(x, y, argb & 0xFF000000 | r << 16 | g << 8 | b);
+            }
+        }
+        return image;
+    }
+
     private static BufferedImage placeholderSquare(int color) {
         int rim = darker(color);
         BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
@@ -389,10 +415,13 @@ public final class HudGlyphs {
             }
         }
         // (t140) the specials, the weapon's skill and the lock
+        // (the names are the texture tree's: ultimate_<class>, itemskill, itemskill_locked)
         for (int c = 0; c < CLASSES.size(); c++) {
-            bitmap(providers, files, "special_" + CLASSES.get(c), special(CLASSES.get(c)), picture(ICON, resourceImage("special_" + CLASSES.get(c), specialPlaceholder(c)), 0));
+            bitmap(providers, files, "special_" + CLASSES.get(c), special(CLASSES.get(c)), picture(ICON, resourceImage("ultimate_" + CLASSES.get(c), specialPlaceholder(c)), 0));
         }
-        bitmap(providers, files, "item_skill", itemSkill(), picture(ICON, resourceImage("item_skill", itemSkillPlaceholder()), 0));
+        BufferedImage item = resourceImage("itemskill", itemSkillPlaceholder());
+        bitmap(providers, files, "item_skill", itemSkill(), picture(ICON, item, 0));
+        bitmap(providers, files, "item_skill_locked", itemSkillLocked(), picture(ICON, resourceImage("itemskill_locked", lockedPlaceholder(item)), 0));
         bitmap(providers, files, "lock", lock(), picture(ICON, resourceImage("lock", lockPlaceholder()), 0));
         for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
         for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
