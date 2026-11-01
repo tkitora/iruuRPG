@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.UUID;
 
 /**
- * Screen effects drawn by the client's shaders (the shaders are in the marks' pack: {@link net.tkgon.mc.iruuRPG.markpack.ScreenShaders}).
+ * Screen effects drawn by the client's shaders (the shaders are in the shaders' pack: {@link net.tkgon.mc.iruuRPG.markpack.ScreenShaders}).
  *
  * <p>The server cannot run a shader on a client; it can only show the client things its shaders recognise. An effect is switched on for one
  * player by a <b>marker</b>: an item display that only that player is sent, shrunk to nothing (so it is never seen), glowing with the color
@@ -34,7 +34,7 @@ import java.util.UUID;
  * from the blue), draws the effect, and takes the square away. The marker follows the player (a display with no size is never culled, so it
  * only has to be near).
  *
- * <p>A marker is sent only to a player whose client has the shaders (t128): the client tells the server how the marks' pack went (by the pack's
+ * <p>A marker is sent only to a player whose client has the shaders (t128): the client tells the server how the shaders' pack went (by the pack's
  * id); while it was declined, could not be downloaded or failed to load, the effect is kept but its marker is not sent (it is when the pack
  * loads). Whether a shader pack of Iris or OptiFine is on cannot be known: their APIs run in the client only and tell the server nothing (a
  * marker sent to such a player shows nothing, as it has no size).
@@ -144,7 +144,7 @@ public final class ScreenEffects implements Listener {
 
     private final JavaPlugin plugin;
     private final Map<UUID, Map<Effect, Marker>> markers = new HashMap<>();
-    /** The last status of the marks' pack (the one with the shaders) each player's client told. */
+    /** The last status of the shaders' pack (the one with the shaders) each player's client told. */
     private final Map<UUID, Status> packStatus = new HashMap<>();
     private BukkitTask task;
     private long ticks;
@@ -181,7 +181,7 @@ public final class ScreenEffects implements Listener {
     }
 
     /**
-     * Whether a client with the marks' pack in this status has the shaders: yes when it loaded it or is getting it, and when nothing is known (no
+     * Whether a client with the shaders' pack in this status has the shaders: yes when it loaded it or is getting it, and when nothing is known (no
      * pack was offered, or not yet); no when it declined it, could not download it, or it failed to load (a shader that does not compile does that).
      */
     static boolean hasShaders(Status status) {
@@ -196,7 +196,7 @@ public final class ScreenEffects implements Listener {
         return hasShaders(packStatus.get(player.getUniqueId()));
     }
 
-    /** The last status of the marks' pack the player's client told (null: nothing yet). */
+    /** The last status of the shaders' pack the player's client told (null: nothing yet). */
     public Status packStatus(Player player) {
         return packStatus.get(player.getUniqueId());
     }
@@ -351,12 +351,9 @@ public final class ScreenEffects implements Listener {
 
     @EventHandler
     public void onPackStatus(PlayerResourcePackStatusEvent event) {
-        if (!net.tkgon.mc.iruuRPG.pack.ResourcePackService.packId("marks").equals(event.getID())) return;
+        // (the shaders are the pack fx, iruufx.zip; the log of every pack's status is the resource pack service's)
+        if (!net.tkgon.mc.iruuRPG.pack.ResourcePackService.packId("fx").equals(event.getID())) return;
         packStatus.put(event.getPlayer().getUniqueId(), event.getStatus());
-        if (event.getStatus() == Status.FAILED_RELOAD) {
-            plugin.getLogger().warning("screenfx: " + event.getPlayer().getName() + " could not load the marks' pack (FAILED_RELOAD): if the shaders"
-                    + " do not compile on that client, screen-effects.enabled: false takes them out of the pack");
-        }
     }
 
     @EventHandler

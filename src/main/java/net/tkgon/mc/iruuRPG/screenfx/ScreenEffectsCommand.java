@@ -81,7 +81,7 @@ public final class ScreenEffectsCommand implements TabExecutor {
                     Map<Effect, Integer> shown = effects.shown(player);
                     var status = effects.packStatus(player);
                     sender.sendMessage(PREFIX + player.getName() + ": " + (shown.isEmpty() ? "なし" : shown.toString().toLowerCase(Locale.ROOT))
-                            + " / パック (iruumark.zip): " + (status == null ? "不明" : status.name().toLowerCase(Locale.ROOT))
+                            + " / パック (iruufx.zip): " + (status == null ? "不明" : status.name().toLowerCase(Locale.ROOT))
                             + (effects.hasShaders(player) ? "" : " → 目印を送っていない")
                             + " / クライアント: " + player.getClientBrandName());
                 }
@@ -127,7 +127,7 @@ public final class ScreenEffectsCommand implements TabExecutor {
                     + (effect.positional() ? " (目の前 4 ブロックから。秒は使いません)。"
                     : on.seconds() > 0 ? " (" + on.seconds() + " 秒)。" : "。/screenfx " + effect.id() + " off で消えます。"));
             if (!held.isEmpty()) {
-                sender.sendMessage(PREFIX + "シェーダー入りのパック (iruumark.zip) を読み込めていない人には、目印を送っていません (読み込めたら出ます): "
+                sender.sendMessage(PREFIX + "シェーダー入りのパック (iruufx.zip) を読み込めていない人には、目印を送っていません (読み込めたら出ます): "
                         + String.join(", ", held));
             }
             sender.sendMessage(PREFIX + "シェーダーパック (Iris・OptiFine) を使っている人には見えません (サーバーからは分かりません)。");

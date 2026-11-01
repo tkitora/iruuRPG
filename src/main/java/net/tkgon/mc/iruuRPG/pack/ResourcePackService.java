@@ -5,6 +5,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerResourcePackStatusEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
@@ -98,6 +99,8 @@ public final class ResourcePackService implements Listener {
         BUILT_IN.put("models", "iruumodel.zip");
         BUILT_IN.put("items", "iruuitem.zip");
         BUILT_IN.put("marks", "iruumark.zip");
+        // the shaders of the screen effects, apart from the marks' fonts (a client that cannot compile them drops only this one)
+        BUILT_IN.put("fx", "iruufx.zip");
     }
 
     private List<Pack> packs() {
@@ -214,6 +217,24 @@ public final class ResourcePackService implements Listener {
             sent++;
         }
         return sent;
+    }
+
+    /**
+     * What each client did with each pack, in the log: the end of it (loaded) as info, a pack it did not take (declined, not downloaded, a bad
+     * address, failed to load, thrown away) as a warning, with the player, the pack, the status and the client's brand. (The steps between, accepted
+     * and downloaded, are not written.)
+     */
+    @EventHandler
+    public void onPackStatus(PlayerResourcePackStatusEvent event) {
+        PlayerResourcePackStatusEvent.Status status = event.getStatus();
+        if (status == PlayerResourcePackStatusEvent.Status.ACCEPTED || status == PlayerResourcePackStatusEvent.Status.DOWNLOADED) return;
+        String name = "?";
+        for (Pack pack : packs()) if (packId(pack.name()).equals(event.getID())) name = pack.name() + " (" + pack.file() + ")";
+        Player player = event.getPlayer();
+        String line = "pack " + name + ": " + player.getName() + " " + status.name() + " (client " + player.getClientBrandName() + ")";
+        if (status == PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED) plugin.getLogger().info(line);
+        else plugin.getLogger().warning(line + (name.startsWith("fx ") && status == PlayerResourcePackStatusEvent.Status.FAILED_RELOAD
+                ? ": the shaders may not compile on that client (screen-effects.enabled: false takes them away)" : ""));
     }
 
     /** For /iruurpg pack: where each pack is and its hash. */

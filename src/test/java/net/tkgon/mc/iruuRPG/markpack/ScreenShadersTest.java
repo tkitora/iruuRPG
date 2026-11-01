@@ -48,16 +48,20 @@ class ScreenShadersTest {
     }
 
     @Test
-    void thePackCarriesTheShadersOnlyWhenTheyAreOn() throws IOException {
+    void theShadersAreAPackOfTheirOwn() throws IOException {
+        // the marks' pack has the fonts only, so a client that cannot compile the shaders keeps them; the shaders are iruufx.zip
         Map<String, byte[]> files = ScreenShaders.files();
         assertEquals(ScreenShaders.FILES.size(), files.size(), "every file is in the jar");
-        Map<String, byte[]> on = unzip(MarkGlyphs.pack(true));
-        Map<String, byte[]> off = unzip(MarkGlyphs.pack(false));
+        Map<String, byte[]> marks = unzip(MarkGlyphs.pack());
+        Map<String, byte[]> fx = unzip(ScreenShaders.pack());
         for (String path : files.keySet()) {
-            assertTrue(on.containsKey(path), path);
-            assertFalse(off.containsKey(path), path);
+            assertTrue(fx.containsKey(path), path);
+            assertFalse(marks.containsKey(path), path);
         }
-        assertTrue(off.containsKey("assets/iruurpg/font/marks.json") && off.containsKey("assets/iruurpg/font/hud.json"));
+        assertTrue(fx.containsKey("pack.mcmeta"));
+        assertEquals(files.size() + 1, fx.size());
+        assertTrue(marks.containsKey("assets/iruurpg/font/marks.json") && marks.containsKey("assets/iruurpg/font/hud.json"));
+        assertFalse(marks.keySet().stream().anyMatch(path -> path.startsWith("assets/minecraft/shaders/")));
     }
 
     @Test

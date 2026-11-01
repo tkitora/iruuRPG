@@ -594,7 +594,7 @@ hud:
   heavy-icons: true
 
 # 画面効果 (screenfx/): クライアントのシェーダーで描く、画面の効果 (色収差 chromatic、衝撃 impact、暗くする darken)。管理者が /screenfx で出す。
-# シェーダーは iruumark.zip に入る (発光の輪郭のシェーダーを置き換える。効果を出していないときの輪郭は、ゲームのものと同じ)。
+# シェーダーは iruufx.zip (それだけのパック。シェーダーが読めない端末でも、iruumark.zip のフォントは出る) に入る (発光の輪郭のシェーダーを置き換える。効果を出していないときの輪郭は、ゲームのものと同じ)。
 # false = パックにシェーダーを入れず、/screenfx も使えない (起動時に読む。変えたら再起動)
 screen-effects:
   enabled: true
