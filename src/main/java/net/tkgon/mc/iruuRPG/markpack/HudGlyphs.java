@@ -261,11 +261,14 @@ public final class HudGlyphs {
 
     /**
      * The icon of skill {@code number} (1 - 4: 小・中・大・util) of a class: the texture tree's picture ({@code hud/small_<class>.png} ...) when there
-     * is a 16 x 16 one; 小・中・大 else the picture of skill 1 - 3 of t138 ({@code hud/heavy_<class>_<n>.png}); else the placeholder.
+     * is a 16 x 16 one; else the picture of the skill of t138 it throws with the class's favorite weapon ({@code hud/heavy_<class>_<n>.png},
+     * {@link net.tkgon.mc.iruuRPG.combat.SlotMoves}; skills 1 - 3 for 小・中・大 of a class whose moves are not made yet); else the placeholder.
      */
     static BufferedImage iconImage(int classIndex, int number) {
         String classId = CLASSES.get(classIndex);
-        BufferedImage fallback = number == 4 ? utilPlaceholder(classIndex) : resourceImage("heavy_" + classId + "_" + number, placeholder(classIndex, number));
+        int[] own = net.tkgon.mc.iruuRPG.combat.SlotMoves.favoriteSkillNumbers(classId);
+        int old = own != null ? own[number - 1] : number <= 3 ? number : 0;
+        BufferedImage fallback = old == 0 ? utilPlaceholder(classIndex) : resourceImage("heavy_" + classId + "_" + old, placeholder(classIndex, old));
         return resourceImage(SKILL_NAMES[number - 1] + "_" + classId, fallback);
     }
 

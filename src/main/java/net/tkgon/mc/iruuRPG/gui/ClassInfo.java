@@ -114,7 +114,7 @@ public final class ClassInfo {
         };
         List<Component> lore = new ArrayList<>();
         lore.add(plain("得意な武器 (黄色の印) で出せるコンボ", NamedTextColor.GRAY));
-        for (String how : controls(kind)) {
+        for (String how : controls(kind, definition.id())) {
             lore.add(plain(how, NamedTextColor.DARK_AQUA));
         }
         lore.add(plain("【】は敵への効果", NamedTextColor.DARK_GRAY));
@@ -136,7 +136,7 @@ public final class ClassInfo {
     }
 
     /** How the attacks are thrown with a kind of weapon (the keys of the redesign of 2026-11-02, {@link net.tkgon.mc.iruuRPG.combat.SkillInput}). */
-    static List<String> controls(AttackType kind) {
+    static List<String> controls(AttackType kind, String classId) {
         boolean melee = kind == AttackType.MELEE;
         List<String> lines = new java.util.ArrayList<>();
         lines.add(switch (kind) {
@@ -150,8 +150,13 @@ public final class ClassInfo {
         lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.UTIL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT));
         if (melee || kind == AttackType.RANGE) lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(melee) + ": アイテムスキル");
         else lines.add("(スキルは設置ごとに1回) Shift+Q: 設置を消す");
-        // (until the class's own moves are made, 小・中・大 throw the skills 1 - 3 of the lines below)
-        lines.add("小・中・大 は、いまは下のスキル1〜3");
+        // which skills of the lines below they throw (until the class's own moves are made, 小・中・大 the skills 1 - 3)
+        int[] numbers = net.tkgon.mc.iruuRPG.combat.SlotMoves.skillNumbers(classId, kind);
+        if (numbers == null) {
+            lines.add("小・中・大 は、いまは下のスキル1〜3");
+        } else {
+            lines.add("小 = スキル" + numbers[0] + " / 中 = スキル" + numbers[1] + " / 大 = スキル" + numbers[2] + " / util = スキル" + numbers[3]);
+        }
         return lines;
     }
 

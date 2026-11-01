@@ -234,16 +234,20 @@ public final class AttackService {
                 && plugin.getConfig().getBoolean("combat.combo.enabled", true) && comboAllowed(attacker, weapon);
     }
 
-    /** Heavy attack {@code index} (0 - 4) of a mage with a ranged weapon (強1 re-activates what the last one left). */
-    private void mageHeavy(Player attacker, RpgItemDefinition weapon, int index) {
-        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, MeleeCombo.MAGE, index, index == 0 && mageMoves.chainActive(attacker));
+    /**
+     * Heavy attack {@code index} (0 - 5) of a mage with a ranged weapon (強1 re-activates what the last one left); {@code free}: thrown as a class's
+     * skill, without its own cooldown. False when it was not thrown (cooling down).
+     */
+    private boolean mageHeavy(Player attacker, RpgItemDefinition weapon, int index, boolean free) {
+        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, MeleeCombo.MAGE, index, free || index == 0 && mageMoves.chainActive(attacker));
         if (step == null) {
             coolingClick(attacker);
-            return;
+            return false;
         }
         beginAttack(attacker);
-        showHeavyCooldown(attacker, weapon, MeleeCombo.MAGE, step);
+        if (!free) showHeavyCooldown(attacker, weapon, MeleeCombo.MAGE, step);
         mageMoves.heavy(attacker, weapon, step);
+        return true;
     }
 
     // ---- the combos of a class with a kind of weapon (the generic ones: see ClassCombo) ------------------------------------------
@@ -382,21 +386,23 @@ public final class AttackService {
     /**
      * Heavy attack {@code index} (0 - 4) of a deployed weapon of a class that has a combo with it: made at the placement, once for each placement.
      */
-    private void deployHeavy(Player attacker, RpgItemDefinition weapon, int index) {
+    /** Heavy attack {@code index} of a deployed weapon's combo, once per placement: false when there is no placement, or its heavy attack was used. */
+    private boolean deployHeavy(Player attacker, RpgItemDefinition weapon, int index) {
         DeployHold.Hold hold = holds().active(attacker);
         if (hold == null) {
             attacker.sendMessage("[iruuRPG] 設置がありません。右クリックで設置してください。");
-            return;
+            return false;
         }
         if (hold.heavyUsed) {
             attacker.sendMessage("[iruuRPG] この設置のスキルはもう使いました。");
-            return;
+            return false;
         }
         hold.heavyUsed = true;
         ClassCombo combo = classComboFor(attacker, weapon);
         MeleeCombo.Step step = meleeCombo.heavyStep(combo.spec().plan(), index);
         beginAttack(attacker);
         combo.heavy(kitAt(attacker, weapon, hold.spot, hold.facing), step);
+        return true;
     }
 
     public void forgetDeployHold(UUID player) {
@@ -503,15 +509,44 @@ public final class AttackService {
             return;
         }
         if (mageRanged(attacker, weapon)) {
-            mageHeavy(attacker, weapon, index);
+            mageHeavy(attacker, weapon, index, false);
             return;
         }
         if (hasClassCombo(attacker, weapon)) {
             if (weapon.attackType() == AttackType.DEPLOY) deployHeavy(attacker, weapon, index);
-            else comboHeavy(attacker, weapon, index);
+            else comboHeavy(attacker, weapon, index, false);
             return;
         }
         if (weapon.attackType() == AttackType.MELEE) usualHeavy.accept(attacker, weapon);
+    }
+
+    /**
+     * Heavy attack {@code index} (0 - 5) of the weapon in hand thrown as a class's skill ({@link SlotMoves}): the skill cools down for its own
+     * time ({@link SkillSlots}), so the heavy attack's own cooldown neither waits nor starts. False when nothing was thrown (the weapon has no
+     * heavy attacks, the mage has nothing to re-activate, a deployed weapon's placement is missing or used, the attacks are locked).
+     */
+    public boolean slotHeavy(Player attacker, RpgItemDefinition weapon, int index) {
+        if (!hasHeavies(attacker, weapon)) return false;
+        if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) return false;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return false;
+        }
+        if (mageRanged(attacker, weapon)) {
+            if (index == 0 && !mageMoves.chainActive(attacker)) {
+                // (nothing to re-activate: the skill does not cool down)
+                coolingClick(attacker);
+                return false;
+            }
+            return mageHeavy(attacker, weapon, index, true);
+        }
+        if (hasClassCombo(attacker, weapon)) {
+            if (weapon.attackType() == AttackType.DEPLOY) return deployHeavy(attacker, weapon, index);
+            return comboHeavy(attacker, weapon, index, true);
+        }
+        if (weapon.attackType() != AttackType.MELEE) return false;
+        usualHeavy.accept(attacker, weapon);
+        return true;
     }
 
     /** The heavy attack of the usual chain of a melee weapon (set by the listener, which swings it as it swings a normal attack). */
@@ -578,8 +613,9 @@ public final class AttackService {
     /**
      * Heavy attack {@code index} of the class's combo with a melee or ranged weapon. A heavy attack that can be gone on with (the scythe's) takes
      * any heavy input as its next part; 強1 is the assassin's re-activation of its clones while they stand, and its dash during the item swap skill.
+     * {@code free}: thrown as a class's skill, without its own cooldown. False when nothing was thrown (cooling down).
      */
-    private void comboHeavy(Player attacker, RpgItemDefinition weapon, int index) {
+    private boolean comboHeavy(Player attacker, RpgItemDefinition weapon, int index, boolean free) {
         boolean melee = weapon.attackType() == AttackType.MELEE;
         int tick = org.bukkit.Bukkit.getCurrentTick();
         ClassCombo combo = classComboFor(attacker, weapon);
@@ -587,30 +623,31 @@ public final class AttackService {
         if (combo.followUp(kit(attacker, weapon))) {
             beginAttack(attacker);
             if (melee) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
-            return;
+            return true;
         }
         boolean assassin = AssassinMeleeCombo.PLAN.equals(combo.spec().plan());
         if (assassin && index == 0 && AssassinClones.canRecast(attacker)) {
             beginAttack(attacker);
             AssassinClones.recast(kit(attacker, weapon), assassinFrenzy(attacker) >= 2 ? 1.35 : assassinFrenzy(attacker) == 1 ? 1.2 : 1.0);
-            return;
+            return true;
         }
         // during the item swap skill the assassin's 強1 is a dash with a cooldown of 2 ticks of its own (the clone's cooldown of 8 s neither waits nor starts)
         boolean swapDash = assassin && index == 0 && assassinFrenzy(attacker) > 0;
         if (swapDash) {
             Integer ready = swapDashReady.get(attacker.getUniqueId());
-            if (ready != null && tick < ready) return;
+            if (ready != null && tick < ready) return false;
             swapDashReady.put(attacker.getUniqueId(), tick + SWAP_DASH_COOLDOWN_TICKS);
         }
-        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, combo.spec().plan(), index, swapDash);
+        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, combo.spec().plan(), index, swapDash || free);
         if (step == null) {
             coolingClick(attacker);
-            return;
+            return false;
         }
         beginAttack(attacker);
-        if (!swapDash) showHeavyCooldown(attacker, weapon, combo.spec().plan(), step);
+        if (!swapDash && !free) showHeavyCooldown(attacker, weapon, combo.spec().plan(), step);
         combo.heavy(kit(attacker, weapon), step);
         if (melee) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+        return true;
     }
 
     // ---- guard (invulnerability, damage cut, shields) -----------------------------------------------------------------------
