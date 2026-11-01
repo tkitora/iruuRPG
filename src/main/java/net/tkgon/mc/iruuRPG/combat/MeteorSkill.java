@@ -70,6 +70,13 @@ final class MeteorSkill {
      * on the aim (a ring marks the place, the star comes down in 10 ticks) for {@code recast-damage-rate} times the meteor's rate on all within {@code recast-radius};
      * after the upgrade four smaller ones fall round it. True when the press was handled here (also when it is too early).
      */
+    /** Whether a press of the key now would be the re-activation (what {@link #tryRecast} would do, without doing it). */
+    boolean canRecast(Player player, Map<String, Double> values) {
+        Recast recast = recasts.get(player.getUniqueId());
+        long now = System.currentTimeMillis();
+        return recast != null && !recast.used && now <= recast.untilMillis && now - recast.castMillis >= values.getOrDefault("recast-delay-seconds", 1.0) * 1000.0;
+    }
+
     boolean tryRecast(Player player, Map<String, Double> values, RpgItemDefinition weapon, boolean upgraded) {
         Recast recast = recasts.get(player.getUniqueId());
         long now = System.currentTimeMillis();

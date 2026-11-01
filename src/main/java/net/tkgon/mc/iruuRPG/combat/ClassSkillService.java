@@ -747,6 +747,26 @@ public final class ClassSkillService {
      * sanctuary at once, gives every enemy inside 100 confusion, and ends the sanctuary. True when the press was
      * handled here (also when it is too early), so no cooldown or MP is spent.
      */
+    /**
+     * Whether a press of the key of {@code skill} now would be its re-activation (what {@link #tryRecast} would do, without doing it; not during the
+     * first moments, when the press only tells how long to wait): the action bar's ULT blinks then.
+     */
+    public boolean canRecast(Player player, ClassSkillDefinition skill) {
+        if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) return sniperMode != null && sniperMode.canEnter(player, skill);
+        if (SATSUJIN.equalsIgnoreCase(skill.id())) {
+            return classEffectService != null && classEffectService.frenzyLevel(player) > 0
+                    && classEffectService.frenzyElapsedMillis(player) >= skill.values().getOrDefault("recast-delay-seconds", 1.5) * 1000.0;
+        }
+        if (METEOR.equalsIgnoreCase(skill.id())) {
+            RpgItemDefinition held = attackService.weaponInMainHand(player);
+            return held != null && held.attackType() == AttackType.RANGE && meteor.canRecast(player, skill.values());
+        }
+        if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;
+        SanctuaryState state = sanctuaries.get(player.getUniqueId());
+        return state != null && !state.ended && classService.hasSkill(profileManager.getOrCreate(player), SANCTUARY_UPGRADE)
+                && state.age >= Math.round(skill.values().getOrDefault("recast-delay-seconds", 3.0) * 20.0);
+    }
+
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
         if (SATSUJIN.equalsIgnoreCase(skill.id())) return frenzyEcho(player, skill);

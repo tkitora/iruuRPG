@@ -87,6 +87,16 @@ public final class SniperMode implements Listener {
      * The key pressed again: starts the sniper mode when the enhanced state is on, the delay has passed and this
      * cast has not used it yet. True when the press was handled (also a refusal with a message).
      */
+    /** Whether a press of the key now would enter the stance (what {@link #tryEnter} would do, without doing it): the action bar's ULT blinks then. */
+    public boolean canEnter(Player player, ClassSkillDefinition skill) {
+        UUID id = player.getUniqueId();
+        long elapsed = classEffectService.instinctElapsedMillis(id);
+        if (elapsed < 0L || states.containsKey(id) || !attackService.hasClassSkill(player, ClassEffectService.INSTINCT_UPGRADE)) return false;
+        long startedAt = System.currentTimeMillis() - elapsed;
+        if (usedFor.containsKey(id) && Math.abs(usedFor.get(id) - startedAt) < 500L) return false;
+        return elapsed >= skill.values().getOrDefault("recast-delay-seconds", 3.0) * 1000.0;
+    }
+
     public boolean tryEnter(Player player, ClassSkillDefinition skill) {
         UUID id = player.getUniqueId();
         long elapsed = classEffectService.instinctElapsedMillis(id);

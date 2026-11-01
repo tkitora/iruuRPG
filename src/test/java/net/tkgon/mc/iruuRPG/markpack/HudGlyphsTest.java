@@ -27,7 +27,7 @@ class HudGlyphsTest {
         assertEquals('\uE400', HudGlyphs.icon("warrior", 1));
         assertEquals('\uE400', HudGlyphs.icon("warrior", 0, 1));
         assertEquals('\uE437', HudGlyphs.icon("gifted", 1, 4));
-        assertEquals('\uE45A', HudGlyphs.icon("nobody", 2, 3));
+        assertEquals('\uE456', HudGlyphs.icon("nobody", 1, 3));
         assertEquals('', HudGlyphs.shade(16));
         assertEquals('', HudGlyphs.digit(7));
     }
@@ -42,7 +42,7 @@ class HudGlyphsTest {
         // 小・中・大・util are icons 1 - 4 of each class's 16, the ULT is the special of t140 (its 7th); the weapon's skill and the lock on their own
         assertEquals('\uE400', HudGlyphs.skill("warrior", 0, 0));
         assertEquals('\uE404', HudGlyphs.skill("warrior", 1, 0));
-        assertEquals('\uE43B', HudGlyphs.skill("gifted", 2, 3));
+        assertEquals('\uE437', HudGlyphs.skill("gifted", 1, 3));
         // the ULT is one for every kind of weapon
         assertEquals('\uE107', HudGlyphs.skill("warrior", 1, 4));
         assertEquals('\uE107', HudGlyphs.special("warrior"));
@@ -51,9 +51,11 @@ class HudGlyphsTest {
         assertEquals('\uE180', HudGlyphs.itemSkill());
         assertEquals('\uE181', HudGlyphs.itemSkillLocked());
         assertEquals('\uE230', HudGlyphs.lock());
-        assertEquals(2, HudGlyphs.kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY));
+        // a deployed weapon has no 小・中・大・util (its row is the ULT and its own skill); the ULT's rim of a re-activation
+        assertEquals(0, HudGlyphs.kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY));
+        assertEquals('\uE231', HudGlyphs.highlight());
         assertEquals(0, HudGlyphs.kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType.SPECIAL));
-        assertEquals(HudGlyphs.icon("generic", 2, 4), HudGlyphs.icon("generic", 2, 6), "a class has 4 icons a kind besides the ULT's");
+        assertEquals(HudGlyphs.icon("generic", 1, 4), HudGlyphs.icon("generic", 1, 6), "a class has 4 icons a kind besides the ULT's");
         Map<String, byte[]> files = new HashMap<>();
         HudGlyphs.addTo(files);
         JsonObject font = JsonParser.parseString(new String(files.get("assets/iruurpg/font/hud.json"), StandardCharsets.UTF_8)).getAsJsonObject();
@@ -119,8 +121,10 @@ class HudGlyphsTest {
                 new HudGlyphs.Icon(HudGlyphs.itemSkill(), 0.0, 0, HudGlyphs.keyLabel("r"), 0xFFFFFF, true));
         assertEquals(0, advance(spaces, HudGlyphs.row(labelled, extras)));
         assertEquals(0, advance(spaces, HudGlyphs.row(List.of(), extras)));
-        // 72 icons (6 classes x 3 kinds of weapon x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, 16 shades, 10 digits, 7 key labels
-        assertEquals(114, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // a blinking ULT (its rim on) and a locked one: still no room
+        assertEquals(0, advance(spaces, HudGlyphs.row(List.of(new HudGlyphs.Icon(HudGlyphs.special("mage"), 0.5, 40, HudGlyphs.keyLabel("sf"), 0xFFFFFF, false, true)), extras)));
+        // 48 icons (6 classes x melee and ranged x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, the rim, 16 shades, 10 digits, 7 key labels
+        assertEquals(91, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
     }
 
     @Test

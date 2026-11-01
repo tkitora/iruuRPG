@@ -23,9 +23,10 @@ import java.util.Map;
  * stand above the line of text (their pictures are taller than the icon, which is at their top), so the row of icons is drawn over the status line
  * without moving it.
  *
- * <p>Code points: 小・中・大・util of class c ({@link #CLASSES}) with kind of weapon k ({@link #KINDS}: each kind has its own skills and icons, the
- * user's wish of 2026-11-02) are U+E400 + 16 c + 4 k + 0 - 3; its ULT (the special of t140, one for every weapon) U+E107 + 16 c; the weapon's
- * skill U+E180 and its locked icon U+E181, the lock laid over a skill there is not yet U+E230; shade k (1 - 16 rows of 16 covered) U+E200 + k;
+ * <p>Code points: 小・中・大・util of class c ({@link #CLASSES}) with kind of weapon k ({@link #KINDS}, melee and ranged: each has its own skills and
+ * icons, the user's wish of 2026-11-02) are U+E400 + 16 c + 4 k + 0 - 3; its ULT (the special of t140, one for every weapon) U+E107 + 16 c; the weapon's
+ * skill U+E180 and its locked icon U+E181, the lock laid over a skill there is not yet U+E230, the rim of a ULT that can be re-activated
+ * U+E231 ({@code hud/highlight.png}); shade k (1 - 16 rows of 16 covered) U+E200 + k;
  * digit d U+E220 + d; the key labels ({@link #KEY_LABELS}) U+E240 on; the spaces U+E2F0 on. The pictures are the texture tree's (16 x 16) when
  * there are some: {@code hud/small_<class>_<kind>.png} ({@code medium_}, {@code large_}, {@code util_}); else, for the class's favorite weapon
  * (and for every kind of a class with no moves of its own), {@code hud/small_<class>.png} ...; else the picture of the skill of t138 it throws
@@ -39,10 +40,13 @@ public final class HudGlyphs {
     public static final Key FONT = Key.key("iruurpg", "hud");
     /** The classes with icons of their own, in the order of their code points (generic: a weapon outside the class's combos). */
     public static final List<String> CLASSES = List.of("warrior", "assassin", "mage", "gifted", "healer", "generic");
-    /** The kinds of weapon whose skills have icons of their own, in the order of their code points (the names of their pictures). */
-    public static final List<String> KINDS = List.of("melee", "range", "deploy");
+    /**
+     * The kinds of weapon whose skills have icons of their own, in the order of their code points (the names of their pictures). A deployed weapon has
+     * no 小・中・大・util (only the ULT and its own skill: the user's wish of 2026-11-02).
+     */
+    public static final List<String> KINDS = List.of("melee", "range");
     private static final net.tkgon.mc.iruuRPG.combat.AttackType[] KIND_TYPES = {
-            net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, net.tkgon.mc.iruuRPG.combat.AttackType.RANGE, net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY};
+            net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, net.tkgon.mc.iruuRPG.combat.AttackType.RANGE};
     /** The placeholder colors of the classes (the same order). */
     private static final int[] COLORS = {0xD9483B, 0x8E4FD1, 0x3F7BE0, 0x4CAF50, 0xE0B43F, 0x8A8A8A};
     /** How many icons of their own a class's skills have besides the ULT's: 小・中・大・util. */
@@ -84,9 +88,9 @@ public final class HudGlyphs {
         return index < 0 ? CLASSES.size() - 1 : index;
     }
 
-    /** The kind (0 melee, 1 ranged, 2 deployed) of a weapon's attack type; anything else is melee. */
+    /** The kind (0 melee, 1 ranged) of a weapon's attack type; anything else is melee. */
     public static int kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType type) {
-        return type == net.tkgon.mc.iruuRPG.combat.AttackType.RANGE ? 1 : type == net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY ? 2 : 0;
+        return type == net.tkgon.mc.iruuRPG.combat.AttackType.RANGE ? 1 : 0;
     }
 
     /** Icon {@code number} (1 - 4: 小・中・大・util) of a class with kind of weapon {@code kind} ({@link #KINDS}). */
@@ -120,6 +124,11 @@ public final class HudGlyphs {
     }
 
     /** The lock laid over the greyed icon of a special there is not yet (t140). */
+    /** The bright rim laid over an icon that can be re-activated now (the ULT's blinks: the user's wish of 2026-11-02). */
+    public static char highlight() {
+        return '\uE231';
+    }
+
     public static char lock() {
         return '\uE230';
     }
@@ -162,7 +171,11 @@ public final class HudGlyphs {
      * What one icon's state draws: its {@code glyph}, {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0), the label of the keys that
      * do it ({@link #keyLabel}, 0 for none) in {@code keyColor}, and {@code locked}: greyed under a lock (a skill there is not, t140).
      */
-    public record Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked) {
+    public record Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked, boolean lit) {
+
+        public Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked) {
+            this(glyph, coolingShare, seconds, key, keyColor, locked, false);
+        }
 
         public Icon(String classId, int number, double coolingShare, int seconds, char key, int keyColor) {
             this(icon(classId, number), coolingShare, seconds, key, keyColor, false);
@@ -211,6 +224,7 @@ public final class HudGlyphs {
                     row = row.append(Component.text(text.toString(), TextColor.color(0xFFFFFF)));
                 }
             }
+            if (icon.lit()) row = row.append(Component.text(move(-(ICON + 1)) + highlight(), TextColor.color(0xFFFFFF)));
             if (icon.key() != 0) {
                 // (the label's picture is as wide as the icon: back to the icon's place, and the label ends where the icon did)
                 row = row.append(Component.text(move(-(ICON + 1)) + icon.key(), TextColor.color(icon.keyColor())));
@@ -320,6 +334,20 @@ public final class HudGlyphs {
         for (int row = 0; row < 9; row++) {
             int half = 4 - Math.abs(row - 4);
             for (int col = -half; col <= half; col++) image.setRGB(8 + col, 4 + row, 0xFFFFFFFF);
+        }
+        return image;
+    }
+
+    /** The rim of a re-activation (the texture tree's {@code hud/highlight.png} when there is one): two bright rows round the rounded square, a soft glow inside. */
+    static BufferedImage highlightPlaceholder() {
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON; y++) {
+            for (int x = 0; x < ICON; x++) {
+                if (!inside(x, y)) continue;
+                boolean edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+                boolean second = !edge && (!inside(x - 2, y) || !inside(x + 2, y) || !inside(x, y - 2) || !inside(x, y + 2));
+                image.setRGB(x, y, edge ? 0xFFFFF6B0 : second ? 0xC0FFE14D : 0x30FFF2A0);
+            }
         }
         return image;
     }
@@ -472,6 +500,7 @@ public final class HudGlyphs {
         bitmap(providers, files, "item_skill", itemSkill(), picture(ICON, item, 0));
         bitmap(providers, files, "item_skill_locked", itemSkillLocked(), picture(ICON, resourceImage("itemskill_locked", lockedPlaceholder(item)), 0));
         bitmap(providers, files, "lock", lock(), picture(ICON, resourceImage("lock", lockPlaceholder()), 0));
+        bitmap(providers, files, "highlight", highlight(), picture(ICON, resourceImage("highlight", highlightPlaceholder()), 0));
         for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
         for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
         // (a key label's picture is KEY_RAISE taller with the same bottom: its keys are just above the icon)

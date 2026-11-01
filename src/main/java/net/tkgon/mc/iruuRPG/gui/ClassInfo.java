@@ -135,21 +135,25 @@ public final class ClassInfo {
         return item;
     }
 
-    /** How the attacks are thrown with a kind of weapon (the keys of the redesign of 2026-11-02, {@link net.tkgon.mc.iruuRPG.combat.SkillInput}). */
+    /**
+     * How the attacks are thrown with a kind of weapon (the keys of the redesign of 2026-11-02, {@link net.tkgon.mc.iruuRPG.combat.SkillInput}). A
+     * deployed weapon has no 小・中・大・util: only the ULT (and shift + Q takes the placement away).
+     */
     static List<String> controls(AttackType kind, String classId) {
         boolean melee = kind == AttackType.MELEE;
         List<String> lines = new java.util.ArrayList<>();
-        lines.add(switch (kind) {
-            case MELEE -> "左クリック: 通常 (弱1→弱5)";
-            case RANGE -> "右クリック: 通常 (弱1→弱5)";
-            default -> "右クリック: 1回目で設置、その後は弱";
-        });
         java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot, melee) + ": " + slot.label();
+        if (kind != AttackType.MELEE && kind != AttackType.RANGE) {
+            lines.add("右クリック: 1回目で設置、その後は弱");
+            lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) + " / Shift+Q: 設置を消す");
+            lines.add("(設置の武器には、小・中・大・util はない)");
+            return lines;
+        }
+        lines.add(melee ? "左クリック: 通常 (弱1→弱5)" : "右クリック: 通常 (弱1→弱5)");
         lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.SMALL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.MEDIUM)
                 + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.LARGE));
         lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.UTIL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT));
-        if (melee || kind == AttackType.RANGE) lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(melee) + ": アイテムスキル");
-        else lines.add("(スキルは設置ごとに1回) Shift+Q: 設置を消す");
+        lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(melee) + ": アイテムスキル");
         // which skills of the lines below they throw (until the class's own moves are made, 小・中・大 the skills 1 - 3)
         int[] numbers = net.tkgon.mc.iruuRPG.combat.SlotMoves.skillNumbers(classId, kind);
         if (numbers == null) {
