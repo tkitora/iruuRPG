@@ -80,6 +80,33 @@ class HeavyInputTest {
     }
 
     @Test
+    void theSwingThatComesWithQIsNotItsSecondKey() {
+        // t144: the client swings the main hand with every drop (Q); the server would take it for a left click in the air in the same tick
+        style(null);
+        UUID id = UUID.randomUUID();
+        java.util.function.Function<KeyBindings.Pattern, KeyBindings.Action> defaults = pattern -> KeyBindings.actionOf(KeyBindings.DEFAULTS, pattern);
+        KeyBindings.Key q = KeyBindings.Key.Q;
+        assertNull(HeavyInput.press(id, q, 100, defaults));
+        ClickSignals.dropKey(id, 100);
+        // the swing in the drop's tick, or the next two, is no click: the listener does not hand it to the keys, so Q waits on
+        assertFalse(ClickSignals.leftPossible(id, 100, false));
+        assertFalse(ClickSignals.leftPossible(id, 102, false));
+        // the second Q is Q, Q (the weapon's skill), and its own swing is no click either
+        ClickSignals.dropKey(id, 104);
+        assertEquals(KeyBindings.Action.ITEM, HeavyInput.press(id, q, 104, defaults));
+        assertFalse(ClickSignals.leftPossible(id, 105, false));
+        // a real left click later is the normal attack again
+        assertTrue(ClickSignals.leftPossible(id, 110, false));
+        assertEquals(HeavyInput.NORMAL_ATTACK, HeavyInput.keyClick(id, N, 110, defaults));
+        // and Q, then a real left click (3 ticks after the drop or more) is Q, left
+        assertNull(HeavyInput.press(id, q, 200, defaults));
+        ClickSignals.dropKey(id, 200);
+        assertTrue(ClickSignals.leftPossible(id, 203, false));
+        assertEquals(KeyBindings.Action.SKILL6.ordinal(), HeavyInput.keyClick(id, N, 203, defaults));
+        HeavyInput.forget(id);
+    }
+
+    @Test
     void theOtherButtonAndANumberKeyChooseTheHeavyAttack() {
         style("number");
         assertTrue(HeavyInput.numberKeys());

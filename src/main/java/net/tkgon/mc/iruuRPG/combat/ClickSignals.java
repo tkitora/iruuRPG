@@ -8,6 +8,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerAnimationEvent;
 import org.bukkit.event.player.PlayerAnimationType;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -24,10 +25,12 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>the client answers an arm swing the plugin plays for the off hand with a swing packet of its own, and the server
  *   turns that into a left click in the air (the animation event of the off hand follows it in the same tick);</li>
  *   <li>a right button held down sends the click again every few ticks, with arm swings in between;</li>
+ *   <li>the drop key (Q): the client swings the main hand with every drop it sends, and the server turns that into a left click in the air (t144:
+ *   in the style of the keys it came as the second key of a Q, so Q, Q was Q, left);</li>
  *   <li>the first moments after a heavy attack.</li>
  * </ul>
- * So a left click only counts ({@link #left}) when no right click came just before, no heavy attack has just been
- * thrown, and, if the plugin has just swung the off hand, the click was not the off hand's swing coming back.
+ * So a left click only counts ({@link #left}) when no right click came just before, no drop key was just pressed, no heavy attack has just
+ * been thrown, and, if the plugin has just swung the off hand, the click was not the off hand's swing coming back.
  */
 public final class ClickSignals implements Listener {
 
@@ -40,6 +43,11 @@ public final class ClickSignals implements Listener {
     private static final Map<UUID, Long> OFF_SWING_SENT = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> OFF_SWING_SEEN = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> LEFT_LOCKED_UNTIL_TICK = new ConcurrentHashMap<>();
+    /** The tick of the last drop (the Q key): the client's arm swing that comes with it is no press. */
+    private static final Map<UUID, Integer> LAST_DROP_TICK = new ConcurrentHashMap<>();
+
+    /** How long after a drop a left click is its swing (the swing comes in the drop's tick, or the next when the packets are split). */
+    static final int DROP_SWING_TICKS = 2;
 
     /** A held right button repeats its click every 4 ticks; a left click this soon after one is not a press. */
     private static final int RIGHT_HELD_TICKS = 6;
@@ -59,6 +67,16 @@ public final class ClickSignals implements Listener {
         }
     }
 
+    /** Every drop, cancelled or not (the client swings anyway): a left click just after it is that swing (t144). */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onDrop(PlayerDropItemEvent event) {
+        dropKey(event.getPlayer().getUniqueId(), Bukkit.getCurrentTick());
+    }
+
+    static void dropKey(UUID id, int now) {
+        LAST_DROP_TICK.put(id, now);
+    }
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onAnimation(PlayerAnimationEvent event) {
         if (event.getAnimationType() == PlayerAnimationType.OFF_ARM_SWING) {
@@ -75,6 +93,7 @@ public final class ClickSignals implements Listener {
         OFF_SWING_SENT.remove(id);
         OFF_SWING_SEEN.remove(id);
         LEFT_LOCKED_UNTIL_TICK.remove(id);
+        LAST_DROP_TICK.remove(id);
     }
 
     /** The plugin swings the off hand of {@code player} now (their client will answer with a swing packet). */
@@ -94,13 +113,18 @@ public final class ClickSignals implements Listener {
      * thrown right after a normal one (the right click) in the air has to count, as it does on an enemy.
      */
     public static boolean leftPossible(Player player) {
-        int now = Bukkit.getCurrentTick();
-        UUID id = player.getUniqueId();
+        return leftPossible(player.getUniqueId(), Bukkit.getCurrentTick(), HeavyInput.waitingButton(player));
+    }
+
+    static boolean leftPossible(UUID id, int now, boolean waitingButton) {
         Integer locked = LEFT_LOCKED_UNTIL_TICK.get(id);
         if (locked != null && now < locked) return false;
+        // the swing the client sends with a drop (Q) is no press of the left button (t144)
+        Integer drop = LAST_DROP_TICK.get(id);
+        if (drop != null && now - drop >= 0 && now - drop <= DROP_SWING_TICKS) return false;
         // the right button waits for its second button (right, left: 強2): a left click 2 ticks or more after it is that press (the arm swings
         // that follow a right click come in its tick or the next), also on a block
-        if (HeavyInput.waitingButton(player)) {
+        if (waitingButton) {
             Integer right = LAST_RIGHT_TICK.get(id);
             return right == null || now - right >= 2;
         }
