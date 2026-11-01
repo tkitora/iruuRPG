@@ -271,9 +271,11 @@ public final class RpgItemFactory {
             lore.add(skillLine("発動不可", "スキルが見つかりません。"));
             return;
         }
-        // (the Q key casts it: see CombatListener#onDropKey)
+        // (the Q key casts it, or Q → Q in the style of the keys of t138 by default: see CombatListener#onDropKey)
         String trigger = switch (definition.attackType()) {
-            case MELEE, RANGE -> "Q";
+            case MELEE, RANGE -> net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()
+                    ? net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS.get(net.tkgon.mc.iruuRPG.combat.KeyBindings.Action.ITEM).label(definition.attackType() == net.tkgon.mc.iruuRPG.combat.AttackType.MELEE)
+                    : "Q";
             default -> "";
         };
         if (trigger.isEmpty()) {

@@ -389,7 +389,7 @@ public final class AttackService {
             return;
         }
         if (hold.heavyUsed) {
-            attacker.sendMessage("[iruuRPG] この設置の強攻撃はもう使いました。");
+            attacker.sendMessage("[iruuRPG] この設置のスキルはもう使いました。");
             return;
         }
         hold.heavyUsed = true;
@@ -473,6 +473,9 @@ public final class AttackService {
         return weapon.attackType() == AttackType.MELEE && comboAllowed(attacker, weapon);
     }
 
+    /** How many heavy attacks a weapon has (強1 - 強5 = skills 1 - 5). */
+    public static final int HEAVY_ATTACKS = 5;
+
     /** Which button a click is for this weapon: the left one is the normal attack of a melee weapon, the right one of a ranged or deployed one. */
     public static HeavyInput.Button button(RpgItemDefinition weapon, boolean rightClick) {
         boolean melee = weapon.attackType() == AttackType.MELEE;
@@ -484,6 +487,11 @@ public final class AttackService {
         RpgItemDefinition weapon = weaponInMainHand(attacker);
         if (!hasHeavies(attacker, weapon)) return false;
         if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) return true;
+        if (index >= HEAVY_ATTACKS) {
+            // (skill 6 of t138: not made yet)
+            attacker.sendMessage("[iruuRPG] スキル" + (index + 1) + " は、まだありません。");
+            return true;
+        }
         heavyAttack(attacker, weapon, index);
         return true;
     }

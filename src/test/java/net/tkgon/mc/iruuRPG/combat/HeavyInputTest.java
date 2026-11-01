@@ -35,8 +35,53 @@ class HeavyInputTest {
     }
 
     @Test
-    void theOtherButtonAndANumberKeyChooseTheHeavyAttack() {
+    void twoKeysChooseWhatIsDone() {
+        // t138: the style of the keys is the default
         style(null);
+        assertTrue(HeavyInput.keyStyle());
+        assertFalse(HeavyInput.numberKeys());
+        UUID id = UUID.randomUUID();
+        java.util.function.Function<KeyBindings.Pattern, KeyBindings.Action> defaults = pattern -> KeyBindings.actionOf(KeyBindings.DEFAULTS, pattern);
+        KeyBindings.Key f = KeyBindings.Key.F, q = KeyBindings.Key.Q;
+        // F or Q alone waits; the second key does it
+        assertNull(HeavyInput.press(id, f, 10, defaults));
+        assertEquals(KeyBindings.Action.SKILL1, HeavyInput.press(id, f, 15, defaults));
+        assertNull(HeavyInput.press(id, f, 20, defaults));
+        assertEquals(KeyBindings.Action.SKILL2.ordinal(), HeavyInput.keyClick(id, O, 22, defaults));
+        assertNull(HeavyInput.press(id, f, 30, defaults));
+        assertEquals(KeyBindings.Action.SKILL3.ordinal(), HeavyInput.keyClick(id, N, 31, defaults));
+        assertNull(HeavyInput.press(id, f, 40, defaults));
+        assertEquals(KeyBindings.Action.SKILL4, HeavyInput.press(id, q, 41, defaults));
+        assertNull(HeavyInput.press(id, q, 50, defaults));
+        assertEquals(KeyBindings.Action.SKILL5.ordinal(), HeavyInput.keyClick(id, O, 51, defaults));
+        assertNull(HeavyInput.press(id, q, 60, defaults));
+        assertEquals(KeyBindings.Action.SKILL6.ordinal(), HeavyInput.keyClick(id, N, 61, defaults));
+        assertNull(HeavyInput.press(id, q, 70, defaults));
+        assertEquals(KeyBindings.Action.ULTIMATE, HeavyInput.press(id, f, 71, defaults));
+        assertNull(HeavyInput.press(id, q, 80, defaults));
+        assertEquals(KeyBindings.Action.ITEM, HeavyInput.press(id, q, 81, defaults));
+        // too late: the second key is a new first one
+        assertNull(HeavyInput.press(id, f, 100, defaults));
+        assertNull(HeavyInput.press(id, f, 121, defaults));
+        assertEquals(KeyBindings.Action.SKILL1, HeavyInput.press(id, f, 122, defaults));
+        // a click with no key before it: the normal attack, or nothing (the other button); the same click again in its tick is nothing
+        assertEquals(HeavyInput.NORMAL_ATTACK, HeavyInput.keyClick(id, N, 200, defaults));
+        assertEquals(HeavyInput.NOTHING, HeavyInput.keyClick(id, N, 200, defaults));
+        assertEquals(HeavyInput.OTHER_ALONE, HeavyInput.keyClick(id, O, 210, defaults));
+        assertNull(HeavyInput.press(id, f, 300, defaults));
+        HeavyInput.keyClick(id, N, 400, defaults);
+        assertEquals(HeavyInput.NORMAL_ATTACK, HeavyInput.keyClick(id, N, 401, defaults), "the key was too long ago");
+        // the player's own choice
+        java.util.Map<KeyBindings.Action, KeyBindings.Pattern> own = new java.util.EnumMap<>(KeyBindings.DEFAULTS);
+        KeyBindings.swap(own, KeyBindings.Action.ITEM, new KeyBindings.Pattern(f, f));
+        assertNull(HeavyInput.press(id, f, 500, pattern -> KeyBindings.actionOf(own, pattern)));
+        assertEquals(KeyBindings.Action.ITEM, HeavyInput.press(id, f, 501, pattern -> KeyBindings.actionOf(own, pattern)));
+        HeavyInput.forget(id);
+    }
+
+    @Test
+    void theOtherButtonAndANumberKeyChooseTheHeavyAttack() {
+        style("number");
         assertTrue(HeavyInput.numberKeys());
         UUID id = UUID.randomUUID();
         // a number key with no other button before it moves the hotbar

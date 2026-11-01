@@ -5,6 +5,7 @@ import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
 import net.tkgon.mc.iruuRPG.combat.DeployService;
 import net.tkgon.mc.iruuRPG.combat.HeavyInput;
+import net.tkgon.mc.iruuRPG.combat.KeyBindings;
 import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import org.bukkit.GameMode;
@@ -44,6 +45,13 @@ public final class CombatListener implements Listener {
         this.deployService = deployService;
         this.itemSkillService = itemSkillService;
         attackService.setUsualHeavy(this::usualHeavy);
+    }
+
+    /** The class's special (its active skill): set when the class skills are up; true when the key was used by it. */
+    private java.util.function.Predicate<Player> special = player -> false;
+
+    public void setSpecial(java.util.function.Predicate<Player> special) {
+        this.special = special == null ? player -> false : special;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -225,8 +233,9 @@ public final class CombatListener implements Listener {
         RpgItemDefinition weapon = attackService.weaponInMainHand(attacker);
         if (weapon == null || !weapon.isWeaponLike()) return;
         if (weapon.attackType() != AttackType.MELEE) {
-            // the left button of a ranged or deployed weapon with heavy attacks is its other button
-            if (!attackService.hasHeavies(attacker, weapon)) return;
+            // the left button of a ranged or deployed weapon with heavy attacks is its other button (with any weapon in the style of the keys:
+            // it can be the second key)
+            if (!HeavyInput.keyStyle() && !attackService.hasHeavies(attacker, weapon)) return;
             event.setCancelled(true);
             net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> heavyClick(attacker, weapon, false));
             return;
@@ -242,11 +251,44 @@ public final class CombatListener implements Listener {
      * buttons); false when it is the weapon's normal attack (or the weapon has no heavy attacks).
      */
     private boolean heavyClick(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
+        if (HeavyInput.keyStyle()) {
+            // F or Q before it: the click is their second key; the other button alone does nothing with a weapon that has heavy attacks
+            int input = HeavyInput.keyClick(attacker, AttackService.button(weapon, rightClick));
+            if (input >= 0) {
+                runKeyAction(attacker, weapon, KeyBindings.Action.values()[input]);
+                return true;
+            }
+            if (input == HeavyInput.OTHER_ALONE) return attackService.hasHeavies(attacker, weapon);
+            return input == HeavyInput.NOTHING;
+        }
         if (!attackService.hasHeavies(attacker, weapon)) return false;
         int input = HeavyInput.click(attacker, AttackService.button(weapon, rightClick));
         if (input == HeavyInput.NORMAL_ATTACK) return false;
         if (input >= 0) attackService.heavyAttack(attacker, weapon, input);
         return true;
+    }
+
+    /** What two keys do (the style of the keys, {@link KeyBindings}): skills 1 - 6 (the heavy attacks), the class's special, the weapon's skill. */
+    private void runKeyAction(Player player, RpgItemDefinition weapon, KeyBindings.Action action) {
+        switch (action) {
+            case ULTIMATE -> {
+                if (!special.test(player)) player.sendMessage("[iruuRPG] 必殺は、まだありません (クラスのスキルで解放されます)。");
+            }
+            case ITEM -> itemSkillService.useByKey(player, weapon);
+            default -> attackService.heavyByKey(player, action.heavyIndex());
+        }
+    }
+
+    /** F (the style of the keys): the first or the second of two keys, with a weapon in hand; nothing changes hands. The editors and the tutorial come first. */
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onSwapKey(org.bukkit.event.player.PlayerSwapHandItemsEvent event) {
+        if (!HeavyInput.keyStyle()) return;
+        Player player = event.getPlayer();
+        RpgItemDefinition weapon = attackService.weaponInMainHand(player);
+        if (weapon == null || !weapon.isWeaponLike()) return;
+        event.setCancelled(true);
+        KeyBindings.Action action = HeavyInput.press(player, KeyBindings.Key.F);
+        if (action != null) runKeyAction(player, weapon, action);
     }
 
     private void meleeClick(Player attacker, RpgItemDefinition weapon) {
@@ -354,9 +396,10 @@ public final class CombatListener implements Listener {
     }
 
     /**
-     * The Q key (and Ctrl + Q) of the hotbar never drops anything (items are given by trading): it casts the skill of the weapon in hand; shift + Q
-     * with a deployed weapon of the class's combo takes its placement away. A drop from an inventory screen is left as it is; a class skill on
-     * the Q key, the editors and the menu item (which cancel the drop first) come before.
+     * The Q key (and Ctrl + Q) of the hotbar never drops anything (items are given by trading): with a weapon in hand it is the first or the
+     * second of two keys (the style of the keys, t138), or else it casts the skill of the weapon in hand; shift + Q with a deployed weapon of the
+     * class's combo takes its placement away. A drop from an inventory screen is left as it is; a class skill on the Q key, the editors and the
+     * menu item (which cancel the drop first) come before.
      */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDropKey(PlayerDropItemEvent event) {
@@ -370,13 +413,19 @@ public final class CombatListener implements Listener {
         event.setCancelled(true);
         if (!isWeapon) return;
         boolean sneaking = player.isSneaking();
+        // the style of the keys: the key is read now (its tick), what it does runs when the item is back in the hand
+        KeyBindings.Action action = HeavyInput.keyStyle() ? HeavyInput.press(player, KeyBindings.Key.Q) : null;
         // (the item is back in the hand after the event)
         org.bukkit.Bukkit.getScheduler().runTask(attackService.plugin(), () -> {
             if (!player.isOnline() || player.isDead()) return;
             RpgItemDefinition held = attackService.weaponInMainHand(player);
             if (held == null || !held.id().equals(weapon.id())) return;
-            if (sneaking && attackService.removePlacement(player, held)) return;
-            itemSkillService.useByKey(player, held);
+            if (sneaking && attackService.removePlacement(player, held)) {
+                HeavyInput.forgetPending(player);
+                return;
+            }
+            if (!HeavyInput.keyStyle()) itemSkillService.useByKey(player, held);
+            else if (action != null) runKeyAction(player, held, action);
         });
     }
 

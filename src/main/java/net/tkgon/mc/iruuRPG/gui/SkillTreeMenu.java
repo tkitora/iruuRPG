@@ -306,7 +306,10 @@ public final class SkillTreeMenu implements Listener {
             classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill));
         }
         if (node.hotKey() != null) {
-            lore.add(line("操作", node.hotKey().displayName(), NamedTextColor.YELLOW));
+            // (t138: the class's skill of F is the special, Q → F by default)
+            boolean special = node.hotKey() == net.tkgon.mc.iruuRPG.classsystem.ClassHotKey.F && net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle();
+            lore.add(line("操作", special ? net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS.get(net.tkgon.mc.iruuRPG.combat.KeyBindings.Action.ULTIMATE).label(true)
+                    + " (必殺)" : node.hotKey().displayName(), NamedTextColor.YELLOW));
         }
         return item(node.icon(), node.nodeName(), color, lore, unlocked);
     }

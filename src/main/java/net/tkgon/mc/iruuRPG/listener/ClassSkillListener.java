@@ -122,6 +122,8 @@ public final class ClassSkillListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDrop(PlayerDropItemEvent event) {
+        // (the style of the keys: Q is the first or second of two keys, read by the combat listener)
+        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) return;
         if (mainMenuItemService.isMenuItem(event.getItemDrop().getItemStack())) return;
         if (!tryTrigger(event.getPlayer(), ClassHotKey.Q)) return;
 
@@ -130,10 +132,17 @@ public final class ClassSkillListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onSwap(PlayerSwapHandItemsEvent event) {
+        // (the style of the keys: F is the first or second of two keys, and the class's skill of F is the special: Q → F by default)
+        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) return;
         if (mainMenuItemService.isMenuItem(event.getMainHandItem()) || mainMenuItemService.isMenuItem(event.getOffHandItem())) return;
         if (!tryTrigger(event.getPlayer(), ClassHotKey.F)) return;
 
         event.setCancelled(true);
+    }
+
+    /** The class's special (t138): its active skill of F. True when it was cast or told why not; false when the class has none yet. */
+    public boolean special(Player player) {
+        return tryTrigger(player, ClassHotKey.F);
     }
 
     private boolean tryTrigger(Player player, ClassHotKey hotKey) {

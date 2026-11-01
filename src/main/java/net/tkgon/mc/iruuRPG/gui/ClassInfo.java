@@ -137,6 +137,18 @@ public final class ClassInfo {
     }
 
     private static List<String> controls(AttackType kind) {
+        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.keyStyle()) {
+            // (t138: F or Q and then a second key; these are the defaults, each player can change them in the settings)
+            List<String> lines = new java.util.ArrayList<>();
+            lines.add(switch (kind) {
+                case MELEE -> "左クリック: 通常 (弱1→弱5)";
+                case RANGE -> "右クリック: 通常 (弱1→弱5)";
+                default -> "右クリック: 1回目で設置、その後は弱";
+            });
+            lines.addAll(net.tkgon.mc.iruuRPG.combat.KeyBindings.describe(net.tkgon.mc.iruuRPG.combat.KeyBindings.DEFAULTS, kind == AttackType.MELEE));
+            if (kind != AttackType.MELEE && kind != AttackType.RANGE) lines.add("(スキルは設置ごとに1回) Shift+Q: 設置を消す");
+            return lines;
+        }
         if (net.tkgon.mc.iruuRPG.combat.HeavyInput.numberKeys()) {
             return switch (kind) {
                 case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右クリック→数字キー1〜5: 強1〜強5", "Q: 武器のスキル");
@@ -152,7 +164,7 @@ public final class ClassInfo {
         };
     }
 
-    /** "弱1: text【effect】": the label colored by 弱 / 強, the text white, what is in 【】 aqua; ※ lines gray. */
+    /** "弱1: text【effect】": the label colored by 弱 / 強 (スキル since t138), the text white, what is in 【】 aqua; ※ lines gray. */
     static Component guideLine(String line) {
         if (line.isBlank()) return Component.empty();
         if (line.startsWith("※")) return withEffects(line, NamedTextColor.GRAY);
@@ -160,7 +172,7 @@ public final class ClassInfo {
         int colon = line.indexOf(':');
         if (colon < 0) return withEffects(line, NamedTextColor.WHITE);
         String label = line.substring(0, colon + 1);
-        NamedTextColor labelColor = label.startsWith("強") ? NamedTextColor.GOLD : NamedTextColor.YELLOW;
+        NamedTextColor labelColor = label.startsWith("強") || label.startsWith("スキル") ? NamedTextColor.GOLD : NamedTextColor.YELLOW;
         return Component.text(label, labelColor).append(withEffects(line.substring(colon + 1), NamedTextColor.WHITE));
     }
 

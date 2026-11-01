@@ -16,10 +16,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 
 /**
- * Which heavy attack (強1 - 強5, index 0 - 4) the player chooses. The weapon's normal button is the left one with a melee weapon and the right one
- * with a ranged or deployed one; the other button is the other one. Two styles ({@code combat.heavy-input.style}):
+ * Which heavy attack (強1 - 強5, index 0 - 4; the skills 1 - 6 of t138) the player chooses. The weapon's normal button is the left one with a melee
+ * weapon and the right one with a ranged or deployed one; the other button is the other one. Three styles ({@code combat.heavy-input.style}):
  * <ul>
- *   <li>{@code number} (t119, the default): the other button and then the number key 1 - 5 within {@code number-window-ticks}: 強1 - 強5. The hotbar
+ *   <li>{@code keys} (t138, the default): F or Q, and then F, Q, the other button or the normal button within {@code key-window-ticks}; the 8
+ *   patterns do the 8 actions of {@link KeyBindings} (skills 1 - 6 = heavy attacks 0 - 5, the class's special, the weapon's skill), each player's
+ *   own choice. F and Q alone wait for the second key; the normal button alone is the normal attack, the other button alone does nothing. The
+ *   keys are read by the listener ({@link #press}, {@link #keyClick}); this keeps the first key.</li>
+ *   <li>{@code number} (t119): the other button and then the number key 1 - 5 within {@code number-window-ticks}: 強1 - 強5. The hotbar
  *   does not move for that key; a number key with no other button before it moves the hotbar as usual, and the other button alone does nothing.
  *   The client tells the server nothing when the key of the slot already held is pressed, so the weapon is best kept in slot 6 - 9.</li>
  *   <li>{@code buttons} (t116): other, other: 強1; other, normal: 強2 (the second within {@code window-ticks} of the first; the first alone does
@@ -35,6 +39,8 @@ public final class HeavyInput implements Listener {
     public static final int NORMAL_ATTACK = -1;
     /** What a click is: nothing (the first of two buttons, or the same click arriving through another event of its tick). */
     public static final int NOTHING = -2;
+    /** What a click is in the style of the keys: the other button with no key before it (nothing, for a weapon with heavy attacks). */
+    public static final int OTHER_ALONE = -3;
 
     private static JavaPlugin plugin;
     /** The tick of the other button waiting for its second button. */
@@ -44,6 +50,9 @@ public final class HeavyInput implements Listener {
     /** The tick shift was last pressed, and whether that press was used for a shift + click. */
     private static final Map<UUID, Integer> SNEAK_DOWN = new ConcurrentHashMap<>();
     private static final Map<UUID, Boolean> SNEAK_USED = new ConcurrentHashMap<>();
+    /** {tick, key} of the first key (F or Q) waiting for its second (the style of the keys). */
+    private static final Map<UUID, int[]> PENDING = new ConcurrentHashMap<>();
+    private static KeyBindings bindings;
 
     /** Throws heavy attack {@code index} of the weapon in hand (for a number key, or the double press of shift); false when the weapon has none. */
     private final BiPredicate<Player, Integer> heavyByKey;
@@ -53,12 +62,28 @@ public final class HeavyInput implements Listener {
         this.heavyByKey = heavyByKey;
     }
 
-    /** True for the style of the number keys (t119), false for the buttons' (t116). */
+    /** The players' choices of what the keys do (the style of the keys). */
+    public static void setBindings(KeyBindings keyBindings) {
+        bindings = keyBindings;
+    }
+
+    private static String style() {
+        return plugin == null ? "keys" : plugin.getConfig().getString("combat.heavy-input.style", "keys");
+    }
+
+    /** True for the style of the keys (t138, the default). */
+    public static boolean keyStyle() {
+        String style = style();
+        return !"number".equalsIgnoreCase(style) && !"buttons".equalsIgnoreCase(style);
+    }
+
+    /** True for the style of the number keys (t119), false for the others. */
     public static boolean numberKeys() {
-        return plugin == null || !"buttons".equalsIgnoreCase(plugin.getConfig().getString("combat.heavy-input.style", "number"));
+        return "number".equalsIgnoreCase(style());
     }
 
     static int windowTicks() {
+        if (keyStyle()) return plugin == null ? 20 : Math.max(4, Math.min(60, plugin.getConfig().getInt("combat.heavy-input.key-window-ticks", 20)));
         if (numberKeys()) return plugin == null ? 20 : Math.max(2, Math.min(100, plugin.getConfig().getInt("combat.heavy-input.number-window-ticks", 20)));
         return plugin == null ? 8 : Math.max(2, Math.min(40, plugin.getConfig().getInt("combat.heavy-input.window-ticks", 8)));
     }
@@ -98,9 +123,57 @@ public final class HeavyInput implements Listener {
         return open ? 1 : NORMAL_ATTACK;
     }
 
+    /**
+     * F or Q is pressed (the style of the keys): the action of the two keys when it is the second key, null when it is the first (it waits for
+     * the second within the window).
+     */
+    public static KeyBindings.Action press(Player player, KeyBindings.Key key) {
+        return press(player.getUniqueId(), key, Bukkit.getCurrentTick(), pattern -> bindings == null
+                ? KeyBindings.actionOf(KeyBindings.DEFAULTS, pattern) : bindings.actionOf(player, pattern));
+    }
+
+    static KeyBindings.Action press(UUID id, KeyBindings.Key key, int now, java.util.function.Function<KeyBindings.Pattern, KeyBindings.Action> actionOf) {
+        int[] first = PENDING.remove(id);
+        if (first != null && now - first[0] <= windowTicks()) return actionOf.apply(new KeyBindings.Pattern(KeyBindings.Key.values()[first[1]], key));
+        PENDING.put(id, new int[]{now, key.ordinal()});
+        return null;
+    }
+
+    /**
+     * A click in the style of the keys: the action's ordinal when a key waits for it (its second key), else {@link #NORMAL_ATTACK} (the normal
+     * button), {@link #OTHER_ALONE} (the other button) or {@link #NOTHING} (the same click through another event of its tick).
+     */
+    public static int keyClick(Player player, Button button) {
+        return keyClick(player.getUniqueId(), button, Bukkit.getCurrentTick(), pattern -> bindings == null
+                ? KeyBindings.actionOf(KeyBindings.DEFAULTS, pattern) : bindings.actionOf(player, pattern));
+    }
+
+    static int keyClick(UUID id, Button button, int now, java.util.function.Function<KeyBindings.Pattern, KeyBindings.Action> actionOf) {
+        int[] last = LAST_CLICK.put(id, new int[]{now, button.ordinal()});
+        if (last != null && last[0] == now && last[1] == button.ordinal()) return NOTHING;
+        int[] first = PENDING.remove(id);
+        if (first != null && now - first[0] <= windowTicks()) {
+            KeyBindings.Key second = button == Button.NORMAL ? KeyBindings.Key.NORMAL : KeyBindings.Key.OTHER;
+            KeyBindings.Action action = actionOf.apply(new KeyBindings.Pattern(KeyBindings.Key.values()[first[1]], second));
+            return action == null ? NOTHING : action.ordinal();
+        }
+        return button == Button.NORMAL ? NORMAL_ATTACK : OTHER_ALONE;
+    }
+
+    /** The first key a player pressed, still waiting for the second (null: none, or too long ago). */
+    public static KeyBindings.Key pendingKey(Player player) {
+        int[] first = PENDING.get(player.getUniqueId());
+        return first == null || Bukkit.getCurrentTick() - first[0] > windowTicks() ? null : KeyBindings.Key.values()[first[1]];
+    }
+
+    /** Forgets the first key that waits (it was used for something else). */
+    public static void forgetPending(Player player) {
+        PENDING.remove(player.getUniqueId());
+    }
+
     /** True while a press of the other button waits for its second button (the buttons' style: a left click then is a press, not an echo). */
     public static boolean waitingButton(Player player) {
-        if (numberKeys()) return false;
+        if (!"buttons".equalsIgnoreCase(style())) return false;
         Integer first = WAITING.get(player.getUniqueId());
         return first != null && Bukkit.getCurrentTick() - first <= windowTicks();
     }
@@ -127,7 +200,7 @@ public final class HeavyInput implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onSneak(PlayerToggleSneakEvent event) {
-        if (!event.isSneaking() || numberKeys()) return;
+        if (!event.isSneaking() || !"buttons".equalsIgnoreCase(style())) return;
         if (plugin != null && !plugin.getConfig().getBoolean("combat.heavy-input.double-shift", true)) return;
         Player player = event.getPlayer();
         if (!sneakDown(player.getUniqueId(), Bukkit.getCurrentTick())) return;
@@ -154,5 +227,6 @@ public final class HeavyInput implements Listener {
         LAST_CLICK.remove(id);
         SNEAK_DOWN.remove(id);
         SNEAK_USED.remove(id);
+        PENDING.remove(id);
     }
 }

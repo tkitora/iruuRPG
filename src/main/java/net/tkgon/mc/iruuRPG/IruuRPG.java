@@ -160,6 +160,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.bgm.BgmSettings bgmSettings;
     private net.tkgon.mc.iruuRPG.bgm.BgmModule bgmModule;
     private net.tkgon.mc.iruuRPG.screenfx.ScreenEffects screenEffects;
+    private net.tkgon.mc.iruuRPG.combat.KeyBindings keyBindings;
     private net.tkgon.mc.iruuRPG.combat.SniperMode sniperMode;
     private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
     private AttackEffects attackEffectsRef;
@@ -746,6 +747,10 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.ClickSignals(this), this);
         // the heavy attacks chosen by the other button and a number key (or by the buttons and shift: see HeavyInput)
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.HeavyInput(this, attackService::heavyByKey), this);
+        // what two keys do (t138, the style of the keys): each player's own choice
+        this.keyBindings = new net.tkgon.mc.iruuRPG.combat.KeyBindings(this);
+        net.tkgon.mc.iruuRPG.combat.HeavyInput.setBindings(keyBindings);
+        getServer().getPluginManager().registerEvents(keyBindings, this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
@@ -764,10 +769,8 @@ public final class IruuRPG extends JavaPlugin {
                 new EquipmentChangeListener(this, equipmentService, playerBars),
                 this
         );
-        getServer().getPluginManager().registerEvents(
-                new CombatListener(attackService, deployService, itemSkillService, rightClickGuard),
-                this
-        );
+        CombatListener combatListener = new CombatListener(attackService, deployService, itemSkillService, rightClickGuard);
+        getServer().getPluginManager().registerEvents(combatListener, this);
         getServer().getPluginManager().registerEvents(
                 new PlayerResourceListener(profileManager, playerBars),
                 this
@@ -794,6 +797,7 @@ public final class IruuRPG extends JavaPlugin {
         );
         this.classSkillListener = new ClassSkillListener(classService, classSkillRegistry, profileManager, attackService, mainMenuItemService, classSkillService, rightClickGuard);
         getServer().getPluginManager().registerEvents(classSkillListener, this);
+        combatListener.setSpecial(classSkillListener::special);
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.listener.FrenzyCageListener(this, classEffectService), this);
     }
 
