@@ -38,6 +38,8 @@ public final class ClassSkillListener implements Listener {
     private final ClassSkillService classSkillService;
     private final RightClickGuard rightClickGuard;
     private final Map<UUID, Map<String, Long>> cooldownUntilMillis = new HashMap<>();
+    /** How long each running cooldown is in all (the action bar's shade, t140). */
+    private final Map<UUID, Map<String, Long>> cooldownTotalMillis = new HashMap<>();
 
     public ClassSkillListener(
             ClassService classService,
@@ -219,10 +221,29 @@ public final class ClassSkillListener implements Listener {
     public record HudStatus(String name, long remainingMillis) {
     }
 
+    /**
+     * The special (the class's skill of F, t138) as the action bar's icon shows it (t140): {milliseconds left, the whole cooldown}, or null when the class has
+     * none yet (the icon is locked).
+     */
+    public long[] specialCooldown(Player player) {
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        String skillId = classService.activeSkill(profile, ClassHotKey.F);
+        if (skillId == null || skillId.isBlank()) return null;
+        ClassSkillDefinition skill = skillRegistry.find(skillId).orElse(null);
+        if (skill == null) return null;
+        long left = remainingCooldownMillis(player, skill.id());
+        if (left <= 0L) return new long[]{0L, 0L};
+        Map<String, Long> totals = cooldownTotalMillis.get(player.getUniqueId());
+        long total = totals == null ? left : totals.getOrDefault(skill.id().toLowerCase(Locale.ROOT), left);
+        return new long[]{left, Math.max(left, total)};
+    }
+
     private void startCooldown(Player player, ClassSkillDefinition skill) {
+        long millis = Math.round(skill.cooldownTicks() * attackService.skillCooldownMultiplier(player)) * 50L;
         cooldownUntilMillis
                 .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
-                .put(skill.id().toLowerCase(Locale.ROOT), System.currentTimeMillis() + Math.round(skill.cooldownTicks() * attackService.skillCooldownMultiplier(player)) * 50L);
+                .put(skill.id().toLowerCase(Locale.ROOT), System.currentTimeMillis() + millis);
+        cooldownTotalMillis.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>()).put(skill.id().toLowerCase(Locale.ROOT), millis);
     }
 
     private long remainingCooldownMillis(Player player, String skillId) {

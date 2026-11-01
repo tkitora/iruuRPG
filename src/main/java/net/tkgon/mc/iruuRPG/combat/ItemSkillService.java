@@ -86,6 +86,8 @@ public final class ItemSkillService {
     private final AttackEffects attackEffects;
     private final ItemSkillRegistry skillRegistry;
     private final Map<UUID, Map<String, Long>> cooldownUntilMillis = new HashMap<>();
+    /** How long each running cooldown is in all (the action bar's shade, t140). */
+    private final Map<UUID, Map<String, Long>> cooldownTotalMillis = new HashMap<>();
 
     public ItemSkillService(JavaPlugin plugin, AttackService attackService, AttackEffects attackEffects, ItemSkillRegistry skillRegistry) {
         this.plugin = plugin;
@@ -208,6 +210,24 @@ public final class ItemSkillService {
                     () -> net.tkgon.mc.iruuRPG.skill.PlayerSkillCaster.aimPoint(player, spec.range()), () -> {
                     });
         }, 6L);
+    }
+
+    /**
+     * Whether {@code weapon} has a skill the keys cast ({@link #useByKey} would cast one): the action bar shows its icon locked when not (t140).
+     */
+    public boolean hasKeySkill(RpgItemDefinition weapon) {
+        if (weapon == null || (weapon.attackType() != AttackType.MELEE && weapon.attackType() != AttackType.RANGE)) return false;
+        if (weapon.hasGeneralSkill()) return generalSkills != null && skillRunner != null;
+        return weapon.skill().enabled() && skill(weapon, weapon.attackType()).enabled();
+    }
+
+    /** {milliseconds left, the whole cooldown} of the skill of the weapons of {@code attackType} ({0, 0}: ready). */
+    public long[] hudCooldown(Player player, AttackType attackType) {
+        long left = remainingSkillCooldownMillis(player, attackType);
+        if (left <= 0L) return new long[]{0L, 0L};
+        Map<String, Long> totals = cooldownTotalMillis.get(player.getUniqueId());
+        long total = totals == null ? left : totals.getOrDefault(cooldownKey(attackType), left);
+        return new long[]{left, Math.max(left, total)};
     }
 
     /** The Q key with {@code weapon} in hand: its skill. False when it has none. */
@@ -622,6 +642,7 @@ public final class ItemSkillService {
         cooldownUntilMillis
                 .computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
                 .put(cooldownKey(attackType), System.currentTimeMillis() + ticks * 50L);
+        cooldownTotalMillis.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>()).put(cooldownKey(attackType), ticks * 50L);
         attackService.showItemCooldown(player, attackType, ticks);
     }
 

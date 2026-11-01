@@ -23,8 +23,10 @@ import java.util.Map;
  * icon, which is at their top), so the row of icons is drawn over the status line without moving it.
  *
  * <p>Code points: icon n (1 - 6) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
- * U+E220 + d; the key label of two keys (t138) U+E240 + 4 first + second (first F 0 / Q 1; second F 0 / Q 1 / left button 2 / right button 3);
- * the spaces U+E2F0 on. A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
+ * U+E220 + d; the special of class c (t140) U+E107 + 16 c, the weapon's skill U+E180, the lock laid over an icon whose skill there is not U+E230;
+ * the key label of two keys (t138) U+E240 + 4 first + second (first F 0 / Q 1; second F 0 / Q 1 / left button 2 / right button 3);
+ * the spaces U+E2F0 on. The pictures of the special and the weapon's skill come from {@code hud/special_<class>.png} and {@code hud/item_skill.png}, the
+ * lock's from {@code hud/lock.png} (16 x 16, drawn over the greyed icon), else placeholders are drawn. A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
  * above the icon, so they hide neither the icon nor its cooldown. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
  * one, else a placeholder is drawn: the class's color with the number in white.
  */
@@ -37,6 +39,8 @@ public final class HudGlyphs {
     private static final int[] COLORS = {0xD9483B, 0x8E4FD1, 0x3F7BE0, 0x4CAF50, 0xE0B43F, 0x8A8A8A};
     /** How many icons a class has (skills 1 - 6 of t138). */
     public static final int ICONS = 6;
+    /** The room between the skills' icons and the special's and weapon skill's (t140: half an icon). */
+    public static final int HALF = 8;
     /** The side of an icon (pixels = font pixels). */
     public static final int ICON = 16;
     /** The height of every picture of the font: the icon is its top 16 rows, so it stands 2 font pixels above the top of the text. */
@@ -66,6 +70,21 @@ public final class HudGlyphs {
 
     public static char icon(String classId, int number) {
         return (char) (0xE100 + 16 * classIndex(classId) + Math.max(1, Math.min(ICONS, number)));
+    }
+
+    /** The icon of the special of a class (t140). */
+    public static char special(String classId) {
+        return (char) (0xE107 + 16 * classIndex(classId));
+    }
+
+    /** The icon of the weapon's skill (t140). */
+    public static char itemSkill() {
+        return '\uE180';
+    }
+
+    /** The lock laid over the greyed icon of a skill there is not (t140). */
+    public static char lock() {
+        return '\uE230';
     }
 
     /** The shade covering {@code rows} (1 - 16) rows of an icon from its top. */
@@ -104,10 +123,14 @@ public final class HudGlyphs {
     }
 
     /**
-     * What one icon's state draws: {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0), and the label of the
-     * keys that do it ({@link #keyLabel}, 0 for none) in {@code keyColor}.
+     * What one icon's state draws: its {@code glyph}, {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0), the label of the keys that
+     * do it ({@link #keyLabel}, 0 for none) in {@code keyColor}, and {@code locked}: greyed under a lock (a skill there is not, t140).
      */
-    public record Icon(String classId, int number, double coolingShare, int seconds, char key, int keyColor) {
+    public record Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked) {
+
+        public Icon(String classId, int number, double coolingShare, int seconds, char key, int keyColor) {
+            this(icon(classId, number), coolingShare, seconds, key, keyColor, false);
+        }
 
         public Icon(String classId, int number, double coolingShare, int seconds) {
             this(classId, number, coolingShare, seconds, (char) 0, 0xFFFFFF);
@@ -119,12 +142,27 @@ public final class HudGlyphs {
      * width of the row is always the same, so the bar never shifts as the cooldowns run.
      */
     public static Component row(List<Icon> icons) {
-        int width = icons.size() * SLOT - GAP;
+        return row(icons, List.of());
+    }
+
+    /**
+     * The row of the skills' icons and, half an icon after them, {@code extras} (the special and the weapon's skill, t140); centred and taking no room in the line as
+     * {@link #row(List)}.
+     */
+    public static Component row(List<Icon> icons, List<Icon> extras) {
+        int count = icons.size() + extras.size();
+        int between = icons.isEmpty() || extras.isEmpty() ? 0 : HALF - GAP;
+        int width = count * SLOT - GAP + between;
         Component row = Component.text(move(-(width + 1) / 2));
-        for (Icon icon : icons) {
-            boolean cooling = icon.coolingShare() > 0.0;
+        List<Icon> all = new java.util.ArrayList<>(icons);
+        all.addAll(extras);
+        for (int index = 0; index < all.size(); index++) {
+            Icon icon = all.get(index);
+            if (index == icons.size() && between > 0) row = row.append(Component.text(move(between)));
+            boolean cooling = icon.coolingShare() > 0.0 && !icon.locked();
             // the advance of an icon is its width + 1
-            row = row.append(Component.text(String.valueOf(icon(icon.classId(), icon.number())), TextColor.color(cooling ? 0x8C8C8C : 0xFFFFFF)));
+            row = row.append(Component.text(String.valueOf(icon.glyph()), TextColor.color(cooling || icon.locked() ? 0x8C8C8C : 0xFFFFFF)));
+            if (icon.locked()) row = row.append(Component.text(move(-(ICON + 1)) + lock(), TextColor.color(0xFFFFFF)));
             if (cooling) {
                 int rows = (int) Math.ceil(icon.coolingShare() * ICON);
                 row = row.append(Component.text(move(-(ICON + 1)) + shade(rows), TextColor.color(0xFFFFFF)));
@@ -143,7 +181,7 @@ public final class HudGlyphs {
             }
             row = row.append(Component.text(move(SLOT - ICON - 1)));
         }
-        row = row.append(Component.text(move(-(icons.size() * SLOT) + (width + 1) / 2)));
+        row = row.append(Component.text(move(-(count * SLOT + between) + (width + 1) / 2)));
         return row.font(FONT);
     }
 
@@ -213,6 +251,63 @@ public final class HudGlyphs {
             // the placeholder
         }
         return placeholder(classIndex, number);
+    }
+
+    /** A placeholder of the special: the rounded square in the class's color with a white star. */
+    static BufferedImage specialPlaceholder(int classIndex) {
+        BufferedImage image = placeholderSquare(COLORS[classIndex]);
+        String[] star = {"0001000", "0001000", "0011100", "1111111", "0111110", "0011100", "0110110", "1100011"};
+        for (int row = 0; row < star.length; row++) {
+            for (int col = 0; col < 7; col++) if (star[row].charAt(col) == '1') image.setRGB(4 + col, 4 + row, 0xFFFFFFFF);
+        }
+        return image;
+    }
+
+    /** A placeholder of the weapon's skill: a grey-blue rounded square with a white diamond. */
+    static BufferedImage itemSkillPlaceholder() {
+        BufferedImage image = placeholderSquare(0x5A6B7D);
+        for (int row = 0; row < 9; row++) {
+            int half = 4 - Math.abs(row - 4);
+            for (int col = -half; col <= half; col++) image.setRGB(8 + col, 4 + row, 0xFFFFFFFF);
+        }
+        return image;
+    }
+
+    /** A placeholder of the lock: the icon darkened, and a padlock in its middle. */
+    static BufferedImage lockPlaceholder() {
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON; y++) for (int x = 0; x < ICON; x++) if (inside(x, y)) image.setRGB(x, y, 0x90000000);
+        String[] padlock = {"0011100", "0100010", "0100010", "1111111", "1111111", "1110111", "1110111", "1111111"};
+        for (int row = 0; row < padlock.length; row++) {
+            for (int col = 0; col < 7; col++) if (padlock[row].charAt(col) == '1') image.setRGB(4 + col, 4 + row, 0xFFDADADA);
+        }
+        return image;
+    }
+
+    private static BufferedImage placeholderSquare(int color) {
+        int rim = darker(color);
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON; y++) {
+            for (int x = 0; x < ICON; x++) {
+                if (!inside(x, y)) continue;
+                boolean edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+                image.setRGB(x, y, 0xFF000000 | (edge ? rim : color));
+            }
+        }
+        return image;
+    }
+
+    /** A 16 x 16 picture of the resources ({@code hud/<name>.png}), else {@code fallback}. */
+    static BufferedImage resourceImage(String name, BufferedImage fallback) {
+        try (InputStream in = HudGlyphs.class.getResourceAsStream("/hud/" + name + ".png")) {
+            if (in != null) {
+                BufferedImage image = ImageIO.read(in);
+                if (image != null && image.getWidth() == ICON && image.getHeight() == ICON) return image;
+            }
+        } catch (IOException ignored) {
+            // the placeholder
+        }
+        return fallback;
     }
 
     private static BufferedImage shadeImage(int rows) {
@@ -293,6 +388,12 @@ public final class HudGlyphs {
                 bitmap(providers, files, "heavy_" + CLASSES.get(c) + "_" + n, icon(CLASSES.get(c), n), picture(ICON, iconImage(c, n), 0));
             }
         }
+        // (t140) the specials, the weapon's skill and the lock
+        for (int c = 0; c < CLASSES.size(); c++) {
+            bitmap(providers, files, "special_" + CLASSES.get(c), special(CLASSES.get(c)), picture(ICON, resourceImage("special_" + CLASSES.get(c), specialPlaceholder(c)), 0));
+        }
+        bitmap(providers, files, "item_skill", itemSkill(), picture(ICON, resourceImage("item_skill", itemSkillPlaceholder()), 0));
+        bitmap(providers, files, "lock", lock(), picture(ICON, resourceImage("lock", lockPlaceholder()), 0));
         for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
         for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
         // (a key label's picture is KEY_RAISE taller with the same bottom: its keys are just above the icon)

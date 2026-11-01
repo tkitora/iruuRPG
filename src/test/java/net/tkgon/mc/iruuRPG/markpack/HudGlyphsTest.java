@@ -35,6 +35,13 @@ class HudGlyphsTest {
         // t138: the labels of two keys, U+E240 + 4 first + second
         assertEquals('\uE240', HudGlyphs.keyLabel(0, 0));
         assertEquals('\uE247', HudGlyphs.keyLabel(1, 3));
+        // t140: the specials sit after skill 6 in each class's 16, the weapon's skill and the lock on their own
+        assertEquals('\uE107', HudGlyphs.special("warrior"));
+        assertEquals('\uE137', HudGlyphs.special("gifted"));
+        assertEquals('\uE157', HudGlyphs.special("nobody"));
+        assertEquals('\uE180', HudGlyphs.itemSkill());
+        assertEquals('\uE230', HudGlyphs.lock());
+        assertTrue(HudGlyphs.icon("generic", 6) < HudGlyphs.special("generic"));
         Map<String, byte[]> files = new HashMap<>();
         HudGlyphs.addTo(files);
         JsonObject font = JsonParser.parseString(new String(files.get("assets/iruurpg/font/hud.json"), StandardCharsets.UTF_8)).getAsJsonObject();
@@ -91,8 +98,13 @@ class HudGlyphsTest {
         List<HudGlyphs.Icon> labelled = List.of(new HudGlyphs.Icon("mage", 1, 0.0, 0, HudGlyphs.keyLabel(0, 0), 0xFFFFFF),
                 new HudGlyphs.Icon("mage", 2, 0.5, 3, HudGlyphs.keyLabel(0, 3), 0xFFE14D), new HudGlyphs.Icon("mage", 3, 1.0, 12, HudGlyphs.keyLabel(1, 2), 0x707070));
         assertEquals(0, advance(spaces, HudGlyphs.row(labelled)));
-        // 36 icons (6 classes x skills 1 - 6), 16 shades, 10 digits, 8 key labels
-        assertEquals(70, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // t140: the special and the weapon's skill half an icon after the skills, one of them locked: still no room
+        List<HudGlyphs.Icon> extras = List.of(new HudGlyphs.Icon(HudGlyphs.special("mage"), 0.4, 9, HudGlyphs.keyLabel(1, 0), 0xFFFFFF, false),
+                new HudGlyphs.Icon(HudGlyphs.itemSkill(), 0.0, 0, HudGlyphs.keyLabel(1, 1), 0xFFFFFF, true));
+        assertEquals(0, advance(spaces, HudGlyphs.row(labelled, extras)));
+        assertEquals(0, advance(spaces, HudGlyphs.row(List.of(), extras)));
+        // 36 icons (6 classes x skills 1 - 6), 6 specials, the weapon's skill, the lock, 16 shades, 10 digits, 8 key labels
+        assertEquals(78, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
     }
 
     @Test
