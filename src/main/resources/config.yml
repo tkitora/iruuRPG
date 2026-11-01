@@ -588,11 +588,18 @@ hud:
   # (強攻撃ごとのクールタイムがある武器だけ: クラスのコンボの近接・遠距離と、メイジの杖)。false で出さない
   heavy-icons: true
 
-# 画面効果 (screenfx/): クライアントのシェーダーで描く、画面の効果 (今は色収差 chromatic)。管理者が /screenfx で出す。
+# 画面効果 (screenfx/): クライアントのシェーダーで描く、画面の効果 (色収差 chromatic、衝撃 impact)。管理者が /screenfx で出す。
 # シェーダーは iruumark.zip に入る (発光の輪郭のシェーダーを置き換える。効果を出していないときの輪郭は、ゲームのものと同じ)。
 # false = パックにシェーダーを入れず、/screenfx も使えない (起動時に読む。変えたら再起動)
 screen-effects:
   enabled: true
+  # クリティカルのとき、攻撃した人の画面を、当たった所 (相手の体の真ん中) を中心に、放射状にふくらませる (衝撃 impact。ヒットストップの代わり)。
+  # strength (100 で、中心の所を 30 % 近くから取る = 1.4 倍) で hold-ticks のあいだ出し、fade-ticks かけて消える
+  critical:
+    enabled: true
+    strength: 100
+    hold-ticks: 2
+    fade-ticks: 6
 
 # プロシージャルツール (/proceduraltool、別名 /treetool)。木・岩・スパイク・結晶・クモの巣を、部位ごとに選んだブロックで作る
 treetool:

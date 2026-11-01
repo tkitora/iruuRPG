@@ -595,6 +595,7 @@ public final class IruuRPG extends JavaPlugin {
 
         // the screen effects drawn by the client's shaders (a marker each player is shown; the shaders are in the marks' pack): they live in screenfx
         this.screenEffects = net.tkgon.mc.iruuRPG.screenfx.ScreenEffects.start(this);
+        if (screenEffects != null && attackService != null) attackService.setCriticalHit(screenEffects::onCritical);
 
         PluginCommand storageCommand = getCommand("storage");
         if (storageCommand != null) {
