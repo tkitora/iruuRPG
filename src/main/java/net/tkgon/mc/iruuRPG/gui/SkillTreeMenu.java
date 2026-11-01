@@ -176,7 +176,8 @@ public final class SkillTreeMenu implements Listener {
 
         inventory.setItem(CLASS_SLOT, ClassInfo.icon(definition, List.of()));
         for (int index = 0; index < ClassInfo.GUIDE_KINDS.size(); index++) {
-            ItemStack guide = ClassInfo.comboGuide(definition, ClassInfo.GUIDE_KINDS.get(index));
+            ItemStack guide = ClassInfo.comboGuide(definition, ClassInfo.GUIDE_KINDS.get(index),
+                    net.tkgon.mc.iruuRPG.combat.HeavyInput.bindingsOf(org.bukkit.Bukkit.getPlayer(profile.uuid())));
             if (guide != null) inventory.setItem(GUIDE_START_SLOT + index, guide);
         }
         inventory.setItem(SPEND_LABEL_SLOT, button(Material.EXPERIENCE_BOTTLE, "SPで強化", NamedTextColor.GREEN, List.of(
