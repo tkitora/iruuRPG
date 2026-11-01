@@ -20,19 +20,19 @@ class ResourcePackServiceTest {
     void thePackOfTheItemsIsOfferedEvenWhenAnOlderConfigDoesNotListIt() throws Exception {
         // the server's config.yml as it was before the items' pack: only server and models
         List<String> packs = names("resourcepack:\n  packs:\n    server:\n      file: server.zip\n    models:\n      file: iruumodel.zip\n");
-        assertEquals(List.of("server", "models", "items", "marks", "skills"), packs);
+        assertEquals(List.of("server", "models", "items", "marks"), packs);
     }
 
     @Test
     void aConfigWithoutAPacksSectionStillOffersTheBuiltInPacks() throws Exception {
-        assertEquals(List.of("server", "models", "items", "marks", "skills"), names("resourcepack:\n  enabled: true\n"));
+        assertEquals(List.of("server", "models", "items", "marks"), names("resourcepack:\n  enabled: true\n"));
     }
 
     @Test
     void anEntryOfTheConfigStillWins() throws Exception {
         List<String> off = names("resourcepack:\n  packs:\n    items:\n      enabled: false\n");
         assertTrue(off.contains("server") && off.contains("models"));
-        assertEquals(4, off.size(), "a pack switched off in the config is not offered");
+        assertEquals(3, off.size(), "a pack switched off in the config is not offered");
 
         YamlConfiguration config = new YamlConfiguration();
         config.loadFromString("resourcepack:\n  packs:\n    items:\n      file: other.zip\n      required: true\n");
@@ -45,6 +45,6 @@ class ResourcePackServiceTest {
     @Test
     void aFileNameThatLeavesTheFolderIsSkipped() throws Exception {
         List<String> packs = names("resourcepack:\n  packs:\n    evil:\n      file: ../x.zip\n");
-        assertEquals(List.of("server", "models", "items", "marks", "skills"), packs);
+        assertEquals(List.of("server", "models", "items", "marks"), packs);
     }
 }
