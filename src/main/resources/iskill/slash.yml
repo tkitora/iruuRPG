@@ -7,7 +7,7 @@ name: "斬撃"
 
 melee:
   enabled: true
-  trigger: "右クリック"
+  trigger: "Q"
   description:
     - "前方の敵1体へ一瞬で6連撃を行う。"
   cost: 15
@@ -22,7 +22,7 @@ melee:
 
 range:
   enabled: true
-  trigger: "シフト右クリック"
+  trigger: "Q"
   description:
     - "前方10mへ斬撃を飛ばす。"
   lore:

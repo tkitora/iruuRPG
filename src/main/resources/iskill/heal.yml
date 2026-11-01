@@ -7,7 +7,7 @@ name: "回復"
 
 melee:
   enabled: true
-  trigger: "右クリック"
+  trigger: "Q"
   description:
     - "自身のHPを最大HPの10%回復する。"
   cost: 15
@@ -18,7 +18,7 @@ melee:
 
 range:
   enabled: true
-  trigger: "シフト右クリック"
+  trigger: "Q"
   description:
     - "周囲5ブロックの味方を回復する。"
   cost: 20

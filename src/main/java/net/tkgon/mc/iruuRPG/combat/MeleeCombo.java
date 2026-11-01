@@ -9,8 +9,8 @@ import java.util.UUID;
 
 /**
  * The light / heavy chain of melee attacks. A left click is a light attack: {@code light-count} lights in a row (each
- * within {@code window-ticks} of the one before) end with the finisher, the last light, which hits harder. A shift +
- * left click is a heavy attack, thrown after the lights done so far; it ends the chain.
+ * within {@code window-ticks} of the one before) end with the finisher, the last light, which hits harder. A heavy
+ * input ({@link HeavyInput}) is a heavy attack, thrown after the lights done so far; it ends the chain.
  *
  * <p>Two kinds of plan: the usual one (a weapon that is not a class's favorite) has one kind of heavy attack that hits
  * harder after more lights and takes longer to recover from. The plans of the combos ({@link ComboSpec}, registered with

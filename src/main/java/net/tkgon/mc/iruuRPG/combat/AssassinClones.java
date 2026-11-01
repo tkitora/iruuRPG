@@ -19,8 +19,8 @@ import java.util.UUID;
 /**
  * The clones that stay (the others, which step in for a blow and go, are in {@link Clones}). Two kinds:
  * <ul>
- *   <li>the grey clone that the assassin's heavy attack 0 flings in front of the assassin, the way they face (cooldown 8 s): it stands there for 4.5 s and goes. The heavy click again (up to twice, with no
- *       normal attack between) is a re-activation of it: the first makes one more clone, the second sends the clones charging forward ({@link #recast}), 15% each, and they go.
+ *   <li>the grey clone that the assassin's heavy attack 0 flings in front of the assassin, the way they face (cooldown 8 s): it stands there for 4.5 s and goes. 強1 again (up to twice, while it stands) is a
+ *       re-activation of it: the first makes one more clone, the second sends the clones charging forward ({@link #recast}), 15% each, and they go.
  *       At most two exist at a time (a third takes the place of the oldest; the short-lived clones that strike for a blow count against the two as well and are not made when there
  *       is no room). The first heavy attack after a clone was made, other than heavy 0 and 1, is made by the clones too, once, for 30% of its damage ({@link #mimic});</li>
  *   <li>the three clones of the item swap skill (red outline, red and black): they are flung forward when the skill starts (all other clones are destroyed), and copy the
@@ -323,7 +323,7 @@ final class AssassinClones {
 
     // ---- the re-activations of heavy 0 ------------------------------------------------------------------------------------------------
 
-    /** Heavy 0 was made: its clone stands, and the heavy click can be pressed again, twice. */
+    /** Heavy 0 was made: its clone stands, and 強1 can be thrown again, twice. */
     static void beginCast(MoveKit kit) {
         CAST.put(kit.player.getUniqueId(), new int[]{0, org.bukkit.Bukkit.getCurrentTick()});
     }
@@ -334,7 +334,7 @@ final class AssassinClones {
         return found;
     }
 
-    /** True when the heavy click is a re-activation of heavy 0 now: a clone of it still stands, and less than two were pressed. */
+    /** True when 強1 (heavy 0) is a re-activation of the one before now: a clone of it still stands, and less than two were made. */
     static boolean canRecast(Player owner) {
         int[] cast = CAST.get(owner.getUniqueId());
         if (cast == null) return false;
