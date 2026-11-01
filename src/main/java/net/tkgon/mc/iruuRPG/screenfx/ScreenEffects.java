@@ -57,21 +57,28 @@ public final class ScreenEffects implements Listener {
     /** The effects; the slot is the marker's green and its place in the corner (slots 1 - 8 are read by the shaders). */
     public enum Effect {
         /** Chromatic aberration (t129): red shifted out from the middle of the screen, blue in, more towards the sides; 100 shifts 1.2 % of the distance. */
-        CHROMATIC(1, "色収差 (赤と青が、画面の外側ほどずれる。強さ 100 で、中心からの距離の 1.2 %)", false),
+        CHROMATIC(1, "色収差 (赤と青が、画面の外側ほどずれる。強さ 100 で、中心からの距離の 1.2 %)", false, false),
         /**
          * An impact at a place of the world (t130, the critical hits; a ripple since t133): a ring spreads from where the place is on the
-         * screen and fades, timed by the client (see {@link #impactColor}). Its marker stays at the place.
+         * screen and fades, timed by the client (see {@link #timedColor}). Its marker stays at the place.
          */
-        IMPACT(2, "衝撃 (ワールドの位置から、波紋が広がって消える。クリティカルで出る)", true);
+        IMPACT(2, "衝撃 (ワールドの位置から、波紋が広がって消える。クリティカルで出る)", true, true),
+        /**
+         * A freeze (t134, the critical hits): the picture of the moment is held, then moves toward the game's picture faster and faster until
+         * it is the game's again, timed by the client; strength 100 lasts 6 ticks.
+         */
+        FREEZE(3, "止める (その瞬間の画面を持っておき、だんだん実際の画面へ戻す。強さ 100 で 6 tick。クリティカルで出る)", false, true);
 
         private final int slot;
         private final String summary;
         private final boolean positional;
+        private final boolean timed;
 
-        Effect(int slot, String summary, boolean positional) {
+        Effect(int slot, String summary, boolean positional, boolean timed) {
             this.slot = slot;
             this.summary = summary;
             this.positional = positional;
+            this.timed = timed;
         }
 
         public int slot() {
@@ -81,6 +88,11 @@ public final class ScreenEffects implements Listener {
         /** True for an effect centred on a place of the world: its marker is put there ({@link #showAt}) instead of following its player. */
         public boolean positional() {
             return positional;
+        }
+
+        /** True for an effect the client times from its first tick ({@link #timedColor}): it runs once ({@link #showTimed} / {@link #showAt}). */
+        public boolean timed() {
+            return timed;
         }
 
         public String summary() {
@@ -102,15 +114,18 @@ public final class ScreenEffects implements Listener {
         return Color.fromRGB(MARKER_RED, effect.slot(), clampStrength(strength));
     }
 
-    /** How long the impact's marker is kept (ticks): its ripple lasts about 12 ticks of the client's time (iruu_fx_mix.fsh), and a little more. */
-    public static final int IMPACT_TICKS = 16;
+    /**
+     * How long the marker of a timed effect is kept (ticks): the impact's ripple lasts about 12 ticks of the client's time (iruu_fx_mix.fsh),
+     * a freeze up to 11 (iruu_fx_hold.fsh), and a little more.
+     */
+    public static final int TIMED_TICKS = 16;
 
     /**
      * The glow color of a timed effect's marker (t133): (177, slot + 16 * level, its first tick of the world's game time mod 240). The client
      * counts the ticks since then from its own game time (GameTime of the core shader, synced with the server's), so the effect runs smooth
      * at any frame rate with no more packets; the level (1 - 15, 8 is the usual) is its strength.
      */
-    public static Color impactColor(Effect effect, int strength, long gameTime) {
+    public static Color timedColor(Effect effect, int strength, long gameTime) {
         return Color.fromRGB(MARKER_RED, effect.slot() | levelOf(strength) << 4, (int) Math.floorMod(gameTime, 240L));
     }
 
@@ -214,16 +229,16 @@ public final class ScreenEffects implements Listener {
 
     /**
      * Shows the timed {@code effect} to {@code player} centred on the place {@code at} (a positional effect: its marker is put there), starting
-     * now; the client runs it ({@link #impactColor}), and its marker is taken away after {@link #IMPACT_TICKS}. Another call before it ends
+     * now; the client runs it ({@link #timedColor}), and its marker is taken away after {@link #TIMED_TICKS}. Another call before it ends
      * moves it and starts it again. False when the player's client has not the shaders (as {@link #show}), or the place is in another world.
      */
     public boolean showAt(Player player, Effect effect, Location at, int strength) {
         if (at == null || at.getWorld() == null || !at.getWorld().equals(player.getWorld())) return false;
         Marker marker = markers.computeIfAbsent(player.getUniqueId(), id -> new EnumMap<>(Effect.class)).computeIfAbsent(effect, e -> new Marker());
         marker.strength = clampStrength(strength);
-        marker.color = impactColor(effect, marker.strength, at.getWorld().getGameTime());
+        marker.color = timedColor(effect, marker.strength, at.getWorld().getGameTime());
         marker.at = at.clone();
-        marker.until = ticks + IMPACT_TICKS;
+        marker.until = ticks + TIMED_TICKS;
         if (!hasShaders(player)) {
             remove(marker);
             return false;
@@ -238,10 +253,35 @@ public final class ScreenEffects implements Listener {
         return true;
     }
 
-    /** A critical hit of {@code attacker} at {@code hit} (the middle of the one hit): the impact there, as {@code screen-effects.critical} says. */
+    /**
+     * Shows the timed {@code effect} to {@code player} (its marker follows the player), starting now; the client runs it ({@link #timedColor}),
+     * and its marker is taken away after {@link #TIMED_TICKS}. Another call before it ends starts it again. False as {@link #show}.
+     */
+    public boolean showTimed(Player player, Effect effect, int strength) {
+        Marker marker = markers.computeIfAbsent(player.getUniqueId(), id -> new EnumMap<>(Effect.class)).computeIfAbsent(effect, e -> new Marker());
+        marker.strength = clampStrength(strength);
+        marker.color = timedColor(effect, marker.strength, player.getWorld().getGameTime());
+        marker.at = null;
+        marker.until = ticks + TIMED_TICKS;
+        if (!hasShaders(player)) {
+            remove(marker);
+            return false;
+        }
+        if (marker.display != null && marker.display.isValid()) marker.display.setGlowColorOverride(marker.color);
+        else marker.display = spawn(player, marker.color, player.getLocation());
+        return true;
+    }
+
+    /**
+     * A critical hit of {@code attacker} at {@code hit} (the middle of the one hit), as {@code screen-effects.critical} says: the impact there
+     * (strength 1 by default: t134), and the freeze.
+     */
     public void onCritical(Player attacker, Location hit) {
         if (attacker == null || hit == null || !plugin.getConfig().getBoolean("screen-effects.critical.enabled", true)) return;
-        showAt(attacker, Effect.IMPACT, hit, plugin.getConfig().getInt("screen-effects.critical.strength", NORMAL_STRENGTH));
+        showAt(attacker, Effect.IMPACT, hit, plugin.getConfig().getInt("screen-effects.critical.strength", 1));
+        if (plugin.getConfig().getBoolean("screen-effects.critical.freeze", true)) {
+            showTimed(attacker, Effect.FREEZE, plugin.getConfig().getInt("screen-effects.critical.freeze-strength", NORMAL_STRENGTH));
+        }
     }
 
     /** Switches {@code effect} off for {@code player}; false when it was not on. */
