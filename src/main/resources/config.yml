@@ -593,13 +593,11 @@ hud:
 # false = パックにシェーダーを入れず、/screenfx も使えない (起動時に読む。変えたら再起動)
 screen-effects:
   enabled: true
-  # クリティカルのとき、攻撃した人の画面を、当たった所 (相手の体の真ん中) を中心に、放射状にふくらませる (衝撃 impact。ヒットストップの代わり)。
-  # strength (100 で、中心の所を 30 % 近くから取る = 1.4 倍) で hold-ticks のあいだ出し、fade-ticks かけて消える
+  # クリティカルのとき、攻撃した人の画面に、当たった所 (相手の体の真ん中) から波紋を広げる (衝撃 impact。ヒットストップの代わり)。
+  # 波紋の速さ・幅・消え方はシェーダー (iruu_fx_mix.fsh) が決め、クライアントの時間で動く (約 0.6 秒)。strength は強さ (100 が標準、8 段階目)
   critical:
     enabled: true
     strength: 100
-    hold-ticks: 2
-    fade-ticks: 6
 
 # プロシージャルツール (/proceduraltool、別名 /treetool)。木・岩・スパイク・結晶・クモの巣を、部位ごとに選んだブロックで作る
 treetool:

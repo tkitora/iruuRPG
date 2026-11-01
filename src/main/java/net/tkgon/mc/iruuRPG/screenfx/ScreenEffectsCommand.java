@@ -114,10 +114,9 @@ public final class ScreenEffectsCommand implements TabExecutor {
         for (Player player : players) {
             boolean sent;
             if (effect.positional()) {
-                // (a place to try it: 4 blocks in front of the player's eyes; it stays for the seconds, or the time of a critical hit, then fades)
+                // (a place to try it: 4 blocks in front of the player's eyes; it runs its own time, as on a critical hit)
                 org.bukkit.Location at = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(4.0));
-                int hold = on.seconds() > 0 ? (int) Math.round(on.seconds() * 20.0) : 2;
-                sent = effects.showAt(player, effect, at, on.strength(), hold, 6);
+                sent = effects.showAt(player, effect, at, on.strength());
             } else {
                 sent = effects.show(player, effect, on.strength(), Math.round(on.seconds() * 20.0));
             }
@@ -125,7 +124,7 @@ public final class ScreenEffectsCommand implements TabExecutor {
         }
         if (!players.isEmpty()) {
             sender.sendMessage(PREFIX + effect.id() + " (強さ " + on.strength() + ") を " + (players.size() - held.size()) + " 人に出しました"
-                    + (effect.positional() ? " (目の前 4 ブロックが中心。" + (on.seconds() > 0 ? on.seconds() + " 秒のあと" : "すぐ") + "弱まって消えます)。"
+                    + (effect.positional() ? " (目の前 4 ブロックから。秒は使いません)。"
                     : on.seconds() > 0 ? " (" + on.seconds() + " 秒)。" : "。/screenfx " + effect.id() + " off で消えます。"));
             if (!held.isEmpty()) {
                 sender.sendMessage(PREFIX + "シェーダー入りのパック (iruumark.zip) を読み込めていない人には、目印を送っていません (読み込めたら出ます): "
