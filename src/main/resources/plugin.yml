@@ -53,6 +53,10 @@ commands:
     description: "Look at the light flow particle effects (admins): list, help <id>, test <id> <x> <y> <z> <seconds> [args]"
     usage: /vfx <list|help|test>
     permission: iruurpg.admin
+  screenfx:
+    description: "Screen effects drawn by the client's shaders (admins): /screenfx <effect> [strength 1-255] [seconds] [target], <effect> off, off, status, list"
+    usage: /screenfx <bloom|off|status|list> ...
+    permission: iruurpg.admin
   ibrush:
     description: "Painting brush for builders (admins): gives the brush item, opens its menu, settings by command, presets, blacklist, undo/redo. /ibrush help for the arguments"
     usage: /ibrush [help|give|menu|off|undo|redo|use|peek|preview|set|preset|blacklist]
