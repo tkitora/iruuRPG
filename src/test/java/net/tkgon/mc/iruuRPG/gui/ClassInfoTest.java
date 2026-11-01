@@ -56,7 +56,8 @@ class ClassInfoTest {
         assertEquals("左クリック: アイテムスキル", ranged.get(3));
         assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior").stream().anyMatch(line -> line.contains("Shift+Q: 設置を消す")));
         // which skills of the guide they throw: a class whose moves are not made yet, and the mage (its own with a ranged weapon, the template with another)
-        assertEquals("小・中・大 は、いまは下のスキル1〜3", melee.get(melee.size() - 1));
+        List<String> notYet = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "assassin");
+        assertEquals("小・中・大 は、いまは下のスキル1〜3", notYet.get(notYet.size() - 1));
         List<String> mage = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.RANGE, "mage");
         assertEquals("小 = スキル6 / 中 = スキル4 / 大 = スキル5 / util = スキル1", mage.get(mage.size() - 1));
         List<String> mageMelee = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "mage");

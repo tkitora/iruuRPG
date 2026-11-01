@@ -12,10 +12,14 @@ import org.bukkit.util.Vector;
  *
  * <p>Normal: 1 a cleave (100%, 25% less damage taken for 0.6 s), 2 a shield bash (70%, slows), 3 a wide sweep (110%, 25% less damage taken for
  * 0.6 s), 4 a hammer drop on one enemy (130%, slows hard), 5 an earthbreaker (150% on all round, heals 3%, 40% less damage taken for
- * 0.75 s; no leap). Heavy: 0 a bulwark (three shields for 10 s, 40% less damage taken for 2 s; its own cooldown of 18 s; it is the only thing that gives shields), 1 a stomp (60% round, slows),
- * 2 a whirlwind (a spin for 1 s, 24% every 4 ticks round, 30% less damage taken, heals 1%), 3 a colossus strike (a moment of winding up with 60% less damage
- * taken, then 150% on the enemy ahead and a throw up), 4 a shield rush (a charge of 6 blocks under a 50% guard, 80% on all in the way and a push, 40% more
- * with a shield up).
+ * 0.75 s; no leap). Heavy: 0 a shield bash and bulwark (100% on the enemies just ahead, slowed; then three shields for 10 s, 40% less damage taken for
+ * 2 s; its own cooldown of 18 s; it is the only thing that gives shields), 1 a stomp (60% round, slows), 2 a whirlwind (a spin for 1 s, 24% every 4 ticks
+ * round, 30% less damage taken, heals 1%), 3 a colossus strike (a moment of winding up with 60% less damage taken, then one great downward cut: 150% on
+ * every enemy in a strip 5 blocks ahead, thrown up), 4 a shield rush (a charge of 6 blocks under a 50% guard, 80% on all in the way, 40% more with a
+ * shield up; no push).
+ *
+ * <p>The skills of the redesign of 2026-11-02 ({@link SlotMoves}): 小 the colossus strike (heavy 3), 中 the whirlwind (2), 大 the shield bash and bulwark
+ * (0), util the shield rush (4).
  */
 public final class WarriorMeleeCombo extends BaseCombo {
 
@@ -24,7 +28,7 @@ public final class WarriorMeleeCombo extends BaseCombo {
     public WarriorMeleeCombo() {
         super("warrior", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.67, 0.89, 1.12, 1.34, 1.56}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.0, 0.6, 0.24, 1.5, 0.8, 1.2}, new int[]{360, 0, 0, 0, 0, 0}, 40));
+                new double[]{1.0, 0.6, 0.24, 1.5, 0.8, 1.2}, new int[]{360, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -92,7 +96,14 @@ public final class WarriorMeleeCombo extends BaseCombo {
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {
             case 0 -> {
-                // a bulwark: three shields round the warrior for 10 s, and less damage for a moment
+                // a shield bash on the enemies just ahead, and a bulwark: three shields round the warrior for 10 s, and less damage for a moment
+                kit.slash("line", 2.6, 100.0, 0.0, 0.0, 1.7, 0.2, 0.0, 1.2, 0.12, 0.0);
+                for (LivingEntity target : kit.cone(3.2, 60.0)) {
+                    if (kit.hit(target, rate)) {
+                        kit.slow(target, 60.0, 1.0);
+                        kit.push(target, feet.toVector(), 0.3, 0.05);
+                    }
+                }
                 kit.bulwark();
                 kit.guard(0.4, 40);
                 kit.shockwave(feet, 0.8, 3.0, 4, 1.0);
@@ -131,26 +142,31 @@ public final class WarriorMeleeCombo extends BaseCombo {
                     kit.later(tick, () -> kit.fx(kit.player.getLocation()).flatRing(kit.player.getLocation().add(0.0, 0.2, 0.0), r, 28, kit.palette(), 0.4 + 0.07 * (2.4 - r), 0.2, 1.0));
                 }
                 kit.later(8L, () -> {
+                    // one great downward cut: the ground splits along a strip ahead, and every enemy on it is struck and thrown up
                     Location from = kit.player.getLocation();
-                    LivingEntity target = kit.nearest(4.2, 45.0);
-                    kit.slash("drop", 3.4, 140.0, 5.0, 0.0, 1.9, 0.3, 0.0, 1.6, 0.2, 0.0);
+                    Vector way = kit.facing().clone().setY(0.0);
+                    if (way.lengthSquared() < 1.0E-6) return;
+                    way.normalize();
+                    kit.slash("drop", 3.8, 150.0, 5.0, 0.0, 2.1, 0.3, 0.0, 1.8, 0.22, 0.0);
                     kit.sound(from, Sfx.METAL_HEAVY, 1.0f, 0.7f);
-                    if (target == null) return;
-                    Location at = target.getLocation();
-                    kit.shockwave(at, 0.6, 3.0, 4, 1.2);
-                    if (kit.hit(target, rate)) kit.lift(target, 0.45);
+                    for (int along = 1; along <= 4; along++) {
+                        Location at = from.clone().add(way.clone().multiply(along * 1.2)).add(0.0, 0.2, 0.0);
+                        kit.later(along, () -> kit.fx(at).flatRing(at, 0.8, 14, kit.palette(), 0.5, 0.2, 1.0));
+                    }
+                    kit.shockwave(from.clone().add(way.clone().multiply(3.0)), 0.6, 2.4, 4, 1.2);
+                    for (LivingEntity target : kit.corridor(from.clone().add(0.0, 0.5, 0.0), way, 5.0, 1.6)) {
+                        if (kit.hit(target, rate)) kit.lift(target, 0.45);
+                    }
                 });
             }
             case 4 -> {
-                // a shield rush: under a guard, six blocks, everything in the way is struck and pushed aside; more with a shield up
+                // a shield rush: under a guard, six blocks, everything in the way is struck (not pushed: util of the redesign has no crowd control); more with a shield up
                 double boost = kit.shields() > 0 ? 1.4 : 1.0;
                 Location from = feet.clone().add(0.0, 1.0, 0.0);
                 kit.guard(0.5, 12);
                 kit.sound(feet, Sfx.WIND_BURST, 1.0f, 0.8f);
                 kit.line(from, from.clone().add(facing.clone().multiply(6.0)), 0.2, 1.0, 1.5);
-                for (LivingEntity target : kit.corridor(from, facing, 6.5, 1.6)) {
-                    if (kit.hit(target, rate * boost)) kit.push(target, feet.toVector(), 0.8, 0.2);
-                }
+                kit.hitAll(kit.corridor(from, facing, 6.5, 1.6), rate * boost);
                 kit.dash(facing, 1.2, 5, end -> {
                     kit.shockwave(end, 0.8, 3.0, 4, 1.1);
                     kit.sound(end, Sfx.METAL_HEAVY, 0.9f, 0.9f);
