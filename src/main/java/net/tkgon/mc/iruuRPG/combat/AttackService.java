@@ -626,7 +626,8 @@ public final class AttackService {
             return true;
         }
         boolean assassin = AssassinMeleeCombo.PLAN.equals(combo.spec().plan());
-        if (assassin && index == 0 && AssassinClones.canRecast(attacker)) {
+        // (not as a class's skill: 中 makes a new decoy each time, with no count to reach)
+        if (assassin && index == 0 && !free && AssassinClones.canRecast(attacker)) {
             beginAttack(attacker);
             AssassinClones.recast(kit(attacker, weapon), assassinFrenzy(attacker) >= 2 ? 1.35 : assassinFrenzy(attacker) == 1 ? 1.2 : 1.0);
             return true;

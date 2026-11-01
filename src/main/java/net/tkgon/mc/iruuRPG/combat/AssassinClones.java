@@ -31,7 +31,7 @@ import java.util.UUID;
  */
 final class AssassinClones {
 
-    private static final int MAX_STANDING = 2;
+    private static final int MAX_STANDING = 4;
 
     static final class Ghost {
         final Player owner;
@@ -69,7 +69,6 @@ final class AssassinClones {
     }
 
     private static final Map<UUID, List<Ghost>> GHOSTS = new HashMap<>();
-    private static final Map<UUID, Boolean> MIMIC = new HashMap<>();
     private static final Map<UUID, Set<UUID>> DAMAGED = new HashMap<>();
     private static final Map<UUID, Integer> TRANSIENT = new HashMap<>();
     /** The tick the clones of the item swap skill last moved with the assassin (they follow a dash once in 10 ticks, half a second). */
@@ -84,7 +83,7 @@ final class AssassinClones {
     private AssassinClones() {
     }
 
-    // ---- the cap of two ----------------------------------------------------------------------------------------------------------
+    // ---- the cap of four (the decoys of 中 and util stay 10 s: the redesign of 2026-11-02) ---------------------------------------
 
     private static int standing(Player owner) {
         int count = 0;
@@ -92,7 +91,7 @@ final class AssassinClones {
         return count + TRANSIENT.getOrDefault(owner.getUniqueId(), 0);
     }
 
-    /** Asks for room for a short-lived clone (one that steps in for a blow): false when two clones exist already. Call {@link #endTransient} when it is gone. */
+    /** Asks for room for a short-lived clone (one that steps in for a blow): false when {@link #MAX_STANDING} clones exist already. Call {@link #endTransient} when it is gone. */
     static boolean beginTransient(Player owner) {
         if (standing(owner) >= MAX_STANDING) return false;
         TRANSIENT.merge(owner.getUniqueId(), 1, Integer::sum);
@@ -158,7 +157,6 @@ final class AssassinClones {
         ghost.slideTo = at.clone();
         ghost.slideTicks = 6;
         list.add(ghost);
-        MIMIC.put(owner.getUniqueId(), true);
         ensureTask(kit.plugin());
         kit.sound(at, Sfx.WIND, 0.6f, 1.5f);
         return ghost;
@@ -178,7 +176,7 @@ final class AssassinClones {
 
     /**
      * The skill's clones: every clone that stands is destroyed, and three are flung forward (to the front, and 32 degrees each side, six blocks) for {@code lifeTicks}; each
-     * copies the next {@code swap-copies} (10) attacks.
+     * copies the next {@code swap-copies} attacks (0, the default: every attack while it stands, the redesign of 2026-11-02 has no limit).
      */
     static void launchSwap(MoveKit kit, int lifeTicks) {
         Player owner = kit.player;
@@ -186,7 +184,8 @@ final class AssassinClones {
         List<Ghost> list = GHOSTS.computeIfAbsent(owner.getUniqueId(), id -> new ArrayList<>());
         Vector facing = kit.facing();
         Location base = owner.getLocation();
-        int copies = (int) Math.round(Math.max(1.0, Math.min(20.0, kit.number(AssassinMeleeCombo.PLAN, "swap-copies", 10.0))));
+        double wanted = kit.number(AssassinMeleeCombo.PLAN, "swap-copies", 0.0);
+        int copies = wanted <= 0.0 ? Integer.MAX_VALUE : (int) Math.round(Math.min(1000.0, wanted));
         for (int index = -1; index <= 1; index++) {
             double turn = Math.toRadians(32.0 * index);
             Vector direction = new Vector(facing.getX() * Math.cos(turn) - facing.getZ() * Math.sin(turn), 0.0, facing.getX() * Math.sin(turn) + facing.getZ() * Math.cos(turn));
@@ -235,17 +234,14 @@ final class AssassinClones {
         return hit;
     }
 
-    /** Takes the "make the clones copy it" flag: true once after a clone was made, while one stands. */
+    /** Whether the standing clones copy a heavy attack: true while one stands (as often as the assassin attacks: the redesign of 2026-11-02 has no limit). */
     static boolean takeMimic(Player owner) {
-        if (!Boolean.TRUE.equals(MIMIC.get(owner.getUniqueId()))) return false;
-        boolean any = false;
-        for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) if (!ghost.swap && ghost.leaving < 0) any = true;
-        MIMIC.remove(owner.getUniqueId());
-        return any;
+        for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) if (!ghost.swap && ghost.leaving < 0) return true;
+        return false;
     }
 
     /**
-     * The standing clones make heavy attack {@code index} (2 - 4) too (once), each for 30% of {@code rate} a hit: 2 spins for 1.2 s, 3 runs through the line ahead and back, 4
+     * The standing clones make heavy attack {@code index} (2 - 4) too (every time), each for 30% of {@code rate} a hit: 2 spins for 1.2 s, 3 runs through the line ahead and back, 4
      * strikes the nearest enemy.
      */
     static void mimic(MoveKit kit, int index, double rate) {
@@ -492,7 +488,6 @@ final class AssassinClones {
     static void clearAll(Player owner) {
         List<Ghost> list = GHOSTS.remove(owner.getUniqueId());
         if (list != null) for (Ghost ghost : list) remove(ghost, true);
-        MIMIC.remove(owner.getUniqueId());
         TRANSIENT.remove(owner.getUniqueId());
         CAST.remove(owner.getUniqueId());
         MOVED.remove(owner.getUniqueId());
@@ -517,7 +512,6 @@ final class AssassinClones {
     static void shutdown() {
         for (List<Ghost> list : GHOSTS.values()) for (Ghost ghost : list) remove(ghost, false);
         GHOSTS.clear();
-        MIMIC.clear();
         CAST.clear();
         MOVED.clear();
         DAMAGED.clear();
