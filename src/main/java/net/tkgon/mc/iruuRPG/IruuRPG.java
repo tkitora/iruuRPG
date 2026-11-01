@@ -212,6 +212,8 @@ public final class IruuRPG extends JavaPlugin {
         this.itemFactory.setCustomModelData(itemPackService::numberOf);
         // the pack of the ground marks' font (drawn off the main thread; sent again to the players online when it changed)
         net.tkgon.mc.iruuRPG.markpack.MarkPackService.rebuild(this, () -> { if (resourcePackService != null) resourcePackService.resend("marks"); });
+        // the pack of the skill icons' font (the strong attacks 強1〜強5 of each class; a picture in skill-icons/<name>.png replaces the stand-in)
+        net.tkgon.mc.iruuRPG.skillpack.SkillPackService.rebuild(this, () -> { if (resourcePackService != null) resourcePackService.resend("skills"); });
         this.skillRegistry = new net.tkgon.mc.iruuRPG.skill.SkillRegistry(this);
         this.skillRegistry.reload();
         this.classSkillRegistry.setGeneralSkills(skillRegistry);
