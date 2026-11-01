@@ -31,9 +31,9 @@ class ClassInfoTest {
                     String label = "弱" + stage + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
-                // 強1 - 強5 (t116: the heavy attacks are numbered as the buttons choose them)
+                // スキル1 - スキル5 (t138: the heavy attacks 強1 - 強5 are skills 1 - 5)
                 for (int heavy = 1; heavy <= 5; heavy++) {
-                    String label = "強" + heavy + ":";
+                    String label = "スキル" + heavy + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
                 for (String line : lines) {
@@ -51,6 +51,7 @@ class ClassInfoTest {
         assertTrue(parts.stream().anyMatch(part -> part.content().equals("【打ち上げ】") && NamedTextColor.AQUA.equals(part.color())));
         assertTrue(parts.stream().anyMatch(part -> part.content().equals(" 溜めて一撃") && NamedTextColor.WHITE.equals(part.color())));
         assertEquals(NamedTextColor.YELLOW, flatten(ClassInfo.guideLine("弱1: 斬る")).get(0).color());
+        assertEquals(NamedTextColor.GOLD, flatten(ClassInfo.guideLine("スキル6: 何か")).get(0).color());
     }
 
     private static List<TextComponent> flatten(Component component) {
