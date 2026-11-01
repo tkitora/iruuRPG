@@ -100,7 +100,7 @@ public final class ClickSignals implements Listener {
         if (locked != null && now < locked) return false;
         // the right button waits for its second button (right, left: 強2): a left click 2 ticks or more after it is that press (the arm swings
         // that follow a right click come in its tick or the next), also on a block
-        if (HeavyInput.waiting(player)) {
+        if (HeavyInput.waitingButton(player)) {
             Integer right = LAST_RIGHT_TICK.get(id);
             return right == null || now - right >= 2;
         }

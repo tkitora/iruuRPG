@@ -137,6 +137,13 @@ public final class ClassInfo {
     }
 
     private static List<String> controls(AttackType kind) {
+        if (net.tkgon.mc.iruuRPG.combat.HeavyInput.numberKeys()) {
+            return switch (kind) {
+                case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右クリック→数字キー1〜5: 強1〜強5", "Q: 武器のスキル");
+                case RANGE -> List.of("右クリック: 弱 (弱1→弱5)", "左クリック→数字キー1〜5: 強1〜強5", "Q: 武器のスキル");
+                default -> List.of("右クリック: 1回目で設置、その後は弱", "左クリック→数字キー1〜5: 強1〜強5 (設置ごとに1回)", "Shift+Q: 設置を消す");
+            };
+        }
         return switch (kind) {
             case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右→右: 強1 / 右→左: 強2", "Shift+右: 強3 / Shift+左: 強4", "Shift 2回: 強5", "Q: 武器のスキル");
             case RANGE -> List.of("右クリック: 弱 (弱1→弱5)", "左→左: 強1 / 左→右: 強2", "Shift+左: 強3 / Shift+右: 強4", "Shift 2回: 強5", "Q: 武器のスキル");
