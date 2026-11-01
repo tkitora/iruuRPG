@@ -18,6 +18,13 @@ final class TreeVoxelizer {
 
     private final Map<Long, TreePart> blocks = new HashMap<>();
 
+    TreeVoxelizer() {
+    }
+
+    Map<Long, TreePart> blocks() {
+        return blocks;
+    }
+
     public static long pack(int x, int y, int z) {
         return ((long) (x + 2048) & 0xFFFFL) | (((long) (y + 2048) & 0xFFFFL) << 16) | (((long) (z + 2048) & 0xFFFFL) << 32);
     }
@@ -49,14 +56,14 @@ final class TreeVoxelizer {
         return voxelizer.blocks;
     }
 
-    private void put(int x, int y, int z, TreePart part) {
+    void put(int x, int y, int z, TreePart part) {
         long key = pack(x, y, z);
         TreePart old = blocks.get(key);
         if (old == null || part.priority() < old.priority()) blocks.put(key, part);
     }
 
     /** A ball of {@code radius} blocks round ({@code cx}, {@code cy}, {@code cz}) of {@code part}; the block the centre is in is always filled. */
-    private void ball(double cx, double cy, double cz, double radius, TreePart part) {
+    void ball(double cx, double cy, double cz, double radius, TreePart part) {
         int bx = (int) Math.round(cx);
         int by = (int) Math.floor(cy);
         int bz = (int) Math.round(cz);
@@ -160,36 +167,46 @@ final class TreeVoxelizer {
         long seed = random.nextLong();
         for (double[] place : skeleton.leaves) {
             double radius = leaf * place[3] * (0.92 + 0.16 * random.nextDouble());
-            double vertical = Math.max(0.6, radius * place[4]);
-            int bx = (int) Math.round(place[0]);
-            int by = (int) Math.floor(place[1]);
-            int bz = (int) Math.round(place[2]);
-            int reach = (int) Math.ceil(radius) + 2;
-            for (int x = bx - reach; x <= bx + reach; x++) {
-                for (int y = by - reach; y <= by + reach; y++) {
-                    for (int z = bz - reach; z <= bz + reach; z++) {
-                        double dx = (x - place[0]) / radius;
-                        double dy = (y + 0.5 - place[1]) / vertical;
-                        double dz = (z - place[2]) / radius;
-                        // a flatter underside: below the middle the cloud ends sooner
-                        if (dy < 0.0) dy *= 1.35;
-                        double distance = dx * dx + dy * dy + dz * dz;
-                        double edge = 1.0 + 0.55 * TreeNoise.value(x * 0.55, y * 0.55, z * 0.55, seed);
-                        if (distance > edge) continue;
-                        // the leaf density thins the cloud everywhere, the outside more than the inside (ragged edge, holes)
-                        double outer = Math.min(1.0, distance / edge);
-                        if (random.nextDouble() < holes * (0.35 + 1.25 * outer * outer)) continue;
-                        put(x, y, z, TreePart.LEAF);
-                        // a leaf now and then hangs from the underside
-                        if (dy < -0.55 && distance > 0.6 && random.nextDouble() < 0.1) put(x, y - 1, z, TreePart.LEAF);
-                    }
+            leafCloud(place[0], place[1], place[2], radius, Math.max(0.6, radius * place[4]), holes, settings.leafShades(), seed, random);
+        }
+    }
+
+    /**
+     * One cloud of leaves round ({@code cx}, {@code cy}, {@code cz}): {@code radius} across, {@code vertical} up and down. The outline is moved in and out by a smooth
+     * noise, the underside is flatter than the top, {@code holes} thins it (the outside more than the inside), and now and then a block hangs below. With a leaf
+     * gradient of {@code shades} blocks, each block takes the shade of its height in the cloud (the bottom the first block, the top the last).
+     */
+    void leafCloud(double cx, double cy, double cz, double radius, double vertical, double holes, int shades, long seed, Random random) {
+        int bx = (int) Math.round(cx);
+        int by = (int) Math.floor(cy);
+        int bz = (int) Math.round(cz);
+        int reach = (int) Math.ceil(Math.max(radius, vertical)) + 2;
+        for (int x = bx - reach; x <= bx + reach; x++) {
+            for (int y = by - reach; y <= by + reach; y++) {
+                for (int z = bz - reach; z <= bz + reach; z++) {
+                    double dx = (x - cx) / radius;
+                    double dy = (y + 0.5 - cy) / vertical;
+                    double dz = (z - cz) / radius;
+                    // a flatter underside: below the middle the cloud ends sooner
+                    if (dy < 0.0) dy *= 1.35;
+                    double distance = dx * dx + dy * dy + dz * dz;
+                    double edge = 1.0 + 0.55 * TreeNoise.value(x * 0.55, y * 0.55, z * 0.55, seed);
+                    if (distance > edge) continue;
+                    // the leaf density thins the cloud everywhere, the outside more than the inside (ragged edge, holes)
+                    double outer = Math.min(1.0, distance / edge);
+                    if (random.nextDouble() < holes * (0.35 + 1.25 * outer * outer)) continue;
+                    TreePart leaf = shades <= 1 ? TreePart.LEAF
+                            : TreePart.leafAt((y + 0.5 - (cy - vertical)) / (2.0 * vertical), shades, TreeNoise.value(x * 0.9 + 31.0, y * 0.9, z * 0.9, seed));
+                    put(x, y, z, leaf);
+                    // a leaf now and then hangs from the underside
+                    if (dy < -0.55 && distance > 0.6 && random.nextDouble() < 0.1) put(x, y - 1, z, TreePart.leaf(0));
                 }
             }
         }
     }
 
     /** Drops what is outside the box: the height, and half the width each way from the middle of the trunk (and nothing deeper than 6 blocks into the ground: the roots follow the terrain down). */
-    private void clip(TreeSettings settings) {
+    void clip(TreeSettings settings) {
         int height = settings.height();
         double half = settings.width() / 2.0;
         blocks.keySet().removeIf(key -> {

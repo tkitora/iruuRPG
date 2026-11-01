@@ -54,6 +54,9 @@ final class ProceduralMenu implements Listener {
     private static final int LOAD = 16;
     private static final int RESET = 25;
     private static final int[] LEGEND_SLOTS = {37, 38, 39, 40, 41};
+    // the leaf page: the leaf gradient from the bottom of a clump to its top, and its help
+    private static final int[] SHADE_SLOTS = {28, 29, 30, 31, 32, 33};
+    private static final int SHADE_HELP = 34;
 
     /** The pages: the slot of the tab, its icon and name, and the numbers it holds. */
     enum Page {
@@ -88,10 +91,29 @@ final class ProceduralMenu implements Listener {
             };
         }
 
-        /** The numbers of the page for this kind. */
-        TreeSettings.Key[] keysFor(ProcKind kind) {
+        /** The numbers of the page for these settings (the kind, and for a tree the algorithm: the fractal has numbers of its own). */
+        TreeSettings.Key[] keysFor(TreeSettings settings) {
+            ProcKind kind = settings.kind();
             // (a web has no height and width: the points decide how big it is)
             if (this == BASIC && kind.web()) return new TreeSettings.Key[]{};
+            if (settings.fractal()) {
+                switch (this) {
+                    case TRUNK -> {
+                        return new TreeSettings.Key[]{TreeSettings.Key.F_TRUNK_LENGTH, TreeSettings.Key.TRUNK_RADIUS, TreeSettings.Key.FLARE, TreeSettings.Key.F_NOISE,
+                                TreeSettings.Key.F_NOISE_SCALE};
+                    }
+                    case BRANCH -> {
+                        return new TreeSettings.Key[]{TreeSettings.Key.F_LEVELS, TreeSettings.Key.F_BRANCHES, TreeSettings.Key.F_LENGTH_DECAY, TreeSettings.Key.F_RADIUS_DECAY,
+                                TreeSettings.Key.F_SPREAD, TreeSettings.Key.F_UP_BIAS, TreeSettings.Key.F_JITTER, TreeSettings.Key.F_GRAVITY};
+                    }
+                    case LEAF -> {
+                        return new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS, TreeSettings.Key.F_FOLIAGE_LEVELS,
+                                TreeSettings.Key.F_FOLIAGE_BRANCHES, TreeSettings.Key.F_FOLIAGE_LENGTH, TreeSettings.Key.F_FOLIAGE_SPREAD};
+                    }
+                    default -> {
+                    }
+                }
+            }
             if (this != SHAPE) return keys;
             return switch (kind) {
                 case WEB -> new TreeSettings.Key[]{TreeSettings.Key.WEB_RINGS, TreeSettings.Key.WEB_SPOKES, TreeSettings.Key.WEB_SAG, TreeSettings.Key.WEB_IRREG, TreeSettings.Key.WEB_REACH};
@@ -144,6 +166,21 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.WEB_SAG, Material.LEAD);
         ICONS.put(TreeSettings.Key.WEB_IRREG, Material.COBWEB);
         ICONS.put(TreeSettings.Key.WEB_REACH, Material.SPYGLASS);
+        ICONS.put(TreeSettings.Key.F_TRUNK_LENGTH, Material.LADDER);
+        ICONS.put(TreeSettings.Key.F_LEVELS, Material.FERN);
+        ICONS.put(TreeSettings.Key.F_BRANCHES, Material.OAK_FENCE);
+        ICONS.put(TreeSettings.Key.F_LENGTH_DECAY, Material.BAMBOO);
+        ICONS.put(TreeSettings.Key.F_RADIUS_DECAY, Material.STRIPPED_OAK_LOG);
+        ICONS.put(TreeSettings.Key.F_SPREAD, Material.COMPASS);
+        ICONS.put(TreeSettings.Key.F_UP_BIAS, Material.FEATHER);
+        ICONS.put(TreeSettings.Key.F_JITTER, Material.RABBIT_FOOT);
+        ICONS.put(TreeSettings.Key.F_NOISE, Material.CHAIN);
+        ICONS.put(TreeSettings.Key.F_NOISE_SCALE, Material.STRING);
+        ICONS.put(TreeSettings.Key.F_GRAVITY, Material.ANVIL);
+        ICONS.put(TreeSettings.Key.F_FOLIAGE_LEVELS, Material.AZALEA);
+        ICONS.put(TreeSettings.Key.F_FOLIAGE_BRANCHES, Material.FLOWERING_AZALEA);
+        ICONS.put(TreeSettings.Key.F_FOLIAGE_LENGTH, Material.STICK);
+        ICONS.put(TreeSettings.Key.F_FOLIAGE_SPREAD, Material.BIG_DRIPLEAF);
     }
 
     private final ProceduralModule tool;
@@ -155,6 +192,8 @@ final class ProceduralMenu implements Listener {
     private static final class Holder implements MenuHolder {
         private Inventory inventory;
         private Page page = Page.BASIC;
+        /** The block slot waiting for a block from the player's inventory: "part:<PART>" or "shade:<index>"; null when none. */
+        private String picking;
 
         @Override
         public @NotNull Inventory getInventory() {
@@ -237,8 +276,9 @@ final class ProceduralMenu implements Listener {
                 text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
                 text("プレビュー中は、変えて 0.75 秒後に木が変わる", NamedTextColor.GRAY))));
+        if (page == Page.LEAF) renderShades(inventory, holder, settings);
 
-        TreeSettings.Key[] shownKeys = page.keysFor(settings.kind());
+        TreeSettings.Key[] shownKeys = page.keysFor(settings);
         for (int index = 0; index < shownKeys.length; index++) {
             TreeSettings.Key key = shownKeys[index];
             List<Component> lore = new ArrayList<>();
@@ -261,7 +301,7 @@ final class ProceduralMenu implements Listener {
         inventory.setItem(CLOSE, item(Material.ARROW, "閉じる", NamedTextColor.YELLOW, List.of()));
         boolean on = session.preview;
         inventory.setItem(PREVIEW, item(on ? Material.LIME_STAINED_GLASS : Material.GRAY_STAINED_GLASS, "プレビュー: " + (on ? "オン" : "オフ"), on ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
-                text("オンにすると、木が部位ごとの色のガラスで見える (あなたにだけ)", NamedTextColor.GRAY),
+                text("オンにすると、選んだブロックのままの試し置きが見える (あなたにだけ)", NamedTextColor.GRAY),
                 text("シードを固定して、設定の変更が0.75秒後に反映される", NamedTextColor.GRAY),
                 text("重い設定のとき前の処理が終わっていなければ、その回は見送る", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
@@ -296,7 +336,7 @@ final class ProceduralMenu implements Listener {
         inventory.setItem(KIND, item(kind.icon(), "作るもの: " + kind.label(), NamedTextColor.GOLD, kindLore));
         if (kind.tree()) renderTreeChoices(inventory, settings);
         if (kind.web()) renderWebChoices(inventory, session, settings);
-        renderRest(inventory, session, settings);
+        renderRest(inventory, holder(inventory), session, settings);
     }
 
     static String webShapeLabel(String shape) {
@@ -333,19 +373,29 @@ final class ProceduralMenu implements Listener {
 
     private void renderTreeChoices(Inventory inventory, TreeSettings settings) {
         inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + ProceduralModule.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
-                text("建築向け: 段のある幹、少数の太い枝、大きな葉のかたまり (標準)", NamedTextColor.GRAY),
+                text("フラクタル: 幹から枝が同じ規則で分かれ続け、枝先に小さな枝と葉の玉の塊 (標準。うねり・垂れ・葉のグラデーション)", NamedTextColor.GRAY),
+                text("建築向け: 段のある幹、少数の太い枝、大きな葉のかたまり", NamedTextColor.GRAY),
                 text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型)", NamedTextColor.GRAY),
                 text("針葉樹: 幹のまわりに輪になって枝が出る、円錐形 (pinegen 型)", NamedTextColor.GRAY),
                 text("空間コロニー化: 樹冠の中の目標点へ枝が伸びる (自然な不規則さ)", NamedTextColor.GRAY),
                 text("L-system: Honda 型の分岐規則の繰り返し (規則的な形)", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
+        if (settings.fractal()) {
+            inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: (フラクタルでは使わない)", NamedTextColor.DARK_GRAY, List.of(
+                    text("フラクタルの形は、枝・葉のページの数字で決まる", NamedTextColor.GRAY))));
+            return;
+        }
         inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: " + ProceduralModule.crownLabel(settings.crown()), NamedTextColor.AQUA, List.of(
                 text("枝の長さの分布・枝が埋める空間の形 (L-system 以外)", NamedTextColor.GRAY),
                 text("楕円体 / 円錐 / 傘 (高いところの枝が長い) / 円柱", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
     }
 
-    private void renderRest(Inventory inventory, TreeSession session, TreeSettings settings) {
+    private static Holder holder(Inventory inventory) {
+        return (Holder) inventory.getHolder();
+    }
+
+    private void renderRest(Inventory inventory, Holder holder, TreeSession session, TreeSettings settings) {
         inventory.setItem(SEED, item(Material.WHEAT_SEEDS, "シード: " + (settings.seed() == 0L ? "毎回ランダム" : Long.toString(settings.seed())) + (session.preview ? " (プレビュー中は固定)" : ""), NamedTextColor.AQUA, List.of(
                 text("同じシードと設定なら、同じ木ができる", NamedTextColor.GRAY),
                 text("左クリック: 新しい番号に固定", NamedTextColor.YELLOW),
@@ -361,19 +411,96 @@ final class ProceduralMenu implements Listener {
         inventory.setItem(RESET, item(Material.TNT, "設定を初期値に戻す", NamedTextColor.RED, List.of(
                 text("数字・アルゴリズム・樹冠・シードを初期値にする", NamedTextColor.GRAY),
                 text("(保存は、誤クリックを防ぐため画面からはできません: /treetool save <名前>)", NamedTextColor.DARK_GRAY))));
-        List<TreePart> parts = settings.kind().parts();
+        List<TreePart> parts = legendParts(settings);
         for (int index = 0; index < parts.size() && index < LEGEND_SLOTS.length; index++) {
-            inventory.setItem(LEGEND_SLOTS[index], item(tool.material(parts.get(index)), parts.get(index).label(), NamedTextColor.WHITE, List.of(
-                    text("このウールで作る (あとで手動で本物のブロックに変える)", NamedTextColor.GRAY),
-                    text("プレビューでは、同じ色のガラス", NamedTextColor.GRAY))));
+            TreePart part = parts.get(index);
+            Material block = tool.material(part, settings);
+            List<Component> lore = new ArrayList<>();
+            if (part == TreePart.LEAF) {
+                List<String> gradient = settings.leafGradient();
+                if (gradient.isEmpty()) {
+                    lore.add(text("ブロック: " + block.getKey().getKey() + (settings.block(part) == null ? " (初期値)" : ""), NamedTextColor.WHITE));
+                } else {
+                    lore.add(text("葉のグラデーション (下 → 上):", NamedTextColor.WHITE));
+                    for (int shade = 0; shade < gradient.size(); shade++) lore.add(text("  " + (shade + 1) + ". " + gradient.get(shade).toLowerCase(Locale.ROOT), NamedTextColor.WHITE));
+                }
+                lore.add(text("左クリック: 葉のページで、ブロックとグラデーションを選ぶ", NamedTextColor.YELLOW));
+                lore.add(text("右クリック: グラデーションを消して、初期値に戻す", NamedTextColor.YELLOW));
+            } else {
+                lore.add(text("ブロック: " + block.getKey().getKey() + (settings.block(part) == null ? " (初期値)" : ""), NamedTextColor.WHITE));
+                lore.add(text("左クリックのあと、自分のインベントリのブロックをクリックで選ぶ", NamedTextColor.YELLOW));
+                lore.add(text("右クリック: 初期値に戻す (/proceduraltool block " + part.key() + " <ブロック名> でも選べる)", NamedTextColor.YELLOW));
+            }
+            boolean waiting = ("part:" + part.name()).equals(holder.picking);
+            if (waiting) lore.add(0, text("▶ インベントリのブロックをクリックしてください", NamedTextColor.GOLD));
+            inventory.setItem(LEGEND_SLOTS[index], glint(item(icon(block), part.label() + ": " + block.getKey().getKey(), waiting ? NamedTextColor.GOLD : NamedTextColor.WHITE, lore), waiting));
         }
+    }
+
+    /** The parts shown with their blocks on the basic page (a fractal tree has no roots). */
+    private static List<TreePart> legendParts(TreeSettings settings) {
+        List<TreePart> parts = new ArrayList<>(settings.kind().parts());
+        if (settings.fractal()) parts.remove(TreePart.ROOT);
+        return parts;
+    }
+
+    /** The leaf gradient on the leaf page: a slot a shade (bottom to top), one more to add a shade, and a help item. */
+    private void renderShades(Inventory inventory, Holder holder, TreeSettings settings) {
+        List<String> gradient = settings.leafGradient();
+        for (int index = 0; index < SHADE_SLOTS.length; index++) {
+            boolean waiting = ("shade:" + index).equals(holder.picking);
+            if (index < gradient.size()) {
+                Material block = Material.matchMaterial(gradient.get(index));
+                if (block == null) block = Material.BARRIER;
+                List<Component> lore = new ArrayList<>();
+                if (waiting) lore.add(text("▶ インベントリのブロックをクリックしてください", NamedTextColor.GOLD));
+                lore.add(text(index == 0 ? "葉の塊の一番下" : index == gradient.size() - 1 ? "葉の塊の一番上" : "下から " + (index + 1) + " 段目", NamedTextColor.GRAY));
+                lore.add(text("左クリックのあと、インベントリのブロックをクリック: 選び直す", NamedTextColor.YELLOW));
+                lore.add(text("右クリック: この段を消す", NamedTextColor.YELLOW));
+                inventory.setItem(SHADE_SLOTS[index], glint(item(icon(block), "葉 " + (index + 1) + "段目: " + block.getKey().getKey(), waiting ? NamedTextColor.GOLD : NamedTextColor.GREEN, lore), waiting));
+            } else if (index == gradient.size()) {
+                List<Component> lore = new ArrayList<>();
+                if (waiting) lore.add(text("▶ インベントリのブロックをクリックしてください", NamedTextColor.GOLD));
+                lore.add(text("左クリックのあと、インベントリのブロックをクリックで、上に1段足す", NamedTextColor.YELLOW));
+                lore.add(text("(手に持てないブロックは /proceduraltool block leaf <ブロック名,...>)", NamedTextColor.DARK_GRAY));
+                inventory.setItem(SHADE_SLOTS[index], glint(item(Material.LIME_STAINED_GLASS_PANE, "＋ 葉の段を足す", waiting ? NamedTextColor.GOLD : NamedTextColor.GREEN, lore), waiting));
+            }
+        }
+        Material leaf = tool.material(TreePart.LEAF, settings);
+        inventory.setItem(SHADE_HELP, item(Material.FLOWERING_AZALEA_LEAVES, "葉のグラデーション", NamedTextColor.GOLD, List.of(
+                text("葉の玉の中の高さで、下の段から上の段へブロックが変わる", NamedTextColor.GRAY),
+                text("例: 下 = ツツジの葉、上 = 花の咲いたツツジの葉 / シダ / 草", NamedTextColor.GRAY),
+                text(gradient.isEmpty() ? "いまは1種類: " + leaf.getKey().getKey() : "いま " + gradient.size() + " 段", NamedTextColor.WHITE),
+                text("左の段の並びが、下 → 上", NamedTextColor.GRAY))));
+    }
+
+    /** The item that shows a block in the menu: the block itself, or something near it for a block that is no item (a potted plant shows the pot). */
+    private static Material icon(Material block) {
+        if (block.isItem() && !block.isAir()) return block;
+        if (block.name().startsWith("POTTED_")) return Material.FLOWER_POT;
+        return Material.PAPER;
+    }
+
+    private static ItemStack glint(ItemStack item, boolean on) {
+        if (!on) return item;
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) return item;
+        meta.addEnchant(org.bukkit.enchantments.Enchantment.LUCK, 1, true);
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        item.setItemMeta(meta);
+        return item;
     }
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
         if (!(event.getView().getTopInventory().getHolder() instanceof Holder holder)) return;
         event.setCancelled(true);
-        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != holder.inventory) return;
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getClickedInventory() != null && event.getClickedInventory() != holder.inventory) {
+            if (holder.picking != null) pick(player, holder, event.getCurrentItem());
+            return;
+        }
+        if (event.getClickedInventory() != holder.inventory) return;
         TreeSession session = tool.session(player);
         TreeSettings settings = session.settings;
         int slot = event.getSlot();
@@ -382,6 +509,10 @@ final class ProceduralMenu implements Listener {
         boolean right = click == ClickType.RIGHT || click == ClickType.SHIFT_RIGHT;
         boolean big = click == ClickType.SHIFT_LEFT || click == ClickType.SHIFT_RIGHT;
         if (!left && !right) return;
+        // a click anywhere else in the menu stops waiting for a block
+        String waited = holder.picking;
+        holder.picking = null;
+        if (blockClick(player, holder, settings, slot, left, waited)) return;
 
         for (Page tab : Page.values()) {
             if (tab.shownFor(settings.kind()) && tab.tab == slot) {
@@ -390,7 +521,7 @@ final class ProceduralMenu implements Listener {
                 return;
             }
         }
-        TreeSettings.Key[] pageKeys = holder.page.keysFor(settings.kind());
+        TreeSettings.Key[] pageKeys = holder.page.keysFor(settings);
         for (int index = 0; index < pageKeys.length; index++) {
             if (GRID[index] != slot) continue;
             TreeSettings.Key key = pageKeys[index];
@@ -438,6 +569,75 @@ final class ProceduralMenu implements Listener {
         render(player, holder);
     }
 
+    /**
+     * A click on a block slot (the parts on the basic page, the leaf gradient on the leaf page); false when it was none. A left click waits for a block from the
+     * player's inventory (a second left click stops waiting); a right click goes back to the default (a part) or takes the shade away.
+     */
+    private boolean blockClick(Player player, Holder holder, TreeSettings settings, int slot, boolean left, String waited) {
+        String target = null;
+        if (holder.page == Page.BASIC) {
+            List<TreePart> parts = legendParts(settings);
+            for (int index = 0; index < parts.size() && index < LEGEND_SLOTS.length; index++) {
+                if (LEGEND_SLOTS[index] != slot) continue;
+                TreePart part = parts.get(index);
+                if (part == TreePart.LEAF && settings.kind().tree()) {
+                    if (left) {
+                        holder.page = Page.LEAF;
+                    } else {
+                        settings.setLeafGradient(List.of());
+                        settings.setBlock(TreePart.LEAF, null);
+                        tool.changed(player);
+                    }
+                    render(player, holder);
+                    return true;
+                }
+                target = "part:" + part.name();
+                if (!left) {
+                    settings.setBlock(part, null);
+                    tool.changed(player);
+                }
+            }
+        } else if (holder.page == Page.LEAF) {
+            int shades = settings.leafGradient().size();
+            for (int index = 0; index < SHADE_SLOTS.length; index++) {
+                if (SHADE_SLOTS[index] != slot || index > shades) continue;
+                target = "shade:" + index;
+                if (!left && index < shades) {
+                    settings.removeLeafShade(index);
+                    tool.changed(player);
+                }
+            }
+        }
+        if (target == null) return false;
+        if (left && !target.equals(waited)) {
+            holder.picking = target;
+            player.sendMessage(ProceduralModule.PREFIX + "インベントリ (画面の下) のブロックをクリックすると、それに決まります。");
+        }
+        render(player, holder);
+        return true;
+    }
+
+    /** The player clicked an item of their own inventory while a block slot waits: its block goes there. */
+    private void pick(Player player, Holder holder, ItemStack item) {
+        if (item == null || item.getType().isAir()) return;
+        Material type = item.getType();
+        if (!type.isBlock()) {
+            player.sendMessage(ProceduralModule.PREFIX + type.getKey().getKey() + " は置けるブロックではありません。");
+            return;
+        }
+        TreeSettings settings = tool.session(player).settings;
+        String target = holder.picking;
+        holder.picking = null;
+        if (target.startsWith("part:")) {
+            settings.setBlock(TreePart.valueOf(target.substring(5)), type.name());
+        } else if (target.startsWith("shade:")) {
+            settings.setLeafShade(Integer.parseInt(target.substring(6)), type.name());
+        }
+        player.sendMessage(ProceduralModule.PREFIX + "ブロックを選びました: " + type.getKey().getKey());
+        tool.changed(player);
+        render(player, holder);
+    }
+
     /** A click on a button of the basic page; false when it was none. */
     private boolean basicClick(Player player, TreeSession session, TreeSettings settings, int slot, boolean left) {
         switch (slot) {
@@ -464,7 +664,7 @@ final class ProceduralMenu implements Listener {
                     }
                     tool.markPoints(player, session);
                 } else {
-                    if (!settings.kind().tree()) return false;
+                    if (!settings.kind().tree() || settings.fractal()) return false;
                     settings.cycleCrown();
                 }
             }

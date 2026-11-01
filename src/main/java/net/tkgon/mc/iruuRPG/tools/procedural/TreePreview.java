@@ -2,9 +2,9 @@ package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -16,8 +16,9 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * The preview of the tree, which the player toggles: while it is on, the tree of the settings is shown to that player alone as stained glass of the colour of each part's
- * wool (block changes sent to that client; nothing in the world changes, nobody else sees it), and it follows the settings as they are edited.
+ * The preview of the tree, which the player toggles: while it is on, the tree of the settings is shown to that player alone in the blocks chosen for its parts (the
+ * leaf gradient too), as it would be put (block changes sent to that client; nothing in the world changes, nobody else sees it), and it follows the settings as they
+ * are edited.
  *
  * <p>It is light by construction: the seed is fixed while it is on (so an edit changes the tree and nothing else); a change only starts the work after the settings were
  * left alone for {@code treetool.preview-delay-ticks} (15 ticks, 0.75 s), and a further change before that restarts the wait; the tree is worked out off the main thread;
@@ -169,7 +170,7 @@ final class TreePreview {
             try {
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     session.computing = false;
-                    if (result != null && session.preview && job == session.job && player.isOnline()) show(player, session, base, result);
+                    if (result != null && session.preview && job == session.job && player.isOnline()) show(player, session, settings, base, result);
                 });
             } catch (RuntimeException exception) {
                 // the plugin is being disabled: nothing more to do
@@ -180,15 +181,7 @@ final class TreePreview {
 
     // ---- showing it ------------------------------------------------------------------------------------------------------------------------
 
-    /** The glass of a part: the stained glass of the colour of its wool (the configured block when that is a wool, else the part's own wool). */
-    private Material glass(TreePart part) {
-        Material configured = module.material(part);
-        String name = configured.name().endsWith("_WOOL") ? configured.name() : part.defaultMaterial().name();
-        Material glass = Material.matchMaterial(name.replace("_WOOL", "_STAINED_GLASS"));
-        return glass == null ? Material.WHITE_STAINED_GLASS : glass;
-    }
-
-    private void show(Player player, TreeSession session, Location base, Map<Long, TreePart> blocks) {
+    private void show(Player player, TreeSession session, TreeSettings settings, Location base, Map<Long, TreePart> blocks) {
         if (session.show != null) session.show.cancel();
         session.show = null;
         World world = base.getWorld();
@@ -199,9 +192,9 @@ final class TreePreview {
             player.sendMessage(ProceduralModule.PREFIX + "プレビューするにはブロックが多すぎます (" + blocks.size() + " > " + cap + ")。高さ・幅・葉の大きさを小さくしてください。");
             blocks = Map.of();
         }
-        Map<TreePart, Material> glasses = new HashMap<>();
-        for (TreePart part : TreePart.values()) glasses.put(part, glass(part));
-        Map<Long, Material> target = new HashMap<>();
+        Map<TreePart, BlockData> looks = new HashMap<>();
+        for (TreePart part : TreePart.values()) looks.put(part, module.blockData(part, settings));
+        Map<Long, BlockData> target = new HashMap<>();
         List<Long> adds = new ArrayList<>();
         for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
             int x = base.getBlockX() + TreeVoxelizer.unpackX(entry.getKey());
@@ -209,14 +202,14 @@ final class TreePreview {
             int z = base.getBlockZ() + TreeVoxelizer.unpackZ(entry.getKey());
             if (y < world.getMinHeight() || y >= world.getMaxHeight()) continue;
             long key = key(x, y, z);
-            target.put(key, glasses.get(entry.getValue()));
-            if (session.shown.get(key) != target.get(key)) adds.add(key);
+            target.put(key, looks.get(entry.getValue()));
+            if (!target.get(key).equals(session.shown.get(key))) adds.add(key);
         }
         List<Long> removes = new ArrayList<>();
         for (Long key : session.shown.keySet()) if (!target.containsKey(key)) removes.add(key);
         adds.sort((a, b) -> Integer.compare(keyY(a), keyY(b)));
         boolean replaceSolid = plugin.getConfig().getBoolean("treetool.replace-solid", false);
-        boolean webKind = session.settings.kind().web();
+        boolean webKind = settings.kind().web();
         int perTick = Math.max(200, plugin.getConfig().getInt("treetool.preview-blocks-per-tick", 3000));
         session.show = new BukkitRunnable() {
             private int removed;
@@ -233,7 +226,7 @@ final class TreePreview {
                 while (budget > 0 && removed < removes.size()) {
                     long key = removes.get(removed++);
                     session.shown.remove(key);
-                    send(player, world, key, null);
+                    send(player, world, key);
                     budget--;
                 }
                 while (budget > 0 && added < adds.size()) {
@@ -244,12 +237,12 @@ final class TreePreview {
                     if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
                     Block block = world.getBlockAt(x, keyY(key), z);
                     if (webKind ? !block.getType().isAir() : !ProceduralModule.replaceable(block, replaceSolid)) {
-                        if (session.shown.remove(key) != null) send(player, world, key, null);
+                        if (session.shown.remove(key) != null) send(player, world, key);
                         continue;
                     }
-                    Material glass = target.get(key);
-                    session.shown.put(key, glass);
-                    player.sendBlockChange(block.getLocation(), glass.createBlockData());
+                    BlockData look = target.get(key);
+                    session.shown.put(key, look);
+                    player.sendBlockChange(block.getLocation(), look);
                 }
                 if (removed >= removes.size() && added >= adds.size()) {
                     cancel();
@@ -259,20 +252,20 @@ final class TreePreview {
         }.runTaskTimer(plugin, 0L, 1L);
     }
 
-    /** Sends the block at {@code key} to the player: {@code glass} null sends the real block back. */
-    private static void send(Player player, World world, long key, Material glass) {
+    /** Sends the real block at {@code key} back to the player. */
+    private static void send(Player player, World world, long key) {
         int x = keyX(key);
         int z = keyZ(key);
         if (!world.isChunkLoaded(x >> 4, z >> 4)) return;
         Location at = new Location(world, x, keyY(key), z);
-        player.sendBlockChange(at, glass == null ? world.getBlockData(at) : glass.createBlockData());
+        player.sendBlockChange(at, world.getBlockData(at));
     }
 
     /** Sends the real blocks back to the player and forgets what was shown. */
     private void restore(Player player, TreeSession session) {
         World world = session.shownWorld;
         if (world != null && player.isOnline() && player.getWorld().equals(world)) {
-            for (Long key : session.shown.keySet()) send(player, world, key, null);
+            for (Long key : session.shown.keySet()) send(player, world, key);
         }
         session.shown.clear();
         session.shownWorld = null;

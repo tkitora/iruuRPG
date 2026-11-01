@@ -23,6 +23,7 @@ final class TreeGenerator {
         Random random = new Random(seed);
         if (settings.kind().web()) return WebGenerator.build(settings, web, random);
         if (!settings.kind().tree()) return ProceduralShapes.build(settings.kind(), settings, seed, random, ground, aim);
+        if (settings.fractal()) return FractalTree.build(settings, random);
         TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
         if (!"conifer".equals(settings.algorithm())) TrunkFork.apply(skeleton, settings, random);
         TreeShape.apply(skeleton, settings, random);

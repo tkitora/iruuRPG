@@ -1,5 +1,7 @@
 package net.tkgon.mc.iruuRPG.tools.procedural;
 
+import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -12,7 +14,7 @@ import java.util.Map;
  */
 final class TreeSettings {
 
-    public static final List<String> ALGORITHMS = List.of("builder", "conifer", "parametric", "colonization", "lsystem");
+    public static final List<String> ALGORITHMS = List.of("fractal", "builder", "conifer", "parametric", "colonization", "lsystem");
     public static final List<String> CROWNS = List.of("ellipsoid", "cone", "umbrella", "columnar");
 
     /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
@@ -58,7 +60,23 @@ final class TreeSettings {
         WEB_SPOKES("web-spokes", "放射糸の数", 4, 32, 1, 4, "円網・漏斗網の放射状の糸の数。条網では、並べて張る糸の本数"),
         WEB_SAG("web-sag", "たるみ", 0.0, 1.0, 0.05, 0.2, "糸が重みでたるむ度合い。皿網では皿の深さ"),
         WEB_IRREG("web-irregularity", "不規則さ", 0.0, 1.0, 0.05, 0.2, "糸の位置・角度のばらつき (不規則網ではつながり方も)"),
-        WEB_REACH("web-reach", "地形を探す距離", 1, 16, 1, 3, "点のまわりでこの距離までの壁・地面・天井を探して、糸を固定する (ブロック)");
+        WEB_REACH("web-reach", "地形を探す距離", 1, 16, 1, 3, "点のまわりでこの距離までの壁・地面・天井を探して、糸を固定する (ブロック)"),
+        // the fractal tree (FractalTree)
+        F_TRUNK_LENGTH("trunk-length", "幹の長さ", 2, 40, 1, 5, "最初の幹の長さ (ブロック)。木が高さ・幅 (最大) を超えるときは、全体を縮めて収める"),
+        F_LEVELS("fractal-levels", "枝分かれの段数", 1, 8, 1, 1, "幹の先から枝が分かれる回数。この段まで伸びた枝の先に葉ができる"),
+        F_BRANCHES("branches-each", "分岐数", 1, 6, 1, 1, "1つの分かれ目から出る枝の数"),
+        F_LENGTH_DECAY("length-decay", "長さの減衰", 0.3, 1.0, 0.02, 0.1, "子の枝の長さ = 親の長さ × この値 (先ほど短く)"),
+        F_RADIUS_DECAY("radius-decay", "太さの減衰", 0.3, 1.0, 0.02, 0.1, "子の枝の太さ = 親の太さ × この値 (先ほど細く。枝の中でも、根元から先へこの割合まで細る)"),
+        F_SPREAD("spread-deg", "広がりの角度", 5, 120, 5, 15, "子の枝が、親の向きから開く角度 (度)。子は親のまわりに均等に並ぶ"),
+        F_UP_BIAS("up-bias", "上向きの強さ", -1.0, 1.0, 0.05, 0.2, "分かれた枝の向きに足す、上向きの量 (負で下向き)"),
+        F_JITTER("jitter", "分岐のばらつき", 0.0, 1.0, 0.05, 0.2, "分かれる向き・角度・長さを、ノイズで揺らす量 (0 で規則正しい)"),
+        F_NOISE("noise-amp", "うねり", 0.0, 1.0, 0.05, 0.2, "1ブロック進むごとに、シンプレックスノイズで向きを曲げる強さ"),
+        F_NOISE_SCALE("noise-scale", "うねりの細かさ", 0.02, 0.6, 0.02, 0.1, "ノイズの細かさ (大きいほど、短い間隔で曲がる)"),
+        F_GRAVITY("gravity", "重力 (垂れ)", -0.3, 0.3, 0.01, 0.05, "1ブロックごとに、枝の向きから引く下向きの量 (伸びるほど垂れる。負で上へ反る。幹にはかからない)"),
+        F_FOLIAGE_LEVELS("foliage-levels", "葉の枝の段数", 0, 4, 1, 1, "葉の塊の中の小さな枝が、さらに分かれる段数 (0 = 枝先に葉の玉だけ)"),
+        F_FOLIAGE_BRANCHES("foliage-branches", "葉の枝の分岐数", 1, 6, 1, 1, "葉の塊の中の、1つの分かれ目から出る小さな枝の数"),
+        F_FOLIAGE_LENGTH("foliage-length", "葉の枝の長さ", 0.5, 8.0, 0.25, 1.0, "葉の塊の中の、最初の小さな枝の長さ (ブロック。段ごとに長さの減衰で短くなる)"),
+        F_FOLIAGE_SPREAD("foliage-spread", "葉の枝の広がり", 10, 150, 5, 15, "葉の塊の中の小さな枝が、親の向きから開く角度 (度)");
 
         private final String id;
         private final String label;
@@ -116,15 +134,20 @@ final class TreeSettings {
         }
     }
 
-    private final double[] values = {20, 12, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 5, 0.5, 0.25, 0.3, 6, 1.0, 0.5, 8, 12, 0.25, 0.3, 5};
+    private final double[] values = {20, 20, 1.2, 0.35, 1.0, 0.0, 2.0, 0.8, 4, 55, 12, 3, 0.35, 0.75, 0.8, 0.8, 0, 0.45, 28, 1.0, 1.0, 0.0, 0.0, 0.0, 3, 0.5, 3, 0.3, 1.2, 0.4, 5, 0.5, 0.25, 0.3, 6, 1.0, 0.5, 8, 12, 0.25, 0.3, 5,
+            7, 4, 3, 0.7, 0.62, 28, 0.35, 0.35, 0.25, 0.12, 0.04, 2, 3, 2.0, 60};
     private ProcKind kind = ProcKind.TREE;
     private String crystalType = "cluster";
     private String webShape = "orb";
-    private String algorithm = "builder";
+    private String algorithm = "fractal";
     private String crown = "ellipsoid";
     /** 0 = a new random tree each time. */
     private long seed;
     private String name = "tree";
+    /** The blocks chosen for the parts (the name of the material); a part not here takes the block of the config. */
+    private final Map<TreePart, String> blocks = new EnumMap<>(TreePart.class);
+    /** The leaf gradient, from the bottom of a clump to its top (the names of the materials); empty: the leaves are the one block of the config. */
+    private final List<String> leafGradient = new ArrayList<>();
 
     public TreeSettings copy() {
         TreeSettings copy = new TreeSettings();
@@ -136,7 +159,58 @@ final class TreeSettings {
         copy.crown = crown;
         copy.seed = seed;
         copy.name = name;
+        copy.blocks.putAll(blocks);
+        copy.leafGradient.addAll(leafGradient);
         return copy;
+    }
+
+    /** The block chosen for {@code part} (a material name), or null when the config decides. */
+    String block(TreePart part) {
+        return blocks.get(part);
+    }
+
+    /** Chooses the block of {@code part}; null (or a name that is not a block) goes back to the config's. */
+    void setBlock(TreePart part, String material) {
+        String name = blockName(material);
+        if (name == null) blocks.remove(part);
+        else blocks.put(part, name);
+    }
+
+    List<String> leafGradient() {
+        return List.copyOf(leafGradient);
+    }
+
+    /** How many shades the leaves have (1 when there is no gradient). */
+    int leafShades() {
+        return Math.max(1, leafGradient.size());
+    }
+
+    /** Sets shade {@code index} of the gradient (an index one past the end adds a shade); a name that is not a block is ignored. */
+    void setLeafShade(int index, String material) {
+        String name = blockName(material);
+        if (name == null || index < 0 || index > leafGradient.size() || index >= TreePart.SHADES) return;
+        if (index == leafGradient.size()) leafGradient.add(name);
+        else leafGradient.set(index, name);
+    }
+
+    void removeLeafShade(int index) {
+        if (index >= 0 && index < leafGradient.size()) leafGradient.remove(index);
+    }
+
+    /** Replaces the whole gradient (the names that are not blocks are left out; at most {@link TreePart#SHADES}). */
+    void setLeafGradient(List<String> materials) {
+        leafGradient.clear();
+        for (String material : materials) {
+            String name = blockName(material);
+            if (name != null && leafGradient.size() < TreePart.SHADES) leafGradient.add(name);
+        }
+    }
+
+    /** The material name of a block that can be placed (not air), or null. */
+    static String blockName(String material) {
+        if (material == null) return null;
+        org.bukkit.Material type = org.bukkit.Material.matchMaterial(material.trim());
+        return type == null || !type.isBlock() || type.isAir() ? null : type.name();
     }
 
     public double get(Key key) {
@@ -217,6 +291,11 @@ final class TreeSettings {
         setAlgorithm(ALGORITHMS.get((ALGORITHMS.indexOf(algorithm) + 1) % ALGORITHMS.size()));
     }
 
+    /** The tree is grown by the stack-based fractal ({@link FractalTree}), which has numbers of its own. */
+    boolean fractal() {
+        return kind.tree() && "fractal".equals(algorithm);
+    }
+
     public String crown() {
         return crown;
     }
@@ -262,6 +341,10 @@ final class TreeSettings {
         map.put("crown", crown);
         for (Key key : Key.values()) map.put(key.id, key.whole() ? (Object) getInt(key) : (Object) get(key));
         map.put("seed", seed);
+        Map<String, Object> chosen = new LinkedHashMap<>();
+        for (Map.Entry<TreePart, String> entry : blocks.entrySet()) chosen.put(entry.getKey().key(), entry.getValue());
+        map.put("blocks", chosen);
+        map.put("leaf-gradient", new ArrayList<>(leafGradient));
         return map;
     }
 
@@ -278,6 +361,20 @@ final class TreeSettings {
             if (map.get(key.id) instanceof Number number) settings.set(key, number.doubleValue());
         }
         if (map.get("seed") instanceof Number number) settings.setSeed(number.longValue());
+        Object chosen = map.get("blocks");
+        if (chosen instanceof org.bukkit.configuration.ConfigurationSection section) chosen = section.getValues(false);
+        if (chosen instanceof Map<?, ?> parts) {
+            for (Map.Entry<?, ?> entry : parts.entrySet()) {
+                for (TreePart part : TreePart.values()) {
+                    if (part.key().equals(String.valueOf(entry.getKey()))) settings.setBlock(part, String.valueOf(entry.getValue()));
+                }
+            }
+        }
+        if (map.get("leaf-gradient") instanceof List<?> list) {
+            List<String> names = new ArrayList<>();
+            for (Object entry : list) names.add(String.valueOf(entry));
+            settings.setLeafGradient(names);
+        }
         return settings;
     }
 }

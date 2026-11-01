@@ -15,7 +15,7 @@ import java.util.Locale;
 final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point");
+    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block");
 
     private final ProceduralModule tool;
 
@@ -91,6 +91,7 @@ final class ProceduralCommand implements TabExecutor {
                     }
                 }
             }
+            case "block" -> block(player, session.settings, args);
             case "list" -> {
                 List<String> names = tool.store().list();
                 player.sendMessage(PREFIX + "保存した設定 (" + names.size() + "): " + (names.isEmpty() ? "なし" : String.join(", ", names)));
@@ -100,9 +101,57 @@ final class ProceduralCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/proceduraltool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>]");
         }
         return true;
+    }
+
+    /**
+     * {@code /proceduraltool block <part> <block|hand|reset>}: the block of a part; {@code block leaf <block,block,...>} the leaf gradient (bottom to top, one block is
+     * one leaf block). Names a hand cannot hold (a potted fern) can be given this way.
+     */
+    private void block(Player player, TreeSettings settings, String[] args) {
+        if (args.length < 3) {
+            StringBuilder text = new StringBuilder(PREFIX + "/proceduraltool block <部位> <ブロック名|hand|reset>  (leaf はカンマ区切りで、葉のグラデーション: 下,…,上)  部位: ");
+            for (TreePart part : settings.kind().parts()) {
+                text.append(part.key()).append('=').append(tool.material(part, settings).getKey().getKey()).append(' ');
+            }
+            player.sendMessage(text.toString().trim());
+            return;
+        }
+        TreePart part = null;
+        for (TreePart candidate : TreePart.values()) if (candidate.shade() <= 0 && candidate.key().equalsIgnoreCase(args[1])) part = candidate;
+        if (part == null) {
+            player.sendMessage(PREFIX + "そんな部位はありません: " + args[1]);
+            return;
+        }
+        String value = args[2];
+        if (value.equalsIgnoreCase("hand")) value = player.getInventory().getItemInMainHand().getType().name();
+        if (value.equalsIgnoreCase("reset")) {
+            settings.setBlock(part, null);
+            if (part == TreePart.LEAF) settings.setLeafGradient(List.of());
+        } else if (part == TreePart.LEAF && value.contains(",")) {
+            List<String> names = new ArrayList<>();
+            for (String name : value.split(",")) {
+                if (TreeSettings.blockName(name) == null) {
+                    player.sendMessage(PREFIX + "置けるブロックではありません: " + name);
+                    return;
+                }
+                names.add(name);
+            }
+            settings.setLeafGradient(names);
+        } else {
+            if (TreeSettings.blockName(value) == null) {
+                player.sendMessage(PREFIX + "置けるブロックではありません: " + value);
+                return;
+            }
+            settings.setBlock(part, value);
+            if (part == TreePart.LEAF) settings.setLeafGradient(List.of());
+        }
+        tool.changed(player);
+        player.sendMessage(PREFIX + part.label() + ": " + (part == TreePart.LEAF && !settings.leafGradient().isEmpty()
+                ? String.join(" → ", settings.leafGradient()).toLowerCase(Locale.ROOT) + " (下 → 上)"
+                : tool.material(part, settings).getKey().getKey()));
     }
 
     private void info(Player player, TreeSettings settings) {
@@ -209,6 +258,19 @@ final class ProceduralCommand implements TabExecutor {
             options.addAll(List.of("list", "clear", "undo", "shape"));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("point") && args[1].equalsIgnoreCase("shape")) {
             options.addAll(TreeSettings.WEB_SHAPES);
+        } else if (args.length == 2 && args[0].equalsIgnoreCase("block")) {
+            for (TreePart part : TreePart.values()) if (part.shade() <= 0) options.add(part.key());
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("block")) {
+            options.addAll(List.of("hand", "reset"));
+            String typed = args[2].toUpperCase(Locale.ROOT);
+            String head = typed.contains(",") ? typed.substring(0, typed.lastIndexOf(',') + 1) : "";
+            String tail = typed.substring(head.length());
+            int found = 0;
+            for (org.bukkit.Material material : org.bukkit.Material.values()) {
+                if (found >= 40 || material.isLegacy() || !material.isBlock() || material.isAir() || !material.name().startsWith(tail)) continue;
+                options.add((head + material.name()).toLowerCase(Locale.ROOT));
+                found++;
+            }
         } else if (args.length == 2 && args[0].equalsIgnoreCase("kind")) {
             for (ProcKind kind : ProcKind.values()) options.add(kind.name().toLowerCase(Locale.ROOT));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {

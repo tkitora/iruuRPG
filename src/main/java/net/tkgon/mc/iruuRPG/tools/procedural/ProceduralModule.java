@@ -36,10 +36,10 @@ import java.util.UUID;
 
 /**
  * The procedural tree tool (admins). {@code /proceduraltool} gives a placement tool (a sapling); clicking a block with it opens the settings menu ({@link ProceduralMenu}) for a tree
- * standing on that block. The menu can turn the preview on ({@link TreePreview}: the tree as stained glass, to that player alone, following the settings), and starts the
+ * standing on that block. The menu can turn the preview on ({@link TreePreview}: the tree in its blocks, to that player alone, following the settings), and starts the
  * generation: the skeleton of the tree is grown and turned into blocks off the main thread ({@link TreeGenerator}), and the blocks are put in the world through
  * FastAsyncWorldEdit in the player's own edit session ({@link TreeWorldEdit}), so {@code //undo} and {@code //redo} take the whole tree back and put it again. Every part of
- * the tree is a wool of its own colour ({@link TreePart}) to be changed into real blocks by hand. Only air and plants are replaced (not terrain), unless the config says
+ * the tree is the block chosen for it ({@link TreePart}: in the menu or by command, else the config's). Only air and plants are replaced (not terrain), unless the config says
  * otherwise. Like the brush this is a tool, not game logic: it lives in this package, has its own command, item and listeners, and the rest of the plugin only starts it.
  */
 public final class ProceduralModule implements Listener {
@@ -133,11 +133,35 @@ public final class ProceduralModule implements Listener {
 
     // ---- config ---------------------------------------------------------------------------------------------------------
 
-    /** The material of a part: {@code treetool.materials.<part>} of the config, else its wool. */
+    /** The block of a part when nothing is chosen in the settings: {@code treetool.materials.<part>} of the config, else the part's default. */
     Material material(TreePart part) {
-        String name = plugin.getConfig().getString("treetool.materials." + part.key(), part.defaultMaterial().name());
+        TreePart base = part.shade() > 0 ? TreePart.LEAF : part;
+        String name = plugin.getConfig().getString("treetool.materials." + base.key(), base.defaultMaterial().name());
         Material material = name == null ? null : Material.matchMaterial(name);
-        return material != null && material.isBlock() ? material : part.defaultMaterial();
+        return material != null && material.isBlock() && !material.isAir() ? material : base.defaultMaterial();
+    }
+
+    /**
+     * The block of a part for these settings: a shade of the leaf gradient when the leaves have one, else the block chosen for the part (menu or command), else
+     * the config's.
+     */
+    Material material(TreePart part, TreeSettings settings) {
+        int shade = part.shade();
+        List<String> gradient = settings.leafGradient();
+        if (shade >= 0 && !gradient.isEmpty()) {
+            Material material = Material.matchMaterial(gradient.get(Math.min(shade, gradient.size() - 1)));
+            if (material != null && material.isBlock()) return material;
+        }
+        String chosen = settings.block(shade > 0 ? TreePart.LEAF : part);
+        Material material = chosen == null ? null : Material.matchMaterial(chosen);
+        return material != null && material.isBlock() && !material.isAir() ? material : material(part);
+    }
+
+    /** The block data a part is put in the world (and shown in the preview) as: leaves are persistent, so a tree far from its logs does not decay. */
+    BlockData blockData(TreePart part, TreeSettings settings) {
+        BlockData data = material(part, settings).createBlockData();
+        if (data instanceof org.bukkit.block.data.type.Leaves leaves) leaves.setPersistent(true);
+        return data;
     }
 
     /** Keeps the settings inside the height and width the config allows. */
@@ -157,8 +181,8 @@ public final class ProceduralModule implements Listener {
         meta.lore(List.of(
                 text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く。クモの巣のときは、クリックした面の先に点を置く (Shift+クリックで最後の点を消す)", NamedTextColor.GRAY),
                 text("空中を右クリック: 前回の場所の設定画面を開く", NamedTextColor.GRAY),
-                text("設定画面の「生成」で、部位ごとのウールで木を作る", NamedTextColor.GRAY),
-                text("設定画面の「プレビュー」で、あなたにだけ見えるガラスの木を確かめられる", NamedTextColor.GRAY),
+                text("設定画面の「生成」で、部位ごとに選んだブロックで作る", NamedTextColor.GRAY),
+                text("設定画面の「プレビュー」で、あなたにだけ見える試し置きを確かめられる", NamedTextColor.GRAY),
                 text("作った木は //undo で戻せる", NamedTextColor.GRAY),
                 text("/proceduraltool off でこのツールを消す", NamedTextColor.DARK_GRAY)));
         meta.getPersistentDataContainer().set(toolKey, PersistentDataType.BYTE, (byte) 1);
@@ -391,7 +415,7 @@ public final class ProceduralModule implements Listener {
                 return;
             }
             Map<Long, TreePart> result = blocks;
-            Bukkit.getScheduler().runTask(plugin, () -> place(player, session, base, result, seed));
+            Bukkit.getScheduler().runTask(plugin, () -> place(player, session, settings, base, result, seed));
         });
     }
 
@@ -399,7 +423,7 @@ public final class ProceduralModule implements Listener {
      * Puts the blocks in the world. The blocks that can be replaced are found a few thousand a tick (reading the world is the part that must stay on the main thread), then
      * all of them go through one WorldEdit edit session of the player, so that one //undo takes the tree back. Without WorldEdit they are set directly, as they are found.
      */
-    private void place(Player player, TreeSession session, Location base, Map<Long, TreePart> blocks, long seed) {
+    private void place(Player player, TreeSession session, TreeSettings settings, Location base, Map<Long, TreePart> blocks, long seed) {
         int cap = plugin.getConfig().getInt("treetool.max-blocks", 60000);
         if (blocks.size() > cap) {
             session.busy = false;
@@ -415,13 +439,13 @@ public final class ProceduralModule implements Listener {
             return x != 0 ? x : Integer.compare(TreeVoxelizer.unpackZ(a), TreeVoxelizer.unpackZ(b));
         });
         Map<TreePart, BlockData> materials = new EnumMap<>(TreePart.class);
-        for (TreePart part : TreePart.values()) materials.put(part, material(part).createBlockData());
+        for (TreePart part : TreePart.values()) materials.put(part, blockData(part, settings));
         boolean replaceSolid = plugin.getConfig().getBoolean("treetool.replace-solid", false);
         int perTick = Math.max(200, plugin.getConfig().getInt("treetool.blocks-per-tick", 4000));
         List<TreeWorldEdit.Change> changes = new ArrayList<>();
         Map<TreePart, Integer> counts = new EnumMap<>(TreePart.class);
-        List<TreePart> kindParts = session.settings.kind().parts();
-        boolean webKind = session.settings.kind().web();
+        List<TreePart> kindParts = settings.kind().parts();
+        boolean webKind = settings.kind().web();
 
         new BukkitRunnable() {
             private int next;
@@ -441,7 +465,7 @@ public final class ProceduralModule implements Listener {
                         Block block = world.getBlockAt(x, y, z);
                         if (webKind ? !block.getType().isAir() : !replaceable(block, replaceSolid)) continue;
                         TreePart part = blocks.get(key);
-                        counts.merge(part, 1, Integer::sum);
+                        counts.merge(part.shade() > 0 ? TreePart.LEAF : part, 1, Integer::sum);
                         if (worldEdit) {
                             changes.add(new TreeWorldEdit.Change(x, y, z, materials.get(part)));
                         } else {
@@ -513,6 +537,7 @@ public final class ProceduralModule implements Listener {
     /** The word the tool is called by in messages, for the menu and the command. */
     static String algorithmLabel(String algorithm) {
         return switch (algorithm) {
+            case "fractal" -> "フラクタル (スタック型)";
             case "lsystem" -> "L-system (Honda 型)";
             case "colonization" -> "空間コロニー化";
             case "conifer" -> "針葉樹 (輪生)";
