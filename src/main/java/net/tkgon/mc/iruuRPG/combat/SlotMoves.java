@@ -1,0 +1,60 @@
+package net.tkgon.mc.iruuRPG.combat;
+
+import java.util.Map;
+
+/**
+ * The classes' moves of their skills ({@link SkillSlots}; the redesign of 2026-11-02), made class by class (a class not here still does what it
+ * did before, {@code SkillFallback}). A class's moves are made for its favorite weapon; with another weapon its skills follow the template:
+ * 小・中・大・util throw that weapon's skills 1 - 4 (until those are made too). Each cools down for its skill's time, not the heavy attack's.
+ */
+public final class SlotMoves {
+
+    /**
+     * The skills (heavy attacks 0 - 5 = skills 1 - 6 of t138) that 小・中・大・util throw with the class's favorite weapon. The mage (a ranged
+     * weapon): 小 the chain of lightning (skill 6), 中 the crystal (skill 4: the crystal spikes), 大 the black hole (skill 5: the shrinking
+     * sphere), util the re-activation (skill 1).
+     */
+    private static final Map<String, Own> OWN = Map.of(
+            "mage", new Own(AttackType.RANGE, new int[]{5, 3, 4, 0}));
+
+    /** A class's favorite kind of weapon, and the heavy attacks its 小・中・大・util throw with it. */
+    record Own(AttackType favorite, int[] heavies) {
+    }
+
+    private SlotMoves() {
+    }
+
+    /** Registers the moves of every class made so far. */
+    public static void register(SkillSlots slots, AttackService attackService) {
+        for (Map.Entry<String, Own> entry : OWN.entrySet()) {
+            for (SkillSlots.Slot slot : new SkillSlots.Slot[]{SkillSlots.Slot.SMALL, SkillSlots.Slot.MEDIUM, SkillSlots.Slot.LARGE, SkillSlots.Slot.UTIL}) {
+                Own own = entry.getValue();
+                slots.register(entry.getKey(), slot, (player, weapon) ->
+                        weapon != null && attackService.slotHeavy(player, weapon, heavyOf(own, slot, weapon.attackType())));
+            }
+        }
+    }
+
+    /** The heavy attack {@code slot} throws with a kind of weapon: the class's own with its favorite, else the template's (skills 1 - 4). */
+    static int heavyOf(Own own, SkillSlots.Slot slot, AttackType kind) {
+        return kind == own.favorite() ? own.heavies()[slot.ordinal()] : slot.ordinal();
+    }
+
+    /** The skills (1 - 6 of t138) that 小・中・大・util of a class throw with its favorite weapon (the pictures of their icons), or null as {@link #skillNumbers}. */
+    public static int[] favoriteSkillNumbers(String classId) {
+        Own own = classId == null ? null : OWN.get(classId);
+        return own == null ? null : skillNumbers(classId, own.favorite());
+    }
+
+    /**
+     * The skills (1 - 6 of t138) that 小・中・大・util of a class throw with a kind of weapon, or null when the class's moves are not made yet (its
+     * 小・中・大 throw skills 1 - 3 and util has nothing).
+     */
+    public static int[] skillNumbers(String classId, AttackType kind) {
+        Own own = classId == null ? null : OWN.get(classId);
+        if (own == null) return null;
+        int[] numbers = new int[4];
+        for (int index = 0; index < numbers.length; index++) numbers[index] = heavyOf(own, SkillSlots.Slot.values()[index], kind) + 1;
+        return numbers;
+    }
+}

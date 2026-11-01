@@ -754,6 +754,7 @@ public final class IruuRPG extends JavaPlugin {
         this.skillSlots = new net.tkgon.mc.iruuRPG.combat.SkillSlots(this, player -> profileManager.getOrCreate(player).classId(),
                 attackService::skillCooldownMultiplier);
         getServer().getPluginManager().registerEvents(skillSlots, this);
+        net.tkgon.mc.iruuRPG.combat.SlotMoves.register(skillSlots, attackService);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);
