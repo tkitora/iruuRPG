@@ -50,10 +50,10 @@ public final class SlotMoves {
         return kind == own.favorite() ? own.heavies()[slot.ordinal()] : slot.ordinal();
     }
 
-    /** The skills (1 - 6 of t138) that 小・中・大・util of a class throw with its favorite weapon (the pictures of their icons), or null as {@link #skillNumbers}. */
-    public static int[] favoriteSkillNumbers(String classId) {
+    /** The favorite kind of weapon of a class whose moves are made (its skills are made for it), else null. */
+    public static AttackType favorite(String classId) {
         Own own = classId == null ? null : OWN.get(classId);
-        return own == null ? null : skillNumbers(classId, own.favorite());
+        return own == null ? null : own.favorite();
     }
 
     /**

@@ -110,8 +110,13 @@ class SkillSlotsTest {
         assertArrayEquals(new long[]{0L, 0L}, slots.cooldown(player, SkillSlots.Slot.SMALL, null));
         // a cooldown runs out
         UUID other = UUID.randomUUID();
-        slots.start(other, SkillSlots.Slot.SMALL, 7000L, 1000L);
-        assertArrayEquals(new long[]{2000L, 7000L}, slots.cooldown(other, SkillSlots.Slot.SMALL, 6000L));
-        assertArrayEquals(new long[]{0L, 0L}, slots.cooldown(other, SkillSlots.Slot.SMALL, 8000L));
+        SkillSlots.Kept sword = new SkillSlots.Kept(AttackType.MELEE, SkillSlots.Slot.SMALL);
+        slots.start(other, sword, 7000L, 1000L);
+        assertArrayEquals(new long[]{2000L, 7000L}, slots.cooldown(other, sword, 6000L));
+        assertArrayEquals(new long[]{0L, 0L}, slots.cooldown(other, sword, 8000L));
+        // each kind of weapon has its own: 小 of the sword cooling down leaves 小 of the bow ready
+        slots.start(other, sword, 7000L, 10_000L);
+        assertArrayEquals(new long[]{0L, 0L}, slots.cooldown(other, new SkillSlots.Kept(AttackType.RANGE, SkillSlots.Slot.SMALL), 11_000L));
+        assertEquals(AttackType.MELEE, SkillSlots.kindOf(null));
     }
 }

@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.combat;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /** The classes' moves of their skills (the redesign of 2026-11-02): which skills of t138 they throw. */
@@ -12,7 +13,7 @@ class SlotMovesTest {
     void theMageThrowsItsOwnWithARangedWeaponAndTheTemplateWithAnother() {
         // 小 the chain of lightning (6), 中 the crystal (4), 大 the black hole (5), util the re-activation (1)
         assertArrayEquals(new int[]{6, 4, 5, 1}, SlotMoves.skillNumbers("mage", AttackType.RANGE));
-        assertArrayEquals(new int[]{6, 4, 5, 1}, SlotMoves.favoriteSkillNumbers("mage"));
+        assertEquals(AttackType.RANGE, SlotMoves.favorite("mage"));
         // another weapon: skills 1 - 4
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("mage", AttackType.MELEE));
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("mage", AttackType.DEPLOY));
@@ -27,6 +28,6 @@ class SlotMovesTest {
         assertArrayEquals(new int[]{4, 1, 3, 6}, SlotMoves.skillNumbers("assassin", AttackType.MELEE));
         // a class with no moves (no class)
         assertNull(SlotMoves.skillNumbers("nobody", AttackType.MELEE));
-        assertNull(SlotMoves.favoriteSkillNumbers(null));
+        assertNull(SlotMoves.favorite(null));
     }
 }
