@@ -23,7 +23,8 @@ import java.util.function.ToDoubleFunction;
  * The five skills of a class (the user's redesign of 2026-11-02, which replaces the skills 1 - 6, the special and the 8 patterns of two keys of
  * t138): 小 (Q → the weapon's normal button), 中 (Q → its other button), 大 (Q → Q), util (F) and ULT (shift + F); the keys are read by
  * {@link SkillInput}. Each skill cools down on its own, for {@code combat.skill-slots.cooldown-seconds} (the class's own, else the
- * {@code default}; times the class skills' cooldown multiplier of the player).
+ * {@code default}; times the class skills' cooldown multiplier of the player), and apart for each kind of weapon (melee, ranged, deployed: the
+ * user's wish of 2026-11-02, so 小 of the sword and 小 of the bow cool down each on their own).
  *
  * <p>A class's move of a skill is registered ({@link #register}). A skill whose move is not made yet does what it did before ({@link Fallback}:
  * 小・中・大 the weapon's skills 1 - 3 with their own cooldowns, ULT the class's special with the ULT's cooldown, util nothing).
@@ -98,7 +99,18 @@ public final class SkillSlots implements Listener {
     private final Function<Player, String> classOf;
     private final ToDoubleFunction<Player> cooldownMultiplier;
     private final Map<String, Map<Slot, Move>> moves = new HashMap<>();
-    private final Map<UUID, Map<Slot, long[]>> cooldowns = new ConcurrentHashMap<>();
+    /** {when it is ready, the whole cooldown} of each skill of each kind of weapon, per player. */
+    private final Map<UUID, Map<Kept, long[]>> cooldowns = new ConcurrentHashMap<>();
+
+    /** What a cooldown is kept for: a skill with a kind of weapon. */
+    record Kept(AttackType kind, Slot slot) {
+    }
+
+    /** The kind of weapon a cooldown is kept for: melee, ranged or deployed (anything else as melee). */
+    static AttackType kindOf(RpgItemDefinition weapon) {
+        AttackType type = weapon == null ? null : weapon.attackType();
+        return type == AttackType.RANGE || type == AttackType.DEPLOY ? type : AttackType.MELEE;
+    }
     private Fallback fallback = NONE;
 
     /** {@code classOf}: the class of a player (its id); {@code cooldownMultiplier}: what the player's cooldowns are multiplied by. */
@@ -133,34 +145,35 @@ public final class SkillSlots implements Listener {
             if (!fallback.use(player, slot, weapon)) player.sendMessage("[iruuRPG] " + slot.label() + " のスキルは、まだありません。");
             return;
         }
-        if (left(player.getUniqueId(), slot, System.currentTimeMillis()) > 0L) {
+        Kept kept = new Kept(kindOf(weapon), slot);
+        if (left(player.getUniqueId(), kept, System.currentTimeMillis()) > 0L) {
             coolingClick(player);
             return;
         }
-        if (move.use(player, weapon)) start(player.getUniqueId(), slot, Math.round(cooldownMillis(player, slot)), System.currentTimeMillis());
+        if (move.use(player, weapon)) start(player.getUniqueId(), kept, Math.round(cooldownMillis(player, slot)), System.currentTimeMillis());
     }
 
-    /** {milliseconds left, the whole cooldown} of {@code slot} ({0, 0}: ready), or null when the player has nothing on it. */
+    /** {milliseconds left, the whole cooldown} of {@code slot} with the kind of {@code weapon} ({0, 0}: ready), or null when the player has nothing on it. */
     public long[] cooldown(Player player, Slot slot, RpgItemDefinition weapon) {
         if (move(classOf.apply(player), slot) == null) return fallback.cooldown(player, slot, weapon);
-        return cooldown(player.getUniqueId(), slot, System.currentTimeMillis());
+        return cooldown(player.getUniqueId(), new Kept(kindOf(weapon), slot), System.currentTimeMillis());
     }
 
-    long[] cooldown(UUID id, Slot slot, long now) {
-        long left = left(id, slot, now);
+    long[] cooldown(UUID id, Kept kept, long now) {
+        long left = left(id, kept, now);
         if (left <= 0L) return new long[]{0L, 0L};
-        long[] state = cooldowns.get(id).get(slot);
+        long[] state = cooldowns.get(id).get(kept);
         return new long[]{left, Math.max(left, state[1])};
     }
 
-    private long left(UUID id, Slot slot, long now) {
-        Map<Slot, long[]> own = cooldowns.get(id);
-        long[] state = own == null ? null : own.get(slot);
+    private long left(UUID id, Kept kept, long now) {
+        Map<Kept, long[]> own = cooldowns.get(id);
+        long[] state = own == null ? null : own.get(kept);
         return state == null ? 0L : Math.max(0L, state[0] - now);
     }
 
-    void start(UUID id, Slot slot, long millis, long now) {
-        cooldowns.computeIfAbsent(id, ignored -> new ConcurrentHashMap<>()).put(slot, new long[]{now + millis, millis});
+    void start(UUID id, Kept kept, long millis, long now) {
+        cooldowns.computeIfAbsent(id, ignored -> new ConcurrentHashMap<>()).put(kept, new long[]{now + millis, millis});
     }
 
     private double cooldownMillis(Player player, Slot slot) {

@@ -21,7 +21,7 @@
 - 読むのは `combat/SkillInput`、出すのは `listener/CombatListener#skillClick`・`onSwapKey`・`onDropKey`。
 
 ## クールタイム
-`combat.skill-slots.cooldown-seconds` (秒)。`default` が全クラス、クラスの id (warrior / mage / healer / gifted / assassin) の下はそのクラスだけ。設定が無ければ設計書の値 (`SkillSlots.DESIGN`)。プレイヤーのスキルのクールタイム短縮 (`skillCooldownMultiplier`) も掛かる。
+`combat.skill-slots.cooldown-seconds` (秒)。小・中・大・util のクールタイムは、武器の種類 (近接・遠距離・設置) ごとに別 (剣の 小 が冷えている間も、弓の 小 は使える。ULT は武器に関係なく 1 つ)。`default` が全クラス、クラスの id (warrior / mage / healer / gifted / assassin) の下はそのクラスだけ。設定が無ければ設計書の値 (`SkillSlots.DESIGN`)。プレイヤーのスキルのクールタイム短縮 (`skillCooldownMultiplier`) も掛かる。
 
 | | 小 | 中 | 大 | util | ULT |
 |---|---|---|---|---|---|
@@ -55,7 +55,11 @@
 武器を持っていてゲージが出ているとき、ゲージの上に 小・中・大・util・ULT のアイコン、半分あけてアイテムスキルのアイコン。上にキーの表示 (持っている武器での左右)。Q が待っている間は、小・中・大 のキーが黄色、ほかは灰色。
 
 絵 (16×16、`src/main/resources/hud/`、テクスチャ担当の名前):
-- `small_<class>.png`・`medium_<class>.png`・`large_<class>.png`・`util_<class>.png`・`ultimate_<class>.png` (`<class>` は warrior / assassin / mage / gifted / healer / generic)
+- 小・中・大・util のアイコンは、クラスと武器の種類ごとに別 (U+E400 + 16×クラス + 4×種類)。絵は、見つかった最初のもの:
+  1. `small_<class>_<kind>.png` (`medium_`・`large_`・`util_`。`<kind>` は melee / range / deploy)
+  2. 得意武器 (と、技の無い generic) なら `small_<class>.png` など
+  3. その武器で出すスキルの絵 `heavy_<class>_<n>.png` (得意でない武器はテンプレートのスキル1〜4)
+- `ultimate_<class>.png` (ULT。武器に関係なく 1 つ。`<class>` は warrior / assassin / mage / gifted / healer / generic)
 - `itemskill.png`・`itemskill_locked.png`・`lock.png`
-- 小・中・大 の絵が無いときは、スキル1〜3 の絵 (`heavy_<class>_<n>.png`)。util の絵が無いときは、仮の絵 (クラスの色に二重の矢印)。
+- どれも無いときは、仮の絵 (クラスの色に番号。util は二重の矢印)。
 - キーの表示は、プラグインが描く (Q→左・Q→右・Q→Q・F・Shift+F・左・右 の 7 枚)。

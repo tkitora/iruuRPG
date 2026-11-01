@@ -23,13 +23,15 @@ import java.util.Map;
  * stand above the line of text (their pictures are taller than the icon, which is at their top), so the row of icons is drawn over the status line
  * without moving it.
  *
- * <p>Code points: 小・中・大・util of class c ({@link #CLASSES}) are U+E101 - U+E104 + 16 c, its ULT (the special of t140) U+E107 + 16 c; the
- * weapon's skill U+E180 and its locked icon U+E181, the lock laid over a skill there is not yet U+E230; shade k (1 - 16 rows of 16 covered)
- * U+E200 + k; digit d U+E220 + d; the key labels ({@link #KEY_LABELS}) U+E240 on; the spaces U+E2F0 on. The pictures are the texture tree's
- * ({@code hud/small_<class>.png}, {@code medium_}, {@code large_}, {@code util_}, {@code ultimate_<class>.png}, {@code itemskill.png},
- * {@code itemskill_locked.png}, {@code lock.png}; 16 x 16) when there are some; 小・中・大 else take the pictures of the skills 1 - 3 of t138
- * ({@code hud/heavy_<class>_<n>.png}), which they throw until the class's own moves are made, and the rest placeholders (the class's color with
- * the number or a mark in white; the locked weapon skill's: its icon greyed under the lock). A key label is a picture of its own (7 of them, not
+ * <p>Code points: 小・中・大・util of class c ({@link #CLASSES}) with kind of weapon k ({@link #KINDS}: each kind has its own skills and icons, the
+ * user's wish of 2026-11-02) are U+E400 + 16 c + 4 k + 0 - 3; its ULT (the special of t140, one for every weapon) U+E107 + 16 c; the weapon's
+ * skill U+E180 and its locked icon U+E181, the lock laid over a skill there is not yet U+E230; shade k (1 - 16 rows of 16 covered) U+E200 + k;
+ * digit d U+E220 + d; the key labels ({@link #KEY_LABELS}) U+E240 on; the spaces U+E2F0 on. The pictures are the texture tree's (16 x 16) when
+ * there are some: {@code hud/small_<class>_<kind>.png} ({@code medium_}, {@code large_}, {@code util_}); else, for the class's favorite weapon
+ * (and for every kind of a class with no moves of its own), {@code hud/small_<class>.png} ...; else the picture of the skill of t138 it throws
+ * with that kind of weapon ({@code hud/heavy_<class>_<n>.png}, {@link net.tkgon.mc.iruuRPG.combat.SlotMoves}); else a placeholder (the
+ * class's color with the number or a mark in white). The ULT's is {@code hud/ultimate_<class>.png}, the weapon skill's {@code itemskill.png},
+ * {@code itemskill_locked.png} (else its icon greyed under the lock), the lock's {@code lock.png}. A key label is a picture of its own (7 of them, not
  * one per icon), drawn over the icon's place: the keys stand just above the icon, so they hide neither the icon nor its cooldown.
  */
 public final class HudGlyphs {
@@ -37,6 +39,10 @@ public final class HudGlyphs {
     public static final Key FONT = Key.key("iruurpg", "hud");
     /** The classes with icons of their own, in the order of their code points (generic: a weapon outside the class's combos). */
     public static final List<String> CLASSES = List.of("warrior", "assassin", "mage", "gifted", "healer", "generic");
+    /** The kinds of weapon whose skills have icons of their own, in the order of their code points (the names of their pictures). */
+    public static final List<String> KINDS = List.of("melee", "range", "deploy");
+    private static final net.tkgon.mc.iruuRPG.combat.AttackType[] KIND_TYPES = {
+            net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, net.tkgon.mc.iruuRPG.combat.AttackType.RANGE, net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY};
     /** The placeholder colors of the classes (the same order). */
     private static final int[] COLORS = {0xD9483B, 0x8E4FD1, 0x3F7BE0, 0x4CAF50, 0xE0B43F, 0x8A8A8A};
     /** How many icons of their own a class's skills have besides the ULT's: 小・中・大・util. */
@@ -78,9 +84,19 @@ public final class HudGlyphs {
         return index < 0 ? CLASSES.size() - 1 : index;
     }
 
-    /** Icon {@code number} (1 - 4: 小・中・大・util) of a class. */
+    /** The kind (0 melee, 1 ranged, 2 deployed) of a weapon's attack type; anything else is melee. */
+    public static int kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType type) {
+        return type == net.tkgon.mc.iruuRPG.combat.AttackType.RANGE ? 1 : type == net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY ? 2 : 0;
+    }
+
+    /** Icon {@code number} (1 - 4: 小・中・大・util) of a class with kind of weapon {@code kind} ({@link #KINDS}). */
+    public static char icon(String classId, int kind, int number) {
+        return (char) (0xE400 + 16 * classIndex(classId) + 4 * Math.max(0, Math.min(KINDS.size() - 1, kind)) + Math.max(1, Math.min(ICONS, number)) - 1);
+    }
+
+    /** Icon {@code number} of a class with a melee weapon. */
     public static char icon(String classId, int number) {
-        return (char) (0xE100 + 16 * classIndex(classId) + Math.max(1, Math.min(ICONS, number)));
+        return icon(classId, 0, number);
     }
 
     /** The icon of the ULT of a class (the special of t140). */
@@ -88,9 +104,9 @@ public final class HudGlyphs {
         return (char) (0xE107 + 16 * classIndex(classId));
     }
 
-    /** The icon of skill {@code index} of a class: 0 - 3 小・中・大・util, 4 the ULT. */
-    public static char skill(String classId, int index) {
-        return index >= ICONS ? special(classId) : icon(classId, index + 1);
+    /** The icon of skill {@code index} of a class with kind of weapon {@code kind}: 0 - 3 小・中・大・util, 4 the ULT (the same for every kind). */
+    public static char skill(String classId, int kind, int index) {
+        return index >= ICONS ? special(classId) : icon(classId, kind, index + 1);
     }
 
     /** The icon of the weapon's skill (t140). */
@@ -260,16 +276,22 @@ public final class HudGlyphs {
     }
 
     /**
-     * The icon of skill {@code number} (1 - 4: 小・中・大・util) of a class: the texture tree's picture ({@code hud/small_<class>.png} ...) when there
-     * is a 16 x 16 one; else the picture of the skill of t138 it throws with the class's favorite weapon ({@code hud/heavy_<class>_<n>.png},
-     * {@link net.tkgon.mc.iruuRPG.combat.SlotMoves}; skills 1 - 3 for 小・中・大 of a class whose moves are not made yet); else the placeholder.
+     * The icon of skill {@code number} (1 - 4: 小・中・大・util) of a class with kind of weapon {@code kind}: the texture tree's picture of that kind
+     * ({@code hud/small_<class>_<kind>.png} ...) when there is a 16 x 16 one; else, with the class's favorite weapon (or any weapon of a class with
+     * no moves of its own), the class's picture ({@code hud/small_<class>.png} ...); else the picture of the skill of t138 it throws with that kind
+     * ({@code hud/heavy_<class>_<n>.png}, {@link net.tkgon.mc.iruuRPG.combat.SlotMoves}: the template's skills 1 - 4 with another weapon); else the
+     * placeholder.
      */
-    static BufferedImage iconImage(int classIndex, int number) {
+    static BufferedImage iconImage(int classIndex, int kind, int number) {
         String classId = CLASSES.get(classIndex);
-        int[] own = net.tkgon.mc.iruuRPG.combat.SlotMoves.favoriteSkillNumbers(classId);
-        int old = own != null ? own[number - 1] : number <= 3 ? number : 0;
+        net.tkgon.mc.iruuRPG.combat.AttackType type = KIND_TYPES[kind];
+        int[] numbers = net.tkgon.mc.iruuRPG.combat.SlotMoves.skillNumbers(classId, type);
+        int old = numbers != null ? numbers[number - 1] : number <= 3 ? number : 0;
         BufferedImage fallback = old == 0 ? utilPlaceholder(classIndex) : resourceImage("heavy_" + classId + "_" + old, placeholder(classIndex, old));
-        return resourceImage(SKILL_NAMES[number - 1] + "_" + classId, fallback);
+        if (numbers == null || type == net.tkgon.mc.iruuRPG.combat.SlotMoves.favorite(classId)) {
+            fallback = resourceImage(SKILL_NAMES[number - 1] + "_" + classId, fallback);
+        }
+        return resourceImage(SKILL_NAMES[number - 1] + "_" + classId + "_" + KINDS.get(kind), fallback);
     }
 
     /** A placeholder of util: the rounded square in the class's color with a white double arrow (a dash). */
@@ -438,8 +460,11 @@ public final class HudGlyphs {
         JsonArray providers = new JsonArray();
         // (the names are the texture tree's: small_<class> ... ultimate_<class>, itemskill, itemskill_locked)
         for (int c = 0; c < CLASSES.size(); c++) {
-            for (int n = 1; n <= ICONS; n++) {
-                bitmap(providers, files, SKILL_NAMES[n - 1] + "_" + CLASSES.get(c), icon(CLASSES.get(c), n), picture(ICON, iconImage(c, n), 0));
+            for (int kind = 0; kind < KINDS.size(); kind++) {
+                for (int n = 1; n <= ICONS; n++) {
+                    bitmap(providers, files, SKILL_NAMES[n - 1] + "_" + CLASSES.get(c) + "_" + KINDS.get(kind), icon(CLASSES.get(c), kind, n),
+                            picture(ICON, iconImage(c, kind, n), 0));
+                }
             }
             bitmap(providers, files, "ultimate_" + CLASSES.get(c), special(CLASSES.get(c)), picture(ICON, resourceImage("ultimate_" + CLASSES.get(c), specialPlaceholder(c)), 0));
         }

@@ -23,9 +23,11 @@ class HudGlyphsTest {
 
     @Test
     void theCodePointsAreTheAgreedOnes() {
-        assertEquals('', HudGlyphs.icon("warrior", 1));
-        assertEquals('\uE134', HudGlyphs.icon("gifted", 4));
-        assertEquals('', HudGlyphs.icon("nobody", 3));
+        // 小・中・大・util of each class and kind of weapon: U+E400 + 16 class + 4 kind + 0 - 3
+        assertEquals('\uE400', HudGlyphs.icon("warrior", 1));
+        assertEquals('\uE400', HudGlyphs.icon("warrior", 0, 1));
+        assertEquals('\uE437', HudGlyphs.icon("gifted", 1, 4));
+        assertEquals('\uE45A', HudGlyphs.icon("nobody", 2, 3));
         assertEquals('', HudGlyphs.shade(16));
         assertEquals('', HudGlyphs.digit(7));
     }
@@ -38,17 +40,20 @@ class HudGlyphsTest {
         assertEquals('\uE244', HudGlyphs.keyLabel("sf"));
         assertEquals('\uE246', HudGlyphs.keyLabel("r"));
         // 小・中・大・util are icons 1 - 4 of each class's 16, the ULT is the special of t140 (its 7th); the weapon's skill and the lock on their own
-        assertEquals('\uE101', HudGlyphs.skill("warrior", 0));
-        assertEquals('\uE134', HudGlyphs.skill("gifted", 3));
-        assertEquals('\uE107', HudGlyphs.skill("warrior", 4));
+        assertEquals('\uE400', HudGlyphs.skill("warrior", 0, 0));
+        assertEquals('\uE404', HudGlyphs.skill("warrior", 1, 0));
+        assertEquals('\uE43B', HudGlyphs.skill("gifted", 2, 3));
+        // the ULT is one for every kind of weapon
+        assertEquals('\uE107', HudGlyphs.skill("warrior", 1, 4));
         assertEquals('\uE107', HudGlyphs.special("warrior"));
         assertEquals('\uE137', HudGlyphs.special("gifted"));
         assertEquals('\uE157', HudGlyphs.special("nobody"));
         assertEquals('\uE180', HudGlyphs.itemSkill());
         assertEquals('\uE181', HudGlyphs.itemSkillLocked());
         assertEquals('\uE230', HudGlyphs.lock());
-        assertTrue(HudGlyphs.icon("generic", 6) < HudGlyphs.special("generic"));
-        assertEquals(HudGlyphs.icon("generic", 4), HudGlyphs.icon("generic", 6), "a class has 4 icons besides the ULT's");
+        assertEquals(2, HudGlyphs.kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY));
+        assertEquals(0, HudGlyphs.kindIndex(net.tkgon.mc.iruuRPG.combat.AttackType.SPECIAL));
+        assertEquals(HudGlyphs.icon("generic", 2, 4), HudGlyphs.icon("generic", 2, 6), "a class has 4 icons a kind besides the ULT's");
         Map<String, byte[]> files = new HashMap<>();
         HudGlyphs.addTo(files);
         JsonObject font = JsonParser.parseString(new String(files.get("assets/iruurpg/font/hud.json"), StandardCharsets.UTF_8)).getAsJsonObject();
@@ -57,7 +62,7 @@ class HudGlyphsTest {
             JsonObject object = provider.getAsJsonObject();
             if (!object.get("type").getAsString().equals("bitmap")) continue;
             String file = object.get("file").getAsString();
-            if (file.endsWith("hud/small_mage.png")) iconAscent = object.get("ascent").getAsInt();
+            if (file.endsWith("hud/small_mage_range.png")) iconAscent = object.get("ascent").getAsInt();
             if (file.endsWith("key_qr.png")) {
                 keyAscent = object.get("ascent").getAsInt();
                 keyHeight = object.get("height").getAsInt();
@@ -114,8 +119,8 @@ class HudGlyphsTest {
                 new HudGlyphs.Icon(HudGlyphs.itemSkill(), 0.0, 0, HudGlyphs.keyLabel("r"), 0xFFFFFF, true));
         assertEquals(0, advance(spaces, HudGlyphs.row(labelled, extras)));
         assertEquals(0, advance(spaces, HudGlyphs.row(List.of(), extras)));
-        // 24 icons (6 classes x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, 16 shades, 10 digits, 7 key labels
-        assertEquals(66, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // 72 icons (6 classes x 3 kinds of weapon x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, 16 shades, 10 digits, 7 key labels
+        assertEquals(114, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
     }
 
     @Test

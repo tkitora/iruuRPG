@@ -190,7 +190,9 @@ public final class PlayerHud {
         java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();
         for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
             boolean afterQ = slot.ordinal() <= SkillSlots.Slot.LARGE.ordinal();
-            icons.add(icon(HudGlyphs.skill(profile.classId(), slot.ordinal()), skillSlots.cooldown(player, slot, weapon), keyGlyph(slot, melee), keyColor(player, afterQ)));
+            // (each kind of weapon has its own icons and cooldowns of 小・中・大・util)
+            icons.add(icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), skillSlots.cooldown(player, slot, weapon),
+                    keyGlyph(slot, melee), keyColor(player, afterQ)));
         }
         HudGlyphs.Icon item;
         if (itemSkills != null && itemSkills.hasKeySkill(weapon)) {
