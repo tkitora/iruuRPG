@@ -23,8 +23,10 @@ class SlotMovesTest {
         assertArrayEquals(new int[]{4, 3, 1, 5}, SlotMoves.skillNumbers("warrior", AttackType.MELEE));
         // the cleric: 小 the shield bash (2), 中 the pillar of light (4), 大 the spinning prayer (3), util the sanctuary (1)
         assertArrayEquals(new int[]{2, 4, 3, 1}, SlotMoves.skillNumbers("healer", AttackType.MELEE));
-        // a class whose moves are not made yet
-        assertNull(SlotMoves.skillNumbers("assassin", AttackType.MELEE));
+        // the assassin: 小 the crossing clones (4), 中 the decoy (1), 大 the blade storm (3), util the shadow run (6)
+        assertArrayEquals(new int[]{4, 1, 3, 6}, SlotMoves.skillNumbers("assassin", AttackType.MELEE));
+        // a class with no moves (no class)
+        assertNull(SlotMoves.skillNumbers("nobody", AttackType.MELEE));
         assertNull(SlotMoves.favoriteSkillNumbers(null));
     }
 }

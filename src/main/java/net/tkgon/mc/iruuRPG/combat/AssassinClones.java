@@ -52,6 +52,10 @@ final class AssassinClones {
         double pose;
         /** Where it was made from (to look for the enemy it faces); null for none. */
         MoveKit kit;
+        /** A decoy (中 of the redesign of 2026-11-02): it strikes the nearest enemy within {@code hitReach} every {@code hitEvery} ticks for {@code hitRate}; 0 for none. */
+        double hitRate;
+        int hitEvery;
+        double hitReach;
 
         Ghost(Player owner, boolean swap, Clones.Look look, Location pos, double yawDegrees, int life, int copies) {
             this.owner = owner;
@@ -157,6 +161,18 @@ final class AssassinClones {
         MIMIC.put(owner.getUniqueId(), true);
         ensureTask(kit.plugin());
         kit.sound(at, Sfx.WIND, 0.6f, 1.5f);
+        return ghost;
+    }
+
+    /**
+     * A clone that stands as {@link #standOne} does and also strikes the nearest enemy within {@code reach} every {@code everyTicks} (rounded up to
+     * an even number: the clones move every 2 ticks), for {@code rate}: the decoy of 中 (the redesign of 2026-11-02).
+     */
+    static Ghost standDecoy(MoveKit kit, Location at, double yawDegrees, int lifeTicks, double rate, int everyTicks, double reach) {
+        Ghost ghost = standOne(kit, at, yawDegrees, lifeTicks);
+        ghost.hitRate = Math.max(0.0, rate);
+        ghost.hitEvery = Math.max(2, everyTicks + everyTicks % 2);
+        ghost.hitReach = Math.max(0.5, reach);
         return ghost;
     }
 
@@ -537,6 +553,11 @@ final class AssassinClones {
                 if (ghost.kit != null && !ghost.swap && ghost.leaving < 0 && ghost.age % 4 == 0) {
                     LivingEntity enemy = nearest(ghost.kit, ghost.pos, 12.0);
                     if (enemy != null) face(ghost, enemy.getLocation());
+                }
+                // a decoy strikes the nearest enemy near it, once it has landed
+                if (ghost.kit != null && ghost.hitRate > 0.0 && !ghost.swap && ghost.leaving < 0 && ghost.slideAge >= ghost.slideTicks && ghost.age % ghost.hitEvery == 0) {
+                    LivingEntity enemy = nearest(ghost.kit, ghost.pos, ghost.hitReach);
+                    if (enemy != null) cloneHit(ghost.kit, ghost, enemy, ghost.hitRate);
                 }
                 double fade = ghost.leaving >= 0 ? Math.max(0.1, ghost.leaving / 6.0) : Math.min(1.0, ghost.age / 6.0);
                 if (!ghost.bodyTried) {
