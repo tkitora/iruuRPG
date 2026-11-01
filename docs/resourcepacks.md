@@ -7,7 +7,7 @@
 | サーバー専用 | `server.zip` | `grass_block` の6面すべてを草(上面の草のテクスチャ、草の色つき)にする変更と、マインクラフトのゲーム音楽を消す `sounds.json`(iruuRPG のBGMは鳴る。レコードの音は残る) | jar に入っている(`src/main/resourcepack/server/`)。起動時に `plugins/iruuRPG/resourcepacks/` へ置く |
 | モデル専用 | `iruumodel.zip` | `/iruumodel build` が作る、敵モデルのモデルとテクスチャ(docs/models.md) | モデル機能 |
 | アイテムの見た目 | `iruuitem.zip` | アイテムが「基盤のアイテム(剣・弓・棒・皮の防具など)」の上に、別のバニラのアイテムの見た目を重ねるための、custom model data の割り当て(下の「アイテムの見た目」) | アイテム機能(`itempack/`) |
-| 地面の印 | `iruumark.zip` | 攻撃の範囲の印のフォント `iruurpg:marks`(円・扇・四角の形。中身と外周の組。私用領域 U+E000〜。標準のフォントは変えない) | 起動時にプラグインが描いて作る(`markpack/`、`combat/GroundMarks`) |
+| 地面の印 | `iruumark.zip` | 攻撃の範囲の印のフォント `iruurpg:marks`(円・扇・四角の形。中身と外周の組。私用領域 U+E000〜。標準のフォントは変えない)、強攻撃のアイコンのフォント `iruurpg:hud`、画面効果のシェーダー(`screen-effects.enabled` が true のとき。docs/screen-effects.md) | 起動時にプラグインが描いて作る(`markpack/`、`combat/GroundMarks`) |
 
 ## 配り方
 - `config.yml` の `resourcepack:`。`enabled: true` で、入ってきたプレイヤーに送る(1秒後)。パックごとに `enabled` / `required`。ファイルが無いパックは送らない。

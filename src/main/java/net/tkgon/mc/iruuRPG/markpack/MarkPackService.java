@@ -8,7 +8,8 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 
 /**
- * Keeps the pack of the ground marks' font ({@code resourcepacks/iruumark.zip}, see {@link MarkGlyphs}) in the pack folder. The pictures are drawn
+ * Keeps the pack of the ground marks' font ({@code resourcepacks/iruumark.zip}, see {@link MarkGlyphs}; with the shaders of the screen effects
+ * unless {@code screen-effects.enabled} is false) in the pack folder. The pictures are drawn
  * when the plugin starts, off the main thread; the file is written only when its bytes changed, and then {@code onChanged} runs on the main thread
  * (to send the pack again to the players online). Never throws: a problem is a warning.
  */
@@ -23,7 +24,7 @@ public final class MarkPackService {
         try {
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 try {
-                    byte[] bytes = MarkGlyphs.pack();
+                    byte[] bytes = MarkGlyphs.pack(plugin.getConfig().getBoolean("screen-effects.enabled", true));
                     File folder = new File(plugin.getDataFolder(), "resourcepacks");
                     if (!folder.exists() && !folder.mkdirs()) {
                         plugin.getLogger().warning("markpack: could not create " + folder);
