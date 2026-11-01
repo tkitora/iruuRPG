@@ -127,10 +127,15 @@ class ScreenShadersTest {
         assertTrue(mix.contains("placeOf(" + ScreenEffects.Effect.IMPACT.slot() + ", center)"));
         // the state has a row for the glow colors, one for the places and one for the ticks
         assertTrue(text(files, "post/entity_outline.json").contains("{ \"name\": \"iruu_fx_state\", \"width\": 8, \"height\": 3 }"));
-        // the core shader counts the ticks of a timed effect from GameTime, mod 240 (a divisor of 24000, see ScreenEffects.impactColor)
+        // the core shader counts the ticks of a timed effect from GameTime, mod 240 (a divisor of 24000, see ScreenEffects.timedColor)
         assertTrue(names(JsonParser.parseString(text(files, "core/rendertype_outline.json")).getAsJsonObject(), "uniforms").contains("GameTime"));
         assertTrue(text(files, "core/rendertype_outline.vsh").contains("mod(GameTime * 24000.0 - float(rgb.b), 240.0)"));
         assertEquals(0, 24000 % 240);
+        // t134: the freeze holds the picture of slot 3, and the mix shows the held picture
+        String hold = text(files, "program/iruu_fx_hold.fsh");
+        assertTrue(hold.contains("texelFetch(StateSampler, ivec2(" + (ScreenEffects.Effect.FREEZE.slot() - 1) + ", 0), 0)"));
+        assertTrue(text(files, "program/iruu_fx_memo.fsh").contains("ivec2(" + (ScreenEffects.Effect.FREEZE.slot() - 1) + ", 2)"));
+        assertTrue(mix.contains("uniform sampler2D HoldSampler;"));
         for (ScreenEffects.Effect effect : ScreenEffects.Effect.values()) assertTrue(effect.slot() >= 1 && effect.slot() <= 8, effect.id());
         JsonObject core = JsonParser.parseString(text(files, "core/rendertype_outline.json")).getAsJsonObject();
         assertTrue(names(core, "uniforms").contains("ScreenSize"), "the core shader needs the screen size to find the corner");

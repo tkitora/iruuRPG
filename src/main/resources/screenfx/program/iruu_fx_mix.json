@@ -10,7 +10,8 @@
     "samplers": [
         { "name": "DiffuseSampler" },
         { "name": "MainSampler" },
-        { "name": "StateSampler" }
+        { "name": "StateSampler" },
+        { "name": "HoldSampler" }
     ],
     "uniforms": [
         { "name": "OutSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] }

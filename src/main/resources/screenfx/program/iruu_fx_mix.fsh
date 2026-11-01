@@ -1,7 +1,10 @@
 #version 150
 
 // The last pass: the outline picture the game lays over the screen at the end of the frame (blend: source alpha), made of
-//  - the screen effects: each pixel of the game's picture is taken from another place,
+//  - the screen effects: the picture shown, each pixel of it taken from another place,
+//      - the freeze (slot 3, t134): the picture shown is the picture of the moment the freeze started (kept by iruu_fx_hold) over the game's
+//        picture, less and less: its share is exp(-FREEZE_SHARE * S(t)) (S the integral of smoothstep over the freeze, 0 - 1), brought to
+//        0 at the end; it depends only on the client's time since the start (from GameTime), so it is the same at any frame rate,
 //      - the impact (slot 2, t130, a ripple since t133): a ring that spreads from a place of the world (its marker's display) and fades;
 //        a pixel on the ring is taken from nearer to the place, most on the middle of the ring, nothing at its edges (0 .. 1 .. 0, smooth).
 //        Its time is the client's (the ticks since the marker's first tick, from GameTime: smooth at any frame rate), and runs slow at first
@@ -15,6 +18,7 @@
 uniform sampler2D DiffuseSampler;   // the outlines
 uniform sampler2D MainSampler;      // the game's picture
 uniform sampler2D StateSampler;     // the markers read (iruu_fx_read): pixel (slot - 1, 0) the glow color, (slot - 1, 1) the place, (slot - 1, 2) the ticks
+uniform sampler2D HoldSampler;      // the picture of the moment the freeze started (the game's while none runs: iruu_fx_hold)
 uniform vec2 OutSize;
 
 out vec4 fragColor;
@@ -27,19 +31,31 @@ const float RIPPLE_WIDTH = 0.08;    // half the width of the ring (from its midd
 const float RIPPLE_PUSH = 0.03;     // at level 8 (strength 100), at the start: how far a pixel on the middle of the ring is taken from
 const float SLOW_START = 0.25;      // the ripple's time runs at this speed at first,
 const float SLOW_TICKS = 6.0;       // and smoothly (smoothstep) back to 1 over these real ticks
+// freeze
+const float FREEZE_TICKS = 6.0;     // how long the freeze lasts at level 8 (strength 100): the length goes with the level (the same in iruu_fx_hold)
+const float FREEZE_SHARE = 4.0;     // how fast the moment gives way: exp(-4) of it would be left at the end (taken to 0 there)
 
-// The game's picture at a place between pixels (pixel units, centres at .5), bilinear (the game reads its pictures nearest).
-vec3 mainAt(vec2 at) {
-    ivec2 size = textureSize(MainSampler, 0);
+// A picture at a place between pixels (pixel units, centres at .5), bilinear (the game reads its pictures nearest).
+vec3 bilinear(sampler2D picture, vec2 at) {
+    ivec2 size = textureSize(picture, 0);
     vec2 p = at - 0.5;
     ivec2 low = ivec2(floor(p));
     vec2 t = p - vec2(low);
     ivec2 top = size - 1;
-    vec3 a = texelFetch(MainSampler, clamp(low, ivec2(0), top), 0).rgb;
-    vec3 b = texelFetch(MainSampler, clamp(low + ivec2(1, 0), ivec2(0), top), 0).rgb;
-    vec3 c = texelFetch(MainSampler, clamp(low + ivec2(0, 1), ivec2(0), top), 0).rgb;
-    vec3 d = texelFetch(MainSampler, clamp(low + ivec2(1, 1), ivec2(0), top), 0).rgb;
+    vec3 a = texelFetch(picture, clamp(low, ivec2(0), top), 0).rgb;
+    vec3 b = texelFetch(picture, clamp(low + ivec2(1, 0), ivec2(0), top), 0).rgb;
+    vec3 c = texelFetch(picture, clamp(low + ivec2(0, 1), ivec2(0), top), 0).rgb;
+    vec3 d = texelFetch(picture, clamp(low + ivec2(1, 1), ivec2(0), top), 0).rgb;
     return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+}
+
+// The share of the freeze's picture in the picture shown (0 when no freeze runs).
+float frozen = 0.0;
+
+// The picture shown at a place between pixels: the game's, with the freeze's picture over it.
+vec3 shownAt(vec2 at) {
+    vec3 game = bilinear(MainSampler, at);
+    return frozen > 0.0 ? mix(game, bilinear(HoldSampler, at), frozen) : game;
 }
 
 // The strength of the effect of a slot from the parameter of its marker (strength / 100), 0 when its marker is not there.
@@ -94,6 +110,16 @@ void main() {
     float along = rippleTime(ticks) / RIPPLE_TICKS;
     vec2 center;
     if (impact > 0.0 && (ticks < 0.0 || ticks > 200.0 || along >= 1.0 || !placeOf(2, center))) impact = 0.0;
+    // the freeze: the share of the picture of its moment, from its own time
+    float freezeTicks = ticksOf(3);
+    float freezeSpan = FREEZE_TICKS * levelOf(3) / 8.0;
+    if (freezeSpan > 0.0 && freezeTicks >= 0.0 && freezeTicks <= 200.0 && freezeTicks < freezeSpan) {
+        float u = freezeTicks / freezeSpan;
+        float spent = 2.0 * (u * u * u - 0.5 * u * u * u * u);
+        frozen = (exp(-FREEZE_SHARE * spent) - exp(-FREEZE_SHARE)) / (1.0 - exp(-FREEZE_SHARE));
+    }
+    vec3 under = texelFetch(MainSampler, here, 0).rgb;
+    vec3 goal = frozen > 0.0 ? mix(under, texelFetch(HoldSampler, here, 0).rgb, frozen) : under;
     if (chromatic > 0.0 || impact > 0.0) {
         vec2 from = gl_FragCoord.xy;
         if (impact > 0.0) {
@@ -106,8 +132,9 @@ void main() {
             from -= away / max(dist, 1.0) * push * across;
         }
         vec2 shift = (gl_FragCoord.xy - OutSize * 0.5) * SHIFT * chromatic;
-        vec3 under = texelFetch(MainSampler, here, 0).rgb;
-        vec3 goal = chromatic > 0.0 ? vec3(mainAt(from + shift).r, mainAt(from).g, mainAt(from - shift).b) : mainAt(from);
+        goal = chromatic > 0.0 ? vec3(shownAt(from + shift).r, shownAt(from).g, shownAt(from - shift).b) : shownAt(from);
+    }
+    if (goal != under) {
         // the least alpha a such that some color c (0 - 1) gives c * a + under * (1 - a) = goal, channel by channel
         vec3 up = (goal - under) / max(vec3(1.0) - under, vec3(0.00001));
         vec3 down = (under - goal) / max(under, vec3(0.00001));

@@ -25,9 +25,14 @@ class ScreenEffectsTest {
         assertEquals(Color.fromRGB(177, 1, 1), ScreenEffects.markerColor(Effect.CHROMATIC, 0));
         assertEquals(Effect.CHROMATIC, Effect.find("Chromatic"));
         // t133: a timed effect carries its level in the green's high bits and its first tick (mod 240) in the blue
-        assertEquals(Color.fromRGB(177, 2 | 8 << 4, 100), ScreenEffects.impactColor(Effect.IMPACT, 100, 24100));
-        assertEquals(Color.fromRGB(177, 2 | 15 << 4, 239), ScreenEffects.impactColor(Effect.IMPACT, 255, 239));
-        assertEquals(Color.fromRGB(177, 2 | 1 << 4, 0), ScreenEffects.impactColor(Effect.IMPACT, 1, 480));
+        assertEquals(Color.fromRGB(177, 2 | 8 << 4, 100), ScreenEffects.timedColor(Effect.IMPACT, 100, 24100));
+        assertEquals(Color.fromRGB(177, 2 | 15 << 4, 239), ScreenEffects.timedColor(Effect.IMPACT, 255, 239));
+        assertEquals(Color.fromRGB(177, 2 | 1 << 4, 0), ScreenEffects.timedColor(Effect.IMPACT, 1, 480));
+        assertEquals(Color.fromRGB(177, 3 | 8 << 4, 5), ScreenEffects.timedColor(Effect.FREEZE, 100, 245));
+        // t134: the critical hit's impact is strength 1, the lowest level
+        assertEquals(1, ScreenEffects.levelOf(1));
+        assertTrue(Effect.FREEZE.timed() && !Effect.FREEZE.positional());
+        assertTrue(Effect.IMPACT.timed() && !Effect.CHROMATIC.timed());
         assertEquals(8, ScreenEffects.levelOf(100));
         assertEquals(12, ScreenEffects.levelOf(150));
         assertTrue(Effect.IMPACT.positional());

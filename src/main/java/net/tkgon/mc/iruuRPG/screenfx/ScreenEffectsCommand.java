@@ -117,6 +117,8 @@ public final class ScreenEffectsCommand implements TabExecutor {
                 // (a place to try it: 4 blocks in front of the player's eyes; it runs its own time, as on a critical hit)
                 org.bukkit.Location at = player.getEyeLocation().add(player.getEyeLocation().getDirection().multiply(4.0));
                 sent = effects.showAt(player, effect, at, on.strength());
+            } else if (effect.timed()) {
+                sent = effects.showTimed(player, effect, on.strength());
             } else {
                 sent = effects.show(player, effect, on.strength(), Math.round(on.seconds() * 20.0));
             }
@@ -125,6 +127,7 @@ public final class ScreenEffectsCommand implements TabExecutor {
         if (!players.isEmpty()) {
             sender.sendMessage(PREFIX + effect.id() + " (強さ " + on.strength() + ") を " + (players.size() - held.size()) + " 人に出しました"
                     + (effect.positional() ? " (目の前 4 ブロックから。秒は使いません)。"
+                    : effect.timed() ? " (一度だけ。秒は使いません)。"
                     : on.seconds() > 0 ? " (" + on.seconds() + " 秒)。" : "。/screenfx " + effect.id() + " off で消えます。"));
             if (!held.isEmpty()) {
                 sender.sendMessage(PREFIX + "シェーダー入りのパック (iruumark.zip) を読み込めていない人には、目印を送っていません (読み込めたら出ます): "
@@ -156,7 +159,7 @@ public final class ScreenEffectsCommand implements TabExecutor {
         sender.sendMessage(PREFIX + "/screenfx <効果> [強さ 1〜255 (100 が標準)] [秒 (0 = 消すまで)] [対象] = 出す");
         sender.sendMessage(PREFIX + "/screenfx <効果> off [対象] / /screenfx off [対象] = 消す、/screenfx status [対象]、/screenfx list = 効果の一覧");
         sender.sendMessage(PREFIX + "例: /screenfx chromatic 150 10 @a (全員に 10 秒、強め)");
-        sender.sendMessage(PREFIX + "impact は、目の前 4 ブロックを中心に出す (クリティカルでは、当たった所が中心。screen-effects.critical)");
+        sender.sendMessage(PREFIX + "impact は、目の前 4 ブロックを中心に出す (クリティカルでは、当たった所が中心)。freeze は一度だけ。どちらもクリティカルで出る (screen-effects.critical)");
     }
 
     @Override
