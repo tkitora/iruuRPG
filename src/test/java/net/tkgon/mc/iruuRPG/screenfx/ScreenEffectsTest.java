@@ -28,18 +28,20 @@ class ScreenEffectsTest {
         assertEquals(Color.fromRGB(177, 2 | 8 << 4, 100), ScreenEffects.timedColor(Effect.IMPACT, 100, 24100));
         assertEquals(Color.fromRGB(177, 2 | 15 << 4, 239), ScreenEffects.timedColor(Effect.IMPACT, 255, 239));
         assertEquals(Color.fromRGB(177, 2 | 1 << 4, 0), ScreenEffects.timedColor(Effect.IMPACT, 1, 480));
-        assertEquals(Color.fromRGB(177, 3 | 8 << 4, 5), ScreenEffects.timedColor(Effect.FREEZE, 100, 245));
+        // t136: the darkening is back (slot 3), the freeze is gone
+        assertEquals(Color.fromRGB(177, 3, 100), ScreenEffects.markerColor(Effect.DARKEN, 100));
+        assertNull(Effect.find("freeze"));
         // t134: the critical hit's impact is strength 1, the lowest level
         assertEquals(1, ScreenEffects.levelOf(1));
-        assertTrue(Effect.FREEZE.timed() && !Effect.FREEZE.positional());
+        assertTrue(!Effect.DARKEN.timed() && !Effect.DARKEN.positional());
         assertTrue(Effect.IMPACT.timed() && !Effect.CHROMATIC.timed());
         assertEquals(8, ScreenEffects.levelOf(100));
         assertEquals(12, ScreenEffects.levelOf(150));
         assertTrue(Effect.IMPACT.positional());
         assertFalse(Effect.CHROMATIC.positional());
-        // t129: the bloom and the darkening were taken away
+        // t129: the bloom was taken away (the darkening too, back in t136)
         assertNull(Effect.find("bloom"));
-        assertNull(Effect.find("darken"));
+        assertEquals(Effect.DARKEN, Effect.find("darken"));
         assertNull(Effect.find("nothing"));
     }
 
