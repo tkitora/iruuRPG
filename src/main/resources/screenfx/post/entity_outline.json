@@ -3,36 +3,13 @@
         "swap",
         "final",
         "iruu_outline",
-        { "name": "iruu_fx_state", "width": 8, "height": 3 },
-        "iruu_hold",
-        "iruu_hold_next",
-        { "name": "iruu_memo", "width": 1, "height": 1 }
+        { "name": "iruu_fx_state", "width": 8, "height": 3 }
     ],
     "passes": [
         {
             "name": "iruu_fx_read",
             "intarget": "final",
             "outtarget": "iruu_fx_state"
-        },
-        {
-            "name": "iruu_fx_hold",
-            "intarget": "minecraft:main",
-            "outtarget": "iruu_hold_next",
-            "auxtargets": [
-                { "name": "HoldSampler", "id": "iruu_hold" },
-                { "name": "StateSampler", "id": "iruu_fx_state" },
-                { "name": "MemoSampler", "id": "iruu_memo" }
-            ]
-        },
-        {
-            "name": "iruu_fx_copy",
-            "intarget": "iruu_hold_next",
-            "outtarget": "iruu_hold"
-        },
-        {
-            "name": "iruu_fx_memo",
-            "intarget": "iruu_fx_state",
-            "outtarget": "iruu_memo"
         },
         {
             "name": "iruu_fx_strip",
@@ -68,8 +45,7 @@
             "outtarget": "final",
             "auxtargets": [
                 { "name": "MainSampler", "id": "minecraft:main" },
-                { "name": "StateSampler", "id": "iruu_fx_state" },
-                { "name": "HoldSampler", "id": "iruu_hold_next" }
+                { "name": "StateSampler", "id": "iruu_fx_state" }
             ]
         }
     ]
