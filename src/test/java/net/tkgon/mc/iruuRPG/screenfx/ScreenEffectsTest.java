@@ -16,7 +16,9 @@ class ScreenEffectsTest {
         assertEquals(Color.fromRGB(177, 1, 100), ScreenEffects.markerColor(Effect.BLOOM, 100));
         assertEquals(Color.fromRGB(177, 1, 255), ScreenEffects.markerColor(Effect.BLOOM, 900));
         assertEquals(Color.fromRGB(177, 1, 1), ScreenEffects.markerColor(Effect.BLOOM, 0));
+        assertEquals(Color.fromRGB(177, 2, 100), ScreenEffects.markerColor(Effect.DARKEN, 100));
         assertEquals(Effect.BLOOM, Effect.find("Bloom"));
+        assertEquals(Effect.DARKEN, Effect.find("darken"));
         assertNull(Effect.find("nothing"));
     }
 

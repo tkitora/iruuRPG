@@ -9,8 +9,8 @@ import java.util.Map;
 /**
  * The shaders of the screen effects ({@link net.tkgon.mc.iruuRPG.screenfx.ScreenEffects}), carried in the jar under {@code screenfx/} and put in the
  * marks' pack under {@code assets/minecraft/shaders/}. They replace two of the game's files: the core shader that draws the glowing outlines (a
- * glowing display of the color of a marker is drawn as a small square in the corner) and the post chain of the outlines (it reads the markers,
- * draws the effects, and then the outlines as the game does). All the files or none: a part of them would break the outlines.
+ * glowing display of the color of a marker is drawn as a small square in the corner) and the post chain of the outlines (it reads the markers
+ * into a small picture, draws the effects, and then the outlines as the game does). All the files or none: a part of them would break the outlines.
  */
 public final class ScreenShaders {
 
@@ -21,6 +21,8 @@ public final class ScreenShaders {
             "core/rendertype_outline.fsh",
             "post/entity_outline.json",
             "program/iruu_fx.vsh",
+            "program/iruu_fx_read.json",
+            "program/iruu_fx_read.fsh",
             "program/iruu_fx_bloom_bright.json",
             "program/iruu_fx_bloom_bright.fsh",
             "program/iruu_fx_blur.json",

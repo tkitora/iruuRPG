@@ -1,10 +1,10 @@
 #version 150
 
 // Bloom, step 1: the bright part of the picture, made small (the size of this pass's target). Nothing (black) when the marker of the bloom
-// (slot 1: the 4 x 4 square at the bottom-left corner of the outline picture, glow color (177, 1, strength)) is not there.
+// (slot 1, glow color (177, 1, strength)) is not there.
 
 uniform sampler2D DiffuseSampler;   // the game's picture
-uniform sampler2D MarkerSampler;    // the outlines' picture, with the markers
+uniform sampler2D StateSampler;     // the markers read (iruu_fx_read): pixel (slot - 1, 0)
 uniform vec2 OutSize;
 
 out vec4 fragColor;
@@ -12,16 +12,10 @@ out vec4 fragColor;
 const float THRESHOLD = 0.65;       // brightness (luma) where the bloom starts
 const float KNEE = 0.15;            // how softly it starts
 
-// The strength of the marker of slot 1 (strength / 100), or 0 when it is not there. Two pixels are looked at, so an outline over one of them
-// does not switch the bloom off.
+// The strength of the bloom (strength / 100), or 0 when its marker is not there.
 float strength() {
-    vec4 a = texelFetch(MarkerSampler, ivec2(1, 1), 0);
-    vec4 b = texelFetch(MarkerSampler, ivec2(2, 2), 0);
-    ivec3 ca = ivec3(round(a.rgb * 255.0));
-    ivec3 cb = ivec3(round(b.rgb * 255.0));
-    if (ca.r == 177 && ca.g == 1) return float(ca.b) / 100.0;
-    if (cb.r == 177 && cb.g == 1) return float(cb.b) / 100.0;
-    return 0.0;
+    vec4 marker = texelFetch(StateSampler, ivec2(0, 0), 0);
+    return marker.a > 0.5 ? round(marker.b * 255.0) / 100.0 : 0.0;
 }
 
 void main() {

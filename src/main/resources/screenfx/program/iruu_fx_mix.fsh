@@ -3,12 +3,14 @@
 // The last pass: the outline picture the game lays over the screen at the end of the frame (blend: source alpha), made of
 //  - the bloom (two sizes of glow, made bigger again bilinearly), as a layer that adds it to the game's picture: its alpha is the least that
 //    can do that,
-//  - the glowing outlines over it, as the game draws them (its last blit gives (rgb * a, a * a)).
+//  - the glowing outlines over it, as the game draws them (its last blit gives (rgb * a, a * a)),
+//  - black over all of them, when the marker of the darkening (slot 2) is there: alpha strength / 200 (100 gives 0.5).
 
 uniform sampler2D DiffuseSampler;   // the outlines
 uniform sampler2D BloomSampler;     // the blurred bright part (small)
 uniform sampler2D WideBloomSampler; // the same, smaller and blurred again (a wider glow)
 uniform sampler2D MainSampler;      // the game's picture
+uniform sampler2D StateSampler;     // the markers read (iruu_fx_read): pixel (slot - 1, 0)
 uniform vec2 OutSize;
 
 out vec4 fragColor;
@@ -44,5 +46,11 @@ void main() {
     // the outline over the bloom, as one layer
     float alpha = 1.0 - (1.0 - bloomAlpha) * (1.0 - lineAlpha);
     vec3 color = alpha > 0.0 ? (lineColor * lineAlpha + bloomColor * bloomAlpha * (1.0 - lineAlpha)) / alpha : vec3(0.0);
-    fragColor = vec4(color, alpha);
+
+    // black over everything
+    vec4 darken = texelFetch(StateSampler, ivec2(1, 0), 0);
+    float dark = darken.a > 0.5 ? clamp(round(darken.b * 255.0) / 200.0, 0.0, 1.0) : 0.0;
+    float total = 1.0 - (1.0 - alpha) * (1.0 - dark);
+    color = total > 0.0 ? color * alpha * (1.0 - dark) / total : vec3(0.0);
+    fragColor = vec4(color, total);
 }
