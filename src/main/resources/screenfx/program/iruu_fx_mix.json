@@ -9,8 +9,6 @@
     "attributes": [ "Position" ],
     "samplers": [
         { "name": "DiffuseSampler" },
-        { "name": "BloomSampler" },
-        { "name": "WideBloomSampler" },
         { "name": "MainSampler" },
         { "name": "StateSampler" }
     ],

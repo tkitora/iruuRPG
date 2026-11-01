@@ -3,62 +3,13 @@
         "swap",
         "final",
         "iruu_outline",
-        { "name": "iruu_fx_state", "width": 8, "height": 1 },
-        { "name": "iruu_bloom_a", "width": 480, "height": 270 },
-        { "name": "iruu_bloom_b", "width": 480, "height": 270 },
-        { "name": "iruu_bloom_c", "width": 240, "height": 135 },
-        { "name": "iruu_bloom_d", "width": 240, "height": 135 }
+        { "name": "iruu_fx_state", "width": 8, "height": 1 }
     ],
     "passes": [
         {
             "name": "iruu_fx_read",
             "intarget": "final",
             "outtarget": "iruu_fx_state"
-        },
-        {
-            "name": "iruu_fx_bloom_bright",
-            "intarget": "minecraft:main",
-            "outtarget": "iruu_bloom_a",
-            "auxtargets": [
-                { "name": "StateSampler", "id": "iruu_fx_state" }
-            ]
-        },
-        {
-            "name": "iruu_fx_blur",
-            "intarget": "iruu_bloom_a",
-            "outtarget": "iruu_bloom_b",
-            "uniforms": [
-                { "name": "BlurDir", "values": [ 1.0, 0.0 ] }
-            ]
-        },
-        {
-            "name": "iruu_fx_blur",
-            "intarget": "iruu_bloom_b",
-            "outtarget": "iruu_bloom_a",
-            "uniforms": [
-                { "name": "BlurDir", "values": [ 0.0, 1.0 ] }
-            ]
-        },
-        {
-            "name": "iruu_fx_down",
-            "intarget": "iruu_bloom_a",
-            "outtarget": "iruu_bloom_c"
-        },
-        {
-            "name": "iruu_fx_blur",
-            "intarget": "iruu_bloom_c",
-            "outtarget": "iruu_bloom_d",
-            "uniforms": [
-                { "name": "BlurDir", "values": [ 1.0, 0.0 ] }
-            ]
-        },
-        {
-            "name": "iruu_fx_blur",
-            "intarget": "iruu_bloom_d",
-            "outtarget": "iruu_bloom_c",
-            "uniforms": [
-                { "name": "BlurDir", "values": [ 0.0, 1.0 ] }
-            ]
         },
         {
             "name": "iruu_fx_strip",
@@ -93,8 +44,6 @@
             "intarget": "iruu_outline",
             "outtarget": "final",
             "auxtargets": [
-                { "name": "BloomSampler", "id": "iruu_bloom_a" },
-                { "name": "WideBloomSampler", "id": "iruu_bloom_c" },
                 { "name": "MainSampler", "id": "minecraft:main" },
                 { "name": "StateSampler", "id": "iruu_fx_state" }
             ]

@@ -144,7 +144,7 @@ public final class ScreenEffectsCommand implements TabExecutor {
     private static void usage(CommandSender sender) {
         sender.sendMessage(PREFIX + "/screenfx <効果> [強さ 1〜255 (100 が標準)] [秒 (0 = 消すまで)] [対象] = 出す");
         sender.sendMessage(PREFIX + "/screenfx <効果> off [対象] / /screenfx off [対象] = 消す、/screenfx status [対象]、/screenfx list = 効果の一覧");
-        sender.sendMessage(PREFIX + "例: /screenfx bloom 150 10 @a (全員に 10 秒、強め)");
+        sender.sendMessage(PREFIX + "例: /screenfx chromatic 150 10 @a (全員に 10 秒、強め)");
     }
 
     @Override
