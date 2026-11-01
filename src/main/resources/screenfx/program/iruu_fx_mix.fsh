@@ -2,9 +2,10 @@
 
 // The last pass: the outline picture the game lays over the screen at the end of the frame (blend: source alpha), made of
 //  - the screen effects: each pixel of the game's picture is taken from another place,
-//      - the impact (slot 2, t130): from nearer to a place of the world (its marker's display), the more the nearer to it (a bulge that fades
-//        away from it: a share strength / 100 * PULL of the distance at the place, less and less further out, over about RADIUS of the
-//        screen's height),
+//      - the impact (slot 2, t130, a ripple since t133): a ring that spreads from a place of the world (its marker's display) and fades;
+//        a pixel on the ring is taken from nearer to the place, most on the middle of the ring, nothing at its edges (0 .. 1 .. 0, smooth).
+//        Its time is the client's (the ticks since the marker's first tick, from GameTime: smooth at any frame rate), and runs slow at first
+//        (SLOW_START), smoothly back to its usual speed over SLOW_TICKS,
 //      - the chromatic aberration (slot 1, t129): red from further out from the middle of the screen, blue from further in (strength / 100
 //        * SHIFT of the distance from the middle), green from the place itself.
 //    The game's picture cannot be written here, so it is a layer that turns the game's picture into that: its alpha is the least that can do
@@ -13,14 +14,19 @@
 
 uniform sampler2D DiffuseSampler;   // the outlines
 uniform sampler2D MainSampler;      // the game's picture
-uniform sampler2D StateSampler;     // the markers read (iruu_fx_read): pixel (slot - 1, 0) the glow color, (slot - 1, 1) the place
+uniform sampler2D StateSampler;     // the markers read (iruu_fx_read): pixel (slot - 1, 0) the glow color, (slot - 1, 1) the place, (slot - 1, 2) the ticks
 uniform vec2 OutSize;
 
 out vec4 fragColor;
 
 const float SHIFT = 0.012;          // chromatic, at strength 100: the shift is 1.2 % of the distance from the middle (11 pixels at the side of 1920 x 1080)
-const float PULL = 0.3;             // impact, at strength 100: at its place, a pixel is taken from 30 % nearer to it (1.4 times bigger)
-const float RADIUS = 0.35;          // impact: how far it reaches (the share of the screen's height where the pull is down to 1 / e)
+// impact: lengths are shares of the screen's height, times are ticks
+const float RIPPLE_TICKS = 10.0;    // how long the ripple lasts, in its own (slowed) time (about 12 real ticks with the slow start below)
+const float RIPPLE_REACH = 0.6;     // how far the middle of the ring goes
+const float RIPPLE_WIDTH = 0.08;    // half the width of the ring (from its middle to where it is 0)
+const float RIPPLE_PUSH = 0.03;     // at level 8 (strength 100), at the start: how far a pixel on the middle of the ring is taken from
+const float SLOW_START = 0.25;      // the ripple's time runs at this speed at first,
+const float SLOW_TICKS = 6.0;       // and smoothly (smoothstep) back to 1 over these real ticks
 
 // The game's picture at a place between pixels (pixel units, centres at .5), bilinear (the game reads its pictures nearest).
 vec3 mainAt(vec2 at) {
@@ -36,10 +42,31 @@ vec3 mainAt(vec2 at) {
     return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
 }
 
-// The strength of the effect of a slot (strength / 100), 0 when its marker is not there.
+// The strength of the effect of a slot from the parameter of its marker (strength / 100), 0 when its marker is not there.
 float amountOf(int slot) {
     vec4 marker = texelFetch(StateSampler, ivec2(slot - 1, 0), 0);
     return marker.a > 0.5 ? round(marker.b * 255.0) / 100.0 : 0.0;
+}
+
+// The level of the effect of a slot (the high 4 bits of its marker's green; 8 is the usual), 0 when its marker is not there.
+float levelOf(int slot) {
+    vec4 marker = texelFetch(StateSampler, ivec2(slot - 1, 0), 0);
+    return marker.a > 0.5 ? float(int(round(marker.g * 255.0)) >> 4) : 0.0;
+}
+
+// The ticks since the first tick of a timed effect (its parameter), -1 when its marker is not there or the time is not known.
+float ticksOf(int slot) {
+    vec4 color = texelFetch(StateSampler, ivec2(slot - 1, 2), 0);
+    if (color.a < 0.5) return -1.0;
+    ivec2 c = ivec2(round(color.rg * 255.0));
+    return float((c.r << 8) | c.g) / 256.0;
+}
+
+// The ripple's own time after t real ticks: the integral of its speed, SLOW_START rising to 1 by smoothstep over SLOW_TICKS.
+float rippleTime(float t) {
+    float u = clamp(t / SLOW_TICKS, 0.0, 1.0);
+    // (the integral of smoothstep from 0 to u is u^3 - u^4 / 2: 0.5 at u = 1)
+    return SLOW_START * t + (1.0 - SLOW_START) * (SLOW_TICKS * (u * u * u - 0.5 * u * u * u * u) + max(t - SLOW_TICKS, 0.0));
 }
 
 // The place on the screen (pixels) of the display of a slot's marker; false when it is not known or behind the camera.
@@ -60,15 +87,23 @@ void main() {
     float layerAlpha = 0.0;
     vec3 layerColor = vec3(0.0);
     float chromatic = amountOf(1);
-    float impact = amountOf(2);
+    // the impact: how far along its ripple is (0 - 1), from its own time; nothing before its first tick (a client a little behind the
+    // server counts nearly 240) and after its end
+    float impact = levelOf(2) / 8.0;
+    float ticks = ticksOf(2);
+    float along = rippleTime(ticks) / RIPPLE_TICKS;
     vec2 center;
-    if (impact > 0.0 && !placeOf(2, center)) impact = 0.0;
+    if (impact > 0.0 && (ticks < 0.0 || ticks > 200.0 || along >= 1.0 || !placeOf(2, center))) impact = 0.0;
     if (chromatic > 0.0 || impact > 0.0) {
         vec2 from = gl_FragCoord.xy;
         if (impact > 0.0) {
             vec2 away = from - center;
-            float radius = RADIUS * OutSize.y;
-            from -= away * PULL * impact * exp(-dot(away, away) / (radius * radius));
+            float dist = length(away);
+            float height = OutSize.y;
+            float ring = RIPPLE_REACH * height * (1.0 - (1.0 - along) * (1.0 - along));
+            float across = smoothstep(0.0, 1.0, clamp(1.0 - abs(dist - ring) / (RIPPLE_WIDTH * height), 0.0, 1.0));
+            float push = RIPPLE_PUSH * height * impact * (1.0 - along) * (1.0 - along);
+            from -= away / max(dist, 1.0) * push * across;
         }
         vec2 shift = (gl_FragCoord.xy - OutSize * 0.5) * SHIFT * chromatic;
         vec3 under = texelFetch(MainSampler, here, 0).rgb;

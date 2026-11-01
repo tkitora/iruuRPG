@@ -122,10 +122,15 @@ class ScreenShadersTest {
         // each effect reads its slot's pixel of the state (slot - 1, 0)
         String mix = text(files, "program/iruu_fx_mix.fsh");
         assertTrue(mix.contains("float chromatic = amountOf(" + ScreenEffects.Effect.CHROMATIC.slot() + ");"));
-        assertTrue(mix.contains("float impact = amountOf(" + ScreenEffects.Effect.IMPACT.slot() + ");"));
+        assertTrue(mix.contains("float impact = levelOf(" + ScreenEffects.Effect.IMPACT.slot() + ") / 8.0;"));
+        assertTrue(mix.contains("float ticks = ticksOf(" + ScreenEffects.Effect.IMPACT.slot() + ");"));
         assertTrue(mix.contains("placeOf(" + ScreenEffects.Effect.IMPACT.slot() + ", center)"));
-        // the state has a row for the glow colors and one for the places
-        assertTrue(text(files, "post/entity_outline.json").contains("{ \"name\": \"iruu_fx_state\", \"width\": 8, \"height\": 2 }"));
+        // the state has a row for the glow colors, one for the places and one for the ticks
+        assertTrue(text(files, "post/entity_outline.json").contains("{ \"name\": \"iruu_fx_state\", \"width\": 8, \"height\": 3 }"));
+        // the core shader counts the ticks of a timed effect from GameTime, mod 240 (a divisor of 24000, see ScreenEffects.impactColor)
+        assertTrue(names(JsonParser.parseString(text(files, "core/rendertype_outline.json")).getAsJsonObject(), "uniforms").contains("GameTime"));
+        assertTrue(text(files, "core/rendertype_outline.vsh").contains("mod(GameTime * 24000.0 - float(rgb.b), 240.0)"));
+        assertEquals(0, 24000 % 240);
         for (ScreenEffects.Effect effect : ScreenEffects.Effect.values()) assertTrue(effect.slot() >= 1 && effect.slot() <= 8, effect.id());
         JsonObject core = JsonParser.parseString(text(files, "core/rendertype_outline.json")).getAsJsonObject();
         assertTrue(names(core, "uniforms").contains("ScreenSize"), "the core shader needs the screen size to find the corner");

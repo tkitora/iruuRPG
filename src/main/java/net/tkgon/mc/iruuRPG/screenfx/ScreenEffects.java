@@ -59,10 +59,10 @@ public final class ScreenEffects implements Listener {
         /** Chromatic aberration (t129): red shifted out from the middle of the screen, blue in, more towards the sides; 100 shifts 1.2 % of the distance. */
         CHROMATIC(1, "色収差 (赤と青が、画面の外側ほどずれる。強さ 100 で、中心からの距離の 1.2 %)", false),
         /**
-         * An impact at a place of the world (t130, the critical hits): the picture bulges out from where the place is on the screen, less and less
-         * further from it; 100 takes the pixel at the place from 30 % nearer to it. Its marker stays at the place.
+         * An impact at a place of the world (t130, the critical hits; a ripple since t133): a ring spreads from where the place is on the
+         * screen and fades, timed by the client (see {@link #impactColor}). Its marker stays at the place.
          */
-        IMPACT(2, "衝撃 (ワールドの位置を中心に、画面が放射状にふくらむ。離れるほど弱い。クリティカルで出る)", true);
+        IMPACT(2, "衝撃 (ワールドの位置から、波紋が広がって消える。クリティカルで出る)", true);
 
         private final int slot;
         private final String summary;
@@ -97,9 +97,26 @@ public final class ScreenEffects implements Listener {
         }
     }
 
-    /** The glow color of an effect's marker. */
+    /** The glow color of an effect's marker: (177, slot, strength). */
     public static Color markerColor(Effect effect, int strength) {
         return Color.fromRGB(MARKER_RED, effect.slot(), clampStrength(strength));
+    }
+
+    /** How long the impact's marker is kept (ticks): its ripple lasts about 12 ticks of the client's time (iruu_fx_mix.fsh), and a little more. */
+    public static final int IMPACT_TICKS = 16;
+
+    /**
+     * The glow color of a timed effect's marker (t133): (177, slot + 16 * level, its first tick of the world's game time mod 240). The client
+     * counts the ticks since then from its own game time (GameTime of the core shader, synced with the server's), so the effect runs smooth
+     * at any frame rate with no more packets; the level (1 - 15, 8 is the usual) is its strength.
+     */
+    public static Color impactColor(Effect effect, int strength, long gameTime) {
+        return Color.fromRGB(MARKER_RED, effect.slot() | levelOf(strength) << 4, (int) Math.floorMod(gameTime, 240L));
+    }
+
+    /** The level (1 - 15) of a strength: 100 is 8. */
+    public static int levelOf(int strength) {
+        return Math.max(1, Math.min(15, (int) Math.round(strength * 8.0 / NORMAL_STRENGTH)));
     }
 
     public static int clampStrength(int strength) {
@@ -109,19 +126,11 @@ public final class ScreenEffects implements Listener {
     private static final class Marker {
         ItemDisplay display;
         int strength;
+        Color color;
         /** The tick it ends, or -1 for when it is switched off. */
         long until;
         /** The place it is centred on (a positional effect), or null: it follows its player. */
         Location at;
-        /** The tick its strength starts to fall from {@link #peak} to nothing at {@link #until}, or -1. */
-        long fadeFrom = -1;
-        int peak;
-    }
-
-    /** The strength at {@code now} of an effect at {@code peak} that fades from {@code fadeFrom} to nothing at {@code until} (at least 1 while it lasts). */
-    static int fadedStrength(int peak, long fadeFrom, long until, long now) {
-        if (fadeFrom < 0 || now < fadeFrom || until <= fadeFrom) return peak;
-        return Math.max(1, (int) Math.round(peak * (double) (until - now) / (until - fadeFrom)));
     }
 
     private final JavaPlugin plugin;
@@ -191,41 +200,40 @@ public final class ScreenEffects implements Listener {
     public boolean show(Player player, Effect effect, int strength, long durationTicks) {
         Marker marker = markers.computeIfAbsent(player.getUniqueId(), id -> new EnumMap<>(Effect.class)).computeIfAbsent(effect, e -> new Marker());
         marker.strength = clampStrength(strength);
+        marker.color = markerColor(effect, marker.strength);
         marker.until = durationTicks > 0 ? ticks + durationTicks : -1;
         marker.at = null;
-        marker.fadeFrom = -1;
         if (!hasShaders(player)) {
             remove(marker);
             return false;
         }
-        if (marker.display != null && marker.display.isValid()) marker.display.setGlowColorOverride(markerColor(effect, marker.strength));
-        else marker.display = spawn(player, effect, marker.strength, player.getLocation());
+        if (marker.display != null && marker.display.isValid()) marker.display.setGlowColorOverride(marker.color);
+        else marker.display = spawn(player, marker.color, player.getLocation());
         return true;
     }
 
     /**
-     * Shows {@code effect} to {@code player} centred on the place {@code at} (a positional effect: its marker is put there): at {@code strength}
-     * for {@code holdTicks}, then fading to nothing over {@code fadeTicks}. Another call before it ends moves it and starts it again. False when
-     * the player's client has not the shaders (as {@link #show}), or the place is in another world than the player.
+     * Shows the timed {@code effect} to {@code player} centred on the place {@code at} (a positional effect: its marker is put there), starting
+     * now; the client runs it ({@link #impactColor}), and its marker is taken away after {@link #IMPACT_TICKS}. Another call before it ends
+     * moves it and starts it again. False when the player's client has not the shaders (as {@link #show}), or the place is in another world.
      */
-    public boolean showAt(Player player, Effect effect, Location at, int strength, int holdTicks, int fadeTicks) {
+    public boolean showAt(Player player, Effect effect, Location at, int strength) {
         if (at == null || at.getWorld() == null || !at.getWorld().equals(player.getWorld())) return false;
         Marker marker = markers.computeIfAbsent(player.getUniqueId(), id -> new EnumMap<>(Effect.class)).computeIfAbsent(effect, e -> new Marker());
-        marker.peak = clampStrength(strength);
-        marker.strength = marker.peak;
+        marker.strength = clampStrength(strength);
+        marker.color = impactColor(effect, marker.strength, at.getWorld().getGameTime());
         marker.at = at.clone();
-        marker.fadeFrom = ticks + Math.max(0, holdTicks);
-        marker.until = marker.fadeFrom + Math.max(1, fadeTicks);
+        marker.until = ticks + IMPACT_TICKS;
         if (!hasShaders(player)) {
             remove(marker);
             return false;
         }
         if (marker.display != null && marker.display.isValid() && marker.display.getWorld().equals(at.getWorld())) {
             marker.display.teleport(marker.at);
-            marker.display.setGlowColorOverride(markerColor(effect, marker.strength));
+            marker.display.setGlowColorOverride(marker.color);
         } else {
             remove(marker);
-            marker.display = spawn(player, effect, marker.strength, marker.at);
+            marker.display = spawn(player, marker.color, marker.at);
         }
         return true;
     }
@@ -233,10 +241,7 @@ public final class ScreenEffects implements Listener {
     /** A critical hit of {@code attacker} at {@code hit} (the middle of the one hit): the impact there, as {@code screen-effects.critical} says. */
     public void onCritical(Player attacker, Location hit) {
         if (attacker == null || hit == null || !plugin.getConfig().getBoolean("screen-effects.critical.enabled", true)) return;
-        int strength = plugin.getConfig().getInt("screen-effects.critical.strength", NORMAL_STRENGTH);
-        int hold = Math.max(0, Math.min(40, plugin.getConfig().getInt("screen-effects.critical.hold-ticks", 2)));
-        int fade = Math.max(1, Math.min(60, plugin.getConfig().getInt("screen-effects.critical.fade-ticks", 6)));
-        showAt(attacker, Effect.IMPACT, hit, strength, hold, fade);
+        showAt(attacker, Effect.IMPACT, hit, plugin.getConfig().getInt("screen-effects.critical.strength", NORMAL_STRENGTH));
     }
 
     /** Switches {@code effect} off for {@code player}; false when it was not on. */
@@ -266,9 +271,8 @@ public final class ScreenEffects implements Listener {
     }
 
     /**
-     * Every tick: ends the effects whose time is over and fades the fading ones; every 5 ticks: keeps each marker near its player or at its
-     * place (a new one in another world, or after it was unloaded). A marker is taken away while the player's client has not the shaders, and
-     * made again when it has.
+     * Every tick: ends the effects whose time is over; every 5 ticks: keeps each marker near its player or at its place (a new one in another
+     * world, or after it was unloaded). A marker is taken away while the player's client has not the shaders, and made again when it has.
      */
     private void tick() {
         ticks++;
@@ -285,18 +289,13 @@ public final class ScreenEffects implements Listener {
                     effects.remove();
                     continue;
                 }
-                int strength = fadedStrength(marker.peak, marker.fadeFrom, marker.until, ticks);
-                if (marker.fadeFrom >= 0 && strength != marker.strength) {
-                    marker.strength = strength;
-                    if (marker.display != null && marker.display.isValid()) marker.display.setGlowColorOverride(markerColor(byEffect.getKey(), strength));
-                }
-                if (ticks % 5 == 0) follow(player, byEffect.getKey(), marker);
+                if (ticks % 5 == 0) follow(player, marker);
             }
             if (entry.getValue().isEmpty()) players.remove();
         }
     }
 
-    private void follow(Player player, Effect effect, Marker marker) {
+    private void follow(Player player, Marker marker) {
         if (!hasShaders(player)) {
             remove(marker);
             return;
@@ -306,7 +305,7 @@ public final class ScreenEffects implements Listener {
             // a positional effect stays at its place (gone when the player went to another world)
             if (display != null && display.isValid() && display.getWorld().equals(marker.at.getWorld())) return;
             remove(marker);
-            if (marker.at.getWorld() != null && marker.at.getWorld().equals(player.getWorld())) marker.display = spawn(player, effect, marker.strength, marker.at);
+            if (marker.at.getWorld() != null && marker.at.getWorld().equals(player.getWorld())) marker.display = spawn(player, marker.color, marker.at);
             return;
         }
         if (display != null && display.isValid() && display.getWorld().equals(player.getWorld())) {
@@ -314,10 +313,10 @@ public final class ScreenEffects implements Listener {
             return;
         }
         remove(marker);
-        marker.display = spawn(player, effect, marker.strength, player.getLocation());
+        marker.display = spawn(player, marker.color, player.getLocation());
     }
 
-    private ItemDisplay spawn(Player player, Effect effect, int strength, Location at) {
+    private ItemDisplay spawn(Player player, Color color, Location at) {
         ItemDisplay display = at.getWorld().spawn(at, ItemDisplay.class, spawned -> {
             // seen by no one but the player it is shown to, and never saved with the world
             spawned.setVisibleByDefault(false);
@@ -327,7 +326,7 @@ public final class ScreenEffects implements Listener {
             // shrunk to nothing: it draws nothing in the world, only its marker in the outline picture
             spawned.setTransformation(new Transformation(new Vector3f(), new AxisAngle4f(), new Vector3f(0f, 0f, 0f), new AxisAngle4f()));
             spawned.setGlowing(true);
-            spawned.setGlowColorOverride(markerColor(effect, strength));
+            spawned.setGlowColorOverride(color);
         });
         player.showEntity(plugin, display);
         return display;
