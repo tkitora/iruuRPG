@@ -194,7 +194,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
 
     /**
      * Heavy 0 during the item swap skill: a dash to the front, flat (it never lifts the assassin), that cuts everyone along the way it went for {@code swap-dash-rate} (3%) of the
-     * weapon's damage where it ends. Its cooldown is 2 ticks (kept in {@link AttackService#tryComboHeavy}); nothing makes a clone.
+     * weapon's damage where it ends. Its cooldown is 2 ticks (kept in {@link AttackService#heavyAttack}); nothing makes a clone.
      */
     private void swapDash(MoveKit kit) {
         Location feet = kit.player.getLocation();

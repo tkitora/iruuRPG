@@ -61,13 +61,18 @@ combat:
   debug-damage-in-creative: true
   melee-area-damage-rate: 0.65
   # 右クリックの長押し: true なら、押しっぱなしの右クリック (クライアントが4tickごとに送り直す) で、右クリックの攻撃
-  # (遠距離・設置の通常攻撃、近接の強攻撃) を連続して出せる。間隔は、それぞれのクールタイムのまま。左クリックは、押しっぱなしでも1回しか届かない
+  # (遠距離・設置の通常攻撃、近接の強1 = 右→右) を連続して出せる。間隔は、それぞれのクールタイムのまま。左クリックは、押しっぱなしでも1回しか届かない
   hold-right-click: true
   # アサシンの分身を、本人と同じスキンの人型のエンティティで出す (パケットで本人以外にも見える)。false か、出せないときは、従来の粒子の人型
   clone-entity: true
   # ブロックを右クリックしてから、この tick の間は、左クリック (通常攻撃) として数えない (右クリックのあとの腕振りが、通常攻撃になるのを防ぐ)
   right-click-block-left-lock-ticks: 10
-  # 近接の弱・強コンボ: 左クリックが弱、Shiftを押しながら左クリックが強。弱を light-count 回つなげた最後が「最終段」
+  # 強攻撃の入力 (武器の通常攻撃のボタン = 近接は左、遠距離・設置は右。もう一方を「別のボタン」とする):
+  # 別→別 = 強1、別→通常 = 強2、Shift+別 = 強3、Shift+通常 = 強4、Shift を2回 = 強5。
+  # window-ticks: 2つ目のボタン (Shift の2回目) を待つ時間。1つ目だけでは何も出ない
+  heavy-input:
+    window-ticks: 8
+  # 近接の弱・強コンボ (クラスのコンボがない武器): 左クリックが弱、強攻撃の入力 (heavy-input のどれでも) が強。弱を light-count 回つなげた最後が「最終段」
   combo:
     enabled: true
     light-count: 5               # 弱の連続回数 (最後の1回が最終段)
@@ -77,7 +82,7 @@ combat:
     heavy-recovery-ticks: 8      # 強のあとの追加の硬直。強攻撃を出したあと、この間 (tick) は通常攻撃 (左クリック) が始まらない
     finisher-damage-multiplier: 2.0
     finisher-recovery-ticks: 8
-    # メイジのコンボ (遠距離武器): 通常攻撃 = 右クリック (5段)、強攻撃 = 左クリック (通常をN回出したあとの左クリックが強攻撃N、コンボなしが強攻撃0)。
+    # メイジのコンボ (遠距離武器): 通常攻撃 = 右クリック (5段)、強攻撃 = heavy-input の入力で強1〜強5 (設定の番号は 0〜4。強1 = 番号0 は、前の強攻撃の再発動)。
     # 色は武器の属性と紫 (強い技ほど紫が多い)。通常攻撃は、武器の通常の間隔に normal-gap-extra-ticks だけあきが足される (2〜4tick程度)。
     # 通常1は左から弧を描く弾 (85%)、2は右から (90%)、3は左・上・右の弾3発 (38%×3)、4は扇から収束して交差する大きな弾3発 (45%×3)、
     # 5は通常1〜4が当たった敵の足元に立つ魔力の円柱 (80%×2)。通常1〜4の弾は、狙った敵がいればその敵を追う。
@@ -139,8 +144,9 @@ combat:
       shield-count: 3
       shield-seconds: 10
       shield-cut: 0.4
-    # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃0〜4 (通常をN回出したあとが強攻撃N)。
-    # 近接は左クリックが通常・右クリックが強攻撃、遠距離と設置は右クリックが通常・左クリックが強攻撃。
+    # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃 強1〜強5 (heavy-input の入力で選ぶ)。
+    # 設定のリスト (heavy-damage-multiplier / heavy-cooldown-ticks) は強1〜強5 の順 (番号 0〜4)。強攻撃のあとも、通常攻撃のコンボは続く。
+    # heavy-cooldown-ticks を書かないとき、強2〜強5 のクールタイムは 60 / 80 / 100 / 120 tick (強1 は各コンボの値)。
     # plan 名: cleric_melee / cleric_range / cleric_deploy、ranger_melee / ranger_range / ranger_deploy、mage_melee / mage_deploy (遠距離のメイジは mage)、
     #          assassin_melee / assassin_range / assassin_deploy、warrior_melee / warrior_range / warrior_deploy。
     # アサシンの近接コンボは、得意な武器を持てば常に使える。戦士の近接コンボは、守り (受けるダメージが減る・シールド) と一撃の重さ。
@@ -190,10 +196,7 @@ combat:
       normal-gap-ticks: 10
     ranger_range:
       normal-gap-ticks: 8
-  # 武器 (アイテム) のスキルの発動: 近接も遠距離も Shift+右クリック。movement-plain: true にすると、移動スキル (dash / teleport) は右クリックだけで出る
-  skill-trigger:
-    melee-sneak: true
-    movement-plain: false
+  # 武器 (アイテム) のスキルの発動: Q キー (ホットバーの Q / Ctrl+Q では、物を落とさない。インベントリ画面から捨てるのは今までどおり)
   # 近接の範囲攻撃: 全員が持つ小さな範囲 (戦士の「近接範囲攻撃化」の下位互換)。戦士は上の 0.65 / area-radius
   melee-area-base-damage-rate: 0.40
   melee-area-base-radius: 2.0

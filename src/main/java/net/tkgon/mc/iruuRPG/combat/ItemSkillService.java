@@ -103,11 +103,10 @@ public final class ItemSkillService {
         this.skillRunner = skillRunner;
     }
 
-    /** A melee weapon casts it with a right click, a ranged one with shift + right click; the cooldown is the weapon-type skill cooldown. */
+    /** A melee or ranged weapon casts it with the Q key; the cooldown is the weapon-type skill cooldown. */
     private boolean handleGeneralSkill(Player player, RpgItemDefinition weapon) {
         if (generalSkills == null || skillRunner == null) return false;
         if (weapon.attackType() != AttackType.MELEE && weapon.attackType() != AttackType.RANGE) return false;
-        if (!isManualSkillTrigger(player, weapon)) return false;
         net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.forItem("item " + weapon.id(), weapon.skillId(), weapon.skillOverrides());
         if (spec == null) {
             player.sendMessage("[iruuRPG] スキルが見つかりません: " + weapon.skillId());
@@ -211,10 +210,11 @@ public final class ItemSkillService {
         }, 6L);
     }
 
-    public boolean handleManualUse(Player player, RpgItemDefinition weapon) {
+    /** The Q key with {@code weapon} in hand: its skill. False when it has none. */
+    public boolean useByKey(Player player, RpgItemDefinition weapon) {
         if (weapon != null && weapon.hasGeneralSkill()) return handleGeneralSkill(player, weapon);
         if (weapon == null || !weapon.skill().enabled()) return false;
-        if (!isManualSkillTrigger(player, weapon)) return false;
+        if (weapon.attackType() != AttackType.MELEE && weapon.attackType() != AttackType.RANGE) return false;
         if (!skill(weapon, weapon.attackType()).enabled()) return false;
         if (!attackService.canUseItem(player, weapon)) {
             attackService.sendLevelRequirement(player, weapon);
@@ -234,29 +234,7 @@ public final class ItemSkillService {
         return true;
     }
 
-    /**
-     * How a weapon's skill is started. A ranged weapon: shift + right click (its plain right click shoots). A melee
-     * weapon: shift + right click too (`combat.skill-trigger.melee-sneak`, on by default). A movement skill (dash,
-     * teleport) can be put on a plain right click (`combat.skill-trigger.movement-plain`, off by default).
-     */
-    private boolean isManualSkillTrigger(Player player, RpgItemDefinition weapon) {
-        return switch (weapon.attackType()) {
-            case MELEE -> isMovementSkill(weapon) && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", false)
-                    || !plugin.getConfig().getBoolean("combat.skill-trigger.melee-sneak", true)
-                    || player.isSneaking();
-            case RANGE -> player.isSneaking();
-            case DEPLOY, SPECIAL -> false;
-        };
-    }
-
-    /** A skill that moves the player (the dash item skill; the dash / teleport templates). */
-    private boolean isMovementSkill(RpgItemDefinition weapon) {
-        if (weapon.skill() == net.tkgon.mc.iruuRPG.item.ItemSkillType.DASH) return true;
-        if (!weapon.hasGeneralSkill() || generalSkills == null) return false;
-        net.tkgon.mc.iruuRPG.skill.SkillSpec spec = generalSkills.forItem("item " + weapon.id(), weapon.skillId(), weapon.skillOverrides());
-        return spec != null && isMovementTemplate(spec.template());
-    }
-
+    /** A skill that moves the player (the dash / teleport templates). */
     public static boolean isMovementTemplate(net.tkgon.mc.iruuRPG.skill.SkillTemplate template) {
         return template == net.tkgon.mc.iruuRPG.skill.SkillTemplate.DASH || template == net.tkgon.mc.iruuRPG.skill.SkillTemplate.TELEPORT;
     }

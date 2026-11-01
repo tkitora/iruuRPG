@@ -208,13 +208,13 @@ public final class MarkGlyphs {
         return image;
     }
 
-    /** The resource pack: pack.mcmeta, the font and the pictures. The bytes are the same every time for the same glyphs. */
+    /** The resource pack: pack.mcmeta, the font and the pictures (and the font of the action bar's icons, {@link HudGlyphs}). The bytes are the same every time for the same glyphs. */
     public static byte[] pack() throws IOException {
         Map<String, byte[]> files = new LinkedHashMap<>();
         JsonObject meta = new JsonObject();
         JsonObject pack = new JsonObject();
         pack.addProperty("pack_format", 22);
-        pack.addProperty("description", "iruuRPG: ground marks (font iruurpg:marks)");
+        pack.addProperty("description", "iruuRPG: ground marks (font iruurpg:marks), heavy attack icons (font iruurpg:hud)");
         meta.add("pack", pack);
         files.put("pack.mcmeta", new GsonBuilder().setPrettyPrinting().create().toJson(meta).getBytes(StandardCharsets.UTF_8));
         JsonArray providers = new JsonArray();
@@ -235,6 +235,7 @@ public final class MarkGlyphs {
         JsonObject font = new JsonObject();
         font.add("providers", providers);
         files.put("assets/iruurpg/font/marks.json", new GsonBuilder().disableHtmlEscaping().create().toJson(font).getBytes(StandardCharsets.UTF_8));
+        HudGlyphs.addTo(files);
 
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream out = new ZipOutputStream(bytes)) {

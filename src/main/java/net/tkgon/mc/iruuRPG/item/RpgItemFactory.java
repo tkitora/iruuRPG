@@ -271,12 +271,9 @@ public final class RpgItemFactory {
             lore.add(skillLine("発動不可", "スキルが見つかりません。"));
             return;
         }
-        boolean movement = net.tkgon.mc.iruuRPG.combat.ItemSkillService.isMovementTemplate(spec.template());
-        boolean meleePlain = (movement && plugin.getConfig().getBoolean("combat.skill-trigger.movement-plain", false))
-                || !plugin.getConfig().getBoolean("combat.skill-trigger.melee-sneak", true);
+        // (the Q key casts it: see CombatListener#onDropKey)
         String trigger = switch (definition.attackType()) {
-            case MELEE -> meleePlain ? "右クリック" : "シフト右クリック";
-            case RANGE -> "シフト右クリック";
+            case MELEE, RANGE -> "Q";
             default -> "";
         };
         if (trigger.isEmpty()) {

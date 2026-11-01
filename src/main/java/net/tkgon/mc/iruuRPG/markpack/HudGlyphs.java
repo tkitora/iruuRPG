@@ -1,0 +1,249 @@
+package net.tkgon.mc.iruuRPG.markpack;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.TextColor;
+
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * The icons of the heavy attacks on the action bar, as the glyphs of a font of our own ({@code iruurpg:hud}, in the pack of the ground marks): a
+ * rounded square for each heavy attack (1 - 5) of each class, the shade that covers an icon while its heavy attack cools down, small digits for the
+ * seconds left, and spaces (negative ones too) to put them in place. The glyphs stand above the line of text (their pictures are taller than the
+ * icon, which is at their top), so the row of icons is drawn over the status line without moving it.
+ *
+ * <p>Code points: icon n (1 - 5) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
+ * U+E220 + d; the spaces U+E2F0 on. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
+ * one, else a placeholder is drawn: the class's color with the number in white.
+ */
+public final class HudGlyphs {
+
+    public static final Key FONT = Key.key("iruurpg", "hud");
+    /** The classes with icons of their own, in the order of their code points (generic: a weapon outside the class's combos). */
+    public static final List<String> CLASSES = List.of("warrior", "assassin", "mage", "gifted", "healer", "generic");
+    /** The placeholder colors of the classes (the same order). */
+    private static final int[] COLORS = {0xD9483B, 0x8E4FD1, 0x3F7BE0, 0x4CAF50, 0xE0B43F, 0x8A8A8A};
+    /** The side of an icon (pixels = font pixels). */
+    public static final int ICON = 16;
+    /** The height of every picture of the font: the icon is its top 16 rows, so it stands 2 font pixels above the top of the text. */
+    private static final int PICTURE = 25;
+    /** The space between two icons. */
+    public static final int GAP = 2;
+    /** One icon and the gap after it (an icon's advance is its width + 1, and a space of 1 follows it). */
+    public static final int SLOT = ICON + GAP;
+    private static final int DIGIT_WIDTH = 5;
+    private static final int[] SPACES = {1, 2, 4, 8, 16, 32, 64, 128};
+    private static final String[] DIGITS = {
+            "111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001",
+            "111100111001111", "111100111101111", "111001001001001", "111101111101111", "111101111001111"};
+
+    private HudGlyphs() {
+    }
+
+    public static int classIndex(String classId) {
+        int index = CLASSES.indexOf(classId);
+        return index < 0 ? CLASSES.size() - 1 : index;
+    }
+
+    public static char icon(String classId, int number) {
+        return (char) (0xE100 + 16 * classIndex(classId) + Math.max(1, Math.min(5, number)));
+    }
+
+    /** The shade covering {@code rows} (1 - 16) rows of an icon from its top. */
+    public static char shade(int rows) {
+        return (char) (0xE200 + Math.max(1, Math.min(ICON, rows)));
+    }
+
+    public static char digit(int digit) {
+        return (char) (0xE220 + Math.max(0, Math.min(9, digit)));
+    }
+
+    /** A space of +-2^i pixels ({@code negative}: to the left). */
+    private static char space(int i, boolean negative) {
+        return (char) (0xE2F0 + (negative ? SPACES.length : 0) + i);
+    }
+
+    /** Spaces that move the next glyph {@code pixels} to the right (to the left when negative). */
+    public static String move(int pixels) {
+        StringBuilder text = new StringBuilder();
+        int left = Math.abs(pixels);
+        for (int i = SPACES.length - 1; i >= 0; i--) {
+            while (left >= SPACES[i]) {
+                text.append(space(i, pixels < 0));
+                left -= SPACES[i];
+            }
+        }
+        return text.toString();
+    }
+
+    /** What one icon's state draws: {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0). */
+    public record Icon(String classId, int number, double coolingShare, int seconds) {
+    }
+
+    /**
+     * The row of icons, centred where it is put in the text and taking no room in it (the text after it starts where it would without it). The
+     * width of the row is always the same, so the bar never shifts as the cooldowns run.
+     */
+    public static Component row(List<Icon> icons) {
+        int width = icons.size() * SLOT - GAP;
+        Component row = Component.text(move(-(width + 1) / 2));
+        for (Icon icon : icons) {
+            boolean cooling = icon.coolingShare() > 0.0;
+            // the advance of an icon is its width + 1
+            row = row.append(Component.text(String.valueOf(icon(icon.classId(), icon.number())), TextColor.color(cooling ? 0x8C8C8C : 0xFFFFFF)));
+            if (cooling) {
+                int rows = (int) Math.ceil(icon.coolingShare() * ICON);
+                row = row.append(Component.text(move(-(ICON + 1)) + shade(rows), TextColor.color(0xFFFFFF)));
+                String digits = String.valueOf(Math.min(99, Math.max(0, icon.seconds())));
+                if (icon.seconds() > 0) {
+                    int digitsWidth = digits.length() * (DIGIT_WIDTH + 1);
+                    StringBuilder text = new StringBuilder(move(-(ICON + 1) + (ICON + 1 - digitsWidth) / 2));
+                    for (char ch : digits.toCharArray()) text.append(digit(ch - '0'));
+                    text.append(move(ICON + 1 - (ICON + 1 - digitsWidth) / 2 - digitsWidth));
+                    row = row.append(Component.text(text.toString(), TextColor.color(0xFFFFFF)));
+                }
+            }
+            row = row.append(Component.text(move(SLOT - ICON - 1)));
+        }
+        row = row.append(Component.text(move(-(icons.size() * SLOT) + (width + 1) / 2)));
+        return row.font(FONT);
+    }
+
+    // ---- pictures -----------------------------------------------------------------------------------------------------
+
+    /** A picture of the font's height with {@code top} (or nothing) at its top; its top-right pixel keeps the advance the full width. */
+    private static BufferedImage picture(int width, BufferedImage top, int topY) {
+        BufferedImage image = new BufferedImage(width, PICTURE, BufferedImage.TYPE_INT_ARGB);
+        if (top != null) {
+            for (int y = 0; y < top.getHeight() && topY + y < PICTURE; y++) {
+                for (int x = 0; x < Math.min(width, top.getWidth()); x++) image.setRGB(x, topY + y, top.getRGB(x, y));
+            }
+        }
+        if ((image.getRGB(width - 1, 0) >>> 24) == 0) image.setRGB(width - 1, 0, 1 << 24 | 0xFFFFFF);
+        return image;
+    }
+
+    /** Whether ({@code x}, {@code y}) is inside the rounded square of an icon. */
+    private static boolean inside(int x, int y) {
+        int r = 3;
+        int cx = x < r ? r : x > ICON - 1 - r ? ICON - 1 - r : x;
+        int cy = y < r ? r : y > ICON - 1 - r ? ICON - 1 - r : y;
+        double dx = x - cx, dy = y - cy;
+        return dx * dx + dy * dy <= (r + 0.3) * (r + 0.3);
+    }
+
+    /** The placeholder icon: the rounded square in the class's color, a darker rim, the number in white (its 3 x 5 digit, twice the size). */
+    static BufferedImage placeholder(int classIndex, int number) {
+        int color = COLORS[classIndex];
+        int rim = darker(color);
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON; y++) {
+            for (int x = 0; x < ICON; x++) {
+                if (!inside(x, y)) continue;
+                boolean edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+                image.setRGB(x, y, 0xFF000000 | (edge ? rim : color));
+            }
+        }
+        String bits = DIGITS[number];
+        for (int row = 0; row < 5; row++) {
+            for (int col = 0; col < 3; col++) {
+                if (bits.charAt(row * 3 + col) != '1') continue;
+                for (int dy = 0; dy < 2; dy++) for (int dx = 0; dx < 2; dx++) image.setRGB(5 + col * 2 + dx, 3 + row * 2 + dy, 0xFFFFFFFF);
+            }
+        }
+        return image;
+    }
+
+    private static int darker(int color) {
+        int r = (color >> 16 & 0xFF) * 3 / 5, g = (color >> 8 & 0xFF) * 3 / 5, b = (color & 0xFF) * 3 / 5;
+        return r << 16 | g << 8 | b;
+    }
+
+    /** The icon of the resources ({@code hud/heavy_<class>_<n>.png}) when there is a 16 x 16 one, else the placeholder. */
+    static BufferedImage iconImage(int classIndex, int number) {
+        String path = "/hud/heavy_" + CLASSES.get(classIndex) + "_" + number + ".png";
+        try (InputStream in = HudGlyphs.class.getResourceAsStream(path)) {
+            if (in != null) {
+                BufferedImage image = ImageIO.read(in);
+                if (image != null && image.getWidth() == ICON && image.getHeight() == ICON) return image;
+            }
+        } catch (IOException ignored) {
+            // the placeholder
+        }
+        return placeholder(classIndex, number);
+    }
+
+    private static BufferedImage shadeImage(int rows) {
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < rows; y++) for (int x = 0; x < ICON; x++) if (inside(x, y)) image.setRGB(x, y, 0xA0000000);
+        return image;
+    }
+
+    /** A digit, white with a dark rim (5 x 7), set in the middle of the icon's height. */
+    private static BufferedImage digitImage(int digit) {
+        BufferedImage image = new BufferedImage(DIGIT_WIDTH, 7, BufferedImage.TYPE_INT_ARGB);
+        String bits = DIGITS[digit];
+        for (int row = 0; row < 5; row++) {
+            for (int col = 0; col < 3; col++) {
+                if (bits.charAt(row * 3 + col) != '1') continue;
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int x = col + 1 + dx, y = row + 1 + dy;
+                        if ((image.getRGB(x, y) >>> 24) == 0) image.setRGB(x, y, 0xFF202020);
+                    }
+                }
+            }
+        }
+        for (int row = 0; row < 5; row++) for (int col = 0; col < 3; col++) if (bits.charAt(row * 3 + col) == '1') image.setRGB(col + 1, row + 1, 0xFFFFFFFF);
+        return image;
+    }
+
+    private static void bitmap(JsonArray providers, Map<String, byte[]> files, String name, char ch, BufferedImage image) throws IOException {
+        JsonObject provider = new JsonObject();
+        provider.addProperty("type", "bitmap");
+        provider.addProperty("file", "iruurpg:font/hud/" + name + ".png");
+        provider.addProperty("ascent", PICTURE);
+        provider.addProperty("height", PICTURE);
+        JsonArray chars = new JsonArray();
+        chars.add(String.valueOf(ch));
+        provider.add("chars", chars);
+        providers.add(provider);
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        ImageIO.write(image, "png", png);
+        files.put("assets/iruurpg/textures/font/hud/" + name + ".png", png.toByteArray());
+    }
+
+    /** Adds the font {@code iruurpg:hud} and its pictures to the files of a pack. */
+    public static void addTo(Map<String, byte[]> files) throws IOException {
+        JsonArray providers = new JsonArray();
+        for (int c = 0; c < CLASSES.size(); c++) {
+            for (int n = 1; n <= 5; n++) {
+                bitmap(providers, files, "heavy_" + CLASSES.get(c) + "_" + n, icon(CLASSES.get(c), n), picture(ICON, iconImage(c, n), 0));
+            }
+        }
+        for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
+        for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
+        JsonObject space = new JsonObject();
+        space.addProperty("type", "space");
+        JsonObject advances = new JsonObject();
+        for (int i = 0; i < SPACES.length; i++) {
+            advances.addProperty(String.valueOf(space(i, false)), SPACES[i]);
+            advances.addProperty(String.valueOf(space(i, true)), -SPACES[i]);
+        }
+        space.add("advances", advances);
+        providers.add(space);
+        JsonObject font = new JsonObject();
+        font.add("providers", providers);
+        files.put("assets/iruurpg/font/hud.json", new GsonBuilder().disableHtmlEscaping().create().toJson(font).getBytes(StandardCharsets.UTF_8));
+    }
+}
