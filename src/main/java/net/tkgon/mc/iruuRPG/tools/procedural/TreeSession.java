@@ -1,7 +1,6 @@
 package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.scheduler.BukkitTask;
 
@@ -39,7 +38,7 @@ final class TreeSession {
     volatile boolean computing;
     /** Number of the last preview started; a result of an older one (the preview was turned off meanwhile) is dropped. */
     int job;
-    /** The blocks the player sees as glass now, by {@link TreePreview#key}, and the world they are in. */
-    final Map<Long, Material> shown = new HashMap<>();
+    /** The blocks the player is shown now, by {@link TreePreview#key}, and the world they are in. */
+    final Map<Long, org.bukkit.block.data.BlockData> shown = new HashMap<>();
     World shownWorld;
 }

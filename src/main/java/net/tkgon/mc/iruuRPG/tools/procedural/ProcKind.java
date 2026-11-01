@@ -5,7 +5,7 @@ import org.bukkit.Material;
 import java.util.List;
 
 /**
- * What the procedural tool makes. Every kind is turned into blocks of coloured wool by part (so the parts can be told apart and changed into real blocks by hand), shown
+ * What the procedural tool makes. Every kind is turned into blocks by part (the block of each part chosen in the menu, see {@link TreePart}), shown
  * by the same preview, put in through the same edit (one //undo) and saved the same way; only the making of the blocks differs. New kinds are added here and in
  * {@link ProceduralShapes}.
  */
