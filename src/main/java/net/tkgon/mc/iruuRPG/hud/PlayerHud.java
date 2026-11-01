@@ -91,7 +91,7 @@ public final class PlayerHud {
             }
         }
         RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
-        for (int index = 0; weapon != null && index < 5; index++) {
+        for (int index = 0; weapon != null && index < AttackService.HEAVY_ATTACKS; index++) {
             if (attackService.heavyCooldown(player, weapon, index)[0] > 0L) {
                 lastActive.put(player.getUniqueId(), now);
                 return true;
@@ -188,7 +188,7 @@ public final class PlayerHud {
         String classId = attackService.heavyIconClass(player, weapon);
         java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();
         boolean melee = weapon.attackType() == AttackType.MELEE;
-        for (int index = 0; index < 5; index++) {
+        for (int index = 0; index < AttackService.HEAVY_ATTACKS; index++) {
             long[] cooldown = attackService.heavyCooldown(player, weapon, index);
             double share = cooldown[0] <= 0L || cooldown[1] <= 0L ? 0.0 : Math.min(1.0, (double) cooldown[0] / cooldown[1]);
             int seconds = (int) Math.ceil(cooldown[0] / 1000.0);

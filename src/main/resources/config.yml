@@ -78,7 +78,7 @@ combat:
   #   buttons (t116): 別→別 = 強1、別→通常 = 強2、Shift+別 = 強3、Shift+通常 = 強4、Shift を2回 = 強5。
   #     window-ticks: 2つ目のボタン (Shift の2回目) を待つ時間。double-shift: false にすると、Shift の2回押し (強5) を使わない
   # keep-chain: true なら、強攻撃のあとも通常攻撃のコンボが続く (false: 強攻撃でコンボが1段目に戻る、t116 より前の動き)
-  # later-cooldown-ticks: コンボの設定 (heavy-cooldown-ticks) が無いときの、強2〜強5 のクールタイム (tick)。強1 は各コンボの値
+  # later-cooldown-ticks: コンボの設定 (heavy-cooldown-ticks) が無いときの、スキル2〜スキル6 (強2〜強5 と t138 のスキル6) のクールタイム (tick)。スキル1 は各コンボの値
   heavy-input:
     style: keys
     key-window-ticks: 20
@@ -86,7 +86,7 @@ combat:
     window-ticks: 8
     keep-chain: true
     double-shift: true
-    later-cooldown-ticks: [60, 80, 100, 120]
+    later-cooldown-ticks: [60, 80, 100, 120, 140]
   # Q キー: 持っている武器のスキルを出す (keys では Q→Q など 2 つ目のキーと組で)。keep-items: true なら、ホットバーの Q / Ctrl+Q で何も落とさない (false: 武器以外は今までどおり落とせる)
   q-key:
     keep-items: true

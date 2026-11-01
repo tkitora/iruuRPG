@@ -20,7 +20,7 @@ public final class MageDeployCombo extends BaseCombo {
     public MageDeployCombo() {
         super("mage", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.2, 0.1, 0.6, 0.18, 0.3}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.25, 0.4, 1.3, 0.35, 0.12}, new int[]{140, 0, 0, 0, 0}, 40));
+                new double[]{0.25, 0.4, 1.3, 0.35, 0.12, 0.15}, new int[]{140, 0, 0, 0, 0, 0}, 40));
     }
 
     /** An arcane spire standing at {@code at}: it hangs a ball of light over a crystal and shoots the nearest enemy within 10 blocks every 8 ticks, as long as the placement lasts. */
@@ -135,7 +135,7 @@ public final class MageDeployCombo extends BaseCombo {
             }
             case 2 -> ComboParts.pullBurst(kit, target.clone().add(0.0, 1.5, 0.0), 4.5, rate, 40.0);
             case 3 -> ComboParts.homingVolley(kit, 4, rate, 14.0, end -> kit.burst(end, 1.2));
-            default -> {
+            case 4 -> {
                 // a black hole: it pulls for a second and hurts, and bursts
                 Location at = target.clone().add(0.0, 1.5, 0.0);
                 kit.sound(at, Sfx.MAGIC_DARK, 1.0f, 0.6f);
@@ -152,6 +152,17 @@ public final class MageDeployCombo extends BaseCombo {
                     return false;
                 });
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a gate of stars opens over the aim and twelve stars fall round it (3 blocks) one after the other. */
+    private void sixth(MoveKit kit, double rate) {
+        Location target = ComboParts.target(kit);
+        Location gate = target.clone().add(0.0, 5.0, 0.0);
+        kit.fx(gate).flatRing(gate, 2.0, 30, kit.palette(), 0.9, 0.1, 1.2);
+        kit.sound(target, Sfx.MAGIC, 0.9f, 1.2f);
+        ComboParts.rain(kit, target, 3.0, 12, rate, 1.4, org.bukkit.Sound.ENTITY_FIREWORK_ROCKET_BLAST);
     }
 }

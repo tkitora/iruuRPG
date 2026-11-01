@@ -22,7 +22,7 @@ import java.util.Map;
  * seconds left, and spaces (negative ones too) to put them in place. The glyphs stand above the line of text (their pictures are taller than the
  * icon, which is at their top), so the row of icons is drawn over the status line without moving it.
  *
- * <p>Code points: icon n (1 - 5) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
+ * <p>Code points: icon n (1 - 6) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
  * U+E220 + d; the key label of two keys (t138) U+E240 + 4 first + second (first F 0 / Q 1; second F 0 / Q 1 / left button 2 / right button 3);
  * the spaces U+E2F0 on. A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
  * above the icon, so they hide neither the icon nor its cooldown. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
@@ -35,6 +35,8 @@ public final class HudGlyphs {
     public static final List<String> CLASSES = List.of("warrior", "assassin", "mage", "gifted", "healer", "generic");
     /** The placeholder colors of the classes (the same order). */
     private static final int[] COLORS = {0xD9483B, 0x8E4FD1, 0x3F7BE0, 0x4CAF50, 0xE0B43F, 0x8A8A8A};
+    /** How many icons a class has (skills 1 - 6 of t138). */
+    public static final int ICONS = 6;
     /** The side of an icon (pixels = font pixels). */
     public static final int ICON = 16;
     /** The height of every picture of the font: the icon is its top 16 rows, so it stands 2 font pixels above the top of the text. */
@@ -63,7 +65,7 @@ public final class HudGlyphs {
     }
 
     public static char icon(String classId, int number) {
-        return (char) (0xE100 + 16 * classIndex(classId) + Math.max(1, Math.min(5, number)));
+        return (char) (0xE100 + 16 * classIndex(classId) + Math.max(1, Math.min(ICONS, number)));
     }
 
     /** The shade covering {@code rows} (1 - 16) rows of an icon from its top. */
@@ -287,7 +289,7 @@ public final class HudGlyphs {
     public static void addTo(Map<String, byte[]> files) throws IOException {
         JsonArray providers = new JsonArray();
         for (int c = 0; c < CLASSES.size(); c++) {
-            for (int n = 1; n <= 5; n++) {
+            for (int n = 1; n <= ICONS; n++) {
                 bitmap(providers, files, "heavy_" + CLASSES.get(c) + "_" + n, icon(CLASSES.get(c), n), picture(ICON, iconImage(c, n), 0));
             }
         }

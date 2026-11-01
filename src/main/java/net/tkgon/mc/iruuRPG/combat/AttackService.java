@@ -473,8 +473,8 @@ public final class AttackService {
         return weapon.attackType() == AttackType.MELEE && comboAllowed(attacker, weapon);
     }
 
-    /** How many heavy attacks a weapon has (強1 - 強5 = skills 1 - 5). */
-    public static final int HEAVY_ATTACKS = 5;
+    /** How many heavy attacks a weapon has (skills 1 - 6; 強1 - 強5 were 1 - 5). */
+    public static final int HEAVY_ATTACKS = 6;
 
     /** Which button a click is for this weapon: the left one is the normal attack of a melee weapon, the right one of a ranged or deployed one. */
     public static HeavyInput.Button button(RpgItemDefinition weapon, boolean rightClick) {

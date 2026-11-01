@@ -91,8 +91,8 @@ class HudGlyphsTest {
         List<HudGlyphs.Icon> labelled = List.of(new HudGlyphs.Icon("mage", 1, 0.0, 0, HudGlyphs.keyLabel(0, 0), 0xFFFFFF),
                 new HudGlyphs.Icon("mage", 2, 0.5, 3, HudGlyphs.keyLabel(0, 3), 0xFFE14D), new HudGlyphs.Icon("mage", 3, 1.0, 12, HudGlyphs.keyLabel(1, 2), 0x707070));
         assertEquals(0, advance(spaces, HudGlyphs.row(labelled)));
-        // 30 icons, 16 shades, 10 digits, 8 key labels
-        assertEquals(64, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // 36 icons (6 classes x skills 1 - 6), 16 shades, 10 digits, 8 key labels
+        assertEquals(70, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
     }
 
     @Test

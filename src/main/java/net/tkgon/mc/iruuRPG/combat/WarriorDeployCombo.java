@@ -20,7 +20,7 @@ public final class WarriorDeployCombo extends BaseCombo {
     public WarriorDeployCombo() {
         super("warrior", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{1.0, 0.6, 1.3, 0.4, 0.25}, new int[]{1, 2, 1, 3, 1},
-                new double[]{0.25, 0.25, 0.1, 0.35, 1.5}, new int[]{150, 0, 0, 0, 0}, 40));
+                new double[]{0.25, 0.25, 0.1, 0.35, 1.5, 0.25}, new int[]{150, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -133,7 +133,16 @@ public final class WarriorDeployCombo extends BaseCombo {
                     kit.later(index, () -> ComboParts.bombAt(kit, key, spot, 30, 2.4, rate, 0.35));
                 }
             }
-            default -> ComboParts.pullBurst(kit, target.clone().add(0.0, 1.5, 0.0), 5.0, rate, 0.0, 40);
+            case 4 -> ComboParts.pullBurst(kit, target.clone().add(0.0, 1.5, 0.0), 5.0, rate, 0.0, 40);
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a ballista at the aim that shoots a heavy bolt at the nearest enemy every 10 ticks for 2.5 s, each pushing it back. */
+    private void sixth(MoveKit kit, double rate) {
+        Location target = ComboParts.target(kit);
+        kit.sound(kit.origin(), Sfx.METAL_HEAVY, 0.9f, 1.1f);
+        ComboParts.turret(kit, "warrior_ballista", target, 50, 10, 10.0, rate, victim -> kit.push(victim, target.toVector(), 0.4, 0.1));
     }
 }

@@ -29,7 +29,7 @@ public final class RangerRangeCombo implements ClassCombo {
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
             new double[]{0.7, 0.47, 0.39, 0.28, 1.64}, new int[]{1, 2, 3, 5, 1},
-            new double[]{1.3, 0.4, 0.4, 0.35, 0.7}, new int[]{100, 0, 0, 0, 0}, 40);
+            new double[]{1.3, 0.4, 0.4, 0.35, 0.7, 0.22}, new int[]{100, 0, 0, 0, 0, 0}, 40);
 
     /** The look of the piercing arrow of heavy 1: violet and white, unlike the other arrows. */
     private static final Gradient PIERCE = Gradient.of(Color.fromRGB(90, 40, 160), Color.fromRGB(190, 140, 255), Color.fromRGB(255, 255, 255));
@@ -236,7 +236,7 @@ public final class RangerRangeCombo implements ClassCombo {
                     kit.later(index * 2L, () -> kit.homing(start, heading, 1.3, 45, rate, 16.0, end -> kit.burst(end, 1.0)));
                 }
             }
-            default -> {
+            case 4 -> {
                 // a volley loosed up into the air that comes down a second later in three steps, 3, 6 and 9 blocks ahead; the arrows are the look of it, the damage is the area
                 // (where the player stands and looks now, not where the combo began: origin() is the start of the combo)
                 Location origin = kit.player.getLocation();
@@ -298,6 +298,22 @@ public final class RangerRangeCombo implements ClassCombo {
                     });
                 }
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
+        }
+    }
+
+    /** Skill 6 (t138): rapid fire: six arrows at the aim, two ticks apart. */
+    private void sixth(MoveKit kit, double rate) {
+        for (int index = 0; index < 6; index++) {
+            kit.later(index * 2L, () -> {
+                Location start = ComboParts.hand(kit);
+                Vector direction = kit.aim().toVector().subtract(start.toVector());
+                if (direction.lengthSquared() < 1.0E-6) return;
+                kit.sound(start, org.bukkit.Sound.ENTITY_ARROW_SHOOT, 0.7f, 1.4f);
+                kit.arrowShot(start, direction.normalize(), rate, 1.2, end -> {
+                });
+            });
         }
     }
 }

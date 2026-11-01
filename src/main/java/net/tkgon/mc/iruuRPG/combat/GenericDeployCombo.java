@@ -17,7 +17,7 @@ public final class GenericDeployCombo extends BaseCombo {
     public GenericDeployCombo() {
         super("*", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.2, 0.1, 1.0, 0.15, 0.25}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.25, 1.0, 0.1, 0.4, 1.5}, new int[]{140, 0, 0, 0, 0}, 40));
+                new double[]{0.25, 1.0, 0.1, 0.4, 1.5, 0.45}, new int[]{140, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
@@ -76,7 +76,24 @@ public final class GenericDeployCombo extends BaseCombo {
                     kit.later(index * 2L, () -> ComboParts.mine(kit, "generic_mines_" + spot.getBlockX() + "_" + spot.getBlockZ(), spot, 1.8, 2.8, rate, 0.0));
                 }
             }
-            default -> ComboParts.bomb(kit, "generic_great", target, 40, 4.6, rate, 0.0);
+            case 4 -> ComboParts.bomb(kit, "generic_great", target, 40, 4.6, rate, 0.0);
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
+        }
+    }
+
+    /** Skill 6 (t138): three bombs in a row toward the aim, going off one after the other. */
+    private void sixth(MoveKit kit, double rate) {
+        Location origin = kit.origin();
+        Location target = ComboParts.target(kit);
+        Vector way = target.toVector().subtract(origin.toVector()).setY(0.0);
+        if (way.lengthSquared() < 1.0E-6) way = kit.originFacing().clone();
+        way.normalize();
+        for (int index = 0; index < 3; index++) {
+            Location spot = kit.ground(target.clone().add(way.clone().multiply((index - 1) * 2.4)));
+            String key = "generic_row_" + index;
+            int fuse = 20 + index * 8;
+            kit.later(index, () -> ComboParts.bombAt(kit, key, spot, fuse, 2.4, rate, 0.3));
         }
     }
 }

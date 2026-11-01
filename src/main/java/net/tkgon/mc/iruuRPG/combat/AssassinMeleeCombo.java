@@ -34,7 +34,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
     public AssassinMeleeCombo() {
         super("assassin", AttackType.MELEE, new ComboSpec(PLAN,
                 new double[]{0.36, 0.48, 1.2, 0.36, 1.68}, new int[]{2, 2, 1, 4, 1},
-                new double[]{1.0, 1.0, 0.16, 0.6, 1.5}, new int[]{160, 0, 0, 0, 0}, 36));
+                new double[]{1.0, 1.0, 0.16, 0.6, 1.5, 1.3}, new int[]{160, 0, 0, 0, 0, 0}, 36));
     }
 
     /** One cut at {@code rate} on everyone in {@code targets}, struck with the hand whose turn it is. */
@@ -290,7 +290,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     });
                 });
             }
-            default -> {
+            case 4 -> {
                 // a phantom execution: afterimages gather, then three clones close on the nearest enemy
                 LivingEntity target = kit.nearest(12.0, 90.0);
                 kit.invulnerable(10);
@@ -322,6 +322,28 @@ public final class AssassinMeleeCombo extends BaseCombo {
                     }
                 });
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): the assassin runs 7 blocks ahead as a shadow (nothing can hurt it on the way), cutting every enemy it passes once; they are confused. */
+    private void sixth(MoveKit kit, double rate) {
+        Location feet = kit.player.getLocation();
+        Vector facing = kit.facing().clone().setY(0.0);
+        if (facing.lengthSquared() < 1.0E-6) return;
+        facing.normalize();
+        Location from = feet.clone().add(0.0, 1.0, 0.0);
+        java.util.List<org.bukkit.entity.LivingEntity> passed = kit.corridor(from, facing, 7.0, 1.5);
+        kit.invulnerable(10);
+        kit.sound(feet, Sfx.WIND_BURST, 1.0f, 1.4f);
+        kit.line(from, from.clone().add(facing.clone().multiply(7.0)), 0.1, 0.9, 1.0);
+        kit.dash(facing, 1.4, 5, end -> {
+            kit.sound(end, Sfx.METAL, 0.8f, 1.5f);
+            kit.slash("arc", 2.4, 200.0, 20.0, 180.0, 0.4, 0.3, 0.0, 1.1, 0.12, 0.0);
+            for (org.bukkit.entity.LivingEntity victim : passed) {
+                if (kit.hit(victim, rate)) kit.confuse(victim, 60.0);
+            }
+        });
     }
 }

@@ -31,8 +31,8 @@ class ClassInfoTest {
                     String label = "弱" + stage + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
-                // スキル1 - スキル5 (t138: the heavy attacks 強1 - 強5 are skills 1 - 5)
-                for (int heavy = 1; heavy <= 5; heavy++) {
+                // スキル1 - スキル6 (t138: the heavy attacks 強1 - 強5 are skills 1 - 5, and skill 6 is new)
+                for (int heavy = 1; heavy <= 6; heavy++) {
                     String label = "スキル" + heavy + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }

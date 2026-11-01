@@ -21,7 +21,7 @@ public final class RangerDeployCombo implements ClassCombo {
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
             new double[]{0.25, 0.12, 1.3, 0.2, 0.12}, new int[]{1, 2, 1, 3, 8},
-            new double[]{0.25, 0.15, 0.1, 0.08, 1.5}, new int[]{120, 0, 0, 0, 0}, 40);
+            new double[]{0.25, 0.15, 0.1, 0.08, 1.5, 0.2}, new int[]{120, 0, 0, 0, 0, 0}, 40);
 
     @Override
     public String classId() {
@@ -124,11 +124,20 @@ public final class RangerDeployCombo implements ClassCombo {
                     kit.later(index, () -> ComboParts.turretAt(kit, key, spot, 50, 8, 9.0, rate, null));
                 }
             }
-            default -> {
+            case 4 -> {
                 // a great lantern: it swells for 2 seconds and pulls the enemies in, then bursts
                 Location at = target.clone().add(0.0, 1.5, 0.0);
                 ComboParts.pullBurst(kit, at, 5.0, rate, 0.0, 40);
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): a watch post at the aim that shoots an arrow at the nearest enemy every 8 ticks for 2.5 s, each slowing it. */
+    private void sixth(MoveKit kit, double rate) {
+        Location target = ComboParts.target(kit);
+        kit.sound(kit.origin(), org.bukkit.Sound.BLOCK_WOOD_PLACE, 1.0f, 0.9f);
+        ComboParts.turret(kit, "ranger_watch", target, 50, 8, 12.0, rate, victim -> kit.slow(victim, 30.0, 1.0));
     }
 }

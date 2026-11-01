@@ -17,7 +17,7 @@ public final class GenericRangeCombo extends BaseCombo {
     public GenericRangeCombo() {
         super("*", AttackType.RANGE, new ComboSpec(PLAN,
                 new double[]{0.58, 0.78, 0.98, 1.17, 1.37}, new int[]{1, 1, 1, 1, 1},
-                new double[]{0.5, 0.9, 1.0, 1.2, 1.4}, new int[]{60, 0, 0, 0, 0}, 36));
+                new double[]{0.5, 0.9, 1.0, 1.2, 1.4, 0.3}, new int[]{60, 0, 0, 0, 0, 0}, 36));
     }
 
     @Override
@@ -67,12 +67,20 @@ public final class GenericRangeCombo extends BaseCombo {
                 ComboParts.pierce(kit, hand, direction, 20.0, 1.2, rate);
             }
             case 3 -> ComboParts.quickBolts(kit, 6, rate / 6.0, 1.8, 28.0, 0.08);
-            default -> {
+            case 4 -> {
                 kit.sound(feet, Sfx.MAGIC, 1.0f, 0.7f);
                 kit.shockwave(feet, 1.0, 5.8, 6, 1.2);
                 kit.burst(feet.clone().add(0.0, 1.0, 0.0), 5.5);
                 kit.hitAll(kit.around(feet, 5.8), rate);
             }
+            // (skill 6, t138)
+            default -> sixth(kit, step.damageMultiplier());
         }
+    }
+
+    /** Skill 6 (t138): five bolts fanned out over 40 degrees. */
+    private void sixth(MoveKit kit, double rate) {
+        kit.sound(kit.eye(), Sfx.MAGIC, 0.8f, 1.1f);
+        ComboParts.fanBolts(kit, 5, 40.0, rate, 1.5, 16.0);
     }
 }
