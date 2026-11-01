@@ -14,9 +14,13 @@ import java.util.List;
  * The cleric's combo with a melee weapon (a mace): prayer and judgment. Blows that also heal a little (a heal makes the
  * cleric's pulse hit the enemies around). Normal: 1 an overhead smash (68%), 2 two quick cuts (38% x2), 3 a holy ring around
  * (72%, heals 2%), 4 a thrust of light (38% x2), 5 a leaping slam (94%, heals 5%). Heavy: 0 a sanctuary under the feet for 2.5 s (13%
- * a pulse, heals 1% a pulse), 1 a hammer wave ahead (77%, it does not push), 2 a spinning prayer (about 85%, heals 3%), 3 a pillar of light at the aim (85%),
- * 4 a wide sanctuary ring (68%, slows 40%, heals 6%). The blows push little (the cleric's damage is not meant to come from knocking enemies about). All numbers are 15% under
+ * a pulse, heals 1% a pulse), 1 a shield bash (a shield of light strikes the enemies just ahead, 77%, slows 50% for 0.8 s; it was a hammer wave
+ * before the redesign of 2026-11-02), 2 a spinning prayer (about 85%, heals 3%), 3 a pillar of light at the aim (85%), 4 a wide sanctuary ring (68%,
+ * slows 40%, heals 6%). The blows push little (the cleric's damage is not meant to come from knocking enemies about). All numbers are 15% under
  * the earlier ones.
+ *
+ * <p>The skills of the redesign ({@link SlotMoves}): 小 the shield bash (heavy 1), 中 the pillar of light (3), 大 the spinning prayer (2), util the
+ * sanctuary (0).
  */
 public final class ClericMeleeCombo implements ClassCombo {
 
@@ -132,19 +136,17 @@ public final class ClericMeleeCombo implements ClassCombo {
                 }, zone -> kit.shockwave(at, 3.0, 3.8, 3, 0.9));
             }
             case 1 -> {
-                // a hammer wave: rings of light run ahead one after the other
-                Vector facing = kit.facing();
-                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.7f);
-                kit.slash("line", 3.0, 100.0, 0.0, 0.0, 1.8, 0.2, 0.0, 1.3, 0.14, 0.0);
-                for (int index = 1; index <= 6; index++) {
-                    double along = index;
-                    kit.later(index - 1, () -> {
-                        Location at = feet.clone().add(facing.clone().multiply(along)).add(0.0, 0.3, 0.0);
-                        kit.fx(at).flatRing(at, 0.9 + along * 0.12, 20, kit.palette(), 0.4 + 0.1 * along, 0.3, 1.1);
-                    });
+                // a shield bash: a shield of light strikes the enemies just ahead, and slows them for a moment
+                Vector facing = kit.facing().clone().setY(0.0);
+                if (facing.lengthSquared() < 1.0E-6) return;
+                facing.normalize();
+                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.9f);
+                kit.slash("line", 2.6, 100.0, 0.0, 0.0, 1.7, 0.2, 0.0, 1.2, 0.12, 0.0);
+                Location shield = feet.clone().add(facing.clone().multiply(1.4)).add(0.0, 1.1, 0.0);
+                kit.fx(shield).disc(shield, new Vector(-facing.getZ(), 0.0, facing.getX()), new Vector(0, 1, 0), 0.9, 30, kit.palette(), 1.4, 0.9);
+                for (LivingEntity target : kit.cone(3.2, 60.0)) {
+                    if (kit.hit(target, rate)) kit.slow(target, 50.0, 0.8);
                 }
-                // (the hammer wave no longer throws what it hits)
-                kit.hitAll(kit.corridor(feet.clone().add(0.0, 0.5, 0.0), facing, 6.0, 1.5), rate);
             }
             case 2 -> {
                 // a spinning prayer: arcs of light turn round the cleric, a hit every 3 ticks

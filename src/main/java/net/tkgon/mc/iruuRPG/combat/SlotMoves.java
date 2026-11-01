@@ -15,12 +15,15 @@ public final class SlotMoves {
      * sphere), util the re-activation (skill 1). The ranger ("gifted", a ranged weapon): 小 the piercing shot that sets off its traps and mines
      * (skill 2), 中 the rapid shots (skill 6), 大 the rain of arrows (skill 5), util the backstep shot that strengthens the arrows after it (skill 1).
      * The warrior (a melee weapon): 小 the colossus strike, a great downward cut ahead (skill 4), 中 the whirlwind (skill 3), 大 the shield bash
-     * that leaves the shields round it (skill 1), util the shield rush with no push (skill 5).
+     * that leaves the shields round it (skill 1), util the shield rush with no push (skill 5). The cleric ("healer", a melee weapon): 小 the shield
+     * bash (skill 2), 中 the pillar of light at the aim (skill 4), 大 the spinning prayer round it (skill 3), util the sanctuary that heals and hurts
+     * (skill 1).
      */
     private static final Map<String, Own> OWN = Map.of(
             "mage", new Own(AttackType.RANGE, new int[]{5, 3, 4, 0}),
             "gifted", new Own(AttackType.RANGE, new int[]{1, 5, 4, 0}),
-            "warrior", new Own(AttackType.MELEE, new int[]{3, 2, 0, 4}));
+            "warrior", new Own(AttackType.MELEE, new int[]{3, 2, 0, 4}),
+            "healer", new Own(AttackType.MELEE, new int[]{1, 3, 2, 0}));
 
     /** A class's favorite kind of weapon, and the heavy attacks its 小・中・大・util throw with it. */
     record Own(AttackType favorite, int[] heavies) {
