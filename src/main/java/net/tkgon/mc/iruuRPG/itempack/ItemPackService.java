@@ -61,7 +61,7 @@ public final class ItemPackService {
             }
             ItemCmdIndex index = new ItemCmdIndex(new File(folder(), "item-cmd-index.yml"));
             index.load();
-            ItemPackBuilder.Result result = ItemPackBuilder.build(looks, index, this::template, ItemPackService::flat, this::tinted);
+            ItemPackBuilder.Result result = ItemPackBuilder.build(looks, index, this::template, ItemPackService::flat, this::picture);
             index.save();
             for (String warning : result.warnings()) plugin.getLogger().warning("itempack: " + warning);
             numbers = Map.copyOf(result.numbers());
@@ -95,11 +95,19 @@ public final class ItemPackService {
         return material != null && material.isItem() && !material.isBlock() && !NOT_FLAT.contains(name);
     }
 
-    /** The colored picture the plugin carries for a vanilla item the game colors itself ({@code itempack/tinted/<name>.png}), or null. */
-    private byte[] tinted(String name) {
+    /**
+     * The picture of a look that is not a vanilla item's own drawing, or null: an item's own texture ({@code item-textures/<name>.png} in the
+     * plugin's folder, from the yml repository), else the colored copy the plugin carries of a vanilla item the game colors itself
+     * ({@code itempack/tinted/<name>.png}).
+     */
+    private byte[] picture(String name) {
         if (!name.matches("[a-z0-9_]+")) return null;
-        try (InputStream in = plugin.getResource("itempack/tinted/" + name + ".png")) {
-            return in == null ? null : in.readAllBytes();
+        try {
+            File own = new File(plugin.getDataFolder(), "item-textures/" + name + ".png");
+            if (own.isFile()) return Files.readAllBytes(own.toPath());
+            try (InputStream in = plugin.getResource("itempack/tinted/" + name + ".png")) {
+                return in == null ? null : in.readAllBytes();
+            }
         } catch (IOException exception) {
             return null;
         }

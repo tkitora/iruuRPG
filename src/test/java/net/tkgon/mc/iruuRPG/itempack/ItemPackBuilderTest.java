@@ -177,16 +177,16 @@ class ItemPackBuilderTest {
     }
 
     @Test
-    void aLookTheGameColorsByItselfUsesTheColoredPictureOfThePlugin(@TempDir File folder) throws IOException {
+    void aLookWithAPictureOfItsOwnUsesThatPicture(@TempDir File folder) throws IOException {
         ItemCmdIndex index = new ItemCmdIndex(new File(folder, "index.yml"));
         index.load();
         byte[] green = {1, 2, 3};
         ItemPackBuilder.Result result = ItemPackBuilder.build(List.of(new ItemPackBuilder.Look("moon_herb", "STICK", "FERN")), index,
                 ItemPackBuilderTest::template, ItemPackBuilderTest::flat, name -> name.equals("fern") ? green : null);
         Map<String, byte[]> files = unzip(result.zip());
-        assertArrayEquals(green, files.get("assets/iruurpg/textures/item/tinted/fern.png"));
+        assertArrayEquals(green, files.get("assets/iruurpg/textures/item/custom/fern.png"));
         JsonObject model = json(files, "assets/iruurpg/models/item/flat/fern.json");
         assertEquals("minecraft:item/generated", model.get("parent").getAsString());
-        assertEquals("iruurpg:item/tinted/fern", model.getAsJsonObject("textures").get("layer0").getAsString());
+        assertEquals("iruurpg:item/custom/fern", model.getAsJsonObject("textures").get("layer0").getAsString());
     }
 }
