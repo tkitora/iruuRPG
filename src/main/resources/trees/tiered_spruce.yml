@@ -1,0 +1,19 @@
+# 見本の木: トウヒ (段の枝の針葉樹) (プロシージャルツールの読み込み、または /proceduraltool load tiered_spruce)
+settings:
+  kind: tree
+  algorithm: tiered
+  tier-height: 28
+  tier-stump: 6
+  tier-spacing: 3
+  tier-branches: 7
+  tier-branch-length: 8
+  tier-sag: 0.3
+  tier-leaf-size: 1.75
+  tier-leaf-density: 80
+  seed: 0
+  blocks:
+    trunk: SPRUCE_LOG
+    branch: SPRUCE_LOG
+    root: SPRUCE_LOG
+  leaf-gradient:
+  - SPRUCE_LEAVES

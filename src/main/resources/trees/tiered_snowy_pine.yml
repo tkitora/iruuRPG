@@ -1,0 +1,22 @@
+# 見本の木: 雪の積もった松 (枝が雪で垂れる) (プロシージャルツールの読み込み、または /proceduraltool load tiered_snowy_pine)
+settings:
+  kind: tree
+  algorithm: tiered
+  tier-height: 30
+  tier-stump: 6
+  tier-spacing: 3
+  tier-branches: 6
+  tier-branch-length: 9
+  tier-sag: 0.5
+  tier-leaf-size: 1.75
+  tier-leaf-density: 75
+  tier-snow: 1
+  tier-snow-amount: 0.6
+  seed: 0
+  blocks:
+    trunk: SPRUCE_LOG
+    branch: SPRUCE_LOG
+    root: SPRUCE_LOG
+    snow: SNOW_BLOCK
+  leaf-gradient:
+  - SPRUCE_LEAVES

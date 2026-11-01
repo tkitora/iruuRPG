@@ -1,0 +1,22 @@
+# 見本の木: 桜 (風に流れる、下から上へ色が変わる葉) (プロシージャルツールの読み込み、または /proceduraltool load canopy_cherry)
+settings:
+  kind: tree
+  algorithm: canopy
+  canopy-trunk-height: 3
+  canopy-length: 8
+  canopy-depth: 4
+  canopy-branches: 3
+  canopy-spread: 50
+  canopy-twist: 3
+  canopy-wind: 0.25
+  canopy-wind-dir: 30
+  canopy-leaf-size: 2.0
+  canopy-ellipsoid: 1
+  seed: 0
+  blocks:
+    trunk: CHERRY_LOG
+    branch: CHERRY_LOG
+    root: CHERRY_LOG
+  leaf-gradient:
+  - FLOWERING_AZALEA_LEAVES
+  - CHERRY_LEAVES

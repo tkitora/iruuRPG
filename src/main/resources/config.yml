@@ -583,7 +583,7 @@ treetool:
   preview-max-blocks: 40000
   # true にすると、地形など固いブロックも置き換える。false は空気と草花だけ
   replace-solid: false
-  # メニューで設定できる高さと幅の上限
+  # メニューで設定できる高さと幅の上限 (岩・スパイク・結晶。木の大きさは、木の数字で決まる)
   max-height: 80
   max-width: 60
   # クモの巣: 選べる点の数 / 点のまわりの地形を読む範囲の大きさ (ブロック数。超えたら作らない)。巣は空気にしか置かない
@@ -591,11 +591,12 @@ treetool:
   web-max-volume: 400000
   # 部位ごとのブロックの初期値 (画面の部位のアイコン、または /proceduraltool block で、プレイヤーごとに選び直せる。選んだブロックは設定と一緒に保存される)
   materials:
-    trunk: OAK_WOOD
-    root: OAK_WOOD
-    branch: OAK_WOOD
-    twig: OAK_WOOD
+    trunk: OAK_LOG
+    root: OAK_LOG
+    branch: OAK_LOG
+    twig: OAK_LOG
     leaf: OAK_LEAVES
+    snow: SNOW_BLOCK
     # 岩・スパイク・結晶の部位
     stone: GRAY_WOOL
     stone-light: LIGHT_GRAY_WOOL

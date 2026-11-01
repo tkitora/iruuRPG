@@ -151,7 +151,7 @@ final class TreePreview {
         WebInput webInput = web;
         TreeGround ground;
         try {
-            ground = settings.kind().web() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+            ground = settings.kind().web() || settings.kind().tree() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
         } catch (RuntimeException exception) {
             ground = null;
         }
@@ -164,7 +164,7 @@ final class TreePreview {
             try {
                 blocks = TreeGenerator.build(settings, seed, terrain, aim, webInput);
             } catch (RuntimeException exception) {
-                plugin.getLogger().warning("tree preview failed: " + exception);
+                if (!(exception instanceof TreeVoxelizer.TooBig)) plugin.getLogger().warning("tree preview failed: " + exception);
             }
             Map<Long, TreePart> result = blocks;
             try {
@@ -189,7 +189,7 @@ final class TreePreview {
         session.shownWorld = world;
         int cap = Math.max(1000, plugin.getConfig().getInt("treetool.preview-max-blocks", 40000));
         if (blocks.size() > cap) {
-            player.sendMessage(ProceduralModule.PREFIX + "プレビューするにはブロックが多すぎます (" + blocks.size() + " > " + cap + ")。高さ・幅・葉の大きさを小さくしてください。");
+            player.sendMessage(ProceduralModule.PREFIX + "プレビューするにはブロックが多すぎます (" + blocks.size() + " > " + cap + ")。設定 (木は高さ・枝の数・葉の大きさ、ほかは高さ・幅) を小さくしてください。");
             blocks = Map.of();
         }
         Map<TreePart, BlockData> looks = new HashMap<>();

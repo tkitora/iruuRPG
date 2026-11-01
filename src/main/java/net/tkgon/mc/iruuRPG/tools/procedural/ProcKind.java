@@ -11,7 +11,7 @@ import java.util.List;
  */
 enum ProcKind {
 
-    TREE("木", Material.OAK_SAPLING, "幹・枝・葉の木 (アルゴリズムと樹冠の形を選べる)", List.of(TreePart.TRUNK, TreePart.ROOT, TreePart.BRANCH, TreePart.TWIG, TreePart.LEAF)),
+    TREE("木", Material.OAK_SAPLING, "幹・枝・葉の木 (樹冠 / 段の枝 / ヤシ の3つのアルゴリズム)", List.of(TreePart.TRUNK, TreePart.BRANCH, TreePart.ROOT, TreePart.LEAF, TreePart.SNOW)),
     ROCK("岩", Material.COBBLESTONE, "ごつごつした岩。数を増やすと、大小の岩のかたまり。層・苔つき", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK, TreePart.MOSS)),
     SPIKE("スパイク", Material.POINTED_DRIPSTONE, "見ているブロックから、こちら(視点)へ向かって生える1本の尖った柱。角の数・ねじれ・筋・先の鋭さを調整できる", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK)),
     CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "見ているブロックから、こちら(視点)へ向かって生える結晶。かたまり・大きな1本・薄い刃から作り方を選べる", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE)),

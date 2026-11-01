@@ -1,0 +1,14 @@
+# 見本の木: 二股のヤシ (プロシージャルツールの読み込み、または /proceduraltool load palm_twin)
+settings:
+  kind: tree
+  algorithm: palm
+  palm-height: 20
+  palm-split-chance: 1.0
+  palm-split-dist: 1.5
+  palm-fronds: 9
+  seed: 0
+  blocks:
+    trunk: JUNGLE_LOG
+    root: JUNGLE_LOG
+  leaf-gradient:
+  - JUNGLE_LEAVES

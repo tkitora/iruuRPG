@@ -1,0 +1,10 @@
+# 見本の木: ヤシ (標準の数字) (プロシージャルツールの読み込み、または /proceduraltool load palm)
+settings:
+  kind: tree
+  algorithm: palm
+  seed: 0
+  blocks:
+    trunk: JUNGLE_LOG
+    root: JUNGLE_LOG
+  leaf-gradient:
+  - JUNGLE_LEAVES

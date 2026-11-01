@@ -1,0 +1,12 @@
+canopy_oak
+canopy_willow
+canopy_tiers
+canopy_beta_oak
+canopy_cherry
+tiered_spruce
+tiered_snowy_pine
+tiered_braided
+tiered_weeping
+palm
+palm_twin
+palm_mangrove

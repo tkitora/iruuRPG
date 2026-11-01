@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.Random;
 
 /**
- * The settings screen of the tree tool, in pages by what is being set: the basics (place, algorithm, crown, seed, size), the trunk and roots, the branches and the leaves. A
+ * The settings screen of the tree tool, in pages by what is being set: the basics (place, algorithm, seed, blocks), the trunk and roots, the branches and the leaves. A
  * row of tabs on top moves between the pages, and the bottom row (close, preview, generate, undo and redo) is the same on all of them. Every number is a button (left click
  * up, right click down, shift for bigger steps); every change is passed to the preview, which follows it after its wait. Settings cannot be saved from here (a stray click
  * must not overwrite a saved tree): saving is {@code /treetool save <name>}; loading is here.
@@ -61,12 +61,9 @@ final class ProceduralMenu implements Listener {
     /** The pages: the slot of the tab, its icon and name, and the numbers it holds. */
     enum Page {
         BASIC(2, Material.OAK_SAPLING, "基本", new TreeSettings.Key[]{TreeSettings.Key.HEIGHT, TreeSettings.Key.WIDTH}),
-        TRUNK(3, Material.OAK_LOG, "幹・根", new TreeSettings.Key[]{TreeSettings.Key.TRUNK_RADIUS, TreeSettings.Key.TAPER, TreeSettings.Key.FLARE, TreeSettings.Key.CURVE,
-                TreeSettings.Key.TRUNK_RATIO, TreeSettings.Key.ROOTS, TreeSettings.Key.TRUNK_FORKS, TreeSettings.Key.FORK_HEIGHT, TreeSettings.Key.FORK_ANGLE,
-                TreeSettings.Key.TRUNK_LEAN, TreeSettings.Key.TRUNK_TWIST, TreeSettings.Key.TRUNK_BULGE}),
-        BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{TreeSettings.Key.BRANCHES, TreeSettings.Key.LEVELS, TreeSettings.Key.DENSITY, TreeSettings.Key.BRANCH_ANGLE,
-                TreeSettings.Key.DROOP, TreeSettings.Key.BRANCH_LENGTH, TreeSettings.Key.BRANCH_THICKNESS}),
-        LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS}),
+        TRUNK(3, Material.OAK_LOG, "幹・根", new TreeSettings.Key[]{}),
+        BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{}),
+        LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{}),
         /** The settings of everything that is not a tree (which of them depends on the kind). */
         SHAPE(3, Material.COBBLESTONE, "形", new TreeSettings.Key[]{});
 
@@ -82,38 +79,23 @@ final class ProceduralMenu implements Listener {
             this.keys = keys;
         }
 
-        /** Whether the page is there for this kind: a tree has the four pages of a tree, the rest have the basics and their shape. */
-        boolean shownFor(ProcKind kind) {
+        /** Whether the page is there for these settings: a tree has the pages of a tree (a palm has no branches), the rest have the basics and their shape. */
+        boolean shownFor(TreeSettings settings) {
+            ProcKind kind = settings.kind();
             return switch (this) {
                 case BASIC -> true;
                 case SHAPE -> !kind.tree();
+                case BRANCH -> kind.tree() && !settings.grows("palm");
                 default -> kind.tree();
             };
         }
 
-        /** The numbers of the page for these settings (the kind, and for a tree the algorithm: the fractal has numbers of its own). */
+        /** The numbers of the page for these settings (the kind, and for a tree its algorithm). */
         TreeSettings.Key[] keysFor(TreeSettings settings) {
             ProcKind kind = settings.kind();
-            // (a web has no height and width: the points decide how big it is)
-            if (this == BASIC && kind.web()) return new TreeSettings.Key[]{};
-            if (settings.fractal()) {
-                switch (this) {
-                    case TRUNK -> {
-                        return new TreeSettings.Key[]{TreeSettings.Key.F_TRUNK_LENGTH, TreeSettings.Key.TRUNK_RADIUS, TreeSettings.Key.FLARE, TreeSettings.Key.F_NOISE,
-                                TreeSettings.Key.F_NOISE_SCALE};
-                    }
-                    case BRANCH -> {
-                        return new TreeSettings.Key[]{TreeSettings.Key.F_LEVELS, TreeSettings.Key.F_BRANCHES, TreeSettings.Key.F_LENGTH_DECAY, TreeSettings.Key.F_RADIUS_DECAY,
-                                TreeSettings.Key.F_SPREAD, TreeSettings.Key.F_UP_BIAS, TreeSettings.Key.F_JITTER, TreeSettings.Key.F_GRAVITY};
-                    }
-                    case LEAF -> {
-                        return new TreeSettings.Key[]{TreeSettings.Key.LEAF_RADIUS, TreeSettings.Key.LEAF_DENSITY, TreeSettings.Key.LEAF_FLATNESS, TreeSettings.Key.F_FOLIAGE_LEVELS,
-                                TreeSettings.Key.F_FOLIAGE_BRANCHES, TreeSettings.Key.F_FOLIAGE_LENGTH, TreeSettings.Key.F_FOLIAGE_SPREAD};
-                    }
-                    default -> {
-                    }
-                }
-            }
+            // (a web has no height and width: the points decide how big it is; a tree is as big as its own numbers make it)
+            if (this == BASIC && (kind.web() || kind.tree())) return new TreeSettings.Key[]{};
+            if (kind.tree() && this != BASIC) return treeKeys(settings.algorithm(), this);
             if (this != SHAPE) return keys;
             return switch (kind) {
                 case WEB -> new TreeSettings.Key[]{TreeSettings.Key.WEB_RINGS, TreeSettings.Key.WEB_SPOKES, TreeSettings.Key.WEB_SAG, TreeSettings.Key.WEB_IRREG, TreeSettings.Key.WEB_REACH};
@@ -127,33 +109,46 @@ final class ProceduralMenu implements Listener {
         }
     }
 
+    /** The numbers of a page of a tree grown by {@code algorithm}. */
+    static TreeSettings.Key[] treeKeys(String algorithm, Page page) {
+        return switch (algorithm) {
+            case "tiered" -> switch (page) {
+                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.TIER_HEIGHT, TreeSettings.Key.TIER_STUMP, TreeSettings.Key.TIER_RADIUS, TreeSettings.Key.TIER_TWIST,
+                        TreeSettings.Key.TIER_BRAIDED, TreeSettings.Key.TIER_BRAID_INTENSITY, TreeSettings.Key.TIER_BRAID_WOBBLE, TreeSettings.Key.TIER_ROOT_FLARE,
+                        TreeSettings.Key.TIER_WIND, TreeSettings.Key.TIER_WIND_DIR};
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.TIER_SPACING, TreeSettings.Key.TIER_BRANCHES, TreeSettings.Key.TIER_BRANCH_LENGTH, TreeSettings.Key.TIER_SAG};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.TIER_LEAF_SIZE, TreeSettings.Key.TIER_LEAF_DENSITY, TreeSettings.Key.TIER_WILLOW, TreeSettings.Key.TIER_WILLOW_SCALE,
+                        TreeSettings.Key.TIER_SNOW, TreeSettings.Key.TIER_SNOW_AMOUNT};
+                default -> new TreeSettings.Key[]{};
+            };
+            case "palm" -> switch (page) {
+                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.PALM_HEIGHT, TreeSettings.Key.PALM_RADIUS, TreeSettings.Key.PALM_S_CURVE, TreeSettings.Key.PALM_SPLIT_CHANCE,
+                        TreeSettings.Key.PALM_SPLIT_DIST, TreeSettings.Key.PALM_ROOT_REACH};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.PALM_LAYERS, TreeSettings.Key.PALM_FRONDS, TreeSettings.Key.PALM_FROND_LENGTH, TreeSettings.Key.PALM_FROND_THICK,
+                        TreeSettings.Key.PALM_DROOP, TreeSettings.Key.PALM_PITCH};
+                default -> new TreeSettings.Key[]{};
+            };
+            default -> switch (page) {
+                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.CANOPY_TRUNK_HEIGHT, TreeSettings.Key.CANOPY_RADIUS, TreeSettings.Key.CANOPY_TWIST, TreeSettings.Key.CANOPY_UPPER_TWIST,
+                        TreeSettings.Key.CANOPY_CENTERING, TreeSettings.Key.CANOPY_ROOT_COUNT, TreeSettings.Key.CANOPY_ROOT_LENGTH, TreeSettings.Key.CANOPY_ROOT_HEIGHT,
+                        TreeSettings.Key.CANOPY_ROOT_SCALE};
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.CANOPY_LENGTH, TreeSettings.Key.CANOPY_LENGTH_MULT, TreeSettings.Key.CANOPY_DEPTH, TreeSettings.Key.CANOPY_BRANCHES,
+                        TreeSettings.Key.CANOPY_SPREAD, TreeSettings.Key.CANOPY_STAGGER, TreeSettings.Key.CANOPY_RADIUS_MULT, TreeSettings.Key.CANOPY_LEVELS,
+                        TreeSettings.Key.CANOPY_LEVEL_DIST, TreeSettings.Key.CANOPY_UPPER_SCALE, TreeSettings.Key.CANOPY_GRAVITY, TreeSettings.Key.CANOPY_WIND,
+                        TreeSettings.Key.CANOPY_WIND_DIR};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.CANOPY_LEAF_SIZE, TreeSettings.Key.CANOPY_LEAF_START, TreeSettings.Key.CANOPY_ELLIPSOID, TreeSettings.Key.CANOPY_WILLOW,
+                        TreeSettings.Key.CANOPY_WILLOW_SCALE, TreeSettings.Key.CANOPY_BETA_LEAVES};
+                default -> new TreeSettings.Key[]{};
+            };
+        };
+    }
+
     private static final Map<TreeSettings.Key, Material> ICONS = new EnumMap<>(TreeSettings.Key.class);
 
     static {
         ICONS.put(TreeSettings.Key.HEIGHT, Material.LADDER);
         ICONS.put(TreeSettings.Key.WIDTH, Material.LEAD);
-        ICONS.put(TreeSettings.Key.TRUNK_RADIUS, Material.OAK_LOG);
-        ICONS.put(TreeSettings.Key.TRUNK_RATIO, Material.STRIPPED_OAK_LOG);
-        ICONS.put(TreeSettings.Key.DENSITY, Material.STICK);
-        ICONS.put(TreeSettings.Key.DROOP, Material.WEEPING_VINES);
-        ICONS.put(TreeSettings.Key.LEAF_RADIUS, Material.OAK_LEAVES);
-        ICONS.put(TreeSettings.Key.LEAF_DENSITY, Material.AZALEA_LEAVES);
-        ICONS.put(TreeSettings.Key.ROOTS, Material.MANGROVE_ROOTS);
-        ICONS.put(TreeSettings.Key.BRANCH_ANGLE, Material.BAMBOO);
-        ICONS.put(TreeSettings.Key.BRANCHES, Material.OAK_FENCE);
-        ICONS.put(TreeSettings.Key.LEVELS, Material.FERN);
         ICONS.put(TreeSettings.Key.CURVE, Material.CHAIN);
-        ICONS.put(TreeSettings.Key.TAPER, Material.CARROT_ON_A_STICK);
-        ICONS.put(TreeSettings.Key.FLARE, Material.DARK_OAK_LOG);
-        ICONS.put(TreeSettings.Key.LEAF_FLATNESS, Material.FLOWERING_AZALEA_LEAVES);
-        ICONS.put(TreeSettings.Key.TRUNK_FORKS, Material.JUNGLE_LOG);
-        ICONS.put(TreeSettings.Key.FORK_HEIGHT, Material.SPRUCE_LOG);
-        ICONS.put(TreeSettings.Key.FORK_ANGLE, Material.ACACIA_LOG);
-        ICONS.put(TreeSettings.Key.BRANCH_LENGTH, Material.BAMBOO_BLOCK);
-        ICONS.put(TreeSettings.Key.BRANCH_THICKNESS, Material.STRIPPED_BAMBOO_BLOCK);
-        ICONS.put(TreeSettings.Key.TRUNK_LEAN, Material.LEVER);
-        ICONS.put(TreeSettings.Key.TRUNK_TWIST, Material.TWISTING_VINES);
-        ICONS.put(TreeSettings.Key.TRUNK_BULGE, Material.MUDDY_MANGROVE_ROOTS);
         ICONS.put(TreeSettings.Key.SPIKE_SIDES, Material.HONEYCOMB);
         ICONS.put(TreeSettings.Key.SPIKE_TWIST, Material.TWISTING_VINES);
         ICONS.put(TreeSettings.Key.SPIKE_STAR, Material.NETHER_STAR);
@@ -166,21 +161,66 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.WEB_SAG, Material.LEAD);
         ICONS.put(TreeSettings.Key.WEB_IRREG, Material.COBWEB);
         ICONS.put(TreeSettings.Key.WEB_REACH, Material.SPYGLASS);
-        ICONS.put(TreeSettings.Key.F_TRUNK_LENGTH, Material.LADDER);
-        ICONS.put(TreeSettings.Key.F_LEVELS, Material.FERN);
-        ICONS.put(TreeSettings.Key.F_BRANCHES, Material.OAK_FENCE);
-        ICONS.put(TreeSettings.Key.F_LENGTH_DECAY, Material.BAMBOO);
-        ICONS.put(TreeSettings.Key.F_RADIUS_DECAY, Material.STRIPPED_OAK_LOG);
-        ICONS.put(TreeSettings.Key.F_SPREAD, Material.COMPASS);
-        ICONS.put(TreeSettings.Key.F_UP_BIAS, Material.FEATHER);
-        ICONS.put(TreeSettings.Key.F_JITTER, Material.RABBIT_FOOT);
-        ICONS.put(TreeSettings.Key.F_NOISE, Material.CHAIN);
-        ICONS.put(TreeSettings.Key.F_NOISE_SCALE, Material.STRING);
-        ICONS.put(TreeSettings.Key.F_GRAVITY, Material.ANVIL);
-        ICONS.put(TreeSettings.Key.F_FOLIAGE_LEVELS, Material.AZALEA);
-        ICONS.put(TreeSettings.Key.F_FOLIAGE_BRANCHES, Material.FLOWERING_AZALEA);
-        ICONS.put(TreeSettings.Key.F_FOLIAGE_LENGTH, Material.STICK);
-        ICONS.put(TreeSettings.Key.F_FOLIAGE_SPREAD, Material.BIG_DRIPLEAF);
+        ICONS.put(TreeSettings.Key.CANOPY_TRUNK_HEIGHT, Material.LADDER);
+        ICONS.put(TreeSettings.Key.CANOPY_LENGTH, Material.BAMBOO);
+        ICONS.put(TreeSettings.Key.CANOPY_LENGTH_MULT, Material.STICK);
+        ICONS.put(TreeSettings.Key.CANOPY_LEVELS, Material.SCAFFOLDING);
+        ICONS.put(TreeSettings.Key.CANOPY_LEVEL_DIST, Material.CHAIN);
+        ICONS.put(TreeSettings.Key.CANOPY_UPPER_SCALE, Material.BIRCH_SAPLING);
+        ICONS.put(TreeSettings.Key.CANOPY_RADIUS, Material.OAK_LOG);
+        ICONS.put(TreeSettings.Key.CANOPY_RADIUS_MULT, Material.STRIPPED_OAK_LOG);
+        ICONS.put(TreeSettings.Key.CANOPY_DEPTH, Material.FERN);
+        ICONS.put(TreeSettings.Key.CANOPY_BRANCHES, Material.OAK_FENCE);
+        ICONS.put(TreeSettings.Key.CANOPY_SPREAD, Material.COMPASS);
+        ICONS.put(TreeSettings.Key.CANOPY_LEAF_SIZE, Material.OAK_LEAVES);
+        ICONS.put(TreeSettings.Key.CANOPY_LEAF_START, Material.AZALEA_LEAVES);
+        ICONS.put(TreeSettings.Key.CANOPY_STAGGER, Material.RABBIT_FOOT);
+        ICONS.put(TreeSettings.Key.CANOPY_TWIST, Material.TWISTING_VINES);
+        ICONS.put(TreeSettings.Key.CANOPY_UPPER_TWIST, Material.WEEPING_VINES);
+        ICONS.put(TreeSettings.Key.CANOPY_CENTERING, Material.LIGHTNING_ROD);
+        ICONS.put(TreeSettings.Key.CANOPY_ROOT_COUNT, Material.MANGROVE_ROOTS);
+        ICONS.put(TreeSettings.Key.CANOPY_ROOT_LENGTH, Material.HANGING_ROOTS);
+        ICONS.put(TreeSettings.Key.CANOPY_ROOT_HEIGHT, Material.MUDDY_MANGROVE_ROOTS);
+        ICONS.put(TreeSettings.Key.CANOPY_ROOT_SCALE, Material.ROOTED_DIRT);
+        ICONS.put(TreeSettings.Key.CANOPY_GRAVITY, Material.ANVIL);
+        ICONS.put(TreeSettings.Key.CANOPY_WIND, Material.FEATHER);
+        ICONS.put(TreeSettings.Key.CANOPY_WIND_DIR, Material.RECOVERY_COMPASS);
+        ICONS.put(TreeSettings.Key.CANOPY_ELLIPSOID, Material.FLOWERING_AZALEA_LEAVES);
+        ICONS.put(TreeSettings.Key.CANOPY_WILLOW, Material.VINE);
+        ICONS.put(TreeSettings.Key.CANOPY_WILLOW_SCALE, Material.GLOW_LICHEN);
+        ICONS.put(TreeSettings.Key.CANOPY_BETA_LEAVES, Material.CLOCK);
+        ICONS.put(TreeSettings.Key.TIER_HEIGHT, Material.LADDER);
+        ICONS.put(TreeSettings.Key.TIER_STUMP, Material.SPRUCE_LOG);
+        ICONS.put(TreeSettings.Key.TIER_RADIUS, Material.OAK_LOG);
+        ICONS.put(TreeSettings.Key.TIER_TWIST, Material.TWISTING_VINES);
+        ICONS.put(TreeSettings.Key.TIER_BRAIDED, Material.CHAIN);
+        ICONS.put(TreeSettings.Key.TIER_BRAID_INTENSITY, Material.LEAD);
+        ICONS.put(TreeSettings.Key.TIER_BRAID_WOBBLE, Material.STRING);
+        ICONS.put(TreeSettings.Key.TIER_ROOT_FLARE, Material.MANGROVE_ROOTS);
+        ICONS.put(TreeSettings.Key.TIER_SPACING, Material.SCAFFOLDING);
+        ICONS.put(TreeSettings.Key.TIER_BRANCHES, Material.OAK_FENCE);
+        ICONS.put(TreeSettings.Key.TIER_BRANCH_LENGTH, Material.BAMBOO);
+        ICONS.put(TreeSettings.Key.TIER_SAG, Material.WEEPING_VINES);
+        ICONS.put(TreeSettings.Key.TIER_LEAF_SIZE, Material.SPRUCE_LEAVES);
+        ICONS.put(TreeSettings.Key.TIER_LEAF_DENSITY, Material.AZALEA_LEAVES);
+        ICONS.put(TreeSettings.Key.TIER_WILLOW, Material.VINE);
+        ICONS.put(TreeSettings.Key.TIER_WILLOW_SCALE, Material.GLOW_LICHEN);
+        ICONS.put(TreeSettings.Key.TIER_SNOW, Material.SNOW_BLOCK);
+        ICONS.put(TreeSettings.Key.TIER_SNOW_AMOUNT, Material.SNOWBALL);
+        ICONS.put(TreeSettings.Key.TIER_WIND, Material.FEATHER);
+        ICONS.put(TreeSettings.Key.TIER_WIND_DIR, Material.RECOVERY_COMPASS);
+        ICONS.put(TreeSettings.Key.PALM_HEIGHT, Material.LADDER);
+        ICONS.put(TreeSettings.Key.PALM_RADIUS, Material.JUNGLE_LOG);
+        ICONS.put(TreeSettings.Key.PALM_ROOT_REACH, Material.MANGROVE_ROOTS);
+        ICONS.put(TreeSettings.Key.PALM_S_CURVE, Material.TWISTING_VINES);
+        ICONS.put(TreeSettings.Key.PALM_SPLIT_CHANCE, Material.RABBIT_FOOT);
+        ICONS.put(TreeSettings.Key.PALM_SPLIT_DIST, Material.SHEARS);
+        ICONS.put(TreeSettings.Key.PALM_LAYERS, Material.SCAFFOLDING);
+        ICONS.put(TreeSettings.Key.PALM_FRONDS, Material.JUNGLE_LEAVES);
+        ICONS.put(TreeSettings.Key.PALM_FROND_LENGTH, Material.BAMBOO);
+        ICONS.put(TreeSettings.Key.PALM_FROND_THICK, Material.BIG_DRIPLEAF);
+        ICONS.put(TreeSettings.Key.PALM_DROOP, Material.WEEPING_VINES);
+        ICONS.put(TreeSettings.Key.PALM_PITCH, Material.COMPASS);
     }
 
     private final ProceduralModule tool;
@@ -209,7 +249,7 @@ final class ProceduralMenu implements Listener {
         TreeSession opened = tool.session(player);
         try {
             Page last = Page.valueOf(opened.lastPage);
-            if (last.shownFor(opened.settings.kind())) holder.page = last;
+            if (last.shownFor(opened.settings)) holder.page = last;
         } catch (IllegalArgumentException ignored) {
             holder.page = Page.BASIC;
         }
@@ -242,6 +282,7 @@ final class ProceduralMenu implements Listener {
     }
 
     private static String number(TreeSettings.Key key, double value) {
+        if (key.toggle()) return value >= 0.5 ? "オン" : "オフ";
         return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
     }
 
@@ -258,7 +299,7 @@ final class ProceduralMenu implements Listener {
         }
         // the tabs
         for (Page tab : Page.values()) {
-            if (!tab.shownFor(settings.kind())) continue;
+            if (!tab.shownFor(settings)) continue;
             boolean here = tab == page;
             ItemStack icon = item(tab.icon, (here ? "▶ " : "") + tab.label, here ? NamedTextColor.GOLD : NamedTextColor.WHITE, List.of(
                     text(here ? "いま開いているページ" : "クリックで開く", NamedTextColor.GRAY)));
@@ -283,9 +324,14 @@ final class ProceduralMenu implements Listener {
             TreeSettings.Key key = shownKeys[index];
             List<Component> lore = new ArrayList<>();
             lore.add(text(key.description(), NamedTextColor.GRAY));
-            lore.add(text("現在: " + number(key, settings.get(key)) + "  (" + number(key, key.min()) + " 〜 " + number(key, key.max()) + ")", NamedTextColor.WHITE));
-            lore.add(text("左クリック +" + number(key, key.step()) + " / 右クリック -" + number(key, key.step()), NamedTextColor.YELLOW));
-            lore.add(text("Shift で " + number(key, key.bigStep()) + " ずつ", NamedTextColor.YELLOW));
+            if (key.toggle()) {
+                lore.add(text("現在: " + number(key, settings.get(key)), NamedTextColor.WHITE));
+                lore.add(text("クリックで切り替え", NamedTextColor.YELLOW));
+            } else {
+                lore.add(text("現在: " + number(key, settings.get(key)) + "  (" + number(key, key.min()) + " 〜 " + number(key, key.max()) + ")", NamedTextColor.WHITE));
+                lore.add(text("左クリック +" + number(key, key.step()) + " / 右クリック -" + number(key, key.step()), NamedTextColor.YELLOW));
+                lore.add(text("Shift で " + number(key, key.bigStep()) + " ずつ", NamedTextColor.YELLOW));
+            }
             inventory.setItem(GRID[index], item(ICONS.getOrDefault(key, Material.PAPER), key.label() + ": " + number(key, settings.get(key)), NamedTextColor.GREEN, lore));
         }
 
@@ -307,7 +353,7 @@ final class ProceduralMenu implements Listener {
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
         inventory.setItem(GENERATE, item(Material.LIME_WOOL, "生成する", NamedTextColor.GREEN, List.of(
                 text("この設定の木を、決めた場所に作る", NamedTextColor.GRAY),
-                text("高さ " + settings.height() + " / 幅 " + settings.width() + " の箱の中に収まる", NamedTextColor.GRAY),
+                text(settings.kind().tree() ? "大きさは、幹・枝・葉のページの数字で決まる" : "高さ " + settings.height() + " / 幅 " + settings.width() + " の箱の中に収まる", NamedTextColor.GRAY),
                 text("空気と草花だけを置き換える", NamedTextColor.GRAY),
                 text("クリックで生成 (作った木は //undo で戻せる)", NamedTextColor.YELLOW))));
         inventory.setItem(UNDO, item(Material.BARRIER, "元に戻す (//undo)", NamedTextColor.RED, List.of(
@@ -373,22 +419,10 @@ final class ProceduralMenu implements Listener {
 
     private void renderTreeChoices(Inventory inventory, TreeSettings settings) {
         inventory.setItem(ALGORITHM, item(Material.KNOWLEDGE_BOOK, "アルゴリズム: " + ProceduralModule.algorithmLabel(settings.algorithm()), NamedTextColor.AQUA, List.of(
-                text("フラクタル: 幹から枝が同じ規則で分かれ続け、枝先に小さな枝と葉の玉の塊 (標準。うねり・垂れ・葉のグラデーション)", NamedTextColor.GRAY),
-                text("建築向け: 段のある幹、少数の太い枝、大きな葉のかたまり", NamedTextColor.GRAY),
-                text("パラメトリック: 幹から黄金角でらせん状に枝が出て、枝が枝を出す (Sapling / treegen 型)", NamedTextColor.GRAY),
-                text("針葉樹: 幹のまわりに輪になって枝が出る、円錐形 (pinegen 型)", NamedTextColor.GRAY),
-                text("空間コロニー化: 樹冠の中の目標点へ枝が伸びる (自然な不規則さ)", NamedTextColor.GRAY),
-                text("L-system: Honda 型の分岐規則の繰り返し (規則的な形)", NamedTextColor.GRAY),
-                text("クリックで切り替え", NamedTextColor.YELLOW))));
-        if (settings.fractal()) {
-            inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: (フラクタルでは使わない)", NamedTextColor.DARK_GRAY, List.of(
-                    text("フラクタルの形は、枝・葉のページの数字で決まる", NamedTextColor.GRAY))));
-            return;
-        }
-        inventory.setItem(CROWN, item(Material.FLOWERING_AZALEA, "樹冠の形: " + ProceduralModule.crownLabel(settings.crown()), NamedTextColor.AQUA, List.of(
-                text("枝の長さの分布・枝が埋める空間の形 (L-system 以外)", NamedTextColor.GRAY),
-                text("楕円体 / 円錐 / 傘 (高いところの枝が長い) / 円柱", NamedTextColor.GRAY),
-                text("クリックで切り替え", NamedTextColor.YELLOW))));
+                text("樹冠: 枝が同じ規則で分かれ続けるフラクタル。樹冠を重ねる・柳のつる・Beta 1.7.3 の葉", NamedTextColor.GRAY),
+                text("段の枝: 幹に段ごとに枝が出る (針葉樹など)。ねじれ・編み込みの幹・雪・柳のつる", NamedTextColor.GRAY),
+                text("ヤシ: S字の幹、てっぺんに葉の層。二股・支柱の根", NamedTextColor.GRAY),
+                text("左クリック: 次 / 右クリック: 前 (数字は、アルゴリズムごとに別々に残る)", NamedTextColor.YELLOW))));
     }
 
     private static Holder holder(Inventory inventory) {
@@ -409,7 +443,7 @@ final class ProceduralMenu implements Listener {
         loadLore.add(text("左クリック: 次へ / 右クリック: 前へ (その場で読み込む)", NamedTextColor.YELLOW));
         inventory.setItem(LOAD, item(Material.BOOKSHELF, "読み込み", NamedTextColor.AQUA, loadLore));
         inventory.setItem(RESET, item(Material.TNT, "設定を初期値に戻す", NamedTextColor.RED, List.of(
-                text("数字・アルゴリズム・樹冠・シードを初期値にする", NamedTextColor.GRAY),
+                text("数字・シード・選んだブロックを初期値にする (アルゴリズムはそのまま)", NamedTextColor.GRAY),
                 text("(保存は、誤クリックを防ぐため画面からはできません: /treetool save <名前>)", NamedTextColor.DARK_GRAY))));
         List<TreePart> parts = legendParts(settings);
         for (int index = 0; index < parts.size() && index < LEGEND_SLOTS.length; index++) {
@@ -437,10 +471,13 @@ final class ProceduralMenu implements Listener {
         }
     }
 
-    /** The parts shown with their blocks on the basic page (a fractal tree has no roots). */
+    /** The parts shown with their blocks on the basic page (only those the algorithm of a tree makes: snow on a tiered tree, no branches on a palm). */
     private static List<TreePart> legendParts(TreeSettings settings) {
         List<TreePart> parts = new ArrayList<>(settings.kind().parts());
-        if (settings.fractal()) parts.remove(TreePart.ROOT);
+        if (settings.kind().tree()) {
+            if (!settings.grows("tiered")) parts.remove(TreePart.SNOW);
+            if (settings.grows("palm")) parts.remove(TreePart.BRANCH);
+        }
         return parts;
     }
 
@@ -515,7 +552,7 @@ final class ProceduralMenu implements Listener {
         if (blockClick(player, holder, settings, slot, left, waited)) return;
 
         for (Page tab : Page.values()) {
-            if (tab.shownFor(settings.kind()) && tab.tab == slot) {
+            if (tab.shownFor(settings) && tab.tab == slot) {
                 holder.page = tab;
                 render(player, holder);
                 return;
@@ -525,7 +562,8 @@ final class ProceduralMenu implements Listener {
         for (int index = 0; index < pageKeys.length; index++) {
             if (GRID[index] != slot) continue;
             TreeSettings.Key key = pageKeys[index];
-            settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
+            if (key.toggle()) settings.set(key, settings.on(key) ? 0 : 1);
+            else settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
             tool.limit(settings);
             tool.changed(player);
             render(player, holder);
@@ -562,7 +600,7 @@ final class ProceduralMenu implements Listener {
                 if (holder.page != Page.BASIC) return;
                 if (!basicClick(player, session, settings, slot, left)) return;
                 // (a new kind has other pages: back to the basics)
-                if (!holder.page.shownFor(settings.kind())) holder.page = Page.BASIC;
+                if (!holder.page.shownFor(settings)) holder.page = Page.BASIC;
                 tool.changed(player);
             }
         }
@@ -651,7 +689,7 @@ final class ProceduralMenu implements Listener {
                     settings.cycleWebShape(left);
                 } else {
                     if (!settings.kind().tree()) return false;
-                    settings.cycleAlgorithm();
+                    settings.cycleAlgorithm(left);
                 }
             }
             case CROWN -> {
@@ -664,8 +702,7 @@ final class ProceduralMenu implements Listener {
                     }
                     tool.markPoints(player, session);
                 } else {
-                    if (!settings.kind().tree() || settings.fractal()) return false;
-                    settings.cycleCrown();
+                    return false;
                 }
             }
             case SEED -> {
@@ -698,6 +735,7 @@ final class ProceduralMenu implements Listener {
                 TreeSettings fresh = new TreeSettings();
                 fresh.setName(settings.name());
                 fresh.setKind(settings.kind());
+                fresh.setAlgorithm(settings.algorithm());
                 session.settings = fresh;
                 session.autoSeed = false;
             }

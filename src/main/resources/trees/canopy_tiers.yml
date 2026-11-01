@@ -1,0 +1,23 @@
+# 見本の木: 樹冠を3段に重ねた高い木 (平たい葉) (プロシージャルツールの読み込み、または /proceduraltool load canopy_tiers)
+settings:
+  kind: tree
+  algorithm: canopy
+  canopy-trunk-height: 6
+  canopy-length: 8
+  canopy-levels: 3
+  canopy-level-dist: 2
+  canopy-upper-scale: 0.85
+  canopy-depth: 3
+  canopy-branches: 4
+  canopy-spread: 70
+  canopy-leaf-size: 2.25
+  canopy-ellipsoid: 1
+  canopy-centering: 0.5
+  canopy-upper-twist: 0.3
+  seed: 0
+  blocks:
+    trunk: JUNGLE_LOG
+    branch: JUNGLE_LOG
+    root: JUNGLE_LOG
+  leaf-gradient:
+  - JUNGLE_LEAVES

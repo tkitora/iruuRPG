@@ -62,6 +62,37 @@ final class TreeStore {
         return file.isFile() && file.delete();
     }
 
+    /**
+     * Puts the sample trees of the jar ({@code trees/samples.txt} lists them) in the folder, each once: a sample is written when it was never written before
+     * (the names written are kept in {@code trees/.samples}), so a sample deleted or changed by hand is not brought back. Never throws.
+     */
+    public void installSamples() {
+        try {
+            File marker = new File(folder(), ".samples");
+            java.util.Set<String> done = new java.util.HashSet<>();
+            if (marker.isFile()) done.addAll(java.nio.file.Files.readAllLines(marker.toPath()));
+            java.io.InputStream list = plugin.getResource("trees/samples.txt");
+            if (list == null) return;
+            List<String> names;
+            try (list) {
+                names = new String(list.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).lines().map(String::trim).filter(line -> !line.isEmpty()).toList();
+            }
+            int added = 0;
+            for (String name : names) {
+                if (done.contains(name)) continue;
+                if (!file(name).exists()) {
+                    plugin.saveResource("trees/" + name + ".yml", false);
+                    added++;
+                }
+                done.add(name);
+            }
+            java.nio.file.Files.write(marker.toPath(), new ArrayList<>(done));
+            if (added > 0) plugin.getLogger().info("Tree tool: " + added + " sample trees added to " + folder().getName() + "/");
+        } catch (IOException | RuntimeException exception) {
+            plugin.getLogger().warning("Tree tool: sample trees not added: " + exception);
+        }
+    }
+
     /** The names saved, in alphabetical order. */
     public List<String> list() {
         File[] files = folder().listFiles((dir, fileName) -> fileName.endsWith(".yml"));

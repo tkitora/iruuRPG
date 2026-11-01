@@ -9,11 +9,13 @@ import org.bukkit.Material;
  */
 enum TreePart {
 
-    TRUNK("trunk", "幹", 0, Material.OAK_WOOD),
-    ROOT("root", "根", 1, Material.OAK_WOOD),
-    BRANCH("branch", "太い枝", 2, Material.OAK_WOOD),
-    TWIG("twig", "細い枝", 3, Material.OAK_WOOD),
+    TRUNK("trunk", "幹", 0, Material.OAK_LOG),
+    ROOT("root", "根", 1, Material.OAK_LOG),
+    BRANCH("branch", "枝", 2, Material.OAK_LOG),
+    TWIG("twig", "細い枝", 3, Material.OAK_LOG),
     LEAF("leaf", "葉", 4, Material.OAK_LEAVES),
+    /** The snow on the leaves of a tiered tree. */
+    SNOW("snow", "雪", 3, Material.SNOW_BLOCK),
     STONE("stone", "岩", 5, Material.GRAY_WOOL),
     STONE_LIGHT("stone-light", "岩(明)", 6, Material.LIGHT_GRAY_WOOL),
     STONE_DARK("stone-dark", "岩(暗)", 7, Material.BLUE_WOOL),

@@ -1,0 +1,11 @@
+# 見本の木: 広葉樹 (樹冠のフラクタル、標準の数字) (プロシージャルツールの読み込み、または /proceduraltool load canopy_oak)
+settings:
+  kind: tree
+  algorithm: canopy
+  seed: 0
+  blocks:
+    trunk: OAK_LOG
+    branch: OAK_LOG
+    root: OAK_LOG
+    leaf: OAK_LEAVES
+  leaf-gradient: []
