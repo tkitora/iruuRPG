@@ -208,23 +208,14 @@ public final class MarkGlyphs {
         return image;
     }
 
-    /** The resource pack with the shaders of the screen effects: see {@link #pack(boolean)}. */
-    public static byte[] pack() throws IOException {
-        return pack(true);
-    }
-
     /**
-     * The resource pack: pack.mcmeta, the font and the pictures (and the font of the action bar's icons, {@link HudGlyphs}, and with
-     * {@code shaders} the shaders of the screen effects, {@link ScreenShaders}). The bytes are the same every time for the same glyphs.
+     * The resource pack: pack.mcmeta, the font and the pictures (and the font of the action bar's icons, {@link HudGlyphs}). The bytes are the
+     * same every time for the same glyphs. (The shaders of the screen effects are a pack of their own, {@link ScreenShaders#pack}: a client
+     * whose GPU cannot take them must still have the fonts.)
      */
-    public static byte[] pack(boolean shaders) throws IOException {
+    public static byte[] pack() throws IOException {
         Map<String, byte[]> files = new LinkedHashMap<>();
-        JsonObject meta = new JsonObject();
-        JsonObject pack = new JsonObject();
-        pack.addProperty("pack_format", 22);
-        pack.addProperty("description", "iruuRPG: ground marks (font iruurpg:marks), heavy attack icons (font iruurpg:hud)" + (shaders ? ", screen effects" : ""));
-        meta.add("pack", pack);
-        files.put("pack.mcmeta", new GsonBuilder().setPrettyPrinting().create().toJson(meta).getBytes(StandardCharsets.UTF_8));
+        files.put("pack.mcmeta", meta("iruuRPG: ground marks (font iruurpg:marks), heavy attack icons (font iruurpg:hud)"));
         JsonArray providers = new JsonArray();
         for (Glyph glyph : ALL) {
             JsonObject provider = new JsonObject();
@@ -244,8 +235,21 @@ public final class MarkGlyphs {
         font.add("providers", providers);
         files.put("assets/iruurpg/font/marks.json", new GsonBuilder().disableHtmlEscaping().create().toJson(font).getBytes(StandardCharsets.UTF_8));
         HudGlyphs.addTo(files);
-        if (shaders) ScreenShaders.addTo(files);
+        return zip(files);
+    }
 
+    /** pack.mcmeta of a pack of this server (1.20.4). */
+    static byte[] meta(String description) {
+        JsonObject meta = new JsonObject();
+        JsonObject pack = new JsonObject();
+        pack.addProperty("pack_format", 22);
+        pack.addProperty("description", description);
+        meta.add("pack", pack);
+        return new GsonBuilder().setPrettyPrinting().create().toJson(meta).getBytes(StandardCharsets.UTF_8);
+    }
+
+    /** The files as a zip (the same bytes every time for the same files: the times are 0). */
+    static byte[] zip(Map<String, byte[]> files) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream out = new ZipOutputStream(bytes)) {
             for (Map.Entry<String, byte[]> file : files.entrySet()) {
