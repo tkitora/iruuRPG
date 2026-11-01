@@ -21,7 +21,7 @@ name: "凪払い"
 
 melee:
   enabled: true
-  trigger: "右クリック"
+  trigger: "Q"
   description:
     - "前方を力強く薙ぎ払う。"
   cost: 10
@@ -34,7 +34,7 @@ melee:
 
 range:
   enabled: true
-  trigger: "シフト右クリック"
+  trigger: "Q"
   description:
     - "周囲を攻撃し、後ろへ緊急回避する。"
   cost: 20

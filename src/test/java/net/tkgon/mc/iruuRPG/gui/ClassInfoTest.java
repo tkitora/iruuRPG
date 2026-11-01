@@ -31,7 +31,8 @@ class ClassInfoTest {
                     String label = "弱" + stage + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
-                for (int heavy = 0; heavy <= 4; heavy++) {
+                // 強1 - 強5 (t116: the heavy attacks are numbered as the buttons choose them)
+                for (int heavy = 1; heavy <= 5; heavy++) {
                     String label = "強" + heavy + ":";
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }

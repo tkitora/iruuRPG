@@ -138,9 +138,10 @@ public final class ClassInfo {
 
     private static List<String> controls(AttackType kind) {
         return switch (kind) {
-            case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右クリック: 強");
-            case RANGE -> List.of("右クリック: 弱 (弱1→弱5)", "左クリック: 強");
-            default -> List.of("右クリック: 1回目で設置、その後は弱", "左クリック: 強 (設置ごとに1回)", "スニーク+左クリック: 設置を消す");
+            case MELEE -> List.of("左クリック: 弱 (弱1→弱5)", "右→右: 強1 / 右→左: 強2", "Shift+右: 強3 / Shift+左: 強4", "Shift 2回: 強5", "Q: 武器のスキル");
+            case RANGE -> List.of("右クリック: 弱 (弱1→弱5)", "左→左: 強1 / 左→右: 強2", "Shift+左: 強3 / Shift+右: 強4", "Shift 2回: 強5", "Q: 武器のスキル");
+            default -> List.of("右クリック: 1回目で設置、その後は弱", "左→左: 強1 / 左→右: 強2", "Shift+左: 強3 / Shift+右: 強4", "Shift 2回: 強5 (強は設置ごとに1回)",
+                    "Shift+Q: 設置を消す");
         };
     }
 

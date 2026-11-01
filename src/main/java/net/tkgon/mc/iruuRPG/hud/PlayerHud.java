@@ -5,7 +5,9 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextColor;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
+import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.listener.ClassSkillListener;
+import net.tkgon.mc.iruuRPG.markpack.HudGlyphs;
 import net.tkgon.mc.iruuRPG.player.LevelService;
 import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.stat.StatType;
@@ -19,8 +21,11 @@ import java.util.Locale;
  * The action bar: HP, MP and (when a normal attack is cooling down) three gauges of the normal attack's cooldown,
  * melee (red), ranged (blue) and deployed (white). Each gauge is {@code [||||||||||]}: green when the normal attack can
  * be used, otherwise its progress in a light shade of the type's color. (The weapon skill's cooldown is the item's own
- * cooldown overlay, not shown here.) {@code hud.cooldown-gauges}: {@code auto} (only while a normal attack is cooling down or damage is being dealt, else the
- * usual status line with defense, level and XP), {@code always}, or {@code off}.
+ * cooldown overlay, not shown here.) {@code hud.cooldown-gauges}: {@code auto} (only while a normal attack or a heavy attack is cooling down or damage is
+ * being dealt, else the usual status line with defense, level and XP), {@code always}, or {@code off}.
+ *
+ * <p>With the gauges, a weapon whose heavy attacks have cooldowns of their own shows a row of their icons (強1 - 強5, {@link HudGlyphs}) above the
+ * line, centred over the ranged gauge: an icon is greyed and shaded from the top while its heavy attack cools down, with the seconds left on it.
  */
 public final class PlayerHud {
 
@@ -70,6 +75,13 @@ public final class PlayerHud {
                 return true;
             }
         }
+        RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
+        for (int index = 0; weapon != null && index < 5; index++) {
+            if (attackService.heavyCooldown(player, weapon, index)[0] > 0L) {
+                lastActive.put(player.getUniqueId(), now);
+                return true;
+            }
+        }
         // stay on the gauges a moment after the last cooldown, so the bar does not flip back and forth between swings
         Long last = lastActive.get(player.getUniqueId());
         return last != null && now - last < HOLD_MILLIS;
@@ -92,8 +104,9 @@ public final class PlayerHud {
                 .append(Component.text("/", NamedTextColor.GRAY))
                 .append(Component.text(format(profile.maxMp()), NamedTextColor.AQUA))
                 .append(Component.text("  "));
+        Component icons = heavyIcons(player);
         for (AttackType type : TYPES) {
-            bar = bar.append(gauge(player, type)).append(Component.text(" "));
+            bar = bar.append(gauge(player, type, type == AttackType.RANGE ? icons : null)).append(Component.text(" "));
         }
         // in the middle: the class skill's cooldown, or what has been dealt while it is up; at the right end: the DPS
         bar = bar.append(classSkill(player)).append(Component.text("  "));
@@ -115,8 +128,33 @@ public final class PlayerHud {
                 .append(Component.text(String.format(Locale.ROOT, "%.1f", status.remainingMillis() / 1000.0) + "s", NamedTextColor.WHITE));
     }
 
-    /** One gauge: the brackets in the type's color, the bars green (ready) or the normal attack's progress in a light shade. */
-    private Component gauge(Player player, AttackType type) {
+    /** {@code hud.heavy-icons} (default true): the row of the heavy attacks' icons with the gauges. */
+    private boolean heavyIconsOn() {
+        return plugin.getConfig().getBoolean("hud.heavy-icons", true);
+    }
+
+    /**
+     * The icons of the heavy attacks of the weapon in hand (null when they have no cooldowns of their own: a deployed weapon's, the usual chain's,
+     * none). They take no room in the line.
+     */
+    private Component heavyIcons(Player player) {
+        RpgItemDefinition weapon = heavyIconsOn() ? attackService.weaponInMainHand(player) : null;
+        if (weapon == null || !attackService.heavyIconsShown(player, weapon)) return null;
+        String classId = attackService.heavyIconClass(player, weapon);
+        java.util.List<HudGlyphs.Icon> icons = new java.util.ArrayList<>();
+        for (int index = 0; index < 5; index++) {
+            long[] cooldown = attackService.heavyCooldown(player, weapon, index);
+            double share = cooldown[0] <= 0L || cooldown[1] <= 0L ? 0.0 : Math.min(1.0, (double) cooldown[0] / cooldown[1]);
+            icons.add(new HudGlyphs.Icon(classId, index + 1, share, (int) Math.ceil(cooldown[0] / 1000.0)));
+        }
+        return HudGlyphs.row(icons);
+    }
+
+    /**
+     * One gauge: the brackets in the type's color, the bars green (ready) or the normal attack's progress in a light shade. {@code middle}: put at
+     * its middle (the icons of the heavy attacks), or null.
+     */
+    private Component gauge(Player player, AttackType type, Component middle) {
         long[] normal = attackService.normalCooldown(player, type);
         TextColor base = typeColor(type);
         Component gauge = Component.text("[", base);
@@ -128,6 +166,7 @@ public final class PlayerHud {
                 : (int) Math.max(0, Math.min(GAUGE_LENGTH, Math.round((1.0 - Math.min(1.0, (double) normal[0] / normal[1])) * GAUGE_LENGTH)));
         TextColor filledColor = ready ? READY : lighter(base);
         for (int index = 0; index < GAUGE_LENGTH; index++) {
+            if (middle != null && index == digitAt) gauge = gauge.append(middle);
             if (step > 0 && index == digitAt) {
                 gauge = gauge.append(Component.text(String.valueOf(step), NamedTextColor.WHITE).decorate(net.kyori.adventure.text.format.TextDecoration.BOLD));
             } else {

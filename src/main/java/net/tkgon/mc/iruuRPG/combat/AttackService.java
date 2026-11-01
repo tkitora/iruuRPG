@@ -136,21 +136,16 @@ public final class AttackService {
     }
 
     /**
-     * The next melee attack of the light / heavy chain (shift + left click is heavy). Call it once per attack that
+     * The next melee attack of the light / heavy chain ({@code heavy}: its heavy attack, chosen by the buttons). Call it once per attack that
      * got through the cooldown; a heavy attack or the finisher also lengthens the cooldown (its recovery).
      */
-    public MeleeCombo.Step nextMeleeStep(Player attacker) {
+    public MeleeCombo.Step nextMeleeStep(Player attacker, boolean heavy) {
         // a weapon that is not yellow to the class is used with ordinary attacks (no combo)
         if (!comboAllowed(attacker, weaponInMainHand(attacker))) {
             beginAttack(attacker);
             return MeleeCombo.Step.PLAIN;
         }
-        MeleeCombo.Step step = meleeCombo.next(attacker, attacker.isSneaking(), MeleeCombo.USUAL);
-        if (step == null) {
-            // a heavy attack that is still cooling down: a dull click, nothing thrown
-            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
-            return null;
-        }
+        MeleeCombo.Step step = heavy ? meleeCombo.usualHeavy(attacker) : meleeCombo.next(attacker, MeleeCombo.USUAL);
         attackCooldowns.extend(attacker, AttackType.MELEE, step.recoveryTicks());
         beginAttack(attacker);
         return step;
@@ -178,7 +173,6 @@ public final class AttackService {
         }, 3L);
     }
     private MageMoves mageMoves;
-    private final Map<UUID, Integer> lastMageHeavyTick = new HashMap<>();
 
     public void setMageMoves(MageMoves mageMoves) {
         this.mageMoves = mageMoves;
@@ -225,7 +219,7 @@ public final class AttackService {
     public boolean mageNormal(Player attacker, RpgItemDefinition weapon) {
         if (mageMoves == null || !isMage(attacker) || weapon.attackType() != AttackType.RANGE) return false;
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true) || !comboAllowed(attacker, weapon)) return false;
-        MeleeCombo.Step step = meleeCombo.next(attacker, false, MeleeCombo.MAGE);
+        MeleeCombo.Step step = meleeCombo.next(attacker, MeleeCombo.MAGE);
         beginAttack(attacker);
         // the delay a combo adds to a normal attack is small: the weapon's own cooldown and a few ticks (2 - 4)
         int base = (int) Math.round(attackCooldowns.totalMillis(attacker, AttackType.RANGE) / 50.0);
@@ -234,37 +228,28 @@ public final class AttackService {
         return true;
     }
 
-    /**
-     * The left click of a mage with a ranged weapon: a heavy attack (number 0 without a combo, else the number of
-     * normal attacks thrown so far). True when the click was used (also while the heavy attack cools down).
-     */
-    public boolean tryMageHeavy(Player attacker, RpgItemDefinition weapon) {
-        if (mageMoves == null || weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.RANGE) return false;
-        if (!isMage(attacker) || !plugin.getConfig().getBoolean("combat.combo.enabled", true) || !comboAllowed(attacker, weapon)) return false;
-        // one click arrives through several events in the same tick
-        int tick = org.bukkit.Bukkit.getCurrentTick();
-        Integer last = lastMageHeavyTick.put(attacker.getUniqueId(), tick);
-        if (last != null && last == tick) return true;
-        if (!canUseItem(attacker, weapon)) {
-            sendLevelRequirement(attacker, weapon);
-            return true;
-        }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, mageMoves.chainActive(attacker), MeleeCombo.MAGE);
+    /** True when the mage's ranged combo comes with this weapon (its heavy attacks are the mage's own, {@link MageMoves}). */
+    private boolean mageRanged(Player attacker, RpgItemDefinition weapon) {
+        return mageMoves != null && weapon != null && weapon.isWeaponLike() && weapon.attackType() == AttackType.RANGE && isMage(attacker)
+                && plugin.getConfig().getBoolean("combat.combo.enabled", true) && comboAllowed(attacker, weapon);
+    }
+
+    /** Heavy attack {@code index} (0 - 4) of a mage with a ranged weapon (強1 re-activates what the last one left). */
+    private void mageHeavy(Player attacker, RpgItemDefinition weapon, int index) {
+        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, MeleeCombo.MAGE, index, index == 0 && mageMoves.chainActive(attacker));
         if (step == null) {
-            attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
-            return true;
+            coolingClick(attacker);
+            return;
         }
         beginAttack(attacker);
         showHeavyCooldown(attacker, weapon, MeleeCombo.MAGE, step);
         mageMoves.heavy(attacker, weapon, step);
-        return true;
     }
 
     // ---- the combos of a class with a kind of weapon (the generic ones: see ClassCombo) ------------------------------------------
 
     private final Map<String, ClassCombo> classCombos = new HashMap<>();
     private MoveKit.Zones comboZones;
-    private final Map<UUID, Integer> lastClassHeavyTick = new HashMap<>();
 
     /** Adds the combo of a class with a kind of weapon (its plan's numbers are registered with the chain). */
     public void registerCombo(ClassCombo combo) {
@@ -384,24 +369,21 @@ public final class AttackService {
         combo.normal(kitAt(attacker, weapon, hold.spot, hold.facing), step);
     }
 
+    /** Shift + Q with a deployed weapon of a class that has a combo with it: the placement is taken away (its cooldown stays). True when the weapon has one. */
+    public boolean removePlacement(Player attacker, RpgItemDefinition weapon) {
+        if (weapon == null || weapon.attackType() != AttackType.DEPLOY || !hasClassCombo(attacker, weapon)) return false;
+        boolean removed = holds().remove(attacker);
+        // (what was set down at the placement goes with it)
+        if (removed && comboZones != null) comboZones.clear(attacker.getUniqueId());
+        attacker.sendMessage(removed ? "[iruuRPG] 設置を削除しました (置いた罠も消え、クールタイムはそのままです)。" : "[iruuRPG] 削除する設置がありません。");
+        return true;
+    }
+
     /**
-     * The left click with a deployed weapon of a class that has a combo with it: the heavy attack, made at the placement, once for each placement (which heavy attack it
-     * is follows the attack of the combo made last); sneaking with it takes the placement away. The cooldown stays either way.
+     * Heavy attack {@code index} (0 - 4) of a deployed weapon of a class that has a combo with it: made at the placement, once for each placement.
      */
-    public void deployLeft(Player attacker, RpgItemDefinition weapon) {
-        if (!hasClassCombo(attacker, weapon)) return;
-        if (!canUseItem(attacker, weapon)) {
-            sendLevelRequirement(attacker, weapon);
-            return;
-        }
+    private void deployHeavy(Player attacker, RpgItemDefinition weapon, int index) {
         DeployHold.Hold hold = holds().active(attacker);
-        if (attacker.isSneaking()) {
-            boolean removed = holds().remove(attacker);
-            // (what was set down at the placement goes with it)
-            if (removed && comboZones != null) comboZones.clear(attacker.getUniqueId());
-            attacker.sendMessage(removed ? "[iruuRPG] 設置を削除しました (置いた罠も消え、クールタイムはそのままです)。" : "[iruuRPG] 削除する設置がありません。");
-            return;
-        }
         if (hold == null) {
             attacker.sendMessage("[iruuRPG] 設置がありません。右クリックで設置してください。");
             return;
@@ -412,7 +394,7 @@ public final class AttackService {
         }
         hold.heavyUsed = true;
         ClassCombo combo = classComboFor(attacker, weapon);
-        MeleeCombo.Step step = meleeCombo.heavyStep(combo.spec().plan(), Math.min(4, hold.stage));
+        MeleeCombo.Step step = meleeCombo.heavyStep(combo.spec().plan(), index);
         beginAttack(attacker);
         combo.heavy(kitAt(attacker, weapon, hold.spot, hold.facing), step);
     }
@@ -451,7 +433,7 @@ public final class AttackService {
         if (!hasClassCombo(attacker, weapon)) return false;
         ClassCombo combo = classComboFor(attacker, weapon);
         startChainIfFresh(attacker, combo.spec().plan());
-        MeleeCombo.Step step = meleeCombo.next(attacker, false, combo.spec().plan());
+        MeleeCombo.Step step = meleeCombo.next(attacker, combo.spec().plan());
         beginAttack(attacker);
         attackCooldowns.ensureAtLeast(attacker, weapon.attackType(), (int) plugin.getConfig().getLong("combat.combo." + combo.spec().plan() + ".normal-gap-ticks", combo.normalGapTicks()));
         combo.normal(kit(attacker, weapon), step);
@@ -479,56 +461,130 @@ public final class AttackService {
         if (cooldown > 0) attacker.setCooldown(weapon.material(), cooldown);
     }
 
+    // ---- the heavy attacks chosen by the buttons (see HeavyInput) ---------------------------------------------------------------
+
     /**
-     * A heavy attack of the class's combo: the other click than the weapon's normal one (melee: the right click, ranged and
-     * deployed: the left click). True when the click was used, also while heavy 0 cools down.
+     * Whether the weapon in hand has heavy attacks: a class's combo with it, the mage's ranged combo, or the usual chain of a melee weapon. The
+     * buttons of such a weapon go through {@link HeavyInput}.
      */
-    public boolean tryComboHeavy(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
-        if (!hasClassCombo(attacker, weapon)) return false;
+    public boolean hasHeavies(Player attacker, RpgItemDefinition weapon) {
+        if (weapon == null || !weapon.isWeaponLike() || !comboOn()) return false;
+        if (mageRanged(attacker, weapon) || hasClassCombo(attacker, weapon)) return true;
+        return weapon.attackType() == AttackType.MELEE && comboAllowed(attacker, weapon);
+    }
+
+    /** Which button a click is for this weapon: the left one is the normal attack of a melee weapon, the right one of a ranged or deployed one. */
+    public static HeavyInput.Button button(RpgItemDefinition weapon, boolean rightClick) {
         boolean melee = weapon.attackType() == AttackType.MELEE;
-        if (melee != rightClick) return false;
-        if (rightClick && attacker.isSneaking()) return false;
-        int tick = org.bukkit.Bukkit.getCurrentTick();
-        Integer last = lastClassHeavyTick.put(attacker.getUniqueId(), tick);
-        // one click arrives through several events in a tick; a held right button repeats every 4 ticks (a press each when holding is on)
-        boolean held = rightClick && last != null && tick - last <= HELD_CLICK_TICKS;
-        if (last != null && (rightClick && !holdRightClick() ? tick - last <= HELD_CLICK_TICKS : last == tick)) return true;
+        return melee != rightClick ? HeavyInput.Button.NORMAL : HeavyInput.Button.OTHER;
+    }
+
+    /** The double press of shift: heavy attack {@code index} of the weapon in hand. False when it has none (the press is only a press). */
+    public boolean heavyByShift(Player attacker, int index) {
+        RpgItemDefinition weapon = weaponInMainHand(attacker);
+        if (!hasHeavies(attacker, weapon)) return false;
+        if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) return true;
+        heavyAttack(attacker, weapon, index);
+        return true;
+    }
+
+    /** Heavy attack {@code index} (0 - 4: 強1 - 強5) of the weapon in hand, chosen by the buttons. */
+    public void heavyAttack(Player attacker, RpgItemDefinition weapon, int index) {
         if (!canUseItem(attacker, weapon)) {
             sendLevelRequirement(attacker, weapon);
-            return true;
+            return;
         }
+        if (mageRanged(attacker, weapon)) {
+            mageHeavy(attacker, weapon, index);
+            return;
+        }
+        if (hasClassCombo(attacker, weapon)) {
+            if (weapon.attackType() == AttackType.DEPLOY) deployHeavy(attacker, weapon, index);
+            else comboHeavy(attacker, weapon, index);
+            return;
+        }
+        if (weapon.attackType() == AttackType.MELEE) usualHeavy.accept(attacker, weapon);
+    }
+
+    /** The heavy attack of the usual chain of a melee weapon (set by the listener, which swings it as it swings a normal attack). */
+    private java.util.function.BiConsumer<Player, RpgItemDefinition> usualHeavy = (player, weapon) -> {
+    };
+
+    public void setUsualHeavy(java.util.function.BiConsumer<Player, RpgItemDefinition> usualHeavy) {
+        this.usualHeavy = usualHeavy;
+    }
+
+    private final Map<UUID, Integer> lastCoolingClick = new HashMap<>();
+
+    /** A heavy attack that is still cooling down: a dull click, nothing thrown (not again and again for a held button). */
+    private void coolingClick(Player attacker) {
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        Integer last = lastCoolingClick.put(attacker.getUniqueId(), tick);
+        if (last != null && tick - last <= 10) return;
+        attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
+    }
+
+    /** {milliseconds left, the whole cooldown} of heavy attack {@code index} (0 - 4) of the weapon in hand ({0, 0}: ready, or no such heavy attack). */
+    public long[] heavyCooldown(Player attacker, RpgItemDefinition weapon, int index) {
+        String plan = heavyPlan(attacker, weapon);
+        return plan == null ? new long[]{0L, 0L} : meleeCombo.heavyCooldown(attacker, plan, index);
+    }
+
+    /** The plan whose heavy attacks the weapon in hand throws (null when they have no cooldowns of their own: none, a deployed weapon's, the usual one). */
+    private String heavyPlan(Player attacker, RpgItemDefinition weapon) {
+        if (mageRanged(attacker, weapon)) return MeleeCombo.MAGE;
+        if (!hasClassCombo(attacker, weapon) || weapon.attackType() == AttackType.DEPLOY) return null;
+        return classComboFor(attacker, weapon).spec().plan();
+    }
+
+    /** Whether the heavy attacks of the weapon in hand show their icons on the action bar: they have cooldowns of their own. */
+    public boolean heavyIconsShown(Player attacker, RpgItemDefinition weapon) {
+        return heavyPlan(attacker, weapon) != null;
+    }
+
+    /** Whose icons the heavy attacks of the weapon in hand show: the class of its combo ("generic" for a weapon outside the class's own combos). */
+    public String heavyIconClass(Player attacker, RpgItemDefinition weapon) {
+        if (mageRanged(attacker, weapon)) return "mage";
+        ClassCombo combo = classComboFor(attacker, weapon);
+        return combo == null || "*".equals(combo.classId()) ? "generic" : combo.classId();
+    }
+
+    /**
+     * Heavy attack {@code index} of the class's combo with a melee or ranged weapon. A heavy attack that can be gone on with (the scythe's) takes
+     * any heavy input as its next part; 強1 is the assassin's re-activation of its clones while they stand, and its dash during the item swap skill.
+     */
+    private void comboHeavy(Player attacker, RpgItemDefinition weapon, int index) {
+        boolean melee = weapon.attackType() == AttackType.MELEE;
+        int tick = org.bukkit.Bukkit.getCurrentTick();
         ClassCombo combo = classComboFor(attacker, weapon);
         startChainIfFresh(attacker, combo.spec().plan());
-        // a heavy attack that can be gone on with (the scythe's): the click is its next part
         if (combo.followUp(kit(attacker, weapon))) {
             beginAttack(attacker);
-            if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
-            return true;
+            if (melee) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+            return;
         }
-        // the assassin's heavy click with no normal attack since heavy 0 is its re-activation (one more clone, then the charge) while its clones stand
-        if (AssassinMeleeCombo.PLAN.equals(combo.spec().plan()) && meleeCombo.done(attacker, combo.spec().plan()) == 0 && AssassinClones.canRecast(attacker)) {
+        boolean assassin = AssassinMeleeCombo.PLAN.equals(combo.spec().plan());
+        if (assassin && index == 0 && AssassinClones.canRecast(attacker)) {
             beginAttack(attacker);
             AssassinClones.recast(kit(attacker, weapon), assassinFrenzy(attacker) >= 2 ? 1.35 : assassinFrenzy(attacker) == 1 ? 1.2 : 1.0);
-            return true;
+            return;
         }
-        // during the item swap skill the assassin's heavy 0 is a dash with a cooldown of 2 ticks of its own (the clone's cooldown of 8 s neither waits nor starts)
-        boolean swapDash = AssassinMeleeCombo.PLAN.equals(combo.spec().plan()) && assassinFrenzy(attacker) > 0 && meleeCombo.done(attacker, combo.spec().plan()) == 0;
+        // during the item swap skill the assassin's 強1 is a dash with a cooldown of 2 ticks of its own (the clone's cooldown of 8 s neither waits nor starts)
+        boolean swapDash = assassin && index == 0 && assassinFrenzy(attacker) > 0;
         if (swapDash) {
             Integer ready = swapDashReady.get(attacker.getUniqueId());
-            if (ready != null && tick < ready) return true;
+            if (ready != null && tick < ready) return;
             swapDashReady.put(attacker.getUniqueId(), tick + SWAP_DASH_COOLDOWN_TICKS);
         }
-        MeleeCombo.Step step = meleeCombo.heavyByClick(attacker, swapDash, combo.spec().plan());
+        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, combo.spec().plan(), index, swapDash);
         if (step == null) {
-            // (a held button waits for the cooldown without a "no" sound at every repeat)
-            if (!held) attacker.playSound(attacker.getLocation(), org.bukkit.Sound.BLOCK_DISPENSER_FAIL, org.bukkit.SoundCategory.PLAYERS, 0.5f, 1.4f);
-            return true;
+            coolingClick(attacker);
+            return;
         }
         beginAttack(attacker);
         if (!swapDash) showHeavyCooldown(attacker, weapon, combo.spec().plan(), step);
         combo.heavy(kit(attacker, weapon), step);
-        if (rightClick) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
-        return true;
+        if (melee) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
     }
 
     // ---- guard (invulnerability, damage cut, shields) -----------------------------------------------------------------------
@@ -704,6 +760,15 @@ public final class AttackService {
         }
 
         return attacker instanceof LivingEntity living ? living : null;
+    }
+
+    /** The item of the plugin {@code item} is (null for anything else). */
+    public RpgItemDefinition definitionOf(ItemStack item) {
+        return itemIdentifier.itemId(item).flatMap(itemRegistry::find).orElse(null);
+    }
+
+    public JavaPlugin plugin() {
+        return plugin;
     }
 
     public RpgItemDefinition weaponInMainHand(Player player) {

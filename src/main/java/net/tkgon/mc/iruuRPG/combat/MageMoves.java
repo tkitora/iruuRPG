@@ -57,9 +57,9 @@ import java.util.function.IntFunction;
  * from the right, 2 ticks apart, 4 three big bolts fanned out one after the other that come together just before the aim, cross and fly on straight, 5 a pillar of magic
  * out of the ground under every enemy normal attacks 1 - 4 of this round hit (where the player aims when they hit none).
  *
- * <p>Heavy attacks (left click, the number of normal attacks so far): 0 the echo and the re-activations. A heavy attack thrown while the echo is ready is thrown again
+ * <p>Heavy attacks (強1 - 強5 by the buttons, {@link HeavyInput}; heavy 0 - 4 here): 0 the echo and the re-activations. A heavy attack thrown while the echo is ready is thrown again
  * by itself 2 s later (that one is not echoed again and needs no combo; at most 3 wait at once); the echo then has a cooldown of 8 s, a second shorter for every attack that hits
- * (once per attack, however many times or enemies it hits). The heavy click with no normal attack before it re-activates what the last heavy attack left: 1 two bolts after the enemy
+ * (once per attack, however many times or enemies it hits). 強1 (heavy 0) re-activates what the last heavy attack left: 1 two bolts after the enemy
  * normal attack 1 hit (else one straight bolt ahead), 2 roots that spread over the ground round the player to 6 blocks and hurt what stands on them (one at a time; the
  * echo's are more); re-activated once they are full, they go back into the player as MP for the time they had left, 3 spikes out of the ground every block ahead, each
  * leaning further away; re-activated when they hit something, three more stab the nearest enemy they hit from the air round it, 4 a sphere where the player aims (a block
@@ -77,7 +77,7 @@ public final class MageMoves {
     private static final Vector Y_AXIS = new Vector(0.0, 1.0, 0.0);
     private static final Vector Z_AXIS = new Vector(0.0, 0.0, 1.0);
 
-    /** What the last heavy attack left for the heavy click with no normal attack before it (until a game tick). */
+    /** What the last heavy attack left for 強1 (heavy 0) to re-activate (until a game tick). */
     private record Pending(int untilTick, Runnable action) {
     }
 
@@ -166,7 +166,7 @@ public final class MageMoves {
         return states.computeIfAbsent(player.getUniqueId(), id -> new State());
     }
 
-    /** True while the last heavy attack left something the heavy click can re-activate. */
+    /** True while the last heavy attack left something 強1 (heavy 0) can re-activate. */
     public boolean chainActive(Player player) {
         State state = states.get(player.getUniqueId());
         return state != null && state.pending != null && Bukkit.getCurrentTick() <= state.pending.untilTick();
@@ -1025,7 +1025,7 @@ public final class MageMoves {
                 ParticleFx.mark(player);
                 Fx fx = kit.fx(center);
                 if (age == earlyFrom) {
-                    // from here on, the heavy click with nothing before it bursts it at once, for less
+                    // from here on, 強1 (heavy 0) bursts it at once, for less
                     offer(state, shrink + highlight - earlyFrom, () -> explode.accept(number("sphere-early-share", 0.6)));
                 }
                 if (age < shrink) {

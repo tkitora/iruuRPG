@@ -738,6 +738,8 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(particleSettings, this);
         getServer().getPluginManager().registerEvents(bgmSettings, this);
         getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.ClickSignals(this), this);
+        // the heavy attacks chosen by the buttons (and the double press of shift: 強5)
+        getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.combat.HeavyInput(this, attackService::heavyByShift), this);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);

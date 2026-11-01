@@ -9,13 +9,14 @@ import java.util.UUID;
 
 /**
  * The light / heavy chain of melee attacks. A left click is a light attack: {@code light-count} lights in a row (each
- * within {@code window-ticks} of the one before) end with the finisher, the last light, which hits harder. A shift +
- * left click is a heavy attack, thrown after the lights done so far; it ends the chain.
+ * within {@code window-ticks} of the one before) end with the finisher, the last light, which hits harder. A heavy
+ * input ({@link HeavyInput}) is a heavy attack, thrown after the lights done so far; it ends the chain.
  *
  * <p>Two kinds of plan: the usual one (a weapon that is not a class's favorite) has one kind of heavy attack that hits
  * harder after more lights and takes longer to recover from. The plans of the combos ({@link ComboSpec}, registered with
- * {@link #register}) have five normal and five heavy attacks, 0 - 4: the other click after the normal attacks thrown so far
- * (none for heavy 0) throws one and ends the chain. The mage's ranged plan ({@link #MAGE}) has a spec of its own too ({@link MageMoves#SPEC}).
+ * {@link #register}) have five normal and five heavy attacks: heavy 0 - 4 (強1 - 強5) is chosen by the buttons ({@link HeavyInput}), each has a
+ * cooldown of its own, and the chain of normal attacks goes on after it. The mage's ranged plan ({@link #MAGE}) has a spec of its own too
+ * ({@link MageMoves#SPEC}).
  */
 public final class MeleeCombo {
 
@@ -134,35 +135,41 @@ public final class MeleeCombo {
         return Math.max(min, Math.min(max, value));
     }
 
-    /**
-     * The next attack of {@code player}'s chain; {@code heavy} for the shift + left click. Null when it is a heavy
-     * attack that is still cooling down (nothing is thrown, and the chain stays as it is).
-     */
-    public Step next(Player player, boolean heavy, String plan) {
+    /** The next normal attack of {@code player}'s chain. */
+    public Step next(Player player, String plan) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
         ComboSpec spec = specs.get(plan);
         if (spec != null) return nextSpec(player, spec);
-        return nextUsual(player, heavy);
+        return nextUsual(player, false);
     }
 
     /**
-     * The heavy attack of {@code plan} for the heavy click: number 0 when no light was thrown (or the chain ran out), else the number
-     * of lights thrown so far. Null while that heavy attack cools down. The chain starts over.
+     * Heavy attack {@code index} (0 - 4: 強1 - 強5) of {@code plan}, chosen by the buttons. Null while it cools down. The chain of normal attacks
+     * goes on after it (its time to the next normal attack starts again).
      */
-    public Step heavyByClick(Player player, boolean skipHeavyZeroCooldown, String plan) {
+    public Step heavyByInput(Player player, String plan, int index, boolean skipCooldown) {
         if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return null;
-        long now = System.currentTimeMillis();
-        long[] state = chain(player, plan);
-        int done = now - state[1] > window(plan) ? 0 : (int) state[0];
-        int index = Math.min(done, HEAVIES - 1);
-        // (the mage's heavy 0 right after a heavy that can be followed up is that follow-up, which has no cooldown of heavy 0's)
-        Step step = heavy(player, plan, index, index == 0 && skipHeavyZeroCooldown);
+        int at = Math.max(0, Math.min(HEAVIES - 1, index));
+        Step step = heavy(player, plan, at, skipCooldown);
         if (step != null) {
-            state[0] = 0L;
-            state[1] = now;
-            shown(player, plan, 0);
+            long[] state = chain(player, plan);
+            long now = System.currentTimeMillis();
+            if (!plugin.getConfig().getBoolean("combat.heavy-input.keep-chain", true)) {
+                // (as before t116: a heavy attack ends the chain)
+                state[0] = 0L;
+                state[1] = now;
+                shown(player, plan, 0);
+            } else if (now - state[1] <= window(plan)) {
+                state[1] = now;
+            }
         }
         return step;
+    }
+
+    /** The heavy attack of the usual plan (thrown after the lights done so far, which it ends); it has no cooldown, only its recovery. */
+    public Step usualHeavy(Player player) {
+        if (!plugin.getConfig().getBoolean("combat.combo.enabled", true)) return Step.PLAIN;
+        return nextUsual(player, true);
     }
 
     public double heavyMultiplier(String plan, int index) {
@@ -213,41 +220,56 @@ public final class MeleeCombo {
         return new Step(Kind.LIGHT, stage, 1.0, 0, USUAL, 0, 0, 1.0);
     }
 
+    /**
+     * The cooldowns the heavy attacks 強2 - 強5 have when the plan's own is 0 (they used to need the normal attacks before them, and had none):
+     * {@code combat.heavy-input.later-cooldown-ticks}, 3, 4, 5 and 6 s by default.
+     */
+    private static final int[] LATER_COOLDOWN_TICKS = {60, 80, 100, 120};
+
     /** The cooldown of heavy attack {@code index} of {@code plan} in ticks (the config's, else the plan's own). */
     public int heavyCooldownTicks(String plan, int index) {
         ComboSpec spec = specs.get(plan);
-        double[] defaults = new double[]{60, 0, 0, 0, 0};
-        if (spec != null) for (int at = 0; at < 5; at++) defaults[at] = spec.heavyCooldownTicks()[at];
         int at = Math.max(0, Math.min(HEAVIES - 1, index));
-        return (int) Math.round(listed(plan + ".heavy-cooldown-ticks", at, defaults[at], 0, 1200));
+        int own = spec == null ? (at == 0 ? 60 : 0) : spec.heavyCooldownTicks()[at];
+        if (own == 0 && at > 0) own = (int) Math.round(laterCooldown(at - 1));
+        return (int) Math.round(listed(plan + ".heavy-cooldown-ticks", at, own, 0, 1200));
+    }
+
+    private double laterCooldown(int index) {
+        java.util.List<?> list = plugin.getConfig().getList("combat.heavy-input.later-cooldown-ticks");
+        if (list == null || list.isEmpty()) return LATER_COOLDOWN_TICKS[index];
+        Object item = list.get(Math.min(index, list.size() - 1));
+        return item instanceof Number number ? Math.max(0, Math.min(1200, number.doubleValue())) : LATER_COOLDOWN_TICKS[index];
     }
 
     /** Heavy attack {@code index} of {@code plan}, or null while its own cooldown runs. */
     private Step heavy(Player player, String plan, int index, boolean skipCooldown) {
         long now = System.currentTimeMillis();
-        long[] ready = heavyReadyAt.computeIfAbsent(player.getUniqueId() + "|" + plan, ignored -> new long[HEAVIES]);
+        String key = player.getUniqueId() + "|" + plan;
+        long[] ready = heavyReadyAt.computeIfAbsent(key, ignored -> new long[HEAVIES]);
         if (!skipCooldown) {
             if (ready[index] > now) return null;
-            ComboSpec spec = specs.get(plan);
-            double[] defaults = new double[]{60, 0, 0, 0, 0};
-            if (spec != null) {
-                for (int at = 0; at < 5; at++) defaults[at] = spec.heavyCooldownTicks()[at];
-            }
-            long cooldownTicks = Math.round(listed(plan + ".heavy-cooldown-ticks", index, defaults[index], 0, 1200));
-            ready[index] = now + cooldownTicks * 50L;
+            long cooldown = heavyCooldownTicks(plan, index) * 50L;
+            ready[index] = now + cooldown;
+            heavyTotal.computeIfAbsent(key, ignored -> new long[HEAVIES])[index] = cooldown;
         }
         double multiplier = heavyMultiplier(plan, index);
         return new Step(Kind.HEAVY, index, multiplier, 0, plan, index, 0, 1.0);
     }
 
-    /** Seconds until heavy attack {@code index} can be thrown again (0 when ready). */
-    public double heavyRemainingSeconds(Player player, int index) {
-        long[] ready = null;
-        for (Map.Entry<String, long[]> entry : heavyReadyAt.entrySet()) {
-            if (entry.getKey().startsWith(player.getUniqueId() + "|") && entry.getValue()[Math.max(0, Math.min(4, index))] > System.currentTimeMillis()) ready = entry.getValue();
-        }
-        if (ready == null || index < 0 || index >= ready.length) return 0.0;
-        return Math.max(0.0, (ready[index] - System.currentTimeMillis()) / 1000.0);
+    /** The whole cooldown last started for each heavy attack of each player's plan (milliseconds). */
+    private final Map<String, long[]> heavyTotal = new HashMap<>();
+
+    /** {milliseconds left, the whole cooldown} of heavy attack {@code index} of {@code plan} ({0, 0} when it is ready). */
+    public long[] heavyCooldown(Player player, String plan, int index) {
+        String key = player.getUniqueId() + "|" + plan;
+        long[] ready = heavyReadyAt.get(key);
+        int at = Math.max(0, Math.min(HEAVIES - 1, index));
+        if (ready == null) return new long[]{0L, 0L};
+        long left = ready[at] - System.currentTimeMillis();
+        if (left <= 0L) return new long[]{0L, 0L};
+        long[] total = heavyTotal.get(key);
+        return new long[]{left, Math.max(left, total == null ? left : total[at])};
     }
 
     /** The number of the last light attack of the running chain (the finisher included); 0 when the chain is not running. */
@@ -267,6 +289,7 @@ public final class MeleeCombo {
     public void forget(UUID player) {
         chains.keySet().removeIf(key -> key.startsWith(player + "|"));
         heavyReadyAt.keySet().removeIf(key -> key.startsWith(player + "|"));
+        heavyTotal.keySet().removeIf(key -> key.startsWith(player + "|"));
         lastShown.keySet().removeIf(key -> key.startsWith(player + "|"));
     }
 }

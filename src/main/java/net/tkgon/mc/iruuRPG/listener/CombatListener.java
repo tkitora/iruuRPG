@@ -4,6 +4,7 @@ import io.papermc.paper.event.player.PrePlayerAttackEntityEvent;
 import net.tkgon.mc.iruuRPG.combat.AttackService;
 import net.tkgon.mc.iruuRPG.combat.AttackType;
 import net.tkgon.mc.iruuRPG.combat.DeployService;
+import net.tkgon.mc.iruuRPG.combat.HeavyInput;
 import net.tkgon.mc.iruuRPG.combat.ItemSkillService;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import org.bukkit.GameMode;
@@ -18,6 +19,9 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.event.Cancellable;
+import org.bukkit.event.inventory.InventoryAction;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -39,6 +43,7 @@ public final class CombatListener implements Listener {
         this.attackService = attackService;
         this.deployService = deployService;
         this.itemSkillService = itemSkillService;
+        attackService.setUsualHeavy(this::usualHeavy);
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -68,9 +73,11 @@ public final class CombatListener implements Listener {
         }
         if (!(event.getAttacked() instanceof LivingEntity victim)) return;
 
-        // a mage's left click with a ranged weapon is a heavy attack (a ranger's, with a ranged or deployed one)
-        if (attackService.tryMageHeavy(attacker, weapon)) return;
-        if (weapon.attackType() != AttackType.MELEE && attackService.tryComboHeavy(attacker, weapon, false)) return;
+        // the left button of a ranged or deployed weapon is the other button (its heavy attacks)
+        if (weapon.attackType() != AttackType.MELEE) {
+            heavyClick(attacker, weapon, false);
+            return;
+        }
         handleCustomMelee(attacker, victim, weapon);
     }
 
@@ -144,8 +151,10 @@ public final class CombatListener implements Listener {
             attackService.sendLevelRequirement(attacker, weapon);
             return;
         }
-        if (attackService.tryMageHeavy(attacker, weapon)) return;
-        if (weapon.attackType() != AttackType.MELEE && attackService.tryComboHeavy(attacker, weapon, false)) return;
+        if (weapon.attackType() != AttackType.MELEE) {
+            heavyClick(attacker, weapon, false);
+            return;
+        }
         handleCustomMelee(attacker, victim, weapon);
     }
 
@@ -191,11 +200,10 @@ public final class CombatListener implements Listener {
         event.setCancelled(true);
     }
 
-    /** Uses the right-click of the weapon in hand (manual skill, or ranged / deploy attack). False when it has none. */
+    /** Uses the right-click of the weapon in hand (a heavy attack, or ranged / deploy attack). False when it has none. */
     private boolean useWeaponRightClick(Player player, RpgItemDefinition weapon) {
-        if (itemSkillService.handleManualUse(player, weapon)) return true;
-        // a class's combo with a melee weapon: the right click is a heavy attack (the number of normal attacks thrown so far)
-        if (attackService.tryComboHeavy(player, weapon, true)) return true;
+        // the other button of a melee weapon; a ranged / deployed weapon's right click after its left one, or with shift
+        if (heavyClick(player, weapon, true)) return true;
         if (!isRangedRightClickWeapon(weapon)) return false;
 
         handleRpgRightClick(player, weapon);
@@ -216,29 +224,29 @@ public final class CombatListener implements Listener {
         Player attacker = event.getPlayer();
         RpgItemDefinition weapon = attackService.weaponInMainHand(attacker);
         if (weapon == null || !weapon.isWeaponLike()) return;
-        if (weapon.attackType() == AttackType.RANGE && attackService.isMage(attacker)) {
-            // a mage's left click with a ranged weapon is a heavy attack
+        if (weapon.attackType() != AttackType.MELEE) {
+            // the left button of a ranged or deployed weapon with heavy attacks is its other button
+            if (!attackService.hasHeavies(attacker, weapon)) return;
             event.setCancelled(true);
-            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryMageHeavy(attacker, weapon));
+            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> heavyClick(attacker, weapon, false));
             return;
         }
-        if (weapon.attackType() == AttackType.DEPLOY && attackService.hasClassCombo(attacker, weapon)) {
-            // a deployed weapon's combo: the left click is the heavy attack of the placement (once), and sneaking with it takes the placement away
-            event.setCancelled(true);
-            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.deployLeft(attacker, weapon));
-            return;
-        }
-        if (weapon.attackType() == AttackType.RANGE && attackService.hasClassCombo(attacker, weapon)) {
-            // the left click with a ranged weapon of a class that has a combo with it is a heavy attack
-            event.setCancelled(true);
-            net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> attackService.tryComboHeavy(attacker, weapon, false));
-            return;
-        }
-        if (weapon.attackType() != AttackType.MELEE) return;
 
         event.setCancelled(true);
         // only a real press of the left button counts (not the answer to an arm swing of the plugin, nor a held right button)
         net.tkgon.mc.iruuRPG.combat.ClickSignals.left(attacker, () -> meleeClick(attacker, weapon));
+    }
+
+    /**
+     * A click of a weapon with heavy attacks ({@link HeavyInput}): true when it was used up by them (a heavy attack thrown, or the first of two
+     * buttons); false when it is the weapon's normal attack (or the weapon has no heavy attacks).
+     */
+    private boolean heavyClick(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
+        if (!attackService.hasHeavies(attacker, weapon)) return false;
+        int input = HeavyInput.click(attacker, AttackService.button(weapon, rightClick));
+        if (input == HeavyInput.NORMAL_ATTACK) return false;
+        if (input >= 0) attackService.heavyAttack(attacker, weapon, input);
+        return true;
     }
 
     private void meleeClick(Player attacker, RpgItemDefinition weapon) {
@@ -246,11 +254,22 @@ public final class CombatListener implements Listener {
             attackService.sendLevelRequirement(attacker, weapon);
             return;
         }
+        // (the right button and then this one, or shift + this one: a heavy attack)
+        if (heavyClick(attacker, weapon, false)) return;
+        meleeSwing(attacker, weapon, false);
+    }
+
+    /** The heavy attack of a melee weapon's usual chain (a weapon outside the class's combos): swung as a normal attack is. */
+    private void usualHeavy(Player attacker, RpgItemDefinition weapon) {
+        meleeSwing(attacker, weapon, true);
+    }
+
+    private void meleeSwing(Player attacker, RpgItemDefinition weapon, boolean heavy) {
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         // a class's combo with a melee weapon
-        if (attackService.comboNormal(attacker, weapon)) return;
-        net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
+        if (!heavy && attackService.comboNormal(attacker, weapon)) return;
+        net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker, heavy);
         if (step == null) return;
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
         if (hand.offHand()) attackService.swingOffHand(attacker);
@@ -277,10 +296,11 @@ public final class CombatListener implements Listener {
         }
         // (a heavy attack's recovery also holds off an attack on an enemy)
         if (!net.tkgon.mc.iruuRPG.combat.ClickSignals.leftPossible(attacker)) return;
+        if (heavyClick(attacker, weapon, false)) return;
         if (!attackService.tryStart(attacker, AttackType.MELEE)) return;
 
         if (attackService.comboNormal(attacker, weapon)) return;
-        net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker);
+        net.tkgon.mc.iruuRPG.combat.MeleeCombo.Step step = attackService.nextMeleeStep(attacker, false);
         if (step == null) return;
         // a dual-wielding assassin hits with one hand and then the other
         AttackService.MeleeHand hand = attackService.nextMeleeHand(attacker, weapon);
@@ -320,6 +340,49 @@ public final class CombatListener implements Listener {
             rightClickGuard.markWeapon(attacker);
             event.setCancelled(true);
         }
+    }
+
+    /** The tick of each player's last drop from an inventory screen (a drop then is not the Q key of the hotbar). */
+    private final java.util.Map<java.util.UUID, Integer> screenDropTick = new java.util.HashMap<>();
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onScreenDrop(InventoryClickEvent event) {
+        InventoryAction action = event.getAction();
+        if (action != InventoryAction.DROP_ONE_SLOT && action != InventoryAction.DROP_ALL_SLOT && action != InventoryAction.DROP_ONE_CURSOR
+                && action != InventoryAction.DROP_ALL_CURSOR) return;
+        if (event.getWhoClicked() instanceof Player player) screenDropTick.put(player.getUniqueId(), org.bukkit.Bukkit.getCurrentTick());
+    }
+
+    /**
+     * The Q key (and Ctrl + Q) of the hotbar never drops anything (items are given by trading): it casts the skill of the weapon in hand; shift + Q
+     * with a deployed weapon of the class's combo takes its placement away. A drop from an inventory screen is left as it is; a class skill on
+     * the Q key, the editors and the menu item (which cancel the drop first) come before.
+     */
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onDropKey(PlayerDropItemEvent event) {
+        Player player = event.getPlayer();
+        Integer screen = screenDropTick.get(player.getUniqueId());
+        if (screen != null && screen == org.bukkit.Bukkit.getCurrentTick()) return;
+        RpgItemDefinition weapon = attackService.definitionOf(event.getItemDrop().getItemStack());
+        boolean isWeapon = weapon != null && weapon.isWeaponLike();
+        // combat.q-key.keep-items (default true): false lets Q drop what is not a weapon, as before
+        if (!isWeapon && !attackService.plugin().getConfig().getBoolean("combat.q-key.keep-items", true)) return;
+        event.setCancelled(true);
+        if (!isWeapon) return;
+        boolean sneaking = player.isSneaking();
+        // (the item is back in the hand after the event)
+        org.bukkit.Bukkit.getScheduler().runTask(attackService.plugin(), () -> {
+            if (!player.isOnline() || player.isDead()) return;
+            RpgItemDefinition held = attackService.weaponInMainHand(player);
+            if (held == null || !held.id().equals(weapon.id())) return;
+            if (sneaking && attackService.removePlacement(player, held)) return;
+            itemSkillService.useByKey(player, held);
+        });
+    }
+
+    @EventHandler
+    public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        screenDropTick.remove(event.getPlayer().getUniqueId());
     }
 
     private boolean isRangedRightClickWeapon(RpgItemDefinition weapon) {

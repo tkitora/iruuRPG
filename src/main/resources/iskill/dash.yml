@@ -7,7 +7,7 @@ name: "疾走"
 
 melee:
   enabled: true
-  trigger: "右クリック"
+  trigger: "Q"
   description:
     - "上方と前方へ大きくリープする。"
   cost: 3
@@ -20,7 +20,7 @@ melee:
 
 range:
   enabled: true
-  trigger: "シフト右クリック"
+  trigger: "Q"
   description:
     - "視線方向へテレポートする。"
   cost: 5
