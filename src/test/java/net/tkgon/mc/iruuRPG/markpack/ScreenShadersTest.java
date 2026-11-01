@@ -96,6 +96,23 @@ class ScreenShadersTest {
     }
 
     @Test
+    void everyPassCoversItsWholeTarget() throws IOException {
+        // t127: the game gives every pass the screen's ProjMat, so a pass into a smaller target (the bloom's, the 8 x 1 state) drew only its
+        // bottom-left corner; the square is made from OutSize, the size of the pass's own target
+        Map<String, byte[]> files = ScreenShaders.files();
+        String vertex = text(files, "program/iruu_fx.vsh");
+        assertFalse(vertex.contains("uniform mat4 ProjMat"), vertex);
+        assertTrue(vertex.contains("Position.xy / OutSize"));
+        for (String file : ScreenShaders.FILES) {
+            if (!file.startsWith("program/") || !file.endsWith(".json")) continue;
+            JsonObject program = JsonParser.parseString(text(files, file)).getAsJsonObject();
+            if (!program.get("vertex").getAsString().equals("iruu_fx")) continue;
+            assertTrue(names(program, "uniforms").contains("OutSize"), file);
+            assertFalse(names(program, "uniforms").contains("ProjMat"), file + ": a uniform the program does not use (the game warns)");
+        }
+    }
+
+    @Test
     void theShadersReadTheMarkersTheServerShows() throws IOException {
         Map<String, byte[]> files = ScreenShaders.files();
         String red = "== " + ScreenEffects.MARKER_RED;

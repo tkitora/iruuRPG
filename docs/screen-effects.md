@@ -32,3 +32,5 @@
 - `ScreenEffects.Effect` に番号 2〜8 で足す。マーカーはその番号の場所 (左下の x = 4 ×(番号 − 1)) に描かれる。
 - `post/entity_outline.json` にパスを足し、`StateSampler` (= `iruu_fx_state`) の (番号 − 1, 0) を読む (a が 1 ならマーカーあり、b が強さ)。
 - 新しいファイルは `markpack/ScreenShaders.FILES` に足す (全部そろわないと、パックに入れない)。
+- 新しいパスの頂点シェーダーは `iruu_fx` を使い、program の JSON の uniforms に `OutSize` を入れる。ゲームは、どのパスにも画面の大きさの `ProjMat` を渡すので、`ProjMat` で四角を作ると、画面より小さい出力先には左下の一部しか描かれない (t127)。
+- 変えたら、オフスクリーンの検証 (ワークスペースの `design/screenfx-shadertest.swift`) で確かめる。
