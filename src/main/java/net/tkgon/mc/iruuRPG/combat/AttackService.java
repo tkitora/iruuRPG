@@ -514,6 +514,24 @@ public final class AttackService {
         this.usualHeavy = usualHeavy;
     }
 
+    /** Told of every critical hit that was applied: the attacker and the middle of the one hit (the screen effects' impact, t130). */
+    private java.util.function.BiConsumer<Player, Location> criticalHit = (attacker, at) -> {
+    };
+
+    public void setCriticalHit(java.util.function.BiConsumer<Player, Location> criticalHit) {
+        this.criticalHit = criticalHit == null ? (attacker, at) -> {
+        } : criticalHit;
+    }
+
+    private void criticalHit(Player attacker, Location numberLocation, double height, boolean critical) {
+        if (!critical || attacker == null || numberLocation == null) return;
+        try {
+            criticalHit.accept(attacker, numberLocation.clone().add(0.0, Math.max(0.5, height * 0.5), 0.0));
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("critical hit effect: " + exception);
+        }
+    }
+
     private final Map<UUID, Integer> lastCoolingClick = new HashMap<>();
 
     /** A heavy attack that is still cooling down: a dull click, nothing thrown (not again and again for a held button). */
@@ -1187,6 +1205,7 @@ public final class AttackService {
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         // the number shows also for the hit that kills (its place was taken before the damage); the status effects only on a victim that lives
         if (applied) attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
+        if (applied) criticalHit(attacker, numberLocation, numberHeight, critical);
         if (applied && hasRemainingHealth(victim)) {
             boolean statuses = statusAllowed(attacker, victim, weapon, snapshot);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);
@@ -1266,6 +1285,7 @@ public final class AttackService {
         if (applied && attacker != null) damageMeter.record(attacker.getUniqueId(), finalDamage);
         // the number shows also for the hit that kills (its place was taken before the damage); the status effects only on a victim that lives
         if (applied) attackEffects.playDamageNumber(attacker, numberLocation, numberHeight, weapon, finalDamage, critical);
+        if (applied) criticalHit(attacker, numberLocation, numberHeight, critical);
         if (applied && hasRemainingHealth(victim)) {
             boolean statuses = statusAllowed(attacker, victim, weapon, snapshot);
             statusEffectService.onDamageDealt(attacker, victim, weapon, finalDamage, critical, statuses, snapshot);

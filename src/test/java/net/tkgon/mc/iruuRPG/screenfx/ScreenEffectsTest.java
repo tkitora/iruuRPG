@@ -24,6 +24,9 @@ class ScreenEffectsTest {
         assertEquals(Color.fromRGB(177, 1, 255), ScreenEffects.markerColor(Effect.CHROMATIC, 900));
         assertEquals(Color.fromRGB(177, 1, 1), ScreenEffects.markerColor(Effect.CHROMATIC, 0));
         assertEquals(Effect.CHROMATIC, Effect.find("Chromatic"));
+        assertEquals(Color.fromRGB(177, 2, 100), ScreenEffects.markerColor(Effect.IMPACT, 100));
+        assertTrue(Effect.IMPACT.positional());
+        assertFalse(Effect.CHROMATIC.positional());
         // t129: the bloom and the darkening were taken away
         assertNull(Effect.find("bloom"));
         assertNull(Effect.find("darken"));
@@ -41,6 +44,17 @@ class ScreenEffectsTest {
             assertFalse(ScreenEffects.hasShaders(status), status.name());
         }
         assertEquals(UUID.nameUUIDFromBytes("iruurpg:marks".getBytes(StandardCharsets.UTF_8)), ResourcePackService.packId("marks"));
+    }
+
+    @Test
+    void anImpactHoldsThenFades() {
+        // t130: full strength until the fade starts, then down to nothing at the end (at least 1 while it lasts)
+        assertEquals(100, ScreenEffects.fadedStrength(100, 12, 18, 10));
+        assertEquals(100, ScreenEffects.fadedStrength(100, 12, 18, 12));
+        assertEquals(50, ScreenEffects.fadedStrength(100, 12, 18, 15));
+        assertEquals(17, ScreenEffects.fadedStrength(100, 12, 18, 17));
+        assertEquals(1, ScreenEffects.fadedStrength(100, 12, 18, 18));
+        assertEquals(80, ScreenEffects.fadedStrength(80, -1, 18, 17), "no fade");
     }
 
     @Test

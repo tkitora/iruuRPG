@@ -120,7 +120,12 @@ class ScreenShadersTest {
         assertTrue(text(files, "program/iruu_fx_strip.fsh").contains("rgb.r " + red));
         assertTrue(text(files, "program/iruu_fx_read.fsh").contains("rgb.r " + red));
         // each effect reads its slot's pixel of the state (slot - 1, 0)
-        assertTrue(text(files, "program/iruu_fx_mix.fsh").contains("texelFetch(StateSampler, ivec2(" + (ScreenEffects.Effect.CHROMATIC.slot() - 1) + ", 0), 0)"));
+        String mix = text(files, "program/iruu_fx_mix.fsh");
+        assertTrue(mix.contains("float chromatic = amountOf(" + ScreenEffects.Effect.CHROMATIC.slot() + ");"));
+        assertTrue(mix.contains("float impact = amountOf(" + ScreenEffects.Effect.IMPACT.slot() + ");"));
+        assertTrue(mix.contains("placeOf(" + ScreenEffects.Effect.IMPACT.slot() + ", center)"));
+        // the state has a row for the glow colors and one for the places
+        assertTrue(text(files, "post/entity_outline.json").contains("{ \"name\": \"iruu_fx_state\", \"width\": 8, \"height\": 2 }"));
         for (ScreenEffects.Effect effect : ScreenEffects.Effect.values()) assertTrue(effect.slot() >= 1 && effect.slot() <= 8, effect.id());
         JsonObject core = JsonParser.parseString(text(files, "core/rendertype_outline.json")).getAsJsonObject();
         assertTrue(names(core, "uniforms").contains("ScreenSize"), "the core shader needs the screen size to find the corner");
