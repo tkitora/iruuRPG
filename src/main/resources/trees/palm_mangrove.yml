@@ -1,0 +1,17 @@
+# 見本の木: 支柱の根のヤシ (S字が強い) (プロシージャルツールの読み込み、または /proceduraltool load palm_mangrove)
+settings:
+  kind: tree
+  algorithm: palm
+  palm-height: 18
+  palm-radius: 1.5
+  palm-root-reach: 2.0
+  palm-s-curve: 1.5
+  palm-layers: 2
+  palm-frond-length: 9
+  palm-droop: 2.0
+  seed: 0
+  blocks:
+    trunk: MANGROVE_LOG
+    root: MANGROVE_ROOTS
+  leaf-gradient:
+  - MANGROVE_LEAVES

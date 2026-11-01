@@ -1,0 +1,21 @@
+# 見本の木: 柳 (つるが垂れる、重力で枝が垂れる) (プロシージャルツールの読み込み、または /proceduraltool load canopy_willow)
+settings:
+  kind: tree
+  algorithm: canopy
+  canopy-trunk-height: 4
+  canopy-length: 9
+  canopy-depth: 4
+  canopy-branches: 3
+  canopy-spread: 55
+  canopy-gravity: 0.45
+  canopy-leaf-size: 2.0
+  canopy-willow: 1
+  canopy-willow-scale: 1.5
+  seed: 0
+  blocks:
+    trunk: DARK_OAK_LOG
+    branch: DARK_OAK_LOG
+    root: DARK_OAK_LOG
+  leaf-gradient:
+  - OAK_LEAVES
+  - AZALEA_LEAVES

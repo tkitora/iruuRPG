@@ -1,0 +1,18 @@
+# 見本の木: Beta 1.7.3 風のオーク (丸太から遠い葉が消える) (プロシージャルツールの読み込み、または /proceduraltool load canopy_beta_oak)
+settings:
+  kind: tree
+  algorithm: canopy
+  canopy-length: 7
+  canopy-depth: 3
+  canopy-branches: 3
+  canopy-spread: 40
+  canopy-leaf-size: 2.5
+  canopy-leaf-start: 2
+  canopy-beta-leaves: 1
+  seed: 0
+  blocks:
+    trunk: OAK_LOG
+    branch: OAK_LOG
+    root: OAK_LOG
+  leaf-gradient:
+  - OAK_LEAVES

@@ -1,0 +1,20 @@
+# 見本の木: 編み込みの幹のシラカバ (らせんにからむ2本の幹) (プロシージャルツールの読み込み、または /proceduraltool load tiered_braided)
+settings:
+  kind: tree
+  algorithm: tiered
+  tier-height: 28
+  tier-stump: 10
+  tier-radius: 1.25
+  tier-twist: 4
+  tier-braided: 1
+  tier-braid-intensity: 1.0
+  tier-branches: 5
+  tier-branch-length: 7
+  tier-leaf-size: 2.0
+  seed: 0
+  blocks:
+    trunk: BIRCH_LOG
+    branch: BIRCH_LOG
+    root: BIRCH_LOG
+  leaf-gradient:
+  - BIRCH_LEAVES

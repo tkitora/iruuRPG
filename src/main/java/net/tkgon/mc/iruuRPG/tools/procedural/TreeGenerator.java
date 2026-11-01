@@ -3,7 +3,7 @@ package net.tkgon.mc.iruuRPG.tools.procedural;
 import java.util.Map;
 import java.util.Random;
 
-/** One tree from its settings, a seed and the terrain: skeleton, the fork of the trunk, blocks. Arithmetic only, so it runs off the main thread. */
+/** One object from its settings, a seed and the terrain: a tree by its algorithm, a rock, a spike, a crystal or a web. Arithmetic only, so it runs off the main thread. */
 final class TreeGenerator {
 
     private TreeGenerator() {
@@ -23,16 +23,15 @@ final class TreeGenerator {
         Random random = new Random(seed);
         if (settings.kind().web()) return WebGenerator.build(settings, web, random);
         if (!settings.kind().tree()) return ProceduralShapes.build(settings.kind(), settings, seed, random, ground, aim);
-        if (settings.fractal()) return FractalTree.build(settings, random);
-        TreeSkeleton skeleton = TreeAlgorithm.of(settings.algorithm()).grow(settings, random);
-        if (!"conifer".equals(settings.algorithm())) TrunkFork.apply(skeleton, settings, random);
-        TreeShape.apply(skeleton, settings, random);
-        return TreeVoxelizer.voxelize(skeleton, settings, random, ground);
+        return switch (settings.algorithm()) {
+            case "tiered" -> TieredTree.build(settings, random);
+            case "palm" -> PalmTree.build(settings, random);
+            default -> CanopyTree.build(settings, random);
+        };
     }
 
-    /** How far from the base the terrain is read (the roots reach about 3.5 trunk radii and a little more). */
+    /** How far from the base the terrain is read (a rock is settled on it; a tree does not read it). */
     static int groundRadius(TreeSettings settings) {
-        double trunk = settings.get(TreeSettings.Key.TRUNK_RADIUS) * (1.0 + settings.get(TreeSettings.Key.FLARE) * 0.3);
-        return Math.min(24, (int) Math.ceil(trunk * 3.5 + 6.0));
+        return Math.min(24, (int) Math.ceil(settings.width() / 2.0) + 3);
     }
 }

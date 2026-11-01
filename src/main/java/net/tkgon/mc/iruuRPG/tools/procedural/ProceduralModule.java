@@ -77,6 +77,7 @@ public final class ProceduralModule implements Listener {
         this.plugin = plugin;
         this.toolKey = new NamespacedKey(plugin, "tree_tool");
         this.store = new TreeStore(plugin);
+        store.installSamples();
         this.menu = new ProceduralMenu(this);
         this.preview = new TreePreview(this);
         this.worldEdit = plugin.getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit")
@@ -143,24 +144,41 @@ public final class ProceduralModule implements Listener {
 
     /**
      * The block of a part for these settings: a shade of the leaf gradient when the leaves have one, else the block chosen for the part (menu or command), else
-     * the config's.
+     * the config's. A name with states ({@code minecraft:oak_log[axis=x]}) gives its material here; the states are in {@link #blockData}.
      */
     Material material(TreePart part, TreeSettings settings) {
-        int shade = part.shade();
-        List<String> gradient = settings.leafGradient();
-        if (shade >= 0 && !gradient.isEmpty()) {
-            Material material = Material.matchMaterial(gradient.get(Math.min(shade, gradient.size() - 1)));
-            if (material != null && material.isBlock()) return material;
-        }
-        String chosen = settings.block(shade > 0 ? TreePart.LEAF : part);
-        Material material = chosen == null ? null : Material.matchMaterial(chosen);
+        String chosen = chosenName(part, settings);
+        Material material = TreeSettings.materialOf(chosen);
         return material != null && material.isBlock() && !material.isAir() ? material : material(part);
     }
 
-    /** The block data a part is put in the world (and shown in the preview) as: leaves are persistent, so a tree far from its logs does not decay. */
+    /** The name chosen for the part in the settings (a shade of the gradient for a leaf), or null. */
+    private static String chosenName(TreePart part, TreeSettings settings) {
+        int shade = part.shade();
+        List<String> gradient = settings.leafGradient();
+        if (shade >= 0 && !gradient.isEmpty()) return gradient.get(Math.min(shade, gradient.size() - 1));
+        return settings.block(shade > 0 ? TreePart.LEAF : part);
+    }
+
+    /**
+     * The block a part is put in the world (and shown in the preview) as: with the states chosen ({@code [axis=x]} and so on; states the block does not have
+     * leave it plain); leaves are persistent unless the states say otherwise, so a tree far from its logs does not decay.
+     */
     BlockData blockData(TreePart part, TreeSettings settings) {
-        BlockData data = material(part, settings).createBlockData();
-        if (data instanceof org.bukkit.block.data.type.Leaves leaves) leaves.setPersistent(true);
+        String chosen = chosenName(part, settings);
+        Material material = material(part, settings);
+        BlockData data = null;
+        if (chosen != null && chosen.indexOf('[') > 0 && material == TreeSettings.materialOf(chosen)) {
+            try {
+                data = Bukkit.createBlockData(chosen);
+            } catch (IllegalArgumentException exception) {
+                data = null;
+            }
+        }
+        if (data == null) {
+            data = material.createBlockData();
+            if (data instanceof org.bukkit.block.data.type.Leaves leaves) leaves.setPersistent(true);
+        }
         return data;
     }
 
@@ -396,7 +414,7 @@ public final class ProceduralModule implements Listener {
         player.sendMessage(PREFIX + "作っています… (" + session.settings.kind().label() + ", " + algorithmLabel(settings.algorithm()) + ", 高さ " + settings.height() + " 幅 " + settings.width() + ")");
         TreeGround ground;
         try {
-            ground = settings.kind().web() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+            ground = settings.kind().web() || settings.kind().tree() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
         } catch (RuntimeException exception) {
             ground = null;
         }
@@ -407,10 +425,11 @@ public final class ProceduralModule implements Listener {
             try {
                 blocks = TreeGenerator.build(settings, seed, terrain, aim, web);
             } catch (RuntimeException exception) {
-                plugin.getLogger().warning("tree generation failed: " + exception);
+                boolean tooBig = exception instanceof TreeVoxelizer.TooBig;
+                if (!tooBig) plugin.getLogger().warning("tree generation failed: " + exception);
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     session.busy = false;
-                    player.sendMessage(PREFIX + "生成に失敗しました (ログを見てください)。");
+                    player.sendMessage(PREFIX + (tooBig ? "大きすぎて作れません (" + TreeVoxelizer.LIMIT + " ブロックを超える)。設定を小さくしてください。" : "生成に失敗しました (ログを見てください)。"));
                 });
                 return;
             }
@@ -427,7 +446,7 @@ public final class ProceduralModule implements Listener {
         int cap = plugin.getConfig().getInt("treetool.max-blocks", 60000);
         if (blocks.size() > cap) {
             session.busy = false;
-            player.sendMessage(PREFIX + "ブロックが多すぎます (" + blocks.size() + " > " + cap + ")。高さ・幅・葉の大きさを小さくしてください。");
+            player.sendMessage(PREFIX + "ブロックが多すぎます (" + blocks.size() + " > " + cap + ")。設定 (木は高さ・枝の数・葉の大きさ、ほかは高さ・幅) を小さくしてください。");
             return;
         }
         World world = base.getWorld();
@@ -537,21 +556,9 @@ public final class ProceduralModule implements Listener {
     /** The word the tool is called by in messages, for the menu and the command. */
     static String algorithmLabel(String algorithm) {
         return switch (algorithm) {
-            case "fractal" -> "フラクタル (スタック型)";
-            case "lsystem" -> "L-system (Honda 型)";
-            case "colonization" -> "空間コロニー化";
-            case "conifer" -> "針葉樹 (輪生)";
-            case "parametric" -> "パラメトリック (Weber-Penn 型)";
-            default -> "建築向け (ブロック風)";
-        };
-    }
-
-    static String crownLabel(String crown) {
-        return switch (crown.toLowerCase(Locale.ROOT)) {
-            case "cone" -> "円錐 (針葉樹)";
-            case "umbrella" -> "傘 (平らなドーム)";
-            case "columnar" -> "円柱 (細長い)";
-            default -> "楕円体";
+            case "tiered" -> "段の枝 (針葉樹・雪)";
+            case "palm" -> "ヤシ";
+            default -> "樹冠 (フラクタル)";
         };
     }
 }

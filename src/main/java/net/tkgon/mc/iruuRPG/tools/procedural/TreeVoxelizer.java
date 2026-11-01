@@ -1,28 +1,32 @@
 package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 /**
- * Turns a skeleton into blocks: every branch is walked in steps of 0.4 block and a ball of its radius is filled at each step. The part comes from the level of the
- * stem (trunk, branch, twig; for a skeleton without levels, from the thickness). So a trunk does not come out as a square post, its radius is changed on the way:
- * it flares out near the ground (the flare setting), has a rough bark (a small change of the radius from place to place), and a ball only takes the blocks well
- * inside its radius, which keeps the corners off a thick stem. Leaves are clumps at the leaf places of the skeleton: ragged ellipsoids (the edge moved in and out
- * from block to block) thinned by the leaf density. Roots are balls along their paths. Where two parts meet the stronger stays ({@link TreePart#priority}).
- * Blocks outside the box of the settings are dropped, so the height and the width are a hard limit. Coordinates of a block: x and z from the block the tree
- * stands on, y up from its bottom (a block with integer coordinates (x, y, z) is centred on (x, y + 0.5, z)).
+ * The blocks of a tree while it is grown: the part of every block by {@link #pack}ed position. The tree algorithms ({@link CanopyTree}, {@link TieredTree},
+ * {@link PalmTree}) put their blocks the way the scripts they come from do: a later block takes the place of an earlier one ({@link #set}); the leaves take a shade
+ * of the leaf gradient by their height in their clump ({@link #leaf}). Coordinates: x and z from the block the tree stands on, y up from it (0 is that block).
+ * There is a limit on the blocks, so a setting far too big stops ({@link TooBig}) instead of filling the memory.
  */
 final class TreeVoxelizer {
 
-    private final Map<Long, TreePart> blocks = new HashMap<>();
+    /** More blocks than this and the tree is given up (the placing limit of the config is far below it). */
+    static final int LIMIT = 1_500_000;
 
-    TreeVoxelizer() {
+    /** A tree with more blocks than {@link #LIMIT}. */
+    static final class TooBig extends RuntimeException {
+        TooBig() {
+            super("more than " + LIMIT + " blocks");
+        }
     }
 
-    Map<Long, TreePart> blocks() {
-        return blocks;
+    private final Map<Long, TreePart> blocks = new HashMap<>();
+    private final int shades;
+
+    /** {@code shades}: the blocks of the leaf gradient (1 = no gradient). */
+    TreeVoxelizer(int shades) {
+        this.shades = Math.max(1, shades);
     }
 
     public static long pack(int x, int y, int z) {
@@ -41,179 +45,42 @@ final class TreeVoxelizer {
         return (int) ((key >> 32) & 0xFFFFL) - 2048;
     }
 
-    /** The blocks of the tree: the part of every block, by {@link #pack}ed position. */
-    public static Map<Long, TreePart> voxelize(TreeSkeleton skeleton, TreeSettings settings, Random random) {
-        return voxelize(skeleton, settings, random, null);
+    Map<Long, TreePart> blocks() {
+        return blocks;
     }
 
-    /** The same on {@code ground} (null: flat, no terrain known): the roots lie on the terrain where there is some. */
-    public static Map<Long, TreePart> voxelize(TreeSkeleton skeleton, TreeSettings settings, Random random, TreeGround ground) {
-        TreeVoxelizer voxelizer = new TreeVoxelizer();
-        voxelizer.fillWood(skeleton, settings);
-        voxelizer.fillRoots(skeleton, ground);
-        voxelizer.fillLeaves(skeleton, settings, random);
-        voxelizer.clip(settings);
-        return voxelizer.blocks;
+    TreePart get(int x, int y, int z) {
+        return blocks.get(pack(x, y, z));
     }
 
-    void put(int x, int y, int z, TreePart part) {
-        long key = pack(x, y, z);
-        TreePart old = blocks.get(key);
-        if (old == null || part.priority() < old.priority()) blocks.put(key, part);
+    /** Puts {@code part} at the block (what was there goes). */
+    void set(int x, int y, int z, TreePart part) {
+        blocks.put(pack(x, y, z), part);
+        if (blocks.size() > LIMIT) throw new TooBig();
     }
 
-    /** A ball of {@code radius} blocks round ({@code cx}, {@code cy}, {@code cz}) of {@code part}; the block the centre is in is always filled. */
-    void ball(double cx, double cy, double cz, double radius, TreePart part) {
-        int bx = (int) Math.round(cx);
-        int by = (int) Math.floor(cy);
-        int bz = (int) Math.round(cz);
-        put(bx, by, bz, part);
-        if (radius < 0.55) return;
-        int reach = (int) Math.ceil(radius);
-        // only blocks well inside the radius: the corner of a 3 x 3 stays off a stem 1.5 thick
-        double inside = radius >= 0.9 ? radius * 0.93 : radius;
-        double limit = inside * inside;
-        for (int x = bx - reach; x <= bx + reach; x++) {
-            for (int y = by - reach; y <= by + reach; y++) {
-                for (int z = bz - reach; z <= bz + reach; z++) {
-                    double dx = x - cx;
-                    double dy = y + 0.5 - cy;
-                    double dz = z - cz;
-                    if (dx * dx + dy * dy + dz * dz <= limit) put(x, y, z, part);
-                }
-            }
-        }
+    /** A leaf at the block, of the shade for {@code height} (0 = the bottom of its clump, 1 = the top); {@code jitter} moves the border a little. */
+    void leaf(int x, int y, int z, double height, double jitter) {
+        set(x, y, z, TreePart.leafAt(height, shades, jitter));
     }
 
-    private static double roughness(double x, double y, double z) {
-        return 0.5 * (Math.sin(x * 2.3 + y * 1.1) + Math.sin(z * 1.9 - y * 2.7 + 1.3));
+    int shades() {
+        return shades;
     }
 
-    private void fillWood(TreeSkeleton skeleton, TreeSettings settings) {
-        double trunk = settings.get(TreeSettings.Key.TRUNK_RADIUS);
-        double flare = settings.get(TreeSettings.Key.FLARE);
-        double flareHeight = Math.max(2.0, trunk * 3.0);
-        List<TreeSkeleton.Node> nodes = skeleton.nodes;
-        for (int index = 0; index < nodes.size(); index++) {
-            TreeSkeleton.Node node = nodes.get(index);
-            if (node.parent < 0) {
-                ball(node.x, node.y, node.z, node.radius * (1.0 + flare), TreePart.TRUNK);
-                continue;
-            }
-            TreeSkeleton.Node parent = nodes.get(node.parent);
-            double dx = node.x - parent.x;
-            double dy = node.y - parent.y;
-            double dz = node.z - parent.z;
-            double length = Math.sqrt(dx * dx + dy * dy + dz * dz);
-            int steps = Math.max(1, (int) Math.ceil(length / 0.4));
-            for (int step = 0; step <= steps; step++) {
-                double t = step / (double) steps;
-                double radius = parent.radius + (node.radius - parent.radius) * t;
-                double x = parent.x + dx * t;
-                double y = parent.y + dy * t;
-                double z = parent.z + dz * t;
-                TreePart part;
-                if (node.level >= 0) {
-                    part = node.level == 0 ? TreePart.TRUNK : node.level == 1 || (node.level == 2 && radius >= 0.55) ? TreePart.BRANCH : TreePart.TWIG;
-                } else {
-                    part = radius >= trunk * 0.6 ? TreePart.TRUNK : radius >= Math.max(0.52, trunk * 0.3) ? TreePart.BRANCH : TreePart.TWIG;
-                }
-                if (part == TreePart.TRUNK) {
-                    // flare near the ground, rough bark
-                    double low = Math.max(0.0, 1.0 - y / flareHeight);
-                    radius *= (1.0 + flare * low * low) * (1.0 + 0.12 * roughness(x, y, z));
-                }
-                ball(x, y, z, radius, part);
-            }
-        }
-    }
-
-    /**
-     * The roots are balls along their paths; where the terrain is known, each ball is set on the surface under it (centre just above the top solid block, so the root lies
-     * on the ground and follows its slope) as long as the surface is within 5 blocks of where the path was; elsewhere the path stays as it was.
-     */
-    private void fillRoots(TreeSkeleton skeleton, TreeGround ground) {
-        for (TreeSkeleton.RootPath path : skeleton.roots) {
-            List<double[]> points = path.points();
-            for (int index = 1; index < points.size(); index++) {
-                double[] a = points.get(index - 1);
-                double[] b = points.get(index);
-                double length = Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) + (b[2] - a[2]) * (b[2] - a[2]));
-                int steps = Math.max(1, (int) Math.ceil(length / 0.4));
-                for (int step = 0; step <= steps; step++) {
-                    double t = step / (double) steps;
-                    double x = a[0] + (b[0] - a[0]) * t;
-                    double y = a[1] + (b[1] - a[1]) * t;
-                    double z = a[2] + (b[2] - a[2]) * t;
-                    if (ground != null) {
-                        int top = ground.top((int) Math.round(x), (int) Math.round(z));
-                        if (top != TreeGround.NONE && Math.abs(top + 1.0 - y) <= 5.0) y = top + 1.15;
-                    }
-                    ball(x, y, z, a[3] + (b[3] - a[3]) * t, TreePart.ROOT);
-                }
-            }
-        }
-    }
-
-    /**
-     * Clouds of leaves at the leaf places of the skeleton, the way a builder makes them: solid masses (not blocks scattered at random), the outline moved in
-     * and out by a smooth noise so the surface has bumps and dents, a flatter underside than top, a few holes inside (the fewer the higher the leaf density),
-     * and now and then a block hanging below. Neighbouring clouds join into one canopy.
-     */
-    private void fillLeaves(TreeSkeleton skeleton, TreeSettings settings, Random random) {
-        double leaf = settings.get(TreeSettings.Key.LEAF_RADIUS);
-        if (leaf < 0.4) return;
-        double holes = (1.0 - settings.get(TreeSettings.Key.LEAF_DENSITY)) * 0.35;
-        long seed = random.nextLong();
-        for (double[] place : skeleton.leaves) {
-            double radius = leaf * place[3] * (0.92 + 0.16 * random.nextDouble());
-            leafCloud(place[0], place[1], place[2], radius, Math.max(0.6, radius * place[4]), holes, settings.leafShades(), seed, random);
-        }
-    }
-
-    /**
-     * One cloud of leaves round ({@code cx}, {@code cy}, {@code cz}): {@code radius} across, {@code vertical} up and down. The outline is moved in and out by a smooth
-     * noise, the underside is flatter than the top, {@code holes} thins it (the outside more than the inside), and now and then a block hangs below. With a leaf
-     * gradient of {@code shades} blocks, each block takes the shade of its height in the cloud (the bottom the first block, the top the last).
-     */
-    void leafCloud(double cx, double cy, double cz, double radius, double vertical, double holes, int shades, long seed, Random random) {
-        int bx = (int) Math.round(cx);
-        int by = (int) Math.floor(cy);
-        int bz = (int) Math.round(cz);
-        int reach = (int) Math.ceil(Math.max(radius, vertical)) + 2;
-        for (int x = bx - reach; x <= bx + reach; x++) {
-            for (int y = by - reach; y <= by + reach; y++) {
-                for (int z = bz - reach; z <= bz + reach; z++) {
-                    double dx = (x - cx) / radius;
-                    double dy = (y + 0.5 - cy) / vertical;
-                    double dz = (z - cz) / radius;
-                    // a flatter underside: below the middle the cloud ends sooner
-                    if (dy < 0.0) dy *= 1.35;
-                    double distance = dx * dx + dy * dy + dz * dz;
-                    double edge = 1.0 + 0.55 * TreeNoise.value(x * 0.55, y * 0.55, z * 0.55, seed);
-                    if (distance > edge) continue;
-                    // the leaf density thins the cloud everywhere, the outside more than the inside (ragged edge, holes)
-                    double outer = Math.min(1.0, distance / edge);
-                    if (random.nextDouble() < holes * (0.35 + 1.25 * outer * outer)) continue;
-                    TreePart leaf = shades <= 1 ? TreePart.LEAF
-                            : TreePart.leafAt((y + 0.5 - (cy - vertical)) / (2.0 * vertical), shades, TreeNoise.value(x * 0.9 + 31.0, y * 0.9, z * 0.9, seed));
-                    put(x, y, z, leaf);
-                    // a leaf now and then hangs from the underside
-                    if (dy < -0.55 && distance > 0.6 && random.nextDouble() < 0.1) put(x, y - 1, z, TreePart.leaf(0));
-                }
-            }
-        }
-    }
-
-    /** Drops what is outside the box: the height, and half the width each way from the middle of the trunk (and nothing deeper than 6 blocks into the ground: the roots follow the terrain down). */
-    void clip(TreeSettings settings) {
-        int height = settings.height();
-        double half = settings.width() / 2.0;
+    /** Drops what is outside the box: {@code height} up, 6 blocks down and {@code half} each way from the base. */
+    void clip(int height, double half) {
         blocks.keySet().removeIf(key -> {
-            int x = unpackX(key);
             int y = unpackY(key);
-            int z = unpackZ(key);
-            return y < -6 || y >= height || Math.abs(x) > half || Math.abs(z) > half;
+            return y < -6 || y >= height || Math.abs(unpackX(key)) > half || Math.abs(unpackZ(key)) > half;
         });
+    }
+
+    /** A small jitter in -1..1 for the border of the leaf shades: the same block always gets the same. */
+    static double jitter(int x, int y, int z) {
+        long h = x * 374761393L + y * 668265263L + z * 2147483647L;
+        h = (h ^ (h >>> 13)) * 1274126177L;
+        h ^= h >>> 16;
+        return ((h & 0xFFFFL) / 32767.5) - 1.0;
     }
 }

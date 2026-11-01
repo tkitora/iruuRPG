@@ -1,0 +1,23 @@
+# 見本の木: しだれ (垂れた枝と柳のつる) (プロシージャルツールの読み込み、または /proceduraltool load tiered_weeping)
+settings:
+  kind: tree
+  algorithm: tiered
+  tier-height: 24
+  tier-stump: 8
+  tier-spacing: 4
+  tier-branches: 6
+  tier-branch-length: 12
+  tier-sag: 1.0
+  tier-leaf-size: 1.5
+  tier-willow: 1
+  tier-willow-scale: 0.8
+  tier-wind: 0.3
+  tier-wind-dir: 120
+  seed: 0
+  blocks:
+    trunk: OAK_LOG
+    branch: OAK_LOG
+    root: OAK_LOG
+  leaf-gradient:
+  - AZALEA_LEAVES
+  - OAK_LEAVES

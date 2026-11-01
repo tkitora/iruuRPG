@@ -155,16 +155,22 @@ final class ProceduralCommand implements TabExecutor {
     }
 
     private void info(Player player, TreeSettings settings) {
-        player.sendMessage(PREFIX + "設定 (" + settings.name() + "): 作るもの " + settings.kind().name().toLowerCase(Locale.ROOT) + " / アルゴリズム " + settings.algorithm() + " / 樹冠 " + settings.crown() + " / シード " + (settings.seed() == 0L ? "ランダム" : settings.seed()));
-        for (TreeSettings.Key key : TreeSettings.Key.values()) {
-            player.sendMessage("  " + key.id() + " = " + (key.whole() ? Integer.toString(settings.getInt(key)) : Double.toString(settings.get(key)))
-                    + "  (" + key.min() + " 〜 " + key.max() + ") " + key.label());
+        player.sendMessage(PREFIX + "設定 (" + settings.name() + "): 作るもの " + settings.kind().name().toLowerCase(Locale.ROOT)
+                + (settings.kind().tree() ? " / アルゴリズム " + settings.algorithm() : "") + " / シード " + (settings.seed() == 0L ? "ランダム" : settings.seed()));
+        // (only the numbers of what is made: those on the pages of the menu)
+        java.util.Set<TreeSettings.Key> shown = new java.util.LinkedHashSet<>();
+        for (ProceduralMenu.Page page : ProceduralMenu.Page.values()) {
+            if (page.shownFor(settings)) shown.addAll(List.of(page.keysFor(settings)));
+        }
+        for (TreeSettings.Key key : shown) {
+            player.sendMessage("  " + key.id() + " = " + (key.toggle() ? (settings.on(key) ? "1 (オン)" : "0 (オフ)") : key.whole() ? Integer.toString(settings.getInt(key)) : Double.toString(settings.get(key)))
+                    + (key.toggle() ? "" : "  (" + key.min() + " 〜 " + key.max() + ")") + " " + key.label());
         }
     }
 
     private void set(Player player, TreeSettings settings, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(PREFIX + "/proceduraltool set <項目> <値>  項目: algorithm, crown, seed, " + keyIds());
+            player.sendMessage(PREFIX + "/proceduraltool set <項目> <値>  項目: algorithm, seed, " + keyIds());
             return;
         }
         String item = args[1].toLowerCase(Locale.ROOT);
@@ -177,13 +183,6 @@ final class ProceduralCommand implements TabExecutor {
                 }
                 settings.setAlgorithm(value);
             }
-            case "crown" -> {
-                if (!TreeSettings.CROWNS.contains(value)) {
-                    player.sendMessage(PREFIX + "crown は " + String.join(" / ", TreeSettings.CROWNS));
-                    return;
-                }
-                settings.setCrown(value);
-            }
             case "seed" -> {
                 try {
                     settings.setSeed(Long.parseLong(value));
@@ -195,7 +194,7 @@ final class ProceduralCommand implements TabExecutor {
             default -> {
                 TreeSettings.Key key = TreeSettings.Key.byId(item);
                 if (key == null) {
-                    player.sendMessage(PREFIX + "そんな項目はありません。項目: algorithm, crown, seed, " + keyIds());
+                    player.sendMessage(PREFIX + "そんな項目はありません。項目: algorithm, seed, " + keyIds());
                     return;
                 }
                 try {
@@ -252,7 +251,7 @@ final class ProceduralCommand implements TabExecutor {
         if (args.length == 1) {
             options.addAll(SUBS);
         } else if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
-            options.addAll(List.of("algorithm", "crown", "seed"));
+            options.addAll(List.of("algorithm", "seed"));
             for (TreeSettings.Key key : TreeSettings.Key.values()) options.add(key.id());
         } else if (args.length == 2 && args[0].equalsIgnoreCase("point")) {
             options.addAll(List.of("list", "clear", "undo", "shape"));
@@ -275,7 +274,6 @@ final class ProceduralCommand implements TabExecutor {
             for (ProcKind kind : ProcKind.values()) options.add(kind.name().toLowerCase(Locale.ROOT));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
             if (args[1].equalsIgnoreCase("algorithm")) options.addAll(TreeSettings.ALGORITHMS);
-            else if (args[1].equalsIgnoreCase("crown")) options.addAll(TreeSettings.CROWNS);
         } else if (args.length == 2 && (args[0].equalsIgnoreCase("load") || args[0].equalsIgnoreCase("delete"))) {
             options.addAll(tool.store().list());
         }
