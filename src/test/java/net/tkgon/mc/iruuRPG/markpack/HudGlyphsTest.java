@@ -52,7 +52,7 @@ class HudGlyphsTest {
             if (!object.get("type").getAsString().equals("bitmap")) continue;
             String file = object.get("file").getAsString();
             if (file.endsWith("heavy_mage_1.png")) iconAscent = object.get("ascent").getAsInt();
-            if (file.endsWith("key_QR.png")) {
+            if (file.endsWith("key_qr.png")) {
                 keyAscent = object.get("ascent").getAsInt();
                 keyHeight = object.get("height").getAsInt();
                 assertEquals(String.valueOf(HudGlyphs.keyLabel(1, 3)), object.getAsJsonArray("chars").get(0).getAsString());

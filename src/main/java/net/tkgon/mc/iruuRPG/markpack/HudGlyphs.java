@@ -428,7 +428,8 @@ public final class HudGlyphs {
         // (a key label's picture is KEY_RAISE taller with the same bottom: its keys are just above the icon)
         for (int first = 0; first < 2; first++) {
             for (int second = 0; second < 4; second++) {
-                bitmap(providers, files, "key_" + "FQ".charAt(first) + "FQLR".charAt(second), keyLabel(first, second),
+                // (a file of a resource pack is named in lower case only: a capital makes the whole font unreadable for a vanilla client)
+                bitmap(providers, files, "key_" + "fq".charAt(first) + "fqlr".charAt(second), keyLabel(first, second),
                         picture(ICON, PICTURE + KEY_RAISE, keyImage(first, second), 0));
             }
         }

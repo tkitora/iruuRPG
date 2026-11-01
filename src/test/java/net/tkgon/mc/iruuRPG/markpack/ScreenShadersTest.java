@@ -48,6 +48,28 @@ class ScreenShadersTest {
     }
 
     @Test
+    void everyNameInThePacksIsAValidResourceLocation() throws IOException {
+        // a vanilla client takes only [a-z0-9/._-] in the path of a resource: one capital (key_FF.png) made it drop the whole font
+        // iruurpg:hud, so every icon was a missing-glyph square (Lunar Client let it pass)
+        java.util.regex.Pattern valid = java.util.regex.Pattern.compile("[a-z0-9/._-]+");
+        Map<String, byte[]> files = new HashMap<>(unzip(MarkGlyphs.pack()));
+        files.putAll(unzip(ScreenShaders.pack()));
+        for (String path : files.keySet()) {
+            if (path.equals("pack.mcmeta")) continue;
+            assertTrue(valid.matcher(path).matches(), path);
+        }
+        for (String font : java.util.List.of("assets/iruurpg/font/hud.json", "assets/iruurpg/font/marks.json")) {
+            JsonObject json = JsonParser.parseString(new String(files.get(font), StandardCharsets.UTF_8)).getAsJsonObject();
+            for (JsonElement provider : json.getAsJsonArray("providers")) {
+                if (!provider.getAsJsonObject().has("file")) continue;
+                String file = provider.getAsJsonObject().get("file").getAsString();
+                assertTrue(valid.matcher(file.substring(file.indexOf(':') + 1)).matches(), font + ": " + file);
+                assertTrue(files.containsKey("assets/iruurpg/textures/" + file.substring(file.indexOf(':') + 1)), font + ": " + file);
+            }
+        }
+    }
+
+    @Test
     void theShadersAreAPackOfTheirOwn() throws IOException {
         // the marks' pack has the fonts only, so a client that cannot compile the shaders keeps them; the shaders are iruufx.zip
         Map<String, byte[]> files = ScreenShaders.files();
