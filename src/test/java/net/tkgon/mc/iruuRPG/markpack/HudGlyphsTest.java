@@ -40,6 +40,7 @@ class HudGlyphsTest {
         assertEquals('\uE137', HudGlyphs.special("gifted"));
         assertEquals('\uE157', HudGlyphs.special("nobody"));
         assertEquals('\uE180', HudGlyphs.itemSkill());
+        assertEquals('\uE181', HudGlyphs.itemSkillLocked());
         assertEquals('\uE230', HudGlyphs.lock());
         assertTrue(HudGlyphs.icon("generic", 6) < HudGlyphs.special("generic"));
         Map<String, byte[]> files = new HashMap<>();
@@ -103,8 +104,8 @@ class HudGlyphsTest {
                 new HudGlyphs.Icon(HudGlyphs.itemSkill(), 0.0, 0, HudGlyphs.keyLabel(1, 1), 0xFFFFFF, true));
         assertEquals(0, advance(spaces, HudGlyphs.row(labelled, extras)));
         assertEquals(0, advance(spaces, HudGlyphs.row(List.of(), extras)));
-        // 36 icons (6 classes x skills 1 - 6), 6 specials, the weapon's skill, the lock, 16 shades, 10 digits, 8 key labels
-        assertEquals(78, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // 36 icons (6 classes x skills 1 - 6), 6 specials, the weapon's skill and its locked icon, the lock, 16 shades, 10 digits, 8 key labels
+        assertEquals(79, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
     }
 
     @Test

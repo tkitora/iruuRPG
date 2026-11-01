@@ -194,8 +194,12 @@ public final class PlayerHud {
             long[] specialCooldown = classSkills == null ? null : classSkills.specialCooldown(player);
             extras.add(extra(HudGlyphs.special(profile.classId()), specialCooldown, special, melee, player));
             KeyBindings.Pattern item = patternOf(player, KeyBindings.Action.ITEM);
-            long[] itemCooldown = itemSkills == null || !itemSkills.hasKeySkill(weapon) ? null : itemSkills.hudCooldown(player, weapon.attackType());
-            extras.add(extra(HudGlyphs.itemSkill(), itemCooldown, item, melee, player));
+            if (itemSkills != null && itemSkills.hasKeySkill(weapon)) {
+                extras.add(extra(HudGlyphs.itemSkill(), itemSkills.hudCooldown(player, weapon.attackType()), item, melee, player));
+            } else {
+                // (a weapon with no skill: the locked icon of its own, t140)
+                extras.add(new HudGlyphs.Icon(HudGlyphs.itemSkillLocked(), 0.0, 0, keyGlyph(item, melee), keyColor(player, item), false));
+            }
         }
         if (!attackService.heavyIconsShown(player, weapon)) return extras.isEmpty() ? null : HudGlyphs.row(java.util.List.of(), extras);
         String classId = attackService.heavyIconClass(player, weapon);
