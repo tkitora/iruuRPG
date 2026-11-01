@@ -16,6 +16,9 @@ class SlotMovesTest {
         // another weapon: skills 1 - 4
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("mage", AttackType.MELEE));
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("mage", AttackType.DEPLOY));
+        // the ranger: 小 the piercing shot that sets off its traps (2), 中 the rapid shots (6), 大 the rain of arrows (5), util the backstep shot (1)
+        assertArrayEquals(new int[]{2, 6, 5, 1}, SlotMoves.skillNumbers("gifted", AttackType.RANGE));
+        assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("gifted", AttackType.DEPLOY));
         // a class whose moves are not made yet
         assertNull(SlotMoves.skillNumbers("warrior", AttackType.MELEE));
         assertNull(SlotMoves.favoriteSkillNumbers(null));

@@ -12,10 +12,12 @@ public final class SlotMoves {
     /**
      * The skills (heavy attacks 0 - 5 = skills 1 - 6 of t138) that 小・中・大・util throw with the class's favorite weapon. The mage (a ranged
      * weapon): 小 the chain of lightning (skill 6), 中 the crystal (skill 4: the crystal spikes), 大 the black hole (skill 5: the shrinking
-     * sphere), util the re-activation (skill 1).
+     * sphere), util the re-activation (skill 1). The ranger ("gifted", a ranged weapon): 小 the piercing shot that sets off its traps and mines
+     * (skill 2), 中 the rapid shots (skill 6), 大 the rain of arrows (skill 5), util the backstep shot that strengthens the arrows after it (skill 1).
      */
     private static final Map<String, Own> OWN = Map.of(
-            "mage", new Own(AttackType.RANGE, new int[]{5, 3, 4, 0}));
+            "mage", new Own(AttackType.RANGE, new int[]{5, 3, 4, 0}),
+            "gifted", new Own(AttackType.RANGE, new int[]{1, 5, 4, 0}));
 
     /** A class's favorite kind of weapon, and the heavy attacks its 小・中・大・util throw with it. */
     record Own(AttackType favorite, int[] heavies) {
