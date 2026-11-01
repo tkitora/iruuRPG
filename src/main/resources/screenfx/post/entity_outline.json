@@ -3,6 +3,7 @@
         "swap",
         "final",
         "iruu_outline",
+        { "name": "iruu_fx_state", "width": 8, "height": 1 },
         { "name": "iruu_bloom_a", "width": 480, "height": 270 },
         { "name": "iruu_bloom_b", "width": 480, "height": 270 },
         { "name": "iruu_bloom_c", "width": 240, "height": 135 },
@@ -10,11 +11,16 @@
     ],
     "passes": [
         {
+            "name": "iruu_fx_read",
+            "intarget": "final",
+            "outtarget": "iruu_fx_state"
+        },
+        {
             "name": "iruu_fx_bloom_bright",
             "intarget": "minecraft:main",
             "outtarget": "iruu_bloom_a",
             "auxtargets": [
-                { "name": "MarkerSampler", "id": "final" }
+                { "name": "StateSampler", "id": "iruu_fx_state" }
             ]
         },
         {
@@ -89,7 +95,8 @@
             "auxtargets": [
                 { "name": "BloomSampler", "id": "iruu_bloom_a" },
                 { "name": "WideBloomSampler", "id": "iruu_bloom_c" },
-                { "name": "MainSampler", "id": "minecraft:main" }
+                { "name": "MainSampler", "id": "minecraft:main" },
+                { "name": "StateSampler", "id": "iruu_fx_state" }
             ]
         }
     ]

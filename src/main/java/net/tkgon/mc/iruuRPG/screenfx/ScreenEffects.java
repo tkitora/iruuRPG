@@ -48,7 +48,9 @@ public final class ScreenEffects implements Listener {
 
     /** The effects; the slot is the marker's green and its place in the corner (slots 1 - 8 are read by the shaders). */
     public enum Effect {
-        BLOOM(1, "ブルーム (明るいところが光ってにじむ)");
+        BLOOM(1, "ブルーム (明るいところが光ってにじむ)"),
+        /** Black over the whole screen but the GUI, its alpha strength / 200 (100 gives 0.5): a plain check that the shaders work (t126). */
+        DARKEN(2, "画面を暗くする (黒を重ねる。強さ 100 で不透明度 0.5、200 以上で真っ黒)");
 
         private final int slot;
         private final String summary;

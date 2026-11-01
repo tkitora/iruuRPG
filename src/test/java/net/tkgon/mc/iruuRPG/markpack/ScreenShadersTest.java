@@ -101,8 +101,11 @@ class ScreenShadersTest {
         String red = "== " + ScreenEffects.MARKER_RED;
         assertTrue(text(files, "core/rendertype_outline.vsh").contains("rgb.r " + red));
         assertTrue(text(files, "program/iruu_fx_strip.fsh").contains("rgb.r " + red));
-        String bright = text(files, "program/iruu_fx_bloom_bright.fsh");
-        assertTrue(bright.contains("ca.r " + red + " && ca.g == " + ScreenEffects.Effect.BLOOM.slot()));
+        assertTrue(text(files, "program/iruu_fx_read.fsh").contains("rgb.r " + red));
+        // each effect reads its slot's pixel of the state (slot - 1, 0)
+        assertTrue(text(files, "program/iruu_fx_bloom_bright.fsh").contains("ivec2(" + (ScreenEffects.Effect.BLOOM.slot() - 1) + ", 0)"));
+        assertTrue(text(files, "program/iruu_fx_mix.fsh").contains("ivec2(" + (ScreenEffects.Effect.DARKEN.slot() - 1) + ", 0)"));
+        for (ScreenEffects.Effect effect : ScreenEffects.Effect.values()) assertTrue(effect.slot() >= 1 && effect.slot() <= 8, effect.id());
         JsonObject core = JsonParser.parseString(text(files, "core/rendertype_outline.json")).getAsJsonObject();
         assertTrue(names(core, "uniforms").contains("ScreenSize"), "the core shader needs the screen size to find the corner");
     }
