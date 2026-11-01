@@ -23,7 +23,9 @@ import java.util.Map;
  * icon, which is at their top), so the row of icons is drawn over the status line without moving it.
  *
  * <p>Code points: icon n (1 - 5) of class c ({@link #CLASSES}) is U+E100 + 16 c + n; shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d
- * U+E220 + d; the spaces U+E2F0 on. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
+ * U+E220 + d; the key label of two keys (t138) U+E240 + 4 first + second (first F 0 / Q 1; second F 0 / Q 1 / left button 2 / right button 3);
+ * the spaces U+E2F0 on. A key label is a picture of its own (8 of them, not one per icon), drawn over the icon's place: the keys stand just
+ * above the icon, so they hide neither the icon nor its cooldown. An icon's picture comes from the plugin's resources ({@code hud/heavy_<class>_<n>.png}, 16 x 16) when there is
  * one, else a placeholder is drawn: the class's color with the number in white.
  */
 public final class HudGlyphs {
@@ -42,6 +44,11 @@ public final class HudGlyphs {
     /** One icon and the gap after it (an icon's advance is its width + 1, and a space of 1 follows it). */
     public static final int SLOT = ICON + GAP;
     private static final int DIGIT_WIDTH = 5;
+    /** How much taller a key label's picture is than an icon's: its keys are in these rows, just above the icon. */
+    private static final int KEY_RAISE = 8;
+    /** The keys of a label in a 3 x 5 pixel font: F, Q, the left button (L), the right button (R), and the arrow between them. */
+    private static final String[] KEY_LETTERS = {"111100110100100", "111101101110011", "100100100100111", "110101110101101"};
+    private static final String KEY_ARROW = "100010001010100";
     private static final int[] SPACES = {1, 2, 4, 8, 16, 32, 64, 128};
     private static final String[] DIGITS = {
             "111101101101111", "010110010010111", "111001111100111", "111001111001111", "101101111001001",
@@ -68,6 +75,14 @@ public final class HudGlyphs {
         return (char) (0xE220 + Math.max(0, Math.min(9, digit)));
     }
 
+    /**
+     * The label of two keys: {@code first} 0 (F) / 1 (Q), {@code second} 0 (F) / 1 (Q) / 2 (the left button) / 3 (the right button). Its color
+     * is the text's.
+     */
+    public static char keyLabel(int first, int second) {
+        return (char) (0xE240 + 4 * Math.max(0, Math.min(1, first)) + Math.max(0, Math.min(3, second)));
+    }
+
     /** A space of +-2^i pixels ({@code negative}: to the left). */
     private static char space(int i, boolean negative) {
         return (char) (0xE2F0 + (negative ? SPACES.length : 0) + i);
@@ -86,8 +101,15 @@ public final class HudGlyphs {
         return text.toString();
     }
 
-    /** What one icon's state draws: {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0). */
-    public record Icon(String classId, int number, double coolingShare, int seconds) {
+    /**
+     * What one icon's state draws: {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0), and the label of the
+     * keys that do it ({@link #keyLabel}, 0 for none) in {@code keyColor}.
+     */
+    public record Icon(String classId, int number, double coolingShare, int seconds, char key, int keyColor) {
+
+        public Icon(String classId, int number, double coolingShare, int seconds) {
+            this(classId, number, coolingShare, seconds, (char) 0, 0xFFFFFF);
+        }
     }
 
     /**
@@ -113,6 +135,10 @@ public final class HudGlyphs {
                     row = row.append(Component.text(text.toString(), TextColor.color(0xFFFFFF)));
                 }
             }
+            if (icon.key() != 0) {
+                // (the label's picture is as wide as the icon: back to the icon's place, and the label ends where the icon did)
+                row = row.append(Component.text(move(-(ICON + 1)) + icon.key(), TextColor.color(icon.keyColor())));
+            }
             row = row.append(Component.text(move(SLOT - ICON - 1)));
         }
         row = row.append(Component.text(move(-(icons.size() * SLOT) + (width + 1) / 2)));
@@ -123,9 +149,13 @@ public final class HudGlyphs {
 
     /** A picture of the font's height with {@code top} (or nothing) at its top; its top-right pixel keeps the advance the full width. */
     private static BufferedImage picture(int width, BufferedImage top, int topY) {
-        BufferedImage image = new BufferedImage(width, PICTURE, BufferedImage.TYPE_INT_ARGB);
+        return picture(width, PICTURE, top, topY);
+    }
+
+    private static BufferedImage picture(int width, int height, BufferedImage top, int topY) {
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         if (top != null) {
-            for (int y = 0; y < top.getHeight() && topY + y < PICTURE; y++) {
+            for (int y = 0; y < top.getHeight() && topY + y < height; y++) {
                 for (int x = 0; x < Math.min(width, top.getWidth()); x++) image.setRGB(x, topY + y, top.getRGB(x, y));
             }
         }
@@ -208,12 +238,42 @@ public final class HudGlyphs {
         return image;
     }
 
+    /**
+     * The label of two keys (white with a dark rim, its color is the text's): the first key, an arrow, the second key, 13 x 7 in the middle of the
+     * icon's width, in the rows above the icon.
+     */
+    static BufferedImage keyImage(int first, int second) {
+        BufferedImage image = new BufferedImage(ICON, 7, BufferedImage.TYPE_INT_ARGB);
+        String[] glyphs = {KEY_LETTERS[first], KEY_ARROW, KEY_LETTERS[second]};
+        int left = (ICON - 13) / 2 + 1;
+        for (int pass = 0; pass < 2; pass++) {
+            for (int g = 0; g < glyphs.length; g++) {
+                for (int row = 0; row < 5; row++) {
+                    for (int col = 0; col < 3; col++) {
+                        if (glyphs[g].charAt(row * 3 + col) != '1') continue;
+                        int x = left + g * 4 + col, y = 1 + row;
+                        if (pass == 1) {
+                            image.setRGB(x, y, 0xFFFFFFFF);
+                            continue;
+                        }
+                        for (int dy = -1; dy <= 1; dy++) {
+                            for (int dx = -1; dx <= 1; dx++) {
+                                if ((image.getRGB(x + dx, y + dy) >>> 24) == 0) image.setRGB(x + dx, y + dy, 0xFF202020);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return image;
+    }
+
     private static void bitmap(JsonArray providers, Map<String, byte[]> files, String name, char ch, BufferedImage image) throws IOException {
         JsonObject provider = new JsonObject();
         provider.addProperty("type", "bitmap");
         provider.addProperty("file", "iruurpg:font/hud/" + name + ".png");
-        provider.addProperty("ascent", PICTURE);
-        provider.addProperty("height", PICTURE);
+        provider.addProperty("ascent", image.getHeight());
+        provider.addProperty("height", image.getHeight());
         JsonArray chars = new JsonArray();
         chars.add(String.valueOf(ch));
         provider.add("chars", chars);
@@ -233,6 +293,13 @@ public final class HudGlyphs {
         }
         for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
         for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
+        // (a key label's picture is KEY_RAISE taller with the same bottom: its keys are just above the icon)
+        for (int first = 0; first < 2; first++) {
+            for (int second = 0; second < 4; second++) {
+                bitmap(providers, files, "key_" + "FQ".charAt(first) + "FQLR".charAt(second), keyLabel(first, second),
+                        picture(ICON, PICTURE + KEY_RAISE, keyImage(first, second), 0));
+            }
+        }
         JsonObject space = new JsonObject();
         space.addProperty("type", "space");
         JsonObject advances = new JsonObject();
