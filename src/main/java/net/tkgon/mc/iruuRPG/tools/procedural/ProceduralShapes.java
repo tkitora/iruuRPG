@@ -18,7 +18,7 @@ final class ProceduralShapes {
     }
 
     /** The blocks being made: where two parts meet the stronger one stays. */
-    private static final class Blocks {
+    static final class Blocks {
         final Map<Long, TreePart> map = new HashMap<>();
 
         void put(int x, int y, int z, TreePart part) {
@@ -29,6 +29,10 @@ final class ProceduralShapes {
 
         boolean has(int x, int y, int z) {
             return map.containsKey(TreeVoxelizer.pack(x, y, z));
+        }
+
+        TreePart get(int x, int y, int z) {
+            return map.get(TreeVoxelizer.pack(x, y, z));
         }
     }
 
@@ -44,7 +48,7 @@ final class ProceduralShapes {
             case CRYSTAL -> crystals(blocks, s, seed, random, frame);
             case HOUSE -> {
                 // (a house is as big as its own numbers make it, and stands where it was clicked: no clip, no settling of the whole)
-                house(blocks, s, aim, ground);
+                HouseShape.build(blocks, s, aim, ground);
                 return blocks.map;
             }
             default -> {
@@ -149,171 +153,6 @@ final class ProceduralShapes {
             if (kind == ProcKind.ROCK) return y < -6 || y >= height || Math.abs(x) > half || Math.abs(z) > half;
             return Math.abs(x) > reach || Math.abs(y) > reach || Math.abs(z) > reach;
         });
-    }
-
-    // ---- house (t179) -------------------------------------------------------------------------------------------------------------------
-
-    /** The names of the roofs ({@link TreeSettings.Key#HOUSE_ROOF}). */
-    static String roofName(int roof) {
-        return switch (roof) {
-            case 0 -> "平ら";
-            case 2 -> "寄棟";
-            case 3 -> "片流れ";
-            default -> "切妻";
-        };
-    }
-
-    /**
-     * The base of a house, a block-out in the parts' wool (t179, after the building generators of Houdini): a footprint of {@code house-width} along
-     * the front and {@code house-depth} back from it, centred on the block clicked, the front toward the player (turned to the nearest of the four
-     * ways). {@code house-floors} storeys of {@code house-storey} blocks: a floor at the foot of each, walls round the edge, pillars at the corners
-     * and every {@code house-pillar-spacing} blocks along the walls (with a foundation, down to the ground where it is lower), windows between the
-     * pillars and a door in the middle of the front; on top a roof (flat, gable, hip or shed) of {@code house-pitch}, out past the walls by
-     * {@code house-overhang}, the gaps under it walled up.
-     */
-    private static void house(Blocks blocks, TreeSettings s, Vector aim, TreeGround ground) {
-        int width = s.getInt(TreeSettings.Key.HOUSE_WIDTH);
-        int depth = s.getInt(TreeSettings.Key.HOUSE_DEPTH);
-        int floors = s.getInt(TreeSettings.Key.HOUSE_FLOORS);
-        int storey = s.getInt(TreeSettings.Key.HOUSE_STOREY);
-        int spacing = s.getInt(TreeSettings.Key.HOUSE_PILLARS);
-        int roof = s.getInt(TreeSettings.Key.HOUSE_ROOF);
-        double pitch = s.get(TreeSettings.Key.HOUSE_PITCH);
-        int overhang = s.getInt(TreeSettings.Key.HOUSE_OVERHANG);
-        HousePlan plan = new HousePlan(width, depth, floors, storey, spacing, s.on(TreeSettings.Key.HOUSE_WINDOWS), s.on(TreeSettings.Key.HOUSE_DOOR));
-        Turn turn = Turn.toward(aim, width, depth);
-        int top = floors * storey;
-        // the storeys: the floors, the pillars and the walls with their openings
-        for (int a = 0; a < width; a++) {
-            for (int b = 0; b < depth; b++) {
-                boolean edge = a == 0 || b == 0 || a == width - 1 || b == depth - 1;
-                for (int y = 0; y < top; y++) {
-                    TreePart part;
-                    if (plan.pillar(a, b)) part = TreePart.HOUSE_PILLAR;
-                    else if (edge) part = plan.opening(a, b, y) ? null : TreePart.HOUSE_WALL;
-                    else part = y % storey == 0 ? TreePart.HOUSE_FLOOR : null;
-                    if (part != null) turn.put(blocks, a, y, b, part);
-                }
-                // the floor of the storey that holds up the roof (a flat roof is that floor itself)
-                if (roof != 0 && !edge) turn.put(blocks, a, top, b, TreePart.HOUSE_FLOOR);
-            }
-        }
-        // the foundation: the pillars down to the ground where it is lower than the house
-        if (s.on(TreeSettings.Key.HOUSE_FOUNDATION) && ground != null) {
-            for (int a = 0; a < width; a++) {
-                for (int b = 0; b < depth; b++) {
-                    if (!plan.pillar(a, b)) continue;
-                    int[] at = turn.world(a, b);
-                    int ground_ = ground.top(at[0], at[1]);
-                    if (ground_ == TreeGround.NONE) continue;
-                    for (int y = -1; y > ground_ && y >= -12; y--) blocks.put(at[0], y, at[1], TreePart.HOUSE_PILLAR);
-                }
-            }
-        }
-        // the roof over the footprint and the eaves
-        for (int a = -overhang; a < width + overhang; a++) {
-            for (int b = -overhang; b < depth + overhang; b++) {
-                int rise = roofRise(roof, a, b, width, depth, overhang, pitch);
-                int step = Math.max(1, (int) Math.ceil(pitch));
-                // (a steep slope is filled down to the block under the next step, so it has no holes)
-                for (int y = top + rise; y > top + rise - step && y >= top; y--) turn.put(blocks, a, y, b, TreePart.HOUSE_ROOF);
-                // the gaps under a sloped roof over the walls (the gables, the high side of a shed) are walled up
-                boolean wall = (a == 0 || b == 0 || a == width - 1 || b == depth - 1) && a >= 0 && b >= 0 && a < width && b < depth;
-                if (wall && roof != 0) {
-                    for (int y = top; y < top + rise - step + 1; y++) turn.put(blocks, a, y, b, plan.pillar(a, b) ? TreePart.HOUSE_PILLAR : TreePart.HOUSE_WALL);
-                }
-            }
-        }
-    }
-
-    /**
-     * How high the roof is over the eaves at {@code (a, b)} of the house (the footprint from 0, out by {@code overhang}): flat 0; a gable rises toward
-     * a ridge along the longer side, a hip toward the middle from all four sides, a shed from the front to the back (at half the pitch).
-     */
-    static int roofRise(int roof, int a, int b, int width, int depth, int overhang, double pitch) {
-        int lowA = -overhang;
-        int highA = width - 1 + overhang;
-        int lowB = -overhang;
-        int highB = depth - 1 + overhang;
-        int acrossA = Math.min(a - lowA, highA - a);
-        int acrossB = Math.min(b - lowB, highB - b);
-        return switch (roof) {
-            case 0 -> 0;
-            case 2 -> (int) Math.floor(Math.min(acrossA, acrossB) * pitch);
-            case 3 -> (int) Math.floor((highB - b) * pitch * 0.5);
-            // a gable: the ridge runs along the longer side, so the slopes go across the shorter
-            default -> (int) Math.floor((width >= depth ? acrossB : acrossA) * pitch);
-        };
-    }
-
-    /** Where the pillars and the openings of a house are (in the house's own coordinates: {@code a} along the front, {@code b} back to front). */
-    record HousePlan(int width, int depth, int floors, int storey, int spacing, boolean windows, boolean door) {
-
-        /** A pillar: a corner, or every {@code spacing} along a wall (counted from the corner). */
-        boolean pillar(int a, int b) {
-            boolean sideA = a == 0 || a == width - 1;
-            boolean sideB = b == 0 || b == depth - 1;
-            if (sideA && sideB) return true;
-            if (spacing <= 0) return false;
-            if (sideB) return a % spacing == 0;
-            if (sideA) return b % spacing == 0;
-            return false;
-        }
-
-        /** Whether the wall block at {@code (a, y, b)} is an opening: the door of the front (the middle, 2 high on the ground floor), or a window. */
-        boolean opening(int a, int b, int y) {
-            int level = y % storey;
-            int floor = y / storey;
-            boolean front = b == depth - 1;
-            if (door && front && floor == 0 && (level == 1 || level == 2) && storey >= 3 && a == doorAt()) return true;
-            if (!windows || storey < 4 || level < 2 || level > storey - 2) return false;
-            // the window of the stretch of wall between two pillars: in its middle, 1 wide (2 when the stretch is 5 or more)
-            boolean alongA = b == 0 || b == depth - 1;
-            int along = alongA ? a : b;
-            int length = alongA ? width : depth;
-            int start = along;
-            while (start > 0 && !pillar(alongA ? start : a, alongA ? b : start)) start--;
-            int end = along;
-            while (end < length - 1 && !pillar(alongA ? end : a, alongA ? b : end)) end++;
-            int inside = end - start - 1;
-            if (inside < 3) return false;
-            if (front && floor == 0 && door && doorAt() > start && doorAt() < end) return false;
-            int middle = start + 1 + (inside - 1) / 2;
-            return inside >= 5 ? along == middle || along == middle + 1 : along == middle;
-        }
-
-        /** The block of the front wall the door is in: the middle (moved off a pillar). */
-        int doorAt() {
-            int middle = (width - 1) / 2;
-            return pillar(middle, depth - 1) ? middle + 1 : middle;
-        }
-    }
-
-    /** The turn of a house: its front toward the player, to the nearest of the four ways; its own coordinates to the tree's, centred on the block clicked. */
-    record Turn(int dx, int dz, int ax, int az, int bx, int bz) {
-
-        /** {@code aim}: from the block clicked toward the player's eye (null: the front faces south, +z). */
-        static Turn toward(Vector aim, int width, int depth) {
-            double x = aim == null ? 0.0 : aim.getX();
-            double z = aim == null ? 1.0 : aim.getZ();
-            int ca = -(width - 1) / 2;
-            int cb = -(depth - 1) / 2;
-            // b runs from the back to the front, so the front is the way b grows; a is turned with it (no mirror)
-            if (Math.abs(x) > Math.abs(z)) {
-                return x >= 0 ? new Turn(cb, -ca, 0, -1, 1, 0) : new Turn(-cb, ca, 0, 1, -1, 0);
-            }
-            return z >= 0 ? new Turn(ca, cb, 1, 0, 0, 1) : new Turn(-ca, -cb, -1, 0, 0, -1);
-        }
-
-        /** The tree's x and z of the house's {@code (a, b)}. */
-        int[] world(int a, int b) {
-            return new int[]{dx + ax * a + bx * b, dz + az * a + bz * b};
-        }
-
-        void put(Blocks blocks, int a, int y, int b, TreePart part) {
-            int[] at = world(a, b);
-            blocks.put(at[0], y, at[1], part);
-        }
     }
 
     // ---- rock ------------------------------------------------------------------------------------------------------------------------

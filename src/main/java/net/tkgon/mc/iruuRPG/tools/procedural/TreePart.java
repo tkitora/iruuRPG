@@ -31,6 +31,8 @@ enum TreePart {
     HOUSE_FLOOR("house-floor", "床", 1, Material.LIGHT_GRAY_WOOL),
     HOUSE_ROOF("house-roof", "屋根", 2, Material.RED_WOOL),
     HOUSE_WALL("house-wall", "壁", 3, Material.WHITE_WOOL),
+    /** (t181) the stone of a stone ground storey, a chimney and a tower. */
+    HOUSE_STONE("house-stone", "石", 0, Material.GRAY_WOOL),
     /** The shades of the leaf gradient above the lowest ({@link #LEAF}): their blocks are the entries of the gradient of the settings. */
     LEAF_2("leaf-2", "葉 (2段目)", 4, Material.OAK_LEAVES),
     LEAF_3("leaf-3", "葉 (3段目)", 4, Material.OAK_LEAVES),

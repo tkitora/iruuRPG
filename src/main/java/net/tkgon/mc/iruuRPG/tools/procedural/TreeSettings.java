@@ -46,12 +46,18 @@ final class TreeSettings {
         HOUSE_FLOORS("house-floors", "階数", 1, 6, 2, 1, 1, "何階建てか"),
         HOUSE_STOREY("house-storey", "1階の高さ", 3, 8, 4, 1, 1, "床から次の床までの高さ (ブロック。床の1段を含む)"),
         HOUSE_PILLARS("house-pillar-spacing", "柱の間隔", 0, 12, 4, 1, 2, "壁に柱を立てる間隔 (ブロック)。0 で四隅だけ"),
-        HOUSE_ROOF("house-roof", "屋根の形", 0, 3, 1, 1, 1, "0 平ら / 1 切妻 (2面) / 2 寄棟 (4面) / 3 片流れ (1面)"),
+        HOUSE_ROOF("house-roof", "屋根の形", 0, 8, 1, 1, 1, "0 平ら / 1 切妻 / 2 寄棟 / 3 片流れ / 4 腰折れ / 5 マンサード / 6 入母屋 / 7 半切妻 / 8 反り屋根"),
         HOUSE_PITCH("house-pitch", "屋根の勾配", 0.25, 2.0, 0.75, 0.05, 0.25, "屋根が1ブロック内へ入るごとに上がる高さ (1 で 45 度)"),
         HOUSE_OVERHANG("house-overhang", "軒の出", 0, 3, 1, 1, 1, "屋根が壁から外へ出る長さ (ブロック)"),
         HOUSE_WINDOWS("house-windows", "窓", true, "柱と柱の間の壁に、階ごとに窓の穴をあける"),
         HOUSE_DOOR("house-door", "入口", true, "正面の1階のまん中に、入口の穴をあける"),
         HOUSE_FOUNDATION("house-foundation", "基礎", true, "地面が低い所では、柱を地面まで伸ばす"),
+        // ---- (t181) the turn, the fantasy roofs and the storeys of a timber-framed house; the parts added on are the list of HouseModule ----
+        HOUSE_RIDGE("house-ridge", "棟の向き", 0, 2, 0, 1, 1, "0 自動 (長い辺に沿う) / 1 正面と平行 (平入り) / 2 正面と直角 (妻入り: 正面に三角の破風)"),
+        HOUSE_ROTATION("house-rotation", "回転", 0, 345, 0, 15, 45, "正面をこちらに向けたあと、さらに時計回りに回す角度 (度、上から見て)。90 の倍数以外は斜めに並ぶ"),
+        HOUSE_JETTY("house-jetty", "上の階の張り出し", 0, 2, 0, 1, 1, "2階から上は、1階上がるごとに正面と裏へこれだけ張り出す (最大 3 ブロック)"),
+        HOUSE_STONE("house-stone-base", "1階を石に", false, "1階の壁と柱を石の部位にする (基礎があれば、壁ごと地面まで)"),
+        HOUSE_TIMBER("house-timber", "木組み", false, "石でない階の壁に、床の高さの梁と斜めの筋交いを柱の部位で入れる (ハーフティンバー)"),
         // ---- the canopy tree (CanopyTree): a fractal of branches, canopies one above the other ----
         CANOPY_TRUNK_HEIGHT("canopy-trunk-height", "幹の高さ", 0, 40, 0, 1, 5, "最初の枝分かれまでの、まっすぐな幹の長さ (0 で根元からすぐ分かれる)"),
         CANOPY_LENGTH("canopy-length", "最初の長さ", 1, 40, 10, 0.5, 2, "樹冠の最初の枝 (主幹) の長さ。子の枝は、長さの倍率ずつ短くなる"),
@@ -211,6 +217,11 @@ final class TreeSettings {
     private final Map<TreePart, String> blocks = new EnumMap<>(TreePart.class);
     /** The leaf gradient, from the bottom of a clump to its top (the names of the materials); empty: the leaves are the one block of the config. */
     private final List<String> leafGradient = new ArrayList<>();
+    /** The parts added on the house base (t181), in the order they are built (a later one goes over an earlier one). */
+    private final List<HouseModule> modules = new ArrayList<>();
+
+    /** How many parts a house can have. */
+    static final int MAX_MODULES = 12;
 
     public TreeSettings copy() {
         TreeSettings copy = new TreeSettings();
@@ -223,6 +234,8 @@ final class TreeSettings {
         copy.name = name;
         copy.blocks.putAll(blocks);
         copy.leafGradient.addAll(leafGradient);
+        // (the generation reads the copy off the main thread while the menu may change the parts: each is copied)
+        for (HouseModule module : modules) copy.modules.add(module.copy());
         return copy;
     }
 
@@ -236,6 +249,11 @@ final class TreeSettings {
         String name = blockName(material);
         if (name == null) blocks.remove(part);
         else blocks.put(part, name);
+    }
+
+    /** The parts added on the house, the list itself (the menu changes it in place). */
+    List<HouseModule> modules() {
+        return modules;
     }
 
     List<String> leafGradient() {
@@ -418,6 +436,9 @@ final class TreeSettings {
         for (Map.Entry<TreePart, String> entry : blocks.entrySet()) chosen.put(entry.getKey().key(), entry.getValue());
         map.put("blocks", chosen);
         map.put("leaf-gradient", new ArrayList<>(leafGradient));
+        List<Map<String, Object>> parts = new ArrayList<>();
+        for (HouseModule module : modules) parts.add(module.toMap());
+        map.put("house-modules", parts);
         return map;
     }
 
@@ -446,6 +467,14 @@ final class TreeSettings {
             List<String> names = new ArrayList<>();
             for (Object entry : list) names.add(String.valueOf(entry));
             settings.setLeafGradient(names);
+        }
+        if (map.get("house-modules") instanceof List<?> list) {
+            for (Object entry : list) {
+                if (entry instanceof org.bukkit.configuration.ConfigurationSection section) entry = section.getValues(false);
+                if (!(entry instanceof Map<?, ?> part) || settings.modules.size() >= MAX_MODULES) continue;
+                HouseModule module = HouseModule.fromMap(part);
+                if (module != null) settings.modules.add(module);
+            }
         }
         return settings;
     }
