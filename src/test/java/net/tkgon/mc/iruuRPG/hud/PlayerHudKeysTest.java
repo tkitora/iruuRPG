@@ -13,14 +13,12 @@ class PlayerHudKeysTest {
 
     @Test
     void theButtonsOfALabelAreTheWeaponsOwn() {
-        // 小 = Q, the normal button: the left one with a melee weapon, the right one with a ranged one; 中 the other
-        assertEquals(HudGlyphs.keyLabel("ql"), PlayerHud.keyGlyph(Slot.SMALL, true));
-        assertEquals(HudGlyphs.keyLabel("qr"), PlayerHud.keyGlyph(Slot.SMALL, false));
-        assertEquals(HudGlyphs.keyLabel("qr"), PlayerHud.keyGlyph(Slot.MEDIUM, true));
-        assertEquals(HudGlyphs.keyLabel("ql"), PlayerHud.keyGlyph(Slot.MEDIUM, false));
-        assertEquals(HudGlyphs.keyLabel("qq"), PlayerHud.keyGlyph(Slot.LARGE, false));
-        assertEquals(HudGlyphs.keyLabel("f"), PlayerHud.keyGlyph(Slot.UTIL, true));
-        assertEquals(HudGlyphs.keyLabel("sf"), PlayerHud.keyGlyph(Slot.ULT, false));
+        // 小 = Q → left, 中 = Q → right: the same with every weapon (t160)
+        assertEquals(HudGlyphs.keyLabel("ql"), PlayerHud.keyGlyph(Slot.SMALL));
+        assertEquals(HudGlyphs.keyLabel("qr"), PlayerHud.keyGlyph(Slot.MEDIUM));
+        assertEquals(HudGlyphs.keyLabel("qq"), PlayerHud.keyGlyph(Slot.LARGE));
+        assertEquals(HudGlyphs.keyLabel("f"), PlayerHud.keyGlyph(Slot.UTIL));
+        assertEquals(HudGlyphs.keyLabel("sf"), PlayerHud.keyGlyph(Slot.ULT));
         // the weapon's skill: its other button
         assertEquals(HudGlyphs.keyLabel("r"), PlayerHud.itemKeyGlyph(true));
         assertEquals(HudGlyphs.keyLabel("l"), PlayerHud.itemKeyGlyph(false));

@@ -142,7 +142,7 @@ public final class ClassInfo {
     static List<String> controls(AttackType kind, String classId) {
         boolean melee = kind == AttackType.MELEE;
         List<String> lines = new java.util.ArrayList<>();
-        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot, melee) + ": " + slot.label();
+        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot) + ": " + slot.label();
         if (kind != AttackType.MELEE && kind != AttackType.RANGE) {
             lines.add("右クリック: 1回目で設置、その後は弱");
             lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) + " / Shift+Q: 設置を消す");

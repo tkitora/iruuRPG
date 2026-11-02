@@ -316,7 +316,7 @@ public final class SkillTreeMenu implements Listener {
             classSkillRegistry.find(node.skillName()).ifPresent(skill -> appendSkillLore(lore, skill, seconds));
         }
         if (node.hotKey() != null) {
-            lore.add(line("操作", ult ? net.tkgon.mc.iruuRPG.combat.SkillInput.keys(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT, true) + " (ULT)"
+            lore.add(line("操作", ult ? net.tkgon.mc.iruuRPG.combat.SkillInput.keys(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) + " (ULT)"
                     : node.hotKey().displayName(), NamedTextColor.YELLOW));
         }
         return item(node.icon(), node.nodeName(), color, lore, unlocked);

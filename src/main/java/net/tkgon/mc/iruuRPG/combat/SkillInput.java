@@ -13,11 +13,10 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * The keys of the skills ({@link SkillSlots}, the user's redesign of 2026-11-02; it replaces the styles of t116 / t119 / t138): Q and then,
- * within {@code combat.skill-slots.key-window-ticks}, the weapon's normal button (小), its other button (中) or Q again (大); F alone is util,
- * shift + F the ULT. With no Q before it, the normal button is the normal attack and the other button the weapon's skill. The normal button is
- * the left one with a melee weapon and the right one with a ranged or deployed one, so with a melee weapon 小 is Q → left, 中 Q → right and the
- * weapon's skill right; with a ranged one 小 Q → right, 中 Q → left and the weapon's skill left. The listener reads the keys and asks this what
- * they are.
+ * within {@code combat.skill-slots.key-window-ticks}, the left button (小), the right button (中) or Q again (大); F alone is util, shift + F
+ * the ULT. These are the same with every weapon (t160: the skills of a ranged weapon were Q → right / Q → left before, and that was hard to
+ * follow). With no Q before it, the weapon's normal button is the normal attack and its other button the weapon's skill: the normal button is
+ * the left one with a melee weapon and the right one with a ranged or deployed one. The listener reads the keys and asks this what they are.
  */
 public final class SkillInput implements Listener {
 
@@ -73,18 +72,19 @@ public final class SkillInput implements Listener {
         return sneaking ? SkillSlots.Slot.ULT : SkillSlots.Slot.UTIL;
     }
 
-    /** A click of the weapon's {@code button}. */
-    public static Click click(Player player, Button button) {
-        return click(player.getUniqueId(), button, Bukkit.getCurrentTick());
+    /** A click of the weapon's {@code button}, the {@code right} button or the left one. */
+    public static Click click(Player player, Button button, boolean right) {
+        return click(player.getUniqueId(), button, right, Bukkit.getCurrentTick());
     }
 
-    static Click click(UUID id, Button button, int now) {
+    static Click click(UUID id, Button button, boolean right, int now) {
         int[] last = LAST_CLICK.put(id, new int[]{now, button.ordinal()});
         if (last != null && last[0] == now && last[1] == button.ordinal()) return Click.NOTHING;
         Integer other = button == Button.OTHER ? LAST_OTHER.put(id, now) : null;
         Integer first = Q_WAITING.remove(id);
         if (first != null && now - first <= windowTicks()) {
-            return new Click(Kind.SKILL, button == Button.NORMAL ? SkillSlots.Slot.SMALL : SkillSlots.Slot.MEDIUM);
+            // (the same with every weapon: Q → left 小, Q → right 中)
+            return new Click(Kind.SKILL, right ? SkillSlots.Slot.MEDIUM : SkillSlots.Slot.SMALL);
         }
         if (button == Button.NORMAL) return Click.NORMAL_ATTACK;
         // (a held other button is one press of the weapon's skill)
@@ -102,11 +102,11 @@ public final class SkillInput implements Listener {
         Q_WAITING.remove(player.getUniqueId());
     }
 
-    /** The keys of a skill as they are pressed with a weapon ({@code melee}: its normal button is the left one): "Q→左". */
-    public static String keys(SkillSlots.Slot slot, boolean melee) {
+    /** The keys of a skill (the same with every weapon, t160): "Q→左". */
+    public static String keys(SkillSlots.Slot slot) {
         return switch (slot) {
-            case SMALL -> "Q→" + (melee ? "左" : "右");
-            case MEDIUM -> "Q→" + (melee ? "右" : "左");
+            case SMALL -> "Q→左";
+            case MEDIUM -> "Q→右";
             case LARGE -> "Q→Q";
             case UTIL -> "F";
             case ULT -> "Shift+F";

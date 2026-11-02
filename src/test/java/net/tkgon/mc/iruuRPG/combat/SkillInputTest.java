@@ -42,9 +42,9 @@ class SkillInputTest {
         UUID id = UUID.randomUUID();
         // Q waits; then the normal button is 小, the other 中, Q again 大
         assertNull(SkillInput.pressQ(id, 10));
-        assertEquals(skill(SkillSlots.Slot.SMALL), SkillInput.click(id, N, 15));
+        assertEquals(skill(SkillSlots.Slot.SMALL), SkillInput.click(id, N, false, 15));
         assertNull(SkillInput.pressQ(id, 20));
-        assertEquals(skill(SkillSlots.Slot.MEDIUM), SkillInput.click(id, O, 22));
+        assertEquals(skill(SkillSlots.Slot.MEDIUM), SkillInput.click(id, O, true, 22));
         assertNull(SkillInput.pressQ(id, 30));
         assertEquals(SkillSlots.Slot.LARGE, SkillInput.pressQ(id, 31));
         // F is util, shift + F the ULT, at once; a Q that waited is let go
@@ -52,17 +52,32 @@ class SkillInputTest {
         assertEquals(SkillSlots.Slot.ULT, SkillInput.pressF(id, true));
         assertNull(SkillInput.pressQ(id, 40));
         assertEquals(SkillSlots.Slot.UTIL, SkillInput.pressF(id, false));
-        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, 41).kind());
+        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, false, 41).kind());
         // too late: the second Q is a new first one, the click what it is alone
         assertNull(SkillInput.pressQ(id, 100));
         assertNull(SkillInput.pressQ(id, 121));
         assertEquals(SkillSlots.Slot.LARGE, SkillInput.pressQ(id, 122));
         assertNull(SkillInput.pressQ(id, 200));
-        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, 221).kind());
+        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, false, 221).kind());
         // with no Q before it: the normal button is the normal attack, the other the weapon's skill; the same click again in its tick is nothing
-        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, 300).kind());
-        assertEquals(SkillInput.Kind.NOTHING, SkillInput.click(id, N, 300).kind());
-        assertEquals(SkillInput.Kind.ITEM_SKILL, SkillInput.click(id, O, 310).kind());
+        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, false, 300).kind());
+        assertEquals(SkillInput.Kind.NOTHING, SkillInput.click(id, N, false, 300).kind());
+        assertEquals(SkillInput.Kind.ITEM_SKILL, SkillInput.click(id, O, true, 310).kind());
+        SkillInput.forget(id);
+    }
+
+    @Test
+    void theKeysOfTheSkillsAreTheSameWithARangedWeapon() {
+        // t160: with a ranged weapon the right button is the normal one, yet Q → left is 小 and Q → right 中, as with a melee weapon
+        plugin();
+        UUID id = UUID.randomUUID();
+        assertNull(SkillInput.pressQ(id, 10));
+        assertEquals(skill(SkillSlots.Slot.SMALL), SkillInput.click(id, O, false, 12));
+        assertNull(SkillInput.pressQ(id, 20));
+        assertEquals(skill(SkillSlots.Slot.MEDIUM), SkillInput.click(id, N, true, 22));
+        // with no Q: the right button is its normal attack, the left one its skill (as before)
+        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, true, 40).kind());
+        assertEquals(SkillInput.Kind.ITEM_SKILL, SkillInput.click(id, O, false, 50).kind());
         SkillInput.forget(id);
     }
 
@@ -72,13 +87,13 @@ class SkillInputTest {
         UUID id = UUID.randomUUID();
         int cast = 0;
         // the client repeats a held button every 4 ticks
-        for (int tick = 0; tick < 40; tick += 4) if (SkillInput.click(id, O, tick).kind() == SkillInput.Kind.ITEM_SKILL) cast++;
+        for (int tick = 0; tick < 40; tick += 4) if (SkillInput.click(id, O, true, tick).kind() == SkillInput.Kind.ITEM_SKILL) cast++;
         assertEquals(1, cast);
         // let go, and pressed again
-        assertEquals(SkillInput.Kind.ITEM_SKILL, SkillInput.click(id, O, 60).kind());
+        assertEquals(SkillInput.Kind.ITEM_SKILL, SkillInput.click(id, O, true, 60).kind());
         // Q, and the other button is 中 even right after it
         assertNull(SkillInput.pressQ(id, 62));
-        assertEquals(skill(SkillSlots.Slot.MEDIUM), SkillInput.click(id, O, 63));
+        assertEquals(skill(SkillSlots.Slot.MEDIUM), SkillInput.click(id, O, true, 63));
         SkillInput.forget(id);
     }
 
@@ -98,25 +113,24 @@ class SkillInputTest {
         assertFalse(ClickSignals.leftPossible(id, 105));
         // a real left click later is the normal attack again
         assertTrue(ClickSignals.leftPossible(id, 110));
-        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, 110).kind());
+        assertEquals(SkillInput.Kind.NORMAL_ATTACK, SkillInput.click(id, N, false, 110).kind());
         // and Q, then a real left click (3 ticks after the drop or more) is Q, left: 小 with a melee weapon
         assertNull(SkillInput.pressQ(id, 200));
         ClickSignals.dropKey(id, 200);
         assertTrue(ClickSignals.leftPossible(id, 203));
-        assertEquals(skill(SkillSlots.Slot.SMALL), SkillInput.click(id, N, 203));
+        assertEquals(skill(SkillSlots.Slot.SMALL), SkillInput.click(id, N, false, 203));
         SkillInput.forget(id);
     }
 
     @Test
     void theKeysAreNamedAsTheyArePressedWithTheWeapon() {
         // the buttons change sides with a ranged weapon (its normal button is the right one)
-        assertEquals("Q→左", SkillInput.keys(SkillSlots.Slot.SMALL, true));
-        assertEquals("Q→右", SkillInput.keys(SkillSlots.Slot.SMALL, false));
-        assertEquals("Q→右", SkillInput.keys(SkillSlots.Slot.MEDIUM, true));
-        assertEquals("Q→左", SkillInput.keys(SkillSlots.Slot.MEDIUM, false));
-        assertEquals("Q→Q", SkillInput.keys(SkillSlots.Slot.LARGE, false));
-        assertEquals("F", SkillInput.keys(SkillSlots.Slot.UTIL, true));
-        assertEquals("Shift+F", SkillInput.keys(SkillSlots.Slot.ULT, true));
+        // the same with every weapon (t160)
+        assertEquals("Q→左", SkillInput.keys(SkillSlots.Slot.SMALL));
+        assertEquals("Q→右", SkillInput.keys(SkillSlots.Slot.MEDIUM));
+        assertEquals("Q→Q", SkillInput.keys(SkillSlots.Slot.LARGE));
+        assertEquals("F", SkillInput.keys(SkillSlots.Slot.UTIL));
+        assertEquals("Shift+F", SkillInput.keys(SkillSlots.Slot.ULT));
         assertEquals("右クリック", SkillInput.itemSkillKeys(true));
         assertEquals("左クリック", SkillInput.itemSkillKeys(false));
     }

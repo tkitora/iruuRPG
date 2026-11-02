@@ -53,7 +53,7 @@ class ClassInfoTest {
         assertEquals("F: util / Shift+F: ULT", melee.get(2));
         assertEquals("右クリック: アイテムスキル", melee.get(3));
         List<String> ranged = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.RANGE, "warrior");
-        assertEquals("Q→右: 小 / Q→左: 中 / Q→Q: 大", ranged.get(1));
+        assertEquals("Q→左: 小 / Q→右: 中 / Q→Q: 大", ranged.get(1));
         assertEquals("左クリック: アイテムスキル", ranged.get(3));
         assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior").stream().anyMatch(line -> line.contains("Shift+Q: 設置を消す")));
         // which skills of the guide they throw: a class whose moves are not made yet, and the mage (its own with a ranged weapon, the template with another)
