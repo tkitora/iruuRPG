@@ -691,6 +691,7 @@ public final class IruuRPG extends JavaPlugin {
         }, itemRegistry, itemFactory, debugTargetService, mobRegistry, mobService, statsMenu, skillTreeMenu, levelService);
         executor.setSyncAction(ymlSyncService::sync);
         executor.setPackService(() -> resourcePackService);
+        executor.setSkillSlots(() -> skillSlots);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 

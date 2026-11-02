@@ -44,6 +44,13 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
         this.packs = packs;
     }
 
+    private java.util.function.Supplier<net.tkgon.mc.iruuRPG.combat.SkillSlots> skillSlots = () -> null;
+
+    /** The skills (/iruurpg skilltest; looked up when the command runs: they are made after this command). */
+    public void setSkillSlots(java.util.function.Supplier<net.tkgon.mc.iruuRPG.combat.SkillSlots> skillSlots) {
+        this.skillSlots = skillSlots;
+    }
+
     /** /iruurpg sync: pull the yml repository now and reload when it changed. */
     public void setSyncAction(java.util.function.Consumer<CommandSender> syncAction) {
         this.syncAction = syncAction;
@@ -94,6 +101,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             case "pack", "resourcepack" -> pack(sender, args);
             case "btdebug", "btview" -> btView(sender, args);
             case "dummy", "target" -> spawnDummy(sender);
+            case "skilltest" -> skillTest(sender, args);
             default -> {
                 sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy>");
                 yield true;
@@ -104,7 +112,15 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 1) {
-            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack"), args[0]);
+            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack", "skilltest"), args[0]);
+        }
+
+        if (args[0].equalsIgnoreCase("skilltest")) {
+            if (args.length == 2) return startsWith(List.of("small", "medium", "large", "util", "off"), args[1]);
+            if (args.length == 3 && args[1].equalsIgnoreCase("off")) return startsWith(List.of("small", "medium", "large", "util"), args[2]);
+            if (args.length == 3) return List.of("2", "3");
+            if (args.length == 4) return List.of("0", "3");
+            return List.of();
         }
 
         if (args[0].equalsIgnoreCase("level") || args[0].equalsIgnoreCase("lv") || args[0].equalsIgnoreCase("xp")) {
@@ -142,6 +158,58 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     }
 
     /** /iruurpg pack [send|info]: where the resource packs are, and offering them to the player again. */
+    /**
+     * /iruurpg skilltest &lt;小|中|大|util&gt; &lt;charges&gt; &lt;re-activation seconds&gt; [seconds of a charge]: the sender's skill tries charges and a
+     * re-activation (t157; its second part is the move again), until they leave or {@code /iruurpg skilltest off [skill]}.
+     */
+    private boolean skillTest(CommandSender sender, String[] args) {
+        if (!sender.hasPermission("iruurpg.admin")) {
+            sender.sendMessage("No permission.");
+            return true;
+        }
+        net.tkgon.mc.iruuRPG.combat.SkillSlots slots = skillSlots.get();
+        if (!(sender instanceof Player player) || slots == null) {
+            sender.sendMessage("[スキル] プレイヤーだけが使えます。");
+            return true;
+        }
+        if (args.length >= 2 && args[1].equalsIgnoreCase("off")) {
+            net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot slot = args.length >= 3 ? skillSlot(args[2]) : null;
+            if (slot == null) slots.endTrials(player.getUniqueId());
+            else slots.trial(player.getUniqueId(), slot, null);
+            sender.sendMessage("[スキル] " + (slot == null ? "すべてのスキル" : slot.label()) + " を、元に戻しました。");
+            return true;
+        }
+        net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot slot = args.length >= 4 ? skillSlot(args[1]) : null;
+        if (slot == null || slot == net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) {
+            sender.sendMessage("[スキル] /iruurpg skilltest <小|中|大|util> <チャージ数 1-9> <再発動の秒 (0 = なし)> [1 チャージの補充の秒 (省略 = スキルのクールタイム)]");
+            sender.sendMessage("[スキル] /iruurpg skilltest off [スキル] … 元に戻す (抜けても戻る)。再発動は、同じ技をもう一度出します (試すため)。");
+            return true;
+        }
+        try {
+            int charges = Integer.parseInt(args[2]);
+            double recast = Double.parseDouble(args[3]);
+            double charge = args.length >= 5 ? Double.parseDouble(args[4]) : 0.0;
+            var mechanics = new net.tkgon.mc.iruuRPG.combat.SkillSlots.Mechanics(charges, recast, charge);
+            slots.trial(player.getUniqueId(), slot, mechanics);
+            sender.sendMessage("[スキル] " + slot.label() + ": チャージ " + mechanics.charges() + "、再発動 "
+                    + (mechanics.recasts() ? mechanics.recastSeconds() + " 秒" : "なし") + "、補充 "
+                    + (mechanics.chargeSeconds() > 0.0 ? mechanics.chargeSeconds() + " 秒" : "スキルのクールタイム") + " で試します (抜けるか /iruurpg skilltest off まで)。");
+        } catch (NumberFormatException exception) {
+            sender.sendMessage("[スキル] 数が読めません: " + exception.getMessage());
+        }
+        return true;
+    }
+
+    private static net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot skillSlot(String word) {
+        return switch (word.toLowerCase(Locale.ROOT)) {
+            case "小", "small", "s" -> net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.SMALL;
+            case "中", "medium", "m" -> net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.MEDIUM;
+            case "大", "large", "l" -> net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.LARGE;
+            case "util", "u", "f" -> net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.UTIL;
+            default -> null;
+        };
+    }
+
     private boolean pack(CommandSender sender, String[] args) {
         if (!sender.hasPermission("iruurpg.admin")) {
             sender.sendMessage("No permission.");

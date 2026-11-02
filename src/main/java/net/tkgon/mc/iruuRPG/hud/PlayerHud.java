@@ -33,6 +33,10 @@ import java.util.Locale;
  * made yet, a ULT not unlocked, a weapon with no skill). Each has the label of its keys above it, as they are pressed with the weapon in hand;
  * while a Q waits for its second key, the labels that go on from it (小・中・大) are yellow and the others grey (and the gauges show). A deployed
  * weapon shows only the ULT and its own skill. While the ULT can be re-activated, a bright rim blinks on its icon (and the gauges show).
+ *
+ * <p>Re-activation and charges (t157, {@link SkillSlots.View}): while a skill's re-activation is open, its icon has a colored rim and its keys are
+ * yellow (as after a Q); a skill of more than one charge shows the charges left at the icon's lower right (green when full, red when none) and,
+ * while one refills, a thin gauge of that refill under the icon (apart from the cooldown's shade, which such a skill does not have).
  */
 public final class PlayerHud {
 
@@ -103,8 +107,9 @@ public final class PlayerHud {
         for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
             // (not for the ULT's long cooldown)
             if (weapon == null || !weapon.isWeaponLike() || slot == SkillSlots.Slot.ULT) continue;
-            long[] cooldown = skillSlots.cooldown(player, slot, weapon);
-            if (cooldown != null && cooldown[0] > 0L) {
+            SkillSlots.View view = skillSlots.view(player, slot, weapon);
+            // (a cooldown, an open re-activation, or a charge refilling)
+            if (view.cooldown() != null && (view.cooldown()[0] > 0L || view.recasting() || view.charged() && view.refill() >= 0.0)) {
                 lastActive.put(player.getUniqueId(), now);
                 return true;
             }
@@ -156,10 +161,13 @@ public final class PlayerHud {
                 .append(Component.text(String.format(Locale.ROOT, "%.1f", status.remainingMillis() / 1000.0) + "s", NamedTextColor.WHITE));
     }
 
+    /** The color of a label that can be pressed now: yellow (the keys after a Q, a skill whose re-activation is open). */
+    static final int KEY_NOW = 0xFFE14D;
+
     /** The color of a label: white, or while a Q waits, yellow when the label goes on from it (小・中・大) and grey when not. */
     private static int keyColor(Player player, boolean afterQ) {
         if (!SkillInput.qWaiting(player)) return 0xFFFFFF;
-        return afterQ ? 0xFFE14D : 0x707070;
+        return afterQ ? KEY_NOW : 0x707070;
     }
 
     /** The glyph of the keys of a skill ({@link HudGlyphs#keyLabel}) as they are pressed with the weapon ({@code melee}: its normal button is the left one). */
@@ -201,8 +209,9 @@ public final class PlayerHud {
             if (weapon.attackType() == AttackType.DEPLOY && slot != SkillSlots.Slot.ULT) continue;
             boolean afterQ = slot.ordinal() <= SkillSlots.Slot.LARGE.ordinal();
             // (each kind of weapon has its own icons and cooldowns of 小・中・大・util)
-            HudGlyphs.Icon icon = icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), skillSlots.cooldown(player, slot, weapon),
-                    keyGlyph(slot, melee), keyColor(player, afterQ));
+            SkillSlots.View view = skillSlots.view(player, slot, weapon);
+            HudGlyphs.Icon icon = icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), view,
+                    keyGlyph(slot, melee), view.recasting() ? KEY_NOW : keyColor(player, afterQ));
             // the ULT that can be re-activated now blinks: its bright rim is on and off every 5 ticks
             if (slot == SkillSlots.Slot.ULT && ultRecastable(player)) {
                 icon = new HudGlyphs.Icon(icon.glyph(), icon.coolingShare(), icon.seconds(), icon.key(), icon.keyColor(), icon.locked(),
@@ -218,6 +227,16 @@ public final class PlayerHud {
             item = new HudGlyphs.Icon(HudGlyphs.itemSkillLocked(), 0.0, 0, itemKeyGlyph(melee), keyColor(player, false), false);
         }
         return HudGlyphs.row(icons, java.util.List.of(item));
+    }
+
+    /**
+     * The icon of a skill (t157): its cooldown's shade (a skill of more than one charge has none: its charges and the refill's gauge show instead),
+     * the rim of an open re-activation, the charges left.
+     */
+    static HudGlyphs.Icon icon(char glyph, SkillSlots.View view, char key, int keyColor) {
+        HudGlyphs.Icon plain = icon(glyph, view.charged() ? (view.cooldown() == null ? null : new long[]{0L, 0L}) : view.cooldown(), key, keyColor);
+        return new HudGlyphs.Icon(plain.glyph(), plain.coolingShare(), plain.seconds(), plain.key(), plain.keyColor(), plain.locked(), false,
+                view.recasting(), view.charges(), view.maxCharges(), view.refill());
     }
 
     /** An icon: {@code cooldown} {left, whole} in milliseconds, or null when there is nothing on it (locked). */
