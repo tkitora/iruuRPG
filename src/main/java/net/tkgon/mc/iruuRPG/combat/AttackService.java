@@ -229,6 +229,11 @@ public final class AttackService {
     }
 
     /** True when the mage's ranged combo comes with this weapon (its heavy attacks are the mage's own, {@link MageMoves}). */
+    /** Whether the weapon is the mage's ranged weapon of its combo (the mage's own ranged skills, t168: {@link MageArcana}). */
+    boolean mageRangedWeapon(Player attacker, RpgItemDefinition weapon) {
+        return mageRanged(attacker, weapon);
+    }
+
     private boolean mageRanged(Player attacker, RpgItemDefinition weapon) {
         return mageMoves != null && weapon != null && weapon.isWeaponLike() && weapon.attackType() == AttackType.RANGE && isMage(attacker)
                 && plugin.getConfig().getBoolean("combat.combo.enabled", true) && comboAllowed(attacker, weapon);
@@ -288,6 +293,7 @@ public final class AttackService {
         WarriorSkills.forget(id);
         ClericSkills.forget(id);
         RangerSkills.forget(id);
+        MageArcana.forget(id);
         RangerBuffs.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);
@@ -1617,6 +1623,8 @@ public final class AttackService {
         // an invulnerable moment, a guard and the warrior's shields cut the damage (shields break)
         if (guard != null) damage = guard.absorb(player, damage);
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);
+        // (the mage's criticality at its lantern: more damage dealt, more taken; t168)
+        if ("mage".equals(classId)) finalDamage *= MageArcana.vulnerability(player);
         // (a share of what the warrior takes stays as a wound their melee hits drink back: t168)
         if (warrior) WarriorSkills.taken(player, profile.maxHp(), finalDamage);
         // (the blows the cleric takes give radiance, more while the shield is raised: t168)

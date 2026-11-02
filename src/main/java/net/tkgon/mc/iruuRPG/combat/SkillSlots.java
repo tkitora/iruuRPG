@@ -299,6 +299,10 @@ public final class SkillSlots implements Listener {
             if (!move.recast(player, weapon) && trying(id, slot)) move.use(player, weapon);
             return Done.RECAST;
         }
+        // (a skill that costs nothing now, the mage's torrent: t168) the move, no charge used, nothing starts cooling down
+        if (MageArcana.free(id, slot, kindOf(weapon))) {
+            return move.use(player, weapon) ? Done.USED : Done.NOTHING;
+        }
         // 3. no charge left: nothing
         if (state.charges <= 0) {
             coolingClick(player, now);

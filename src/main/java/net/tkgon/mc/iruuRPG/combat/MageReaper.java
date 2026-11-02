@@ -64,6 +64,8 @@ public final class MageReaper {
             @Override
             public boolean use(Player player, RpgItemDefinition weapon) {
                 if (weapon == null) return false;
+                // (the mage's ranged skills are the arcana's since t168)
+                if (MageArcana.own(attack, player, weapon)) return MageArcana.use(attack, player, weapon, slot);
                 if (!reworked(attack, player, weapon)) return attack.slotHeavy(player, weapon, heavyOf.applyAsInt(weapon.attackType()));
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;

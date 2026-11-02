@@ -13,8 +13,9 @@ class SlotMovesTest {
 
     @Test
     void theMageThrowsItsOwnWithARangedWeaponAndTheTemplateWithAnother() {
-        // 小 the chain of lightning (6), 中 the crystal (4), 大 the black hole (5), util the re-activation (1)
-        assertArrayEquals(new int[]{6, 4, 5, 1}, SlotMoves.skillNumbers("mage", AttackType.RANGE));
+        // its own with a ranged weapon since t168 (the arcana: no old skill numbers)
+        assertTrue(SlotMoves.reworked("mage", AttackType.RANGE));
+        assertNull(SlotMoves.skillNumbers("mage", AttackType.RANGE));
         assertEquals(AttackType.RANGE, SlotMoves.favorite("mage"));
         // a scythe: the reaper's own since t167 (no old skill numbers); a deployed weapon: skills 1 - 4
         assertTrue(SlotMoves.reworked("mage", AttackType.MELEE));
@@ -41,7 +42,6 @@ class SlotMovesTest {
         // the assassin's melee skills are its own since t161 (no old skill numbers); with a ranged weapon the template's
         assertTrue(SlotMoves.reworked("assassin", AttackType.MELEE));
         assertFalse(SlotMoves.reworked("assassin", AttackType.RANGE));
-        assertFalse(SlotMoves.reworked("mage", AttackType.RANGE));
         assertNull(SlotMoves.skillNumbers("assassin", AttackType.MELEE));
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("assassin", AttackType.RANGE));
         // a class with no moves (no class)
