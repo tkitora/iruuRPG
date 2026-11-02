@@ -1635,6 +1635,11 @@ public final class RpgMobService {
         }
     }
 
+    /** The player is seen again before the time (the invisibility of the assassin's 大 ended early: t165). */
+    public void reveal(Player player) {
+        hiddenPlayers.remove(player.getUniqueId());
+    }
+
     private boolean hidden(Player player) {
         Hidden hidden = hiddenPlayers.get(player.getUniqueId());
         if (hidden == null) return false;

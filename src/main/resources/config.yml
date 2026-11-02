@@ -229,7 +229,7 @@ combat:
       medium-cross-share: 0.65                    # 中: オフハンドに武器があるときの十字斬り1本の倍率 (斜め斬りの倍率比。2本当たる)
       medium-reach: 3.3                           # 中: 届く距離 (ブロック)
       medium-recast-seconds: 3                    # 中: 再発動を受け付ける秒数
-      rush-power: 1.3                             # 中の再発動の突進: 1 tick に進むブロック数
+      rush-power: 1.05                            # 中の再発動の突進: 1 tick に進むブロック数 (t165 で少し短く: 1.3 → 1.05)
       rush-ticks: 5                               # その長さ (tick。移動中は無敵)
       rush-pass-rate: 0.25                        # 通り抜けた敵への倍率
       rush-cross-rate: 0.45                       # 突進の先の十字斬りの倍率 (2回当たる)
@@ -238,10 +238,13 @@ combat:
       large-storm-seconds: 2                      # 大: 斬り続ける秒数 (その間、動けないが無敵)
       large-storm-ticks: 3                        # 大: 斬る間隔 (tick)
       large-radius: 3                             # 大: 自分と分身の周りの、斬る範囲 (ブロック)
-      large-rate: 0.18                            # 大: 1回の倍率 (自分と分身の、それぞれが1体ずつ斬る)
+      large-rate: 0.18                            # 大: 1回の倍率 (自分と分身のそれぞれが、周り3ブロックのランダムな点に、ランダムな角度の横線の斬撃を出す。線上の敵に当たる)
+      large-line-half: 2.6                        # 大: その横線の半分の長さ (ブロック)
+      large-ambush-multiplier: 1.5                # 大: 透明の間の、次の通常攻撃かスキル (util 以外) のダメージの倍率。使うと透明が解ける
+      large-ambush-seconds: 1.5                   # 大: その倍率が続く秒数 (その攻撃・スキルの当たりの分)
       large-clone-share: 1                        # 大: 分身が斬るときの倍率 (自分の倍率比)
       util-clone-seconds: 5                       # util: 置く分身の秒数
-      util-back-power: 1.1                        # util: 後ろへ跳ぶ強さ
+      util-back-power: 0.85                       # util: 後ろへ跳ぶ強さ (t165 で少し短く: 1.1 → 0.85)
       util-back-up: 0.35                          # util: 跳ぶ高さ
       ult-dash-share: 0.15                        # ULT (SATUJIN) 中、アイテムスキルのキーで出す突進十字斬りの強さ (中の再発動の倍率比)
       ult-dash-ticks: 2                           # その間隔 (tick)
