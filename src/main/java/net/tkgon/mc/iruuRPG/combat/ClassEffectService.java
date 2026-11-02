@@ -89,6 +89,7 @@ public final class ClassEffectService {
         assassinOnHit(attacker, victim, weapon, damage, profile, statuses);
         surgeOnHit(attacker, damage);
         surgeChainOnHit(attacker, victim);
+        if ("warrior".equals(profile.classId())) WarriorSkills.dealt(attacker, victim, weapon, damage);
         frenzyOnHit(attacker, victim, damage);
         if (statuses) mageOnHit(attacker, victim, damage, profile);
     }

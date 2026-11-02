@@ -1,74 +1,231 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import net.tkgon.mc.iruuRPG.vfx.Fx;
+import net.tkgon.mc.iruuRPG.vfx.Gradient;
 import net.tkgon.mc.iruuRPG.vfx.Palettes;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
 
 /**
- * The warrior's combo with a deployed weapon (a war lantern): bombs, mines and banners, set down where the warrior aims and gone within 2.5 s (the same
- * kind placed again replaces the old one). Normal: 1 a bomb that goes off after 1.5 s (100%, knocks back), 2 two bombs (60% each), 3 a mine that waits for
- * 2.7 s (130%), 4 three mines in a row (40% each, they go off when an enemy comes close), 5 a war banner planted at the aim for 2.7 s (25% a pulse, 5 pulses,
- * pushes out and slows 40%; the warrior by it takes 20% less damage). Heavy: 0 a totem under the feet (25% a pulse; the warrior on it takes 30% less damage, the enemies are slowed 50%), 1 a fault line ahead that stays 2 s (25% a pulse, lifts), 2 a barricade of five (10% a pulse,
- * pushes), 3 four bombs in a cross round the aim (35% each), 4 a great bomb that pulls the enemies in for 2 s and bursts (150%).
+ * The warrior's combo with a deployed weapon (a war lantern): the ward that <b>isolates</b> (t168: it disrupts the enemies and cuts them off from
+ * each other; no stuns, for crowd control would be too strong: pushes, a fence, a hook and a cage). An enemy with no other enemy within
+ * {@code isolate-radius} (3.5) blocks of it is <b>isolated</b>, and the ward's attacks hit it {@code isolate-bonus} (40%) harder (a ring and a
+ * ping on it). The attacks are made round the placement (see {@link DeployHold}), at the aim near it.
+ *
+ * <p>Normal: 1 an iron wedge struck into the aim (90% within 2.4 blocks; they are thrown apart, away from it), 2 a chain fence across the aim for
+ * 3 s (the enemies that touch it are struck, 30%, and thrown back to their side), 3 a hook that tears the enemy nearest the aim away from the
+ * rest toward the placement (80%, slowed a moment), 4 a cage round the enemy nearest the aim for 2.5 s (the others are thrown out and kept out;
+ * it can move a little inside, and is struck three times, 35%), 5 the bell of judgment at the placement (60% within 7 blocks, slowed 25%; an
+ * isolated enemy takes {@code bell-isolated} (150%) more on top).
+ *
+ * <p>The heavy attacks below are what they were before t168 (a deployed weapon has no skills since the redesign of 2026-11-02).
  */
 public final class WarriorDeployCombo extends BaseCombo {
 
     static final String PLAN = "warrior_deploy";
+    /** The ward's colors: dark iron, amber, the light of the lantern. */
+    static final Gradient WARD = Gradient.of(Color.fromRGB(36, 28, 22), Color.fromRGB(205, 120, 40), Color.fromRGB(255, 225, 160));
 
     public WarriorDeployCombo() {
         super("warrior", AttackType.DEPLOY, new ComboSpec(PLAN,
-                new double[]{1.0, 0.6, 1.3, 0.4, 0.25}, new int[]{1, 2, 1, 3, 1},
+                new double[]{0.9, 0.3, 0.8, 0.35, 0.6}, new int[]{1, 1, 1, 3, 1},
                 new double[]{0.25, 0.25, 0.1, 0.35, 1.5, 0.25}, new int[]{150, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
+        kit.palette(WARD);
         double rate = step.damageMultiplier();
-        int count = step.extraHits() + 1;
+        int hits = step.extraHits() + 1;
         Location target = ComboParts.target(kit);
-        Vector right = kit.originRight();
         switch (step.stage()) {
-            case 1 -> ComboParts.bomb(kit, "warrior_n1", target, 30, 3.2, rate, 0.4);
-            case 2 -> {
-                for (int index = 0; index < count; index++) {
-                    Location spot = kit.ground(target.clone().add(right.clone().multiply(index == 0 ? -2.0 : 2.0)));
-                    String key = "warrior_n2_" + index;
-                    kit.later(index, () -> ComboParts.bomb(kit, key, spot, 28, 2.6, rate, 0.3));
-                }
+            case 1 -> wedge(kit, target, rate);
+            case 2 -> fence(kit, target, rate);
+            case 3 -> hook(kit, target, rate);
+            case 4 -> cage(kit, target, rate, hits);
+            default -> bell(kit, rate);
+        }
+    }
+
+    // ---- isolation ------------------------------------------------------------------------------------------------------------
+
+    /** Whether {@code victim} is isolated: no other enemy within {@code radius} of it. */
+    static boolean isolated(java.util.List<LivingEntity> near, LivingEntity victim) {
+        for (LivingEntity other : near) if (!other.equals(victim)) return false;
+        return true;
+    }
+
+    /** One hit of the ward: {@code isolate-bonus} more (and {@code extra} times that) on an isolated enemy, which is marked by a ring and a ping. */
+    private static boolean wardHit(MoveKit kit, LivingEntity victim, double rate, double extra) {
+        boolean alone = isolated(kit.around(victim.getLocation(), kit.number(PLAN, "isolate-radius", 3.5)), victim);
+        double bonus = alone ? (1.0 + kit.number(PLAN, "isolate-bonus", 0.4)) * extra : 1.0;
+        if (!kit.hit(victim, rate * bonus)) return false;
+        if (alone) {
+            Location feet = victim.getLocation().add(0.0, 0.1, 0.0);
+            Fx fx = kit.fx(feet);
+            fx.flatRing(feet, Math.max(0.7, victim.getWidth() + 0.3), 20, WARD, 0.85, 0.15, 1.1);
+            fx.flatRing(feet.clone().add(0.0, victim.getHeight() + 0.3, 0.0), 0.45, 10, WARD, 1.0, 0.0, 0.9);
+            kit.sound(feet, Sfx.WARD_ISOLATED, 0.6f, 1.0f);
+        }
+        return true;
+    }
+
+    private static Vector flat(Vector vector) {
+        Vector flat = vector.clone().setY(0.0);
+        return flat.lengthSquared() < 1.0E-6 ? new Vector(0.0, 0.0, 1.0) : flat.normalize();
+    }
+
+    /** The enemy nearest {@code at} within {@code radius}, or null. */
+    private static LivingEntity nearestTo(MoveKit kit, Location at, double radius) {
+        LivingEntity best = null;
+        double bestDistance = Double.MAX_VALUE;
+        for (LivingEntity victim : kit.around(at, radius)) {
+            double distance = victim.getLocation().distanceSquared(at);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = victim;
             }
-            case 3 -> ComboParts.mine(kit, "warrior_mine", target, 2.0, 3.6, rate, 0.0);
-            case 4 -> {
-                Vector line = target.toVector().subtract(kit.origin().toVector()).setY(0.0);
-                if (line.lengthSquared() < 1.0) line = kit.originFacing().multiply(6.0);
-                for (int index = 0; index < count; index++) {
-                    Location ground = kit.ground(kit.origin().add(line.clone().multiply(0.3 + 0.35 * index)));
-                    kit.later(index * 2L, () -> ComboParts.mine(kit, "warrior_mines_" + ground.getBlockX() + "_" + ground.getBlockZ(), ground, 1.8, 2.4, rate, 0.0));
-                }
-            }
-            default -> {
-                // a banner is planted at the aim: it stands for 2.7 s and every 11 ticks a wave pushes what is near it out
-                kit.sound(target, Sound.BLOCK_CHAIN_PLACE, 1.0f, 0.7f);
-                kit.zone("warrior_banner", target, kit.linger(55), 2, zone -> {
-                    boolean pulse = zone.age() % 11 == 0;
-                    for (double y = 0.0; y <= 3.0; y += 0.4) kit.fx(target).dust(target.getX(), target.getY() + y, target.getZ(), kit.palette(), 0.3 + 0.7 * y / 3.0, 1.2);
-                    kit.fx(target).sphereShell(target.clone().add(0.0, 3.2, 0.0), 0.3 + (pulse ? 0.15 : 0.0), 0.0, 14, kit.palette(), 1.0);
-                    if (zone.age() % 6 == 0) kit.fx(target).flatRing(target.clone().add(0.0, 0.15, 0.0), 4.2, 48, kit.palette(), 0.4, 0.15, 0.9);
-                    if (!pulse) return;
-                    kit.shockwave(target, 1.0, 4.2, 3, 1.0);
-                    kit.sound(target, Sfx.METAL, 0.6f, 0.8f);
-                    // the banner steadies the warrior who stands by it, and holds the enemies back
-                    if (kit.player.getLocation().distanceSquared(target) <= 4.5 * 4.5) kit.guard(0.2, 14);
-                    for (LivingEntity victim : kit.around(target, 4.2)) {
-                        if (kit.hit(victim, rate)) {
-                            kit.push(victim, target.toVector(), 0.3, 0.1);
-                            kit.slow(victim, 40.0, 1.5);
-                        }
+        }
+        return best;
+    }
+
+    // ---- 1 - 5 ----------------------------------------------------------------------------------------------------------------
+
+    /** An iron wedge struck into the aim: everyone near is struck and thrown apart, away from it. */
+    private static void wedge(MoveKit kit, Location target, double rate) {
+        kit.sound(target, Sfx.WARD_WEDGE, 1.0f, 1.0f);
+        Fx fx = kit.fx(target);
+        fx.line(target.clone().add(0.0, 4.0, 0.0), target.clone().add(0.0, 0.2, 0.0), WARD, 0.2, 1.0, 2.0, 1.3, 0.2, null, 1);
+        kit.shockwave(target, 0.5, 2.6, 4, 1.1);
+        for (int index = 0; index < 4; index++) {
+            double angle = Math.PI * 0.5 * index + Math.PI * 0.25;
+            Location to = target.clone().add(Math.cos(angle) * 2.0, 0.15, Math.sin(angle) * 2.0);
+            kit.later(1L, () -> kit.fx(target).line(target.clone().add(0.0, 0.15, 0.0), to, WARD, 0.9, 0.3, 0.0, 0.9, 0.2, null, 1));
+        }
+        for (LivingEntity victim : kit.around(target, 2.4)) {
+            if (wardHit(kit, victim, rate, 1.0)) kit.push(victim, target.toVector(), 0.55, 0.15);
+        }
+    }
+
+    /** A fence of chains across the aim for 3 s: the enemies that touch it are struck and thrown back to their own side. */
+    private static void fence(MoveKit kit, Location target, double rate) {
+        Vector along = flat(target.toVector().subtract(kit.origin().toVector()));
+        Vector across = new Vector(-along.getZ(), 0.0, along.getX());
+        double half = kit.number(PLAN, "fence-half-width", 3.0);
+        java.util.List<Location> posts = new java.util.ArrayList<>();
+        for (int index = -2; index <= 2; index++) posts.add(kit.ground(target.clone().add(across.clone().multiply(half * index / 2.0))));
+        java.util.Map<java.util.UUID, Integer> touched = new java.util.HashMap<>();
+        kit.sound(target, Sfx.WARD_FENCE, 1.0f, 1.0f);
+        kit.zone("warrior_fence", target, kit.linger(60), 2, zone -> {
+            int age = zone.age();
+            Fx fx = kit.fx(target);
+            if (age % 4 == 0) {
+                for (int index = 0; index < posts.size(); index++) {
+                    Location post = posts.get(index);
+                    fx.line(post, post.clone().add(0.0, 1.6, 0.0), WARD, 0.2, 0.8, 0.0, 1.0, 0.2, null, 1);
+                    if (index + 1 < posts.size()) {
+                        WarriorSwords.chain(kit, post.clone().add(0.0, 1.3, 0.0), posts.get(index + 1).clone().add(0.0, 1.3, 0.0), 0.25);
+                        WarriorSwords.chain(kit, post.clone().add(0.0, 0.6, 0.0), posts.get(index + 1).clone().add(0.0, 0.6, 0.0), 0.15);
                     }
-                }, zone -> kit.shockwave(target, 3.0, 4.4, 3, 1.0));
+                }
             }
+            for (LivingEntity victim : kit.corridor(target.clone().subtract(across.clone().multiply(half)).add(0.0, 0.5, 0.0), across, half * 2.0, 1.1)) {
+                Integer last = touched.get(victim.getUniqueId());
+                if (last != null && age - last < 10) continue;
+                touched.put(victim.getUniqueId(), age);
+                double side = victim.getLocation().toVector().subtract(target.toVector()).dot(along) >= 0.0 ? 1.0 : -1.0;
+                Location from = victim.getLocation().clone().subtract(along.clone().multiply(side));
+                if (wardHit(kit, victim, rate, 1.0)) kit.push(victim, from.toVector(), 0.45, 0.1);
+                kit.sound(victim.getLocation(), Sfx.CHAIN_BREAK, 0.4f, 1.4f);
+            }
+        }, zone -> {
+            for (Location post : posts) kit.particle(org.bukkit.Particle.CRIT, post.clone().add(0.0, 1.0, 0.0), 4, 0.2, 0.05);
+        });
+    }
+
+    /** A hook that tears the enemy nearest the aim away from the rest, toward the placement. */
+    private static void hook(MoveKit kit, Location target, double rate) {
+        LivingEntity victim = nearestTo(kit, target, kit.number(PLAN, "hook-radius", 4.0));
+        Location from = kit.origin().clone().add(0.0, 1.4, 0.0);
+        kit.sound(from, Sfx.CHAIN_THROW, 1.0f, 0.9f);
+        if (victim == null) {
+            WarriorSwords.chain(kit, from, target.clone().add(0.0, 0.3, 0.0), 0.2);
+            kit.burst(target.clone().add(0.0, 0.3, 0.0), 1.0);
+            for (LivingEntity near : kit.around(target, 2.0)) wardHit(kit, near, rate * 0.5, 1.0);
+            return;
+        }
+        Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.55, 0.0);
+        WarriorSwords.chain(kit, from, chest, 0.1);
+        kit.pull(victim, kit.origin().clone().add(flat(chest.toVector().subtract(kit.origin().toVector())).multiply(1.5)), 1.0);
+        kit.later(4L, () -> {
+            if (!victim.isValid() || victim.isDead()) return;
+            kit.sound(victim.getLocation(), Sfx.CHAIN_BIND, 0.7f, 1.2f);
+            wardHit(kit, victim, rate, 1.0);
+            kit.slow(victim, 30.0, 1.0);
+        });
+    }
+
+    /** A cage round the enemy nearest the aim: the others are thrown out and kept out; it is struck {@code hits} times. */
+    private static void cage(MoveKit kit, Location target, double rate, int hits) {
+        LivingEntity victim = nearestTo(kit, target, kit.number(PLAN, "cage-radius", 4.5));
+        Location center = victim == null ? target : kit.ground(victim.getLocation());
+        double radius = kit.number(PLAN, "cage-size", 2.6);
+        int life = kit.linger(50);
+        kit.sound(center, Sfx.WARD_CAGE, 1.0f, 1.0f);
+        for (LivingEntity other : kit.around(center, radius + 1.5)) {
+            if (!other.equals(victim)) kit.push(other, center.toVector(), 0.6, 0.15);
+        }
+        if (victim != null) WarriorSwords.bind(kit, victim, center.clone().add(0.0, 0.5, 0.0), Math.max(0.5, radius - 0.6), life, null);
+        int gap = Math.max(4, 40 / Math.max(1, hits));
+        int[] struck = {0};
+        kit.zone("warrior_cage", center, life, 2, zone -> {
+            int age = zone.age();
+            Fx fx = kit.fx(center);
+            if (age % 4 == 0) {
+                for (int index = 0; index < 10; index++) {
+                    double angle = index * Math.PI / 5.0;
+                    Location bar = center.clone().add(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius);
+                    fx.line(bar, bar.clone().add(0.0, 2.4, 0.0), WARD, 0.3, 0.9, 0.0, 0.9, 0.25, null, 1);
+                }
+                fx.flatRing(center.clone().add(0.0, 2.5, 0.0), radius, 30, WARD, 0.8, 0.2, 1.0);
+                fx.flatRing(center.clone().add(0.0, 0.12, 0.0), radius, 30, WARD, 0.5, 0.2, 1.0);
+            }
+            // nobody else comes in
+            for (LivingEntity other : kit.around(center, radius + 0.4)) {
+                if (!other.equals(victim)) kit.push(other, center.toVector(), 0.35, 0.05);
+            }
+            if (victim != null && victim.isValid() && !victim.isDead() && age > 0 && age % gap == 0 && struck[0] < hits) {
+                struck[0]++;
+                kit.sound(center, Sfx.WARD_WEDGE, 0.5f, 1.4f);
+                Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+                fx.line(center.clone().add(0.0, 2.5, 0.0), chest, WARD, 0.3, 1.0, 1.5, 1.1, 0.2, null, 1);
+                wardHit(kit, victim, rate, 1.0);
+            }
+        }, zone -> kit.shockwave(center, radius, radius + 1.0, 3, 0.9));
+    }
+
+    /** The bell of judgment at the placement: everyone within 7 blocks is struck and slowed, the isolated ones much harder. */
+    private static void bell(MoveKit kit, double rate) {
+        Location at = kit.ground(kit.origin());
+        double radius = kit.number(PLAN, "bell-radius", 7.0);
+        double extra = 1.0 + kit.number(PLAN, "bell-isolated", 1.5);
+        kit.sound(at, Sfx.WARD_BELL, 1.0f, 1.0f);
+        Fx fx = kit.fx(at);
+        // the bell: rings narrowing to its top over the placement
+        for (int index = 0; index <= 6; index++) {
+            double y = 2.4 + index * 0.25;
+            double r = 1.2 - 0.14 * index;
+            fx.flatRing(at.clone().add(0.0, y, 0.0), r, 18, WARD, 0.4 + 0.08 * index, 0.2, 1.0);
+        }
+        for (int wave = 0; wave < 3; wave++) {
+            int which = wave;
+            kit.later(wave * 4L, () -> kit.shockwave(at, 1.0, radius, 6, 1.2 - 0.2 * which));
+        }
+        for (LivingEntity victim : kit.around(at, radius)) {
+            if (wardHit(kit, victim, rate, extra)) kit.slow(victim, 25.0, 1.5);
         }
     }
 

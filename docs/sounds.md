@@ -13,6 +13,10 @@
   - `HIT_PIERCE`: 遠距離の命中。矢の命中、刺さる音、水晶の音。
   - `HIT_CRIT`: 会心のときに足す音。
 - **リーパー (メイジの大鎌、t167)** は、自分の音の役割を持つ (`REAPER_*`): 低い風切りと魂の息 (`REAPER_SWING`)、重い刈り (`REAPER_HEAVY`)、刻印がそろった音 (`REAPER_MARK`)、刈り取り (`REAPER_REAP`)、魂を取り込む音 (`REAPER_SOUL`)、回る鎌 (`REAPER_THROW`)、霊体のすり抜け (`REAPER_PHASE`)、門 (`REAPER_GATE`)、大鎌の 1 周 (`REAPER_GRAND`)。
+- **戦士 (t168)** は、武器の種類ごとに自分の音の役割を持つ (戦士の置き換え `remap` は掛からない)。
+  - 近接 (血の騎士) `BLOOD_*`: 重い刃の風切り (`BLOOD_SWING`)、肉を斬る音 (`BLOOD_HIT`)、旋風 (`BLOOD_WHIRL`)、叩きつけ (`BLOOD_SLAM`)、傷を取り返す音 (`BLOOD_DRINK`)、誓い (`BLOOD_OATH`) と心臓の音 (`BLOOD_HEARTBEAT`)、血が噴き出す音 (`BLOOD_BURST`)、受け流しの構え (`BLOOD_GUARD`) と受け流した音 (`BLOOD_PARRY`)。
+  - 遠距離 (浮遊する大剣と鎖) `SWORD_*`・`CHAIN_*`: 大剣を呼ぶ音 (`SWORD_SUMMON`)、飛ぶ剣 (`SWORD_FLY`)、地面に刺さる剣 (`SWORD_IMPACT`)、巨大な剣 (`SWORD_GRAND`)、鎖を投げる音 (`CHAIN_THROW`)、縛る音 (`CHAIN_BIND`)、ほどける音 (`CHAIN_BREAK`)。
+  - ランタン (孤立させる結界) `WARD_*`: 鉄の楔 (`WARD_WEDGE`)、鎖の柵 (`WARD_FENCE`)、檻 (`WARD_CAGE`)、断罪の鐘 (`WARD_BELL`)、孤立した敵に当たった音 (`WARD_ISOLATED`)。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:

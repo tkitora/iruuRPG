@@ -415,6 +415,7 @@ public final class RpgMobService {
     public void forget(UUID uuid) {
         runtimes.remove(uuid);
         targetLocks.remove(uuid);
+        provoked.remove(uuid);
         drivenMelee.remove(uuid);
         nextMelee.remove(uuid);
         lastSeen.remove(uuid);
@@ -888,6 +889,12 @@ public final class RpgMobService {
 
         @Override
         public Player findTarget(double range) {
+            // (a warrior's oath comes first: t168)
+            Player provoker = provoker(mob);
+            if (provoker != null && provoker.getLocation().distanceSquared(mob.getLocation()) <= range * range) {
+                mob.setTarget(provoker);
+                return provoker;
+            }
             Player best = null;
             double bestDistance = range * range;
             for (Player player : mob.getWorld().getPlayers()) {
@@ -1604,6 +1611,39 @@ public final class RpgMobService {
             maintainTarget(living, runtime.definition(), now);
             followLure(living, now);
         }
+    }
+
+    // ---- the warrior's oath (大 of the blood knight, t168): the mobs near turn on them ------------------------------------
+
+    /** The mobs provoked, and by whom until when. */
+    private final Map<UUID, TargetLock> provoked = new HashMap<>();
+
+    /**
+     * The mobs within {@code radius} of {@code player} that can target them turn on them for {@code millis}: their target is locked on the
+     * player (a mob run by a behavior tree takes them when it looks for a target).
+     */
+    public void provoke(Player player, double radius, long millis) {
+        if (millis <= 0L) return;
+        long until = System.currentTimeMillis() + millis;
+        for (Entity entity : player.getNearbyEntities(radius, Math.max(3.0, radius * 0.6), radius)) {
+            if (!(entity instanceof Mob mob) || mob.isDead() || !runtimes.containsKey(entity.getUniqueId()) || !canTarget(mob, player)) continue;
+            TargetLock lock = new TargetLock(player.getUniqueId(), until);
+            targetLocks.put(entity.getUniqueId(), lock);
+            provoked.put(entity.getUniqueId(), lock);
+            mob.setTarget(player);
+        }
+    }
+
+    /** The player who provoked {@code mob} while it lasts and they can be targeted, else null. */
+    private Player provoker(LivingEntity mob) {
+        TargetLock lock = provoked.get(mob.getUniqueId());
+        if (lock == null) return null;
+        Player player = lock.expiresAtMillis() > System.currentTimeMillis() ? Bukkit.getPlayer(lock.playerId()) : null;
+        if (player == null || !canTarget(mob, player)) {
+            provoked.remove(mob.getUniqueId());
+            return null;
+        }
+        return player;
     }
 
     // ---- players hidden from the mobs (the assassin's 大, t161) -------------------------------------------------------

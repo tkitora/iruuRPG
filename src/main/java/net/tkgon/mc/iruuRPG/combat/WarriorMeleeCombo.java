@@ -6,20 +6,16 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.util.Vector;
 
 /**
- * The warrior's combo with melee weapons: staying power and the weight of one blow. The blows are few and slow, each one a whole stroke on one
- * enemy or a short sweep; between them the warrior is guarded (takes less damage for a few ticks), gets shields from heavy 0 only (three turning round, each
- * cuts a damage by 40% and breaks) and heals a little with the heavy ones, so the fight can go on.
+ * The warrior's combo with melee weapons: the blood knight (t168, {@link WarriorSkills}). Heavy blows on the front line; every hit drinks back the
+ * wound the warrior took ({@link WarriorBlood}), so staying in the fight is how the warrior lasts.
  *
- * <p>Normal: 1 a cleave (100%, 25% less damage taken for 0.6 s), 2 a shield bash (70%, slows), 3 a wide sweep (110%, 25% less damage taken for
- * 0.6 s), 4 a hammer drop on one enemy (130%, slows hard), 5 an earthbreaker (150% on all round, heals 3%, 40% less damage taken for
- * 0.75 s; no leap). Heavy: 0 a shield bash and bulwark (100% on the enemies just ahead, slowed; then three shields for 10 s, 40% less damage taken for
- * 2 s; its own cooldown of 18 s; it is the only thing that gives shields), 1 a stomp (60% round, slows), 2 a whirlwind (a spin for 1 s, 24% every 4 ticks
- * round, 30% less damage taken, heals 1%), 3 a colossus strike (a moment of winding up with 60% less damage taken, then one great downward cut: 150% on
- * every enemy in a strip 5 blocks ahead, thrown up), 4 a shield rush (a charge of 6 blocks under a 50% guard, 80% on all in the way, 40% more with a
- * shield up; no push).
+ * <p>Normal: 1 a cut down from the shoulder (70%, braced: 20% less damage taken for 0.5 s), 2 the
+ * rising return cut (85%, pushes a little), 3 a step in and two quick cuts (55% x2), 4 two wide sweeps round the warrior (70% x2, 25% less damage
+ * taken for 0.7 s), 5 a great cut brought down on a strip ahead (160%; it drinks the wound twice as fast) and a wave of blood that runs on along
+ * the ground ({@code wave-share} 50% of it, {@code wave-range} 8 blocks).
  *
- * <p>The skills of the redesign of 2026-11-02 ({@link SlotMoves}): 小 the colossus strike (heavy 3), 中 the whirlwind (2), 大 the shield bash and bulwark
- * (0), util the shield rush (4).
+ * <p>The skills are the blood knight's own ({@link WarriorSkills}); the heavy attacks below are what they were before t168 (they are no longer
+ * thrown by the warrior's skills).
  */
 public final class WarriorMeleeCombo extends BaseCombo {
 
@@ -27,63 +23,79 @@ public final class WarriorMeleeCombo extends BaseCombo {
 
     public WarriorMeleeCombo() {
         super("warrior", AttackType.MELEE, new ComboSpec(PLAN,
-                new double[]{0.67, 0.89, 1.12, 1.34, 1.56}, new int[]{1, 1, 1, 1, 1},
+                new double[]{0.7, 0.85, 0.55, 0.7, 1.6}, new int[]{1, 1, 2, 2, 1},
                 new double[]{1.0, 0.6, 0.24, 1.5, 0.8, 1.2}, new int[]{360, 0, 0, 0, 0, 0}, 40));
     }
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.4));
+        WarriorSkills.lookBlood(kit);
         double rate = step.damageMultiplier();
+        int hits = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
         switch (step.stage()) {
             case 1 -> {
-                kit.guard(0.25, 12);
-                kit.slash("drop", 3.0, 125.0, 12.0, 0.0, 1.9, 0.3, 0.0, 1.3, 0.14, 0.0);
-                kit.sound(feet, Sfx.METAL, 0.8f, 0.9f);
-                for (LivingEntity target : kit.cone(3.4, 55.0)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.2, 0.05);
-                }
+                // a cut down from the right shoulder, the warrior braced behind it
+                kit.guard(0.2, 10);
+                kit.slash("drop", 3.2, 130.0, 30.0, 0.0, 1.9, 0.3, 0.0, 1.35, 0.13, 0.0);
+                kit.sound(feet, Sfx.BLOOD_SWING, 0.8f, 1.0f);
+                if (WarriorSkills.cutAhead(kit, 3.6, 60.0, rate, null) > 0) kit.sound(feet, Sfx.BLOOD_HIT, 0.5f, 1.1f);
             }
             case 2 -> {
-                // a shield bash: short and square, the target is stunned for a moment
-                kit.slash("line", 2.4, 90.0, 0.0, 0.0, 1.7, 0.2, 0.0, 1.1, 0.1, 0.0);
-                kit.sound(feet, Sfx.METAL_HEAVY, 0.7f, 1.1f);
-                for (LivingEntity target : kit.cone(3.0, 50.0)) {
-                    if (kit.hit(target, rate)) {
-                        kit.slow(target, 60.0, 0.8);
-                        kit.push(target, feet.toVector(), 0.25, 0.05);
-                    }
+                // the return: a rising cut from the left that pushes a little
+                kit.slash("arc", 3.2, 150.0, -35.0, 180.0, 1.8, 0.4, 0.0, 1.35, 0.13, 0.0);
+                kit.sound(feet, Sfx.BLOOD_SWING, 0.8f, 1.15f);
+                for (LivingEntity target : kit.cone(3.6, 70.0)) {
+                    if (!WarriorSkills.strike(kit, target, rate, null)) continue;
+                    WarriorSkills.bled(kit, target, new Vector(0.0, 1.0, 0.0));
+                    kit.push(target, feet.toVector(), 0.2, 0.12);
                 }
             }
             case 3 -> {
-                kit.guard(0.25, 12);
-                kit.slash("arc", 3.4, 170.0, 60.0, 0.0, 1.5, 0.4, 0.0, 1.35, 0.15, 0.0);
-                kit.sound(feet, Sfx.WIND, 0.8f, 0.7f);
-                kit.hitAll(kit.cone(4.0, 80.0), rate);
+                // a step in, and two quick cuts one from each side
+                kit.dash(facing, 0.55, 3, end -> {
+                    for (int index = 0; index < hits; index++) {
+                        int which = index;
+                        kit.later(index * 3L, () -> {
+                            kit.slash("arc", 2.9, 120.0, which % 2 == 0 ? 20.0 : -20.0, which % 2 == 0 ? 0.0 : 180.0, 1.6, 0.35, 0.0, 1.2, 0.09, 0.0);
+                            kit.sound(kit.player.getLocation(), Sfx.BLOOD_SWING, 0.6f, 1.2f + 0.1f * which);
+                            WarriorSkills.cutAhead(kit, 3.4, 60.0, rate, null);
+                        });
+                    }
+                });
             }
             case 4 -> {
-                // a hammer drop: the whole of it on one enemy
-                LivingEntity target = kit.nearest(3.8, 45.0);
-                kit.slash("drop", 3.0, 130.0, 8.0, 0.0, 1.9, 0.3, 0.0, 1.45, 0.17, 0.0);
-                kit.sound(feet, Sfx.METAL_HEAVY, 0.9f, 0.8f);
-                if (target == null) return;
-                Location at = target.getLocation();
-                kit.shockwave(at, 0.6, 2.4, 3, 1.1);
-                if (kit.hit(target, rate)) kit.slow(target, 70.0, 1.0);
+                // two wide sweeps, turning: everyone round
+                kit.guard(0.25, 14);
+                for (int index = 0; index < hits; index++) {
+                    int which = index;
+                    kit.later(index * 5L, () -> {
+                        Location at = kit.player.getLocation();
+                        kit.slash("arc", 3.4, 300.0, 70.0, which % 2 == 0 ? 0.0 : 180.0, 0.5, 0.5, 0.0, 1.35, 0.12, 0.0);
+                        kit.sound(at, Sfx.BLOOD_SWING, 0.7f, 0.9f);
+                        for (LivingEntity target : kit.around(at, 3.8)) {
+                            Vector off = target.getLocation().toVector().subtract(at.toVector()).setY(0.0);
+                            if (WarriorSkills.strike(kit, target, rate, null)) WarriorSkills.bled(kit, target, new Vector(-off.getZ(), 0.0, off.getX()));
+                        }
+                    });
+                }
             }
             default -> {
-                // the finisher: the earthbreaker, brought down on the spot (no leap)
-                kit.guard(0.4, 15);
-                kit.slash("drop", 3.2, 150.0, 5.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.18, 0.0);
-                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.7f);
-                Location land = kit.player.getLocation();
-                kit.shockwave(land, 1.0, 3.8, 5, 1.2);
-                for (LivingEntity target : kit.around(land, 3.6)) {
-                    if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.4, 0.2);
+                // the finisher: a great cut brought down on a strip ahead (it drinks the wound twice as fast), and a wave of blood runs on
+                WarriorSkills.Blood blood = WarriorSkills.blood(kit, kit.number(PLAN, "finisher-rally", 2.0), 0.0, 0.0, 0.0);
+                kit.guard(0.35, 14);
+                kit.slash("drop", 3.6, 150.0, 5.0, 0.0, 2.0, 0.3, 0.0, 1.7, 0.18, 0.0);
+                kit.sound(feet, Sfx.BLOOD_SLAM, 1.0f, 1.0f);
+                Location from = feet.clone().add(0.0, 0.5, 0.0);
+                kit.shockwave(feet.clone().add(facing.clone().multiply(2.2)), 0.6, 2.4, 4, 1.2);
+                for (LivingEntity target : kit.corridor(from, facing, 4.5, 1.6)) {
+                    if (WarriorSkills.strike(kit, target, rate, blood)) WarriorSkills.bled(kit, target, new Vector(0.0, 1.0, 0.0));
                 }
-                kit.heal(3.0);
+                Location start = feet.clone().add(0.0, 0.6, 0.0).add(facing.clone().multiply(1.2));
+                MageMeleeCombo.crescent(kit, start, facing, 1.3, kit.number(PLAN, "wave-range", 8.0), Math.PI / 2.0,
+                        rate * kit.number(PLAN, "wave-share", 0.5), 1.4, org.bukkit.Particle.DAMAGE_INDICATOR, Sfx.BLOOD_SWING,
+                        target -> WarriorSkills.bled(kit, target, facing));
             }
         }
     }
