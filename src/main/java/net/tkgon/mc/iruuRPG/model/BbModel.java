@@ -212,6 +212,8 @@ final class BbModel {
     static BbModel parse(String id, String json) {
         BbModel model = new BbModel(id);
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+        // (a file of Blockbench 5.0 keeps its groups apart from the outliner: put back in)
+        BbFormat.nestGroups(root);
         if (root.has("resolution") && root.get("resolution").isJsonObject()) {
             JsonObject resolution = root.getAsJsonObject("resolution");
             model.uvWidth = number(resolution, "width", 16);

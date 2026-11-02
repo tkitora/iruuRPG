@@ -94,6 +94,8 @@ final class BbItemModel {
 
     static BbItemModel parse(String id, String json) {
         JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+        // (a file of Blockbench 5.0 keeps its groups apart from the outliner: put back in)
+        net.tkgon.mc.iruuRPG.model.BbFormat.nestGroups(root);
         String format = "free";
         if (root.has("meta") && root.get("meta").isJsonObject()) {
             JsonObject meta = root.getAsJsonObject("meta");
