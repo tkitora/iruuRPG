@@ -119,4 +119,102 @@ class SkillSlotsTest {
         assertArrayEquals(new long[]{0L, 0L}, slots.cooldown(other, new SkillSlots.Kept(AttackType.RANGE, SkillSlots.Slot.SMALL), 11_000L));
         assertEquals(AttackType.MELEE, SkillSlots.kindOf(null));
     }
+
+    /** t157: a skill with charges and a re-activation goes by nekorozv's states: the re-activation first, then a charge, then nothing. */
+    @Test
+    void theReActivationComesFirstThenACharge() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.getConfig()).thenReturn(jarConfig());
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+        SkillSlots slots = new SkillSlots(plugin, ignored -> "mage", ignored -> 1.0);
+        int[] used = {0};
+        int[] recast = {0};
+        slots.register("mage", SkillSlots.Slot.SMALL, new SkillSlots.Move() {
+            @Override
+            public boolean use(Player who, net.tkgon.mc.iruuRPG.item.RpgItemDefinition weapon) {
+                used[0]++;
+                return true;
+            }
+
+            @Override
+            public boolean recast(Player who, net.tkgon.mc.iruuRPG.item.RpgItemDefinition weapon) {
+                recast[0]++;
+                return true;
+            }
+        }, new SkillSlots.Mechanics(2, 3.0, 0.0));
+        SkillSlots.Slot small = SkillSlots.Slot.SMALL;
+        SkillSlots.Kept kept = new SkillSlots.Kept(AttackType.MELEE, small);
+        SkillSlots.Mechanics mechanics = slots.mechanics(id, "mage", small);
+        // full: 2 charges, nothing refills
+        SkillSlots.View full = slots.view(id, kept, mechanics, 0L);
+        assertEquals(2, full.charges());
+        assertTrue(full.charged());
+        assertEquals(-1.0, full.refill());
+        // 1. a charge: the move, its re-activation opens, the refill of the charge starts (mage 小: 7 s)
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 0L));
+        SkillSlots.View after = slots.view(id, kept, mechanics, 1000L);
+        assertEquals(1, after.charges());
+        assertTrue(after.recasting());
+        assertEquals(1.0 / 7.0, after.refill(), 1e-9);
+        assertArrayEquals(new long[]{0L, 0L}, after.cooldown(), "a charge is left: no cooldown");
+        // 2. the same keys again within 3 s: the second part, no charge used, the re-activation closes
+        assertEquals(SkillSlots.Done.RECAST, slots.use(player, small, null, 1000L));
+        assertEquals(1, recast[0]);
+        assertEquals(1, slots.view(id, kept, mechanics, 1000L).charges());
+        assertFalse(slots.view(id, kept, mechanics, 1000L).recasting());
+        // a new first part with the last charge
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 1500L));
+        // the re-activation comes first even with no charge left
+        assertEquals(SkillSlots.Done.RECAST, slots.use(player, small, null, 2000L));
+        // 3. no charge and no re-activation: nothing, the refill goes on
+        assertEquals(SkillSlots.Done.NOTHING, slots.use(player, small, null, 2500L));
+        assertEquals(2, used[0]);
+        SkillSlots.View empty = slots.view(id, kept, mechanics, 2500L);
+        assertEquals(0, empty.charges());
+        assertArrayEquals(new long[]{4500L, 7000L}, empty.cooldown());
+        // 4. the first charge is back at 7 s (the next one refills from then): a new first part
+        assertEquals(1, slots.view(id, kept, mechanics, 7000L).charges());
+        assertEquals(0.0, slots.view(id, kept, mechanics, 7000L).refill(), 1e-9);
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 7000L));
+        // its re-activation ends after 3 s: then the keys do nothing (no charge yet)
+        assertEquals(SkillSlots.Done.NOTHING, slots.use(player, small, null, 10_001L));
+        assertEquals(2, recast[0]);
+        // both back at 21 s, and nothing refills any more
+        assertEquals(2, slots.view(id, kept, mechanics, 21_000L).charges());
+        assertEquals(-1.0, slots.view(id, kept, mechanics, 21_000L).refill());
+    }
+
+    @Test
+    void aSkillCanBeTriedWithChargesAndItsSecondPartIsTheMoveAgain() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.getConfig()).thenReturn(jarConfig());
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+        SkillSlots slots = new SkillSlots(plugin, ignored -> "warrior", ignored -> 1.0);
+        int[] used = {0};
+        slots.register("warrior", SkillSlots.Slot.LARGE, (who, weapon) -> ++used[0] > 0);
+        assertEquals(SkillSlots.Mechanics.NONE, slots.mechanics(id, "warrior", SkillSlots.Slot.LARGE));
+        slots.trial(id, SkillSlots.Slot.LARGE, new SkillSlots.Mechanics(3, 2.0, 1.5));
+        assertEquals(SkillSlots.Done.USED, slots.use(player, SkillSlots.Slot.LARGE, null, 0L));
+        // (a move with no second part, tried: the move again)
+        assertEquals(SkillSlots.Done.RECAST, slots.use(player, SkillSlots.Slot.LARGE, null, 500L));
+        assertEquals(2, used[0]);
+        SkillSlots.Kept kept = new SkillSlots.Kept(AttackType.MELEE, SkillSlots.Slot.LARGE);
+        SkillSlots.Mechanics trial = slots.mechanics(id, "warrior", SkillSlots.Slot.LARGE);
+        assertEquals(2, slots.view(id, kept, trial, 500L).charges());
+        // its own refill time: 1.5 s
+        assertEquals(3, slots.view(id, kept, trial, 1500L).charges());
+        // back to the move's own: one charge with the 30 s cooldown of the warrior's 大
+        slots.endTrials(id);
+        assertEquals(SkillSlots.Mechanics.NONE, slots.mechanics(id, "warrior", SkillSlots.Slot.LARGE));
+        assertEquals(SkillSlots.Done.USED, slots.use(player, SkillSlots.Slot.LARGE, null, 2000L));
+        assertArrayEquals(new long[]{30_000L, 30_000L}, slots.view(id, kept, SkillSlots.Mechanics.NONE, 2000L).cooldown());
+        assertEquals(SkillSlots.Done.NOTHING, slots.use(player, SkillSlots.Slot.LARGE, null, 3000L));
+        // the mechanics stay in their bounds
+        assertEquals(9, new SkillSlots.Mechanics(50, -1, -1).charges());
+        assertFalse(new SkillSlots.Mechanics(0, 0, 0).recasts());
+    }
 }

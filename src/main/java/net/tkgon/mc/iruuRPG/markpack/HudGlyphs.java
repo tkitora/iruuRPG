@@ -26,8 +26,10 @@ import java.util.Map;
  * <p>Code points: 小・中・大・util of class c ({@link #CLASSES}) with kind of weapon k ({@link #KINDS}, melee and ranged: each has its own skills and
  * icons, the user's wish of 2026-11-02) are U+E400 + 16 c + 4 k + 0 - 3; its ULT (the special of t140, one for every weapon) U+E107 + 16 c; the weapon's
  * skill U+E180 and its locked icon U+E181, the lock laid over a skill there is not yet U+E230, the rim of a ULT that can be re-activated
- * U+E231 ({@code hud/highlight.png}); shade k (1 - 16 rows of 16 covered) U+E200 + k;
- * digit d U+E220 + d; the key labels ({@link #KEY_LABELS}) U+E240 on; the spaces U+E2F0 on. The pictures are the texture tree's (16 x 16) when
+ * U+E231 ({@code hud/highlight.png}), the rim of a skill whose re-activation is open U+E232 ({@code hud/recast.png}, white: its color is the
+ * text's; t157); shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d U+E220 + d; the charges left d at the icon's lower right U+E250 + d; the
+ * gauge of the next charge's refill, k of 16 pixels, in the row under the icon U+E260 + k (0 - 16); the key labels ({@link #KEY_LABELS}) U+E240 on;
+ * the spaces U+E2F0 on. The pictures are the texture tree's (16 x 16) when
  * there are some: {@code hud/small_<class>_<kind>.png} ({@code medium_}, {@code large_}, {@code util_}); else, for the class's favorite weapon
  * (and for every kind of a class with no moves of its own), {@code hud/small_<class>.png} ...; else the picture of the skill of t138 it throws
  * with that kind of weapon ({@code hud/heavy_<class>_<n>.png}, {@link net.tkgon.mc.iruuRPG.combat.SlotMoves}); else a placeholder (the
@@ -133,6 +135,21 @@ public final class HudGlyphs {
         return '\uE230';
     }
 
+    /** The rim laid over an icon whose re-activation is open (t157): white, so the text's color is its color. */
+    public static char recast() {
+        return '\uE232';
+    }
+
+    /** The charges left ({@code count} 0 - 9) at the lower right of an icon (t157). */
+    public static char charges(int count) {
+        return (char) (0xE250 + Math.max(0, Math.min(9, count)));
+    }
+
+    /** The gauge of the next charge's refill under an icon (t157): {@code pixels} (0 - 16) of its 16 filled. */
+    public static char refill(int pixels) {
+        return (char) (0xE260 + Math.max(0, Math.min(ICON, pixels)));
+    }
+
     /** The shade covering {@code rows} (1 - 16) rows of an icon from its top. */
     public static char shade(int rows) {
         return (char) (0xE200 + Math.max(1, Math.min(ICON, rows)));
@@ -167,11 +184,27 @@ public final class HudGlyphs {
         return text.toString();
     }
 
+    /** The color of the rim of an open re-activation (t157). */
+    public static final int RECAST_COLOR = 0x4FD8FF;
+    /** The colors of the charges left: some, none, all (t157). */
+    public static final int CHARGES_COLOR = 0xFFFFFF;
+    public static final int NO_CHARGE_COLOR = 0xFF5A5A;
+    public static final int FULL_CHARGES_COLOR = 0x7CFF7C;
+    /** The color of the gauge of the next charge's refill (t157; the cooldown is the shade, apart from it). */
+    public static final int REFILL_COLOR = 0x7FD4FF;
+
     /**
      * What one icon's state draws: its {@code glyph}, {@code coolingShare} 0 (ready) - 1 (just used), {@code seconds} left (shown when above 0), the label of the keys that
-     * do it ({@link #keyLabel}, 0 for none) in {@code keyColor}, and {@code locked}: greyed under a lock (a skill there is not, t140).
+     * do it ({@link #keyLabel}, 0 for none) in {@code keyColor}, {@code locked}: greyed under a lock (a skill there is not, t140), {@code lit}: the ULT's
+     * blinking rim; and of t157 {@code recast}: the rim of an open re-activation, {@code charges} left of {@code maxCharges} (shown when the skill has more
+     * than one) and {@code refill}: how far the next charge is (0 - 1, the gauge under the icon; below 0 none).
      */
-    public record Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked, boolean lit) {
+    public record Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked, boolean lit,
+                       boolean recast, int charges, int maxCharges, double refill) {
+
+        public Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked, boolean lit) {
+            this(glyph, coolingShare, seconds, key, keyColor, locked, lit, false, 1, 1, -1.0);
+        }
 
         public Icon(char glyph, double coolingShare, int seconds, char key, int keyColor, boolean locked) {
             this(glyph, coolingShare, seconds, key, keyColor, locked, false);
@@ -225,6 +258,15 @@ public final class HudGlyphs {
                 }
             }
             if (icon.lit()) row = row.append(Component.text(move(-(ICON + 1)) + highlight(), TextColor.color(0xFFFFFF)));
+            if (icon.recast() && !icon.locked()) row = row.append(Component.text(move(-(ICON + 1)) + recast(), TextColor.color(RECAST_COLOR)));
+            if (icon.maxCharges() > 1 && !icon.locked()) {
+                int color = icon.charges() <= 0 ? NO_CHARGE_COLOR : icon.charges() >= icon.maxCharges() ? FULL_CHARGES_COLOR : CHARGES_COLOR;
+                row = row.append(Component.text(move(-(ICON + 1)) + charges(icon.charges()), TextColor.color(color)));
+                if (icon.refill() >= 0.0) {
+                    int pixels = (int) Math.floor(Math.min(1.0, icon.refill()) * ICON);
+                    row = row.append(Component.text(move(-(ICON + 1)) + refill(pixels), TextColor.color(REFILL_COLOR)));
+                }
+            }
             if (icon.key() != 0) {
                 // (the label's picture is as wide as the icon: back to the icon's place, and the label ends where the icon did)
                 row = row.append(Component.text(move(-(ICON + 1)) + icon.key(), TextColor.color(icon.keyColor())));
@@ -349,6 +391,38 @@ public final class HudGlyphs {
                 image.setRGB(x, y, edge ? 0xFFFFF6B0 : second ? 0xC0FFE14D : 0x30FFF2A0);
             }
         }
+        return image;
+    }
+
+    /** The rim of an open re-activation (the texture tree's {@code hud/recast.png} when there is one): two white rows round the rounded square (the text colors it). */
+    static BufferedImage recastPlaceholder() {
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < ICON; y++) {
+            for (int x = 0; x < ICON; x++) {
+                if (!inside(x, y)) continue;
+                boolean edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+                boolean second = !edge && (!inside(x - 2, y) || !inside(x + 2, y) || !inside(x, y - 2) || !inside(x, y + 2));
+                if (edge) image.setRGB(x, y, 0xFFFFFFFF);
+                else if (second) image.setRGB(x, y, 0xB0FFFFFF);
+            }
+        }
+        return image;
+    }
+
+    /** The charges left: a digit (white with a dark rim, 5 x 7) at the lower right corner of the icon. */
+    static BufferedImage chargesImage(int count) {
+        BufferedImage image = new BufferedImage(ICON, ICON, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage digit = digitImage(count);
+        for (int y = 0; y < digit.getHeight(); y++) {
+            for (int x = 0; x < digit.getWidth(); x++) image.setRGB(ICON - DIGIT_WIDTH + x, ICON - digit.getHeight() + y, digit.getRGB(x, y));
+        }
+        return image;
+    }
+
+    /** The gauge of the next charge's refill: one row, {@code pixels} white (the text colors it) and the rest dark. */
+    static BufferedImage refillImage(int pixels) {
+        BufferedImage image = new BufferedImage(ICON, 1, BufferedImage.TYPE_INT_ARGB);
+        for (int x = 0; x < ICON; x++) image.setRGB(x, 0, x < pixels ? 0xFFFFFFFF : 0xC0303030);
         return image;
     }
 
@@ -501,6 +575,10 @@ public final class HudGlyphs {
         bitmap(providers, files, "item_skill_locked", itemSkillLocked(), picture(ICON, resourceImage("itemskill_locked", lockedPlaceholder(item)), 0));
         bitmap(providers, files, "lock", lock(), picture(ICON, resourceImage("lock", lockPlaceholder()), 0));
         bitmap(providers, files, "highlight", highlight(), picture(ICON, resourceImage("highlight", highlightPlaceholder()), 0));
+        bitmap(providers, files, "recast", recast(), picture(ICON, resourceImage("recast", recastPlaceholder()), 0));
+        for (int count = 0; count <= 9; count++) bitmap(providers, files, "charges_" + count, charges(count), picture(ICON, chargesImage(count), 0));
+        // (the refill's gauge is in the first row under the icon: in the gap between the icon and the line of text)
+        for (int pixels = 0; pixels <= ICON; pixels++) bitmap(providers, files, "refill_" + pixels, refill(pixels), picture(ICON, refillImage(pixels), ICON));
         for (int rows = 1; rows <= ICON; rows++) bitmap(providers, files, "shade_" + rows, shade(rows), picture(ICON, shadeImage(rows), 0));
         for (int d = 0; d <= 9; d++) bitmap(providers, files, "digit_" + d, digit(d), picture(DIGIT_WIDTH, digitImage(d), (ICON - 7) / 2));
         // (a key label's picture is KEY_RAISE taller with the same bottom: its keys are just above the icon)

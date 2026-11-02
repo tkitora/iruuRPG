@@ -22,6 +22,32 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class HudGlyphsTest {
 
     @Test
+    void aChargedIconShowsItsRimItsChargesAndItsRefill() {
+        String text = flat(HudGlyphs.row(List.of(new HudGlyphs.Icon(HudGlyphs.icon("mage", 1), 0.0, 0, (char) 0, 0xFFFFFF, false, false, true, 2, 3, 0.5))));
+        assertTrue(text.indexOf(HudGlyphs.recast()) >= 0, "the rim of the open re-activation");
+        assertTrue(text.indexOf(HudGlyphs.charges(2)) >= 0, "2 charges left");
+        assertTrue(text.indexOf(HudGlyphs.refill(8)) >= 0, "half of the next charge: 8 of 16 pixels");
+        // a skill of one charge shows neither its charges nor a refill
+        String single = flat(HudGlyphs.row(List.of(new HudGlyphs.Icon(HudGlyphs.icon("mage", 1), 0.0, 0, (char) 0, 0xFFFFFF, false, false, false, 0, 1, 0.5))));
+        assertTrue(single.chars().noneMatch(ch -> ch >= 0xE250 && ch <= 0xE270), single);
+        // the gauge is the row under the icon: in the gap above the line of text
+        java.awt.image.BufferedImage gauge = HudGlyphs.refillImage(4);
+        assertEquals(1, gauge.getHeight());
+        assertEquals(0xFFFFFFFF, gauge.getRGB(3, 0));
+        assertTrue((gauge.getRGB(4, 0) & 0xFFFFFF) < 0x404040, "the rest is dark");
+        // the charges at the lower right corner
+        java.awt.image.BufferedImage count = HudGlyphs.chargesImage(1);
+        assertEquals(0, count.getRGB(2, 2) >>> 24);
+        assertTrue(count.getRGB(HudGlyphs.ICON - 3, HudGlyphs.ICON - 4) >>> 24 > 0, "the digit 1 is drawn in the corner");
+    }
+
+    private static String flat(Component component) {
+        StringBuilder text = new StringBuilder(component instanceof TextComponent t ? t.content() : "");
+        for (Component child : component.children()) text.append(flat(child));
+        return text.toString();
+    }
+
+    @Test
     void theCodePointsAreTheAgreedOnes() {
         // 小・中・大・util of each class and kind of weapon: U+E400 + 16 class + 4 kind + 0 - 3
         assertEquals('\uE400', HudGlyphs.icon("warrior", 1));
@@ -30,6 +56,10 @@ class HudGlyphsTest {
         assertEquals('\uE456', HudGlyphs.icon("nobody", 1, 3));
         assertEquals('', HudGlyphs.shade(16));
         assertEquals('', HudGlyphs.digit(7));
+        // t157
+        assertEquals('\uE232', HudGlyphs.recast());
+        assertEquals('\uE253', HudGlyphs.charges(3));
+        assertEquals('\uE270', HudGlyphs.refill(16));
     }
 
     @Test
@@ -123,8 +153,15 @@ class HudGlyphsTest {
         assertEquals(0, advance(spaces, HudGlyphs.row(List.of(), extras)));
         // a blinking ULT (its rim on) and a locked one: still no room
         assertEquals(0, advance(spaces, HudGlyphs.row(List.of(new HudGlyphs.Icon(HudGlyphs.special("mage"), 0.5, 40, HudGlyphs.keyLabel("sf"), 0xFFFFFF, false, true)), extras)));
-        // 48 icons (6 classes x melee and ranged x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, the rim, 16 shades, 10 digits, 7 key labels
-        assertEquals(91, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // t157: an open re-activation's rim, the charges left and the refill's gauge: still no room
+        List<HudGlyphs.Icon> charged = List.of(
+                new HudGlyphs.Icon(HudGlyphs.icon("mage", 1), 0.0, 0, HudGlyphs.keyLabel("ql"), 0xFFE14D, false, false, true, 2, 3, 0.4),
+                new HudGlyphs.Icon(HudGlyphs.icon("mage", 2), 0.0, 0, HudGlyphs.keyLabel("qr"), 0xFFFFFF, false, false, false, 0, 2, 0.9),
+                new HudGlyphs.Icon(HudGlyphs.icon("mage", 3), 0.0, 0, HudGlyphs.keyLabel("qq"), 0xFFFFFF, false, false, true, 1, 1, -1.0));
+        assertEquals(0, advance(spaces, HudGlyphs.row(charged, extras)));
+        // 48 icons (6 classes x melee and ranged x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, the rim, 16 shades, 10 digits, 7 key labels;
+        // t157: the rim of a re-activation, 10 charges, 17 gauges of a refill
+        assertEquals(119, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
     }
 
     @Test
