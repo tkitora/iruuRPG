@@ -117,6 +117,15 @@ public final class RangerDeployCombo implements ClassCombo {
         shoot(kit, turret, victim, kit.number(PLAN, "turret-rate", 0.3));
     }
 
+    /** The ranger's ULT (t168): their spirit bow, when it stands, shoots quickly for {@code seconds}. True when there was one. */
+    static boolean overdrive(Player player, double seconds) {
+        Turret turret = TURRETS.get(player.getUniqueId());
+        if (turret == null || !turret.alive) return false;
+        turret.fastUntil = Math.max(turret.fastUntil, Bukkit.getCurrentTick() + (int) Math.round(seconds * 20.0));
+        Sfx.SPIRIT_OVERDRIVE.play(turret.top(), 1.0f, 1.0f);
+        return true;
+    }
+
     static void forget(UUID player) {
         Turret turret = TURRETS.remove(player);
         if (turret != null) turret.remove();

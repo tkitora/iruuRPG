@@ -73,6 +73,11 @@ public final class ClericDeployCombo extends BaseCombo {
         CENTERS.remove(player);
     }
 
+    /** The serenity full at once (the sanctuary of the ULT), when the cleric has a sanctum. */
+    static void fillSerenity(java.util.UUID player, int max) {
+        if (CENTERS.containsKey(player)) SERENITY.put(player, max);
+    }
+
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
         kit.palette(ClericSkills.HOLY);

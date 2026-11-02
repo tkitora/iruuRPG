@@ -415,6 +415,8 @@ final class MeteorSkill {
         if (!attackService.applyRangeDamage(player, victim, damage, weapon, critical)) return;
         attackService.sendDamageDebug(player, AttackType.RANGE, victim, damage, critical, false);
         attackService.applyAreaDamage(player, victim, damage, AttackType.RANGE, weapon);
+        // (cast with the scythe, a meteor marks the reaper's enemy: t168)
+        MageReaper.meteorMark(attackService, player, weapon, victim);
     }
 
     // ---- the upgrade's beam -----------------------------------------------------------------------------------------

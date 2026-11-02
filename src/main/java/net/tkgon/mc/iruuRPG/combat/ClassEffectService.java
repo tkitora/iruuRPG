@@ -457,6 +457,8 @@ public final class ClassEffectService {
         world.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.6f);
         world.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 0.6f, 1.8f);
         RangerVfx.activation(world, player.getLocation());
+        // (t168) the spirit bow of the lantern, when it stands, shoots quickly as long as the instinct lasts
+        RangerDeployCombo.overdrive(player, seconds);
         // the enhanced state also makes the ranger quicker on their feet for as long as it lasts
         int speedLevel = (int) Math.round(plugin.getConfig().getDouble("class-effects.gifted.instinct-speed-level", 1.0));
         if (speedLevel > 0) {
@@ -470,7 +472,8 @@ public final class ClassEffectService {
     private void releaseVolley(Player player, Map<String, Double> values) {
         if (attackService == null) return;
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
-        if (weapon == null || weapon.attackType() != AttackType.RANGE) return;
+        // (with any weapon since t168; the enemies it strikes are tied, so the spirit bow goes after them)
+        if (weapon == null || !weapon.isWeaponLike()) return;
         int count = (int) Math.round(values.getOrDefault("release-count", 5.0));
         double range = values.getOrDefault("release-range", 32.0);
         double rate = values.getOrDefault("release-rate", 0.6);
@@ -496,7 +499,9 @@ public final class ClassEffectService {
                 world.playSound(chest, Sound.ENTITY_ARROW_HIT_PLAYER, 0.5f, 1.4f);
                 AttackService.AttackDamage attack = attackService.calculateDamage(player, victim, weapon);
                 double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
-                attackService.applyRangeDamage(player, victim, damage, weapon, attack.result().critical());
+                if (attackService.applyRangeDamage(player, victim, damage, weapon, attack.result().critical())) {
+                    RangerSkills.tie(victim, values.getOrDefault("release-tie-seconds", 3.0));
+                }
             }, 3L + index * 2L);
         }
     }

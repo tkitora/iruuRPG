@@ -302,8 +302,128 @@ public final class AssassinShade {
         });
     }
 
+    // ---- the ULT with the shadow bow or the lantern: the shadow burial (t168) --------------------------------------------------
+
+    /** The assassins in a shadow burial: {when it was cast (ms), until when (ms)}, and their weapon. */
+    private static final Map<UUID, long[]> BURIALS = new HashMap<>();
+    private static final Map<UUID, RpgItemDefinition> BURIAL_WEAPONS = new HashMap<>();
+
+    /** Whether {@code player} is in a shadow burial now. */
+    static boolean burying(UUID player) {
+        long[] burial = BURIALS.get(player);
+        return burial != null && burial[1] > System.currentTimeMillis();
+    }
+
+    /** Whether the burial can be ended by the key now ({@code recast-delay-seconds} after it was cast). */
+    static boolean burialReady(Player player, Map<String, Double> values) {
+        long[] burial = BURIALS.get(player.getUniqueId());
+        return burial != null && burial[1] > System.currentTimeMillis()
+                && System.currentTimeMillis() - burial[0] >= values.getOrDefault("recast-delay-seconds", 1.5) * 1000.0;
+    }
+
+    /**
+     * The assassin's ULT with the shadow bow or the lantern (SATUJIN is for a melee weapon): the <b>shadow burial</b>. The assassin sinks into the
+     * shadows for {@code burial-seconds} (6): the mobs lose them, they deal {@code burial-might} (30%) more, and the enemies within
+     * {@code burial-radius} (14) are confused. At the end (or with the key again, after {@code recast-delay-seconds}) shadow arrows fall on up to
+     * {@code burial-count} (10) of the enemies near: {@code burial-rate} (1.2) and {@code burial-affliction-rate} (0.4) more for each kind of
+     * affliction on one, double on one under {@code execute-percent} of its life.
+     */
+    static void burial(AttackService attackService, Player player, RpgItemDefinition weapon, Map<String, Double> values) {
+        attack = attackService;
+        UUID id = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        int ticks = (int) Math.round(values.getOrDefault("burial-seconds", 6.0) * 20.0);
+        long[] burial = {now, now + ticks * 50L};
+        BURIALS.put(id, burial);
+        BURIAL_WEAPONS.put(id, weapon);
+        MoveKit kit = attackService.kit(player, weapon);
+        kit.palette(SHADE);
+        Location spot = player.getLocation();
+        double radius = values.getOrDefault("burial-radius", 14.0);
+        AssassinSkills.hide(player, spot, ticks * 50L);
+        kit.buff(player, StatusEffectType.MIGHT, values.getOrDefault("burial-might", 30.0), ticks * 50L);
+        kit.sound(spot, Sfx.VEIL_NIGHTFALL, 1.0f, 0.8f);
+        kit.sound(spot, Sfx.SHADOW_VANISH, 1.0f, 1.0f);
+        kit.shockwave(spot, 0.8, radius, 8, 1.3);
+        kit.particle(Particle.SQUID_INK, spot.clone().add(0.0, 1.0, 0.0), 30, 1.5, 0.05);
+        for (LivingEntity victim : kit.around(spot, radius)) kit.confuse(victim, values.getOrDefault("burial-confusion", 30.0));
+        kit.every(ticks + 1, age -> {
+            if (BURIALS.get(id) != burial) return true;
+            if (age >= ticks) {
+                rain(attackService, player, values);
+                return true;
+            }
+            if (age % 3 == 0) {
+                Location at = player.getLocation();
+                Fx fx = kit.fx(at);
+                for (int strand = 0; strand < 3; strand++) {
+                    double angle = age * 0.3 + strand * Math.PI * 2.0 / 3.0;
+                    fx.dust(at.getX() + Math.cos(angle) * 0.7, at.getY() + 0.3 + (age % 20) * 0.08, at.getZ() + Math.sin(angle) * 0.7, SHADE, 0.2, 1.0);
+                }
+                if (age % 9 == 0) kit.particle(Particle.SMOKE_LARGE, at.clone().add(0.0, 0.8, 0.0), 2, 0.3, 0.01);
+            }
+            return false;
+        });
+    }
+
+    /** The key again during the burial: it ends now, and the arrows fall. True when it was used (also when it came too early). */
+    static boolean burialRecast(AttackService attackService, Player player, Map<String, Double> values) {
+        long[] burial = BURIALS.get(player.getUniqueId());
+        if (burial == null || burial[1] <= System.currentTimeMillis()) return false;
+        double delay = values.getOrDefault("recast-delay-seconds", 1.5);
+        long elapsed = System.currentTimeMillis() - burial[0];
+        if (elapsed < delay * 1000.0) {
+            player.sendMessage("[iruuRPG] 影葬まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - elapsed / 1000.0) + "秒");
+            return true;
+        }
+        rain(attackService, player, values);
+        return true;
+    }
+
+    /** The end of the burial: the assassin is seen again, and shadow arrows fall on the enemies near. */
+    private static void rain(AttackService attackService, Player player, Map<String, Double> values) {
+        UUID id = player.getUniqueId();
+        BURIALS.remove(id);
+        RpgItemDefinition weapon = BURIAL_WEAPONS.remove(id);
+        if (weapon == null || !player.isOnline() || player.isDead()) return;
+        AssassinSkills.reveal(player);
+        attackService.beginAttack(player);
+        MoveKit kit = attackService.kit(player, weapon);
+        kit.palette(SHADE);
+        double radius = values.getOrDefault("burial-radius", 14.0);
+        int count = (int) Math.round(values.getOrDefault("burial-count", 10.0));
+        double rate = values.getOrDefault("burial-rate", 1.2);
+        double perAffliction = values.getOrDefault("burial-affliction-rate", 0.4);
+        double executeAt = values.getOrDefault("execute-percent", 25.0);
+        Location feet = player.getLocation();
+        java.util.List<LivingEntity> targets = kit.around(feet, radius);
+        targets.sort(java.util.Comparator.comparingDouble(victim -> victim.getLocation().distanceSquared(feet)));
+        kit.sound(feet, Sfx.SHADE_EXECUTE, 1.0f, 0.8f);
+        for (int index = 0; index < Math.min(count, targets.size()); index++) {
+            LivingEntity victim = targets.get(index);
+            kit.later(2L + index * 2L, () -> {
+                if (!victim.isValid() || victim.isDead()) return;
+                Location above = victim.getLocation().add(0.4, 10.0, 0.3);
+                arrow(kit, above, new Vector(-0.04, -1.0, -0.03), 3.0, 12.0, 1.4, false, struck -> {
+                    if (!struck.equals(victim)) return;
+                    int afflictions = attackService.statusEffects().afflictions(victim);
+                    double multiplier = rate + perAffliction * afflictions;
+                    double life = maxHealth(victim);
+                    if (life > 0.0 && victim.getHealth() / life * 100.0 <= executeAt) multiplier *= 2.0;
+                    if (kit.hit(victim, multiplier)) {
+                        Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+                        kit.fx(chest).sphereShell(chest, 0.7 + 0.15 * afflictions, 0.0, 20, SHADE, 1.2);
+                        kit.sound(chest, Sfx.SHADE_HIT, 0.8f, 0.9f);
+                    }
+                });
+            });
+        }
+    }
+
     /** A player leaves (or changes class): what is kept of them goes. */
     static void forget(UUID player) {
         PINNED.remove(player);
+        BURIALS.remove(player);
+        BURIAL_WEAPONS.remove(player);
     }
 }

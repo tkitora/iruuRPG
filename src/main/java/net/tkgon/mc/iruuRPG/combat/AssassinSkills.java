@@ -68,6 +68,11 @@ public final class AssassinSkills {
         hider.hide(player, lure, millis);
     }
 
+    /** The mobs see {@code player} again. */
+    static void reveal(Player player) {
+        hider.reveal(player);
+    }
+
     /** {@code mob} cannot see {@code player} for {@code millis}. */
     static void blind(org.bukkit.entity.LivingEntity mob, Player player, long millis) {
         hider.blind(mob, player, millis);

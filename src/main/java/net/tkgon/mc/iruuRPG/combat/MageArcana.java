@@ -138,8 +138,14 @@ public final class MageArcana {
             return;
         }
         casts.clear();
-        int ticks = (int) Math.round(kit.number(PLAN, "torrent-seconds", 4.0) * 20.0);
-        long until = now + ticks * 50L;
+        openTorrent(kit, (int) Math.round(kit.number(PLAN, "torrent-seconds", 4.0) * 20.0));
+    }
+
+    /** Opens the torrent for {@code ticks} (the order completed, or the meteor: {@link #ultimate}). */
+    private static void openTorrent(MoveKit kit, int ticks) {
+        Player player = kit.player;
+        UUID id = player.getUniqueId();
+        long until = System.currentTimeMillis() + ticks * 50L;
         TORRENT_UNTIL.put(id, until);
         kit.sound(player.getLocation(), Sfx.MAGE_SURGE, 1.0f, 1.2f);
         kit.palette(TORRENT);
@@ -166,6 +172,24 @@ public final class MageArcana {
             }
             return false;
         });
+    }
+
+    /**
+     * The mage's ULT, the meteor, was cast with {@code weapon} (t168): with a ranged weapon it opens the torrent ({@code torrent-seconds} of the
+     * meteor, 6); with the lantern the criticality is full at once (the meteor's hits mark the reaper's enemies: {@link MageReaper#meteorMark}).
+     */
+    static void ultimate(AttackService attackService, Player player, RpgItemDefinition weapon, java.util.Map<String, Double> values) {
+        attack = attackService;
+        if (weapon == null) return;
+        if (weapon.attackType() == AttackType.RANGE) {
+            MoveKit kit = attackService.kit(player, weapon);
+            kit.palette(TORRENT);
+            openTorrent(kit, (int) Math.round(values.getOrDefault("torrent-seconds", 6.0) * 20.0));
+        } else if (weapon.attackType() == AttackType.DEPLOY) {
+            int max = (int) Math.round(attackService.plugin().getConfig().getDouble("combat.combo." + MageDeployCombo.PLAN + ".critical-max", 8.0));
+            CRITICALITY.put(player.getUniqueId(), new long[]{max, System.currentTimeMillis()});
+            Sfx.MAGE_SURGE.play(player.getLocation(), 0.8f, 1.5f);
+        }
     }
 
     // ---- 小 -------------------------------------------------------------------------------------------------------------------

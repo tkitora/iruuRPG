@@ -113,8 +113,12 @@ public final class ClassSkillService {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) {
             return precheckSanctuary(player);
         }
-        if (ICE_LANCE.equalsIgnoreCase(skill.id()) || METEOR.equalsIgnoreCase(skill.id())) {
+        if (ICE_LANCE.equalsIgnoreCase(skill.id())) {
             return precheckIceLance(player);
+        }
+        // (the meteor with any weapon since t168: the reaper's scythe and the lantern have it too)
+        if (METEOR.equalsIgnoreCase(skill.id())) {
+            return precheckSanctuary(player);
         }
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) {
             return Precheck.ready(null, null);
@@ -153,17 +157,21 @@ public final class ClassSkillService {
             iceLance(player, skill, precheck.weapon());
         } else if (METEOR.equalsIgnoreCase(skill.id())) {
             meteor.cast(player, skill.values(), precheck.weapon(), classService.hasSkill(profileManager.getOrCreate(player), METEOR_UPGRADE));
+            MageArcana.ultimate(attackService, player, precheck.weapon(), skill.values());
         } else if (SANCTUARY.equalsIgnoreCase(skill.id())) {
             sanctuary(player, skill, precheck.weapon());
         } else if (SATSUJIN.equalsIgnoreCase(skill.id())) {
-            satsujin(player, skill);
+            // (with the shadow bow or the lantern it is the shadow burial: t168)
+            if (precheck.weapon().attackType() != AttackType.MELEE) AssassinShade.burial(attackService, player, precheck.weapon(), skill.values());
+            else satsujin(player, skill);
         }
     }
 
     private Precheck precheckSatsujin(Player player, ClassSkillDefinition skill) {
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
-        if (weapon == null || !weapon.isWeaponLike() || weapon.attackType() != AttackType.MELEE) {
-            return Precheck.rejected("近接武器を持っていないと使えません。");
+        // (a melee weapon: SATUJIN; another: the shadow burial, t168)
+        if (weapon == null || !weapon.isWeaponLike()) {
+            return Precheck.rejected("武器を持っていないと使えません。");
         }
         if (!attackService.canUseItem(player, weapon)) {
             attackService.sendLevelRequirement(player, weapon);
@@ -752,6 +760,9 @@ public final class ClassSkillService {
 
         SanctuaryState state = new SanctuaryState(center, radius, healPerSecond);
         sanctuaries.put(player.getUniqueId(), state);
+        // (t168) the cleric's own powers are full at once: the mace's radiance, the staff's verses, the sanctum's serenity
+        ClericSkills.ultimate(player);
+        double might = skill.values().getOrDefault("ally-might-percent", 15.0);
 
         new SafeTask(plugin) {
             private int tick;
@@ -766,6 +777,8 @@ public final class ClassSkillService {
                     double guardShare = skill.values().getOrDefault("ally-guard-percent", 12.0) / 100.0;
                     for (Player ally : alliesIn(center, radius)) {
                         attackService.healPlayerBy(player, ally, healPerSecond);
+                        // (t168) and they deal more while they stay in it
+                        if (might > 0.0 && statusEffectService != null) statusEffectService.applyBuff(ally, StatusEffectType.MIGHT, might, 1500L, player.getUniqueId());
                         // the blessing: the allies inside take less damage for as long as they stay
                         if (guardShare > 0.0 && attackService.guard() != null) attackService.guard().grant(ally, guardShare, 30);
                         // a column of light rises round each one healed
@@ -883,13 +896,14 @@ public final class ClassSkillService {
     public boolean canRecast(Player player, ClassSkillDefinition skill) {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) return surgeStrikeReady(player, skill);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) return sniperMode != null && sniperMode.canEnter(player, skill);
+        if (SATSUJIN.equalsIgnoreCase(skill.id()) && AssassinShade.burying(player.getUniqueId())) return AssassinShade.burialReady(player, skill.values());
         if (SATSUJIN.equalsIgnoreCase(skill.id())) {
             return classEffectService != null && classEffectService.frenzyLevel(player) > 0
                     && classEffectService.frenzyElapsedMillis(player) >= skill.values().getOrDefault("recast-delay-seconds", 1.5) * 1000.0;
         }
         if (METEOR.equalsIgnoreCase(skill.id())) {
             RpgItemDefinition held = attackService.weaponInMainHand(player);
-            return held != null && held.attackType() == AttackType.RANGE && meteor.canRecast(player, skill.values());
+            return held != null && held.isWeaponLike() && meteor.canRecast(player, skill.values());
         }
         if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;
         SanctuaryState state = sanctuaries.get(player.getUniqueId());
@@ -900,10 +914,11 @@ public final class ClassSkillService {
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) return surgeStrike(player, skill);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
+        if (SATSUJIN.equalsIgnoreCase(skill.id()) && AssassinShade.burying(player.getUniqueId())) return AssassinShade.burialRecast(attackService, player, skill.values());
         if (SATSUJIN.equalsIgnoreCase(skill.id())) return frenzyEcho(player, skill);
         if (METEOR.equalsIgnoreCase(skill.id())) {
             RpgItemDefinition held = attackService.weaponInMainHand(player);
-            if (held == null || held.attackType() != AttackType.RANGE) return false;
+            if (held == null || !held.isWeaponLike()) return false;
             return meteor.tryRecast(player, skill.values(), held, classService.hasSkill(profileManager.getOrCreate(player), METEOR_UPGRADE));
         }
         if (!SANCTUARY.equalsIgnoreCase(skill.id())) return false;

@@ -714,6 +714,20 @@ public final class ClericSkills {
         }, null);
     }
 
+    /** The cleric's ULT, the sanctuary, was cast (t168): the radiance and the verses are full at once, and so is the sanctum's serenity. */
+    static void ultimate(Player player) {
+        if (attack == null) return;
+        long now = System.currentTimeMillis();
+        int radiance = (int) Math.round(number(MELEE, "radiance-max", 5.0));
+        RADIANCE.add(player.getUniqueId(), radiance, radiance, now + Math.round(number(MELEE, "radiance-seconds", 6.0) * 1000.0), now);
+        int verses = (int) Math.round(number(RANGE, "verse-max", 5.0));
+        VERSES.add(player.getUniqueId(), verses, verses, now + Math.round(number(RANGE, "verse-seconds", 10.0) * 1000.0), now);
+        ClericDeployCombo.fillSerenity(player.getUniqueId(), (int) Math.round(attack.plugin().getConfig().getDouble("combat.combo." + ClericDeployCombo.PLAN + ".serenity-max", 5.0)));
+        drawRadiance(player);
+        drawVerses(player);
+        Sfx.HOLY_FULL.play(player.getLocation(), 0.8f, 1.2f);
+    }
+
     /** A player leaves (or changes class): what is kept of them goes. */
     public static void forget(UUID player) {
         RADIANCE.forget(player);

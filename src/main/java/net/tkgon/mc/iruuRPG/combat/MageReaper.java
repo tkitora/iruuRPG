@@ -531,6 +531,14 @@ public final class MageReaper {
         });
     }
 
+    /** A meteor of the mage's ULT struck {@code victim} (t168): with the scythe in hand, it cuts a mark of death into it. */
+    static void meteorMark(AttackService attack, Player player, RpgItemDefinition weapon, LivingEntity victim) {
+        if (weapon == null || weapon.attackType() != AttackType.MELEE || !attack.hasClassCombo(player, weapon) || !victim.isValid() || victim.isDead()) return;
+        MoveKit kit = attack.kit(player, weapon);
+        look(kit);
+        mark(kit, victim, 1);
+    }
+
     /** A player leaves: what is kept of them goes. */
     public static void forget(UUID player) {
         ReaperMarks.forget(player);
