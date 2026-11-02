@@ -1180,9 +1180,11 @@ public final class MoveKit {
                 case MAGIC, MAGIC_DARK, METAL, CRACK -> Sfx.WIND;
                 default -> role;
             };
+            // (the warrior's cuts are a heavy blade, not struck metal, which sounded like a club: t166; its smashes stay metal)
             case "warrior" -> switch (role) {
                 case WIND_BURST -> Sfx.METAL_HEAVY;
-                case WIND, MAGIC, MAGIC_DARK, CRACK -> Sfx.METAL;
+                case WIND, CRACK -> Sfx.BLADE_HEAVY;
+                case MAGIC, MAGIC_DARK -> Sfx.METAL;
                 default -> role;
             };
             case "mage" -> switch (role) {

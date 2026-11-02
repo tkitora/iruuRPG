@@ -1033,7 +1033,7 @@ public final class RpgMobService {
             }
             // the blow lands: the outline flashes and the ground shakes
             drawArea(area, base, facing, right, Particle.SWEEP_ATTACK, 1.0f, true);
-            mob.getWorld().playSound(centre, org.bukkit.Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.7f);
+            net.tkgon.mc.iruuRPG.combat.Sfx.BLADE_HEAVY.play(centre, 1.0f, 0.85f);
             mob.getWorld().playSound(centre, org.bukkit.Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.4f);
             return hit;
         }

@@ -32,9 +32,9 @@ import java.util.function.ToIntFunction;
  *       (within {@code medium-recast-seconds}): a dash ahead (nothing hurts the assassin on the way) that cuts weakly whoever it passes, and a
  *       cross cut where it ends. Only the re-activation is copied by the clones.</li>
  *   <li>大 (F → F, 24 s): invisible for 4 s, a clone left where the assassin stood; the mobs that were after the assassin go to the clone. 1.5 s
- *       later, round the assassin and every clone that stands, a level cut at a random angle is made at a random point within 3 blocks every 3
- *       ticks for 2 s, cutting the enemies on its line (the assassin cannot move and takes no damage meanwhile); then those clones go. Not
- *       copied: it is the clones' own. While invisible, the next normal attack or skill (not util) does 1.5 times the damage and ends the
+ *       later, round the assassin and every clone that stands, a cut at a random angle is made through a random point of the ball of 3 blocks
+ *       round them every 2 ticks for 2 s, cutting the enemies on its line (the assassin takes no damage meanwhile, and moves freely: t166); then
+ *       those clones go. Not copied: it is the clones' own. While invisible, the next normal attack or skill (not util) does 1.5 times the damage and ends the
  *       invisibility (t165, {@link #ambushStrike}).</li>
  *   <li>util (F, 5 s): a clone stays where the assassin was (5 s) and the assassin leaps back.</li>
  *   <li>ULT (SATUJIN): while it lasts, the weapon skill's key is a weak re-activation of 中 (a dash and a cross cut), every 2 ticks; the weapon's
@@ -353,9 +353,9 @@ public final class AssassinSkills {
         int invisible = (int) Math.round(number(kit, "large-invisible-seconds", 4.0) * 20.0);
         int delay = (int) Math.round(number(kit, "large-delay-seconds", 1.5) * 20.0);
         int storm = (int) Math.round(number(kit, "large-storm-seconds", 2.0) * 20.0);
-        int every = Math.max(1, (int) Math.round(number(kit, "large-storm-ticks", 3.0)));
+        int every = Math.max(1, (int) Math.round(number(kit, "large-storm-ticks", 2.0)));
         double radius = number(kit, "large-radius", 3.0);
-        double rate = number(kit, "large-rate", 0.18) * boost(kit);
+        double rate = number(kit, "large-rate", 0.12) * boost(kit);
         double cloneRate = rate * number(kit, "large-clone-share", 1.0);
         // invisible, and a clone where the assassin stood: the mobs after the assassin go to it
         player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, invisible, 0, false, false, false));
@@ -372,11 +372,8 @@ public final class AssassinSkills {
             // the assassin and every clone that stands cut the enemies round them at random; the assassin is held and nothing hurts them
             List<AssassinClones.Ghost> clones = new ArrayList<>(AssassinClones.standingOnes(player));
             kit.invulnerable(storm + 2);
-            hold(player, storm);
             kit.sound(player.getLocation(), Sfx.SHADOW_CROSS, 0.9f, 0.8f);
             kit.every(storm, age -> {
-                Vector velocity = player.getVelocity();
-                player.setVelocity(new Vector(0.0, Math.min(0.0, velocity.getY()), 0.0));
                 if (age % every != 0) return false;
                 randomCut(kit, null, player.getLocation(), radius, rate);
                 for (AssassinClones.Ghost ghost : clones) {
@@ -393,33 +390,37 @@ public final class AssassinSkills {
     }
 
     /**
-     * One random cut round {@code center} (t165): a level line at a random angle through a random point within {@code radius}; the enemies on
-     * the line take it (a clone, {@code ghost}, turns and swings). True when it cut someone.
+     * One random cut round {@code center} (t166): a line at a random angle (any way, up and down too) through a random point of the ball of
+     * {@code radius} round the body; the enemies on the line take it (a clone, {@code ghost}, turns and swings). True when it cut someone.
      */
     private static boolean randomCut(MoveKit kit, AssassinClones.Ghost ghost, Location center, double radius, double rate) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        double distance = radius * Math.sqrt(random.nextDouble());
-        double at = random.nextDouble() * Math.PI * 2.0;
-        Location point = center.clone().add(Math.cos(at) * distance, 0.0, Math.sin(at) * distance);
-        double yaw = random.nextDouble() * Math.PI;
-        Vector along = new Vector(Math.cos(yaw), 0.0, Math.sin(yaw));
+        Vector offset = randomDirection(random).multiply(radius * Math.cbrt(random.nextDouble()));
+        Location point = center.clone().add(0.0, 1.0, 0.0).add(offset);
+        Vector along = randomDirection(random);
         double half = number(kit, "large-line-half", 2.6);
-        Clones.lineCut(kit.player, kit.palette(), point, yaw, false);
+        Location from = point.clone().subtract(along.clone().multiply(half));
+        Location to = point.clone().add(along.clone().multiply(half));
+        net.tkgon.mc.iruuRPG.vfx.Fx fx = kit.fx(point);
+        fx.line(from, to, kit.palette(), 0.2, 1.0, 1.5, 1.2, 0.12, null, 1);
+        fx.line(from, to, kit.palette(), 0.85, 1.0, 0.0, 0.6, 0.18, org.bukkit.Particle.CRIT, 4);
         if (ghost != null) {
             AssassinClones.face(ghost, point);
             AssassinClones.swing(ghost);
         }
         boolean struck = false;
-        for (LivingEntity victim : kit.corridor(point.clone().add(0.0, 1.0, 0.0).subtract(along.clone().multiply(half)), along, half * 2.0, 1.1)) {
+        for (LivingEntity victim : kit.corridor(from, along, half * 2.0, 1.2)) {
             struck |= ghost == null ? kit.hit(victim, rate) : AssassinClones.cloneHit(kit, ghost, victim, rate);
         }
         return struck;
     }
 
-    /** The player cannot walk nor jump for {@code ticks} (effects that end by themselves, so nothing stays if the server stops). */
-    private static void hold(Player player, int ticks) {
-        player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, ticks, 9, false, false, false));
-        player.addPotionEffect(new PotionEffect(PotionEffectType.JUMP, ticks, 250, false, false, false));
+    /** A direction at random, every way alike. */
+    private static Vector randomDirection(ThreadLocalRandom random) {
+        double z = random.nextDouble(-1.0, 1.0);
+        double angle = random.nextDouble(Math.PI * 2.0);
+        double ring = Math.sqrt(1.0 - z * z);
+        return new Vector(ring * Math.cos(angle), z, ring * Math.sin(angle));
     }
 
     // ---- util ---------------------------------------------------------------------------------------------------------------

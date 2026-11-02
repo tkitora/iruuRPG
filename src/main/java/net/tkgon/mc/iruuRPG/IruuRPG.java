@@ -284,6 +284,8 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.setComboStyleParser(skillRegistry);
         this.attackService.setMageMoves(new net.tkgon.mc.iruuRPG.combat.MageMoves(this, attackService, attackEffects, skillRegistry, skillRunner));
         net.tkgon.mc.iruuRPG.vfx.Fx.configure(getConfig());
+        // (the sounds' layers the config gives, t166)
+        net.tkgon.mc.iruuRPG.combat.Sfx.configure(getConfig().getConfigurationSection("sound-design"), problem -> getLogger().warning(problem));
         net.tkgon.mc.iruuRPG.vfx.Shapes.warmUp();
         this.rangerMoves = new net.tkgon.mc.iruuRPG.combat.RangerMoves(this, attackService, attackEffects);
         this.rangerMoves.setDeployService(deployService);
@@ -862,6 +864,7 @@ public final class IruuRPG extends JavaPlugin {
     private void reloadPluginData() {
         profileManager.saveAll();
         reloadConfig();
+        net.tkgon.mc.iruuRPG.combat.Sfx.configure(getConfig().getConfigurationSection("sound-design"), problem -> getLogger().warning(problem));
         itemSkillRegistry.reload();
         skillRegistry.reload();
         classRegistry.reload();

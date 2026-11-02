@@ -20,9 +20,9 @@ public enum Sfx {
     /** A darker spell: the allay thrown and hurt, pitched down. */
     MAGIC_DARK(new Layer(Sound.ENTITY_ALLAY_ITEM_THROWN, 0.6f, 0.7f), new Layer(Sound.ENTITY_ALLAY_HURT, 0.3f, 0.55f),
             new Layer(Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.25f, 0.8f)),
-    /** A sweep through the air: a low swing with wing beats. */
-    WIND(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.75f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.3f, 1.7f),
-            new Layer(Sound.ITEM_TRIDENT_THROW, 0.2f, 1.1f)),
+    /** A cut through the air: a sharp whoosh, a fast wing beat and a glint of steel (t166: no vanilla sweep, which sounded blunt). */
+    WIND(new Layer(Sound.ITEM_TRIDENT_THROW, 0.45f, 1.55f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.3f, 1.8f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.18f, 1.9f)),
     /** A gust that bursts: a swoop and a riptide with a thump under it. */
     WIND_BURST(new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.5f, 1.3f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.4f, 1.1f),
             new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.12f, 1.9f)),
@@ -36,11 +36,11 @@ public enum Sfx {
     CRACK(new Layer(Sound.ITEM_SHIELD_BREAK, 0.35f, 1.7f), new Layer(Sound.ENTITY_ITEM_BREAK, 0.45f, 1.5f),
             new Layer(Sound.BLOCK_GLASS_BREAK, 0.25f, 1.8f)),
     /** A scythe reaping: a sweep, a phantom's wing and a skeleton's rattle. */
-    REAP(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.55f, 0.55f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.45f, 0.8f),
+    REAP(new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 0.95f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.45f, 0.8f),
             new Layer(Sound.ENTITY_SKELETON_AMBIENT, 0.22f, 1.0f)),
     /** A heavy reap: a phantom's swoop, a skeleton hurt and a low sweep. */
     REAP_HEAVY(new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.6f, 0.65f), new Layer(Sound.ENTITY_SKELETON_HURT, 0.4f, 0.55f),
-            new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.5f)),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.45f, 0.8f)),
     /** Souls let go: a phantom's cry and bones, thin and cold. */
     SOUL(new Layer(Sound.ENTITY_PHANTOM_AMBIENT, 0.4f, 1.1f), new Layer(Sound.ENTITY_SKELETON_AMBIENT, 0.3f, 0.8f),
             new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.5f, 0.9f)),
@@ -65,11 +65,11 @@ public enum Sfx {
             new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.55f, 0.7f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.5f, 0.9f)),
     // the assassin's melee skills of t161: thin steel and shadows (not turned into the wind of the assassin's combo: they are their own)
     /** A thin, quick cut: a high sweep, a chain's rattle and a blade's ring. */
-    SHADOW_SLICE(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.45f, 1.6f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.45f, 1.8f),
+    SHADOW_SLICE(new Layer(Sound.ITEM_TRIDENT_THROW, 0.45f, 1.75f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.45f, 1.8f),
             new Layer(Sound.BLOCK_CHAIN_HIT, 0.3f, 1.9f)),
     /** Two blades crossing: a critical hit, a trident in the ground and a lower sweep. */
     SHADOW_CROSS(new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.6f, 1.3f), new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.45f, 1.6f),
-            new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.4f, 1.15f)),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.4f, 1.3f)),
     /** A rush through the shadows: the illusioner's mirror, a riptide and a swoop. */
     SHADOW_DASH(new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.6f, 1.3f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_2, 0.35f, 1.5f),
             new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.3f, 1.6f)),
@@ -79,25 +79,89 @@ public enum Sfx {
     /** A clone stepping out of the assassin: the mirror moving and a soul let go. */
     SHADOW_CLONE(new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.5f, 0.9f), new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.6f, 1.2f)),
     /** One cut of the storm of blades: light and high. */
-    SHADOW_FLURRY(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.25f, 1.85f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.2f, 2.0f)),
+    SHADOW_FLURRY(new Layer(Sound.ITEM_TRIDENT_THROW, 0.25f, 1.95f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.2f, 2.0f)),
     /** A leap back: a wing beat and the mirror. */
-    SHADOW_STEP(new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.5f, 1.6f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.35f, 1.6f));
+    SHADOW_STEP(new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.5f, 1.6f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.35f, 1.6f)),
+    // the blades of every class (t166): sharp, the air cut, and a hit of its own
+    /** A blade swung: a sharp whoosh, a fast wing beat, a faint ring of steel (the normal attack of a melee weapon). */
+    BLADE(new Layer(Sound.ITEM_TRIDENT_THROW, 0.45f, 1.7f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.25f, 2.0f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.15f, 2.0f)),
+    /** A heavy blade (the warrior's): a lower whoosh, a big wing and iron. */
+    BLADE_HEAVY(new Layer(Sound.ITEM_TRIDENT_THROW, 0.55f, 1.25f), new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.3f, 1.6f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_IRON, 0.35f, 1.3f)),
+    /** A blade that cuts into an enemy: a stab, a bright crack and a little metal. */
+    HIT_CUT(new Layer(Sound.ITEM_TRIDENT_HIT, 0.5f, 1.45f), new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.25f, 1.6f),
+            new Layer(Sound.BLOCK_CHAIN_BREAK, 0.2f, 1.7f)),
+    /** A shot that pierces an enemy: an arrow's hit, a stab and a crystal's tick. */
+    HIT_PIERCE(new Layer(Sound.ENTITY_ARROW_HIT, 0.5f, 1.3f), new Layer(Sound.ITEM_TRIDENT_HIT, 0.25f, 1.8f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_HIT, 0.2f, 1.5f)),
+    /** What a critical hit adds: a heavy crit, a deep stab and a sparkle. */
+    HIT_CRIT(new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.6f, 1.1f), new Layer(Sound.ITEM_TRIDENT_HIT, 0.4f, 1.0f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_HIT, 0.3f, 1.6f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {
     }
 
     private final Layer[] layers;
+    /** The config's own layers of a role ({@code sound-design.<ROLE>}, t166: the sounds can be tuned without a new jar). */
+    private static volatile java.util.Map<Sfx, Layer[]> overrides = java.util.Map.of();
 
     Sfx(Layer... layers) {
         this.layers = layers;
+    }
+
+    /** The layers the role plays: the config's when it gives some, else its own. */
+    public Layer[] layers() {
+        Layer[] own = overrides.get(this);
+        return own != null ? own : layers;
+    }
+
+    /**
+     * Reads {@code sound-design} (on start and reload): {@code <ROLE>: ["SOUND_NAME volume pitch", ...]} replaces the layers of that role (a role
+     * not named keeps its own; a line that cannot be read is told to {@code warn} and left out).
+     */
+    public static void configure(org.bukkit.configuration.ConfigurationSection section, java.util.function.Consumer<String> warn) {
+        java.util.Map<Sfx, Layer[]> read = new java.util.EnumMap<>(Sfx.class);
+        if (section != null) {
+            for (String key : section.getKeys(false)) {
+                Sfx role;
+                try {
+                    role = Sfx.valueOf(key.toUpperCase(java.util.Locale.ROOT));
+                } catch (IllegalArgumentException exception) {
+                    warn.accept("sound-design." + key + ": no such sound role (" + java.util.Arrays.toString(values()) + ")");
+                    continue;
+                }
+                java.util.List<Layer> layers = new java.util.ArrayList<>();
+                for (String line : section.getStringList(key)) {
+                    Layer layer = layer(line);
+                    if (layer == null) warn.accept("sound-design." + key + ": '" + line + "' is not \"SOUND_NAME volume pitch\"");
+                    else layers.add(layer);
+                }
+                if (!layers.isEmpty()) read.put(role, layers.toArray(new Layer[0]));
+            }
+        }
+        overrides = read;
+    }
+
+    /** "ITEM_TRIDENT_THROW 0.5 1.7" as a layer (the sound's name as the game's Sound, any case, "minecraft:" or dots allowed), or null. */
+    static Layer layer(String line) {
+        String[] parts = line == null ? new String[0] : line.trim().split("\\s+");
+        if (parts.length != 3) return null;
+        String name = parts[0].toUpperCase(java.util.Locale.ROOT).replace("MINECRAFT:", "").replace('.', '_');
+        try {
+            Sound sound = Sound.valueOf(name);
+            return new Layer(sound, Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
+        } catch (IllegalArgumentException exception) {
+            return null;
+        }
     }
 
     /** Plays the role at {@code at}: every layer at its own volume and pitch times {@code volume} and {@code pitch}. */
     public void play(Location at, float volume, float pitch) {
         World world = at.getWorld();
         if (world == null) return;
-        for (Layer layer : layers) {
+        for (Layer layer : layers()) {
             world.playSound(at, layer.sound(), SoundCategory.PLAYERS, layer.volume() * volume, Math.max(0.5f, Math.min(2.0f, layer.pitch() * pitch)));
         }
     }
