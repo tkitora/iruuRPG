@@ -1,15 +1,17 @@
-# クラススキル定義: 戦士の「武神の一撃」(解放ノード4 / ホットキー F)
+# クラススキル定義: 戦士の「武神の一撃」(解放ノード4 / ホットキー F。今は ULT = Shift+Q)
 # このファイルの版。jar の方が大きいと、サーバー上の古いファイルは .bak に退避されて入れ替わる
-version: 5
+version: 6
 #
-# 稲妻をまとい、効果時間のあいだ「与えたダメージで回復する」状態になる:
-#   - 戦士が与えるダメージ (通常攻撃・コンボ・雷のすべて) の lifesteal の割合が、体力として戻る。
-#   - 戦士が敵に攻撃を命中させるたびに、その敵から「チェインライトニング」が走る (自動で雷が落ちることはない):
-#     chain-range ブロック以内の、まだ触れていない最も近い敵へ、2 tick ごとに飛び移る (3回。強化後は4回)。
-#     1回目の威力は 武器のダメージ × bolt-rate、飛ぶたびに chain-decay 倍になる。0.35 秒に1回まで。
-#   雷のダメージでも回復する。雷が当てた敵から、さらに雷は出ない。
-# 武器を持っているときに使える (近接でも遠距離でも)。効果時間には「効果時間」ステータスが乗るが、max-seconds (5秒) より長くはならない。
-# 強化(解放ノード8「武神の一撃・極」)を解放済みなら、効果時間・吸血・雷の威力が上がり、演出も大きくなる。
+# (t168 で作り直した) 武神が降りてくる:
+#   - 使うと、自分の所に大きな雷が落ちる (降臨)。周り descent-radius ブロックの敵に 武器のダメージ × descent-rate を与えて吹き飛ばす。
+#   - 効果時間のあいだ、稲妻をまとい「与えたダメージで回復する」状態になる (lifesteal の割合)。受けるダメージは guard の割合だけ減る。
+#   - 戦士が敵に攻撃を命中させるたびに、その敵から「チェインライトニング」が走る (chain-range ブロック以内の、まだ触れていない最も近い敵へ、
+#     2 tick ごとに飛び移る。3回、強化後は4回。1回目の威力は 武器のダメージ × bolt-rate、飛ぶたびに chain-decay 倍。0.35 秒に1回まで)。
+#   - 効果時間のあいだに、もう一度 ULT のキーを押すと (使ってから recast-delay-seconds 秒のあと)、「武神の一撃」: 前の帯
+#     (長さ strike-length、幅 strike-width) に雷の刃が落ちる。帯の上の敵に 武器のダメージ × strike-rate、打ち上げる。それで効果は終わる。
+#     押せる間、ULT のアイコンが点滅する。
+# 武器を持っているときに使える (近接でも遠距離でも)。効果時間には「効果時間」ステータスが乗るが、max-seconds より長くはならない。
+# 強化(解放ノード8「武神の一撃・極」)を解放済みなら、効果時間・吸血・雷・降臨・一撃の威力が上がり、演出も大きくなる。
 
 id: warrior_strike
 name: "武神の一撃"
@@ -17,24 +19,36 @@ name: "武神の一撃"
 # 消費MP
 cost: 30
 
-# クールダウン秒数。tickで書きたい場合は cooldown-ticks を使う。
+# クールダウン秒数。tickで書きたい場合は cooldown-ticks を使う。(ULT として使うときは combat.skill-slots の ULT の秒)
 cooldown: 20
 
 description:
-  - "稲妻をまとう。5秒間、与えたダメージの一部が体力として戻る。"
-  - "攻撃を当てた敵から、近くの敵へ雷が連鎖し、その雷のダメージでも回復する。"
+  - "大きな雷とともに降臨し、周りの敵を吹き飛ばす。10秒間、稲妻をまとう (与えたダメージの一部が体力として戻り、受けるダメージが減る)。"
+  - "攻撃を当てた敵から雷が連鎖する。もう一度押すと、前へ雷の刃を落とす「武神の一撃」(それで終わる)。"
 
 values:
   # duration-seconds: 効果時間(秒) / upgrade-duration-seconds: 強化後
-  duration-seconds: 5
-  upgrade-duration-seconds: 5
+  duration-seconds: 10
+  upgrade-duration-seconds: 12
   # max-seconds: 「効果時間」ステータスが乗っても、これより長くはならない
-  max-seconds: 5
+  max-seconds: 14
   # lifesteal: 与えたダメージのうち体力として戻る割合 (0.08 = 8%) / upgrade-lifesteal: 強化後
   lifesteal: 0.08
   upgrade-lifesteal: 0.14
+  # guard: 効果時間のあいだ、受けるダメージが減る割合
+  guard: 0.2
   # 雷: 1回目の武器のダメージに対する倍率 (強化後は upgrade-bolt-rate) / 連鎖の飛び移る距離(ブロック) / 飛ぶたびに掛かる倍率
   bolt-rate: 0.6
   upgrade-bolt-rate: 0.9
   chain-range: 6
   chain-decay: 0.75
+  # 降臨: 半径(ブロック) / 武器のダメージに対する倍率 (強化後は upgrade-descent-rate)
+  descent-radius: 6
+  descent-rate: 2.0
+  upgrade-descent-rate: 2.6
+  # 武神の一撃 (再発動): 使ってから押せるまでの秒数 / 帯の長さと幅(ブロック) / 倍率 (強化後は upgrade-strike-rate)
+  recast-delay-seconds: 1.5
+  strike-length: 12
+  strike-width: 2.5
+  strike-rate: 3.0
+  upgrade-strike-rate: 4.0

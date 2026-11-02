@@ -23,7 +23,9 @@ import org.bukkit.util.Vector;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -220,15 +222,20 @@ public final class ClassSkillService {
     private void warriorSurge(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon) {
         PlayerProfile profile = profileManager.getOrCreate(player);
         boolean upgraded = classService.hasSkill(profile, WARRIOR_STRIKE_UPGRADE);
-        double baseSeconds = upgraded ? skill.values().getOrDefault("upgrade-duration-seconds", 12.0) : skill.values().getOrDefault("duration-seconds", 8.0);
+        double baseSeconds = upgraded ? skill.values().getOrDefault("upgrade-duration-seconds", 12.0) : skill.values().getOrDefault("duration-seconds", 10.0);
         PlayerProfile snapshot = attackService.snapshotAttacker(player);
         double seconds = baseSeconds * Math.max(0.1, 1.0 + snapshot.finalStats().get(net.tkgon.mc.iruuRPG.stat.StatType.DURATION) / 100.0);
         // whatever the duration stat adds, the surge does not last longer than max-seconds
-        seconds = Math.min(seconds, skill.values().getOrDefault("max-seconds", 5.0));
+        seconds = Math.min(seconds, skill.values().getOrDefault("max-seconds", 14.0));
         double lifesteal = upgraded ? skill.values().getOrDefault("upgrade-lifesteal", 0.14) : skill.values().getOrDefault("lifesteal", 0.08);
         double boltRate = upgraded ? skill.values().getOrDefault("upgrade-bolt-rate", 0.9) : skill.values().getOrDefault("bolt-rate", 0.6);
         if (classEffectService == null) return;
         classEffectService.activateSurge(player, seconds, upgraded ? 2 : 1, lifesteal);
+        // (t168) the war god comes down: a great bolt on the warrior's spot throws back everything round, and the warrior takes less meanwhile;
+        // the key again (after a moment) is the strike itself (see #tryRecast)
+        surgeCasts.put(player.getUniqueId(), new SurgeCast(System.currentTimeMillis(), weapon, upgraded));
+        descend(player, skill, weapon, upgraded);
+        if (attackService.guard() != null) attackService.guard().grant(player, skill.values().getOrDefault("guard", 0.2), (int) Math.round(seconds * 20.0));
         // the lightning is no longer called down by itself: every enemy the warrior hits sends a chain of lightning on to the ones near it
         classEffectService.setSurgeChain(player, first -> chainLightning(player, skill, weapon, first, boltRate, upgraded));
 
@@ -262,6 +269,127 @@ public final class ClassSkillService {
                 tick += 2;
             }
         }.runTaskTimer(plugin, 0L, 2L);
+    }
+
+    /** A warrior's surge as it was cast: when, with what weapon, upgraded or not (for the strike of its re-cast). */
+    private record SurgeCast(long startMillis, RpgItemDefinition weapon, boolean upgraded) {
+    }
+
+    private final Map<UUID, SurgeCast> surgeCasts = new HashMap<>();
+
+    /**
+     * The descent of the war god (t168): a great bolt on the warrior's spot; every enemy within {@code descent-radius} (6) takes the weapon's damage
+     * times {@code descent-rate} (2.0; {@code upgrade-descent-rate} 2.6 upgraded) and is thrown back.
+     */
+    private void descend(Player player, ClassSkillDefinition skill, RpgItemDefinition weapon, boolean upgraded) {
+        Location base = player.getLocation();
+        double radius = skill.values().getOrDefault("descent-radius", 6.0);
+        double rate = upgraded ? skill.values().getOrDefault("upgrade-descent-rate", 2.6) : skill.values().getOrDefault("descent-rate", 2.0);
+        World world = player.getWorld();
+        SkillFx.bolt(player, base.clone().add(0.0, 18.0, 0.0), base.clone().add(0.0, 0.2, 0.0), 14, 1.1, SkillFx.LIGHTNING, true);
+        world.playSound(base, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.8f);
+        world.playSound(base, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 1.0f, 0.7f);
+        world.playSound(base, Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 0.8f);
+        for (int ring = 1; ring <= 3; ring++) {
+            int which = ring;
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> SkillFx.groundRing(player, base, radius * which / 3.0, SkillFx.LIGHTNING, 1.0 - 0.15 * which, 1.4), which * 2L);
+        }
+        SkillFx.burst(player, base.clone().add(0.0, 1.0, 0.0), 3.0, SkillFx.LIGHTNING);
+        ParticleFx.to(world).spawnParticle(Particle.ELECTRIC_SPARK, base.clone().add(0.0, 1.0, 0.0), 40, radius * 0.4, 0.6, radius * 0.4, 0.3);
+        strikeAll(player, weapon, world.getNearbyEntities(base, radius, radius, radius), base, radius, rate, 0.6, 0.35);
+    }
+
+    /** The weapon's damage times {@code rate} on every enemy of {@code candidates} within {@code radius} (flat) of {@code center}, thrown back. */
+    private void strikeAll(Player player, RpgItemDefinition weapon, java.util.Collection<Entity> candidates, Location center, double radius, double rate, double knock, double lift) {
+        classEffectService.setChaining(player, true);
+        try {
+            for (Entity entity : candidates) {
+                if (!isValidTarget(player, entity)) continue;
+                LivingEntity enemy = (LivingEntity) entity;
+                double dx = enemy.getLocation().getX() - center.getX();
+                double dz = enemy.getLocation().getZ() - center.getZ();
+                if (dx * dx + dz * dz > radius * radius) continue;
+                AttackService.AttackDamage attack = attackService.calculateDamage(player, enemy, weapon);
+                double damage = Math.round(attack.result().damage() * rate * 10.0) / 10.0;
+                if (!attackService.applyDirectDamage(player, enemy, damage, weapon, attack.result().critical())) continue;
+                if (knock > 0.0 && enemy.isValid() && !enemy.isDead()) {
+                    Vector away = enemy.getLocation().toVector().subtract(center.toVector()).setY(0.0);
+                    if (away.lengthSquared() < 1.0E-6) away = new Vector(0.0, 0.0, 1.0);
+                    enemy.setVelocity(away.normalize().multiply(knock).setY(lift));
+                }
+            }
+        } finally {
+            classEffectService.setChaining(player, false);
+        }
+    }
+
+    /** Whether the surge's strike can be called now: the surge is up and {@code recast-delay-seconds} (1.5) have passed since it was cast. */
+    private boolean surgeStrikeReady(Player player, ClassSkillDefinition skill) {
+        SurgeCast cast = surgeCasts.get(player.getUniqueId());
+        if (cast == null || classEffectService == null || classEffectService.surgeLevel(player) == 0) return false;
+        return System.currentTimeMillis() - cast.startMillis() >= skill.values().getOrDefault("recast-delay-seconds", 1.5) * 1000.0;
+    }
+
+    /**
+     * The re-cast of the surge (t168): the strike of the war god. A blade of lightning comes down along a strip ahead ({@code strike-length} 12
+     * blocks, {@code strike-width} 2.5 wide): every enemy on it takes the weapon's damage times {@code strike-rate} (3.0; {@code upgrade-strike-rate}
+     * 4.0 upgraded) and is thrown up; the surge ends with it. False when there is no surge (the key is a new cast then).
+     */
+    private boolean surgeStrike(Player player, ClassSkillDefinition skill) {
+        SurgeCast cast = surgeCasts.get(player.getUniqueId());
+        if (cast == null || classEffectService == null || classEffectService.surgeLevel(player) == 0) {
+            surgeCasts.remove(player.getUniqueId());
+            return false;
+        }
+        double delay = skill.values().getOrDefault("recast-delay-seconds", 1.5);
+        long elapsed = System.currentTimeMillis() - cast.startMillis();
+        if (elapsed < delay * 1000.0) {
+            player.sendMessage("[iruuRPG] 武神の一撃まで あと" + String.format(java.util.Locale.ROOT, "%.1f", delay - elapsed / 1000.0) + "秒");
+            return true;
+        }
+        surgeCasts.remove(player.getUniqueId());
+        double length = skill.values().getOrDefault("strike-length", 12.0);
+        double width = skill.values().getOrDefault("strike-width", 2.5);
+        double rate = cast.upgraded() ? skill.values().getOrDefault("upgrade-strike-rate", 4.0) : skill.values().getOrDefault("strike-rate", 3.0);
+        Location feet = player.getLocation();
+        Vector facing = feet.getDirection().setY(0.0);
+        if (facing.lengthSquared() < 1.0E-6) facing = new Vector(0.0, 0.0, 1.0);
+        facing.normalize();
+        Vector way = facing;
+        World world = player.getWorld();
+        world.playSound(feet, Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 1.0f, 0.6f);
+        world.playSound(feet, Sound.ITEM_TRIDENT_THUNDER, 1.0f, 0.8f);
+        // the blade: bolts down along the strip one after the other, a line of light on the ground under them
+        int steps = (int) Math.ceil(length / 1.5);
+        for (int step = 0; step <= steps; step++) {
+            double along = Math.min(length, step * 1.5);
+            Location at = feet.clone().add(way.clone().multiply(along));
+            plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+                SkillFx.bolt(player, at.clone().add(0.0, 12.0, 0.0), at.clone().add(0.0, 0.1, 0.0), 8, 0.5, SkillFx.LIGHTNING, along > length - 2.0);
+                SkillFx.groundRing(player, at, width * 0.6, SkillFx.LIGHTNING, 0.9, 1.2);
+            }, step);
+        }
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            if (!player.isOnline()) return;
+            Location end = feet.clone().add(way.clone().multiply(length));
+            world.playSound(end, Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 1.0f, 0.6f);
+            world.playSound(end, Sound.ENTITY_GENERIC_EXPLODE, 0.8f, 0.7f);
+            SkillFx.burst(player, end.clone().add(0.0, 1.0, 0.0), 2.4, SkillFx.LIGHTNING);
+            java.util.List<Entity> onStrip = new java.util.ArrayList<>();
+            Vector from = feet.toVector();
+            for (Entity entity : world.getNearbyEntities(feet.clone().add(way.clone().multiply(length * 0.5)), length * 0.5 + width, 4.0, length * 0.5 + width)) {
+                Vector to = entity.getLocation().toVector().subtract(from).setY(0.0);
+                double along = to.dot(way);
+                if (along < -0.5 || along > length + 0.5) continue;
+                if (to.clone().subtract(way.clone().multiply(along)).length() <= width) onStrip.add(entity);
+            }
+            strikeAll(player, cast.weapon(), onStrip, feet, length + width + 1.0, rate, 0.0, 0.0);
+            for (Entity entity : onStrip) {
+                if (entity instanceof LivingEntity enemy && isValidTarget(player, entity)) enemy.setVelocity(enemy.getVelocity().setY(0.5));
+            }
+            classEffectService.endSurge(player);
+        }, steps + 2L);
+        return true;
     }
 
     /** Lightning turning round the warrior's body (two strands up the length of it) and a crackle of sparks. */
@@ -715,6 +843,7 @@ public final class ClassSkillService {
         SanctuaryState state = sanctuaries.remove(player.getUniqueId());
         if (state != null) state.ended = true;
         meteor.forget(player.getUniqueId());
+        surgeCasts.remove(player.getUniqueId());
     }
 
     /** A sanctuary that is up (for the re-cast of the upgrade). */
@@ -752,6 +881,7 @@ public final class ClassSkillService {
      * first moments, when the press only tells how long to wait): the action bar's ULT blinks then.
      */
     public boolean canRecast(Player player, ClassSkillDefinition skill) {
+        if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) return surgeStrikeReady(player, skill);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) return sniperMode != null && sniperMode.canEnter(player, skill);
         if (SATSUJIN.equalsIgnoreCase(skill.id())) {
             return classEffectService != null && classEffectService.frenzyLevel(player) > 0
@@ -768,6 +898,7 @@ public final class ClassSkillService {
     }
 
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
+        if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) return surgeStrike(player, skill);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
         if (SATSUJIN.equalsIgnoreCase(skill.id())) return frenzyEcho(player, skill);
         if (METEOR.equalsIgnoreCase(skill.id())) {
