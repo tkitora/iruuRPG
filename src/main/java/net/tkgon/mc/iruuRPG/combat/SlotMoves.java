@@ -38,13 +38,14 @@ public final class SlotMoves {
 
     /**
      * The classes whose skills with a kind of weapon are moves of their own, not their old heavy attacks: the assassin's melee (its favorite;
-     * t161, {@link AssassinSkills}), the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon), and the
+     * t161, {@link AssassinSkills}), the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon) and its ranged
+     * skills (t168, {@link MageArcana}), and the
      * warrior's, the cleric's and the ranger's melee and ranged ones (t168, {@link WarriorSkills}, {@link ClericSkills}, {@link RangerSkills}; the
      * ranger's bow keeps three of its skills, only 小 is new).
      */
     private static final Map<String, Set<AttackType>> REWORKED = Map.of(
             "assassin", EnumSet.of(AttackType.MELEE),
-            "mage", EnumSet.of(AttackType.MELEE),
+            "mage", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
             "warrior", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
             "healer", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
             "gifted", EnumSet.of(AttackType.MELEE, AttackType.RANGE));
@@ -79,9 +80,11 @@ public final class SlotMoves {
                     continue;
                 }
                 if (entry.getKey().equals("mage")) {
-                    // (the reaper's moves with a scythe, its own heavy attacks with a ranged weapon, the template's with a deployed one)
+                    // (the reaper's moves with a scythe, the arcana's with a ranged weapon (t168), the template's with a deployed one)
+                    MageArcana.setAttack(attackService);
                     slots.register(entry.getKey(), slot, MageReaper.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
-                            kind -> MageReaper.mechanics(attackService.plugin().getConfig(), slot, kind));
+                            kind -> kind == AttackType.RANGE ? MageArcana.mechanics(attackService.plugin().getConfig(), slot)
+                                    : MageReaper.mechanics(attackService.plugin().getConfig(), slot, kind));
                     continue;
                 }
                 slots.register(entry.getKey(), slot, (player, weapon) ->

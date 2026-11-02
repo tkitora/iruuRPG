@@ -451,6 +451,7 @@ public final class CombatListener implements Listener {
         net.tkgon.mc.iruuRPG.combat.WarriorSkills.forget(event.getPlayer().getUniqueId());
         net.tkgon.mc.iruuRPG.combat.ClericSkills.forget(event.getPlayer().getUniqueId());
         net.tkgon.mc.iruuRPG.combat.RangerSkills.forget(event.getPlayer().getUniqueId());
+        net.tkgon.mc.iruuRPG.combat.MageArcana.forget(event.getPlayer().getUniqueId());
         screenDropTick.remove(event.getPlayer().getUniqueId());
     }
 
