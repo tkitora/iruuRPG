@@ -17,6 +17,10 @@
   - 近接 (血の騎士) `BLOOD_*`: 重い刃の風切り (`BLOOD_SWING`)、肉を斬る音 (`BLOOD_HIT`)、旋風 (`BLOOD_WHIRL`)、叩きつけ (`BLOOD_SLAM`)、傷を取り返す音 (`BLOOD_DRINK`)、誓い (`BLOOD_OATH`) と心臓の音 (`BLOOD_HEARTBEAT`)、血が噴き出す音 (`BLOOD_BURST`)、受け流しの構え (`BLOOD_GUARD`) と受け流した音 (`BLOOD_PARRY`)。
   - 遠距離 (浮遊する大剣と鎖) `SWORD_*`・`CHAIN_*`: 大剣を呼ぶ音 (`SWORD_SUMMON`)、飛ぶ剣 (`SWORD_FLY`)、地面に刺さる剣 (`SWORD_IMPACT`)、巨大な剣 (`SWORD_GRAND`)、鎖を投げる音 (`CHAIN_THROW`)、縛る音 (`CHAIN_BIND`)、ほどける音 (`CHAIN_BREAK`)。
   - ランタン (孤立させる結界) `WARD_*`: 鉄の楔 (`WARD_WEDGE`)、鎖の柵 (`WARD_FENCE`)、檻 (`WARD_CAGE`)、断罪の鐘 (`WARD_BELL`)、孤立した敵に当たった音 (`WARD_ISOLATED`)。
+- **クレリック (t168)** は、自分の音の役割を持つ。メイスと盾は鐘と打った鉄、杖は雷と澄んだ音。
+  - メイスの振り (`HOLY_SWING`)、盾で殴る音 (`HOLY_BASH`)、盾を構えて動く音 (`HOLY_STEP`)、盾を掲げる音 (`HOLY_RAISE`)、構えた盾で受けた音 (`HOLY_BLOCK`)、審判の鉄槌 (`HOLY_HAMMER`)、守護の陣 (`HOLY_BASTION`)。
+  - 聖光・聖句がたまりきった音 (`HOLY_FULL`)、祝福 (`HOLY_BLESS`)、癒しの光 (`HOLY_MEND`)、詠唱 (`HOLY_CHANT`)。
+  - 杖の雷を呼ぶ音 (`STORM_CAST`)、雷が落ちる音 (`STORM_STRIKE`)。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:

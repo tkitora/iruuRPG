@@ -30,8 +30,11 @@ class SlotMovesTest {
         assertNull(SlotMoves.skillNumbers("warrior", AttackType.MELEE));
         assertNull(SlotMoves.skillNumbers("warrior", AttackType.RANGE));
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("warrior", AttackType.DEPLOY));
-        // the cleric: 小 the shield bash (2), 中 the pillar of light (4), 大 the spinning prayer (3), util the sanctuary (1)
-        assertArrayEquals(new int[]{2, 4, 3, 1}, SlotMoves.skillNumbers("healer", AttackType.MELEE));
+        // the cleric: its own with a melee weapon (the mace and shield) and a ranged one (the staff) since t168
+        assertTrue(SlotMoves.reworked("healer", AttackType.MELEE));
+        assertTrue(SlotMoves.reworked("healer", AttackType.RANGE));
+        assertNull(SlotMoves.skillNumbers("healer", AttackType.MELEE));
+        assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("healer", AttackType.DEPLOY));
         // the assassin's melee skills are its own since t161 (no old skill numbers); with a ranged weapon the template's
         assertTrue(SlotMoves.reworked("assassin", AttackType.MELEE));
         assertFalse(SlotMoves.reworked("assassin", AttackType.RANGE));
@@ -92,5 +95,26 @@ class SlotMovesTest {
             assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), WarriorSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.RANGE));
         }
         assertEquals(SkillSlots.Mechanics.NONE, WarriorSkills.mechanics(config, SkillSlots.Slot.SMALL, AttackType.DEPLOY));
+    }
+
+    /**
+     * t168: the mace's 小 has 2 charges (6 s, 12 s), 中 a re-activation of 2.5 s and 12 s, 大 28 s, util 6 s; the staff's 小 2 charges (4 s, 9 s), 中
+     * a re-activation of 4 s and 14 s, 大 26 s, util 6 s. The code's defaults are the config's.
+     */
+    @Test
+    void theClericsSkillsHaveTheirChargesAndTimes() {
+        org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File("src/main/resources/config.yml"));
+        org.bukkit.configuration.file.YamlConfiguration none = new org.bukkit.configuration.file.YamlConfiguration();
+        for (org.bukkit.configuration.file.YamlConfiguration each : java.util.List.of(config, none)) {
+            assertEquals(new SkillSlots.Mechanics(2, 0.0, 6.0, 12.0), ClericSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 2.5, 0.0, 12.0), ClericSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 28.0), ClericSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), ClericSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(2, 0.0, 4.0, 9.0), ClericSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.RANGE));
+            assertEquals(new SkillSlots.Mechanics(1, 4.0, 0.0, 14.0), ClericSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.RANGE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 26.0), ClericSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.RANGE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), ClericSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.RANGE));
+        }
+        assertEquals(SkillSlots.Mechanics.NONE, ClericSkills.mechanics(config, SkillSlots.Slot.LARGE, AttackType.DEPLOY));
     }
 }

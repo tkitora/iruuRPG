@@ -11,23 +11,20 @@ import org.bukkit.util.Vector;
 import java.util.List;
 
 /**
- * The cleric's combo with a melee weapon (a mace): prayer and judgment. Blows that also heal a little (a heal makes the
- * cleric's pulse hit the enemies around). Normal: 1 an overhead smash (68%), 2 two quick cuts (38% x2), 3 a holy ring around
- * (72%, heals 2%), 4 a thrust of light (38% x2), 5 a leaping slam (94%, heals 5%). Heavy: 0 a sanctuary under the feet for 2.5 s (13%
- * a pulse, heals 1% a pulse), 1 a shield bash (a shield of light strikes the enemies just ahead, 77%, slows 50% for 0.8 s; it was a hammer wave
- * before the redesign of 2026-11-02), 2 a spinning prayer (about 85%, heals 3%), 3 a pillar of light at the aim (85%), 4 a wide sanctuary ring (68%,
- * slows 40%, heals 6%). The blows push little (the cleric's damage is not meant to come from knocking enemies about). All numbers are 15% under
- * the earlier ones.
+ * The cleric's combo with a melee weapon (a mace and a shield): the second tank (t168, {@link ClericSkills}). Blunt blows and the shield; the
+ * finisher spends the radiance the cleric built up by taking blows: it stuns and heals more for each stack. Normal: 1 an overhead smash (55%), 2 a
+ * punch of the shield that throws back (45%), 3 two swings from the side (40% x2, 0.5% life back each), 4 two rising blows (35% x2, the second
+ * lifts), 5 the blow of judgment round the spot ahead (110%, {@code finisher-stack-rate} 15% more and a stun of {@code finisher-stun} 0.4 s +
+ * {@code finisher-stack-stun} 0.15 s for each stack of radiance, which it spends; heals 2% + 1% for each).
  *
- * <p>The skills of the redesign ({@link SlotMoves}): 小 the shield bash (heavy 1), 中 the pillar of light (3), 大 the spinning prayer (2), util the
- * sanctuary (0).
+ * <p>The skills are the cleric's own ({@link ClericSkills}); the heavy attacks below are what they were before t168.
  */
 public final class ClericMeleeCombo implements ClassCombo {
 
     static final String PLAN = "cleric_melee";
 
     private static final ComboSpec SPEC = new ComboSpec(PLAN,
-            new double[]{0.46, 0.3, 0.77, 0.46, 1.08}, new int[]{1, 2, 1, 2, 1},
+            new double[]{0.55, 0.45, 0.4, 0.35, 1.1}, new int[]{1, 1, 2, 2, 1},
             new double[]{0.13, 0.77, 0.12, 0.85, 0.68, 1.2}, new int[]{160, 0, 0, 0, 0, 0}, 40);
 
     @Override
@@ -47,73 +44,75 @@ public final class ClericMeleeCombo implements ClassCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.GOLD, 0.35));
+        ClericSkills.lookHoly(kit);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
+        Vector facing = kit.facing();
         switch (step.stage()) {
             case 1 -> {
-                // a mace smash: the head comes down in front and a ring of light spreads from where it lands (a blunt blow on the ground, not a sweep through the air)
-                Location hit = kit.ground(feet.clone().add(kit.facing().multiply(2.3)));
-                kit.slash("drop", 2.4, 100.0, 5.0, 0.0, 1.9, 0.3, 0.0, 1.1, 0.12, 0.0);
-                kit.sound(feet, Sfx.METAL, 1.0f, 0.8f);
+                // the mace comes down ahead, and a ring of light spreads from where it lands
+                Location hit = kit.ground(feet.clone().add(facing.clone().multiply(2.2)));
+                kit.slash("drop", 2.4, 100.0, 5.0, 0.0, 1.9, 0.3, 0.0, 1.15, 0.12, 0.0);
+                kit.sound(feet, Sfx.HOLY_SWING, 0.8f, 1.0f);
                 kit.later(2L, () -> {
                     kit.shockwave(hit, 0.5, 2.4, 3, 1.0);
-                    kit.sound(hit, Sound.BLOCK_BELL_USE, 0.7f, 1.3f);
+                    kit.sound(hit, Sfx.HOLY_BASH, 0.6f, 1.3f);
                     for (LivingEntity target : kit.around(hit, 2.4)) {
                         if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.15, 0.0);
                     }
                 });
             }
             case 2 -> {
-                // two tolls: a pulse of light runs out ahead each time, hitting everything on its way
-                Vector facing = kit.facing();
-                Location from = kit.ground(feet).add(0.0, 0.4, 0.0);
-                for (int index = 0; index < hits; index++) {
-                    int which = index;
-                    kit.later(index * 4L, () -> {
-                        kit.sound(feet, Sound.BLOCK_BELL_RESONATE, 0.7f, 1.4f + which * 0.2f);
-                        for (int ring = 0; ring < 4; ring++) {
-                            Location at = from.clone().add(facing.clone().multiply(1.2 + ring * 1.1));
-                            kit.later(ring, () -> kit.shockwave(at, 0.3, 1.3, 2, 0.9));
-                        }
-                        kit.hitAll(kit.corridor(from, facing, 5.0, 1.3), rate);
-                    });
+                // a punch of the shield: square, and it throws back
+                Location front = feet.clone().add(0.0, 1.0, 0.0).add(facing.clone().multiply(1.3));
+                kit.fx(front).disc(front, new Vector(-facing.getZ(), 0.0, facing.getX()), new Vector(0.0, 1.0, 0.0), 0.8, 30, ClericSkills.HOLY, 1.0, 1.0);
+                kit.slash("line", 2.2, 80.0, 0.0, 0.0, 1.5, 0.2, 0.0, 1.1, 0.1, 0.0);
+                kit.sound(feet, Sfx.HOLY_BASH, 0.9f, 1.0f);
+                for (LivingEntity target : kit.cone(3.0, 45.0)) {
+                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.5, 0.12);
                 }
             }
             case 3 -> {
-                kit.shockwave(feet, 1.0, 3.6, 4, 1.0);
-                kit.sound(feet, Sound.BLOCK_BEACON_POWER_SELECT, 0.8f, 1.6f);
-                kit.sound(feet, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.2f);
-                kit.hitAll(kit.around(feet, 3.6), rate);
-                kit.heal(2.0);
+                // two swings from the side; each that lands gives a little life back
+                for (int index = 0; index < hits; index++) {
+                    int which = index;
+                    kit.later(index * 4L, () -> {
+                        kit.slash("arc", 3.0, 150.0, which % 2 == 0 ? 15.0 : -15.0, which % 2 == 0 ? 0.0 : 180.0, 1.4, 0.4, 0.0, 1.2, 0.11, 0.0);
+                        kit.sound(kit.player.getLocation(), Sfx.HOLY_SWING, 0.7f, 1.1f + 0.1f * which);
+                        if (kit.hitAll(kit.cone(3.6, 80.0), rate) > 0) kit.heal(kit.number(PLAN, "swing-heal", 0.5));
+                    });
+                }
             }
             case 4 -> {
-                Vector facing = kit.facing();
-                Location from = kit.eye().add(facing.clone().multiply(0.8)).subtract(0.0, 0.4, 0.0);
+                // two rising blows; the second lifts
                 for (int index = 0; index < hits; index++) {
-                    kit.later(index * 2L, () -> {
-                        kit.line(from, from.clone().add(facing.clone().multiply(5.2)), 0.2, 1.0, 1.4);
-                        kit.fx(from.clone().add(facing.clone().multiply(5.2))).particle(Particle.CRIT_MAGIC, from.getX() + facing.getX() * 5.2, from.getY(), from.getZ() + facing.getZ() * 5.2, 6, 0.3, 0.3, 0.3, 0.2);
-                        kit.sound(feet, Sfx.WIND_BURST, 0.7f, 1.5f);
-                        for (LivingEntity target : kit.corridor(from, facing, 5.2, 1.1)) {
-                            kit.hit(target, rate);
+                    int which = index;
+                    kit.later(index * 4L, () -> {
+                        kit.slash("arc", 2.6, 110.0, -60.0, which % 2 == 0 ? 0.0 : 180.0, 1.5, 0.6, 0.0, 1.15, 0.1, 0.0);
+                        kit.sound(kit.player.getLocation(), Sfx.HOLY_SWING, 0.7f, 1.3f);
+                        for (LivingEntity target : kit.cone(3.0, 50.0)) {
+                            if (kit.hit(target, rate) && which == hits - 1) kit.lift(target, 0.3);
                         }
                     });
                 }
             }
             default -> {
-                // the finisher: up and down on the spot, the blow lands with a ring of light
-                kit.leap(kit.facing(), 0.1, 0.75, land -> {
-                    kit.shockwave(land, 1.0, 4.2, 5, 1.2);
-                    kit.slash("drop", 3.0, 150.0, 5.0, 0.0, 1.8, 0.4, 0.0, 1.4, 0.16, 0.0);
-                    kit.sound(land, Sound.ENTITY_GENERIC_EXPLODE, 0.7f, 1.2f);
-                    kit.sound(land, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 1.0f, 0.9f);
-                    for (LivingEntity target : kit.around(land, 4.2)) {
-                        if (kit.hit(target, rate)) kit.push(target, land.toVector(), 0.4, 0.15);
-                    }
-                    kit.heal(5.0);
-                });
+                // the blow of judgment: the radiance gathered is spent on it (more damage, a stun, a heal)
+                int stacks = ClericSkills.spendRadiance(kit.player);
+                double boosted = rate * (1.0 + kit.number(PLAN, "finisher-stack-rate", 0.15) * stacks);
+                double stunned = stacks > 0 ? kit.number(PLAN, "finisher-stun", 0.4) + kit.number(PLAN, "finisher-stack-stun", 0.15) * stacks : 0.0;
+                Location hit = kit.ground(feet.clone().add(facing.clone().multiply(1.8)));
+                kit.slash("drop", 3.0, 140.0, 5.0, 0.0, 1.8, 0.4, 0.0, 1.5, 0.16, 0.0);
+                kit.sound(feet, Sfx.HOLY_HAMMER, 0.9f, 1.1f - 0.03f * stacks);
+                kit.shockwave(hit, 0.6, 3.2, 5, 1.2);
+                ClericSkills.lightPillar(kit, hit, 0.9, 2.0 + 0.5 * stacks);
+                for (LivingEntity target : kit.around(hit, 3.0)) {
+                    if (!kit.hit(target, boosted)) continue;
+                    kit.push(target, hit.toVector(), 0.3, 0.15);
+                    ClericSkills.stun(kit, target, stunned);
+                }
+                kit.heal(kit.number(PLAN, "finisher-heal", 2.0) + kit.number(PLAN, "finisher-stack-heal", 1.0) * stacks);
             }
         }
     }

@@ -1089,6 +1089,11 @@ public final class MoveKit {
         }
     }
 
+    /** A blessing on {@code ally} from this player (the cleric's, t168): {@link StatusEffectService#applyBuff}. */
+    public void buff(Player ally, StatusEffectType type, double percent, long millis) {
+        attack.statusEffects().applyBuff(ally, type, percent, millis, player.getUniqueId());
+    }
+
     public void heal(double percent) {
         PlayerProfile profile = attack.profileForPlayer(player);
         attack.healPlayer(player, profile.maxHp() * percent / 100.0);
