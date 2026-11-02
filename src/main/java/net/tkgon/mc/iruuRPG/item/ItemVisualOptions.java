@@ -5,15 +5,21 @@ import org.bukkit.Color;
 /**
  * How an item looks beyond its material: the enchantment glint, a player head's skin, a leather armor's color, and
  * {@code texture} (the yml's {@code texture:}): the vanilla item whose look the resource pack puts over the item's base
- * material (by custom model data; null = the base material's own look).
+ * material (by custom model data; null = the base material's own look), and {@code model} (the yml's {@code model:}): the Blockbench
+ * model the item looks like instead (null = none).
  */
 public record ItemVisualOptions(
         boolean glint,
         String skinTexture,
         Color leatherColor,
-        String texture
+        String texture,
+        ItemModelSpec model
 ) {
-    public static final ItemVisualOptions NONE = new ItemVisualOptions(false, null, null, null);
+    public static final ItemVisualOptions NONE = new ItemVisualOptions(false, null, null, null, null);
+
+    public ItemVisualOptions(boolean glint, String skinTexture, Color leatherColor, String texture) {
+        this(glint, skinTexture, leatherColor, texture, null);
+    }
 
     public ItemVisualOptions(boolean glint, String skinTexture) {
         this(glint, skinTexture, null, null);
@@ -30,6 +36,10 @@ public record ItemVisualOptions(
 
     public boolean hasTexture() {
         return texture != null;
+    }
+
+    public boolean hasModel() {
+        return model != null;
     }
 
     public boolean hasSkinTexture() {

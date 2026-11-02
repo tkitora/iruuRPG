@@ -6,6 +6,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import net.tkgon.mc.iruuRPG.item.ItemModelSpec;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,7 +28,9 @@ import java.util.zip.ZipOutputStream;
  * <ul>
  *   <li>the model of each base item as the game has it (the plugin carries the vanilla file, {@code itempack/base/<item>.json}) with an
  *       override added for each look: {@code custom_model_data} number to a model;</li>
- *   <li>one model for each look: it points at the vanilla item (its texture, or the whole vanilla model), nothing is drawn anew.</li>
+ *   <li>one model for each look: it points at the vanilla item (its texture, or the whole vanilla model), nothing is drawn anew;</li>
+ *   <li>for an item that looks like a Blockbench model ({@code model:}), the game's model made from it ({@link ItemModelMaker}) and its
+ *       textures, under {@code bbmodel/<model>/}.</li>
  * </ul>
  * An item whose look is its base item's own needs nothing. The numbers come from {@link ItemCmdIndex}. The zip is the same bytes
  * for the same input (fixed times, sorted entries), so its hash changes only when a look does.
@@ -48,8 +51,15 @@ public final class ItemPackBuilder {
     private ItemPackBuilder() {
     }
 
-    /** An item and the look it wears: {@code base} is the item's base material, {@code texture} the vanilla item to look like (empty = its own look). */
-    public record Look(String itemId, String base, String texture) {
+    /**
+     * An item and the look it wears: {@code base} is the item's base material, {@code texture} the vanilla item to look like (empty = its own
+     * look), {@code model} the Blockbench model it looks like instead (null = none; a model that cannot be made leaves the texture's look) and
+     * {@code attackType} the item's kind (MELEE / RANGE / DEPLOY / ...: the way a model is held when its yml does not say).
+     */
+    public record Look(String itemId, String base, String texture, ItemModelSpec model, String attackType) {
+        public Look(String itemId, String base, String texture) {
+            this(itemId, base, texture, null, null);
+        }
     }
 
     /** What was built: the zip, the item ids that wear a look (with their numbers) and the problems found. */
@@ -74,7 +84,16 @@ public final class ItemPackBuilder {
      */
     public static Result build(List<Look> looks, ItemCmdIndex index, Function<String, String> templates, Predicate<String> flat,
                                Function<String, byte[]> pictures) throws IOException {
+        return build(looks, index, templates, flat, pictures, id -> null);
+    }
+
+    /**
+     * @param bbmodels the text of a Blockbench model ({@code models/<id>.bbmodel}) by its id, or null when there is no such file
+     */
+    public static Result build(List<Look> looks, ItemCmdIndex index, Function<String, String> templates, Predicate<String> flat,
+                               Function<String, byte[]> pictures, Function<String, String> bbmodels) throws IOException {
         List<String> warnings = new ArrayList<>();
+        Map<String, BbItemModel> read = new TreeMap<>();
         TreeMap<String, byte[]> files = new TreeMap<>();
         JsonObject mcmeta = new JsonObject();
         JsonObject pack = new JsonObject();
@@ -88,6 +107,7 @@ public final class ItemPackBuilder {
         Map<String, Integer> numbers = new TreeMap<>();
         for (Look look : looks) {
             String base = lower(look.base());
+            if (look.model() != null && modelLook(look, base, index, templates, bbmodels, read, files, numbers, overrides, warnings)) continue;
             String texture = clean(look.texture());
             if (base.isEmpty() || texture.isEmpty() || texture.equals(base)) continue;
             if (texture == null || !texture.matches("[a-z0-9_]+")) {
@@ -143,6 +163,56 @@ public final class ItemPackBuilder {
             }
         }
         return new Result(bytes.toByteArray(), numbers, warnings);
+    }
+
+    /**
+     * Puts the look of an item that looks like a Blockbench model in the pack: its model (one for each item, as each holds it its own way), the
+     * model's textures (once for all its items) and the override. False when it cannot be made (the item then wears its texture's look, if any).
+     */
+    private static boolean modelLook(Look look, String base, ItemCmdIndex index, Function<String, String> templates, Function<String, String> bbmodels,
+                                     Map<String, BbItemModel> read, TreeMap<String, byte[]> files, Map<String, Integer> numbers,
+                                     Map<String, TreeMap<Integer, String>> overrides, List<String> warnings) {
+        String id = look.model().id();
+        if (!base.matches("[a-z0-9_]+") || templates.apply(base) == null) {
+            warnings.add(look.itemId() + ": the base item '" + look.base() + "' has no vanilla model in the plugin: the model '" + id + "' is not used");
+            return false;
+        }
+        BbItemModel model = read.get(id);
+        if (model == null && !read.containsKey(id)) {
+            String text = bbmodels.apply(id);
+            if (text == null) {
+                warnings.add(look.itemId() + ": there is no models/" + id + ".bbmodel: the item keeps its look");
+            } else {
+                try {
+                    model = BbItemModel.parse(id, text);
+                    for (String warning : model.warnings) warnings.add("model " + id + ": " + warning);
+                } catch (RuntimeException exception) {
+                    warnings.add(look.itemId() + ": models/" + id + ".bbmodel could not be read (" + exception.getMessage() + "): the item keeps its look");
+                }
+            }
+            read.put(id, model);
+        }
+        if (model == null) return false;
+        String folder = "bbmodel/" + id;
+        List<String> problems = new ArrayList<>();
+        JsonObject json;
+        try {
+            json = ItemModelMaker.make(model, look.model(), ItemModelMaker.defaultHold(look.attackType(), base), NAMESPACE + ":item/" + folder + "/", problems);
+        } catch (RuntimeException exception) {
+            warnings.add(look.itemId() + ": the model '" + id + "' could not be made (" + exception + "): the item keeps its look");
+            return false;
+        }
+        for (String problem : problems) warnings.add(look.itemId() + " (model " + id + "): " + problem);
+        if (json == null) {
+            warnings.add(look.itemId() + ": the model '" + id + "' has nothing to draw: the item keeps its look");
+            return false;
+        }
+        for (BbItemModel.Texture texture : model.textures) files.put("assets/" + NAMESPACE + "/textures/item/" + folder + "/" + texture.name() + ".png", texture.png());
+        int number = index.assign(look.itemId());
+        numbers.put(look.itemId(), number);
+        files.put("assets/" + NAMESPACE + "/models/item/" + folder + "/" + number + ".json", json(json));
+        overrides.computeIfAbsent(base, key -> new TreeMap<>()).put(number, NAMESPACE + ":item/" + folder + "/" + number);
+        return true;
     }
 
     /** The folder of the models of a base item's looks (items of one pose share a model for a look). */

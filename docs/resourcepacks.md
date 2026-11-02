@@ -38,4 +38,5 @@
 - 注意: 基盤のモデルを置き換えるので、**基盤のバニラの override は、1.20.4 のファイルのもの**だけになる(ほかのパックが同じ基盤のモデルを変えていると、後に読まれた方が勝つ)。
 - 配る: `config.yml` の `resourcepack.packs.items`(ファイルが無い間は送られない)。
 - **アイテム自身の絵**: `texture:` にバニラのアイテム名でない名前(`a-z0-9_`)を書き、**`plugins/iruuRPG/item-textures/<名前>.png`**(16x16 の PNG。yml のリポジトリの `item-textures/` が、そのまま入る)を置くと、その絵が見た目になる(パックの `assets/iruurpg/textures/item/custom/`。持ち方は基盤のまま)。PNG が無く、バニラのアイテムでもない名前は、警告を出して基盤の見た目のまま。
+- **Blockbench のモデル**: `model:` にモデルの id を書くと、`plugins/iruuRPG/models/<id>.bbmodel` をアイテム 1 つ分のモデルにして入れる (`texture:` より先。作れないときは `texture:` の見た目)。持ち方・スロット・敵の装備は docs/item-models.md。パックの `assets/iruurpg/models/item/bbmodel/<モデル>/<番号>.json` (アイテムごと) と `textures/item/bbmodel/<モデル>/`。
 - **ゲームが色を付けるバニラのアイテム**(シダ・草・つる・葉など): 絵は灰色で、基盤の上では色が付かず白く出る。プラグインが、色付きの絵を `itempack/tinted/<名前>.png` に持っていれば、それをパックに入れる(今は `fern`)。

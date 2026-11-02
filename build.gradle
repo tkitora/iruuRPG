@@ -33,6 +33,8 @@ test {
     useJUnitPlatform {
         excludeTags 'server'
     }
+    // -PitemModelSamples=<a folder of .bbmodel files>: ItemModelMakerTest#samples makes their item pack into build/item-model-samples/
+    systemProperty 'itemModel.samples', (project.findProperty('itemModelSamples') ?: '')
 }
 
 tasks.register('itemPatchTest', Test) {

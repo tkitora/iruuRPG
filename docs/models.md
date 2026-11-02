@@ -1,5 +1,7 @@
 # モデル機能 (Blockbench のモデルを敵に着せる)
 
+(アイテムの見た目にする Blockbench のモデルは、同じ `models/` に置く。そちらは docs/item-models.md。敵に着せるモデルとは別のパック (iruuitem.zip) になる。)
+
 ModelEngine のような機能。Blockbench で作ったモデル (`.bbmodel`) を、敵に着せて、アニメーションさせる。コードは `model/`、プロシージャルツールと同じく、**専用のパッケージ・フォルダ・設定・コマンドだけ**で動く。
 
 ## しくみ

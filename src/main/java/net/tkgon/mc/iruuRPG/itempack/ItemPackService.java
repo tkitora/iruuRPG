@@ -20,7 +20,7 @@ import java.util.function.Supplier;
 
 /**
  * Keeps the pack of the items' looks ({@code resourcepacks/iruuitem.zip}) up to date with the items: after the items are read, {@link #rebuild}
- * makes the pack from every item that has a {@code texture:}, gives each its custom model data (kept in {@code resourcepacks/item-cmd-index.yml}),
+ * makes the pack from every item that has a {@code texture:} or a {@code model:} (a Blockbench model, {@code models/<id>.bbmodel}), gives each its custom model data (kept in {@code resourcepacks/item-cmd-index.yml}),
  * and writes the zip only when its bytes changed. {@link #numberOf} is what the item factory puts on an item. It never throws: a problem is a warning,
  * and an item without a number simply looks like its base item.
  */
@@ -61,7 +61,7 @@ public final class ItemPackService {
             }
             ItemCmdIndex index = new ItemCmdIndex(new File(folder(), "item-cmd-index.yml"));
             index.load();
-            ItemPackBuilder.Result result = ItemPackBuilder.build(looks, index, this::template, ItemPackService::flat, this::picture);
+            ItemPackBuilder.Result result = ItemPackBuilder.build(looks, index, this::template, ItemPackService::flat, this::picture, this::bbmodel);
             index.save();
             for (String warning : result.warnings()) plugin.getLogger().warning("itempack: " + warning);
             numbers = Map.copyOf(result.numbers());
@@ -79,14 +79,27 @@ public final class ItemPackService {
         }
     }
 
-    /** The items that wear a look: their base material (the item's material) and the vanilla item they look like. */
+    /** The items that wear a look: their base material (the item's material), the vanilla item they look like and the Blockbench model. */
     static List<ItemPackBuilder.Look> looks(Collection<RpgItemDefinition> definitions) {
         List<ItemPackBuilder.Look> looks = new ArrayList<>();
         for (RpgItemDefinition definition : definitions) {
-            if (!definition.visualOptions().hasTexture()) continue;
-            looks.add(new ItemPackBuilder.Look(definition.id(), definition.material().name(), definition.visualOptions().texture()));
+            if (!definition.visualOptions().hasTexture() && !definition.visualOptions().hasModel()) continue;
+            looks.add(new ItemPackBuilder.Look(definition.id(), definition.material().name(), definition.visualOptions().texture(),
+                    definition.visualOptions().model(), definition.attackType() == null ? null : definition.attackType().name()));
         }
         return looks;
+    }
+
+    /** The text of a Blockbench model ({@code models/<id>.bbmodel} in the plugin's folder, from the yml repository), or null. */
+    private String bbmodel(String id) {
+        if (!id.matches("[a-z0-9_]+")) return null;
+        File file = new File(plugin.getDataFolder(), "models/" + id + ".bbmodel");
+        try {
+            return file.isFile() ? Files.readString(file.toPath(), StandardCharsets.UTF_8) : null;
+        } catch (IOException exception) {
+            plugin.getLogger().warning("itempack: models/" + id + ".bbmodel could not be read: " + exception.getMessage());
+            return null;
+        }
     }
 
     /** Whether a vanilla item is a flat picture under {@code item/<name>.png} (not a block, and not an item the game draws itself). */

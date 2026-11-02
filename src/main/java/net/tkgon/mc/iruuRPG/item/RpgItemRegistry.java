@@ -376,7 +376,12 @@ public final class RpgItemRegistry {
                 texture = name;
             }
         }
-        return new MaterialSpec(material, new ItemVisualOptions(glint, skinTexture, leatherColor, texture));
+        // model: the Blockbench model the item looks like (models/<id>.bbmodel, made into the items' pack; docs/item-models.md)
+        ItemModelSpec model = ItemModelSpec.read(section.get("model"), problem -> plugin.getLogger().warning("items: " + id + ": " + problem + " (the item keeps its look)"));
+        if (model != null && !new File(plugin.getDataFolder(), "models/" + model.id() + ".bbmodel").isFile()) {
+            plugin.getLogger().warning("items: " + id + ": model '" + model.id() + "' has no models/" + model.id() + ".bbmodel (the item keeps its look until it is added)");
+        }
+        return new MaterialSpec(material, new ItemVisualOptions(glint, skinTexture, leatherColor, texture, model));
     }
 
     /** The leather armor material for a slot word (helm / helmet / head, chest / chestplate, legs / leggings, boots / feet), or null. */
