@@ -42,7 +42,7 @@ import java.util.UUID;
 
 /**
  * Skill menu: a row of SP spend nodes (left click +1 level, right click -1, shift+left +5)
- * and a row of milestone nodes that unlock for free as SP is spent. The class card sits in the top left corner and the
+ * and a row of the innate node and the milestone nodes that unlock for free as SP is spent. The class card sits in the top left corner and the
  * combo guides (one per kind of weapon) in the bottom right one.
  */
 public final class SkillTreeMenu implements Listener {
@@ -60,8 +60,6 @@ public final class SkillTreeMenu implements Listener {
     private static final int MILESTONE_LABEL_SLOT = 27;
     private static final int SPEND_CENTER_SLOT = 22;
     private static final int MILESTONE_ROW_START = 36;
-    /** The innate node (固有0) sits at the right end of the row above the milestones (and the next ones to its left). */
-    private static final int INNATE_SLOT = 35;
     private static final int BULK_LEVELS = 5;
     private static final int ROW = 9;
     private static final int MAX_STACK_DISPLAY = 64;
@@ -207,15 +205,17 @@ public final class SkillTreeMenu implements Listener {
                             text("シフト: -" + BULK_LEVELS, NamedTextColor.DARK_RED))));
         }
 
+        // one row: the innate nodes (固有0 ...) and then the milestones in their order
         List<ClassNodeDefinition> innate = definition.innate();
-        for (int index = 0; index < innate.size() && index < 3; index++) {
-            inventory.setItem(INNATE_SLOT - (innate.size() - 1 - index), innateItem(innate.get(index), index));
-        }
-
         List<ClassNodeDefinition> milestones = definition.milestones();
-        int milestoneStart = MILESTONE_ROW_START + Math.max(0, (9 - milestones.size()) / 2);
-        for (int index = 0; index < milestones.size() && index < 9; index++) {
-            inventory.setItem(milestoneStart + index, milestoneItem(profile, milestones.get(index), index));
+        int innateShown = Math.min(innate.size(), ROW);
+        int milestonesShown = Math.min(milestones.size(), ROW - innateShown);
+        int rowStart = MILESTONE_ROW_START + (ROW - innateShown - milestonesShown) / 2;
+        for (int index = 0; index < innateShown; index++) {
+            inventory.setItem(rowStart + index, innateItem(innate.get(index), index));
+        }
+        for (int index = 0; index < milestonesShown; index++) {
+            inventory.setItem(rowStart + innateShown + index, milestoneItem(profile, milestones.get(index), index));
         }
     }
 
@@ -319,7 +319,10 @@ public final class SkillTreeMenu implements Listener {
             lore.add(line("操作", ult ? net.tkgon.mc.iruuRPG.combat.SkillInput.keys(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT, net.tkgon.mc.iruuRPG.combat.SkillInput.swapped(profile.uuid())) + " (ULT)"
                     : node.hotKey().displayName(), NamedTextColor.YELLOW));
         }
-        return item(node.icon(), node.nodeName(), color, lore, unlocked);
+        // a node that is not open yet is a barrier, and its stack size is its stage (1 = the first to open)
+        ItemStack stack = item(unlocked ? node.icon() : Material.BARRIER, node.nodeName(), color, lore, unlocked);
+        stack.setAmount(unlocked ? 1 : Math.max(1, Math.min(MAX_STACK_DISPLAY, index + 1)));
+        return stack;
     }
 
     /** An innate node: a passive that is on from the start, so it needs no SP. */
