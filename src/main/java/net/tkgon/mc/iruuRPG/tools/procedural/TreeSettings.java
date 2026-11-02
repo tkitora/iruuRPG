@@ -40,6 +40,18 @@ final class TreeSettings {
         WEB_SAG("web-sag", "たるみ", 0.0, 1.0, 0.25, 0.05, 0.2, "糸が重みでたるむ度合い。皿網では皿の深さ"),
         WEB_IRREG("web-irregularity", "不規則さ", 0.0, 1.0, 0.3, 0.05, 0.2, "糸の位置・角度のばらつき (不規則網ではつながり方も)"),
         WEB_REACH("web-reach", "地形を探す距離", 1, 16, 5, 1, 3, "点のまわりでこの距離までの壁・地面・天井を探して、糸を固定する (ブロック)"),
+        // ---- the house base (t179, ProceduralShapes#house): pillars, walls, floors and a roof, the front toward the player ----
+        HOUSE_WIDTH("house-width", "幅 (正面)", 5, 40, 11, 1, 4, "正面の壁の長さ (ブロック)。正面は、クリックしたときのあなた(視点)の方を向く"),
+        HOUSE_DEPTH("house-depth", "奥行き", 5, 40, 9, 1, 4, "正面から奥への長さ (ブロック)"),
+        HOUSE_FLOORS("house-floors", "階数", 1, 6, 2, 1, 1, "何階建てか"),
+        HOUSE_STOREY("house-storey", "1階の高さ", 3, 8, 4, 1, 1, "床から次の床までの高さ (ブロック。床の1段を含む)"),
+        HOUSE_PILLARS("house-pillar-spacing", "柱の間隔", 0, 12, 4, 1, 2, "壁に柱を立てる間隔 (ブロック)。0 で四隅だけ"),
+        HOUSE_ROOF("house-roof", "屋根の形", 0, 3, 1, 1, 1, "0 平ら / 1 切妻 (2面) / 2 寄棟 (4面) / 3 片流れ (1面)"),
+        HOUSE_PITCH("house-pitch", "屋根の勾配", 0.25, 2.0, 0.75, 0.05, 0.25, "屋根が1ブロック内へ入るごとに上がる高さ (1 で 45 度)"),
+        HOUSE_OVERHANG("house-overhang", "軒の出", 0, 3, 1, 1, 1, "屋根が壁から外へ出る長さ (ブロック)"),
+        HOUSE_WINDOWS("house-windows", "窓", true, "柱と柱の間の壁に、階ごとに窓の穴をあける"),
+        HOUSE_DOOR("house-door", "入口", true, "正面の1階のまん中に、入口の穴をあける"),
+        HOUSE_FOUNDATION("house-foundation", "基礎", true, "地面が低い所では、柱を地面まで伸ばす"),
         // ---- the canopy tree (CanopyTree): a fractal of branches, canopies one above the other ----
         CANOPY_TRUNK_HEIGHT("canopy-trunk-height", "幹の高さ", 0, 40, 0, 1, 5, "最初の枝分かれまでの、まっすぐな幹の長さ (0 で根元からすぐ分かれる)"),
         CANOPY_LENGTH("canopy-length", "最初の長さ", 1, 40, 10, 0.5, 2, "樹冠の最初の枝 (主幹) の長さ。子の枝は、長さの倍率ずつ短くなる"),

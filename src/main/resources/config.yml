@@ -1082,6 +1082,11 @@ treetool:
     # クモの巣 (糸は本物のクモの巣ブロック。プレビューでもクモの巣のまま見える)
     web-frame: COBWEB
     web: COBWEB
+    # 家の土台 (t179。材質は決めず、部位ごとのウールで形だけを出す)
+    house-pillar: BROWN_WOOL
+    house-wall: WHITE_WOOL
+    house-floor: LIGHT_GRAY_WOOL
+    house-roof: RED_WOOL
 
 # モデル機能 (model/): Blockbench の .bbmodel を、敵に着せる。モデルは plugins/iruuRPG/models/*.bbmodel、パックは resourcepacks/iruumodel.zip (docs/models.md)
 model:
