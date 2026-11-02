@@ -9,7 +9,8 @@ import org.bukkit.util.Vector;
 /**
  * The ranger's combo with a melee weapon (a hunting knife): quick, mobile, setting up the next shot. A melee hit powers up the ranger's next
  * ranged attack (the loop). Normal: 1 two quick stabs (55% x2), 2 three cuts (40% x3), 3 a lunge (120%), 4 a flurry (28% x5), 5 a leap onto
- * the target (150%). The lunge (3) and the leap (5) leave the ranger unhurtable while they go; after the blow the ranger steps back. Heavy: 0 a backstep that scatters caltrops for 2.5 s (25% a pulse, slows), 1 a low sweep all round (120%), 2 three
+ * the target (150%). (t168) 3 is a wire to the enemy ahead and a zip in to it, 5 a spinning kick that sends the enemies to the ranger's spirit
+ * bow when it stands near ({@link RangerSkills}: they are tied there), else away. Nothing can hurt the ranger while 3 and 5 go. Heavy: 0 a backstep that scatters caltrops for 2.5 s (25% a pulse, slows), 1 a low sweep all round (120%), 2 three
  * thrown knives (40% x3), 3 a cut that pins (130%, slows 60%), 4 a run through the line (150% on all in the way).
  */
 public final class RangerMeleeCombo extends BaseCombo {
@@ -51,12 +52,14 @@ public final class RangerMeleeCombo extends BaseCombo {
                 }
             }
             case 3 -> {
-                // a short step in (the big moves are at the end of the chain or heavy 0, so none of them can be pressed again and again): nothing can hurt the ranger for 3 ticks of it, which ends at the first enemy it touches; after the cut, a backstep
-                LivingEntity ahead = kit.nearest(6.0, 45.0);
+                // a wire to the enemy ahead and a zip in to it (nothing can hurt the ranger on the way), a cut, and a step back
+                LivingEntity ahead = kit.nearest(kit.number(PLAN, "lunge-range", 8.0), 40.0);
                 Vector heading = ahead == null ? facing : ahead.getLocation().toVector().subtract(feet.toVector());
-                kit.sound(feet, Sfx.METAL, 0.9f, 1.2f);
-                kit.invulnerable(3);
-                kit.dashToContact(heading, 0.45, 3, 1.6, (end, touched) -> {
+                if (ahead != null) RangerSkills.wire(kit, ComboParts.hand(kit), ahead.getLocation().add(0.0, ahead.getHeight() * 0.55, 0.0));
+                kit.sound(feet, ahead != null ? Sfx.WIRE_ZIP : Sfx.WIND, 0.8f, 1.3f);
+                int ticks = ahead == null ? 3 : Math.max(2, Math.min(6, (int) Math.ceil(heading.clone().setY(0.0).length() / 1.1)));
+                kit.invulnerable(ticks + 2);
+                kit.dashToContact(heading, ahead == null ? 0.45 : 1.1, ticks, 1.6, (end, touched) -> {
                     kit.slash("drop", 2.6, 130.0, 25.0, 0.0, 1.8, 0.3, 0.0, 1.2, 0.14, 0.0);
                     kit.hitAll(kit.cone(3.2, 60.0), rate);
                     if (touched != null) kit.later(2L, () -> kit.hopBack(0.8, 0.25));
@@ -73,21 +76,21 @@ public final class RangerMeleeCombo extends BaseCombo {
                 kit.sound(feet, Sfx.WIND, 0.9f, 1.8f);
             }
             default -> {
-                // the finisher: a leap onto the target (nothing can hurt the ranger in the air); after the blow, a backstep
-                kit.invulnerable(16);
-                kit.leap(facing, 0.8, 0.55, land -> {
-                    kit.shockwave(land, 1.0, 3.4, 4, 1.1);
-                    kit.slash("drop", 2.8, 150.0, 8.0, 0.0, 1.8, 0.4, 0.0, 1.3, 0.16, 0.0);
-                    kit.sound(land, Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 1.6f);
-                    boolean struck = false;
-                    for (LivingEntity target : kit.around(land, 3.4)) {
-                        if (kit.hit(target, rate)) {
-                            kit.push(target, land.toVector(), 0.5, 0.3);
-                            struck = true;
-                        }
+                // the finisher: a spinning kick that sends the enemies to the ranger's spirit bow (when it stands near; else away), tied there
+                Location turret = RangerDeployCombo.turretNear(kit.player, kit.number(RangerSkills.MELEE, "turret-reach", 20.0));
+                kit.invulnerable(6);
+                kit.slash("arc", 2.8, 300.0, 75.0, 0.0, 0.6, 0.9, 0.0, 1.3, 0.12, 0.0);
+                kit.sound(feet, Sfx.WIND_BURST, 0.9f, 1.3f);
+                kit.shockwave(feet, 0.6, 3.0, 3, 1.0);
+                for (LivingEntity target : kit.cone(3.6, 70.0)) {
+                    if (!kit.hit(target, rate)) continue;
+                    if (turret != null) {
+                        RangerSkills.tie(target, kit.number(RangerSkills.MELEE, "tie-seconds", 3.0));
+                        RangerSkills.drag(kit, target, turret.clone().add(0.0, 0.5, 0.0));
+                    } else {
+                        kit.push(target, feet.toVector(), 0.7, 0.3);
                     }
-                    if (struck) kit.later(2L, () -> kit.hopBack(0.7, 0.3));
-                });
+                }
             }
         }
     }

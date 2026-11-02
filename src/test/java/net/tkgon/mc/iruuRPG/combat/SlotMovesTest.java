@@ -20,8 +20,11 @@ class SlotMovesTest {
         assertTrue(SlotMoves.reworked("mage", AttackType.MELEE));
         assertNull(SlotMoves.skillNumbers("mage", AttackType.MELEE));
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("mage", AttackType.DEPLOY));
-        // the ranger: 小 the piercing shot that sets off its traps (2), 中 the rapid shots (6), 大 the rain of arrows (5), util the backstep shot (1)
-        assertArrayEquals(new int[]{2, 6, 5, 1}, SlotMoves.skillNumbers("gifted", AttackType.RANGE));
+        // the ranger: its own with a melee weapon (the knife and wire) and with the bow (小 the power shot; the others its old 6, 5, 1) since t168
+        assertTrue(SlotMoves.reworked("gifted", AttackType.MELEE));
+        assertTrue(SlotMoves.reworked("gifted", AttackType.RANGE));
+        assertNull(SlotMoves.skillNumbers("gifted", AttackType.RANGE));
+        assertEquals(AttackType.RANGE, SlotMoves.favorite("gifted"));
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("gifted", AttackType.DEPLOY));
         // the warrior: its own with a melee weapon (the blood knight) and a ranged one (the swords) since t168; a deployed weapon: skills 1 - 4
         assertTrue(SlotMoves.reworked("warrior", AttackType.MELEE));
@@ -116,5 +119,25 @@ class SlotMovesTest {
             assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), ClericSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.RANGE));
         }
         assertEquals(SkillSlots.Mechanics.NONE, ClericSkills.mechanics(config, SkillSlots.Slot.LARGE, AttackType.DEPLOY));
+    }
+
+    /**
+     * t168: the knife's 小 has 2 charges (4 s, 9 s), 中 a re-activation of 3 s and 10 s, 大 22 s, util 5 s; the bow's 小 (the power shot) 2 charges
+     * (3 s, 7 s) and its other skills the class's cooldowns (no mechanics of their own). The code's defaults are the config's.
+     */
+    @Test
+    void theRangersSkillsHaveTheirChargesAndTimes() {
+        org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File("src/main/resources/config.yml"));
+        org.bukkit.configuration.file.YamlConfiguration none = new org.bukkit.configuration.file.YamlConfiguration();
+        for (org.bukkit.configuration.file.YamlConfiguration each : java.util.List.of(config, none)) {
+            assertEquals(new SkillSlots.Mechanics(2, 0.0, 4.0, 9.0), RangerSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 3.0, 0.0, 10.0), RangerSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 22.0), RangerSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 5.0), RangerSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(2, 0.0, 3.0, 7.0), RangerSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.RANGE));
+            assertEquals(SkillSlots.Mechanics.NONE, RangerSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.RANGE));
+            assertEquals(SkillSlots.Mechanics.NONE, RangerSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.RANGE));
+        }
+        assertEquals(SkillSlots.Mechanics.NONE, RangerSkills.mechanics(config, SkillSlots.Slot.SMALL, AttackType.DEPLOY));
     }
 }

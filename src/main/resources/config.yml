@@ -502,10 +502,61 @@ combat:
       cage-size: 2.6                              # 通常4: 檻の半径 (ほかの敵は入れない。中の敵は少し動ける)
       bell-radius: 7                              # 通常5: 鐘の届く半径 (設置の場所から)
       bell-isolated: 1.5                          # 通常5: 孤立した敵には、さらにこの割合だけ強く当たる
+    # レンジャーの近接 = ナイフとワイヤー (t168、nekorozv がすべて任せた。RangerSkills)。敵を精霊弓 (ランタン) や弓の範囲へ引き込む。値はすべて仮。
+    # ワイヤーで縛った敵は「拘束」(tie-seconds): 精霊弓が先に狙い、tied-bonus だけ強く当たる。スキルのクールタイムは、ここの秒。
+    ranger_melee:
+      lunge-range: 8                              # 通常3: ワイヤーで飛び込む敵を探す距離 (ブロック)
+      turret-reach: 20                            # 自分からこの距離の内に精霊弓があれば、敵をそこへ引き込む (無ければ自分の前へ)
+      pull-max: 1.8                               # 引き込む強さの上限 (距離が長いほど強い)
+      tie-seconds: 3                              # 拘束の秒数
+      tied-bonus: 0.3                             # 拘束された敵への、精霊弓のダメージの増え方
+      small-charges: 2                            # 小 (ワイヤーフック): ためておける数
+      small-charge-seconds: 4                     # 小: 1つ以上残っている間、1つ戻る秒数
+      small-empty-seconds: 9                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-range: 14                             # 小: 届く距離 (ブロック)
+      small-rate: 0.5                             # 小: 当たったときの倍率
+      medium-seconds: 10                          # 中 (ワイヤー網): クールタイム (秒)
+      medium-range: 12                            # 中: 投げる距離 (ブロック)
+      medium-radius: 3.5                          # 中: 網の半径
+      medium-rate: 0.4                            # 中: 網の中の敵への倍率
+      medium-hold-seconds: 3                      # 中: 網で縛る秒数
+      medium-hold-radius: 1                       # 中: 縛られた敵が動ける半径 (網の真ん中から)
+      medium-slow: 30                             # 中: その間の鈍足 (%)
+      medium-recast-seconds: 3                    # 中: 再発動 (巻き取り) を受け付ける秒数
+      recast-rate: 0.4                            # 巻き取り: 倍率
+      large-seconds: 22                           # 大 (ワイヤー強襲): クールタイム (秒)
+      large-range: 12                             # 大: 敵を探す範囲 (ブロック)
+      large-targets: 4                            # 大: 飛び移る敵の数 (近い順)
+      large-rate: 0.8                             # 大: 1体ごとの倍率 (移動中は無敵)
+      large-last-share: 1.5                       # 大: 最後の敵はこの倍
+      util-seconds: 5                             # util (グラップル): クールタイム (秒)
+      util-range: 16                              # util: ワイヤーが届く距離 (ブロック)
+      util-power: 1.4                             # util: 飛ぶ速さ (1 tick あたりのブロック数の上限)
+      util-back: 0.9                              # util: Shift のときの後ろへの強さ
+    # レンジャーのランタン = 精霊弓 (t168)。設置の場所に立つ砲台が、設置の間、近くの敵を自分で撃ち続ける。弱攻撃は精霊弓への命令。
+    # クラスのパッシブ (ranger_self_deploy) があると、自分の周り5ブロックの敵も狙う (精霊弓から24ブロックまで)。
     ranger_deploy:
       normal-gap-ticks: 10
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 3連射、2 撃ち分け x5、3 縫い留め、4 矢の雨 x6、5 全力射撃 (届く敵すべて))
+      # hit-rate: [0.3, 0.25, 1.0, 0.2, 0.6]
+      # hit-counts: [3, 5, 1, 6, 1]
+      turret-range: 12                            # 精霊弓が狙う距離 (ブロック)
+      turret-period: 20                           # 自分で撃つ間隔 (tick)
+      turret-rate: 0.3                            # 自分で撃つ1本の倍率
+      pin-slow: 50                                # 通常3: 縫い留めの鈍足 (%、1.5秒)
+      overdrive-seconds: 4                        # 通常5: 速く撃つ秒数
+      overdrive-period: 7                         # 通常5: その間の撃つ間隔 (tick)
+    # レンジャーの遠距離 = 弓。小だけ新しく「強射」(t168)。中・大・util は今までどおり (クールタイムも combat.skill-slots のまま)。
     ranger_range:
       normal-gap-ticks: 8
+      small-charges: 2                            # 小 (強射): ためておける数
+      small-charge-seconds: 3                     # 小: 1つ以上残っている間、1つ戻る秒数
+      small-empty-seconds: 7                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-draw-ticks: 6                         # 小: 引き絞る長さ (tick)
+      small-rate: 1.5                             # 小: 通り道の敵すべてへの倍率 (まっすぐ飛ぶ)
+      small-range: 30                             # 小: 飛ぶ距離 (ブロック)
+      small-mark-bonus: 0.4                       # 小: 印の敵への増え方
+      small-turret-bonus: 0.25                    # 小: 精霊弓の近くを通った矢の増え方 (当たった敵を精霊弓も撃つ)
   # 武器 (アイテム) のスキルの発動: 武器の別のボタン (近接は右、遠距離は左。combat.skill-slots を見る)
   # 近接の範囲攻撃: 全員が持つ小さな範囲 (戦士の「近接範囲攻撃化」の下位互換)。戦士は上の 0.65 / area-radius
   melee-area-base-damage-rate: 0.40
