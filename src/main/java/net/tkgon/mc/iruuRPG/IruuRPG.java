@@ -751,6 +751,8 @@ public final class IruuRPG extends JavaPlugin {
                 attackService::skillCooldownMultiplier);
         getServer().getPluginManager().registerEvents(skillSlots, this);
         net.tkgon.mc.iruuRPG.combat.SlotMoves.register(skillSlots, attackService);
+        // (the assassin's 大 hides them from the mobs, which go to its clone: t161)
+        net.tkgon.mc.iruuRPG.combat.AssassinSkills.setHider(mobService::hideFrom);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);

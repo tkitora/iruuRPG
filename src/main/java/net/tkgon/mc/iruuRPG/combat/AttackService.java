@@ -418,6 +418,28 @@ public final class AttackService {
         return kit;
     }
 
+    /**
+     * A class's own skill of the redesign (t161, the assassin's melee skills): the checks of a heavy attack (the level of the weapon, the tutorial's
+     * lock), the start of an attack and a kit at the player (not at a chain's start); null when it cannot be thrown now.
+     */
+    MoveKit skillKit(Player attacker, RpgItemDefinition weapon) {
+        if (weapon == null || !weapon.isWeaponLike()) return null;
+        if (tutorialHook != null && tutorialHook.isAttackLocked(attacker)) return null;
+        if (!canUseItem(attacker, weapon)) {
+            sendLevelRequirement(attacker, weapon);
+            return null;
+        }
+        beginAttack(attacker);
+        if (weapon.attackType() == AttackType.MELEE) ClickSignals.lockLeft(attacker, (int) plugin.getConfig().getLong("combat.combo.heavy-recovery-ticks", 8L));
+        return new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
+    }
+
+    /** Whether the player holds a melee weapon they can use in the off hand (the assassin's cross cut of 中, t161). */
+    boolean offHandWeapon(Player attacker) {
+        RpgItemDefinition offWeapon = itemIdentifier.itemId(attacker.getInventory().getItemInOffHand()).flatMap(itemRegistry::find).orElse(null);
+        return offWeapon != null && offWeapon.isWeaponLike() && offWeapon.attackType() == AttackType.MELEE && canUseItem(attacker, offWeapon);
+    }
+
     MoveKit kit(Player attacker, RpgItemDefinition weapon) {
         MoveKit kit = new MoveKit(plugin, this, attackEffects, comboZones, attacker, weapon);
         Object[] origin = chainOrigins.get(attacker.getUniqueId());

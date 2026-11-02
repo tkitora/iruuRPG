@@ -156,6 +156,8 @@ public final class ClassInfo {
         lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(melee) + ": アイテムスキル");
         // which skills of the lines below they throw (until the class's own moves are made, 小・中・大 the skills 1 - 3)
         int[] numbers = net.tkgon.mc.iruuRPG.combat.SlotMoves.skillNumbers(classId, kind);
+        // (skills of their own: the guide below tells them, t161)
+        if (net.tkgon.mc.iruuRPG.combat.SlotMoves.reworked(classId, kind)) return lines;
         if (numbers == null) {
             lines.add("小・中・大 は、いまは下のスキル1〜3");
         } else {
@@ -172,7 +174,7 @@ public final class ClassInfo {
         int colon = line.indexOf(':');
         if (colon < 0) return withEffects(line, NamedTextColor.WHITE);
         String label = line.substring(0, colon + 1);
-        NamedTextColor labelColor = label.startsWith("強") || label.startsWith("スキル") ? NamedTextColor.GOLD : NamedTextColor.YELLOW;
+        NamedTextColor labelColor = label.startsWith("強") || label.startsWith("スキル") || label.matches("(小|中|大|util|ULT).*") ? NamedTextColor.GOLD : NamedTextColor.YELLOW;
         return Component.text(label, labelColor).append(withEffects(line.substring(colon + 1), NamedTextColor.WHITE));
     }
 

@@ -1593,6 +1593,7 @@ public final class RpgMobService {
             if (!(entity instanceof LivingEntity living) || living.isDead() || !living.isValid()) {
                 runtimes.remove(uuid);
                 targetLocks.remove(uuid);
+                lured.remove(uuid);
                 removeStatusDisplay(uuid);
                 continue;
             }
@@ -1601,7 +1602,58 @@ public final class RpgMobService {
             if (runtime == null) continue;
 
             maintainTarget(living, runtime.definition(), now);
+            followLure(living, now);
         }
+    }
+
+    // ---- players hidden from the mobs (the assassin's 大, t161) -------------------------------------------------------
+
+    /** The players no mob may target now: until when, and the place the mobs that lost them go to (a clone), or null. */
+    private record Hidden(long untilMillis, Location lure) {
+    }
+
+    private final Map<UUID, Hidden> hiddenPlayers = new HashMap<>();
+    /** The mobs drawn to a lure: the player they lost. */
+    private final Map<UUID, UUID> lured = new HashMap<>();
+
+    /**
+     * No mob targets {@code player} for {@code millis} (the assassin turned invisible: 大 of t161), and every mob that targets them now loses
+     * them and goes to {@code lure} (the clone left behind; null: they only lose them) until then.
+     */
+    public void hideFrom(Player player, Location lure, long millis) {
+        long until = System.currentTimeMillis() + Math.max(0L, millis);
+        hiddenPlayers.put(player.getUniqueId(), new Hidden(until, lure == null ? null : lure.clone()));
+        for (UUID uuid : new ArrayList<>(runtimes.keySet())) {
+            Entity entity = Bukkit.getEntity(uuid);
+            if (!(entity instanceof Mob mob) || !mob.isValid() || !player.equals(mob.getTarget())) continue;
+            targetLocks.remove(uuid);
+            mob.setTarget(null);
+            if (lure != null && lure.getWorld() == mob.getWorld()) {
+                lured.put(uuid, player.getUniqueId());
+                mob.getPathfinder().moveTo(lure, 1.2);
+            }
+        }
+    }
+
+    private boolean hidden(Player player) {
+        Hidden hidden = hiddenPlayers.get(player.getUniqueId());
+        if (hidden == null) return false;
+        if (hidden.untilMillis() > System.currentTimeMillis()) return true;
+        hiddenPlayers.remove(player.getUniqueId());
+        return false;
+    }
+
+    /** A mob drawn to a lure keeps going to it (once a second) while its player is hidden and it has no other target. */
+    private void followLure(LivingEntity entity, long now) {
+        UUID player = lured.get(entity.getUniqueId());
+        if (player == null) return;
+        Hidden hidden = hiddenPlayers.get(player);
+        if (hidden == null || hidden.untilMillis() <= now || hidden.lure() == null || !(entity instanceof Mob mob) || mob.getTarget() != null
+                || hidden.lure().getWorld() != mob.getWorld()) {
+            lured.remove(entity.getUniqueId());
+            return;
+        }
+        if (Bukkit.getCurrentTick() % 20 == 0) mob.getPathfinder().moveTo(hidden.lure(), 1.2);
     }
 
     // ---- ranged mobs: explore mode and attack mode -------------------------------------------------------------------
@@ -1950,6 +2002,7 @@ public final class RpgMobService {
                 && !player.isDead()
                 && player.getGameMode() == GameMode.ADVENTURE
                 && player.getWorld().equals(entity.getWorld())
+                && !hidden(player)
                 && targetFilter.test(entity, player);
     }
 

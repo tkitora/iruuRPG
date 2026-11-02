@@ -30,8 +30,9 @@ import java.util.function.ToDoubleFunction;
  * 小・中・大 the weapon's skills 1 - 3 with their own cooldowns, ULT the class's special with the ULT's cooldown, util nothing).
  *
  * <p>Re-activation and charges (t157, nekorozv's design; {@link Mechanics}): a move may have <b>charges</b> (stacks: it is used while one is left;
- * using one starts the refill of the next, one at a time, each taking the skill's cooldown) and a <b>re-activation</b> (after it is used, the same
- * keys within {@code recastSeconds} do its second part, {@link Move#recast}). The same keys go by these states, in this order:
+ * while at least one is left, the missing ones refill one at a time, each in {@code chargeSeconds}; when the last is used, none refills: after
+ * {@code emptySeconds} all come back at once, t161) and a <b>re-activation</b> (after it is used, the same keys within {@code recastSeconds} do its
+ * second part, {@link Move#recast}). The same keys go by these states, in this order:
  * <ol>
  *   <li>a re-activation is open: the second part, no charge used (whether charges are left or not), and the re-activation closes;</li>
  *   <li>a charge is left: one is used, the move is done, and its re-activation opens (when it has one);</li>
@@ -82,17 +83,23 @@ public final class SkillSlots implements Listener {
     }
 
     /**
-     * How a move is used (t157): {@code charges} (1 = a skill with a cooldown; more = it keeps that many and each refills one at a time),
-     * {@code recastSeconds} the time its re-activation stays open after it is used (0 = none), and {@code chargeSeconds} how long one charge takes
-     * to refill (0 = the skill's cooldown, {@code combat.skill-slots.cooldown-seconds}).
+     * How a move is used (t157, t161): {@code charges} (1 = a skill with a cooldown; more = it keeps that many), {@code recastSeconds} the time its
+     * re-activation stays open after it is used (0 = none), {@code chargeSeconds} how long one missing charge takes to refill while at least one is
+     * left, and {@code emptySeconds} how long it takes, once the last charge is used, until all of them are back at once (none refills meanwhile).
+     * 0 for either is the skill's cooldown ({@code combat.skill-slots.cooldown-seconds}); a skill of one charge waits its {@code emptySeconds}.
      */
-    public record Mechanics(int charges, double recastSeconds, double chargeSeconds) {
-        public static final Mechanics NONE = new Mechanics(1, 0.0, 0.0);
+    public record Mechanics(int charges, double recastSeconds, double chargeSeconds, double emptySeconds) {
+        public static final Mechanics NONE = new Mechanics(1, 0.0, 0.0, 0.0);
+
+        public Mechanics(int charges, double recastSeconds, double chargeSeconds) {
+            this(charges, recastSeconds, chargeSeconds, 0.0);
+        }
 
         public Mechanics {
             charges = Math.max(1, Math.min(9, charges));
             recastSeconds = Math.max(0.0, recastSeconds);
             chargeSeconds = Math.max(0.0, chargeSeconds);
+            emptySeconds = Math.max(0.0, emptySeconds);
         }
 
         public boolean recasts() {
@@ -144,13 +151,14 @@ public final class SkillSlots implements Listener {
             "warrior", Map.of(Slot.MEDIUM, 10, Slot.LARGE, 30),
             "healer", Map.of(Slot.UTIL, 15),
             "gifted", Map.of(Slot.SMALL, 3, Slot.MEDIUM, 7, Slot.LARGE, 20),
-            "assassin", Map.of(Slot.LARGE, 20));
+            "assassin", Map.of(Slot.LARGE, 24));
 
     private final JavaPlugin plugin;
     private final Function<Player, String> classOf;
     private final ToDoubleFunction<Player> cooldownMultiplier;
     private final Map<String, Map<Slot, Move>> moves = new HashMap<>();
-    private final Map<String, Map<Slot, Mechanics>> mechanics = new HashMap<>();
+    /** The mechanics of each class's skills, by the kind of weapon (a class's own moves are made for its favorite weapon). */
+    private final Map<String, Map<Slot, Function<AttackType, Mechanics>>> mechanics = new HashMap<>();
     /** The charges and re-activation of each skill of each kind of weapon, per player. */
     private final Map<UUID, Map<Kept, State>> states = new ConcurrentHashMap<>();
     /** /iruurpg skilltest: the mechanics a player tries on their skills (until they leave). */
@@ -158,12 +166,15 @@ public final class SkillSlots implements Listener {
 
     /**
      * The charges and the re-activation of a skill: {@code charges} left (counted again from the refill when read: {@link #refresh}), the refill
-     * of the next one ({@code refillStart} + {@code refillMillis}, running while a charge is missing) and the end of the open re-activation.
+     * of the next one ({@code refillStart} + {@code refillMillis}, running while some but not all are left), the time all come back when none is
+     * left ({@code emptyUntil}, of {@code emptyMillis}; 0 when some are left) and the end of the open re-activation.
      */
     static final class State {
         int charges;
         long refillStart;
         long refillMillis;
+        long emptyUntil;
+        long emptyMillis;
         long recastUntil;
 
         State(int charges) {
@@ -198,10 +209,16 @@ public final class SkillSlots implements Listener {
         register(classId, slot, move, Mechanics.NONE);
     }
 
-    /** The move of {@code slot} of class {@code classId} with its charges and re-activation (t157). */
+    /** The move of {@code slot} of class {@code classId} with its charges and re-activation (t157), the same with every kind of weapon. */
     public void register(String classId, Slot slot, Move move, Mechanics mechanics) {
+        Mechanics fixed = mechanics == null ? Mechanics.NONE : mechanics;
+        register(classId, slot, move, kind -> fixed);
+    }
+
+    /** The move of {@code slot} of class {@code classId} with its charges and re-activation by the kind of weapon (read when the skill is used: the config may change them). */
+    public void register(String classId, Slot slot, Move move, Function<AttackType, Mechanics> mechanics) {
         moves.computeIfAbsent(classId.toLowerCase(Locale.ROOT), ignored -> new EnumMap<>(Slot.class)).put(slot, move);
-        this.mechanics.computeIfAbsent(classId.toLowerCase(Locale.ROOT), ignored -> new EnumMap<>(Slot.class)).put(slot, mechanics == null ? Mechanics.NONE : mechanics);
+        this.mechanics.computeIfAbsent(classId.toLowerCase(Locale.ROOT), ignored -> new EnumMap<>(Slot.class)).put(slot, mechanics == null ? kind -> Mechanics.NONE : mechanics);
     }
 
     /** /iruurpg skilltest: the player's {@code slot} tries {@code trial} (null: back to the move's own), until the player leaves. */
@@ -223,13 +240,18 @@ public final class SkillSlots implements Listener {
         if (own != null) for (Slot slot : own.keySet()) trial(player, slot, null);
     }
 
-    /** The mechanics of the player's {@code slot}: the one they try, else the move's. */
-    Mechanics mechanics(UUID player, String classId, Slot slot) {
+    /** The mechanics of the player's {@code slot} with a kind of weapon: the one they try, else the move's. */
+    Mechanics mechanics(UUID player, String classId, Slot slot, AttackType kind) {
         Map<Slot, Mechanics> trying = trials.get(player);
         if (trying != null && trying.containsKey(slot)) return trying.get(slot);
-        Map<Slot, Mechanics> own = classId == null ? null : mechanics.get(classId.toLowerCase(Locale.ROOT));
-        Mechanics found = own == null ? null : own.get(slot);
-        return found == null ? Mechanics.NONE : found;
+        Map<Slot, Function<AttackType, Mechanics>> own = classId == null ? null : mechanics.get(classId.toLowerCase(Locale.ROOT));
+        Function<AttackType, Mechanics> found = own == null ? null : own.get(slot);
+        Mechanics made = found == null ? null : found.apply(kind);
+        return made == null ? Mechanics.NONE : made;
+    }
+
+    Mechanics mechanics(UUID player, String classId, Slot slot) {
+        return mechanics(player, classId, slot, AttackType.MELEE);
     }
 
     private boolean trying(UUID player, Slot slot) {
@@ -262,7 +284,7 @@ public final class SkillSlots implements Listener {
             return Done.FALLBACK;
         }
         UUID id = player.getUniqueId();
-        Mechanics mechanics = mechanics(id, classId, slot);
+        Mechanics mechanics = mechanics(id, classId, slot, kindOf(weapon));
         State state = state(id, new Kept(kindOf(weapon), slot), mechanics, now);
         // 1. an open re-activation comes first: its second part, no charge used
         if (mechanics.recasts() && state.recastUntil > now) {
@@ -280,9 +302,14 @@ public final class SkillSlots implements Listener {
         if (!move.use(player, weapon)) return Done.NOTHING;
         if (state.charges >= mechanics.charges()) {
             state.refillStart = now;
-            state.refillMillis = refillMillis(player, slot, mechanics);
+            state.refillMillis = refillMillis(player, slot, mechanics.chargeSeconds());
         }
         state.charges--;
+        // (the last one: none refills, all come back after emptySeconds; t161)
+        if (state.charges <= 0) {
+            state.emptyMillis = refillMillis(player, slot, mechanics.emptySeconds());
+            state.emptyUntil = now + state.emptyMillis;
+        }
         if (mechanics.recasts()) state.recastUntil = now + Math.round(mechanics.recastSeconds() * 1000.0);
         return Done.USED;
     }
@@ -297,17 +324,21 @@ public final class SkillSlots implements Listener {
         String classId = classOf.apply(player);
         if (move(classId, slot) == null) return View.of(fallback.cooldown(player, slot, weapon));
         UUID id = player.getUniqueId();
-        return view(id, new Kept(kindOf(weapon), slot), mechanics(id, classId, slot), System.currentTimeMillis());
+        return view(id, new Kept(kindOf(weapon), slot), mechanics(id, classId, slot, kindOf(weapon)), System.currentTimeMillis());
     }
 
     View view(UUID id, Kept kept, Mechanics mechanics, long now) {
         State state = state(id, kept, mechanics, now);
-        boolean refilling = state.charges < mechanics.charges() && state.refillMillis > 0L;
+        boolean recasting = mechanics.recasts() && state.recastUntil > now;
+        // none left: the time until all come back is its cooldown (a skill of one charge: its cooldown as ever)
+        if (state.charges <= 0 && state.emptyUntil > now && state.emptyMillis > 0L) {
+            long left = state.emptyUntil - now;
+            return new View(new long[]{left, state.emptyMillis}, 0, mechanics.charges(), 1.0 - (double) left / state.emptyMillis, recasting);
+        }
+        boolean refilling = state.charges > 0 && state.charges < mechanics.charges() && state.refillMillis > 0L;
         long left = refilling ? Math.max(0L, state.refillStart + state.refillMillis - now) : 0L;
-        // (a skill of one charge: the refill of its only charge is its cooldown)
-        long[] cooldown = state.charges > 0 || !refilling ? new long[]{0L, 0L} : new long[]{left, state.refillMillis};
         double refill = refilling ? 1.0 - (double) left / state.refillMillis : -1.0;
-        return new View(cooldown, state.charges, mechanics.charges(), refill, mechanics.recasts() && state.recastUntil > now);
+        return new View(new long[]{0L, 0L}, state.charges, mechanics.charges(), refill, recasting);
     }
 
     long[] cooldown(UUID id, Kept kept, long now) {
@@ -321,9 +352,19 @@ public final class SkillSlots implements Listener {
         return state;
     }
 
+    /**
+     * The charges as they are at {@code now}: none left, all of them back once the wait for them is over (none refilled meanwhile); some left, the
+     * missing ones back one at a time (t161).
+     */
     static void refresh(State state, int max, long now) {
         if (state.charges > max) state.charges = max;
         if (state.charges >= max) return;
+        if (state.charges <= 0) {
+            if (state.emptyUntil > now) return;
+            state.charges = max;
+            state.emptyUntil = 0L;
+            return;
+        }
         if (state.refillMillis <= 0L) {
             state.charges = max;
             return;
@@ -337,17 +378,17 @@ public final class SkillSlots implements Listener {
     /** A skill of one charge used at {@code now}: its cooldown is {@code millis} (for tests and the fallback's look). */
     void start(UUID id, Kept kept, long millis, long now) {
         State state = new State(0);
-        state.refillStart = now;
-        state.refillMillis = millis;
+        state.emptyMillis = millis;
+        state.emptyUntil = now + millis;
         states.computeIfAbsent(id, ignored -> new ConcurrentHashMap<>()).put(kept, state);
     }
 
-    /** How long one charge takes to refill: the mechanics' own, else the skill's cooldown; times the player's cooldown multiplier. */
-    private long refillMillis(Player player, Slot slot, Mechanics mechanics) {
+    /** {@code seconds} (0: the skill's cooldown) times the player's cooldown multiplier, in milliseconds. */
+    private long refillMillis(Player player, Slot slot, double seconds) {
         double multiplier = Math.max(0.0, cooldownMultiplier.applyAsDouble(player));
-        double seconds = mechanics.chargeSeconds() > 0.0 ? mechanics.chargeSeconds()
+        double wait = seconds > 0.0 ? seconds
                 : cooldownSeconds(plugin.getConfig().getConfigurationSection("combat.skill-slots.cooldown-seconds"), classOf.apply(player), slot);
-        return Math.round(seconds * 1000.0 * multiplier);
+        return Math.round(wait * 1000.0 * multiplier);
     }
 
     /** The cooldown of {@code slot} of {@code classId} in seconds: the config's (the class's, else its {@code default}), else the design's. */

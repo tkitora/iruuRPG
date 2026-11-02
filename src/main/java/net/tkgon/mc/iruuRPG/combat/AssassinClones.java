@@ -17,7 +17,9 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * The clones that stay (the others, which step in for a blow and go, are in {@link Clones}). Two kinds:
+ * The clones that stay (the others, which step in for a blow and go, are in {@link Clones}). Since the rework of t161 a clone that stands (of
+ * util and 大, {@link AssassinSkills}) copies nothing by itself: a skill copies itself onto the clones that stand at the moment its description
+ * says ({@link #copiers}), each clone up to {@code clone-copies} (3) times, and a clone goes after its last copy. Two kinds:
  * <ul>
  *   <li>the grey clone that the assassin's heavy attack 0 flings in front of the assassin, the way they face (cooldown 8 s): it stands there for 4.5 s and goes. 強1 again (up to twice, while it stands) is a
  *       re-activation of it: the first makes one more clone, the second sends the clones charging forward ({@link #recast}), 15% each, and they go.
@@ -150,8 +152,9 @@ final class AssassinClones {
             remove(oldest, true);
             list.remove(oldest);
         }
-        // (it is flung from the assassin to the place: it slides there in 6 ticks)
-        Ghost ghost = new Ghost(owner, false, Clones.Look.ghost(), owner.getLocation(), yawDegrees, lifeTicks, 0);
+        // (it is flung from the assassin to the place: it slides there in 6 ticks); it may copy the skills that are copied onto it (t161)
+        int copies = (int) Math.max(0, Math.round(kit.number(AssassinMeleeCombo.PLAN, "clone-copies", 3.0)));
+        Ghost ghost = new Ghost(owner, false, Clones.Look.ghost(), owner.getLocation(), yawDegrees, lifeTicks, copies);
         ghost.kit = kit;
         ghost.slideFrom = owner.getLocation().clone();
         ghost.slideTo = at.clone();
@@ -201,7 +204,7 @@ final class AssassinClones {
 
     // ---- what they do -----------------------------------------------------------------------------------------------------------------
 
-    private static LivingEntity nearest(MoveKit kit, Location from, double radius) {
+    static LivingEntity nearest(MoveKit kit, Location from, double radius) {
         LivingEntity best = null;
         double bestDistance = Double.MAX_VALUE;
         for (LivingEntity target : kit.around(from, radius)) {
@@ -214,19 +217,19 @@ final class AssassinClones {
         return best;
     }
 
-    private static void face(Ghost ghost, Location toward) {
+    static void face(Ghost ghost, Location toward) {
         double dx = toward.getX() - ghost.pos.getX();
         double dz = toward.getZ() - ghost.pos.getZ();
         if (dx * dx + dz * dz > 1.0E-6) ghost.yawDegrees = Math.toDegrees(Math.atan2(-dx, dz));
     }
 
-    private static void swing(Ghost ghost) {
+    static void swing(Ghost ghost) {
         ghost.pose = 1.0;
         if (ghost.body != null) ghost.body.swing();
     }
 
     /** One hit of a clone on {@code victim} for {@code rate}: it turns to face the enemy, swings, and the enemy is remembered as hurt by a clone. */
-    private static boolean cloneHit(MoveKit kit, Ghost ghost, LivingEntity victim, double rate) {
+    static boolean cloneHit(MoveKit kit, Ghost ghost, LivingEntity victim, double rate) {
         face(ghost, victim.getLocation());
         swing(ghost);
         boolean hit = kit.hit(victim, rate);
@@ -234,65 +237,27 @@ final class AssassinClones {
         return hit;
     }
 
-    /** Whether the standing clones copy a heavy attack: true while one stands (as often as the assassin attacks: the redesign of 2026-11-02 has no limit). */
-    static boolean takeMimic(Player owner) {
-        for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) if (!ghost.swap && ghost.leaving < 0) return true;
-        return false;
+    /**
+     * The clones that stand now and may copy a skill (t161): landed, not going, with a copy left. The caller makes each copy and spends it
+     * ({@link #spend}).
+     */
+    static List<Ghost> copiers(Player owner) {
+        List<Ghost> found = new ArrayList<>();
+        for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) {
+            if (!ghost.swap && ghost.leaving < 0 && ghost.copies > 0 && ghost.slideAge >= ghost.slideTicks) found.add(ghost);
+        }
+        return found;
     }
 
-    /**
-     * The standing clones make heavy attack {@code index} (2 - 4) too (every time), each for 30% of {@code rate} a hit: 2 spins for 1.2 s, 3 runs through the line ahead and back, 4
-     * strikes the nearest enemy.
-     */
-    static void mimic(MoveKit kit, int index, double rate) {
-        double part = rate * 0.3;
-        for (Ghost ghost : new ArrayList<>(GHOSTS.getOrDefault(kit.player.getUniqueId(), List.of()))) {
-            if (ghost.swap || ghost.leaving >= 0) continue;
-            kit.sound(ghost.pos, Sfx.WIND, 0.5f, 1.4f);
-            switch (index) {
-                case 2 -> kit.every(25, age -> {
-                    if (ghost.leaving >= 0) return true;
-                    if (age % 3 == 0) {
-                        swing(ghost);
-                        kit.fx(ghost.pos).flatRing(ghost.pos.clone().add(0.0, 0.2 + (age % 6) * 0.25, 0.0), 2.6, 36, ghost.look.gradient(), 0.5, 0.2, 0.9);
-                        for (LivingEntity victim : kit.around(ghost.pos, 3.4)) cloneHit(kit, ghost, victim, part);
-                    }
-                    ghost.yawDegrees += 40.0;
-                    return false;
-                });
-                case 3 -> {
-                    LivingEntity target = nearest(kit, ghost.pos, 9.0);
-                    Vector heading = target != null ? target.getLocation().toVector().subtract(ghost.pos.toVector()).setY(0.0) : kit.facing();
-                    if (heading.lengthSquared() < 1.0E-6) heading = kit.facing();
-                    Vector direction = heading.normalize();
-                    face(ghost, ghost.pos.clone().add(direction));
-                    Location from = ghost.pos.clone().add(0.0, 1.0, 0.0);
-                    kit.line(from, from.clone().add(direction.clone().multiply(6.0)), 0.2, 1.0, 1.2);
-                    kit.later(2L, () -> {
-                        swing(ghost);
-                        for (LivingEntity victim : kit.corridor(from, direction, 6.0, 1.4)) cloneHit(kit, ghost, victim, part);
-                    });
-                    kit.later(7L, () -> {
-                        face(ghost, ghost.pos.clone().subtract(direction));
-                        swing(ghost);
-                        for (LivingEntity victim : kit.corridor(from.clone().add(direction.clone().multiply(6.0)), direction.clone().multiply(-1.0), 6.0, 1.4)) cloneHit(kit, ghost, victim, part);
-                    });
-                }
-                default -> {
-                    LivingEntity target = nearest(kit, ghost.pos, 10.0);
-                    if (target == null) continue;
-                    face(ghost, target.getLocation());
-                    ghost.slideFrom = ghost.pos.clone();
-                    ghost.slideTo = target.getLocation().clone().subtract(target.getLocation().toVector().subtract(ghost.pos.toVector()).setY(0.0).normalize().multiply(1.2));
-                    ghost.slideTicks = 4;
-                    ghost.slideAge = 0;
-                    kit.later(4L, () -> {
-                        kit.slash("drop", 2.8, 160.0, 10.0, 0.0, 1.8, 0.4, 0.0, 1.3, 0.16, 0.0);
-                        if (target.isValid() && !target.isDead()) cloneHit(kit, ghost, target, part);
-                    });
-                }
-            }
-        }
+    /** One copy of a clone is made: after the last it goes. */
+    static void spend(Ghost ghost) {
+        ghost.copies--;
+        if (ghost.copies <= 0 && ghost.leaving < 0) ghost.leaving = 6;
+    }
+
+    /** The clone goes now (with its puff). */
+    static void dismiss(Ghost ghost) {
+        if (ghost.leaving < 0) ghost.leaving = 6;
     }
 
     /**
@@ -340,7 +305,7 @@ final class AssassinClones {
         CAST.put(kit.player.getUniqueId(), new int[]{0, org.bukkit.Bukkit.getCurrentTick()});
     }
 
-    private static List<Ghost> standingOnes(Player owner) {
+    static List<Ghost> standingOnes(Player owner) {
         List<Ghost> found = new ArrayList<>();
         for (Ghost ghost : GHOSTS.getOrDefault(owner.getUniqueId(), List.of())) if (!ghost.swap && ghost.leaving < 0) found.add(ghost);
         return found;

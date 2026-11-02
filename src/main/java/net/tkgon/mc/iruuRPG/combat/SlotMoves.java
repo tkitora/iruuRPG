@@ -34,15 +34,30 @@ public final class SlotMoves {
     private SlotMoves() {
     }
 
+    /** The classes whose skills with their favorite weapon are moves of their own, not their old heavy attacks (the assassin's melee: t161, {@link AssassinSkills}). */
+    private static final java.util.Set<String> REWORKED = java.util.Set.of("assassin");
+
     /** Registers the moves of every class made so far. */
     public static void register(SkillSlots slots, AttackService attackService) {
         for (Map.Entry<String, Own> entry : OWN.entrySet()) {
             for (SkillSlots.Slot slot : new SkillSlots.Slot[]{SkillSlots.Slot.SMALL, SkillSlots.Slot.MEDIUM, SkillSlots.Slot.LARGE, SkillSlots.Slot.UTIL}) {
                 Own own = entry.getValue();
+                if (REWORKED.contains(entry.getKey())) {
+                    // (its own moves with the favorite weapon, the template's heavy attacks with another; the charges and re-activation of the config)
+                    slots.register(entry.getKey(), slot, AssassinSkills.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
+                            kind -> AssassinSkills.mechanics(attackService.plugin().getConfig(), slot, kind));
+                    continue;
+                }
                 slots.register(entry.getKey(), slot, (player, weapon) ->
                         weapon != null && attackService.slotHeavy(player, weapon, heavyOf(own, slot, weapon.attackType())));
             }
         }
+    }
+
+    /** Whether a class's skills with a kind of weapon are moves of their own (no old skill numbers: their pictures and guide are their own). */
+    public static boolean reworked(String classId, AttackType kind) {
+        Own own = classId == null ? null : OWN.get(classId);
+        return own != null && REWORKED.contains(classId) && kind == own.favorite();
     }
 
     /** The heavy attack {@code slot} throws with a kind of weapon: the class's own with its favorite, else the template's (skills 1 - 4). */
@@ -62,7 +77,7 @@ public final class SlotMoves {
      */
     public static int[] skillNumbers(String classId, AttackType kind) {
         Own own = classId == null ? null : OWN.get(classId);
-        if (own == null) return null;
+        if (own == null || reworked(classId, kind)) return null;
         int[] numbers = new int[4];
         for (int index = 0; index < numbers.length; index++) numbers[index] = heavyOf(own, SkillSlots.Slot.values()[index], kind) + 1;
         return numbers;

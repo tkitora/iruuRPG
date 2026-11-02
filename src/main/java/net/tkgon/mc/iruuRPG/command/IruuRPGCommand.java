@@ -181,7 +181,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
         }
         net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot slot = args.length >= 4 ? skillSlot(args[1]) : null;
         if (slot == null || slot == net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) {
-            sender.sendMessage("[スキル] /iruurpg skilltest <小|中|大|util> <チャージ数 1-9> <再発動の秒 (0 = なし)> [1 チャージの補充の秒 (省略 = スキルのクールタイム)]");
+            sender.sendMessage("[スキル] /iruurpg skilltest <小|中|大|util> <チャージ数 1-9> <再発動の秒 (0 = なし)> [1 チャージの補充の秒] [使い切ったときに全部戻るまでの秒] (省略 = スキルのクールタイム)");
             sender.sendMessage("[スキル] /iruurpg skilltest off [スキル] … 元に戻す (抜けても戻る)。再発動は、同じ技をもう一度出します (試すため)。");
             return true;
         }
@@ -189,11 +189,13 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             int charges = Integer.parseInt(args[2]);
             double recast = Double.parseDouble(args[3]);
             double charge = args.length >= 5 ? Double.parseDouble(args[4]) : 0.0;
-            var mechanics = new net.tkgon.mc.iruuRPG.combat.SkillSlots.Mechanics(charges, recast, charge);
+            double empty = args.length >= 6 ? Double.parseDouble(args[5]) : 0.0;
+            var mechanics = new net.tkgon.mc.iruuRPG.combat.SkillSlots.Mechanics(charges, recast, charge, empty);
             slots.trial(player.getUniqueId(), slot, mechanics);
             sender.sendMessage("[スキル] " + slot.label() + ": チャージ " + mechanics.charges() + "、再発動 "
                     + (mechanics.recasts() ? mechanics.recastSeconds() + " 秒" : "なし") + "、補充 "
-                    + (mechanics.chargeSeconds() > 0.0 ? mechanics.chargeSeconds() + " 秒" : "スキルのクールタイム") + " で試します (抜けるか /iruurpg skilltest off まで)。");
+                    + (mechanics.chargeSeconds() > 0.0 ? mechanics.chargeSeconds() + " 秒" : "スキルのクールタイム") + "、使い切ったら "
+                    + (mechanics.emptySeconds() > 0.0 ? mechanics.emptySeconds() + " 秒" : "スキルのクールタイム") + " で全部戻る、で試します (抜けるか /iruurpg skilltest off まで)。");
         } catch (NumberFormatException exception) {
             sender.sendMessage("[スキル] 数が読めません: " + exception.getMessage());
         }

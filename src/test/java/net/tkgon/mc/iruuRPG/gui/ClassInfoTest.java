@@ -32,10 +32,17 @@ class ClassInfoTest {
                     assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
                 }
                 // スキル1 - スキル6 (t138: the heavy attacks 強1 - 強5 are skills 1 - 5, and skill 6 is new); a deployed weapon has none since the
-                // redesign of 2026-11-02 (only the ULT and its own skill)
+                // redesign of 2026-11-02 (only the ULT and its own skill); skills of their own (the assassin's melee, t161) tell 小・中・大・util instead
+                boolean own = net.tkgon.mc.iruuRPG.combat.SlotMoves.reworked(id, kind.equals("melee") ? net.tkgon.mc.iruuRPG.combat.AttackType.MELEE
+                        : kind.equals("range") ? net.tkgon.mc.iruuRPG.combat.AttackType.RANGE : net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY);
                 for (int heavy = 1; heavy <= 6; heavy++) {
                     String label = "スキル" + heavy + ":";
-                    assertEquals(kind.equals("deploy") ? 0 : 1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
+                    assertEquals(kind.equals("deploy") || own ? 0 : 1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
+                }
+                if (own) {
+                    for (String label : List.of("小:", "中:", "大:", "util:")) {
+                        assertEquals(1, lines.stream().filter(line -> line.startsWith(label)).count(), id + " " + kind + " " + label);
+                    }
                 }
                 for (String line : lines) {
                     assertEquals(line.chars().filter(c -> c == '【').count(), line.chars().filter(c -> c == '】').count(), id + ": " + line);
