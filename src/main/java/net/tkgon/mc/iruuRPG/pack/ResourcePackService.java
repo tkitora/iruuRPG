@@ -99,8 +99,6 @@ public final class ResourcePackService implements Listener {
         BUILT_IN.put("models", "iruumodel.zip");
         BUILT_IN.put("items", "iruuitem.zip");
         BUILT_IN.put("marks", "iruumark.zip");
-        // the shaders of the screen effects, apart from the marks' fonts (a client that cannot compile them drops only this one)
-        BUILT_IN.put("fx", "iruufx.zip");
     }
 
     private List<Pack> packs() {
@@ -233,8 +231,7 @@ public final class ResourcePackService implements Listener {
         Player player = event.getPlayer();
         String line = "pack " + name + ": " + player.getName() + " " + status.name() + " (client " + player.getClientBrandName() + ")";
         if (status == PlayerResourcePackStatusEvent.Status.SUCCESSFULLY_LOADED) plugin.getLogger().info(line);
-        else plugin.getLogger().warning(line + (name.startsWith("fx ") && status == PlayerResourcePackStatusEvent.Status.FAILED_RELOAD
-                ? ": the shaders may not compile on that client (screen-effects.enabled: false takes them away)" : ""));
+        else plugin.getLogger().warning(line);
     }
 
     /** For /iruurpg pack: where each pack is and its hash. */

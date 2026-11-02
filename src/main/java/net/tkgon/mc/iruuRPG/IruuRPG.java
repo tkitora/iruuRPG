@@ -159,7 +159,6 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.combat.ParticleSettings particleSettings;
     private net.tkgon.mc.iruuRPG.bgm.BgmSettings bgmSettings;
     private net.tkgon.mc.iruuRPG.bgm.BgmModule bgmModule;
-    private net.tkgon.mc.iruuRPG.screenfx.ScreenEffects screenEffects;
     private net.tkgon.mc.iruuRPG.combat.SkillSlots skillSlots;
     private net.tkgon.mc.iruuRPG.combat.SniperMode sniperMode;
     private net.tkgon.mc.iruuRPG.hud.WorldLabels worldLabels;
@@ -456,7 +455,6 @@ public final class IruuRPG extends JavaPlugin {
         if (brushModule != null) brushModule.stop();
         if (proceduralModule != null) proceduralModule.stop();
         if (bgmModule != null) bgmModule.stop();
-        if (screenEffects != null) screenEffects.stop();
         if (resourcePackService != null) resourcePackService.stop();
         if (modelModule != null) modelModule.stop();
         if (attackService != null && attackService.guard() != null) {
@@ -598,10 +596,6 @@ public final class IruuRPG extends JavaPlugin {
 
         // the background music (Note Block Studio songs played in boxes of the world): it lives in bgm and nothing else knows about it
         this.bgmModule = net.tkgon.mc.iruuRPG.bgm.BgmModule.start(this, bgmSettings);
-
-        // the screen effects drawn by the client's shaders (a marker each player is shown; the shaders are in the marks' pack): they live in screenfx
-        this.screenEffects = net.tkgon.mc.iruuRPG.screenfx.ScreenEffects.start(this);
-        if (screenEffects != null && attackService != null) attackService.setCriticalHit(screenEffects::onCritical);
 
         PluginCommand storageCommand = getCommand("storage");
         if (storageCommand != null) {
