@@ -1629,6 +1629,8 @@ public final class DungeonService implements Listener {
             admin.sendMessage(Component.text("[ダンジョン] ワールドを作れませんでした。", NamedTextColor.RED));
             return;
         }
+        // a new dungeon starts with the game rules of the existing one (the settings are not made again by hand for each)
+        if (fresh) inheritGameRules(world, definition);
         world.setGameRule(GameRule.DO_MOB_SPAWNING, false);
         world.setGameRule(GameRule.DO_DAYLIGHT_CYCLE, false);
         world.setGameRule(GameRule.DO_WEATHER_CYCLE, false);
@@ -1642,6 +1644,35 @@ public final class DungeonService implements Listener {
         admin.teleport(definition.entry().in(world));
         refreshMarkers(definition.id());
         admin.sendMessage(Component.text("[ダンジョン] 「" + definition.name() + "」のひな形にいる。建てたら /dungeon entry・spawn、終わったら /dungeon save " + definition.id(), NamedTextColor.YELLOW));
+    }
+
+    /**
+     * Copies every game rule of the template world of the dungeon {@code dungeon.gamerule-source} (default "cave") into the new template world.
+     * The source is opened for the copy when it is not loaded, and closed again after it. Nothing is copied when there is no such dungeon world.
+     */
+    private void inheritGameRules(World target, DungeonDefinition definition) {
+        String sourceId = plugin.getConfig().getString("dungeon.gamerule-source", "cave");
+        if (sourceId == null || sourceId.isBlank() || sourceId.equalsIgnoreCase(definition.id())) return;
+        DungeonDefinition source = registry.find(sourceId.toLowerCase(Locale.ROOT)).orElse(null);
+        if (source == null || !new File(Bukkit.getWorldContainer(), source.templateWorldName()).isDirectory()) return;
+        World from = Bukkit.getWorld(source.templateWorldName());
+        boolean opened = from == null;
+        if (opened) from = new WorldCreator(source.templateWorldName()).generator(new VoidChunkGenerator()).createWorld();
+        if (from == null) return;
+        int copied = 0;
+        for (String name : from.getGameRules()) {
+            GameRule<?> rule = GameRule.getByName(name);
+            if (rule == null) continue;
+            copyRule(from, target, rule);
+            copied++;
+        }
+        if (opened && from.getPlayers().isEmpty()) Bukkit.unloadWorld(from, false);
+        plugin.getLogger().info("dungeon: " + copied + " game rules of '" + source.id() + "' copied to '" + target.getName() + "'");
+    }
+
+    private static <T> void copyRule(World from, World to, GameRule<T> rule) {
+        T value = from.getGameRuleValue(rule);
+        if (value != null) to.setGameRule(rule, value);
     }
 
     /** Saves the template world, sends the admin back, and unloads the world if nobody is left in it. */
