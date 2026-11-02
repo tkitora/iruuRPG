@@ -36,7 +36,9 @@ import java.util.Locale;
  *
  * <p>Re-activation and charges (t157, {@link SkillSlots.View}): while a skill's re-activation is open, its icon has a colored rim and its keys are
  * yellow (as after a Q); a skill of more than one charge shows the charges left at the icon's lower right (green when full, red when none) and,
- * while one refills, a thin gauge of that refill under the icon (apart from the cooldown's shade, which such a skill does not have).
+ * while one refills, a thin gauge of that refill under the icon. A skill that cannot be used now (no charge left and no re-activation open) is
+ * greyed and shaded with the seconds to its next charge in its middle, as a cooling skill always was (t158); one that can (a charge left, or its
+ * re-activation open) has no shade.
  */
 public final class PlayerHud {
 
@@ -230,11 +232,15 @@ public final class PlayerHud {
     }
 
     /**
-     * The icon of a skill (t157): its cooldown's shade (a skill of more than one charge has none: its charges and the refill's gauge show instead),
-     * the rim of an open re-activation, the charges left.
+     * The icon of a skill (t157): greyed and shaded with the seconds left only while it cannot be used (no charge left and no re-activation open,
+     * t158: as a cooling skill always was; {@link SkillSlots.View#cooldown} is the time to the next charge then), the rim of an open re-activation,
+     * the charges left and the refill's gauge.
      */
     static HudGlyphs.Icon icon(char glyph, SkillSlots.View view, char key, int keyColor) {
-        HudGlyphs.Icon plain = icon(glyph, view.charged() ? (view.cooldown() == null ? null : new long[]{0L, 0L}) : view.cooldown(), key, keyColor);
+        long[] cooldown = view.cooldown();
+        // (its re-activation can be done now: not greyed)
+        if (cooldown != null && view.recasting()) cooldown = new long[]{0L, 0L};
+        HudGlyphs.Icon plain = icon(glyph, cooldown, key, keyColor);
         return new HudGlyphs.Icon(plain.glyph(), plain.coolingShare(), plain.seconds(), plain.key(), plain.keyColor(), plain.locked(), false,
                 view.recasting(), view.charges(), view.maxCharges(), view.refill());
     }
