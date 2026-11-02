@@ -1,6 +1,8 @@
 package net.tkgon.mc.iruuRPG.combat;
 
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The classes' moves of their skills ({@link SkillSlots}; the redesign of 2026-11-02), made class by class (a class not here still does what it
@@ -36,9 +38,13 @@ public final class SlotMoves {
 
     /**
      * The classes whose skills with a kind of weapon are moves of their own, not their old heavy attacks: the assassin's melee (its favorite;
-     * t161, {@link AssassinSkills}) and the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon).
+     * t161, {@link AssassinSkills}), the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon), and the
+     * warrior's melee and ranged ones (t168, {@link WarriorSkills}).
      */
-    private static final Map<String, AttackType> REWORKED = Map.of("assassin", AttackType.MELEE, "mage", AttackType.MELEE);
+    private static final Map<String, Set<AttackType>> REWORKED = Map.of(
+            "assassin", EnumSet.of(AttackType.MELEE),
+            "mage", EnumSet.of(AttackType.MELEE),
+            "warrior", EnumSet.of(AttackType.MELEE, AttackType.RANGE));
 
     /** Registers the moves of every class made so far. */
     public static void register(SkillSlots slots, AttackService attackService) {
@@ -49,6 +55,12 @@ public final class SlotMoves {
                     // (its own moves with the favorite weapon, the template's heavy attacks with another; the charges and re-activation of the config)
                     slots.register(entry.getKey(), slot, AssassinSkills.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
                             kind -> AssassinSkills.mechanics(attackService.plugin().getConfig(), slot, kind));
+                    continue;
+                }
+                if (entry.getKey().equals("warrior")) {
+                    // (the blood knight's moves with a melee weapon, the swords' with a ranged one, the template's with a deployed one)
+                    slots.register(entry.getKey(), slot, WarriorSkills.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
+                            kind -> WarriorSkills.mechanics(attackService.plugin().getConfig(), slot, kind));
                     continue;
                 }
                 if (entry.getKey().equals("mage")) {
@@ -65,7 +77,8 @@ public final class SlotMoves {
 
     /** Whether a class's skills with a kind of weapon are moves of their own (no old skill numbers: their pictures and guide are their own). */
     public static boolean reworked(String classId, AttackType kind) {
-        return classId != null && kind != null && REWORKED.get(classId) == kind;
+        Set<AttackType> kinds = classId == null ? null : REWORKED.get(classId);
+        return kinds != null && kind != null && kinds.contains(kind);
     }
 
     /** The heavy attack {@code slot} throws with a kind of weapon: the class's own with its favorite, else the template's (skills 1 - 4). */

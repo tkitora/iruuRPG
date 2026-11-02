@@ -124,7 +124,67 @@ public enum Sfx {
             new Layer(Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.25f, 0.7f)),
     /** The great scythe of 大 goes round: the dragon's wing, a deep whoosh, a swoop and the wither's breath. */
     REAPER_GRAND(new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.6f, 0.6f), new Layer(Sound.ITEM_TRIDENT_THROW, 0.6f, 0.55f),
-            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.5f, 0.5f), new Layer(Sound.ENTITY_WITHER_SHOOT, 0.12f, 0.5f));
+            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.5f, 0.5f), new Layer(Sound.ENTITY_WITHER_SHOOT, 0.12f, 0.5f)),
+    // the warrior (t168): the blood knight's heavy blade and heartbeat, the floating greatswords and chains, the ward of the lantern
+    /** A heavy blade swung: a deep whoosh, a slow wing beat and netherite plates moving. */
+    BLOOD_SWING(new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 0.7f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.3f, 0.6f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_NETHERITE, 0.3f, 0.8f)),
+    /** A blade into flesh: a heavy crit, a wet squelch and a ravager's bite. */
+    BLOOD_HIT(new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.5f, 0.7f), new Layer(Sound.BLOCK_HONEY_BLOCK_BREAK, 0.45f, 0.6f),
+            new Layer(Sound.ENTITY_RAVAGER_ATTACK, 0.3f, 1.1f)),
+    /** The crimson whirl: a riptide's whirl, a swoop and plates. */
+    BLOOD_WHIRL(new Layer(Sound.ITEM_TRIDENT_RIPTIDE_2, 0.5f, 0.75f), new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.4f, 0.7f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_NETHERITE, 0.35f, 0.7f)),
+    /** A slam: the anvil, the ground breaking, a wet thud and the ravager. */
+    BLOOD_SLAM(new Layer(Sound.BLOCK_ANVIL_PLACE, 0.4f, 0.6f), new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.3f, 1.2f),
+            new Layer(Sound.BLOCK_SLIME_BLOCK_FALL, 0.5f, 0.6f), new Layer(Sound.ENTITY_RAVAGER_ATTACK, 0.4f, 0.8f)),
+    /** Life drunk back from a wound: the witch drinking and the sculk's bloom, faint. */
+    BLOOD_DRINK(new Layer(Sound.ENTITY_WITCH_DRINK, 0.4f, 0.8f), new Layer(Sound.BLOCK_SCULK_CATALYST_BLOOM, 0.3f, 1.4f)),
+    /** The oath sworn: the ravager's roar, an anchor charging low and a heartbeat. */
+    BLOOD_OATH(new Layer(Sound.ENTITY_RAVAGER_ROAR, 0.6f, 0.8f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 0.5f),
+            new Layer(Sound.ENTITY_WARDEN_HEARTBEAT, 0.9f, 1.0f)),
+    /** The oath's heart beating. */
+    BLOOD_HEARTBEAT(new Layer(Sound.ENTITY_WARDEN_HEARTBEAT, 0.8f, 1.1f)),
+    /** The oath's blood bursting out: a sonic boom, an explosion, the ravager and a wet crash. */
+    BLOOD_BURST(new Layer(Sound.ENTITY_WARDEN_SONIC_BOOM, 0.3f, 1.4f), new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 0.8f),
+            new Layer(Sound.ENTITY_RAVAGER_ROAR, 0.4f, 1.2f), new Layer(Sound.BLOCK_SLIME_BLOCK_BREAK, 0.6f, 0.5f)),
+    /** The blade raised to parry: steel ringing. */
+    BLOOD_GUARD(new Layer(Sound.ITEM_ARMOR_EQUIP_IRON, 0.6f, 1.2f), new Layer(Sound.ITEM_TRIDENT_RETURN, 0.4f, 1.5f)),
+    /** A blow parried: a shield's clang, the anvil high and a trident's strike. */
+    BLOOD_PARRY(new Layer(Sound.ITEM_SHIELD_BLOCK, 0.8f, 1.3f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.3f, 1.9f),
+            new Layer(Sound.ITEM_TRIDENT_HIT, 0.5f, 1.5f)),
+    /** The swords called: a beacon, netherite and a crystal's hum. */
+    SWORD_SUMMON(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.35f, 1.6f), new Layer(Sound.ITEM_ARMOR_EQUIP_NETHERITE, 0.4f, 1.2f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.3f, 0.9f)),
+    /** A sword sent flying: a trident thrown and a riptide's rush. */
+    SWORD_FLY(new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 1.1f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.6f)),
+    /** A sword stabbed into the ground: a trident landing, the anvil and stone. */
+    SWORD_IMPACT(new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.7f, 0.8f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.25f, 1.3f),
+            new Layer(Sound.BLOCK_STONE_BREAK, 0.4f, 0.8f)),
+    /** A great sword landing: an explosion, the anvil low, a trident deep in the ground and the iron golem. */
+    SWORD_GRAND(new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 0.7f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.5f, 0.5f),
+            new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.8f, 0.5f), new Layer(Sound.ENTITY_IRON_GOLEM_DAMAGE, 0.4f, 0.6f)),
+    /** A chain flung: chains placed, mail and a whoosh. */
+    CHAIN_THROW(new Layer(Sound.BLOCK_CHAIN_PLACE, 0.7f, 1.0f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.6f, 0.8f),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.3f, 1.4f)),
+    /** A chain pulled tight: chains breaking low, an iron door and chains placed. */
+    CHAIN_BIND(new Layer(Sound.BLOCK_CHAIN_BREAK, 0.6f, 0.6f), new Layer(Sound.BLOCK_IRON_DOOR_CLOSE, 0.4f, 0.7f),
+            new Layer(Sound.BLOCK_CHAIN_PLACE, 0.5f, 0.5f)),
+    /** A chain let go: chains breaking, high. */
+    CHAIN_BREAK(new Layer(Sound.BLOCK_CHAIN_BREAK, 0.6f, 1.3f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.4f, 1.5f)),
+    /** The ward's iron wedge struck in: the anvil, the iron golem's blow and deepslate. */
+    WARD_WEDGE(new Layer(Sound.BLOCK_ANVIL_LAND, 0.45f, 0.8f), new Layer(Sound.ENTITY_IRON_GOLEM_ATTACK, 0.5f, 0.8f),
+            new Layer(Sound.BLOCK_DEEPSLATE_BREAK, 0.5f, 0.7f)),
+    /** The fence of chains set: chains placed and an iron trapdoor. */
+    WARD_FENCE(new Layer(Sound.BLOCK_CHAIN_PLACE, 0.7f, 0.8f), new Layer(Sound.BLOCK_IRON_TRAPDOOR_CLOSE, 0.5f, 0.7f)),
+    /** The cage shut: an iron door, a beacon and chains. */
+    WARD_CAGE(new Layer(Sound.BLOCK_IRON_DOOR_CLOSE, 0.6f, 0.6f), new Layer(Sound.BLOCK_BEACON_ACTIVATE, 0.3f, 1.4f),
+            new Layer(Sound.BLOCK_CHAIN_PLACE, 0.5f, 0.6f)),
+    /** The bell of judgment. */
+    WARD_BELL(new Layer(Sound.BLOCK_BELL_USE, 1.0f, 0.7f), new Layer(Sound.BLOCK_BELL_RESONATE, 0.8f, 1.0f),
+            new Layer(Sound.BLOCK_ANVIL_LAND, 0.2f, 0.5f)),
+    /** An isolated enemy struck: a small bell and a trident's hit. */
+    WARD_ISOLATED(new Layer(Sound.BLOCK_BELL_USE, 0.3f, 1.8f), new Layer(Sound.ITEM_TRIDENT_HIT, 0.4f, 0.9f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {

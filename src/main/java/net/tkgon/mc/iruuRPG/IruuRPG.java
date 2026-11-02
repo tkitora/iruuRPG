@@ -766,6 +766,8 @@ public final class IruuRPG extends JavaPlugin {
             }
         });
         net.tkgon.mc.iruuRPG.combat.AssassinSkills.setPlugin(this);
+        // (the warrior's oath turns the mobs near on them: t168)
+        net.tkgon.mc.iruuRPG.combat.WarriorSkills.setProvoker(mobService::provoke);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);

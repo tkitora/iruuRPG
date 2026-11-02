@@ -127,12 +127,13 @@ public final class PlayerHud {
     private static final AttackType[] TYPES = {AttackType.MELEE, AttackType.RANGE, AttackType.DEPLOY};
 
     public Component build(Player player, PlayerProfile profile) {
-        if (!gaugesShown(player)) return build(profile);
+        if (!gaugesShown(player)) return plainBar(player, profile);
 
         Component bar = Component.text("HP ", NamedTextColor.RED)
                 .append(Component.text(format(profile.currentHp()), NamedTextColor.RED))
                 .append(Component.text("/", NamedTextColor.GRAY))
                 .append(Component.text(format(profile.maxHp()), NamedTextColor.RED))
+                .append(wound(player))
                 .append(Component.text("  MP ", NamedTextColor.AQUA))
                 .append(Component.text(format(profile.currentMp()), NamedTextColor.AQUA))
                 .append(Component.text("/", NamedTextColor.GRAY))
@@ -303,7 +304,19 @@ public final class PlayerHud {
         return TextColor.color(0xe6e6e6);
     }
 
+    /** The warrior's wound that their melee hits can still drink back (t168), as "+N" in dark red after the HP; nothing when none. */
+    private Component wound(Player player) {
+        double wound = player == null ? 0.0 : net.tkgon.mc.iruuRPG.combat.WarriorSkills.woundShown(player);
+        if (wound < 0.5) return Component.empty();
+        return Component.text(" +" + format(Math.round(wound)), NamedTextColor.DARK_RED);
+    }
+
     public Component build(PlayerProfile profile) {
+        return plainBar(null, profile);
+    }
+
+    /** The bar without the gauges: HP (and the warrior's wound), MP, DEF, Lv and XP. */
+    private Component plainBar(Player player, PlayerProfile profile) {
         long requiredXp = levelService.requiredXpForNextLevel(profile.level());
         String xpText = requiredXp <= 0L
                 ? "MAX"
@@ -313,6 +326,7 @@ public final class PlayerHud {
                 .append(Component.text(format(profile.currentHp()), NamedTextColor.RED))
                 .append(Component.text("/", NamedTextColor.GRAY))
                 .append(Component.text(format(profile.maxHp()), NamedTextColor.RED))
+                .append(wound(player))
                 .append(Component.text("  MP ", NamedTextColor.AQUA))
                 .append(Component.text(format(profile.currentMp()), NamedTextColor.AQUA))
                 .append(Component.text("/", NamedTextColor.GRAY))

@@ -265,6 +265,7 @@ public final class AttackService {
     public void shutdownCombos() {
         if (deployHold != null) deployHold.shutdown();
         AssassinClones.shutdown();
+        WarriorSwords.shutdown();
         if (comboZones != null) comboZones.shutdown();
     }
 
@@ -283,6 +284,7 @@ public final class AttackService {
         swapDashReady.remove(id);
         MageMeleeCombo.forget(id);
         MageReaper.forget(id);
+        WarriorSkills.forget(id);
         RangerBuffs.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);
@@ -664,6 +666,11 @@ public final class AttackService {
 
     public void setGuard(Guard guard) {
         this.guard = guard;
+    }
+
+    /** The status effects (the warrior's bleeding cuts, t168). */
+    StatusEffectService statusEffects() {
+        return statusEffectService;
     }
 
     public Guard guard() {
@@ -1600,9 +1607,14 @@ public final class AttackService {
     }
 
     public void applyPlayerDamage(Player player, PlayerProfile profile, double damage) {
+        boolean warrior = "warrior".equals(classIdOf(player));
+        // the warrior's parry (util of the blood knight, t168) turns the blow aside, and they strike back
+        if (warrior && damage > 0.0 && WarriorSkills.parried(player)) return;
         // an invulnerable moment, a guard and the warrior's shields cut the damage (shields break)
         if (guard != null) damage = guard.absorb(player, damage);
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);
+        // (a share of what the warrior takes stays as a wound their melee hits drink back: t168)
+        if (warrior) WarriorSkills.taken(player, profile.maxHp(), finalDamage);
         // during the item swap skill a blow of 40% of the assassin's life or more is taken by the clones of the skill (all destroyed) and nullified
         if (assassinFrenzy(player) > 0 && AssassinClones.sacrifice(player, finalDamage, profile.maxHp(), plugin.getConfig().getDouble("combat.combo.assassin_melee.swap-guard-share", 0.4))) return;
         profile.setCurrentHp(profile.currentHp() - finalDamage);
