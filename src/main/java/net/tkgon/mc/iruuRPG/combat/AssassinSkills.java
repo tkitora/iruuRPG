@@ -57,6 +57,20 @@ public final class AssassinSkills {
         /** The player is seen again (the invisibility of 大 ended early). */
         default void reveal(Player player) {
         }
+
+        /** {@code mob} cannot see {@code player} for {@code millis} (the veil of the assassin's lantern, t168). */
+        default void blind(org.bukkit.entity.LivingEntity mob, Player player, long millis) {
+        }
+    }
+
+    /** The mobs lose {@code player} for {@code millis} and go to {@code lure} (null: they only lose them). */
+    static void hide(Player player, Location lure, long millis) {
+        hider.hide(player, lure, millis);
+    }
+
+    /** {@code mob} cannot see {@code player} for {@code millis}. */
+    static void blind(org.bukkit.entity.LivingEntity mob, Player player, long millis) {
+        hider.blind(mob, player, millis);
     }
 
     private static Hider hider = (player, lure, millis) -> {
@@ -87,6 +101,8 @@ public final class AssassinSkills {
             @Override
             public boolean use(Player player, RpgItemDefinition weapon) {
                 if (weapon == null) return false;
+                // (the shadow bow's own skills since t168)
+                if (AssassinShade.own(attack, player, weapon)) return AssassinShade.use(attack, player, weapon, slot);
                 if (!reworked(attack, player, weapon)) return attack.slotHeavy(player, weapon, heavyOf.applyAsInt(weapon.attackType()));
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;
@@ -107,6 +123,7 @@ public final class AssassinSkills {
 
             @Override
             public boolean recast(Player player, RpgItemDefinition weapon) {
+                if (slot == SkillSlots.Slot.MEDIUM && AssassinShade.own(attack, player, weapon)) return AssassinShade.recast(attack, player, weapon);
                 if (slot != SkillSlots.Slot.MEDIUM || weapon == null || !reworked(attack, player, weapon)) return false;
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;
@@ -120,6 +137,7 @@ public final class AssassinSkills {
 
     /** The charges and re-activation of the assassin's skills: 小 has charges and 中 a re-activation with a melee weapon; the others none. */
     static SkillSlots.Mechanics mechanics(ConfigurationSection config, SkillSlots.Slot slot, AttackType kind) {
+        if (kind == AttackType.RANGE) return AssassinShade.mechanics(config, slot);
         if (kind != AttackType.MELEE) return SkillSlots.Mechanics.NONE;
         String base = "combat.combo." + PLAN + ".";
         return switch (slot) {
@@ -521,5 +539,7 @@ public final class AssassinSkills {
         SMALL_CHAIN.remove(player);
         ULT_DASH_READY.remove(player);
         AMBUSH.remove(player);
+        AssassinShade.forget(player);
+        AssassinDeployCombo.forget(player);
     }
 }

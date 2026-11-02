@@ -240,7 +240,25 @@ public enum Sfx {
             new Layer(Sound.ENTITY_ALLAY_ITEM_GIVEN, 0.4f, 1.2f)),
     /** The spirit bow's overdrive: a beacon's power, the allay and a fast crossbow. */
     SPIRIT_OVERDRIVE(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.6f, 1.6f), new Layer(Sound.ENTITY_ALLAY_AMBIENT_WITH_ITEM, 0.6f, 1.5f),
-            new Layer(Sound.ITEM_CROSSBOW_QUICK_CHARGE_3, 0.6f, 1.2f));
+            new Layer(Sound.ITEM_CROSSBOW_QUICK_CHARGE_3, 0.6f, 1.2f)),
+    // the assassin's shadow bow and veil (t168): arrows that whisper through walls, the night closing in
+    /** A shadow arrow loosed: a soft twang, the illusioner's breath and a whoosh. */
+    SHADE_LOOSE(new Layer(Sound.ENTITY_ARROW_SHOOT, 0.5f, 1.4f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.35f, 1.6f),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.25f, 1.9f)),
+    /** A shadow arrow striking: a dull stab and the squid's ink. */
+    SHADE_HIT(new Layer(Sound.ITEM_TRIDENT_HIT, 0.45f, 1.3f), new Layer(Sound.ENTITY_SQUID_SQUIRT, 0.4f, 1.2f)),
+    /** The long draw of the assassination: a crossbow loading slowly and the illusioner preparing. */
+    SHADE_DRAW(new Layer(Sound.ITEM_CROSSBOW_LOADING_MIDDLE, 0.7f, 0.6f), new Layer(Sound.ENTITY_ILLUSIONER_PREPARE_BLINDNESS, 0.6f, 1.0f)),
+    /** The assassination loosed (and an enemy finished): the warden's boom, low, and the wither's breath. */
+    SHADE_EXECUTE(new Layer(Sound.ENTITY_WARDEN_SONIC_BOOM, 0.25f, 1.8f), new Layer(Sound.ENTITY_ARROW_SHOOT, 0.8f, 0.6f),
+            new Layer(Sound.ENTITY_WITHER_SHOOT, 0.15f, 1.6f)),
+    /** The veil swelling: the illusioner's blindness and smoke. */
+    VEIL_SWELL(new Layer(Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.6f, 0.8f), new Layer(Sound.BLOCK_FIRE_EXTINGUISH, 0.4f, 0.6f)),
+    /** The thorns of the veil: sweet berry bushes and a vine's creak. */
+    VEIL_THORNS(new Layer(Sound.BLOCK_SWEET_BERRY_BUSH_PLACE, 0.8f, 0.7f), new Layer(Sound.BLOCK_GRASS_BREAK, 0.5f, 0.6f)),
+    /** Nightfall: the warden's dig, the illusioner's mirror and a low wind. */
+    VEIL_NIGHTFALL(new Layer(Sound.ENTITY_WARDEN_DIG, 0.5f, 1.2f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.7f, 0.7f),
+            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.4f, 0.6f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {

@@ -453,6 +453,27 @@ public final class StatusEffectService {
         return slow == null ? 0.0 : slow.value();
     }
 
+    /**
+     * How many kinds of affliction {@code target} carries now (bleed, slow, corrosion, decay, confusion, stun, explosion): the assassin's shot of
+     * 大 hits harder for each (t168).
+     */
+    public int afflictions(LivingEntity target) {
+        if (target == null) return 0;
+        long now = System.currentTimeMillis();
+        pruneExpired(target, now);
+        int count = 0;
+        BleedEffect bleed = bleedEffects.get(target.getUniqueId());
+        if (bleed != null && bleed.total() > EPSILON) count++;
+        if (active(target, StatusEffectType.SLOW) != null) count++;
+        if (timedTotal(corrosionEffects.get(target.getUniqueId()), now) > EPSILON) count++;
+        if (timedTotal(decayEffects.get(target.getUniqueId()), now) > EPSILON) count++;
+        if (active(target, StatusEffectType.CONFUSION) != null) count++;
+        if (active(target, StatusEffectType.STUN) != null) count++;
+        ExplosionEffect explosion = explosionEffects.get(target.getUniqueId());
+        if (explosion != null && !explosion.expired(now) && explosion.stacks() > 0) count++;
+        return count;
+    }
+
     public double confusionOf(LivingEntity target) {
         ActiveEffect confusion = active(target, StatusEffectType.CONFUSION);
         return confusion == null ? 0.0 : confusion.value();

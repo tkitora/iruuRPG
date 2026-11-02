@@ -38,13 +38,13 @@ public final class SlotMoves {
 
     /**
      * The classes whose skills with a kind of weapon are moves of their own, not their old heavy attacks: the assassin's melee (its favorite;
-     * t161, {@link AssassinSkills}), the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon) and its ranged
+     * t161, {@link AssassinSkills}) and its shadow bow (t168, {@link AssassinShade}), the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon) and its ranged
      * skills (t168, {@link MageArcana}), and the
      * warrior's, the cleric's and the ranger's melee and ranged ones (t168, {@link WarriorSkills}, {@link ClericSkills}, {@link RangerSkills}; the
      * ranger's bow keeps three of its skills, only 小 is new).
      */
     private static final Map<String, Set<AttackType>> REWORKED = Map.of(
-            "assassin", EnumSet.of(AttackType.MELEE),
+            "assassin", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
             "mage", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
             "warrior", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
             "healer", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
