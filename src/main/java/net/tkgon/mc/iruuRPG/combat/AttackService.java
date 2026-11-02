@@ -239,22 +239,6 @@ public final class AttackService {
                 && plugin.getConfig().getBoolean("combat.combo.enabled", true) && comboAllowed(attacker, weapon);
     }
 
-    /**
-     * Heavy attack {@code index} (0 - 5) of a mage with a ranged weapon (強1 re-activates what the last one left); {@code free}: thrown as a class's
-     * skill, without its own cooldown. False when it was not thrown (cooling down).
-     */
-    private boolean mageHeavy(Player attacker, RpgItemDefinition weapon, int index, boolean free) {
-        MeleeCombo.Step step = meleeCombo.heavyByInput(attacker, MeleeCombo.MAGE, index, free || index == 0 && mageMoves.chainActive(attacker));
-        if (step == null) {
-            coolingClick(attacker);
-            return false;
-        }
-        beginAttack(attacker);
-        if (!free) showHeavyCooldown(attacker, weapon, MeleeCombo.MAGE, step);
-        mageMoves.heavy(attacker, weapon, step);
-        return true;
-    }
-
     // ---- the combos of a class with a kind of weapon (the generic ones: see ClassCombo) ------------------------------------------
 
     private final Map<String, ClassCombo> classCombos = new HashMap<>();
@@ -288,7 +272,6 @@ public final class AttackService {
         if (guard != null) guard.forget(id);
         if (mageMoves != null) mageMoves.forget(id);
         swapDashReady.remove(id);
-        MageMeleeCombo.forget(id);
         MageReaper.forget(id);
         WarriorSkills.forget(id);
         ClericSkills.forget(id);
@@ -544,10 +527,8 @@ public final class AttackService {
             sendLevelRequirement(attacker, weapon);
             return;
         }
-        if (mageRanged(attacker, weapon)) {
-            mageHeavy(attacker, weapon, index, false);
-            return;
-        }
+        // (the mage's ranged weapon has no heavy attacks since t168: its skills are its own, MageArcana)
+        if (mageRanged(attacker, weapon)) return;
         if (hasClassCombo(attacker, weapon)) {
             if (weapon.attackType() == AttackType.DEPLOY) deployHeavy(attacker, weapon, index);
             else comboHeavy(attacker, weapon, index, false);
@@ -568,14 +549,8 @@ public final class AttackService {
             sendLevelRequirement(attacker, weapon);
             return false;
         }
-        if (mageRanged(attacker, weapon)) {
-            if (index == 0 && !mageMoves.chainActive(attacker)) {
-                // (nothing to re-activate: the skill does not cool down)
-                coolingClick(attacker);
-                return false;
-            }
-            return mageHeavy(attacker, weapon, index, true);
-        }
+        // (the mage's ranged weapon has no heavy attacks since t168)
+        if (mageRanged(attacker, weapon)) return false;
         if (hasClassCombo(attacker, weapon)) {
             if (weapon.attackType() == AttackType.DEPLOY) return deployHeavy(attacker, weapon, index);
             return comboHeavy(attacker, weapon, index, true);

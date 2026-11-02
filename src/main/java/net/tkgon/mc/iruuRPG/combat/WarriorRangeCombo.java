@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * aim (160% round it) and stays planted for 3 s, its chains binding the enemies near it to it ({@code finisher-bind-seconds} 3: they can move
  * only {@code finisher-bind-radius} 2 blocks from it). A bound enemy takes {@code bound-bonus} (30%) more from the swords.
  *
- * <p>The skills are the warrior's own ({@link WarriorSkills}); the heavy attacks below are what they were before t168.
+ * <p>The skills are the warrior's own ({@link WarriorSkills}); the combo has no heavy attacks since t168.
  */
 public final class WarriorRangeCombo extends BaseCombo {
 
@@ -127,83 +127,7 @@ public final class WarriorRangeCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
-        double rate = step.damageMultiplier();
-        Location feet = kit.player.getLocation();
-        Location target = ComboParts.target(kit);
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                // a war cry: what is near is pushed away and hurt for 2.5 seconds
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sound.ENTITY_RAVAGER_ROAR, 0.9f, 1.2f);
-                ComboParts.sigil(kit, "warrior_cry", at, 4.0, rate, 50, 10, here -> {
-                    for (LivingEntity victim : kit.around(here, 4.0)) kit.push(victim, here.toVector(), 0.35, 0.1);
-                });
-            }
-            case 1 -> {
-                Location start = ComboParts.hand(kit);
-                Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
-                kit.sound(start, Sfx.WIND, 1.0f, 0.6f);
-                kit.slash("drop", 3.0, 120.0, 20.0, 0.0, 1.8, 0.3, 0.0, 1.5, 0.16, 0.0);
-                ComboParts.pierce(kit, start, direction, 12.0, 1.2, rate);
-            }
-            case 2 -> ComboParts.rain(kit, target, 3.4, 8, rate, 1.6, Sound.ITEM_TRIDENT_HIT);
-            case 3 -> {
-                // a chain: the target is hooked and dragged to the warrior, then cut
-                LivingEntity hooked = kit.aimed();
-                if (hooked == null) {
-                    kit.sound(feet, Sound.BLOCK_DISPENSER_FAIL, 0.5f, 1.4f);
-                    return;
-                }
-                Location from = ComboParts.hand(kit);
-                Location to = hooked.getLocation().add(0.0, hooked.getHeight() * 0.5, 0.0);
-                kit.sound(from, Sound.BLOCK_CHAIN_PLACE, 1.0f, 1.0f);
-                kit.line(from, to, 0.5, 1.0, 1.3);
-                kit.pull(hooked, feet.clone().add(kit.facing().multiply(1.5)), 1.1);
-                kit.later(4, () -> {
-                    kit.slash("arc", 2.4, 140.0, 40.0, 0.0, 1.8, 0.3, 0.0, 1.2, 0.12, 0.0);
-                    kit.hit(hooked, rate);
-                });
-            }
-            case 4 -> {
-                Location start = ComboParts.hand(kit);
-                Vector direction = kit.aim().toVector().subtract(start.toVector()).normalize();
-                kit.sound(start, Sound.ITEM_CROSSBOW_SHOOT, 1.0f, 0.5f);
-                kit.bolt(start, direction, 1.6, 16.0, 0.0, end -> {
-                    kit.burst(end, 4.0);
-                    kit.shockwave(end, 1.0, 4.2, 5, 1.2);
-                    kit.sound(end, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.8f);
-                    for (LivingEntity victim : kit.around(end, 4.2)) {
-                        if (kit.hit(victim, rate)) kit.push(victim, end.toVector(), 0.7, 0.3);
-                    }
-                });
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: the class's skills are its own (WarriorSkills).
     }
 
-    /** Skill 6 (t138): a great axe thrown spinning to the aim (12 blocks at most) and back to the hand, cutting what it passes, both ways. */
-    private void sixth(MoveKit kit, double rate) {
-        Location start = ComboParts.hand(kit);
-        Vector direction = kit.aim().toVector().subtract(start.toVector());
-        double length = Math.min(12.0, Math.max(4.0, direction.length()));
-        if (direction.lengthSquared() < 1.0E-6) return;
-        direction.normalize();
-        Location far = start.clone().add(direction.clone().multiply(length));
-        kit.sound(start, Sfx.WIND_BURST, 1.0f, 0.6f);
-        kit.slash("arc", 2.6, 160.0, 80.0, 0.0, 1.6, 0.3, 0.0, 1.3, 0.14, 0.0);
-        kit.line(start, far, 0.2, 1.0, 1.6);
-        kit.hitAll(kit.corridor(start, direction, length, 1.3), rate);
-        kit.later(8L, () -> {
-            Location home = ComboParts.hand(kit);
-            Vector back = home.toVector().subtract(far.toVector());
-            double distance = back.length();
-            if (distance < 0.5) return;
-            back.normalize();
-            kit.sound(far, Sfx.WIND, 0.9f, 0.8f);
-            kit.line(far, home, 0.2, 1.0, 1.6);
-            kit.hitAll(kit.corridor(far, back, distance, 1.3), rate);
-        });
-    }
 }

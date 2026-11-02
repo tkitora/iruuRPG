@@ -18,7 +18,7 @@ import org.bukkit.util.Vector;
  * jumping between three enemies (35% x3), 5 the critical burst over the whole circle (90%; at full criticality {@code full-burst} 50% more and a
  * second wave).
  *
- * <p>The heavy attacks below are what they were before t168 (a deployed weapon has no skills).
+ * <p>The combo has no heavy attacks since t168 (a deployed weapon has no skills).
  */
 public final class MageDeployCombo extends BaseCombo {
 
@@ -28,32 +28,6 @@ public final class MageDeployCombo extends BaseCombo {
         super("mage", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.4, 0.8, 0.25, 0.35, 0.9}, new int[]{2, 1, 3, 3, 1},
                 new double[]{0.25, 0.4, 1.3, 0.35, 0.12, 0.15}, new int[]{140, 0, 0, 0, 0, 0}, 40));
-    }
-
-    /** An arcane spire standing at {@code at}: it hangs a ball of light over a crystal and shoots the nearest enemy within 10 blocks every 8 ticks, as long as the placement lasts. */
-    private void spire(MoveKit kit, String key, Location at, double rate) {
-        kit.sound(at, Sfx.MAGIC, 0.8f, 1.6f);
-        kit.zone(key, at, kit.linger(50), 2, zone -> {
-            double bob = Math.sin(zone.age() * 0.25) * 0.2;
-            Location orb = at.clone().add(0.0, 1.9 + bob, 0.0);
-            for (double y = 0.0; y <= 1.5; y += 0.3) kit.fx(at).dust(at.getX(), at.getY() + y, at.getZ(), kit.palette(), 0.3 + 0.5 * y / 1.5, 1.1);
-            kit.fx(orb).sphereShell(orb, 0.3, zone.age() * 0.4, 14, kit.palette(), 1.1);
-            if (zone.age() % 8 != 4) return;
-            LivingEntity best = null;
-            double distance = 100.0;
-            for (LivingEntity candidate : kit.around(at, 10.0)) {
-                double d = candidate.getLocation().distanceSquared(at);
-                if (d < distance) {
-                    distance = d;
-                    best = candidate;
-                }
-            }
-            if (best == null) return;
-            Location to = best.getLocation().add(0.0, best.getHeight() * 0.5, 0.0);
-            kit.line(orb, to, 0.2, 1.0, 1.1);
-            kit.hit(best, rate);
-            kit.sound(orb, Sfx.MAGIC, 0.4f, 1.8f);
-        }, zone -> kit.shockwave(at, 0.5, 1.6, 2, 0.8));
     }
 
     @Override
@@ -196,65 +170,7 @@ public final class MageDeployCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.mixed(kit.weapon.element(), 0.7));
-        double rate = step.damageMultiplier();
-        Location feet = kit.origin();
-        Location target = ComboParts.target(kit);
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sound.BLOCK_BEACON_ACTIVATE, 0.9f, 1.6f);
-                ComboParts.sigil(kit, "mage_summon", at, 3.5, rate, 50, 10, null);
-            }
-            case 1 -> {
-                // three circles, one after another, toward the aim
-                Vector toward = target.toVector().subtract(feet.toVector()).setY(0.0);
-                Vector facing = toward.lengthSquared() < 1.0 ? kit.facing() : toward.normalize();
-                for (int index = 0; index < 3; index++) {
-                    Location at = kit.ground(feet.clone().add(facing.clone().multiply(3.0 + 2.6 * index)));
-                    kit.later(index * 8L, () -> {
-                        for (int tick = 0; tick < 5; tick++) {
-                            double r = 2.0 - 1.0 * tick / 4.0;
-                            kit.later(tick, () -> kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), r, 36, kit.palette(), 0.4, 0.3, 1.0));
-                        }
-                        kit.later(5, () -> {
-                            kit.burst(at.clone().add(0.0, 0.3, 0.0), 2.2);
-                            kit.sound(at, Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.8f, 1.0f);
-                            kit.hitAll(kit.around(at, 2.2), rate);
-                        });
-                    });
-                }
-            }
-            case 2 -> ComboParts.pullBurst(kit, target.clone().add(0.0, 1.5, 0.0), 4.5, rate, 40.0);
-            case 3 -> ComboParts.homingVolley(kit, 4, rate, 14.0, end -> kit.burst(end, 1.2));
-            case 4 -> {
-                // a black hole: it pulls for a second and hurts, and bursts
-                Location at = target.clone().add(0.0, 1.5, 0.0);
-                kit.sound(at, Sfx.MAGIC_DARK, 1.0f, 0.6f);
-                kit.every(21, age -> {
-                    kit.fx(at).sphereShell(at, 0.7 + 0.2 * Math.sin(age * 0.6), age * 0.5, 32, kit.palette(), 1.2);
-                    for (LivingEntity victim : kit.around(at, 6.0)) kit.pull(victim, at, 0.2);
-                    if (age % 4 == 0 && age >= 4 && age < 20) kit.hitAll(kit.around(at, 3.0), rate);
-                    if (age == 20) {
-                        kit.burst(at, 4.5);
-                        kit.shockwave(target, 1.0, 4.5, 5, 1.2);
-                        kit.sound(at, Sound.ENTITY_GENERIC_EXPLODE, 1.0f, 0.8f);
-                        kit.hitAll(kit.around(at, 4.5), 0.9);
-                    }
-                    return false;
-                });
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: a deployed weapon has no skills.
     }
 
-    /** Skill 6 (t138): a gate of stars opens over the aim and twelve stars fall round it (3 blocks) one after the other. */
-    private void sixth(MoveKit kit, double rate) {
-        Location target = ComboParts.target(kit);
-        Location gate = target.clone().add(0.0, 5.0, 0.0);
-        kit.fx(gate).flatRing(gate, 2.0, 30, kit.palette(), 0.9, 0.1, 1.2);
-        kit.sound(target, Sfx.MAGIC, 0.9f, 1.2f);
-        ComboParts.rain(kit, target, 3.0, 12, rate, 1.4, org.bukkit.Sound.ENTITY_FIREWORK_ROCKET_BLAST);
-    }
 }

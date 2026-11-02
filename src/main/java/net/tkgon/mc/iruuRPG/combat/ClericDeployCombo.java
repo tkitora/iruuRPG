@@ -20,7 +20,7 @@ import org.bukkit.util.Vector;
  * less for 5 s; the enemies in it are pushed out a little, 30%), 4 a rain of mending light (the players in it are healed {@code rain-heal} 3%;
  * 25% on the enemies), 5 judgment: a pillar of light on each enemy in it (up to 5; 80% each), and the serenity grows by two.
  *
- * <p>The heavy attacks below are what they were before t168 (a deployed weapon has no skills).
+ * <p>The combo has no heavy attacks since t168 (a deployed weapon has no skills).
  */
 public final class ClericDeployCombo extends BaseCombo {
 
@@ -30,32 +30,6 @@ public final class ClericDeployCombo extends BaseCombo {
         super("healer", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.5, 0.3, 0.3, 0.25, 0.8}, new int[]{2, 1, 1, 1, 1},
                 new double[]{0.15, 0.2, 1.0, 0.07, 0.2, 0.15}, new int[]{160, 0, 0, 0, 0, 0}, 40));
-    }
-
-    /**
-     * The lantern of the normal attacks: one at a time (the key is the same, so the next attack replaces it), standing at {@code at} for as long as the placement does. Every
-     * {@code every} ticks it sends {@code rings} shockwaves of light out to {@code radius}, three ticks apart; each hurts everything in the radius for {@code rate / rings} and,
-     * if the cleric stands in it, heals {@code healPercent / rings} of the maximum health.
-     */
-    private void lantern(MoveKit kit, Location at, double radius, double rate, int every, double healPercent, int rings) {
-        ComboParts.appear(kit, at);
-        kit.later(2L, () -> {
-            kit.sound(at, Sound.BLOCK_BELL_USE, 0.8f, 1.5f);
-            kit.zone("cleric_lantern", at, kit.linger(50), 2, zone -> {
-                boolean pulse = zone.age() % every == 0;
-                ComboParts.standLantern(kit, at, 1.1, pulse ? 1.0 : 0.0);
-                if (zone.age() % 6 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.12, 0.0), radius, (int) Math.max(24, radius * 8), kit.palette(), 0.25, 0.1, 0.8);
-                if (!pulse) return;
-                for (int ring = 0; ring < rings; ring++) {
-                    kit.later(ring * 3L, () -> {
-                        kit.shockwave(at, radius * 0.25, radius, 4, 1.0);
-                        kit.sound(at, Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.5f, 1.4f);
-                        kit.hitAll(kit.around(at, radius), rate / rings);
-                        if (kit.player.getLocation().distanceSquared(at) <= (radius + 1.0) * (radius + 1.0)) kit.healCapped(healPercent / rings);
-                    });
-                }
-            }, zone -> kit.shockwave(at, radius * 0.5, radius, 3, 0.8));
-        });
     }
 
     /** The serenity of each cleric (the seconds they stood in their sanctum, at most {@code serenity-max}). */
@@ -215,50 +189,7 @@ public final class ClericDeployCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.GOLD, 0.45));
-        double rate = step.damageMultiplier();
-        Location feet = kit.origin();
-        Location target = ComboParts.target(kit);
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sound.BLOCK_BEACON_ACTIVATE, 0.9f, 1.4f);
-                ComboParts.sigil(kit, "cleric_deploy_sanctuary", at, 3.5, rate, 50, 10, ignored -> kit.healCapped(1.0));
-            }
-            case 1 -> {
-                // four lanterns set down one after the other running ahead
-                Vector facing = kit.originFacing();
-                kit.sound(feet, Sfx.WIND, 0.9f, 0.8f);
-                for (int index = 1; index <= 4; index++) {
-                    Location at = kit.ground(feet.clone().add(facing.clone().multiply(2.0 * index)));
-                    String key = "cleric_trail_" + index;
-                    kit.later(index * 2L, () -> ComboParts.placeAt(kit, key, at, 44, 14, 2.0, rate, 0.0, 0.3, null));
-                }
-            }
-            case 2 -> ComboParts.swellBurst(kit, target.clone().add(0.0, 1.5, 0.0), 4.5, rate, 1.0, 40);
-            case 3 -> {
-                // four lanterns round the aim that shoot light at the nearest enemy
-                for (int index = 0; index < 4; index++) {
-                    double angle = Math.PI * 0.5 * index + Math.PI * 0.25;
-                    Location spot = kit.ground(target.clone().add(Math.cos(angle) * 2.0, 0.0, Math.sin(angle) * 2.0));
-                    String key = "cleric_guard_" + index;
-                    kit.later(index, () -> ComboParts.turretAt(kit, key, spot, 50, 10, 7.0, rate, null));
-                }
-            }
-            case 4 -> {
-                kit.sound(target, Sound.BLOCK_BEACON_POWER_SELECT, 1.0f, 1.2f);
-                ComboParts.sigil(kit, "cleric_deploy_great", target, 6.0, rate, 50, 10, ignored -> {
-                    if (kit.player.getLocation().distanceSquared(target) <= 36.0) kit.healCapped(1.2);
-                });
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: a deployed weapon has no skills.
     }
 
-    /** Skill 6 (t138): a lighthouse of prayer at the aim for 3 s: every 10 ticks it hurts the enemies round it and heals the allies by it 2%. */
-    private void sixth(MoveKit kit, double rate) {
-        Location target = ComboParts.target(kit);
-        ComboParts.place(kit, "healer_lighthouse", target, 60, 10, 3.6, rate, 0.0, 2.0, here -> kit.pillar(here, 0.5, 3.0));
-    }
 }

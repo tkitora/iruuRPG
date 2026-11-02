@@ -16,7 +16,7 @@ import java.util.List;
  * 20% for 1 s), 4 four arrows falling on the aim from above, through any roof (25% x4, confusion 5 each), 5 a great shadow arrow through everything
  * in the way (150%: confusion 15, bleed 20% and slowed 30%).
  *
- * <p>The skills are the shadow bow's own ({@link AssassinShade}); the heavy attacks below (the floating blades) are what they were before t168.
+ * <p>The skills are the shadow bow's own ({@link AssassinShade}); the combo has no heavy attacks since t168 (the floating blades are gone).
  */
 public final class AssassinRangeCombo extends BaseCombo {
 
@@ -26,26 +26,6 @@ public final class AssassinRangeCombo extends BaseCombo {
         super("assassin", AttackType.RANGE, new ComboSpec(PLAN,
                 new double[]{0.7, 0.45, 0.35, 0.25, 1.5}, new int[]{1, 2, 3, 4, 1},
                 new double[]{0.06, 0.24, 1.3, 0.35, 0.2, 0.2}, new int[]{120, 0, 0, 0, 0, 0}, 40));
-    }
-
-    /** A sword that sweeps across the front of the mage, from one side to the other (3 ticks), cutting what is in the cone at the middle. */
-    private void sweep(MoveKit kit, boolean leftToRight, double rate) {
-        Location feet = kit.player.getLocation();
-        Vector facing = kit.facing();
-        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
-        kit.sound(feet, Sfx.WIND, 0.6f, leftToRight ? 1.5f : 1.8f);
-        kit.slash("arc", 2.4, 130.0, 35.0, leftToRight ? 180.0 : 0.0, 1.9, 0.4, 0.0, 1.0, 0.09, 0.0);
-        for (int step = 0; step < 4; step++) {
-            double angle = Math.toRadians((leftToRight ? -1.0 : 1.0) * (60.0 - 40.0 * step));
-            int which = step;
-            kit.later(step, () -> {
-                Location at = kit.player.getLocation().add(0.0, 1.2, 0.0)
-                        .add(facing.clone().multiply(Math.cos(angle) * 1.9)).add(right.clone().multiply(Math.sin(angle) * 1.9));
-                Vector point = facing.clone().multiply(Math.cos(angle)).add(right.clone().multiply(Math.sin(angle)));
-                Blades.draw(kit, at, point, 1.1);
-                if (which == 2) kit.hitAll(kit.cone(3.4, 65.0), rate);
-            });
-        }
     }
 
     @Override
@@ -133,84 +113,7 @@ public final class AssassinRangeCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.35));
-        double rate = step.damageMultiplier();
-        Location feet = kit.player.getLocation();
-        Vector facing = kit.facing();
-        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
-        switch (step.heavyIndex()) {
-            case 0 -> Blades.orbit(kit, "assassin_blade_ring", 4, 50, 2.6, 3.8, 10, rate);
-            case 1 -> {
-                // a fan of five swords
-                Vector aimed = kit.axes()[0];
-                for (int index = 0; index < 5; index++) {
-                    double turn = Math.toRadians((index - 2) * 14.0);
-                    Vector heading = aimed.clone().multiply(Math.cos(turn)).add(kit.axes()[1].clone().multiply(Math.sin(turn))).normalize();
-                    Location start = kit.player.getLocation().add(0.0, 1.5, 0.0).add(heading.clone().multiply(0.8));
-                    kit.later(index / 2, () -> Blades.fly(kit, start, heading, 1.4, 8.0, rate, null));
-                }
-            }
-            case 2 -> {
-                // a great sword: it hangs before the mage for 0.4 s, growing bright, then runs through the line ahead
-                Vector aimed = kit.axes()[0];
-                Location base = kit.eye().add(aimed.clone().multiply(1.2)).subtract(0.0, 0.3, 0.0);
-                kit.sound(feet, Sfx.MAGIC, 1.0f, 0.8f);
-                for (int tick = 0; tick < 8; tick++) {
-                    int which = tick;
-                    kit.later(tick, () -> {
-                        Blades.draw(kit, base, aimed, 1.6 + 0.1 * which);
-                        kit.fx(base).ring(base.clone().add(aimed.clone().multiply(0.8)), kit.axes()[1], kit.axes()[2], 1.2 - 0.1 * which, 18, kit.palette(), 0.5, 0.2, 1.0);
-                    });
-                }
-                kit.later(8L, () -> {
-                    Location end = base.clone().add(aimed.clone().multiply(9.0));
-                    kit.line(base, end, 0.2, 1.0, 1.6);
-                    kit.line(base.clone().add(0.0, 0.08, 0.0), end.clone().add(0.0, 0.08, 0.0), 0.7, 1.0, 1.1);
-                    Blades.draw(kit, end.clone().subtract(aimed.clone().multiply(2.0)), aimed, 2.0);
-                    kit.sound(base, Sfx.WIND_BURST, 1.0f, 1.0f);
-                    kit.hitAll(kit.corridor(base, aimed, 9.0, 1.2), rate);
-                });
-            }
-            case 3 -> {
-                // four seeking swords
-                List<LivingEntity> targets = new ArrayList<>(kit.cone(10.0, 90.0));
-                targets.sort((a, b) -> Double.compare(a.getLocation().distanceSquared(feet), b.getLocation().distanceSquared(feet)));
-                for (int index = 0; index < 4; index++) {
-                    double side = (index - 1.5) * 0.7;
-                    Location start = kit.player.getLocation().add(0.0, 1.8, 0.0).add(right.clone().multiply(side));
-                    Vector heading = targets.isEmpty() ? facing.clone().add(right.clone().multiply(side * 0.3))
-                            : targets.get(index % targets.size()).getLocation().add(0.0, 1.0, 0.0).toVector().subtract(start.toVector());
-                    kit.later(index, () -> Blades.seek(kit, start, heading.clone().add(new Vector(0.0, 0.3, 0.0)), 1.3, 36, 12.0, rate, null));
-                }
-            }
-            case 4 -> {
-                // a storm of six swords round the aim for 1.2 s: everyone in it is cut every 4 ticks and drawn in
-                Location center = ComboParts.target(kit);
-                kit.sound(center, Sfx.MAGIC, 1.0f, 0.9f);
-                kit.zone("assassin_blade_storm", center, 24, 2, zone -> {
-                    Location mid = center.clone().add(0.0, 1.2, 0.0);
-                    for (int index = 0; index < 6; index++) {
-                        double angle = zone.age() * 0.5 + Math.PI * 2.0 * index / 6.0;
-                        double c = Trig.cos(angle);
-                        double s = Trig.sin(angle);
-                        Blades.draw(kit, mid.clone().add(c * 2.4, (index % 3) * 0.3 - 0.3, s * 2.4), new Vector(-s, 0.0, c), 1.0);
-                    }
-                    if (zone.age() % 4 == 0) {
-                        kit.sound(center, Sfx.WIND, 0.4f, 1.5f);
-                        for (LivingEntity victim : kit.around(center, 3.2)) {
-                            if (kit.hit(victim, rate)) kit.pull(victim, center, 0.15);
-                        }
-                    }
-                }, zone -> kit.shockwave(center, 1.0, 3.2, 3, 1.0));
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: the class's skills are its own (AssassinShade).
     }
 
-    /** Skill 6 (t138): a thousand needles: seven fast needles fanned out over 60 degrees at once. */
-    private void sixth(MoveKit kit, double rate) {
-        kit.sound(kit.eye(), Sfx.WIND, 0.9f, 1.6f);
-        ComboParts.fanBolts(kit, 7, 60.0, rate, 1.8, 14.0);
-    }
 }
