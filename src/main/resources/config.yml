@@ -235,10 +235,10 @@ combat:
       rush-cross-rate: 0.45                       # 突進の先の十字斬りの倍率 (2回当たる)
       large-invisible-seconds: 4                  # 大: 透明になる秒数 (敵の狙いは、その間、置いた分身へ)
       large-delay-seconds: 1.5                    # 大: 斬り始めるまでの秒数
-      large-storm-seconds: 2                      # 大: 斬り続ける秒数 (その間、動けないが無敵)
-      large-storm-ticks: 3                        # 大: 斬る間隔 (tick)
+      large-storm-seconds: 2                      # 大: 斬り続ける秒数 (その間は無敵。t166 から動ける)
+      large-storm-ticks: 2                        # 大: 斬る間隔 (tick。t166 で 3 → 2)
       large-radius: 3                             # 大: 自分と分身の周りの、斬る範囲 (ブロック)
-      large-rate: 0.18                            # 大: 1回の倍率 (自分と分身のそれぞれが、周り3ブロックのランダムな点に、ランダムな角度の横線の斬撃を出す。線上の敵に当たる)
+      large-rate: 0.12                            # 大: 1回の倍率 (t166 で 0.18 → 0.12。自分と分身のそれぞれが、周り3ブロックの球の中のランダムな点に、ランダムな角度 (上下も) の斬撃を出す。線上の敵に当たる)
       large-line-half: 2.6                        # 大: その横線の半分の長さ (ブロック)
       large-ambush-multiplier: 1.5                # 大: 透明の間の、次の通常攻撃かスキル (util 以外) のダメージの倍率。使うと透明が解ける
       large-ambush-seconds: 1.5                   # 大: その倍率が続く秒数 (その攻撃・スキルの当たりの分)
@@ -331,6 +331,12 @@ combat:
       enabled: true
       damage-indicators: 5
       red-dust: 5
+    # 攻撃が当たったときの演出 (t166、全クラス・全攻撃): 刃は敵を横切る光の筋と火花、遠距離は火花の飛び散り、会心は大きく。
+    # size: 大きさ、per-tick: 1人が1tickに出す数の上限 (範囲攻撃で多数に当たっても重くならないように)
+    hit-vfx:
+      enabled: true
+      size: 1.0
+      per-tick: 6
     deploy-ring:
       enabled: true
       period-ticks: 2
@@ -598,6 +604,15 @@ vfx:
 attack-sounds:
   enabled: true
   volume: 1.0
+
+# 音の作り (t166): 音の役割ごとに、重ねるバニラの音を書き換えられる (書いた役割だけ。読み直しで反映)。
+#   1行 = "音の名前 音量 ピッチ" (音の名前は org.bukkit.Sound の名前。例: ITEM_TRIDENT_THROW)。
+#   主な役割: BLADE (近接の素振り) / BLADE_HEAVY (戦士の斬撃) / WIND (アサシンなどの技の斬撃) / HIT_CUT (近接の命中) / HIT_PIERCE (遠距離の命中) /
+#   HIT_CRIT (会心で足す音) / SHADOW_SLICE・SHADOW_CROSS・SHADOW_DASH・SHADOW_FLURRY (アサシンの近接スキル)。役割の一覧は Sfx.java。
+#   例:
+#   sound-design:
+#     BLADE: ["ITEM_TRIDENT_THROW 0.45 1.7", "ENTITY_PHANTOM_FLAP 0.25 2.0"]
+sound-design: {}
 
 # 敵の追尾。見えるプレイヤーだけに気づく (壁の向こうは気づかない)
 mob-ai:

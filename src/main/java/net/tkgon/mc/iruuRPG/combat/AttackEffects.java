@@ -666,7 +666,9 @@ public final class AttackEffects {
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
         String prefix = critical ? "✧" : "";
-        sounds.hit(attacker, target.getLocation().add(0.0, Math.max(0.5, target.getHeight() * 0.5), 0.0), element, critical);
+        Location middle = target.getLocation().add(0.0, Math.max(0.5, target.getHeight() * 0.5), 0.0);
+        sounds.hit(attacker, middle, element, critical, ranged(weapon));
+        playHitVfx(attacker, middle, target.getHeight(), weapon, critical);
         spawnFloatingText(target.getLocation(), target.getHeight(), Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
     }
 
@@ -676,8 +678,62 @@ public final class AttackEffects {
 
         Element element = weapon != null ? weapon.element() : Element.WHITE;
         String prefix = critical ? "✧" : "";
-        sounds.hit(attacker, targetLocation.clone().add(0.0, Math.max(0.5, targetHeight * 0.5), 0.0), element, critical);
+        Location middle = targetLocation.clone().add(0.0, Math.max(0.5, targetHeight * 0.5), 0.0);
+        sounds.hit(attacker, middle, element, critical, ranged(weapon));
+        playHitVfx(attacker, middle, targetHeight, weapon, critical);
         spawnFloatingText(targetLocation, targetHeight, Component.text(criticalPrefix(critical) + formatFloating(damage), textColor(element)));
+    }
+
+    private static boolean ranged(RpgItemDefinition weapon) {
+        return weapon != null && weapon.attackType() == net.tkgon.mc.iruuRPG.combat.AttackType.RANGE;
+    }
+
+    /** {tick, how many hit effects} of each attacker this tick: an attack that hits many at once draws a few, not all (t166). */
+    private final java.util.Map<java.util.UUID, int[]> hitVfxCount = new java.util.HashMap<>();
+
+    /**
+     * The effect of a hit landing (t166, every class, every attack): a blade's cut is a bright streak across the enemy (at a slant across the
+     * attacker's view) with sparks; a shot's is a burst of sparks out from where it went in; a critical hit is bigger with a second streak and
+     * a flash. In the weapon's element over steel. {@code combat.effects.hit-vfx}: {@code enabled}, {@code size}, {@code per-tick} (the most a
+     * player draws in one tick).
+     */
+    public void playHitVfx(Player attacker, Location middle, double height, RpgItemDefinition weapon, boolean critical) {
+        if (attacker == null || middle == null || middle.getWorld() == null) return;
+        if (!plugin.getConfig().getBoolean("combat.effects.hit-vfx.enabled", true)) return;
+        int tick = org.bukkit.Bukkit.getCurrentTick();
+        int[] count = hitVfxCount.computeIfAbsent(attacker.getUniqueId(), id -> new int[]{tick, 0});
+        if (count[0] != tick) {
+            count[0] = tick;
+            count[1] = 0;
+        }
+        if (++count[1] > Math.max(1, plugin.getConfig().getInt("combat.effects.hit-vfx.per-tick", 6))) return;
+        net.tkgon.mc.iruuRPG.vfx.Fx fx = net.tkgon.mc.iruuRPG.vfx.Fx.of(attacker, middle.getWorld(), middle);
+        if (!fx.active()) return;
+        double size = Math.max(0.3, plugin.getConfig().getDouble("combat.effects.hit-vfx.size", 1.0)) * Math.max(0.7, Math.min(1.6, height / 1.8));
+        Element element = weapon != null ? weapon.element() : Element.WHITE;
+        net.tkgon.mc.iruuRPG.vfx.Gradient look = net.tkgon.mc.iruuRPG.vfx.Palettes.of(element).mix(net.tkgon.mc.iruuRPG.vfx.Palettes.STEEL, 0.45);
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        if (ranged(weapon)) {
+            // a shot: sparks out from where it went in, a small ring round it
+            fx.particle(Particle.CRIT, middle.getX(), middle.getY(), middle.getZ(), critical ? 14 : 8, 0.15, 0.15, 0.15, 0.35);
+            fx.sphereShell(middle, 0.25 * size, random.nextDouble() * Math.PI, critical ? 18 : 12, look, 0.8 * size);
+        } else {
+            // a blade: a streak across the enemy at a slant across the attacker's view, sparks along it
+            org.bukkit.util.Vector view = attacker.getLocation().getDirection().setY(0.0);
+            if (view.lengthSquared() < 1.0E-6) view = new org.bukkit.util.Vector(0.0, 0.0, 1.0);
+            view.normalize();
+            org.bukkit.util.Vector side = new org.bukkit.util.Vector(-view.getZ(), 0.0, view.getX());
+            for (int cut = 0; cut < (critical ? 2 : 1); cut++) {
+                double slant = random.nextDouble(-1.1, 1.1) + (cut == 1 ? Math.PI / 2.0 : 0.0);
+                org.bukkit.util.Vector across = side.clone().multiply(Math.cos(slant)).add(new org.bukkit.util.Vector(0.0, Math.sin(slant), 0.0)).multiply(0.75 * size);
+                fx.line(middle.clone().subtract(across), middle.clone().add(across), look, 0.25, 1.0, 1.5, 0.75 * size, 0.08, Particle.CRIT, 3);
+            }
+            fx.particle(Particle.CRIT, middle.getX(), middle.getY(), middle.getZ(), critical ? 10 : 5, 0.12, 0.12, 0.12, 0.3);
+        }
+        if (critical) {
+            fx.particle(Particle.CRIT_MAGIC, middle.getX(), middle.getY(), middle.getZ(), 10, 0.25, 0.25, 0.25, 0.4);
+            fx.dust(middle.getX(), middle.getY(), middle.getZ(), look, 1.0, 2.2 * size);
+        }
     }
 
     /** The number of an extra hit that comes with an attack (the assassin's orange damage, the healer's pulse, ...). */

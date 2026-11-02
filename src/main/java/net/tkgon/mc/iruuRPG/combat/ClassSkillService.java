@@ -540,7 +540,7 @@ public final class ClassSkillService {
                 Clones.strike(plugin, player, Clones.Look.swap(true), () -> victim.isValid() && !victim.isDead() ? victim.getLocation() : null, angle, slashes, 2, blow -> {
                     if (!victim.isValid() || victim.isDead()) return;
                     echoDamage(player, victim, part);
-                    world.playSound(victim.getLocation(), Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.5f, 0.8f + 0.08f * blow);
+                    Sfx.SHADOW_SLICE.play(victim.getLocation(), 0.6f, 0.95f + 0.05f * blow);
                 }, null);
             }, start);
             // after the run: one wide, thin slash broadside to the assassin
@@ -579,7 +579,7 @@ public final class ClassSkillService {
         fx.line(from.clone().subtract(0.0, 0.08, 0.0), to.clone().subtract(0.0, 0.08, 0.0), Clones.RED_BLACK, 0.4, 0.8, 0.0, 1.0, 0.12, null, 1);
         fx.dust(chest.getX(), chest.getY(), chest.getZ(), Clones.RED_BLACK, 1.0, 2.4);
         SkillFx.burst(owner, chest, 1.8, Clones.RED_BLACK);
-        chest.getWorld().playSound(chest, Sound.ENTITY_PLAYER_ATTACK_SWEEP, 1.0f, 0.6f);
+        Sfx.SHADOW_CROSS.play(chest, 1.0f, 0.75f);
         chest.getWorld().playSound(chest, Sound.ENTITY_WITHER_BREAK_BLOCK, 0.3f, 1.8f);
     }
 
