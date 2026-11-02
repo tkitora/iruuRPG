@@ -131,6 +131,15 @@ class SkillInputTest {
         assertEquals("Q→Q", SkillInput.keys(SkillSlots.Slot.LARGE));
         assertEquals("F", SkillInput.keys(SkillSlots.Slot.UTIL));
         assertEquals("Shift+F", SkillInput.keys(SkillSlots.Slot.ULT));
+        // Q and F swapped (t162): F waits for the second key, Q is util and shift + Q the ULT
+        assertEquals("F→左", SkillInput.keys(SkillSlots.Slot.SMALL, true));
+        assertEquals("F→右", SkillInput.keys(SkillSlots.Slot.MEDIUM, true));
+        assertEquals("F→F", SkillInput.keys(SkillSlots.Slot.LARGE, true));
+        assertEquals("Q", SkillInput.keys(SkillSlots.Slot.UTIL, true));
+        assertEquals("Shift+Q", SkillInput.keys(SkillSlots.Slot.ULT, true));
+        assertEquals("Shift+Q", SkillInput.removeKeys(false));
+        assertEquals("Shift+F", SkillInput.removeKeys(true));
+        assertFalse(SkillInput.swapped(java.util.UUID.randomUUID()));
         assertEquals("右クリック", SkillInput.itemSkillKeys(true));
         assertEquals("左クリック", SkillInput.itemSkillKeys(false));
     }

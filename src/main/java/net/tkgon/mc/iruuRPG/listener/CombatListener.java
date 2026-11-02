@@ -278,6 +278,20 @@ public final class CombatListener implements Listener {
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
         if (weapon == null || !weapon.isWeaponLike()) return;
         event.setCancelled(true);
+        // (Q and F swapped, t162: F is the key of 小・中・大; nothing leaves the hand, so it is done now)
+        if (SkillInput.swapped(player)) {
+            if (player.isSneaking() && attackService.removePlacement(player, weapon)) {
+                SkillInput.forgetQ(player);
+                return;
+            }
+            if (weapon.attackType() == AttackType.DEPLOY) {
+                SkillInput.forgetQ(player);
+                return;
+            }
+            SkillSlots.Slot slot = SkillInput.pressQ(player);
+            if (slot != null) skillSlots.use(player, slot, weapon);
+            return;
+        }
         SkillSlots.Slot slot = SkillInput.pressF(player);
         if (weapon.attackType() == AttackType.DEPLOY && slot != SkillSlots.Slot.ULT) return;
         skillSlots.use(player, slot, weapon);
@@ -407,13 +421,19 @@ public final class CombatListener implements Listener {
         boolean sneaking = player.isSneaking();
         // the key is read now (its tick), what it does runs when the item is back in the hand
         boolean deployed = weapon.attackType() == AttackType.DEPLOY;
-        if (deployed) SkillInput.forgetQ(player);
-        SkillSlots.Slot slot = deployed ? null : SkillInput.pressQ(player);
+        // (Q and F swapped, t162: Q is util, shift + Q the ULT)
+        boolean swapped = SkillInput.swapped(player);
+        if (deployed && !swapped) SkillInput.forgetQ(player);
+        SkillSlots.Slot slot = swapped ? SkillInput.pressF(player) : deployed ? null : SkillInput.pressQ(player);
         // (the item is back in the hand after the event)
         org.bukkit.Bukkit.getScheduler().runTask(attackService.plugin(), () -> {
             if (!player.isOnline() || player.isDead()) return;
             RpgItemDefinition held = attackService.weaponInMainHand(player);
             if (held == null || !held.id().equals(weapon.id())) return;
+            if (swapped) {
+                if (held.attackType() != AttackType.DEPLOY || slot == SkillSlots.Slot.ULT) skillSlots.use(player, slot, held);
+                return;
+            }
             if (sneaking && attackService.removePlacement(player, held)) {
                 SkillInput.forgetQ(player);
                 return;

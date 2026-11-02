@@ -19,6 +19,12 @@ class PlayerHudKeysTest {
         assertEquals(HudGlyphs.keyLabel("qq"), PlayerHud.keyGlyph(Slot.LARGE));
         assertEquals(HudGlyphs.keyLabel("f"), PlayerHud.keyGlyph(Slot.UTIL));
         assertEquals(HudGlyphs.keyLabel("sf"), PlayerHud.keyGlyph(Slot.ULT));
+        // Q and F swapped (t162)
+        assertEquals(HudGlyphs.keyLabel("fl"), PlayerHud.keyGlyph(Slot.SMALL, true));
+        assertEquals(HudGlyphs.keyLabel("fr"), PlayerHud.keyGlyph(Slot.MEDIUM, true));
+        assertEquals(HudGlyphs.keyLabel("ff"), PlayerHud.keyGlyph(Slot.LARGE, true));
+        assertEquals(HudGlyphs.keyLabel("q"), PlayerHud.keyGlyph(Slot.UTIL, true));
+        assertEquals(HudGlyphs.keyLabel("sq"), PlayerHud.keyGlyph(Slot.ULT, true));
         // the weapon's skill: its other button
         assertEquals(HudGlyphs.keyLabel("r"), PlayerHud.itemKeyGlyph(true));
         assertEquals(HudGlyphs.keyLabel("l"), PlayerHud.itemKeyGlyph(false));

@@ -97,6 +97,11 @@ public final class ClassInfo {
      * notes; 【】 are what the attack does to the enemy). Null when the class yml has no lines for it.
      */
     static ItemStack comboGuide(ClassDefinition definition, AttackType kind) {
+        return comboGuide(definition, kind, false);
+    }
+
+    /** The same, with the keys as the player has them ({@code swapped}: Q and F swapped, t162). */
+    static ItemStack comboGuide(ClassDefinition definition, AttackType kind, boolean swapped) {
         String key = kind.name().toLowerCase(java.util.Locale.ROOT);
         List<String> lines = definition.comboGuide().get(key);
         if (lines == null || lines.isEmpty()) return null;
@@ -114,7 +119,7 @@ public final class ClassInfo {
         };
         List<Component> lore = new ArrayList<>();
         lore.add(plain("得意な武器 (黄色の印) で出せるコンボ", NamedTextColor.GRAY));
-        for (String how : controls(kind, definition.id())) {
+        for (String how : controls(kind, definition.id(), swapped)) {
             lore.add(plain(how, NamedTextColor.DARK_AQUA));
         }
         lore.add(plain("【】は敵への効果", NamedTextColor.DARK_GRAY));
@@ -140,12 +145,17 @@ public final class ClassInfo {
      * deployed weapon has no 小・中・大・util: only the ULT (and shift + Q takes the placement away).
      */
     static List<String> controls(AttackType kind, String classId) {
+        return controls(kind, classId, false);
+    }
+
+    /** The same, with Q and F swapped or not (t162). */
+    static List<String> controls(AttackType kind, String classId, boolean swapped) {
         boolean melee = kind == AttackType.MELEE;
         List<String> lines = new java.util.ArrayList<>();
-        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot) + ": " + slot.label();
+        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot, swapped) + ": " + slot.label();
         if (kind != AttackType.MELEE && kind != AttackType.RANGE) {
             lines.add("右クリック: 1回目で設置、その後は弱");
-            lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) + " / Shift+Q: 設置を消す");
+            lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) + " / " + net.tkgon.mc.iruuRPG.combat.SkillInput.removeKeys(swapped) + ": 設置を消す");
             lines.add("(設置の武器には、小・中・大・util はない)");
             return lines;
         }

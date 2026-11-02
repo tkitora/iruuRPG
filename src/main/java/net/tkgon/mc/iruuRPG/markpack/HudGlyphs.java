@@ -56,10 +56,10 @@ public final class HudGlyphs {
     /** The names of the skills' pictures, 小・中・大・util and the ULT ({@code hud/<name>_<class>.png}). */
     private static final String[] SKILL_NAMES = {"small", "medium", "large", "util", "ultimate"};
     /**
-     * The labels of the keys (U+E240 on): Q → left, Q → right, Q → Q, F, shift + F, the left button, the right button. The letters: f, q, l (left),
-     * r (right), s (shift).
+     * The labels of the keys (U+E240 on): Q → left, Q → right, Q → Q, F, shift + F, the left button, the right button, and with Q and F swapped
+     * (t162) F → left, F → right, F → F, Q, shift + Q. The letters: f, q, l (left), r (right), s (shift).
      */
-    public static final List<String> KEY_LABELS = List.of("ql", "qr", "qq", "f", "sf", "l", "r");
+    public static final List<String> KEY_LABELS = List.of("ql", "qr", "qq", "f", "sf", "l", "r", "fl", "fr", "ff", "q", "sq");
     /** The room between the skills' icons and the weapon skill's (t140: half an icon). */
     public static final int HALF = 8;
     /** The side of an icon (pixels = font pixels). */
@@ -517,7 +517,8 @@ public final class HudGlyphs {
         BufferedImage image = new BufferedImage(ICON, 7, BufferedImage.TYPE_INT_ARGB);
         java.util.List<String> glyphs = new java.util.ArrayList<>();
         for (int at = 0; at < keys.length(); at++) {
-            if (at > 0 && keys.charAt(0) == 'q') glyphs.add(KEY_ARROW);
+            // (the arrow after the key that waits for a second one: Q, or F when Q and F are swapped, t162)
+            if (at > 0 && (keys.charAt(0) == 'q' || keys.charAt(0) == 'f')) glyphs.add(KEY_ARROW);
             glyphs.add(KEY_LETTERS[KEY_KEYS.indexOf(keys.charAt(at))]);
         }
         int width = glyphs.size() * 4 - 1;
