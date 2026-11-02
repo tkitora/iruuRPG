@@ -245,19 +245,17 @@ public final class CombatListener implements Listener {
      * the weapon's normal attack.
      */
     private boolean skillClick(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
-        // (a deployed weapon has no 小・中: a Q of another weapon does not wait for its click)
-        if (weapon.attackType() == AttackType.DEPLOY) SkillInput.forgetQ(attacker);
+        // (a deployed weapon has no 小・中: a first key of another weapon does not wait for its click)
+        if (weapon.attackType() == AttackType.DEPLOY) SkillInput.forgetFirst(attacker);
         SkillInput.Click click = SkillInput.click(attacker, AttackService.button(weapon, rightClick), rightClick);
         switch (click.kind()) {
             case SKILL -> {
+                // the other button alone is util (t164); a deployed weapon has none, nor has a player whose class has no util (the button stays as it was)
+                if (click.slot() == SkillSlots.Slot.UTIL && (weapon.attackType() == AttackType.DEPLOY || !skillSlots.hasMove(attacker, SkillSlots.Slot.UTIL))) {
+                    return attackService.hasHeavies(attacker, weapon);
+                }
                 skillSlots.use(attacker, click.slot(), weapon);
                 return true;
-            }
-            case ITEM_SKILL -> {
-                // (during SATUJIN the assassin's key of the weapon skill is a weak dash of 中's re-activation: t161)
-                if (net.tkgon.mc.iruuRPG.combat.AssassinSkills.frenzyDash(attackService, attacker, weapon)) return true;
-                // (a weapon with no skill still keeps the click from being something else, as its heavy attacks' button did)
-                return itemSkillService.useByKey(attacker, weapon) || attackService.hasHeavies(attacker, weapon);
             }
             case NOTHING -> {
                 return true;
@@ -269,8 +267,31 @@ public final class CombatListener implements Listener {
     }
 
     /**
-     * F with a weapon in hand: util, or the ULT with shift; nothing changes hands. A deployed weapon has no util (only the ULT and its own skill:
-     * the user's wish of 2026-11-02). The editors and the tutorial come first.
+     * The first key (F, or Q when the keys are swapped: t162 / t164) with {@code weapon} in hand: shift + it takes a deployed weapon's placement
+     * away; else it waits for its second key (a deployed weapon has no 小・中・大), or is 大 after another.
+     */
+    private void firstKey(Player player, RpgItemDefinition weapon, boolean sneaking, SkillSlots.Slot pressed) {
+        if (sneaking && attackService.removePlacement(player, weapon)) {
+            SkillInput.forgetFirst(player);
+            return;
+        }
+        if (pressed != null) skillSlots.use(player, pressed, weapon);
+    }
+
+    /** The second key (Q, or F when swapped): the weapon's skill, or the ULT with shift. */
+    private void secondKey(Player player, RpgItemDefinition weapon, SkillInput.Click click) {
+        if (click.kind() == SkillInput.Kind.SKILL) {
+            skillSlots.use(player, click.slot(), weapon);
+            return;
+        }
+        // (during SATUJIN the assassin's key of the weapon skill is a weak dash of 中's re-activation: t161)
+        if (net.tkgon.mc.iruuRPG.combat.AssassinSkills.frenzyDash(attackService, player, weapon)) return;
+        itemSkillService.useByKey(player, weapon);
+    }
+
+    /**
+     * F with a weapon in hand: the first key (or the second when the keys are swapped); nothing changes hands. The editors and the tutorial come
+     * first.
      */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onSwapKey(org.bukkit.event.player.PlayerSwapHandItemsEvent event) {
@@ -278,23 +299,13 @@ public final class CombatListener implements Listener {
         RpgItemDefinition weapon = attackService.weaponInMainHand(player);
         if (weapon == null || !weapon.isWeaponLike()) return;
         event.setCancelled(true);
-        // (Q and F swapped, t162: F is the key of 小・中・大; nothing leaves the hand, so it is done now)
         if (SkillInput.swapped(player)) {
-            if (player.isSneaking() && attackService.removePlacement(player, weapon)) {
-                SkillInput.forgetQ(player);
-                return;
-            }
-            if (weapon.attackType() == AttackType.DEPLOY) {
-                SkillInput.forgetQ(player);
-                return;
-            }
-            SkillSlots.Slot slot = SkillInput.pressQ(player);
-            if (slot != null) skillSlots.use(player, slot, weapon);
+            secondKey(player, weapon, SkillInput.pressSecond(player));
             return;
         }
-        SkillSlots.Slot slot = SkillInput.pressF(player);
-        if (weapon.attackType() == AttackType.DEPLOY && slot != SkillSlots.Slot.ULT) return;
-        skillSlots.use(player, slot, weapon);
+        boolean deployed = weapon.attackType() == AttackType.DEPLOY;
+        if (deployed) SkillInput.forgetFirst(player);
+        firstKey(player, weapon, player.isSneaking(), deployed ? null : SkillInput.pressFirst(player));
     }
 
     private void meleeClick(Player attacker, RpgItemDefinition weapon) {
@@ -402,10 +413,9 @@ public final class CombatListener implements Listener {
     }
 
     /**
-     * The Q key (and Ctrl + Q) of the hotbar never drops anything (items are given by trading): with a weapon in hand it is the first key of 小・中
-     * (Q and then a button) or either Q of 大 (Q → Q); a deployed weapon has none of them (as before the redesign of 2026-11-02, the user's wish):
-     * shift + Q with it takes its placement away. A drop from an inventory screen is left as it is; the editors and the menu item (which cancel the
-     * drop first) come before.
+     * The Q key (and Ctrl + Q) of the hotbar never drops anything (items are given by trading): with a weapon in hand it is the second key (the
+     * weapon's skill, shift + Q the ULT), or the first key when the keys are swapped (t162 / t164). A drop from an inventory screen is left as it
+     * is; the editors and the menu item (which cancel the drop first) come before.
      */
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onDropKey(PlayerDropItemEvent event) {
@@ -421,24 +431,17 @@ public final class CombatListener implements Listener {
         boolean sneaking = player.isSneaking();
         // the key is read now (its tick), what it does runs when the item is back in the hand
         boolean deployed = weapon.attackType() == AttackType.DEPLOY;
-        // (Q and F swapped, t162: Q is util, shift + Q the ULT)
         boolean swapped = SkillInput.swapped(player);
-        if (deployed && !swapped) SkillInput.forgetQ(player);
-        SkillSlots.Slot slot = swapped ? SkillInput.pressF(player) : deployed ? null : SkillInput.pressQ(player);
+        if (swapped && deployed) SkillInput.forgetFirst(player);
+        SkillInput.Click second = swapped ? null : SkillInput.pressSecond(player);
+        SkillSlots.Slot first = !swapped || deployed ? null : SkillInput.pressFirst(player);
         // (the item is back in the hand after the event)
         org.bukkit.Bukkit.getScheduler().runTask(attackService.plugin(), () -> {
             if (!player.isOnline() || player.isDead()) return;
             RpgItemDefinition held = attackService.weaponInMainHand(player);
             if (held == null || !held.id().equals(weapon.id())) return;
-            if (swapped) {
-                if (held.attackType() != AttackType.DEPLOY || slot == SkillSlots.Slot.ULT) skillSlots.use(player, slot, held);
-                return;
-            }
-            if (sneaking && attackService.removePlacement(player, held)) {
-                SkillInput.forgetQ(player);
-                return;
-            }
-            if (slot != null) skillSlots.use(player, slot, held);
+            if (swapped) firstKey(player, held, sneaking, first);
+            else secondKey(player, held, second);
         });
     }
 

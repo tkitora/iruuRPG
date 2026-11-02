@@ -271,9 +271,9 @@ public final class RpgItemFactory {
             lore.add(skillLine("発動不可", "スキルが見つかりません。"));
             return;
         }
-        // (the weapon's other button casts it: the right one of a melee weapon, the left one of a ranged one; see CombatListener#skillClick)
+        // (the second key casts it: Q by default, F for a player who swapped the keys, t164; an item's words are the same for everyone, so the default)
         String trigger = switch (definition.attackType()) {
-            case MELEE, RANGE -> net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(definition.attackType() == net.tkgon.mc.iruuRPG.combat.AttackType.MELEE);
+            case MELEE, RANGE -> net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(false) + " キー";
             default -> "";
         };
         if (trigger.isEmpty()) {

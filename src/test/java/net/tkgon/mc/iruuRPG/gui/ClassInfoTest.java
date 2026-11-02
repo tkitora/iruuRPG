@@ -53,20 +53,22 @@ class ClassInfoTest {
 
     @Test
     void theControlsAreTheKeysOfTheSkills() {
-        // the redesign of 2026-11-02: the buttons change sides with a ranged weapon
+        // the default of t164: F → left / right / F, util the other button (it changes sides with a ranged weapon), shift + Q the ULT, Q the weapon's skill
         List<String> melee = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "warrior");
         assertEquals("左クリック: 通常 (弱1→弱5)", melee.get(0));
-        assertEquals("Q→左: 小 / Q→右: 中 / Q→Q: 大", melee.get(1));
-        assertEquals("F: util / Shift+F: ULT", melee.get(2));
-        assertEquals("右クリック: アイテムスキル", melee.get(3));
+        assertEquals("F→左: 小 / F→右: 中 / F→F: 大", melee.get(1));
+        assertEquals("右クリック: util / Shift+Q: ULT", melee.get(2));
+        assertEquals("Q: アイテムスキル", melee.get(3));
         List<String> ranged = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.RANGE, "warrior");
-        assertEquals("Q→左: 小 / Q→右: 中 / Q→Q: 大", ranged.get(1));
-        assertEquals("左クリック: アイテムスキル", ranged.get(3));
-        assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior").stream().anyMatch(line -> line.contains("Shift+Q: 設置を消す")));
-        // Q and F swapped (t162): the keys of the guide follow
-        assertEquals("F→左: 小 / F→右: 中 / F→F: 大", ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "warrior", true).get(1));
-        assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior", true).stream()
+        assertEquals("F→左: 小 / F→右: 中 / F→F: 大", ranged.get(1));
+        assertEquals("左クリック: util / Shift+Q: ULT", ranged.get(2));
+        assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior").stream()
                 .anyMatch(line -> line.contains("Shift+Q: ULT") && line.contains("Shift+F: 設置を消す")));
+        // Q and F swapped (t162): the keys of the guide follow
+        assertEquals("Q→左: 小 / Q→右: 中 / Q→Q: 大", ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "warrior", true).get(1));
+        assertEquals("F: アイテムスキル", ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "warrior", true).get(3));
+        assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior", true).stream()
+                .anyMatch(line -> line.contains("Shift+F: ULT") && line.contains("Shift+Q: 設置を消す")));
         // which skills of the guide they throw: a class whose moves are not made yet, and the mage (its own with a ranged weapon, the template with another)
         List<String> notYet = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "nobody");
         assertEquals("小・中・大 は、いまは下のスキル1〜3", notYet.get(notYet.size() - 1));

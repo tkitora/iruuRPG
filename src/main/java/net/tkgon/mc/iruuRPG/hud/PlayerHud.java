@@ -89,7 +89,7 @@ public final class PlayerHud {
         if (mode.equals("always")) return true;
         long now = System.currentTimeMillis();
         // a Q waits for its second key (the labels show which keys go on from it), or the ULT can be re-activated (its icon blinks)
-        if (SkillInput.qWaiting(player) || ultRecastable(player)) {
+        if (SkillInput.waiting(player) || ultRecastable(player)) {
             lastActive.put(player.getUniqueId(), now);
             return true;
         }
@@ -167,32 +167,35 @@ public final class PlayerHud {
     static final int KEY_NOW = 0xFFE14D;
 
     /** The color of a label: white, or while a Q waits, yellow when the label goes on from it (小・中・大) and grey when not. */
-    private static int keyColor(Player player, boolean afterQ) {
-        if (!SkillInput.qWaiting(player)) return 0xFFFFFF;
-        return afterQ ? KEY_NOW : 0x707070;
+    private static int keyColor(Player player, boolean afterFirst) {
+        if (!SkillInput.waiting(player)) return 0xFFFFFF;
+        return afterFirst ? KEY_NOW : 0x707070;
     }
 
-    /** The glyph of the keys of a skill ({@link HudGlyphs#keyLabel}; the same with every weapon, t160). */
+    /** The glyph of the keys of a skill by default with a melee weapon ({@link HudGlyphs#keyLabel}). */
     static char keyGlyph(SkillSlots.Slot slot) {
-        return keyGlyph(slot, false);
+        return keyGlyph(slot, false, true);
     }
 
-    /** The glyph of the keys of a skill, with Q and F swapped or not (t162: F → left ... and Q, shift + Q). */
-    static char keyGlyph(SkillSlots.Slot slot, boolean swapped) {
-        String first = swapped ? "f" : "q";
-        String other = swapped ? "q" : "f";
+    /**
+     * The glyph of the keys of a skill (t164): the first key (F, or Q when swapped: t162) and a button for 小・中, twice for 大; util the weapon's
+     * other button (right with a melee weapon, left with another); the ULT shift and the second key.
+     */
+    static char keyGlyph(SkillSlots.Slot slot, boolean swapped, boolean melee) {
+        String first = swapped ? "q" : "f";
+        String second = swapped ? "f" : "q";
         return HudGlyphs.keyLabel(switch (slot) {
             case SMALL -> first + "l";
             case MEDIUM -> first + "r";
             case LARGE -> first + first;
-            case UTIL -> other;
-            case ULT -> "s" + other;
+            case UTIL -> melee ? "r" : "l";
+            case ULT -> "s" + second;
         });
     }
 
-    /** The glyph of the button of the weapon's skill: its other button, the right one with a melee weapon and the left one with another. */
-    static char itemKeyGlyph(boolean melee) {
-        return HudGlyphs.keyLabel(melee ? "r" : "l");
+    /** The glyph of the key of the weapon's skill: the second key alone (Q, or F when swapped). */
+    static char itemKeyGlyph(boolean swapped) {
+        return HudGlyphs.keyLabel(swapped ? "f" : "q");
     }
 
     /** How long the ULT's rim is on, and then off, while it can be re-activated. */
@@ -216,11 +219,11 @@ public final class PlayerHud {
         for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
             // (a deployed weapon has no 小・中・大・util: only the ULT and its own skill)
             if (weapon.attackType() == AttackType.DEPLOY && slot != SkillSlots.Slot.ULT) continue;
-            boolean afterQ = slot.ordinal() <= SkillSlots.Slot.LARGE.ordinal();
+            boolean afterFirst = slot.ordinal() <= SkillSlots.Slot.LARGE.ordinal();
             // (each kind of weapon has its own icons and cooldowns of 小・中・大・util)
             SkillSlots.View view = skillSlots.view(player, slot, weapon);
             HudGlyphs.Icon icon = icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), view,
-                    keyGlyph(slot, SkillInput.swapped(player)), view.recasting() ? KEY_NOW : keyColor(player, afterQ));
+                    keyGlyph(slot, SkillInput.swapped(player), melee), view.recasting() ? KEY_NOW : keyColor(player, afterFirst));
             // the ULT that can be re-activated now blinks: its bright rim is on and off every 5 ticks
             if (slot == SkillSlots.Slot.ULT && ultRecastable(player)) {
                 icon = new HudGlyphs.Icon(icon.glyph(), icon.coolingShare(), icon.seconds(), icon.key(), icon.keyColor(), icon.locked(),
@@ -230,10 +233,10 @@ public final class PlayerHud {
         }
         HudGlyphs.Icon item;
         if (itemSkills != null && itemSkills.hasKeySkill(weapon)) {
-            item = icon(HudGlyphs.itemSkill(), itemSkills.hudCooldown(player, weapon.attackType()), itemKeyGlyph(melee), keyColor(player, false));
+            item = icon(HudGlyphs.itemSkill(), itemSkills.hudCooldown(player, weapon.attackType()), itemKeyGlyph(SkillInput.swapped(player)), keyColor(player, false));
         } else {
             // (a weapon with no skill: the locked icon of its own, t140)
-            item = new HudGlyphs.Icon(HudGlyphs.itemSkillLocked(), 0.0, 0, itemKeyGlyph(melee), keyColor(player, false), false);
+            item = new HudGlyphs.Icon(HudGlyphs.itemSkillLocked(), 0.0, 0, itemKeyGlyph(SkillInput.swapped(player)), keyColor(player, false), false);
         }
         return HudGlyphs.row(icons, java.util.List.of(item));
     }
