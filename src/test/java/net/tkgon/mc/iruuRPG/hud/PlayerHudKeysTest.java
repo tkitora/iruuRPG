@@ -1,10 +1,12 @@
 package net.tkgon.mc.iruuRPG.hud;
 
+import net.tkgon.mc.iruuRPG.combat.SkillSlots;
 import net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot;
 import net.tkgon.mc.iruuRPG.markpack.HudGlyphs;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** The label over an icon is the keys as they are pressed with the weapon in hand (the redesign of 2026-11-02). */
 class PlayerHudKeysTest {
@@ -22,5 +24,30 @@ class PlayerHudKeysTest {
         // the weapon's skill: its other button
         assertEquals(HudGlyphs.keyLabel("r"), PlayerHud.itemKeyGlyph(true));
         assertEquals(HudGlyphs.keyLabel("l"), PlayerHud.itemKeyGlyph(false));
+    }
+
+    /** t158: a skill is greyed with the seconds in its middle only while it cannot be used (no charge, no open re-activation). */
+    @Test
+    void anIconIsGreyedOnlyWhileItsSkillCannotBeUsed() {
+        char glyph = HudGlyphs.icon("mage", 1);
+        // a charge left: no shade, its charges and the refill show
+        HudGlyphs.Icon some = PlayerHud.icon(glyph, new SkillSlots.View(new long[]{0L, 0L}, 1, 3, 0.5, false), (char) 0, 0xFFFFFF);
+        assertEquals(0.0, some.coolingShare());
+        assertEquals(1, some.charges());
+        // no charge and no re-activation: greyed, shaded, the seconds to the next charge in its middle
+        HudGlyphs.Icon none = PlayerHud.icon(glyph, new SkillSlots.View(new long[]{2500L, 5000L}, 0, 3, 0.5, false), (char) 0, 0xFFFFFF);
+        assertEquals(0.5, none.coolingShare());
+        assertEquals(3, none.seconds());
+        assertEquals(0, none.charges());
+        assertEquals(0.5, none.refill());
+        // no charge but its re-activation open: it can be used, no shade, the rim
+        HudGlyphs.Icon recast = PlayerHud.icon(glyph, new SkillSlots.View(new long[]{2500L, 5000L}, 0, 3, 0.5, true), (char) 0, 0xFFFFFF);
+        assertEquals(0.0, recast.coolingShare());
+        assertTrue(recast.recast());
+        // a skill of one charge: its cooldown as before, but not while its re-activation is open
+        assertEquals(0.4, PlayerHud.icon(glyph, new SkillSlots.View(new long[]{4000L, 10_000L}, 0, 1, 0.6, false), (char) 0, 0xFFFFFF).coolingShare(), 1e-9);
+        assertEquals(0.0, PlayerHud.icon(glyph, new SkillSlots.View(new long[]{4000L, 10_000L}, 0, 1, 0.6, true), (char) 0, 0xFFFFFF).coolingShare());
+        // nothing on it: locked
+        assertTrue(PlayerHud.icon(glyph, new SkillSlots.View(null, 1, 1, -1.0, false), (char) 0, 0xFFFFFF).locked());
     }
 }
