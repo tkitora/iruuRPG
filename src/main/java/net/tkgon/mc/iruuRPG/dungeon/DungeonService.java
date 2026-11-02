@@ -365,7 +365,7 @@ public final class DungeonService implements Listener {
         instance.players.add(player.getUniqueId());
         instance.lives.put(player.getUniqueId(), definition.lives());
         byPlayer.put(player.getUniqueId(), instance);
-        remember(player, player.getLocation());
+        remember(player, homeFor(definition, player.getLocation()));
         player.sendMessage(Component.text("[ダンジョン] 「" + definition.name() + "」を準備しています…", NamedTextColor.YELLOW));
         player.closeInventory();
         if (partyService != null) {
@@ -383,7 +383,7 @@ public final class DungeonService implements Listener {
                 instance.players.add(member.getUniqueId());
                 instance.lives.put(member.getUniqueId(), definition.lives());
                 byPlayer.put(member.getUniqueId(), instance);
-                remember(member, member.getLocation());
+                remember(member, homeFor(definition, member.getLocation()));
                 member.closeInventory();
                 member.sendMessage(Component.text("[ダンジョン] パーティーで「" + definition.name() + "」に入る。準備しています…", NamedTextColor.YELLOW));
             }
@@ -1488,7 +1488,7 @@ public final class DungeonService implements Listener {
         instance.players.add(player.getUniqueId());
         instance.lives.put(player.getUniqueId(), instance.definition.lives());
         byPlayer.put(player.getUniqueId(), instance);
-        remember(player, player.getLocation());
+        remember(player, homeFor(instance.definition, player.getLocation()));
         player.closeInventory();
         player.teleport(instance.definition.entry().in(instance.world));
         musicFor(instance, player);
@@ -1881,6 +1881,16 @@ public final class DungeonService implements Listener {
     }
 
     // ---- state file (where to send players back after a crash) ----------------------------------------------------------------
+
+    /**
+     * Where a player who enters {@code definition} is sent back to when they leave it (the clear, /dungeon leave, the lives gone, the run closed,
+     * the server restarted): the dungeon's exit when it has one ({@code /dungeon outside}, t173) and its world is loaded, else where they stood.
+     */
+    private Location homeFor(DungeonDefinition definition, Location stood) {
+        DungeonRegistry.Outside outside = registry.outside(definition.id());
+        Location exit = outside == null ? null : outside.location();
+        return exit != null ? exit : stood;
+    }
 
     private void remember(Player player, Location location) {
         returnTo.put(player.getUniqueId(), location.clone());

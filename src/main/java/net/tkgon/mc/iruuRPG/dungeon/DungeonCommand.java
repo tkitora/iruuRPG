@@ -16,12 +16,13 @@ import java.util.Locale;
 
 /**
  * /dungeon (menu), /dungeon enter &lt;id&gt;, /dungeon leave. Admins: build, entry, spawn, spawns, clearspawns, save,
- * new, reload (see dungeons/cave.yml for how a dungeon is made).
+ * new, reload (see dungeons/cave.yml for how a dungeon is made); outside &lt;id&gt; [clear] sets (or takes away) the exit out in the world, where and
+ * facing which way the players come out when they leave (t173).
  */
 public final class DungeonCommand implements CommandExecutor, TabCompleter {
 
     private static final List<String> PLAYER = List.of("enter", "leave", "invite", "join");
-    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "boss", "rewardroom", "chest", "addchest", "removechest", "gate", "removegate", "removegates", "save", "new", "reload");
+    private static final List<String> ADMIN = List.of("edit", "build", "entry", "spawn", "spawns", "removespawn", "clearspawns", "exit", "outside", "boss", "rewardroom", "chest", "addchest", "removechest", "gate", "removegate", "removegates", "save", "new", "reload");
 
     private final DungeonService service;
     private final DungeonMenu menu;
@@ -216,6 +217,23 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
                 service.refreshMarkers(id);
                 player.sendMessage("[ダンジョン] 今の位置を脱出口にした。(ボスを倒すと通れる)");
             }
+            case "outside" -> {
+                // (t173) the exit out in the world: where, and facing which way, the players come out when they leave this dungeon
+                if (args.length >= 3 && args[2].equalsIgnoreCase("clear")) {
+                    registry.setOutside(definition, null);
+                    player.sendMessage("[ダンジョン] 「" + definition.name() + "」の出口を消した。(出ると、入る前にいた場所へ戻る)");
+                    return true;
+                }
+                if (player.getWorld().getName().equals(definition.templateWorldName()) || service.isInstanceWorld(player.getWorld())) {
+                    player.sendMessage("[ダンジョン] 出口は、ダンジョンの外 (ふつうのワールド) で設定してください。");
+                    return true;
+                }
+                org.bukkit.Location at = player.getLocation();
+                registry.setOutside(definition, at);
+                player.sendMessage(String.format(Locale.ROOT, "[ダンジョン] 今の位置と向きを「%s」の出口にした。(%s %.1f, %.1f, %.1f / 向き %.0f°)"
+                                + " ダンジョンから出ると、ここにこの向きで出る。(消すときは /dungeon outside %s clear)",
+                        definition.name(), at.getWorld().getName(), at.getX(), at.getY(), at.getZ(), at.getYaw(), id));
+            }
             case "rewardroom" -> {
                 if (!player.getWorld().getName().equals(definition.templateWorldName())) {
                     player.sendMessage("[ダンジョン] ひな形のワールド (" + definition.templateWorldName() + ") の中で使ってください。");
@@ -334,6 +352,8 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
             case "spawns" -> {
                 player.sendMessage("[ダンジョン] ボス: " + (definition.boss() == null ? "なし (全滅でクリア)" : definition.boss())
                         + " / 脱出口: " + (definition.exit() == null ? "なし" : String.format(Locale.ROOT, "(%.1f, %.1f, %.1f)", definition.exit().x(), definition.exit().y(), definition.exit().z()))
+                        + " / 出口 (外): " + (registry.outside(id) == null ? "なし (入る前の場所へ戻る)" : String.format(Locale.ROOT, "%s (%.1f, %.1f, %.1f)",
+                        registry.outside(id).world(), registry.outside(id).x(), registry.outside(id).y(), registry.outside(id).z()))
                         + " / 報酬部屋: " + (definition.rewardRoom() == null ? "なし" : "あり")
                         + " / 宝箱: " + (definition.chest() == null ? "なし" : "あり"));
                 player.sendMessage("[ダンジョン] " + definition.name() + " のモブ: " + definition.spawns().size() + " 体");
@@ -424,6 +444,8 @@ public final class DungeonCommand implements CommandExecutor, TabCompleter {
             service.registry().find(args[1]).ifPresent(definition -> {
                 for (int i = 1; i <= definition.spawns().size(); i++) options.add(String.valueOf(i));
             });
+        } else if (args.length == 3 && args[0].equalsIgnoreCase("outside") && admin) {
+            options.add("clear");
         } else if (args.length == 3 && (args[0].equalsIgnoreCase("spawn") || args[0].equalsIgnoreCase("boss")) && admin) {
             options.addAll(mobRegistry.all().keySet());
         }

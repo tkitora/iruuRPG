@@ -23,11 +23,22 @@ public final class DungeonRegistry {
     private final Map<String, DungeonDefinition> definitions = new LinkedHashMap<>();
     /** dungeon id -> its entrances out in the world (gates: in the file) */
     private final Map<String, List<Gate>> gates = new LinkedHashMap<>();
+    /** dungeon id -> where the players come out when they leave it, out in the world ("outside:" in the file; t173) */
+    private final Map<String, Outside> outsides = new LinkedHashMap<>();
     /** dungeon id -> its walls that vanish on a condition ("walls:" in the file) */
     private final Map<String, List<DungeonWall>> walls = new LinkedHashMap<>();
 
     /** An entrance to a dungeon out in the world: a block; right-clicking it (or standing by it) lets you in. */
     public record Gate(String world, int x, int y, int z) {
+    }
+
+    /** The exit of a dungeon out in the world (t173): where and facing which way the players come out when they leave it. */
+    public record Outside(String world, double x, double y, double z, float yaw, float pitch) {
+        /** The place in its world, or null when that world is not loaded. */
+        public Location location() {
+            org.bukkit.World found = org.bukkit.Bukkit.getWorld(world);
+            return found == null ? null : new Location(found, x, y, z, yaw, pitch);
+        }
     }
 
     public DungeonRegistry(JavaPlugin plugin) {
@@ -45,6 +56,7 @@ public final class DungeonRegistry {
     public void reload() {
         definitions.clear();
         gates.clear();
+        outsides.clear();
         walls.clear();
         File folder = folder();
         if (!folder.exists() && !folder.mkdirs()) {
@@ -75,6 +87,13 @@ public final class DungeonRegistry {
                         list.add(new Gate(String.valueOf(world), (int) number(raw.get("x")), (int) number(raw.get("y")), (int) number(raw.get("z"))));
                     }
                     gates.put(definition.id(), list);
+                    ConfigurationSection outside = yaml.getConfigurationSection("outside");
+                    if (outside != null && outside.getString("world") != null) {
+                        outsides.put(definition.id(), new Outside(outside.getString("world"), outside.getDouble("x"), outside.getDouble("y"), outside.getDouble("z"),
+                                (float) outside.getDouble("yaw"), (float) outside.getDouble("pitch")));
+                    } else {
+                        outsides.remove(definition.id());
+                    }
                     walls.put(definition.id(), readWalls(yaml, definition));
                 }
             } catch (RuntimeException e) {
@@ -355,6 +374,19 @@ public final class DungeonRegistry {
         return -1;
     }
 
+    /** Where the players come out when they leave dungeon {@code id} (null: back to where each came from). */
+    public Outside outside(String id) {
+        return outsides.get(id);
+    }
+
+    /** Sets the exit out in the world of this dungeon to {@code location} (its place and the way it faces); null takes it away. */
+    public void setOutside(DungeonDefinition definition, Location location) {
+        if (location == null || location.getWorld() == null) outsides.remove(definition.id());
+        else outsides.put(definition.id(), new Outside(location.getWorld().getName(), location.getX(), location.getY(), location.getZ(),
+                location.getYaw(), location.getPitch()));
+        save(definition);
+    }
+
     public List<Gate> gates(String id) {
         return List.copyOf(gates.getOrDefault(id, List.of()));
     }
@@ -448,6 +480,17 @@ public final class DungeonRegistry {
             gateList.add(map);
         }
         if (!gateList.isEmpty()) yaml.set("gates", gateList);
+        Outside outside = outsides.get(d.id());
+        if (outside != null) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("world", outside.world());
+            map.put("x", outside.x());
+            map.put("y", outside.y());
+            map.put("z", outside.z());
+            map.put("yaw", (double) outside.yaw());
+            map.put("pitch", (double) outside.pitch());
+            yaml.set("outside", map);
+        }
         if (d.rewardRoom() != null) yaml.set("reward-room", pointMap(d.rewardRoom()));
         if (d.chest() != null) yaml.set("chest", pointMap(d.chest()));
         if (d.bossTrigger() != null) yaml.set("boss-trigger", pointMap(d.bossTrigger()));
