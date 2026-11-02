@@ -344,6 +344,8 @@ public final class HudGlyphs {
         int[] numbers = net.tkgon.mc.iruuRPG.combat.SlotMoves.skillNumbers(classId, type);
         int old = numbers != null ? numbers[number - 1] : number <= 3 ? number : 0;
         BufferedImage fallback = old == 0 ? utilPlaceholder(classIndex) : resourceImage("heavy_" + classId + "_" + old, placeholder(classIndex, old));
+        // (skills of their own, not the old heavy attacks: no old picture, the placeholder until the texture tree draws them; t161)
+        if (net.tkgon.mc.iruuRPG.combat.SlotMoves.reworked(classId, type)) fallback = number == 4 ? utilPlaceholder(classIndex) : placeholder(classIndex, number);
         if (numbers == null || type == net.tkgon.mc.iruuRPG.combat.SlotMoves.favorite(classId)) {
             fallback = resourceImage(SKILL_NAMES[number - 1] + "_" + classId, fallback);
         }

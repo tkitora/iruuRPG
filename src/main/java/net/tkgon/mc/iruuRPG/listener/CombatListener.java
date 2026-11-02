@@ -254,6 +254,8 @@ public final class CombatListener implements Listener {
                 return true;
             }
             case ITEM_SKILL -> {
+                // (during SATUJIN the assassin's key of the weapon skill is a weak dash of 中's re-activation: t161)
+                if (net.tkgon.mc.iruuRPG.combat.AssassinSkills.frenzyDash(attackService, attacker, weapon)) return true;
                 // (a weapon with no skill still keeps the click from being something else, as its heavy attacks' button did)
                 return itemSkillService.useByKey(attacker, weapon) || attackService.hasHeavies(attacker, weapon);
             }
@@ -422,6 +424,7 @@ public final class CombatListener implements Listener {
 
     @EventHandler
     public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
+        net.tkgon.mc.iruuRPG.combat.AssassinSkills.forget(event.getPlayer().getUniqueId());
         screenDropTick.remove(event.getPlayer().getUniqueId());
     }
 

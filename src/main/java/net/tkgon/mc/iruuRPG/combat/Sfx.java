@@ -62,7 +62,26 @@ public enum Sfx {
             new Layer(Sound.BLOCK_DEEPSLATE_BREAK, 0.55f, 0.6f), new Layer(Sound.ENTITY_EVOKER_FANGS_ATTACK, 0.45f, 0.9f)),
     /** A great burst: an explosion, the warden's sonic boom, the dragon's wing and a respawn anchor spent. */
     MAGE_BLAST(new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.6f, 0.8f), new Layer(Sound.ENTITY_WARDEN_SONIC_BOOM, 0.35f, 1.3f),
-            new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.55f, 0.7f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.5f, 0.9f));
+            new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.55f, 0.7f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.5f, 0.9f)),
+    // the assassin's melee skills of t161: thin steel and shadows (not turned into the wind of the assassin's combo: they are their own)
+    /** A thin, quick cut: a high sweep, a chain's rattle and a blade's ring. */
+    SHADOW_SLICE(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.45f, 1.6f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.45f, 1.8f),
+            new Layer(Sound.BLOCK_CHAIN_HIT, 0.3f, 1.9f)),
+    /** Two blades crossing: a critical hit, a trident in the ground and a lower sweep. */
+    SHADOW_CROSS(new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.6f, 1.3f), new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.45f, 1.6f),
+            new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.4f, 1.15f)),
+    /** A rush through the shadows: the illusioner's mirror, a riptide and a swoop. */
+    SHADOW_DASH(new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.6f, 1.3f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_2, 0.35f, 1.5f),
+            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.3f, 1.6f)),
+    /** Gone from sight: the illusioner's mirror being made, a far teleport and a beacon going out. */
+    SHADOW_VANISH(new Layer(Sound.ENTITY_ILLUSIONER_PREPARE_MIRROR, 0.7f, 1.0f), new Layer(Sound.ENTITY_ENDERMAN_TELEPORT, 0.35f, 0.6f),
+            new Layer(Sound.BLOCK_BEACON_DEACTIVATE, 0.3f, 1.8f)),
+    /** A clone stepping out of the assassin: the mirror moving and a soul let go. */
+    SHADOW_CLONE(new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.5f, 0.9f), new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.6f, 1.2f)),
+    /** One cut of the storm of blades: light and high. */
+    SHADOW_FLURRY(new Layer(Sound.ENTITY_PLAYER_ATTACK_SWEEP, 0.25f, 1.85f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.2f, 2.0f)),
+    /** A leap back: a wing beat and the mirror. */
+    SHADOW_STEP(new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.5f, 1.6f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.35f, 1.6f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {

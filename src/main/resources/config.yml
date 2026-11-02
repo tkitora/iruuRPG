@@ -83,7 +83,7 @@ combat:
       warrior: {medium: 10, large: 30}
       healer: {util: 15}
       gifted: {small: 3, medium: 7, large: 20}
-      assassin: {large: 20}
+      assassin: {large: 24}
   # 今までのスキル1〜6 (以前の強攻撃)。いまは 小・中・大 がスキル1〜3 を出す (クラスの技ができるまで)。
   # keep-chain: true なら、強攻撃のあとも通常攻撃のコンボが続く (false: 強攻撃でコンボが1段目に戻る、t116 より前の動き)
   # later-cooldown-ticks: コンボの設定 (heavy-cooldown-ticks) が無いときの、スキル2〜スキル6 (強2〜強5 と t138 のスキル6) のクールタイム (tick)。スキル1 は各コンボの値
@@ -213,6 +213,37 @@ combat:
       swap-dash-power: 1.2                        # アイテムスワップ中の強1 (前方ダッシュ) の強さ (1 tick あたり)
       swap-dash-ticks: 5                          # そのダッシュの長さ (tick)
       swap-dash-rate: 0.03                        # そのダッシュが移動地点に与える倍率 (武器ダメージの3%。クールタイムは2 tick)
+      # --- 近接武器のスキル (t161 の作り直し、nekorozv。AssassinSkills)。倍率は武器ダメージ比。値はすべて仮 ---
+      clone-copies: 3                             # 立っている分身 (util・大) が、スキルをまねる回数。最後のあとに消える
+      clone-copy-share: 0.5                       # 分身がまねたときの倍率 (元の技の倍率比)
+      small-charges: 3                            # 小: ためておける数
+      small-charge-seconds: 3                     # 小: 1つ以上残っている間、1つ戻る秒数
+      small-empty-seconds: 8                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数 (その間は1つずつ戻らない)
+      small-chain-seconds: 2.5                    # 小: この秒数の内に続けて使うと、次の斬り方になる (1 右→左、2 左→右、3 後ろ上の2方向から前の1点へ)
+      small-rate: 0.55                            # 小 1・2回目: 前の扇の敵への倍率
+      small-rate-3: 0.45                          # 小 3回目: 前の1点の周りの敵への倍率 (2回当たる)
+      small-reach: 3.2                            # 小: 届く距離 (ブロック)
+      medium-rate: 0.3                            # 中: ランダムな3連斬りの1回の倍率
+      medium-finish-rate: 0.7                     # 中: 最後の斜め斬りの倍率
+      medium-cross-share: 0.65                    # 中: オフハンドに武器があるときの十字斬り1本の倍率 (斜め斬りの倍率比。2本当たる)
+      medium-reach: 3.3                           # 中: 届く距離 (ブロック)
+      medium-recast-seconds: 3                    # 中: 再発動を受け付ける秒数
+      rush-power: 1.3                             # 中の再発動の突進: 1 tick に進むブロック数
+      rush-ticks: 5                               # その長さ (tick。移動中は無敵)
+      rush-pass-rate: 0.25                        # 通り抜けた敵への倍率
+      rush-cross-rate: 0.45                       # 突進の先の十字斬りの倍率 (2回当たる)
+      large-invisible-seconds: 4                  # 大: 透明になる秒数 (敵の狙いは、その間、置いた分身へ)
+      large-delay-seconds: 1.5                    # 大: 斬り始めるまでの秒数
+      large-storm-seconds: 2                      # 大: 斬り続ける秒数 (その間、動けないが無敵)
+      large-storm-ticks: 3                        # 大: 斬る間隔 (tick)
+      large-radius: 3                             # 大: 自分と分身の周りの、斬る範囲 (ブロック)
+      large-rate: 0.18                            # 大: 1回の倍率 (自分と分身の、それぞれが1体ずつ斬る)
+      large-clone-share: 1                        # 大: 分身が斬るときの倍率 (自分の倍率比)
+      util-clone-seconds: 5                       # util: 置く分身の秒数
+      util-back-power: 1.1                        # util: 後ろへ跳ぶ強さ
+      util-back-up: 0.35                          # util: 跳ぶ高さ
+      ult-dash-share: 0.15                        # ULT (SATUJIN) 中、アイテムスキルのキーで出す突進十字斬りの強さ (中の再発動の倍率比)
+      ult-dash-ticks: 2                           # その間隔 (tick)
     cleric_melee:
       normal-gap-ticks: 10
     warrior_melee:

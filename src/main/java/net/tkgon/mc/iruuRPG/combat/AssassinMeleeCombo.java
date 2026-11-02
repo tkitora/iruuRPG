@@ -228,8 +228,7 @@ public final class AssassinMeleeCombo extends BaseCombo {
             return;
         }
         if (frenzy > 0) AssassinClones.copyAttack(kit, step.heavyIndex());
-        // every heavy attack (other than heavy 0 and 1) while a clone stands is made by the clones too, for 30% of its damage (no limit: the redesign of 2026-11-02)
-        if (step.heavyIndex() >= 2 && AssassinClones.takeMimic(kit.player)) AssassinClones.mimic(kit, step.heavyIndex(), rate);
+        // (the standing clones copy no heavy attack by themselves since t161: the skills copy themselves onto them, AssassinSkills)
         Location feet = kit.player.getLocation();
         Vector facing = kit.facing();
         switch (step.heavyIndex()) {

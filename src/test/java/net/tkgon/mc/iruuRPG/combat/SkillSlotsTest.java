@@ -39,7 +39,7 @@ class SkillSlotsTest {
         assertEquals(3.0, SkillSlots.cooldownSeconds(section, "gifted", SkillSlots.Slot.SMALL));
         assertEquals(7.0, SkillSlots.cooldownSeconds(section, "gifted", SkillSlots.Slot.MEDIUM));
         assertEquals(20.0, SkillSlots.cooldownSeconds(section, "gifted", SkillSlots.Slot.LARGE));
-        assertEquals(20.0, SkillSlots.cooldownSeconds(section, "assassin", SkillSlots.Slot.LARGE));
+        assertEquals(24.0, SkillSlots.cooldownSeconds(section, "assassin", SkillSlots.Slot.LARGE));
         assertEquals(5.0, SkillSlots.cooldownSeconds(section, "assassin", SkillSlots.Slot.UTIL));
         // the design's without a config, and for a player with no class
         for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
@@ -168,22 +168,57 @@ class SkillSlotsTest {
         assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 1500L));
         // the re-activation comes first even with no charge left
         assertEquals(SkillSlots.Done.RECAST, slots.use(player, small, null, 2000L));
-        // 3. no charge and no re-activation: nothing, the refill goes on
+        // 3. no charge and no re-activation: nothing; all come back 7 s after the last was used (t161: none refills meanwhile)
         assertEquals(SkillSlots.Done.NOTHING, slots.use(player, small, null, 2500L));
         assertEquals(2, used[0]);
         SkillSlots.View empty = slots.view(id, kept, mechanics, 2500L);
         assertEquals(0, empty.charges());
-        assertArrayEquals(new long[]{4500L, 7000L}, empty.cooldown());
-        // 4. the first charge is back at 7 s (the next one refills from then): a new first part
-        assertEquals(1, slots.view(id, kept, mechanics, 7000L).charges());
-        assertEquals(0.0, slots.view(id, kept, mechanics, 7000L).refill(), 1e-9);
-        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 7000L));
-        // its re-activation ends after 3 s: then the keys do nothing (no charge yet)
-        assertEquals(SkillSlots.Done.NOTHING, slots.use(player, small, null, 10_001L));
+        assertArrayEquals(new long[]{6000L, 7000L}, empty.cooldown());
+        assertEquals(0, slots.view(id, kept, mechanics, 7000L).charges(), "the charge that was refilling does not come back alone");
+        // 4. both back at 8.5 s: a new first part
+        assertEquals(2, slots.view(id, kept, mechanics, 8500L).charges());
+        assertEquals(-1.0, slots.view(id, kept, mechanics, 8500L).refill());
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 8500L));
+        // its re-activation ends after 3 s
+        assertFalse(slots.view(id, kept, mechanics, 11_501L).recasting());
         assertEquals(2, recast[0]);
-        // both back at 21 s, and nothing refills any more
-        assertEquals(2, slots.view(id, kept, mechanics, 21_000L).charges());
-        assertEquals(-1.0, slots.view(id, kept, mechanics, 21_000L).refill());
+    }
+
+    /** t161: while one is left the missing charges come back one at a time; once none is left, all come back together after the wait for them. */
+    @Test
+    void anEmptySkillWaitsForAllItsChargesAtOnce() {
+        JavaPlugin plugin = mock(JavaPlugin.class);
+        when(plugin.getConfig()).thenReturn(jarConfig());
+        Player player = mock(Player.class);
+        UUID id = UUID.randomUUID();
+        when(player.getUniqueId()).thenReturn(id);
+        SkillSlots slots = new SkillSlots(plugin, ignored -> "assassin", ignored -> 1.0);
+        // (assassin's 小: 3 charges, 3 s each, 8 s when all are used; only with a melee weapon)
+        slots.register("assassin", SkillSlots.Slot.SMALL, (who, weapon) -> true,
+                kind -> kind == AttackType.MELEE ? new SkillSlots.Mechanics(3, 0.0, 3.0, 8.0) : SkillSlots.Mechanics.NONE);
+        SkillSlots.Slot small = SkillSlots.Slot.SMALL;
+        SkillSlots.Kept kept = new SkillSlots.Kept(AttackType.MELEE, small);
+        SkillSlots.Mechanics mechanics = slots.mechanics(id, "assassin", small, AttackType.MELEE);
+        assertEquals(3, mechanics.charges());
+        assertEquals(SkillSlots.Mechanics.NONE, slots.mechanics(id, "assassin", small, AttackType.RANGE));
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 0L));
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 1000L));
+        assertEquals(1, slots.view(id, kept, mechanics, 2000L).charges());
+        // the first missing one is back 3 s after the first was used, and the next refills from then
+        assertEquals(2, slots.view(id, kept, mechanics, 3000L).charges());
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 3500L));
+        assertEquals(SkillSlots.Done.USED, slots.use(player, small, null, 4000L));
+        // none left: no charge comes back at 6 s; the wait of 8 s is its cooldown (greyed, the seconds), and the gauge goes with it
+        SkillSlots.View empty = slots.view(id, kept, mechanics, 6000L);
+        assertEquals(0, empty.charges());
+        assertArrayEquals(new long[]{6000L, 8000L}, empty.cooldown());
+        assertEquals(0.25, empty.refill(), 1e-9);
+        assertEquals(SkillSlots.Done.NOTHING, slots.use(player, small, null, 6000L));
+        // all three at 12 s, nothing refilling
+        SkillSlots.View full = slots.view(id, kept, mechanics, 12_000L);
+        assertEquals(3, full.charges());
+        assertEquals(-1.0, full.refill());
+        assertArrayEquals(new long[]{0L, 0L}, full.cooldown());
     }
 
     @Test
