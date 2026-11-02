@@ -57,6 +57,19 @@ final class ProceduralMenu implements Listener {
     // the leaf page: the leaf gradient from the bottom of a clump to its top, and its help
     private static final int[] SHADE_SLOTS = {28, 29, 30, 31, 32, 33};
     private static final int SHADE_HELP = 34;
+    // the page of the parts added on a house (t181): the list (and the button that adds one), then the numbers of the one chosen
+    private static final int[] MODULE_SLOTS = {11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
+    private static final int M_TYPE = 28;
+    private static final int M_SIDE = 29;
+    private static final int M_ALONG = 30;
+    private static final int M_OFFSET = 31;
+    private static final int M_WIDTH = 32;
+    private static final int M_DEPTH = 33;
+    private static final int M_HEIGHT = 34;
+    private static final int M_LEVEL = 37;
+    private static final int M_ON = 38;
+    private static final int M_COPY = 39;
+    private static final int M_DELETE = 41;
 
     /** The pages: the slot of the tab, its icon and name, and the numbers it holds. */
     enum Page {
@@ -65,7 +78,12 @@ final class ProceduralMenu implements Listener {
         BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{}),
         LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{}),
         /** The settings of everything that is not a tree (which of them depends on the kind). */
-        SHAPE(3, Material.COBBLESTONE, "形", new TreeSettings.Key[]{});
+        SHAPE(3, Material.COBBLESTONE, "形", new TreeSettings.Key[]{}),
+        /** (t181) the roof of a house. */
+        ROOF(4, Material.RED_WOOL, "屋根", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG,
+                TreeSettings.Key.HOUSE_RIDGE}),
+        /** (t181) the parts added on a house (HouseModule): its own buttons, no numbers of the settings. */
+        MODULES(5, Material.SPRUCE_TRAPDOOR, "追加パーツ", new TreeSettings.Key[]{});
 
         final int tab;
         final Material icon;
@@ -85,6 +103,7 @@ final class ProceduralMenu implements Listener {
             return switch (this) {
                 case BASIC -> true;
                 case SHAPE -> !kind.tree();
+                case ROOF, MODULES -> kind == ProcKind.HOUSE;
                 case BRANCH -> kind.tree() && !settings.grows("palm");
                 default -> kind.tree();
             };
@@ -105,8 +124,8 @@ final class ProceduralMenu implements Listener {
                 case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.CRYSTAL_FACETS, TreeSettings.Key.CRYSTAL_TIP, TreeSettings.Key.CRYSTAL_THICK, TreeSettings.Key.CRYSTAL_VARIANCE,
                         TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
                 case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
-                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG, TreeSettings.Key.HOUSE_WINDOWS,
-                        TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
+                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY, TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_TIMBER,
+                        TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
                 default -> new TreeSettings.Key[]{};
             };
         }
@@ -160,6 +179,11 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_WINDOWS, Material.GLASS_PANE);
         ICONS.put(TreeSettings.Key.HOUSE_DOOR, Material.OAK_DOOR);
         ICONS.put(TreeSettings.Key.HOUSE_FOUNDATION, Material.STONE_BRICKS);
+        ICONS.put(TreeSettings.Key.HOUSE_RIDGE, Material.END_ROD);
+        ICONS.put(TreeSettings.Key.HOUSE_ROTATION, Material.COMPASS);
+        ICONS.put(TreeSettings.Key.HOUSE_JETTY, Material.DARK_OAK_SLAB);
+        ICONS.put(TreeSettings.Key.HOUSE_STONE, Material.COBBLESTONE);
+        ICONS.put(TreeSettings.Key.HOUSE_TIMBER, Material.STRIPPED_SPRUCE_LOG);
         ICONS.put(TreeSettings.Key.HEIGHT, Material.LADDER);
         ICONS.put(TreeSettings.Key.WIDTH, Material.LEAD);
         ICONS.put(TreeSettings.Key.CURVE, Material.CHAIN);
@@ -248,6 +272,8 @@ final class ProceduralMenu implements Listener {
         private Page page = Page.BASIC;
         /** The block slot waiting for a block from the player's inventory: "part:<PART>" or "shade:<index>"; null when none. */
         private String picking;
+        /** The part of the house chosen on the page of the parts (its place in the list). */
+        private int module;
 
         @Override
         public @NotNull Inventory getInventory() {
@@ -297,7 +323,9 @@ final class ProceduralMenu implements Listener {
 
     private static String number(TreeSettings.Key key, double value) {
         if (key.toggle()) return value >= 0.5 ? "オン" : "オフ";
-        if (key == TreeSettings.Key.HOUSE_ROOF) return ProceduralShapes.roofName((int) Math.round(value));
+        if (key == TreeSettings.Key.HOUSE_ROOF) return HouseShape.roofName((int) Math.round(value));
+        if (key == TreeSettings.Key.HOUSE_RIDGE) return HouseShape.ridgeName((int) Math.round(value));
+        if (key == TreeSettings.Key.HOUSE_ROTATION) return (int) Math.round(value) + "°";
         return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
     }
 
@@ -328,6 +356,7 @@ final class ProceduralMenu implements Listener {
         }
 
         if (page == Page.BASIC) renderBasic(player, inventory, session, settings);
+        else if (page == Page.MODULES) renderModules(inventory, holder, settings);
         else inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
                 text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
@@ -584,6 +613,13 @@ final class ProceduralMenu implements Listener {
             render(player, holder);
             return;
         }
+        if (holder.page == Page.MODULES) {
+            if (moduleClick(holder, settings, slot, left, big)) {
+                tool.changed(player);
+                render(player, holder);
+                return;
+            }
+        }
         if (holder.page == Page.SHAPE && settings.kind() == ProcKind.CRYSTAL && slot == GRID[13]) {
             settings.cycleCrystalType(left);
             tool.changed(player);
@@ -620,6 +656,145 @@ final class ProceduralMenu implements Listener {
             }
         }
         render(player, holder);
+    }
+
+    /** The item that stands for a kind of part of a house. */
+    private static Material moduleIcon(HouseModule.Type type) {
+        return switch (type) {
+            case DORMER -> Material.GLASS_PANE;
+            case CHIMNEY -> Material.CAMPFIRE;
+            case TOWER -> Material.CHISELED_STONE_BRICKS;
+            case WING -> Material.OAK_PLANKS;
+            case PORCH -> Material.OAK_FENCE;
+            case BALCONY -> Material.SPRUCE_FENCE;
+            case BAY -> Material.GLASS;
+        };
+    }
+
+    /** The place of a part, in words: its side, how far along it and out from it. */
+    private static String modulePlace(HouseModule module) {
+        return HouseModule.sideLabel(module.side) + " / 横 " + signed(module.along) + " / 壁から " + signed(module.offset);
+    }
+
+    private static String signed(int value) {
+        return value > 0 ? "+" + value : Integer.toString(value);
+    }
+
+    /**
+     * The page of the parts added on a house (t181): the list of them (left click chooses one, right click turns it off and on) with a button that adds
+     * one, and under it the numbers of the one chosen: its kind, side, place, size and storey, and buttons to turn it off, to copy it (mirrored) and to
+     * take it away. The base of the house is never changed here: every part is made again on it from the list.
+     */
+    private void renderModules(Inventory inventory, Holder holder, TreeSettings settings) {
+        List<HouseModule> modules = settings.modules();
+        if (holder.module >= modules.size()) holder.module = Math.max(0, modules.size() - 1);
+        inventory.setItem(INFO, item(Material.SPRUCE_TRAPDOOR, "追加パーツ (" + modules.size() + " / " + TreeSettings.MAX_MODULES + ")", NamedTextColor.GOLD, List.of(
+                text("家の土台に、ドーマー窓・煙突・塔・翼棟・ポーチ・バルコニー・出窓を足す", NamedTextColor.GRAY),
+                text("土台は書き換えない: パーツは毎回、土台の上に作り直す (消す・オフにすると元どおり)", NamedTextColor.GRAY),
+                text("プレビュー中は、変えて 0.75 秒後に家が変わる", NamedTextColor.GRAY),
+                text("上の列: 左クリックで選ぶ / 右クリックでオン・オフ。下の列: 選んだパーツの数字", NamedTextColor.YELLOW))));
+        for (int index = 0; index < modules.size() && index < MODULE_SLOTS.length; index++) {
+            HouseModule module = modules.get(index);
+            boolean chosen = index == holder.module;
+            List<Component> lore = new ArrayList<>();
+            lore.add(text(modulePlace(module), NamedTextColor.WHITE));
+            lore.add(text("幅 " + module.width + " / 奥行き " + module.depth + " / " + module.type.heightLabel() + " " + module.height
+                    + (module.type.usesLevel() ? " / " + module.level + " 階から" : ""), NamedTextColor.WHITE));
+            lore.add(text(module.on ? "オン" : "オフ (作らない)", module.on ? NamedTextColor.GREEN : NamedTextColor.RED));
+            lore.add(text("左クリック: 選ぶ / 右クリック: オン・オフ", NamedTextColor.YELLOW));
+            String name = (chosen ? "▶ " : "") + (index + 1) + ". " + module.type.label + (module.on ? "" : " (オフ)");
+            inventory.setItem(MODULE_SLOTS[index], glint(item(moduleIcon(module.type), name, chosen ? NamedTextColor.GOLD : module.on ? NamedTextColor.WHITE : NamedTextColor.GRAY, lore), chosen));
+        }
+        if (modules.size() < TreeSettings.MAX_MODULES) {
+            inventory.setItem(MODULE_SLOTS[modules.size()], item(Material.LIME_STAINED_GLASS_PANE, "＋ パーツを足す", NamedTextColor.GREEN, List.of(
+                    text("ドーマー窓を正面に1つ足す (種類は下の段で変えられる)", NamedTextColor.GRAY),
+                    text("クリックで足す", NamedTextColor.YELLOW))));
+        }
+        if (modules.isEmpty()) return;
+        HouseModule module = modules.get(holder.module);
+        List<Component> typeLore = new ArrayList<>();
+        typeLore.add(text(module.type.description(), NamedTextColor.GRAY));
+        for (HouseModule.Type type : HouseModule.Type.values()) typeLore.add(text((type == module.type ? "▶ " : "   ") + type.label, type == module.type ? NamedTextColor.GOLD : NamedTextColor.WHITE));
+        typeLore.add(text("左クリック: 次の種類 / 右クリック: 前の種類 (大きさはその種類の初期値になる)", NamedTextColor.YELLOW));
+        inventory.setItem(M_TYPE, item(moduleIcon(module.type), "種類: " + module.type.label, NamedTextColor.GOLD, typeLore));
+        inventory.setItem(M_SIDE, item(Material.COMPASS, "面: " + HouseModule.sideLabel(module.side), NamedTextColor.GREEN, List.of(
+                text("どの面に付けるか (右・左は、正面から見て)", NamedTextColor.GRAY),
+                text("左クリック: 次の面 / 右クリック: 前の面", NamedTextColor.YELLOW))));
+        inventory.setItem(M_ALONG, moduleNumber(Material.LEAD, "横の位置", module.along, "その面のまん中から横へずらす (外からその面を見て右が +)", 1, 5));
+        inventory.setItem(M_OFFSET, moduleNumber(Material.PISTON, "壁からの位置", module.offset, "壁から外へずらす (マイナスで家の中へ。塔は初期値で半分めり込む)", 1, 3));
+        inventory.setItem(M_WIDTH, moduleNumber(Material.OAK_SLAB, "幅", module.width, "面に沿った幅 (塔は直径)", 1, 4));
+        inventory.setItem(M_DEPTH, moduleNumber(Material.OAK_PLANKS, "奥行き", module.depth, module.type == HouseModule.Type.DORMER
+                ? "屋根の中へ入る長さ (足りなければ屋根に届くまで伸びる)" : "壁から外へ出る長さ", 1, 4));
+        inventory.setItem(M_HEIGHT, moduleNumber(Material.LADDER, module.type.heightLabel(), module.height, "高さの数字の意味は種類で違う", 1, 5));
+        inventory.setItem(M_LEVEL, moduleNumber(Material.SCAFFOLDING, "階", module.level, module.type.usesLevel()
+                ? "何階から始まるか (0 = 1階)" : "(この種類では使わない)", 1, 1));
+        inventory.setItem(M_ON, item(module.on ? Material.LIME_DYE : Material.GRAY_DYE, module.on ? "オン" : "オフ", module.on ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                text("オフにすると、リストに残したまま作らない", NamedTextColor.GRAY),
+                text("クリックで切り替え", NamedTextColor.YELLOW))));
+        inventory.setItem(M_COPY, item(Material.PAPER, "左右反転して複製", NamedTextColor.AQUA, List.of(
+                text("同じパーツを、面のまん中をはさんで反対側に足す (まん中にあるときは横に並べる)", NamedTextColor.GRAY),
+                text("クリックで複製", NamedTextColor.YELLOW))));
+        inventory.setItem(M_DELETE, item(Material.BARRIER, "このパーツを消す", NamedTextColor.RED, List.of(
+                text("リストから消す (土台は変わらない)", NamedTextColor.GRAY),
+                text("Shift+クリックで消す (誤クリック防止)", NamedTextColor.YELLOW))));
+    }
+
+    private static ItemStack moduleNumber(Material icon, String label, int value, String description, int step, int bigStep) {
+        return item(icon, label + ": " + value, NamedTextColor.GREEN, List.of(
+                text(description, NamedTextColor.GRAY),
+                text("左クリック +" + step + " / 右クリック -" + step + " (Shift で " + bigStep + " ずつ)", NamedTextColor.YELLOW)));
+    }
+
+    /** A click on the page of the parts of a house; false when it was on none of its buttons. */
+    private static boolean moduleClick(Holder holder, TreeSettings settings, int slot, boolean left, boolean big) {
+        List<HouseModule> modules = settings.modules();
+        for (int index = 0; index < MODULE_SLOTS.length; index++) {
+            if (MODULE_SLOTS[index] != slot) continue;
+            if (index < modules.size()) {
+                if (left) holder.module = index;
+                else modules.get(index).on = !modules.get(index).on;
+                return true;
+            }
+            if (index == modules.size() && modules.size() < TreeSettings.MAX_MODULES) {
+                modules.add(new HouseModule(HouseModule.Type.DORMER));
+                holder.module = modules.size() - 1;
+                return true;
+            }
+            return false;
+        }
+        if (modules.isEmpty() || holder.module >= modules.size()) return false;
+        HouseModule module = modules.get(holder.module);
+        int sign = left ? 1 : -1;
+        HouseModule.Type[] types = HouseModule.Type.values();
+        switch (slot) {
+            case M_TYPE -> module.setType(types[Math.floorMod(module.type.ordinal() + sign, types.length)]);
+            case M_SIDE -> module.side += sign;
+            case M_ALONG -> module.along += sign * (big ? 5 : 1);
+            case M_OFFSET -> module.offset += sign * (big ? 3 : 1);
+            case M_WIDTH -> module.width += sign * (big ? 4 : 1);
+            case M_DEPTH -> module.depth += sign * (big ? 4 : 1);
+            case M_HEIGHT -> module.height += sign * (big ? 5 : 1);
+            case M_LEVEL -> module.level += sign;
+            case M_ON -> module.on = !module.on;
+            case M_COPY -> {
+                if (modules.size() >= TreeSettings.MAX_MODULES) return false;
+                HouseModule copy = module.copy();
+                copy.along = module.along != 0 ? -module.along : module.along + module.width + 1;
+                copy.limit();
+                modules.add(holder.module + 1, copy);
+                holder.module++;
+            }
+            case M_DELETE -> {
+                if (!big) return false;
+                modules.remove(holder.module);
+                holder.module = Math.max(0, Math.min(holder.module, modules.size() - 1));
+            }
+            default -> {
+                return false;
+            }
+        }
+        module.limit();
+        return true;
     }
 
     /**

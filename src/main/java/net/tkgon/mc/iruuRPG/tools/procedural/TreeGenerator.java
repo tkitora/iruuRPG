@@ -32,6 +32,8 @@ final class TreeGenerator {
 
     /** How far from the base the terrain is read (a rock is settled on it; a tree does not read it). */
     static int groundRadius(TreeSettings settings) {
+        // (a house: its own size and its parts, for the foundation)
+        if (settings.kind() == ProcKind.HOUSE) return HouseShape.reach(settings);
         return Math.min(24, (int) Math.ceil(settings.width() / 2.0) + 3);
     }
 }
