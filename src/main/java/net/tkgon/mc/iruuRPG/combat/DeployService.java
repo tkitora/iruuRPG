@@ -44,11 +44,19 @@ public final class DeployService {
     private final AttackEffects attackEffects;
     private final ItemSkillRegistry skillRegistry;
 
+    /** The custom model data of a weapon's look in the items' pack (null = none). */
+    private java.util.function.Function<RpgItemDefinition, Integer> lookNumber = definition -> null;
+
     public DeployService(JavaPlugin plugin, AttackService attackService, AttackEffects attackEffects, ItemSkillRegistry skillRegistry) {
         this.plugin = plugin;
         this.attackService = attackService;
         this.attackEffects = attackEffects;
         this.skillRegistry = skillRegistry;
+    }
+
+    /** Where the deployed stand gets the look of a weapon that looks like a Blockbench model (it wears the weapon, not the block of its element). */
+    public void setLookNumber(java.util.function.Function<RpgItemDefinition, Integer> lookNumber) {
+        this.lookNumber = lookNumber == null ? definition -> null : lookNumber;
     }
 
     /** The deployed weapons that are up now, per owner (the ranger's ranged hits make them resonate). */
@@ -101,8 +109,23 @@ public final class DeployService {
 
         EntityEquipment equipment = stand.getEquipment();
         if (equipment != null) {
-            equipment.setHelmet(new ItemStack(blockFor(weapon.element())));
+            equipment.setHelmet(look(weapon));
         }
+    }
+
+    /**
+     * What the deployed stand wears: a weapon that looks like a Blockbench model shows that model (its base item with the look's number; no
+     * name or data, the stand is never picked up), any other the block of its element.
+     */
+    private ItemStack look(RpgItemDefinition weapon) {
+        Integer number = weapon.visualOptions().hasModel() ? lookNumber.apply(weapon) : null;
+        if (number == null) return new ItemStack(blockFor(weapon.element()));
+        ItemStack item = new ItemStack(weapon.material());
+        org.bukkit.inventory.meta.ItemMeta meta = item.getItemMeta();
+        if (meta == null) return new ItemStack(blockFor(weapon.element()));
+        meta.setCustomModelData(number);
+        item.setItemMeta(meta);
+        return item;
     }
 
     private Location deployLocation(Player owner) {

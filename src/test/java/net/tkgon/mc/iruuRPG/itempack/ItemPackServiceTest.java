@@ -2,6 +2,7 @@ package net.tkgon.mc.iruuRPG.itempack;
 
 import net.tkgon.mc.iruuRPG.combat.AttackType;
 import net.tkgon.mc.iruuRPG.combat.DamageKind;
+import net.tkgon.mc.iruuRPG.item.ItemModelSpec;
 import net.tkgon.mc.iruuRPG.item.ItemSkillType;
 import net.tkgon.mc.iruuRPG.item.ItemVisualOptions;
 import net.tkgon.mc.iruuRPG.item.Rarity;
@@ -22,16 +23,24 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ItemPackServiceTest {
 
     private static RpgItemDefinition item(String id, Material material, String texture) {
-        return new RpgItemDefinition(id, material, new ItemVisualOptions(false, null, null, texture), id, 1, Rarity.COMMON, Element.RED,
-                DamageKind.PHYSICAL, AttackType.MELEE, ItemSkillType.NONE, "", Map.of(), null, new StatSet(), new ElementStatSet(), List.of());
+        return item(id, material, texture, null, AttackType.MELEE);
+    }
+
+    private static RpgItemDefinition item(String id, Material material, String texture, ItemModelSpec model, AttackType attackType) {
+        return new RpgItemDefinition(id, material, new ItemVisualOptions(false, null, null, texture, model), id, 1, Rarity.COMMON, Element.RED,
+                DamageKind.PHYSICAL, attackType, ItemSkillType.NONE, "", Map.of(), null, new StatSet(), new ElementStatSet(), List.of());
     }
 
     @Test
-    void onlyTheItemsWithATextureWearALook() {
+    void onlyTheItemsWithATextureOrAModelWearALook() {
+        ItemModelSpec lantern = ItemModelSpec.of("sample_lantern");
         List<ItemPackBuilder.Look> looks = ItemPackService.looks(List.of(
-                item("bone_dagger", Material.IRON_SWORD, "bone"), item("plain_sword", Material.IRON_SWORD, null)));
-        assertEquals(1, looks.size());
-        assertEquals(new ItemPackBuilder.Look("bone_dagger", "IRON_SWORD", "bone"), looks.get(0));
+                item("bone_dagger", Material.IRON_SWORD, "bone"), item("plain_sword", Material.IRON_SWORD, null),
+                item("lantern", Material.SEA_LANTERN, null, lantern, AttackType.DEPLOY)));
+        assertEquals(2, looks.size());
+        assertEquals(new ItemPackBuilder.Look("bone_dagger", "IRON_SWORD", "bone", null, "MELEE"), looks.get(0));
+        // a model, and the kind of the item (the way it is held when the yml does not say)
+        assertEquals(new ItemPackBuilder.Look("lantern", "SEA_LANTERN", null, lantern, "DEPLOY"), looks.get(1));
     }
 
     @Test
