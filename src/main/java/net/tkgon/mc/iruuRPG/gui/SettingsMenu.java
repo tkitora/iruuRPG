@@ -35,7 +35,8 @@ import java.util.UUID;
  * The settings screens: the hub (sound, particles, BGM, hotbar menu item, keys), the sound screen (how loud every kind of attack
  * sound is, and whether other players' attack sounds are heard), the particle screen (how much of the particles is
  * shown, and whether other players' particles are), the BGM screen (how loud the background music is), the screen to listen to the songs,
- * and the keys: which keys do the skills ({@link SkillInput}; the redesign of 2026-11-02 has the same keys for everyone, so this only shows them).
+ * and the keys: which keys do the skills ({@link SkillInput}; the redesign of 2026-11-02 has the same keys for everyone), and a switch that swaps
+ * Q and F (t162: F → left for 小 ... and Q for util, shift + Q for the ULT).
  */
 public final class SettingsMenu implements Listener {
 
@@ -60,6 +61,8 @@ public final class SettingsMenu implements Listener {
     /** The keys' screen: the skills, the weapon's skill and the normal attack in the middle row, the explanation in the bottom row. */
     private static final int KEY_FIRST = 10;
     private static final int KEY_HELP = 22;
+    /** The switch that swaps Q and F (t162). */
+    private static final int KEY_SWAP = 4;
 
     private final SoundSettings soundSettings;
     private final AttackSounds attackSounds;
@@ -93,6 +96,11 @@ public final class SettingsMenu implements Listener {
         return SkillInput.keys(slot);
     }
 
+    /** The keys of a skill with Q and F swapped or not (t162). */
+    static String keysText(SkillSlots.Slot slot, boolean swapped) {
+        return SkillInput.keys(slot, swapped);
+    }
+
     private static Material slotIcon(SkillSlots.Slot slot) {
         return switch (slot) {
             case UTIL -> Material.FEATHER;
@@ -103,11 +111,18 @@ public final class SettingsMenu implements Listener {
 
     private void renderKeys(Holder holder) {
         Inventory inventory = holder.inventory;
+        boolean swapped = SkillInput.swapped(holder.owner);
+        String first = swapped ? "F" : "Q";
+        inventory.setItem(KEY_SWAP, item(swapped ? Material.REDSTONE_TORCH : Material.LEVER, "Q と F を入れ替える: " + (swapped ? "ON" : "OFF"),
+                swapped ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
+                        text("ON: 小・中・大 は F から (F→左・F→右・F→F)", NamedTextColor.GRAY),
+                        text("     util は Q、ULT は Shift+Q", NamedTextColor.GRAY),
+                        text("クリックで切り替え", NamedTextColor.YELLOW))));
         SkillSlots.Slot[] slots = SkillSlots.Slot.values();
         for (int index = 0; index < slots.length; index++) {
             SkillSlots.Slot slot = slots[index];
             ItemStack item = item(slotIcon(slot), slot.label(), NamedTextColor.GOLD, List.of(
-                    text(keysText(slot), NamedTextColor.WHITE),
+                    text(keysText(slot, swapped), NamedTextColor.WHITE),
                     text(switch (slot) {
                         case UTIL -> "クラスの移動・補助の技";
                         case ULT -> "クラスの必殺技 (クラススキル)";
@@ -122,11 +137,11 @@ public final class SettingsMenu implements Listener {
         inventory.setItem(KEY_FIRST + slots.length + 1, item(Material.WOODEN_SWORD, "通常攻撃", NamedTextColor.GOLD, List.of(
                 text("左クリック (近接) / 右クリック (遠距離・設置)", NamedTextColor.WHITE))));
         List<Component> help = new ArrayList<>();
-        help.add(text("Q を押してから、すぐに 2 つ目のキーを押す", NamedTextColor.GRAY));
-        help.add(text("Q のあとのクリックは 小・中、Q だけでは何も出ない", NamedTextColor.GRAY));
+        help.add(text(first + " を押してから、すぐに 2 つ目のキーを押す", NamedTextColor.GRAY));
+        help.add(text(first + " のあとのクリックは 小・中、" + first + " だけでは何も出ない", NamedTextColor.GRAY));
         help.add(text("小・中・大・util・ULT のキーは、どの武器でも同じ", NamedTextColor.GRAY));
         help.add(text("通常攻撃とアイテムスキルは、近接と遠距離で左右が入れ替わる", NamedTextColor.GRAY));
-        help.add(text("設置の武器は ULT だけ (Shift+Q で設置を消す)", NamedTextColor.GRAY));
+        help.add(text("設置の武器は ULT だけ (" + SkillInput.removeKeys(swapped) + " で設置を消す)", NamedTextColor.GRAY));
         inventory.setItem(KEY_HELP, item(Material.PAPER, "キー操作", NamedTextColor.WHITE, help));
     }
 
@@ -377,7 +392,13 @@ public final class SettingsMenu implements Listener {
             }
             return;
         }
-        if (holder.screen == Screen.KEYS) return;
+        if (holder.screen == Screen.KEYS) {
+            if (slot == KEY_SWAP) {
+                SkillInput.setSwapped(player, !SkillInput.swapped(player));
+                render(player, holder);
+            }
+            return;
+        }
 
         if (holder.screen == Screen.BGM) {
             if (slot == BGM_LISTEN) {

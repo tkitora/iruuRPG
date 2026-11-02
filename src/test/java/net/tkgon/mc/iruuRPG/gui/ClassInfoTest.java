@@ -63,6 +63,10 @@ class ClassInfoTest {
         assertEquals("Q→左: 小 / Q→右: 中 / Q→Q: 大", ranged.get(1));
         assertEquals("左クリック: アイテムスキル", ranged.get(3));
         assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior").stream().anyMatch(line -> line.contains("Shift+Q: 設置を消す")));
+        // Q and F swapped (t162): the keys of the guide follow
+        assertEquals("F→左: 小 / F→右: 中 / F→F: 大", ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "warrior", true).get(1));
+        assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior", true).stream()
+                .anyMatch(line -> line.contains("Shift+Q: ULT") && line.contains("Shift+F: 設置を消す")));
         // which skills of the guide they throw: a class whose moves are not made yet, and the mage (its own with a ranged weapon, the template with another)
         List<String> notYet = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "nobody");
         assertEquals("小・中・大 は、いまは下のスキル1〜3", notYet.get(notYet.size() - 1));

@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -17,6 +18,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * the ULT. These are the same with every weapon (t160: the skills of a ranged weapon were Q → right / Q → left before, and that was hard to
  * follow). With no Q before it, the weapon's normal button is the normal attack and its other button the weapon's skill: the normal button is
  * the left one with a melee weapon and the right one with a ranged or deployed one. The listener reads the keys and asks this what they are.
+ *
+ * <p>A player may swap Q and F (t162, the keys' screen of the settings; kept in the player's data): F then waits for the second key (F → left
+ * 小, F → right 中, F → F 大, shift + F takes a placement away) and Q is util (shift + Q the ULT). {@link #pressQ} and {@link #pressF} are the
+ * roles; the listener gives the key's role to them.
  */
 public final class SkillInput implements Listener {
 
@@ -41,9 +46,44 @@ public final class SkillInput implements Listener {
     private static final Map<UUID, int[]> LAST_CLICK = new ConcurrentHashMap<>();
     /** The tick of the last click of the other button. */
     private static final Map<UUID, Integer> LAST_OTHER = new ConcurrentHashMap<>();
+    /** The players online who swapped Q and F (t162). */
+    private static final java.util.Set<UUID> SWAPPED = ConcurrentHashMap.newKeySet();
+    private static final String SWAP_KEY = "keys_swap_q_f";
 
     public SkillInput(JavaPlugin owner) {
         plugin = owner;
+        // (the players online when the plugin is loaded again)
+        if (owner.getServer() != null) for (Player player : owner.getServer().getOnlinePlayers()) loadSwap(player);
+    }
+
+    /** Whether the player swapped Q and F (t162): F is the key of 小・中・大 and Q of util / the ULT. */
+    public static boolean swapped(Player player) {
+        return player != null && SWAPPED.contains(player.getUniqueId());
+    }
+
+    public static boolean swapped(UUID player) {
+        return player != null && SWAPPED.contains(player);
+    }
+
+    /** Swaps Q and F for the player, or back (kept in the player's data). */
+    public static void setSwapped(Player player, boolean swap) {
+        if (swap) SWAPPED.add(player.getUniqueId()); else SWAPPED.remove(player.getUniqueId());
+        Q_WAITING.remove(player.getUniqueId());
+        if (plugin == null) return;
+        org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(plugin, SWAP_KEY);
+        if (swap) player.getPersistentDataContainer().set(key, org.bukkit.persistence.PersistentDataType.BYTE, (byte) 1);
+        else player.getPersistentDataContainer().remove(key);
+    }
+
+    private static void loadSwap(Player player) {
+        if (plugin == null) return;
+        if (player.getPersistentDataContainer().has(new org.bukkit.NamespacedKey(plugin, SWAP_KEY), org.bukkit.persistence.PersistentDataType.BYTE)) SWAPPED.add(player.getUniqueId());
+        else SWAPPED.remove(player.getUniqueId());
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        loadSwap(event.getPlayer());
     }
 
     static int windowTicks() {
@@ -104,13 +144,25 @@ public final class SkillInput implements Listener {
 
     /** The keys of a skill (the same with every weapon, t160): "Q→左". */
     public static String keys(SkillSlots.Slot slot) {
+        return keys(slot, false);
+    }
+
+    /** The keys of a skill, with Q and F swapped or not (t162): "Q→左" or "F→左". */
+    public static String keys(SkillSlots.Slot slot, boolean swapped) {
+        String first = swapped ? "F" : "Q";
+        String other = swapped ? "Q" : "F";
         return switch (slot) {
-            case SMALL -> "Q→左";
-            case MEDIUM -> "Q→右";
-            case LARGE -> "Q→Q";
-            case UTIL -> "F";
-            case ULT -> "Shift+F";
+            case SMALL -> first + "→左";
+            case MEDIUM -> first + "→右";
+            case LARGE -> first + "→" + first;
+            case UTIL -> other;
+            case ULT -> "Shift+" + other;
         };
+    }
+
+    /** The key that takes a deployed weapon's placement away: shift and the key of 小・中・大 (t162). */
+    public static String removeKeys(boolean swapped) {
+        return "Shift+" + (swapped ? "F" : "Q");
     }
 
     /** The button of the weapon's skill: the right one with a melee weapon, the left one with another. */
@@ -124,6 +176,7 @@ public final class SkillInput implements Listener {
     }
 
     public static void forget(UUID id) {
+        SWAPPED.remove(id);
         Q_WAITING.remove(id);
         LAST_CLICK.remove(id);
         LAST_OTHER.remove(id);

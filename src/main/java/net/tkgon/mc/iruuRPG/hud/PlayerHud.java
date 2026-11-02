@@ -174,12 +174,19 @@ public final class PlayerHud {
 
     /** The glyph of the keys of a skill ({@link HudGlyphs#keyLabel}; the same with every weapon, t160). */
     static char keyGlyph(SkillSlots.Slot slot) {
+        return keyGlyph(slot, false);
+    }
+
+    /** The glyph of the keys of a skill, with Q and F swapped or not (t162: F → left ... and Q, shift + Q). */
+    static char keyGlyph(SkillSlots.Slot slot, boolean swapped) {
+        String first = swapped ? "f" : "q";
+        String other = swapped ? "q" : "f";
         return HudGlyphs.keyLabel(switch (slot) {
-            case SMALL -> "ql";
-            case MEDIUM -> "qr";
-            case LARGE -> "qq";
-            case UTIL -> "f";
-            case ULT -> "sf";
+            case SMALL -> first + "l";
+            case MEDIUM -> first + "r";
+            case LARGE -> first + first;
+            case UTIL -> other;
+            case ULT -> "s" + other;
         });
     }
 
@@ -213,7 +220,7 @@ public final class PlayerHud {
             // (each kind of weapon has its own icons and cooldowns of 小・中・大・util)
             SkillSlots.View view = skillSlots.view(player, slot, weapon);
             HudGlyphs.Icon icon = icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), view,
-                    keyGlyph(slot), view.recasting() ? KEY_NOW : keyColor(player, afterQ));
+                    keyGlyph(slot, SkillInput.swapped(player)), view.recasting() ? KEY_NOW : keyColor(player, afterQ));
             // the ULT that can be re-activated now blinks: its bright rim is on and off every 5 ticks
             if (slot == SkillSlots.Slot.ULT && ultRecastable(player)) {
                 icon = new HudGlyphs.Icon(icon.glyph(), icon.coolingShare(), icon.seconds(), icon.key(), icon.keyColor(), icon.locked(),

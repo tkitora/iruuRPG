@@ -160,8 +160,19 @@ class HudGlyphsTest {
                 new HudGlyphs.Icon(HudGlyphs.icon("mage", 3), 0.0, 0, HudGlyphs.keyLabel("qq"), 0xFFFFFF, false, false, true, 1, 1, -1.0));
         assertEquals(0, advance(spaces, HudGlyphs.row(charged, extras)));
         // 48 icons (6 classes x melee and ranged x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, the rim, 16 shades, 10 digits, 7 key labels;
-        // t157: the rim of a re-activation, 10 charges, 17 gauges of a refill
-        assertEquals(119, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // t157: the rim of a re-activation, 10 charges, 17 gauges of a refill; t162: 5 key labels with Q and F swapped
+        assertEquals(124, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // (F → left has the arrow after F as Q → left has after Q: the two differ only in their first letter, x 1 - 5)
+        java.awt.image.BufferedImage fl = HudGlyphs.keyImage("fl");
+        java.awt.image.BufferedImage ql = HudGlyphs.keyImage("ql");
+        boolean differs = false;
+        for (int y = 0; y < 7; y++) {
+            for (int x = 0; x < HudGlyphs.ICON; x++) {
+                if (x >= 6) assertEquals(ql.getRGB(x, y), fl.getRGB(x, y), "the arrow and the left button at " + x + ", " + y);
+                else differs |= ql.getRGB(x, y) != fl.getRGB(x, y);
+            }
+        }
+        assertTrue(differs, "F, not Q");
     }
 
     @Test
