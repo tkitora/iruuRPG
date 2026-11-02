@@ -69,13 +69,14 @@ class ClassInfoTest {
         assertEquals("F: アイテムスキル", ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "warrior", true).get(3));
         assertTrue(ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.DEPLOY, "warrior", true).stream()
                 .anyMatch(line -> line.contains("Shift+F: ULT") && line.contains("Shift+Q: 設置を消す")));
-        // which skills of the guide they throw: a class whose moves are not made yet, and the mage (its own with a ranged weapon, the template with another)
+        // which skills of the guide they throw: a class whose moves are not made yet, and the mage (its own with a ranged weapon; the reaper's with
+        // a scythe since t167, told by the guide itself)
         List<String> notYet = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "nobody");
         assertEquals("小・中・大 は、いまは下のスキル1〜3", notYet.get(notYet.size() - 1));
         List<String> mage = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.RANGE, "mage");
         assertEquals("小 = スキル6 / 中 = スキル4 / 大 = スキル5 / util = スキル1", mage.get(mage.size() - 1));
         List<String> mageMelee = ClassInfo.controls(net.tkgon.mc.iruuRPG.combat.AttackType.MELEE, "mage");
-        assertEquals("小 = スキル1 / 中 = スキル2 / 大 = スキル3 / util = スキル4", mageMelee.get(mageMelee.size() - 1));
+        assertEquals("Q: アイテムスキル", mageMelee.get(mageMelee.size() - 1));
     }
 
     @Test

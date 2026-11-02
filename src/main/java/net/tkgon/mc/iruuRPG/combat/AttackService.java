@@ -282,6 +282,7 @@ public final class AttackService {
         if (mageMoves != null) mageMoves.forget(id);
         swapDashReady.remove(id);
         MageMeleeCombo.forget(id);
+        MageReaper.forget(id);
         RangerBuffs.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);

@@ -12,6 +12,7 @@
   - `HIT_CUT`: 近接の命中。トライデントが刺さる音、会心のパチッ、鎖が切れる音。
   - `HIT_PIERCE`: 遠距離の命中。矢の命中、刺さる音、水晶の音。
   - `HIT_CRIT`: 会心のときに足す音。
+- **リーパー (メイジの大鎌、t167)** は、自分の音の役割を持つ (`REAPER_*`): 低い風切りと魂の息 (`REAPER_SWING`)、重い刈り (`REAPER_HEAVY`)、刻印がそろった音 (`REAPER_MARK`)、刈り取り (`REAPER_REAP`)、魂を取り込む音 (`REAPER_SOUL`)、回る鎌 (`REAPER_THROW`)、霊体のすり抜け (`REAPER_PHASE`)、門 (`REAPER_GATE`)、大鎌の 1 周 (`REAPER_GRAND`)。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:

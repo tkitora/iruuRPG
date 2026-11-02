@@ -346,7 +346,9 @@ public final class HudGlyphs {
         BufferedImage fallback = old == 0 ? utilPlaceholder(classIndex) : resourceImage("heavy_" + classId + "_" + old, placeholder(classIndex, old));
         // (skills of their own, not the old heavy attacks: no old picture, the placeholder until the texture tree draws them; t161)
         if (net.tkgon.mc.iruuRPG.combat.SlotMoves.reworked(classId, type)) fallback = number == 4 ? utilPlaceholder(classIndex) : placeholder(classIndex, number);
-        if (numbers == null || type == net.tkgon.mc.iruuRPG.combat.SlotMoves.favorite(classId)) {
+        // (the class's picture is of its favorite weapon: not for skills of their own with another, the reaper's of t167)
+        boolean ownElsewhere = net.tkgon.mc.iruuRPG.combat.SlotMoves.reworked(classId, type) && type != net.tkgon.mc.iruuRPG.combat.SlotMoves.favorite(classId);
+        if (!ownElsewhere && (numbers == null || type == net.tkgon.mc.iruuRPG.combat.SlotMoves.favorite(classId))) {
             fallback = resourceImage(SKILL_NAMES[number - 1] + "_" + classId, fallback);
         }
         return resourceImage(SKILL_NAMES[number - 1] + "_" + classId + "_" + KINDS.get(kind), fallback);

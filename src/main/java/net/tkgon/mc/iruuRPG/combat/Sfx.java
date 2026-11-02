@@ -97,7 +97,34 @@ public enum Sfx {
             new Layer(Sound.BLOCK_AMETHYST_BLOCK_HIT, 0.2f, 1.5f)),
     /** What a critical hit adds: a heavy crit, a deep stab and a sparkle. */
     HIT_CRIT(new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.6f, 1.1f), new Layer(Sound.ITEM_TRIDENT_HIT, 0.4f, 1.0f),
-            new Layer(Sound.BLOCK_AMETHYST_BLOCK_HIT, 0.3f, 1.6f));
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_HIT, 0.3f, 1.6f)),
+    // the reaper (the mage with a scythe, t167): a long, low cut of the air, souls breathing out, and the sculk's dark clicks
+    /** A scythe swung: a low whoosh, a slow wing beat and a soul let out. */
+    REAPER_SWING(new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 0.85f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.35f, 0.7f),
+            new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.55f, 0.8f)),
+    /** A heavy reap: a phantom's swoop, a deeper whoosh and the vex's cry. */
+    REAPER_HEAVY(new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.55f, 0.6f), new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 0.65f),
+            new Layer(Sound.ENTITY_VEX_CHARGE, 0.35f, 0.6f)),
+    /** A mark full on an enemy: a sculk sensor's clicks and a soul, high and thin. */
+    REAPER_MARK(new Layer(Sound.BLOCK_SCULK_SENSOR_CLICKING, 0.45f, 1.4f), new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.5f, 1.5f)),
+    /** The marks reaped: an anchor spent, the sculk's bloom, the vex and the souls torn out. */
+    REAPER_REAP(new Layer(Sound.BLOCK_RESPAWN_ANCHOR_DEPLETE, 0.45f, 1.3f), new Layer(Sound.BLOCK_SCULK_CATALYST_BLOOM, 0.55f, 1.2f),
+            new Layer(Sound.ENTITY_VEX_CHARGE, 0.4f, 0.8f), new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.8f, 0.6f)),
+    /** The souls taken in (the reaper healed): a soul, a low chime and the allay's breath. */
+    REAPER_SOUL(new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.6f, 1.4f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.3f, 0.7f),
+            new Layer(Sound.ENTITY_ALLAY_AMBIENT_WITHOUT_ITEM, 0.2f, 0.6f)),
+    /** The scythe thrown, turning: a riptide's whirl, a wing beat and a whoosh. */
+    REAPER_THROW(new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.35f, 1.4f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.4f, 0.9f),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.4f, 0.8f)),
+    /** The reaper goes through as a wraith: the vex's rush, a swoop and a soul. */
+    REAPER_PHASE(new Layer(Sound.ENTITY_VEX_CHARGE, 0.5f, 0.7f), new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.4f, 1.2f),
+            new Layer(Sound.PARTICLE_SOUL_ESCAPE, 0.6f, 1.0f)),
+    /** The gate of 大 opens: an end portal's frame, an anchor charging and the warden drawing breath. */
+    REAPER_GATE(new Layer(Sound.BLOCK_END_PORTAL_FRAME_FILL, 0.6f, 0.6f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 0.6f),
+            new Layer(Sound.ENTITY_WARDEN_SONIC_CHARGE, 0.25f, 0.7f)),
+    /** The great scythe of 大 goes round: the dragon's wing, a deep whoosh, a swoop and the wither's breath. */
+    REAPER_GRAND(new Layer(Sound.ENTITY_ENDER_DRAGON_FLAP, 0.6f, 0.6f), new Layer(Sound.ITEM_TRIDENT_THROW, 0.6f, 0.55f),
+            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.5f, 0.5f), new Layer(Sound.ENTITY_WITHER_SHOOT, 0.12f, 0.5f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {
