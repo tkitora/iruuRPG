@@ -35,6 +35,8 @@ test {
     }
     // -PitemModelSamples=<a folder of .bbmodel files>: ItemModelMakerTest#samples makes their item pack into build/item-model-samples/
     systemProperty 'itemModel.samples', (project.findProperty('itemModelSamples') ?: '')
+    // -PbbmodelSamples=<a folder of .bbmodel files>: BbFormatTest / BbItemFormatTest read each in 4.10 and in 5.0 and compare
+    systemProperty 'bbmodel.samples', (project.findProperty('bbmodelSamples') ?: '')
 }
 
 tasks.register('itemPatchTest', Test) {
