@@ -194,9 +194,8 @@ public final class CraftMenu implements Listener {
         for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
             if (index >= MATERIAL_SLOTS.length) break;
             int have = service.count(player, entry.getKey());
-            Material icon = itemRegistry.find(entry.getKey()).map(RpgItemDefinition::material).orElse(Material.PAPER);
-            ItemStack stack = item(icon, service.itemName(entry.getKey()), have >= entry.getValue() ? NamedTextColor.GREEN : NamedTextColor.RED,
-                    List.of(text("所持 " + have + " / 必要 " + entry.getValue(), NamedTextColor.GRAY)), false);
+            ItemStack stack = materialIcon(entry.getKey(), have >= entry.getValue() ? NamedTextColor.GREEN : NamedTextColor.RED,
+                    List.of(text("所持 " + have + " / 必要 " + entry.getValue(), NamedTextColor.GRAY)));
             stack.setAmount(Math.max(1, Math.min(64, entry.getValue())));
             inventory.setItem(MATERIAL_SLOTS[index++], stack);
         }
@@ -250,8 +249,7 @@ public final class CraftMenu implements Listener {
         int index = 0;
         for (Map.Entry<String, Integer> entry : recipe.ingredients().entrySet()) {
             if (index >= 3) break; // rows 1-3 only: the progress bar takes the bottom row
-            Material icon = itemRegistry.find(entry.getKey()).map(definition -> definition.material()).orElse(Material.PAPER);
-            holder.inventory.setItem(MATERIAL_SLOTS[index++], item(icon, service.itemName(entry.getKey()), NamedTextColor.GRAY, List.of(), false));
+            holder.inventory.setItem(MATERIAL_SLOTS[index++], materialIcon(entry.getKey(), NamedTextColor.GRAY, List.of()));
         }
         for (int slot = 37; slot <= 43; slot++) {
             holder.inventory.setItem(slot, item(Material.GRAY_STAINED_GLASS_PANE, "…", NamedTextColor.DARK_GRAY, List.of(), false));
@@ -555,6 +553,23 @@ public final class CraftMenu implements Listener {
 
     private static Component text(String value, NamedTextColor color) {
         return Component.text(value, color).decoration(TextDecoration.ITALIC, false);
+    }
+
+    /**
+     * The icon of a material of a recipe: the item itself as it looks (its texture or model; t176: an icon of the base material alone showed a
+     * bare stick), with its name in {@code color} and {@code lore} in place of its own; a sheet of paper when the item is unknown.
+     */
+    private ItemStack materialIcon(String itemId, NamedTextColor color, List<Component> lore) {
+        RpgItemDefinition definition = itemRegistry.find(itemId).orElse(null);
+        if (definition == null) return item(Material.PAPER, service.itemName(itemId), color, lore, false);
+        ItemStack stack = itemFactory.create(definition);
+        ItemMeta meta = stack.getItemMeta();
+        if (meta == null) return stack;
+        meta.displayName(Component.text(service.itemName(itemId), color, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
+        meta.lore(lore);
+        meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_ENCHANTS);
+        stack.setItemMeta(meta);
+        return stack;
     }
 
     private ItemStack item(Material material, String name, NamedTextColor color, List<Component> lore, boolean glint) {
