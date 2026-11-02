@@ -9,22 +9,24 @@ import java.nio.file.StandardCopyOption;
 import java.util.function.Consumer;
 
 /**
- * Keeps the plugin's own drawn packs in the pack folder: the ground marks' font and the action bar's icons ({@code resourcepacks/iruumark.zip}, see {@link MarkGlyphs})
- * and the shaders of the screen effects ({@code resourcepacks/iruufx.zip}, see {@link ScreenShaders}; only while {@code screen-effects.enabled} is on, else the file is
- * taken away so it is not offered). The pictures are drawn when the plugin starts, off the main thread; a file is written only when its bytes changed, and then
- * {@code onChanged} runs on the main thread with the pack's name ({@code marks} / {@code fx}: to send it again to the players online). Never throws: a problem is a warning.
+ * Keeps the plugin's own drawn pack in the pack folder: the ground marks' font and the action bar's icons ({@code resourcepacks/iruumark.zip}, see {@link MarkGlyphs}).
+ * The pictures are drawn when the plugin starts, off the main thread; the file is written only when its bytes changed, and then {@code onChanged} runs on the main
+ * thread with the pack's name ({@code marks}: to send it again to the players online). Never throws: a problem is a warning.
+ * <p>
+ * The pack of the screen effects' shaders ({@code iruufx.zip}) is gone with the screen effects (t156: they depended on the client); a file of it left from before is
+ * taken away, so nothing is left behind.
  */
 public final class MarkPackService {
 
     public static final String PACK_FILE = "iruumark.zip";
-    public static final String FX_FILE = "iruufx.zip";
+    /** The pack of the screen effects that were taken out (t156): taken away when it is still there. */
+    static final String OLD_FX_FILE = "iruufx.zip";
 
     private MarkPackService() {
     }
 
     public static void rebuild(JavaPlugin plugin, Consumer<String> onChanged) {
         try {
-            boolean effects = plugin.getConfig().getBoolean("screen-effects.enabled", true);
             Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
                 File folder = new File(plugin.getDataFolder(), "resourcepacks");
                 if (!folder.exists() && !folder.mkdirs()) {
@@ -39,17 +41,10 @@ public final class MarkPackService {
                 } catch (Exception | LinkageError exception) {
                     plugin.getLogger().warning("markpack: the pack of the ground marks could not be made: " + exception);
                 }
-                try {
-                    byte[] fx = effects ? ScreenShaders.pack() : null;
-                    File fxFile = new File(folder, FX_FILE);
-                    if (fx == null) {
-                        if (fxFile.isFile() && fxFile.delete()) plugin.getLogger().info("markpack: " + FX_FILE + " taken away (screen-effects.enabled is off)");
-                    } else if (write(plugin, folder, FX_FILE, fx)) {
-                        plugin.getLogger().info("markpack: " + FX_FILE + " updated (" + ScreenShaders.FILES.size() + " shader files)");
-                        changed(plugin, onChanged, "fx");
-                    }
-                } catch (Exception | LinkageError exception) {
-                    plugin.getLogger().warning("markpack: the pack of the screen effects could not be made: " + exception);
+                File oldFx = new File(folder, OLD_FX_FILE);
+                if (oldFx.isFile()) {
+                    if (oldFx.delete()) plugin.getLogger().info("markpack: " + OLD_FX_FILE + " taken away (the screen effects are no longer in the plugin)");
+                    else plugin.getLogger().warning("markpack: " + OLD_FX_FILE + " (the pack of the screen effects, no longer used) could not be taken away");
                 }
             });
         } catch (RuntimeException exception) {

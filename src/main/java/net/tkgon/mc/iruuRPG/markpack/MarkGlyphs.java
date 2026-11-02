@@ -210,8 +210,7 @@ public final class MarkGlyphs {
 
     /**
      * The resource pack: pack.mcmeta, the font and the pictures (and the font of the action bar's icons, {@link HudGlyphs}). The bytes are the
-     * same every time for the same glyphs. (The shaders of the screen effects are a pack of their own, {@link ScreenShaders#pack}: a client
-     * whose GPU cannot take them must still have the fonts.)
+     * same every time for the same glyphs.
      */
     public static byte[] pack() throws IOException {
         Map<String, byte[]> files = new LinkedHashMap<>();
