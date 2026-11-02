@@ -18,7 +18,7 @@ import org.bukkit.util.Vector;
  * moment (30%), 4 shadow bonds on the enemy nearest the middle: it cannot move for 1.2 s and is cut three times (35% x3), 5 nightfall: every enemy in
  * it is struck (80%) and blinded for 3 s, and the assassin in it is cloaked twice as strongly for 4 s.
  *
- * <p>The heavy attacks below are what they were before t168 (a deployed weapon has no skills).
+ * <p>The combo has no heavy attacks since t168 (a deployed weapon has no skills).
  */
 public final class AssassinDeployCombo extends BaseCombo {
 
@@ -28,43 +28,6 @@ public final class AssassinDeployCombo extends BaseCombo {
         super("assassin", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.35, 0.3, 0.3, 0.35, 0.8}, new int[]{2, 1, 1, 3, 1},
                 new double[]{0.2, 1.2, 0.4, 0.07, 0.2, 0.25}, new int[]{140, 0, 0, 0, 0, 0}, 40));
-    }
-
-    private void smoke(MoveKit kit, Location at, double radius) {
-        kit.fx(at).particle(org.bukkit.Particle.CAMPFIRE_COSY_SMOKE, at.getX(), at.getY() + 0.5, at.getZ(), 2, radius * 0.4, 0.3, radius * 0.4, 0.01);
-    }
-
-    /**
-     * A canister of smoke standing at {@code at}: a cloud of {@code radius} blocks that cuts and slows what is in it every {@code 10} ticks (a share of {@code rate}) and, every
-     * {@code knifeEvery} ticks, throws a knife of {@code rate} out of the middle of it at the nearest enemy within 9 blocks. It stays for as long as the placement does.
-     */
-    private void canister(MoveKit kit, String key, Location at, double radius, double rate, int knifeEvery, double slowPercent, int life) {
-        kit.sound(at, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.6f, 0.7f);
-        kit.zone(key, at, kit.linger(life), 2, zone -> {
-            // (the smoke and the ring are drawn sparingly: a cloud that was too thick to see through)
-            if (zone.age() % 6 == 0) smoke(kit, at, radius);
-            if (zone.age() % 10 == 0) {
-                if (zone.age() % 20 == 0) kit.fx(at).flatRing(at.clone().add(0.0, 0.15, 0.0), radius, (int) Math.max(14, radius * 5), kit.palette(), 0.3, 0.2, 0.9);
-                for (LivingEntity victim : kit.around(at, radius)) {
-                    if (kit.hit(victim, rate * 0.6) && slowPercent > 0.0) kit.slow(victim, slowPercent, 1.5);
-                }
-            }
-            if (zone.age() % knifeEvery != 0 || zone.age() == 0) return;
-            LivingEntity best = null;
-            double bestDistance = 81.0;
-            for (LivingEntity candidate : kit.around(at, 9.0)) {
-                double d = candidate.getLocation().distanceSquared(at);
-                if (d < bestDistance) {
-                    bestDistance = d;
-                    best = candidate;
-                }
-            }
-            if (best == null) return;
-            Location from = at.clone().add(0.0, 1.0, 0.0);
-            Vector toward = best.getLocation().add(0.0, best.getHeight() * 0.5, 0.0).toVector().subtract(from.toVector());
-            if (toward.lengthSquared() < 1.0E-6) return;
-            Blades.fly(kit, from, toward, 1.6, 10.0, rate, null);
-        }, zone -> smoke(kit, at, radius * 1.6));
     }
 
     /** Where each assassin's veil stands (a veil set somewhere else is a new one). */
@@ -228,62 +191,7 @@ public final class AssassinDeployCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.4));
-        double rate = step.damageMultiplier();
-        Location feet = kit.origin();
-        Location target = ComboParts.target(kit);
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sound.ENTITY_FIREWORK_ROCKET_BLAST, 0.8f, 0.7f);
-                ComboParts.sigil(kit, "assassin_screen", at, 3.4, rate, 50, 10, here -> {
-                    for (LivingEntity victim : kit.around(here, 3.4)) kit.slow(victim, 40.0, 1.0);
-                    smoke(kit, here, 3.4);
-                });
-            }
-            case 1 -> ComboParts.bomb(kit, "assassin_decoy", target, 36, 3.2, rate, 0.0);
-            case 2 -> {
-                Vector toward = target.toVector().subtract(feet.toVector()).setY(0.0);
-                Vector facing = toward.lengthSquared() < 1.0 ? kit.originFacing() : toward.normalize();
-                for (int index = 0; index < 3; index++) {
-                    Location spot = kit.ground(feet.clone().add(facing.clone().multiply(3.0 + 2.5 * index)));
-                    kit.later(index * 2L, () -> ComboParts.mine(kit, "assassin_mines_" + spot.getBlockX() + "_" + spot.getBlockZ(), spot, 1.8, 2.8, rate, 0.0));
-                }
-            }
-            case 3 -> {
-                // three canisters round the aim that throw knives at the nearest enemy
-                for (int index = 0; index < 3; index++) {
-                    double angle = Math.PI * 2.0 * index / 3.0 + Math.PI * 0.5;
-                    Location spot = kit.ground(target.clone().add(Math.cos(angle) * 2.2, 0.0, Math.sin(angle) * 2.2));
-                    String key = "assassin_turret_" + index;
-                    kit.later(index, () -> canister(kit, key, spot, 1.8, rate, 6, 0.0, 50));
-                }
-            }
-            case 4 -> {
-                // a veil of night: the aim goes dark and what stands in it is cut again and again
-                kit.sound(target, Sfx.MAGIC_DARK, 1.0f, 0.7f);
-                ComboParts.sigil(kit, "assassin_night", target, 4.6, rate, 50, 10, here ->
-                        kit.fx(here).particle(org.bukkit.Particle.SQUID_INK, here.getX(), here.getY() + 1.0, here.getZ(), 10, 2.0, 0.8, 2.0, 0.01));
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: a deployed weapon has no skills.
     }
 
-    /** Skill 6 (t138): a trap of poison mist at the aim for 2.5 s: every 10 ticks it hurts and slows what is in it, and confuses it. */
-    private void sixth(MoveKit kit, double rate) {
-        Location target = kit.ground(ComboParts.target(kit));
-        kit.sound(target, Sfx.MAGIC_DARK, 0.8f, 0.8f);
-        ComboParts.sigil(kit, "assassin_mist", target, 3.2, rate, 50, 10, here -> {
-            for (org.bukkit.entity.LivingEntity victim : kit.around(here, 3.2)) {
-                kit.slow(victim, 35.0, 1.0);
-                kit.confuse(victim, 20.0);
-            }
-            for (int index = 0; index < 6; index++) {
-                double angle = Math.PI * 2.0 * index / 6.0;
-                Location puff = here.clone().add(Math.cos(angle) * 1.8, 0.4, Math.sin(angle) * 1.8);
-                kit.fx(puff).flatRing(puff, 0.6, 10, kit.palette(), 0.2, 0.3, 1.2);
-            }
-        });
-    }
 }

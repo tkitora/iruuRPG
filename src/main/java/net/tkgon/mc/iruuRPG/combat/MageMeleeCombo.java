@@ -21,8 +21,7 @@ import java.util.UUID;
  * (the reaper's skills reap them). Normal: 1 a wide sweep from the right with the ghost of a second blade behind it (62%), 2 the blade back from
  * the left, rising, hooking the enemies up (72%), 3 a step in and two short hooking reaps that draw them in (42% each), 4 two spins in a ring of
  * souls (48% each), 5 the verdict: the scythe comes down overhead (120%) and a crescent of souls flies on 9 blocks (half of it, marking too).
- * The heavy attacks below (skills 1 - 6 of t138, with their second parts) are what the mage threw with a scythe before t167; they are no longer
- * thrown (their code goes in a later change).
+ * The combo has no heavy attacks (they went in t168; the reaper's skills are its own, {@link MageReaper}).
  */
 public final class MageMeleeCombo extends BaseCombo {
 
@@ -40,76 +39,10 @@ public final class MageMeleeCombo extends BaseCombo {
         return 16;
     }
 
-    // ---- what comes after a heavy attack (pressed again) ----------------------------------------------------------------------------
-
-    /** A heavy attack that can be gone on with: which one, from when until when (game ticks) and the rate of the next part. */
-    private record Follow(int index, int readyTick, int untilTick, double rate) {
-    }
-
-    private static final Map<UUID, Follow> FOLLOW = new HashMap<>();
-
-    private static void arm(MoveKit kit, int index, int delayTicks, int windowTicks, double rate) {
-        int now = Bukkit.getCurrentTick();
-        FOLLOW.put(kit.player.getUniqueId(), new Follow(index, now + delayTicks, now + windowTicks, rate));
-    }
-
-    /** The mage left, or the class changed. */
-    public static void forget(UUID id) {
-        FOLLOW.remove(id);
-    }
-
-    @Override
-    public boolean followUp(MoveKit kit) {
-        Follow follow = FOLLOW.get(kit.player.getUniqueId());
-        if (follow == null) return false;
-        int now = Bukkit.getCurrentTick();
-        if (now > follow.untilTick()) {
-            FOLLOW.remove(kit.player.getUniqueId());
-            return false;
-        }
-        // (a click that comes too early is used up, so that a held button does not throw another heavy attack in the middle of this one)
-        if (now < follow.readyTick()) return true;
-        FOLLOW.remove(kit.player.getUniqueId());
-        kit.palette(Palettes.mixed(kit.weapon.element(), 0.85));
-        follow(kit, follow);
-        return true;
-    }
-
-    // ---- ash and cuts --------------------------------------------------------------------------------------------------------------
-
-    /** Ash blown off {@code victim} along {@code direction} (the way the blade went through it), in two puffs. */
-    private static void ash(MoveKit kit, LivingEntity victim, Vector direction) {
-        Location from = victim.getLocation().add(0.0, victim.getHeight() * 0.6, 0.0);
-        Vector way = direction.lengthSquared() < 1.0E-6 ? new Vector(0.0, 0.0, 1.0) : direction.clone().normalize();
-        for (int index = 0; index < 8; index++) {
-            kit.particle(Particle.ASH, from.clone().add(way.clone().multiply(0.35 * index)), 3, 0.12 + 0.03 * index, 0.0);
-        }
-        kit.particle(Particle.SMOKE_NORMAL, from, 4, 0.2, 0.02);
-        kit.later(3L, () -> {
-            for (int index = 0; index < 6; index++) {
-                kit.particle(Particle.ASH, from.clone().add(way.clone().multiply(2.8 + 0.4 * index)), 3, 0.2, 0.0);
-            }
-        });
-    }
-
-    /** {@code rate} on each of {@code targets}; the ones hit blow ash along {@code direction}. */
-    private static void reap(MoveKit kit, java.util.List<LivingEntity> targets, double rate, Vector direction) {
-        for (LivingEntity victim : targets) {
-            if (kit.hit(victim, rate)) ash(kit, victim, direction);
-        }
-    }
-
     /** The way a sweep that begins on the right ({@code roll} 0) or on the left (180) goes through what is in front: across, and a little forward. */
     private static Vector sweepWay(MoveKit kit, double roll) {
         Vector[] axes = kit.axes();
         return axes[1].clone().multiply(roll == 0.0 ? -0.9 : 0.9).add(axes[0].clone().multiply(0.4));
-    }
-
-    /** A sweep of the scythe: an arc of 250 degrees ahead, and everything in the cone cut for {@code rate}. */
-    private static void sweep(MoveKit kit, double radius, double tilt, double roll, double rate) {
-        kit.slash("arc", radius, 250.0, tilt, roll, radius * 0.9, 0.5, 0.0, 1.3, 0.14, 0.0);
-        kit.sound(kit.player.getLocation(), Sfx.REAP, 0.8f, 0.85f);
-        reap(kit, kit.cone(radius, 115.0), rate, sweepWay(kit, roll));
     }
 
     /**
@@ -178,7 +111,6 @@ public final class MageMeleeCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        FOLLOW.remove(kit.player.getUniqueId());
         MageReaper.look(kit);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
@@ -262,194 +194,7 @@ public final class MageMeleeCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        FOLLOW.remove(kit.player.getUniqueId());
-        kit.palette(Palettes.mixed(kit.weapon.element(), 0.85));
-        double rate = step.damageMultiplier();
-        Location feet = kit.player.getLocation();
-        Vector facing = kit.facing();
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                // a leap: the mage jumps with a cut upward, and what is near is thrown up; the second press is the plunge
-                kit.guard(0.5, 30);
-                kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.9f);
-                kit.slash("arc", 3.6, 250.0, 20.0, 180.0, 3.2, 0.9, 0.0, 1.4, 0.16, 0.0);
-                for (LivingEntity victim : kit.around(feet, 3.6)) {
-                    if (kit.hit(victim, rate)) {
-                        kit.lift(victim, 0.95);
-                        ash(kit, victim, new Vector(0.0, 1.0, 0.0));
-                    }
-                }
-                kit.player.setFallDistance(0.0f);
-                kit.player.setVelocity(new Vector(0.0, 0.95, 0.0));
-                kit.every(12, age -> {
-                    Location at = kit.player.getLocation();
-                    kit.particle(Particle.SOUL_FIRE_FLAME, at.clone().add(0.0, 0.3, 0.0), 5, 0.4, 0.02);
-                    kit.fx(at).flatRing(at.clone().add(0.0, 0.2, 0.0), 1.2 + 0.1 * age, 24, kit.palette(), 0.5, 0.2, 1.0);
-                    return false;
-                });
-                arm(kit, 0, 8, 40, kit.number(PLAN, "plunge-rate", 0.9));
-            }
-            case 1 -> {
-                // three sweeping cuts forward
-                for (int index = 0; index < 3; index++) {
-                    int which = index;
-                    kit.later(index * 5L, () -> sweep(kit, 3.5, 75.0 - 15.0 * which, which % 2 == 0 ? 0.0 : 180.0, rate));
-                }
-                arm(kit, 1, 10, 36, rate * 2.0);
-            }
-            case 2 -> {
-                // a long line slash straight ahead: a thin line shows along the way for 0.3 s, then the blade goes down it (6 blocks, slows)
-                lineSlash(kit, facing, rate, true);
-                arm(kit, 2, 12, 36, rate);
-            }
-            case 3 -> {
-                // a short dash forward and a sweep
-                kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.8f);
-                kit.dash(facing, 1.0, 4, end -> {
-                    kit.slash("arc", 3.9, 250.0, 75.0, 0.0, 3.5, 0.4, 0.0, 1.5, 0.16, 0.0);
-                    kit.sound(end, Sfx.REAP, 1.0f, 0.7f);
-                    kit.shockwave(end, 0.8, 3.2, 3, 1.0);
-                    reap(kit, kit.cone(3.9, 120.0), rate, sweepWay(kit, 0.0));
-                });
-                arm(kit, 3, 10, 36, rate * 0.6);
-            }
-            case 4 -> {
-                // three short dashes, a cut at the end of each, and a last cut
-                for (int index = 0; index < 3; index++) {
-                    int which = index;
-                    kit.later(index * 5L, () -> {
-                        kit.sound(kit.player.getLocation(), Sfx.REAP_HEAVY, 0.8f, 0.8f + 0.1f * which);
-                        kit.dash(kit.facing(), 0.9, 3, end -> {
-                            kit.slash("arc", 3.5, 250.0, 75.0 - 15.0 * which, which % 2 == 0 ? 0.0 : 180.0, 3.1, 0.5, 0.0, 1.3, 0.12, 0.0);
-                            reap(kit, kit.cone(3.5, 115.0), rate * 0.22, sweepWay(kit, which % 2 == 0 ? 0.0 : 180.0));
-                        });
-                    });
-                }
-                kit.later(16L, () -> {
-                    Location at = kit.player.getLocation();
-                    kit.slash("arc", 3.9, 250.0, 40.0, 0.0, 3.5, 0.3, 0.0, 1.6, 0.18, 0.0);
-                    kit.shockwave(at, 1.0, 3.8, 4, 1.1);
-                    kit.sound(at, Sfx.REAP_HEAVY, 1.0f, 0.65f);
-                    reap(kit, kit.cone(3.9, 120.0), rate * 0.44, sweepWay(kit, 0.0));
-                });
-                arm(kit, 4, 22, 50, rate * 0.5);
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: the reaper's skills are its own (MageReaper).
     }
 
-    /** A line slash along {@code way} (6 blocks): with {@code telegraph}, a thin line shows for 0.3 s first; then the blade goes down it and cuts all within 0.9 blocks of it. */
-    private static void lineSlash(MoveKit kit, Vector way, double rate, boolean telegraph) {
-        Location from = kit.player.getLocation().add(0.0, 1.0, 0.0);
-        Location to = from.clone().add(way.clone().multiply(6.2));
-        Vector side = new Vector(-way.getZ(), 0.0, way.getX());
-        int wait = telegraph ? 6 : 1;
-        if (telegraph) {
-            kit.sound(from, Sfx.REAP, 0.7f, 0.7f);
-            for (int tick = 0; tick < wait; tick++) kit.later(tick, () -> kit.line(from, to, 0.1, 0.6, 0.8));
-        }
-        kit.later(wait, () -> {
-            kit.slash("arc", 3.8, 160.0, 85.0, 0.0, 3.4, 0.5, 0.0, 1.5, 0.12, 0.0);
-            kit.sound(from, Sfx.REAP_HEAVY, 1.0f, 0.7f);
-            for (int offset = -1; offset <= 1; offset++) {
-                Vector shift = side.clone().multiply(0.7 * offset);
-                kit.line(from.clone().add(shift), to.clone().add(shift), 0.1, 1.0, 1.5);
-            }
-            kit.burst(to, 1.6);
-            for (LivingEntity victim : kit.corridor(from, way, 6.2, 1.8)) {
-                if (!kit.hit(victim, rate)) continue;
-                kit.slow(victim, 40.0, 1.2);
-                ash(kit, victim, way);
-            }
-        });
-    }
-
-    /** The next part of the heavy attack {@code follow.index()}. */
-    private void follow(MoveKit kit, Follow follow) {
-        double rate = follow.rate();
-        Location feet = kit.player.getLocation();
-        Vector facing = kit.facing();
-        switch (follow.index()) {
-            case 0 -> {
-                // the plunge: down on the spot, and the cut comes down with the mage
-                kit.guard(0.5, 20);
-                kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.7f);
-                Vector drift = kit.player.getVelocity().setY(0.0).multiply(0.3);
-                kit.every(16, age -> {
-                    kit.player.setFallDistance(0.0f);
-                    if (age < 5) kit.player.setVelocity(drift.clone().setY(-1.3));
-                    Location at = kit.player.getLocation();
-                    kit.particle(Particle.SOUL_FIRE_FLAME, at.clone().add(0.0, 1.0, 0.0), 4, 0.3, 0.02);
-                    if ((age >= 2 && kit.player.isOnGround()) || age == 15) {
-                        kit.slash("arc", 3.9, 250.0, 5.0, 0.0, 3.2, 0.2, 0.0, 1.7, 0.2, 0.0);
-                        kit.shockwave(at, 1.0, 4.4, 5, 1.2);
-                        kit.burst(at.clone().add(0.0, 0.4, 0.0), 3.0);
-                        kit.sound(at, Sfx.REAP_HEAVY, 1.0f, 0.6f);
-                        for (LivingEntity victim : kit.around(at, 4.0)) {
-                            if (!kit.hit(victim, rate)) continue;
-                            kit.push(victim, at.toVector(), 0.4, 0.1);
-                            ash(kit, victim, victim.getLocation().toVector().subtract(at.toVector()).setY(-0.2));
-                        }
-                        return true;
-                    }
-                    return false;
-                });
-            }
-            case 1 -> {
-                // a crossing cut: two arcs, slanted each way, at once
-                kit.slash("arc", 3.8, 250.0, 50.0, 0.0, 3.4, 0.5, 0.0, 1.4, 0.14, 0.0);
-                kit.slash("arc", 3.8, 250.0, 130.0, 180.0, 3.4, 0.5, 0.0, 1.4, 0.14, 0.04);
-                kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.75f);
-                reap(kit, kit.cone(3.8, 125.0), rate, facing);
-            }
-            case 2 -> {
-                // two more line slashes, slanted 28 degrees each way
-                for (int side = -1; side <= 1; side += 2) {
-                    double turn = Math.toRadians(28.0 * side);
-                    Vector way = new Vector(facing.getX() * Math.cos(turn) - facing.getZ() * Math.sin(turn), 0.0, facing.getX() * Math.sin(turn) + facing.getZ() * Math.cos(turn));
-                    lineSlash(kit, way, rate, false);
-                }
-            }
-            case 3 -> {
-                // a dash on and a sweep back the other way
-                kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.8f);
-                kit.dash(facing, 0.8, 3, end -> {
-                    kit.slash("arc", 3.9, 250.0, 75.0, 180.0, 3.5, 0.4, 0.0, 1.5, 0.16, 0.0);
-                    kit.sound(end, Sfx.REAP, 1.0f, 0.7f);
-                    reap(kit, kit.cone(3.9, 120.0), rate, sweepWay(kit, 180.0));
-                });
-            }
-            default -> {
-                // an overhead cut
-                kit.slash("arc", 3.9, 250.0, 5.0, 0.0, 3.5, 0.1, 0.0, 1.7, 0.2, 0.0);
-                kit.shockwave(feet, 0.8, 4.0, 4, 1.1);
-                kit.sound(feet, Sfx.REAP_HEAVY, 1.0f, 0.6f);
-                Vector way = facing.clone().multiply(0.4).add(new Vector(0.0, -0.6, 0.0));
-                for (LivingEntity victim : kit.cone(3.9, 110.0)) {
-                    if (kit.hit(victim, rate)) {
-                        kit.lift(victim, 0.25);
-                        ash(kit, victim, way);
-                    }
-                }
-            }
-        }
-    }
-
-    /** Skill 6 (t138): a soul reap: the enemies round (5 blocks) are drawn in to the scythe, then one full circle cuts them and slows them. */
-    private void sixth(MoveKit kit, double rate) {
-        Location feet = kit.player.getLocation();
-        java.util.List<org.bukkit.entity.LivingEntity> round = kit.around(feet, 5.0);
-        kit.sound(feet, Sfx.REAP, 1.0f, 0.6f);
-        for (org.bukkit.entity.LivingEntity victim : round) kit.pull(victim, feet, 0.7);
-        kit.shockwave(feet, 5.0, 1.2, 6, 1.0);
-        kit.later(6L, () -> {
-            Location at = kit.player.getLocation();
-            kit.slash("arc", 3.6, 360.0, 85.0, 0.0, 0.0, 0.5, 0.0, 1.4, 0.2, 0.0);
-            kit.sound(at, Sfx.REAP, 1.0f, 0.8f);
-            for (org.bukkit.entity.LivingEntity victim : kit.around(at, 3.8)) {
-                if (kit.hit(victim, rate)) kit.slow(victim, 40.0, 1.5);
-            }
-        });
-    }
 }

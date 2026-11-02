@@ -10,8 +10,8 @@ import org.bukkit.util.Vector;
  * The ranger's combo with a melee weapon (a hunting knife): quick, mobile, setting up the next shot. A melee hit powers up the ranger's next
  * ranged attack (the loop). Normal: 1 two quick stabs (55% x2), 2 three cuts (40% x3), 3 a lunge (120%), 4 a flurry (28% x5), 5 a leap onto
  * the target (150%). (t168) 3 is a wire to the enemy ahead and a zip in to it, 5 a spinning kick that sends the enemies to the ranger's spirit
- * bow when it stands near ({@link RangerSkills}: they are tied there), else away. Nothing can hurt the ranger while 3 and 5 go. Heavy: 0 a backstep that scatters caltrops for 2.5 s (25% a pulse, slows), 1 a low sweep all round (120%), 2 three
- * thrown knives (40% x3), 3 a cut that pins (130%, slows 60%), 4 a run through the line (150% on all in the way).
+ * bow when it stands near ({@link RangerSkills}: they are tied there), else away. Nothing can hurt the ranger while 3 and 5 go.
+ * The combo has no heavy attacks since t168 (the knife's skills are its own, {@link RangerSkills}).
  */
 public final class RangerMeleeCombo extends BaseCombo {
 
@@ -97,73 +97,7 @@ public final class RangerMeleeCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
-        double rate = step.damageMultiplier();
-        Location feet = kit.player.getLocation();
-        Vector facing = kit.facing();
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                // a backstep that scatters caltrops where the ranger stood
-                Location at = kit.ground(feet);
-                kit.hopBack(0.9, 0.3);
-                kit.sound(feet, Sound.BLOCK_CHAIN_PLACE, 1.0f, 1.4f);
-                ComboParts.sigil(kit, "ranger_caltrops", at, 3.0, rate, 50, 10, here -> {
-                    for (LivingEntity victim : kit.around(here, 3.0)) kit.slow(victim, 45.0, 1.0);
-                });
-            }
-            case 1 -> {
-                kit.sound(feet, Sfx.WIND, 1.0f, 0.8f);
-                kit.slash("arc", 3.0, 340.0, 85.0, 0.0, 0.8, 0.9, 0.0, 1.3, 0.16, 0.0);
-                kit.shockwave(feet, 1.0, 3.2, 3, 1.0);
-                for (LivingEntity target : kit.around(feet, 3.2)) {
-                    if (kit.hit(target, rate)) kit.push(target, feet.toVector(), 0.4, 0.2);
-                }
-            }
-            case 2 -> {
-                Vector[] axes = kit.axes();
-                kit.sound(feet, Sfx.WIND, 0.9f, 1.4f);
-                for (int index = 0; index < 3; index++) {
-                    double turn = Math.toRadians((index - 1) * 12.0);
-                    Vector direction = axes[0].clone().multiply(Math.cos(turn)).add(axes[1].clone().multiply(Math.sin(turn))).normalize();
-                    Location start = ComboParts.hand(kit);
-                    kit.later(index, () -> kit.bolt(start.clone(), direction, 1.8, 10.0, rate, end -> kit.burst(end, 0.8)));
-                }
-            }
-            case 3 -> {
-                kit.slash("drop", 2.8, 120.0, 20.0, 0.0, 2.0, 0.3, 0.0, 1.3, 0.14, 0.0);
-                kit.sound(feet, Sfx.METAL, 1.0f, 0.9f);
-                for (LivingEntity target : kit.cone(3.6, 50.0)) {
-                    if (kit.hit(target, rate)) kit.slow(target, 60.0, 2.0);
-                }
-            }
-            case 4 -> {
-                // a run through the line: everything in the way is cut once, the ranger comes out the other side
-                kit.sound(feet, Sfx.WIND, 1.0f, 0.6f);
-                Location from = feet.clone().add(0.0, 1.0, 0.0);
-                kit.line(from, from.clone().add(facing.clone().multiply(7.0)), 0.2, 1.0, 1.5);
-                kit.hitAll(kit.corridor(from, facing, 7.0, 1.6), rate);
-                kit.invulnerable(8);
-                kit.dash(facing, 1.4, 5, end -> kit.shockwave(end, 0.8, 2.6, 3, 1.0));
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: the class's skills are its own (RangerSkills).
     }
 
-    /** Skill 6 (t138): a leap ahead (nothing can hurt the ranger in the air) and a plunge: everything within 2.8 blocks of the landing is struck and pushed out. */
-    private void sixth(MoveKit kit, double rate) {
-        Vector facing = kit.facing().clone().setY(0.0);
-        if (facing.lengthSquared() < 1.0E-6) facing = new Vector(0.0, 0.0, 1.0);
-        facing.normalize();
-        kit.invulnerable(14);
-        kit.sound(kit.player.getLocation(), Sfx.WIND_BURST, 1.0f, 1.2f);
-        kit.leap(facing, 0.9, 0.55, land -> {
-            kit.slash("drop", 2.8, 140.0, 5.0, 0.0, 0.8, 0.4, 0.0, 1.3, 0.14, 0.0);
-            kit.shockwave(land, 0.6, 2.8, 4, 1.1);
-            kit.sound(land, Sfx.METAL_HEAVY, 0.9f, 1.1f);
-            for (org.bukkit.entity.LivingEntity victim : kit.around(land, 2.8)) {
-                if (kit.hit(victim, rate)) kit.push(victim, land.toVector(), 0.5, 0.2);
-            }
-        });
-    }
 }

@@ -21,7 +21,7 @@ import org.bukkit.util.Vector;
  * it can move a little inside, and is struck three times, 35%), 5 the bell of judgment at the placement (60% within 7 blocks, slowed 25%; an
  * isolated enemy takes {@code bell-isolated} (150%) more on top).
  *
- * <p>The heavy attacks below are what they were before t168 (a deployed weapon has no skills since the redesign of 2026-11-02).
+ * <p>The combo has no heavy attacks since t168 (a deployed weapon has no skills since the redesign of 2026-11-02).
  */
 public final class WarriorDeployCombo extends BaseCombo {
 
@@ -231,75 +231,7 @@ public final class WarriorDeployCombo extends BaseCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
-        double rate = step.damageMultiplier();
-        Location feet = kit.origin();
-        Location target = ComboParts.target(kit);
-        Vector facing = kit.originFacing();
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sfx.METAL_HEAVY, 0.8f, 0.8f);
-                ComboParts.sigil(kit, "warrior_totem", at, 3.6, rate, 50, 10, here -> {
-                    // the totem steadies the warrior on it (30% less damage) and slows the enemies round it
-                    if (kit.player.getLocation().distanceSquared(here) <= 3.8 * 3.8) kit.guard(0.3, 14);
-                    for (LivingEntity victim : kit.around(here, 3.6)) kit.slow(victim, 50.0, 1.2);
-                    for (double y = 0.0; y <= 2.4; y += 0.4) kit.fx(here).dust(here.getX(), here.getY() + y, here.getZ(), kit.palette(), y / 2.4, 1.3);
-                });
-            }
-            case 1 -> {
-                // a fault line ahead: the ground stays cracked for 2 s and what is on it is struck again and again
-                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 0.6f);
-                Location from = feet.clone().add(0.0, 0.5, 0.0);
-                kit.zone("warrior_fault", feet, kit.linger(40), 4, zone -> {
-                    boolean pulse = zone.age() % 8 == 0;
-                    for (int along = 1; along <= 8; along++) {
-                        Location at = feet.clone().add(facing.clone().multiply(along * 1.1)).add(0.0, 0.2, 0.0);
-                        kit.fx(at).flatRing(at, 0.7 + 0.05 * along, 14, kit.palette(), 0.4 + 0.05 * along, 0.2, 1.0);
-                    }
-                    if (!pulse) return;
-                    kit.sound(feet, Sfx.METAL, 0.5f, 0.7f);
-                    for (LivingEntity victim : kit.corridor(from, facing, 8.8, 1.5)) {
-                        if (kit.hit(victim, rate)) kit.lift(victim, 0.3);
-                    }
-                }, null);
-            }
-            case 2 -> {
-                // a barricade of five across the way
-                Vector side = new Vector(-facing.getZ(), 0.0, facing.getX());
-                Location middle = kit.ground(feet.clone().add(facing.clone().multiply(4.5)));
-                kit.sound(feet, Sfx.METAL_HEAVY, 1.0f, 1.0f);
-                kit.zone("warrior_barricade", middle, kit.linger(50), 4, zone -> {
-                    boolean pulse = zone.age() % 8 == 0;
-                    for (int index = -2; index <= 2; index++) {
-                        Location at = middle.clone().add(side.clone().multiply(index * 1.6));
-                        for (double y = 0.0; y <= 1.8; y += 0.4) kit.fx(at).dust(at.getX(), at.getY() + y, at.getZ(), kit.palette(), 0.5 + y / 3.6, 1.2);
-                        if (!pulse) continue;
-                        for (LivingEntity victim : kit.around(at.clone().add(0.0, 0.5, 0.0), 1.4)) {
-                            if (kit.hit(victim, rate)) kit.push(victim, middle.toVector(), 0.3, 0.1);
-                        }
-                    }
-                }, zone -> kit.shockwave(middle, 1.0, 2.5, 3, 0.8));
-            }
-            case 3 -> {
-                // four bombs in a cross round the aim
-                for (int index = 0; index < 4; index++) {
-                    double angle = Math.PI * 0.5 * index;
-                    Location spot = kit.ground(target.clone().add(Math.cos(angle) * 2.2, 0.0, Math.sin(angle) * 2.2));
-                    String key = "warrior_cross_" + index;
-                    kit.later(index, () -> ComboParts.bombAt(kit, key, spot, 30, 2.4, rate, 0.35));
-                }
-            }
-            case 4 -> ComboParts.pullBurst(kit, target.clone().add(0.0, 1.5, 0.0), 5.0, rate, 0.0, 40);
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: a deployed weapon has no skills.
     }
 
-    /** Skill 6 (t138): a ballista at the aim that shoots a heavy bolt at the nearest enemy every 10 ticks for 2.5 s, each pushing it back. */
-    private void sixth(MoveKit kit, double rate) {
-        Location target = ComboParts.target(kit);
-        kit.sound(kit.origin(), Sfx.METAL_HEAVY, 0.9f, 1.1f);
-        ComboParts.turret(kit, "warrior_ballista", target, 50, 10, 10.0, rate, victim -> kit.push(victim, target.toVector(), 0.4, 0.1));
-    }
 }

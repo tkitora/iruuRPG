@@ -39,7 +39,7 @@ import java.util.concurrent.ThreadLocalRandom;
  * for 1.5 s), 4 a volley falling round its target (20% x6), 5 overdrive: an arrow at every enemy in reach (60%), and for {@code overdrive-seconds}
  * (4) it shoots every {@code overdrive-period} (7) ticks.
  *
- * <p>The heavy attacks below are what they were before t168 (a deployed weapon has no skills).
+ * <p>The combo has no heavy attacks since t168 (a deployed weapon has no skills).
  */
 public final class RangerDeployCombo implements ClassCombo {
 
@@ -361,74 +361,7 @@ public final class RangerDeployCombo implements ClassCombo {
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.GOLD, 0.3));
-        double rate = step.damageMultiplier();
-        Location feet = kit.origin();
-        Location target = ComboParts.target(kit);
-        switch (step.heavyIndex()) {
-            case 0 -> {
-                // a sigil of caltrops on the ground under the feet
-                Location at = kit.ground(feet);
-                kit.sound(feet, Sound.BLOCK_BEACON_ACTIVATE, 0.8f, 1.8f);
-                ComboParts.sigil(kit, "ranger_sigil", at, 3.5, rate, 50, 10, here -> {
-                    for (LivingEntity victim : kit.around(here, 3.5)) kit.slow(victim, 30.0, 1.0);
-                });
-            }
-            case 1 -> {
-                // a cage: eight lanterns in a ring round the aim; what is inside is cut and slowed
-                kit.sound(target, Sound.BLOCK_CHAIN_PLACE, 1.0f, 0.8f);
-                kit.zone("ranger_cage", target, kit.linger(50), 4, zone -> {
-                    boolean pulse = zone.age() % 12 == 0;
-                    for (int index = 0; index < 8; index++) {
-                        double angle = Math.PI * 2.0 * index / 8.0;
-                        ComboParts.standLantern(kit, target.clone().add(Math.cos(angle) * 3.0, 0.0, Math.sin(angle) * 3.0), 1.2, pulse ? 1.0 : 0.0);
-                    }
-                    kit.fx(target).flatRing(target.clone().add(0.0, 0.15, 0.0), 3.0, 48, kit.palette(), 0.45, 0.15, 0.9);
-                    if (!pulse) return;
-                    kit.shockwave(target, 1.0, 3.0, 3, 0.9);
-                    for (LivingEntity victim : kit.around(target, 3.0)) {
-                        if (kit.hit(victim, rate)) kit.slow(victim, 60.0, 1.5);
-                    }
-                }, zone -> kit.shockwave(target, 2.5, 3.2, 2, 0.8));
-            }
-            case 2 -> {
-                // a wall of five lanterns across the aim
-                Vector forward = kit.originFacing();
-                Vector side = new Vector(-forward.getZ(), 0.0, forward.getX());
-                Location middle = kit.ground(feet.clone().add(forward.clone().multiply(4.5)));
-                kit.sound(feet, Sound.BLOCK_CHAIN_PLACE, 1.0f, 0.8f);
-                kit.zone("ranger_wall", middle, kit.linger(50), 4, zone -> {
-                    boolean pulse = zone.age() % 8 == 0;
-                    for (int index = -2; index <= 2; index++) {
-                        Location at = middle.clone().add(side.clone().multiply(index * 1.6));
-                        ComboParts.standLantern(kit, at, 1.3, pulse ? 1.0 : 0.0);
-                        if (pulse) kit.hitAll(kit.around(at, 1.5), rate);
-                    }
-                }, zone -> kit.shockwave(middle, 1.0, 2.5, 3, 0.8));
-            }
-            case 3 -> {
-                // three arrow lanterns round the aim
-                for (int index = 0; index < 3; index++) {
-                    double angle = Math.PI * 2.0 * index / 3.0 + Math.PI * 0.5;
-                    Location spot = kit.ground(target.clone().add(Math.cos(angle) * 2.2, 0.0, Math.sin(angle) * 2.2));
-                    String key = "ranger_turret_" + index;
-                    kit.later(index, () -> ComboParts.turretAt(kit, key, spot, 50, 8, 9.0, rate, null));
-                }
-            }
-            case 4 -> {
-                // a great lantern: it swells for 2 seconds and pulls the enemies in, then bursts
-                Location at = target.clone().add(0.0, 1.5, 0.0);
-                ComboParts.pullBurst(kit, at, 5.0, rate, 0.0, 40);
-            }
-            // (skill 6, t138)
-            default -> sixth(kit, step.damageMultiplier());
-        }
+        // (t168) no heavy attack of this combo is thrown any more: a deployed weapon has no skills.
     }
 
-    /** Skill 6 (t138): a watch post at the aim that shoots an arrow at the nearest enemy every 8 ticks for 2.5 s, each slowing it. */
-    private void sixth(MoveKit kit, double rate) {
-        Location target = ComboParts.target(kit);
-        kit.sound(kit.origin(), org.bukkit.Sound.BLOCK_WOOD_PLACE, 1.0f, 0.9f);
-        ComboParts.turret(kit, "ranger_watch", target, 50, 8, 12.0, rate, victim -> kit.slow(victim, 30.0, 1.0));
-    }
 }
