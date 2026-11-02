@@ -88,10 +88,9 @@ public final class SettingsMenu implements Listener {
         player.openInventory(holder.inventory);
     }
 
-    /** The keys of a skill with a melee and with a ranged weapon: one text when they are the same. */
+    /** The keys of a skill (the same with every weapon, t160). */
     static String keysText(SkillSlots.Slot slot) {
-        String melee = SkillInput.keys(slot, true), ranged = SkillInput.keys(slot, false);
-        return melee.equals(ranged) ? melee : melee + " (近接) / " + ranged + " (遠距離)";
+        return SkillInput.keys(slot);
     }
 
     private static Material slotIcon(SkillSlots.Slot slot) {
@@ -125,7 +124,8 @@ public final class SettingsMenu implements Listener {
         List<Component> help = new ArrayList<>();
         help.add(text("Q を押してから、すぐに 2 つ目のキーを押す", NamedTextColor.GRAY));
         help.add(text("Q のあとのクリックは 小・中、Q だけでは何も出ない", NamedTextColor.GRAY));
-        help.add(text("近接と遠距離では、左右のボタンが入れ替わる", NamedTextColor.GRAY));
+        help.add(text("小・中・大・util・ULT のキーは、どの武器でも同じ", NamedTextColor.GRAY));
+        help.add(text("通常攻撃とアイテムスキルは、近接と遠距離で左右が入れ替わる", NamedTextColor.GRAY));
         help.add(text("設置の武器は ULT だけ (Shift+Q で設置を消す)", NamedTextColor.GRAY));
         inventory.setItem(KEY_HELP, item(Material.PAPER, "キー操作", NamedTextColor.WHITE, help));
     }

@@ -172,11 +172,11 @@ public final class PlayerHud {
         return afterQ ? KEY_NOW : 0x707070;
     }
 
-    /** The glyph of the keys of a skill ({@link HudGlyphs#keyLabel}) as they are pressed with the weapon ({@code melee}: its normal button is the left one). */
-    static char keyGlyph(SkillSlots.Slot slot, boolean melee) {
+    /** The glyph of the keys of a skill ({@link HudGlyphs#keyLabel}; the same with every weapon, t160). */
+    static char keyGlyph(SkillSlots.Slot slot) {
         return HudGlyphs.keyLabel(switch (slot) {
-            case SMALL -> melee ? "ql" : "qr";
-            case MEDIUM -> melee ? "qr" : "ql";
+            case SMALL -> "ql";
+            case MEDIUM -> "qr";
             case LARGE -> "qq";
             case UTIL -> "f";
             case ULT -> "sf";
@@ -213,7 +213,7 @@ public final class PlayerHud {
             // (each kind of weapon has its own icons and cooldowns of 小・中・大・util)
             SkillSlots.View view = skillSlots.view(player, slot, weapon);
             HudGlyphs.Icon icon = icon(HudGlyphs.skill(profile.classId(), HudGlyphs.kindIndex(weapon.attackType()), slot.ordinal()), view,
-                    keyGlyph(slot, melee), view.recasting() ? KEY_NOW : keyColor(player, afterQ));
+                    keyGlyph(slot), view.recasting() ? KEY_NOW : keyColor(player, afterQ));
             // the ULT that can be re-activated now blinks: its bright rim is on and off every 5 ticks
             if (slot == SkillSlots.Slot.ULT && ultRecastable(player)) {
                 icon = new HudGlyphs.Icon(icon.glyph(), icon.coolingShare(), icon.seconds(), icon.key(), icon.keyColor(), icon.locked(),

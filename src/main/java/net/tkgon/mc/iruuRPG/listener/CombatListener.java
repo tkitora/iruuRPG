@@ -247,7 +247,7 @@ public final class CombatListener implements Listener {
     private boolean skillClick(Player attacker, RpgItemDefinition weapon, boolean rightClick) {
         // (a deployed weapon has no 小・中: a Q of another weapon does not wait for its click)
         if (weapon.attackType() == AttackType.DEPLOY) SkillInput.forgetQ(attacker);
-        SkillInput.Click click = SkillInput.click(attacker, AttackService.button(weapon, rightClick));
+        SkillInput.Click click = SkillInput.click(attacker, AttackService.button(weapon, rightClick), rightClick);
         switch (click.kind()) {
             case SKILL -> {
                 skillSlots.use(attacker, click.slot(), weapon);
