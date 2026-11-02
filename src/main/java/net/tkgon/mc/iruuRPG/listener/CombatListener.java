@@ -449,6 +449,7 @@ public final class CombatListener implements Listener {
     public void onQuit(org.bukkit.event.player.PlayerQuitEvent event) {
         net.tkgon.mc.iruuRPG.combat.AssassinSkills.forget(event.getPlayer().getUniqueId());
         net.tkgon.mc.iruuRPG.combat.WarriorSkills.forget(event.getPlayer().getUniqueId());
+        net.tkgon.mc.iruuRPG.combat.ClericSkills.forget(event.getPlayer().getUniqueId());
         screenDropTick.remove(event.getPlayer().getUniqueId());
     }
 

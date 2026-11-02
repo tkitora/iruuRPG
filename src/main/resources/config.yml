@@ -292,8 +292,116 @@ combat:
       util-power: 1                               # util: 1 tick に進むブロック数 (前へ。Shift を押しながらだと後ろへ。移動中は無敵)
       util-ticks: 5                               # util: その長さ (tick)
       util-rate: 0.2                              # util: すり抜けた敵への倍率 (刻印も刻む)
+    # クレリックの近接 = メイスと盾 (サブタンク) (t168、nekorozv がすべて任せた。ClericMeleeCombo の通常攻撃と ClericSkills のスキル)。値はすべて仮。
+    # 攻撃を受けると「聖光」がたまり (最大5)、強い一撃 (通常5・小・中の再発動) が使い切る: 1つごとにダメージ・気絶・回復が増える。
+    # 気絶は、1回のあと5秒は同じ敵に入らない (combat.status-effects.stun-immunity-ticks)。スキルのクールタイムは、ここの秒。
     cleric_melee:
       normal-gap-ticks: 10
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 振り下ろし、2 盾で突く、3 横から2回、4 振り上げ2回、5 裁きの一撃)
+      # hit-rate: [0.55, 0.45, 0.4, 0.35, 1.1]
+      # hit-counts: [1, 1, 2, 2, 1]
+      swing-heal: 0.5                             # 通常3: 当たった振りごとの回復 (最大体力の%)
+      finisher-stack-rate: 0.15                   # 通常5: 聖光1つごとのダメージの増え方
+      finisher-stun: 0.4                          # 通常5: 聖光が1つ以上あるときの気絶 (秒)
+      finisher-stack-stun: 0.15                   # 通常5: 聖光1つごとに足す気絶 (秒)
+      finisher-heal: 2                            # 通常5: 回復 (最大体力の%)
+      finisher-stack-heal: 1                      # 通常5: 聖光1つごとに足す回復 (%)
+      radiance-max: 5                             # 聖光の上限
+      radiance-seconds: 6                         # 最後にたまってから、聖光が消えるまでの秒数
+      radiance-gap-ticks: 10                      # 攻撃を受けてたまるのは、この間隔 (tick) に1つまで (盾を構えている間は毎回)
+      small-charges: 2                            # 小 (盾打ち): ためておける数
+      small-charge-seconds: 6                     # 小: 1つ以上残っている間、1つ戻る秒数
+      small-empty-seconds: 12                     # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-rate: 0.9                             # 小: 前の敵への倍率 (吹き飛ばし)
+      small-stack-rate: 0.2                       # 小: 聖光1つごとに足す倍率
+      small-stun: 0.5                             # 小: 気絶 (秒)
+      small-stack-stun: 0.15                      # 小: 聖光1つごとに足す気絶 (秒)
+      small-stack-heal: 1                         # 小: 聖光1つごとの回復 (%)
+      medium-seconds: 12                          # 中 (聖なる守り): クールタイム (秒)
+      medium-ticks: 30                            # 中: 盾を構える長さ (tick)
+      medium-guard: 0.6                           # 中: その間、受けるダメージが減る割合
+      medium-heal: 1.5                            # 中: その間、攻撃を受けるたびの回復 (%。聖光も1つ)
+      medium-recast-seconds: 2.5                  # 中: 再発動 (審判の鉄槌) を受け付ける秒数
+      recast-radius: 3.5                          # 審判の鉄槌: 半径 (ブロック)
+      recast-rate: 1.2                            # 審判の鉄槌: 倍率
+      recast-stack-rate: 0.25                     # 審判の鉄槌: 聖光1つごとに足す倍率
+      recast-stun: 0.8                            # 審判の鉄槌: 気絶 (秒)
+      recast-stack-stun: 0.1                      # 審判の鉄槌: 聖光1つごとに足す気絶 (秒)
+      recast-stack-heal: 1.5                      # 審判の鉄槌: 聖光1つごとの回復 (%)
+      large-seconds: 28                           # 大 (守護の陣): クールタイム (秒)
+      large-duration: 6                           # 大: 続く秒数
+      large-radius: 5                             # 大: 光の陣の半径 (自分について動く)
+      large-provoke: 10                           # 大: 自分に引きつける敵の範囲 (ブロック)
+      large-guard: 0.35                           # 大: その間、自分が受けるダメージが減る割合
+      large-ally-protection: 25                   # 大: 陣の中の味方が受けるダメージが減る割合 (%。1秒ごとに掛け直す)
+      large-heal: 1.5                             # 大: 1秒ごとの、陣の中のプレイヤー (自分も) の回復 (%)
+      large-burst-rate: 0.8                       # 大: 終わりの光の倍率 (吹き飛ばし)
+      large-burst-stun: 0.6                       # 大: その気絶 (秒)
+      util-seconds: 6                             # util (盾突進): クールタイム (秒)
+      util-power: 1                               # util: 1 tick に進むブロック数 (Shift を押しながらだと、後ろへ小さく跳ぶ)
+      util-ticks: 5                               # util: その長さ (tick)
+      util-guard: 0.5                             # util: その間、受けるダメージが減る割合
+      util-rate: 0.3                              # util: 通り抜けた敵への倍率 (横へ押しのける。聖光を最大2つ)
+      util-back: 0.8                              # util: Shift のときの後ろへの強さ
+    # クレリックの遠距離 = 杖 (祝福・回復・詠唱、雷と光) (t168)。通常攻撃が当たると「聖句」がたまり (最大5)、大の詠唱が使い切る。
+    cleric_range:
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 光弾 x2、2 連鎖する雷 x3、3 光線、4 扇の光弾 x3、5 落雷)
+      # hit-rate: [0.45, 0.35, 1.0, 0.3, 1.4]
+      # hit-counts: [2, 3, 1, 3, 1]
+      shot-heal: 0.5                              # 通常1: 光弾が当たった所の周りの味方の回復 (%)
+      beam-heal: 2                                # 通常3: 光線の中の味方の回復 (%)
+      strike-heal: 2                              # 通常5: 落雷の周りの味方の回復 (%)
+      strike-self-heal: 1                         # 通常5: 自分の回復 (%)
+      verse-max: 5                                # 聖句の上限
+      verse-seconds: 10                           # 最後にたまってから、聖句が消えるまでの秒数
+      small-charges: 2                            # 小 (聖雷): ためておける数
+      small-charge-seconds: 4                     # 小: 1つ以上残っている間、1つ戻る秒数
+      small-empty-seconds: 9                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-range: 18                             # 小: 最初の敵を探す距離 (ブロック)
+      small-rate: 0.8                             # 小: 最初の敵への倍率 (跳ぶたびに small-decay 倍)
+      small-decay: 0.85                           # 小: 跳ぶたびの倍率の減り方
+      small-jumps: 4                              # 小: 跳ぶ回数
+      small-jump-range: 6                         # 小: 跳ぶ距離 (ブロック)
+      small-heal: 1                               # 小: 当たった敵1体ごとの自分の回復 (%)
+      small-heal-cap: 4                           # 小: その上限 (%)
+      medium-seconds: 14                          # 中 (祝福): クールタイム (秒)
+      medium-radius: 8                            # 中: 祝福する範囲 (ブロック。自分も)
+      medium-buff-seconds: 8                      # 中: 祝福の秒数
+      medium-might: 15                            # 中: 与えるダメージが増える割合 (%。どの武器でも)
+      medium-protection: 15                       # 中: 受けるダメージが減る割合 (%)
+      medium-recast-seconds: 4                    # 中: 再発動 (癒しの光) を受け付ける秒数
+      recast-heal: 8                              # 癒しの光: 範囲の中のプレイヤーの回復 (%。すぐに)
+      large-seconds: 26                           # 大 (天罰の詠唱): クールタイム (秒)
+      large-range: 20                             # 大: 陣を出せる距離 (ブロック)
+      large-radius: 5                             # 大: 陣の半径
+      large-chant-ticks: 30                       # 大: 詠唱の長さ (tick)
+      large-strikes: 6                            # 大: 落ちる雷の数 (0.3秒ごと)
+      large-strike-rate: 0.35                     # 大: 雷1つの倍率 (周り1.6ブロック)
+      large-final-rate: 1.0                       # 大: 最後の光の柱の倍率 (陣の中すべて)
+      large-verse-rate: 0.15                      # 大: 聖句1つごとに、すべての倍率がこの割合だけ増える
+      large-heal: 1                               # 大: 雷1つごとの、陣の中の味方の回復 (%)
+      util-seconds: 6                             # util (光の歩み): クールタイム (秒)
+      util-power: 1.2                             # util: 1 tick に進むブロック数 (Shift で後ろへ。移動中は無敵)
+      util-ticks: 5                               # util: その長さ (tick)
+      util-glyph-seconds: 3                       # util: 元いた所の癒しの印が残る秒数
+      util-glyph-radius: 2                        # util: その半径
+      util-heal: 1                                # util: 0.5秒ごとの、印の上の味方の回復 (%)
+    # クレリックのランタン = 聖域 (t168)。設置の周りに聖域ができ、中に立っていると「静謐」がたまる (1秒に1、最大5。出ると0)。
+    # 静謐1つごとに、中のプレイヤーの与ダメージ・被ダメージ減・回復が増える。攻撃はバフが中心で、ダメージは少し。
+    cleric_deploy:
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 光の矢 x2、2 祝福の鐘、3 加護の帳、4 癒しの雨、5 裁き (1体ずつ最大5体))
+      # hit-rate: [0.5, 0.3, 0.3, 0.25, 0.8]
+      # hit-counts: [2, 1, 1, 1, 1]
+      sanctum-radius: 6                           # 聖域の半径 (設置の場所から)
+      serenity-max: 5                             # 静謐の上限
+      serenity-might: 4                           # 静謐1つごとの、中のプレイヤーの与ダメージの増え方 (%)
+      serenity-protection: 3                      # 静謐1つごとの、被ダメージの減り方 (%)
+      sanctum-heal: 0.3                           # 1秒ごとの、中のプレイヤーの回復 (%)
+      serenity-heal: 0.2                          # 静謐1つごとに足す回復 (%)
+      sanctum-rate: 0.12                          # 1秒ごとの、中の敵へのダメージの倍率 (静謐1つごとに10%増える)
+      bless-might: 12                             # 通常2: 中のプレイヤーの与ダメージの増え方 (%、5秒)
+      veil-protection: 15                         # 通常3: 中のプレイヤーの被ダメージの減り方 (%、5秒)
+      rain-heal: 3                                # 通常4: 中のプレイヤーの回復 (%)
     # 戦士の近接 = 血の騎士 (t168、nekorozv がすべて任せた。WarriorMeleeCombo の通常攻撃と WarriorSkills のスキル)。倍率は武器ダメージ比。値はすべて仮。
     # 受けたダメージの一部が「傷」として残り、近接の攻撃を当てると取り返せる (回復)。傷はステータスの HP の横に「+数」(暗い赤) で出る。
     # スキルのクールタイムは、ここの秒 (combat.skill-slots.cooldown-seconds の戦士の値は使わない)。
@@ -541,8 +649,13 @@ class-effects:
     # SATUJIN の間、発動した場所からこの半径 (ブロック) より外には出られない
     frenzy-radius: 12
   healer:
-    # 回復→敵ダメージの範囲(ブロック)
+    # 回復→敵ダメージ (命の反響) の範囲(ブロック)
     pulse-radius: 7
+    # (t168 で計算を直した) 受けた回復をためて、1回の反響で周りの敵に与える。レベルの倍率は無くした
+    pulse-interval-ticks: 20                    # 反響は、この間隔 (tick) に1回まで (その間の回復はためて、次の反響で出す)
+    pulse-overheal-share: 0.25                  # 回復しすぎた分 (HP が満タンで入らなかった分) は、この割合だけ数える
+    pulse-rate: 1.0                             # ためた回復のこの割合が、ダメージになる (緑属性の強化が掛かる)
+    pulse-cap: 100                              # 1回の反響でためられる上限 (最大体力の%)
 
 tutorial:
   # デバッグ用チュートリアル (/tutorialstart, /tutorialstop)

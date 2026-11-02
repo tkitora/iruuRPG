@@ -115,6 +115,11 @@ public final class WarriorSkills {
     private WarriorSkills() {
     }
 
+    /** The mobs within {@code radius} of {@code player} turn on them for {@code millis} (the warrior's oath; the cleric's bastion too). */
+    static void provoke(Player player, double radius, long millis) {
+        provoker.provoke(player, radius, millis);
+    }
+
     public static void setProvoker(Provoker provoker) {
         WarriorSkills.provoker = provoker == null ? (player, radius, millis) -> {
         } : provoker;

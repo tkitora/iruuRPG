@@ -184,7 +184,40 @@ public enum Sfx {
     WARD_BELL(new Layer(Sound.BLOCK_BELL_USE, 1.0f, 0.7f), new Layer(Sound.BLOCK_BELL_RESONATE, 0.8f, 1.0f),
             new Layer(Sound.BLOCK_ANVIL_LAND, 0.2f, 0.5f)),
     /** An isolated enemy struck: a small bell and a trident's hit. */
-    WARD_ISOLATED(new Layer(Sound.BLOCK_BELL_USE, 0.3f, 1.8f), new Layer(Sound.ITEM_TRIDENT_HIT, 0.4f, 0.9f));
+    WARD_ISOLATED(new Layer(Sound.BLOCK_BELL_USE, 0.3f, 1.8f), new Layer(Sound.ITEM_TRIDENT_HIT, 0.4f, 0.9f)),
+    // the cleric (t168): the mace and the shield ring with bells and struck iron, the staff with lightning and chimes
+    /** A mace swung: a deep whoosh and a faint bell. */
+    HOLY_SWING(new Layer(Sound.ITEM_TRIDENT_THROW, 0.45f, 0.75f), new Layer(Sound.BLOCK_BELL_USE, 0.15f, 1.6f)),
+    /** The shield striking: a shield's block, the iron golem's blow and a bell. */
+    HOLY_BASH(new Layer(Sound.ITEM_SHIELD_BLOCK, 0.8f, 0.8f), new Layer(Sound.ENTITY_IRON_GOLEM_ATTACK, 0.5f, 1.0f),
+            new Layer(Sound.BLOCK_BELL_USE, 0.35f, 1.2f)),
+    /** A step behind the shield: armor moving and a chime. */
+    HOLY_STEP(new Layer(Sound.ITEM_ARMOR_EQUIP_IRON, 0.6f, 1.0f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 1.4f)),
+    /** The shield raised: a beacon, iron armor and a resonating crystal. */
+    HOLY_RAISE(new Layer(Sound.BLOCK_BEACON_ACTIVATE, 0.5f, 1.5f), new Layer(Sound.ITEM_ARMOR_EQUIP_IRON, 0.7f, 0.8f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.5f, 1.2f)),
+    /** A blow taken on the raised shield: a shield's block and a bell, bright. */
+    HOLY_BLOCK(new Layer(Sound.ITEM_SHIELD_BLOCK, 0.9f, 1.2f), new Layer(Sound.BLOCK_BELL_USE, 0.4f, 1.9f)),
+    /** The hammer of judgment: the anvil, a bell, thunder far off and the ground. */
+    HOLY_HAMMER(new Layer(Sound.BLOCK_ANVIL_LAND, 0.5f, 0.7f), new Layer(Sound.BLOCK_BELL_USE, 0.9f, 0.8f),
+            new Layer(Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.3f, 1.6f), new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.25f, 1.3f)),
+    /** The bastion: a beacon's power, the bell's resonance and a choir-like chime. */
+    HOLY_BASTION(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.7f, 0.9f), new Layer(Sound.BLOCK_BELL_RESONATE, 0.8f, 1.2f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.6f, 0.8f)),
+    /** The radiance or the verses full: a chime and an experience orb. */
+    HOLY_FULL(new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.6f, 1.6f), new Layer(Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.3f, 1.4f)),
+    /** A blessing: a beacon, chimes and the allay's breath. */
+    HOLY_BLESS(new Layer(Sound.BLOCK_BEACON_ACTIVATE, 0.6f, 1.8f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.2f),
+            new Layer(Sound.ENTITY_ALLAY_AMBIENT_WITH_ITEM, 0.3f, 1.3f)),
+    /** A mending light: a level-up chime, soft, and a crystal. */
+    HOLY_MEND(new Layer(Sound.ENTITY_PLAYER_LEVELUP, 0.35f, 1.6f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.6f, 1.5f)),
+    /** A chant: the evoker's prayer and a beacon's hum. */
+    HOLY_CHANT(new Layer(Sound.ENTITY_EVOKER_PREPARE_SUMMON, 0.45f, 1.3f), new Layer(Sound.BLOCK_BEACON_AMBIENT, 0.8f, 1.4f)),
+    /** Lightning called from the staff: a crackle and a cast. */
+    STORM_CAST(new Layer(Sound.ENTITY_EVOKER_CAST_SPELL, 0.4f, 1.6f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.9f)),
+    /** Lightning striking: a bolt's impact, thunder far off and a crackle. */
+    STORM_STRIKE(new Layer(Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.6f, 1.3f), new Layer(Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.2f, 1.8f),
+            new Layer(Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.3f, 1.6f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {

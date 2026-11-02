@@ -157,6 +157,9 @@ public final class StatusEffectService {
         if (magicAmplify != null && (weapon.damageKind() == DamageKind.MAGIC || weapon.attackType() == AttackType.RANGE)) {
             multiplier += Math.max(0.0, magicAmplify.value()) / 100.0;
         }
+        // (the cleric's blessing: with any weapon, t168)
+        ActiveEffect might = active(attacker, StatusEffectType.MIGHT);
+        if (might != null) multiplier += Math.max(0.0, Math.min(100.0, might.value())) / 100.0;
 
         return damage * multiplier;
     }
@@ -455,9 +458,9 @@ public final class StatusEffectService {
         return confusion == null ? 0.0 : confusion.value();
     }
 
-    /** A helpful status put on an ally by a skill (magic_amplify: more magic / ranged damage; protection: less damage taken). */
+    /** A helpful status put on an ally by a skill (magic_amplify: more magic / ranged damage; protection: less damage taken; might: more damage). */
     public void applyBuff(LivingEntity target, StatusEffectType type, double percent, long durationMillis, UUID sourceId) {
-        if (type != StatusEffectType.MAGIC_AMPLIFY && type != StatusEffectType.PROTECTION) return;
+        if (type != StatusEffectType.MAGIC_AMPLIFY && type != StatusEffectType.PROTECTION && type != StatusEffectType.MIGHT) return;
         applySingle(target, type, percent, durationMillis, sourceId, false);
         refreshDisplay(target);
     }
@@ -550,16 +553,26 @@ public final class StatusEffectService {
      * that is stunned, or was stunned within stun-immunity-ticks (5 s), is not stunned again, so a fast weapon cannot hold anything down for good.
      */
     private void applyStun(LivingEntity target, double chance, long durationMillis, UUID sourceId) {
-        if (chance <= EPSILON || isShielded(target) || isStunned(target)) return;
+        if (chance <= EPSILON) return;
+        if (ThreadLocalRandom.current().nextDouble() * 100.0 >= Math.min(100.0, chance)) return;
+        stunFor(target, durationMillis, sourceId);
+    }
+
+    /**
+     * A skill's stun (the cleric's mace, t168): {@code durationMillis} long, unless the target is stunned now or was within the immunity
+     * (stun-immunity-ticks, 5 s) of the last one, so stuns cannot be chained. True when it was stunned.
+     */
+    public boolean stunFor(LivingEntity target, long durationMillis, UUID sourceId) {
+        if (durationMillis <= 0L || isShielded(target) || isStunned(target)) return false;
         long now = System.currentTimeMillis();
         Long immune = stunImmuneUntil.get(target.getUniqueId());
-        if (immune != null && immune > now) return;
-        if (ThreadLocalRandom.current().nextDouble() * 100.0 >= Math.min(100.0, chance)) return;
+        if (immune != null && immune > now) return false;
         long end = stun(target, durationMillis);
         long immunity = Math.max(0, plugin.getConfig().getInt("combat.status-effects.stun-immunity-ticks", 100)) * 50L;
         stunImmuneUntil.put(target.getUniqueId(), end + immunity);
         singleEffects.computeIfAbsent(target.getUniqueId(), ignored -> new EnumMap<>(StatusEffectType.class))
                 .put(StatusEffectType.STUN, new ActiveEffect(StatusEffectType.STUN, 1.0, end, sourceId));
+        return true;
     }
 
     private boolean isStunned(Entity entity) {
@@ -747,6 +760,8 @@ public final class StatusEffectService {
             case MAGIC_AMPLIFY -> ParticleFx.to(world).spawnParticle(Particle.SPELL_WITCH, center, 5, 0.28, 0.35, 0.28, 0.02);
             case PROTECTION -> ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 5, 0.35, 0.45, 0.35, 0.0,
                     new Particle.DustOptions(Color.fromRGB(55, 120, 255), 0.85f));
+            case MIGHT -> ParticleFx.to(world).spawnParticle(Particle.REDSTONE, center, 4, 0.3, 0.45, 0.3, 0.0,
+                    new Particle.DustOptions(Color.fromRGB(255, 200, 70), 0.85f));
             case LACERATION, STUN -> {
             }
         }

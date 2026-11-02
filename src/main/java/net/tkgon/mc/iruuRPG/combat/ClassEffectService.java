@@ -6,6 +6,7 @@ import net.tkgon.mc.iruuRPG.player.PlayerProfile;
 import net.tkgon.mc.iruuRPG.player.PlayerProfileManager;
 import net.tkgon.mc.iruuRPG.stat.StatSet;
 import net.tkgon.mc.iruuRPG.stat.StatType;
+import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
@@ -36,7 +37,6 @@ public final class ClassEffectService {
     public static final String HEALER_PULSE = "healer_pulse";
     public static final String HEALER_GUARD = "healer_guard";
     public static final String HEALER_PULSE_WIDE = "healer_pulse_wide";
-    private static final double HEALER_PULSE_DIVISOR = 25.0;
     private static final double ELEMENT_SCALE = 800.0;
 
     private static final Particle.DustOptions WHITE_AURA = new Particle.DustOptions(Color.fromRGB(255, 255, 255), 1.4f);
@@ -190,23 +190,69 @@ public final class ClassEffectService {
         return 1.0 + Math.max(0.0, profile.finalStats().get(StatType.PROTECTION)) / 100.0;
     }
 
-    /**
-     * Healer: when the healer is healed (item or class skills), the whole heal amount (overheal included) x level / 25
-     * hits every enemy within 7 blocks as green damage (green damage buffs apply).
-     */
+    /** Healer: a heal of {@code healAmount} (the whole of it counted as healed: no way to tell the overheal). */
     public void onSelfHealed(Player player, double healAmount) {
+        onSelfHealed(player, healAmount, healAmount);
+    }
+
+    /** What gathers for each healer's pulse: {pool, the tick of the last pulse, a pulse waiting (1) or not (0)}. */
+    private final Map<UUID, double[]> pulses = new HashMap<>();
+
+    /**
+     * What a heal adds to the healer's pulse (t168): the life truly healed whole, the overheal ({@code amount - healed}) only {@code overhealShare}.
+     */
+    static double pulseShare(double amount, double healed, double overhealShare) {
+        double real = Math.max(0.0, Math.min(amount, healed));
+        return real + Math.max(0.0, amount - real) * Math.max(0.0, overhealShare);
+    }
+
+    /**
+     * Healer: the heals the healer receives (items, skills, allies) gather into a pulse of green damage on every enemy within 7 blocks
+     * ({@code class-effects.healer.pulse-radius}), at most once in {@code pulse-interval-ticks} (20; a heal in between waits for it): the life truly
+     * healed counts whole, the overheal only {@code pulse-overheal-share} (25%); the pulse is {@code pulse-rate} (100%) of what gathered, at most
+     * {@code pulse-cap} (100%) of the healer's maximum life, with the green damage buffs. (t168: it was the whole heal, overheal included, times
+     * level / 25 on every heal, which made the healer's damage far too strong.)
+     */
+    public void onSelfHealed(Player player, double healAmount, double healed) {
         if (healAmount <= 0.0 || attackService == null) return;
 
         PlayerProfile profile = profileManager.getOrCreate(player);
         if (!classService.hasSkill(profile, HEALER_PULSE)) return;
 
+        double share = pulseShare(healAmount, healed, plugin.getConfig().getDouble("class-effects.healer.pulse-overheal-share", 0.25));
+        if (share <= 0.0) return;
+        double[] pulse = pulses.computeIfAbsent(player.getUniqueId(), ignored -> new double[]{0.0, -1.0E9, 0.0});
+        pulse[0] += share;
+        int interval = Math.max(1, plugin.getConfig().getInt("class-effects.healer.pulse-interval-ticks", 20));
+        int tick = Bukkit.getCurrentTick();
+        int wait = (int) Math.max(0L, Math.round(pulse[1] + interval - tick));
+        if (wait <= 0) {
+            firePulse(player);
+            return;
+        }
+        if (pulse[2] > 0.0) return;
+        pulse[2] = 1.0;
+        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+            pulse[2] = 0.0;
+            if (player.isOnline() && !player.isDead()) firePulse(player);
+        }, wait);
+    }
+
+    /** The healer's pulse: what gathered (at most the cap) as green damage on the enemies round them. */
+    private void firePulse(Player player) {
+        double[] pulse = pulses.get(player.getUniqueId());
+        if (pulse == null || pulse[0] <= 0.0) return;
+        PlayerProfile profile = profileManager.getOrCreate(player);
+        double gathered = Math.min(pulse[0], profile.maxHp() * plugin.getConfig().getDouble("class-effects.healer.pulse-cap", 100.0) / 100.0);
+        pulse[0] = 0.0;
+        pulse[1] = Bukkit.getCurrentTick();
         double radius = plugin.getConfig().getDouble("class-effects.healer.pulse-radius", 7.0);
         // the cleric's 固有2 widens the pulse and slows what it hits
         boolean wide = classService.hasSkill(profile, HEALER_PULSE_WIDE);
         if (wide) radius *= Math.max(1.0, plugin.getConfig().getDouble("class-effects.healer.wide-radius-multiplier", 1.5));
         double slowPercent = plugin.getConfig().getDouble("class-effects.healer.wide-slow-percent", 40.0);
         long slowMillis = Math.round(plugin.getConfig().getDouble("class-effects.healer.wide-slow-seconds", 3.0) * 1000.0);
-        double damage = healAmount * Math.max(1, profile.level()) / HEALER_PULSE_DIVISOR * greenFactor(profile);
+        double damage = gathered * plugin.getConfig().getDouble("class-effects.healer.pulse-rate", 1.0) * greenFactor(profile);
         if (damage <= 0.0) return;
 
         Location center = player.getLocation();

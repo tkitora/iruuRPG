@@ -12,7 +12,9 @@ public enum StatusEffectType {
     LACERATION("✧", NamedTextColor.DARK_RED, false),
     CONFUSION("❖", NamedTextColor.LIGHT_PURPLE, true),
     EXPLOSION("✷", NamedTextColor.GOLD, true),
-    STUN("✦", NamedTextColor.YELLOW, true);
+    STUN("✦", NamedTextColor.YELLOW, true),
+    /** A blessing (the cleric's, t168): more damage dealt with any weapon. */
+    MIGHT("⚔", NamedTextColor.GOLD, false);
 
     private final String icon;
     private final NamedTextColor color;

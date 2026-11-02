@@ -285,6 +285,7 @@ public final class AttackService {
         MageMeleeCombo.forget(id);
         MageReaper.forget(id);
         WarriorSkills.forget(id);
+        ClericSkills.forget(id);
         RangerBuffs.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);
@@ -1607,7 +1608,8 @@ public final class AttackService {
     }
 
     public void applyPlayerDamage(Player player, PlayerProfile profile, double damage) {
-        boolean warrior = "warrior".equals(classIdOf(player));
+        String classId = classIdOf(player);
+        boolean warrior = "warrior".equals(classId);
         // the warrior's parry (util of the blood knight, t168) turns the blow aside, and they strike back
         if (warrior && damage > 0.0 && WarriorSkills.parried(player)) return;
         // an invulnerable moment, a guard and the warrior's shields cut the damage (shields break)
@@ -1615,6 +1617,8 @@ public final class AttackService {
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);
         // (a share of what the warrior takes stays as a wound their melee hits drink back: t168)
         if (warrior) WarriorSkills.taken(player, profile.maxHp(), finalDamage);
+        // (the blows the cleric takes give radiance, more while the shield is raised: t168)
+        if ("healer".equals(classId)) ClericSkills.taken(player, finalDamage);
         // during the item swap skill a blow of 40% of the assassin's life or more is taken by the clones of the skill (all destroyed) and nullified
         if (assassinFrenzy(player) > 0 && AssassinClones.sacrifice(player, finalDamage, profile.maxHp(), plugin.getConfig().getDouble("combat.combo.assassin_melee.swap-guard-share", 0.4))) return;
         profile.setCurrentHp(profile.currentHp() - finalDamage);
@@ -1637,7 +1641,7 @@ public final class AttackService {
         // Class effects that scale with healing (the healer's pulse) count the whole heal, overheal included.
         if (Math.abs(healed) <= 1.0E-9) {
             if (classEffectService != null) {
-                classEffectService.onSelfHealed(player, amount);
+                classEffectService.onSelfHealed(player, amount, 0.0);
             }
             return false;
         }
@@ -1645,7 +1649,7 @@ public final class AttackService {
         playerBars.sync(player, profile);
         attackEffects.playHealNumber(player, healed);
         if (classEffectService != null) {
-            classEffectService.onSelfHealed(player, amount);
+            classEffectService.onSelfHealed(player, amount, healed);
         }
         return true;
     }
