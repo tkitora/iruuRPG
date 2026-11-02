@@ -248,6 +248,50 @@ combat:
       util-back-up: 0.35                          # util: 跳ぶ高さ
       ult-dash-share: 0.15                        # ULT (SATUJIN) 中、アイテムスキルのキーで出す突進十字斬りの強さ (中の再発動の倍率比)
       ult-dash-ticks: 2                           # その間隔 (tick)
+    # メイジの近接 (大鎌) = リーパー (t167、nekorozv がすべて任せた。MageMeleeCombo の通常攻撃と MageReaper のスキル)。倍率は武器ダメージ比。値はすべて仮。
+    # 通常攻撃・スキルで敵に「死の刻印」を刻み、スキルで刈り取る (刻印1つごとにダメージが増え、魂で自分が回復する)。
+    # スキルのクールタイムは、ここの秒 (メイジの遠距離のスキルは combat.skill-slots.cooldown-seconds のまま)。ULT はメイジの流星のまま。
+    mage_melee:
+      normal-gap-ticks: 16                        # 通常攻撃と次の通常攻撃の最短の間隔 (tick。大鎌は重い)
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 横薙ぎ、2 返しの斬り上げ、3 踏み込んで刈り込み x2、4 回転 x2、5 振り下ろし + 魂の斬撃波)
+      # hit-rate: [0.62, 0.72, 0.42, 0.48, 1.2]
+      # hit-counts: [1, 1, 2, 2, 1]
+      wave-share: 0.5                             # 通常5の魂の斬撃波の倍率 (振り下ろしの倍率比)
+      wave-range: 9                               # その飛ぶ距離 (ブロック)
+      mark-max: 3                                 # 1体に刻める刻印の数
+      mark-seconds: 8                             # 刻印が残る秒数 (最後に刻んでから。刻むたびに延びる)
+      soul-heal: 1.0                              # 刈り取った刻印1つごとの回復 (最大体力の%)
+      soul-heal-cap: 6.0                          # スキル1回で回復する上限 (最大体力の%)
+      small-charges: 2                            # 小 (魂刈り): ためておける数
+      small-charge-seconds: 4                     # 小: 1つ以上残っている間、1つ戻る秒数
+      small-empty-seconds: 9                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-rate: 0.7                             # 小: 前の扇の敵への倍率
+      small-mark-rate: 0.3                        # 小: 刈り取った刻印1つごとに足す倍率
+      small-reach: 4                              # 小: 届く距離 (ブロック)
+      medium-seconds: 10                          # 中 (鎌投げ): クールタイム (秒)
+      medium-rate: 0.45                           # 中: 行きと帰りで1回ずつの倍率 (当てるたびに刻印)
+      medium-range: 9                             # 中: 鎌が飛ぶ距離 (ブロック)
+      medium-speed: 0.9                           # 中: 鎌の速さ (1 tick あたりのブロック数。帰りは少し速い)
+      medium-pull: 0.45                           # 中: 帰りの鎌が敵を引き寄せる強さ
+      medium-recast-seconds: 3                    # 中: 再発動 (刈り渡り) を受け付ける秒数
+      recast-range: 12                            # 刈り渡り: 刻印の多い敵を探す範囲 (ブロック。いなければ狙った敵か前の近い敵、それもいなければまっすぐ)
+      recast-length: 6                            # 刈り渡り: 敵がいないときに進む距離 (ブロック)
+      recast-power: 1.4                           # 刈り渡り: 1 tick に進むブロック数 (移動中は無敵)
+      recast-pass-rate: 0.2                       # 刈り渡り: 通り抜けた敵への倍率 (刻印も刻む)
+      recast-rate: 0.65                           # 刈り渡り: 着いた所の十字斬りの倍率 (周り3ブロックの敵の刻印を刈り取る)
+      recast-mark-rate: 0.3                       # 刈り渡り: 刈り取った刻印1つごとに足す倍率
+      large-seconds: 22                           # 大 (収穫の刻): クールタイム (秒)
+      large-radius: 6                             # 大: 門の半径 (ブロック。自分について動く)
+      large-gather-seconds: 1                     # 大: 門が開いてから大鎌が回るまでの秒数 (その間、中の敵を引き寄せる)
+      large-pull: 0.06                            # 大: 引き寄せる強さ (1 tick ごと)
+      large-slow: 40                              # 大: 門の中の敵への鈍足 (%、3秒)
+      large-guard: 0.25                           # 大: その間、受けるダメージが減る割合
+      large-sweep-rate: 0.55                      # 大: 大鎌の1周の倍率 (2周。当てるたびに刻印)
+      large-mark-rate: 0.35                       # 大: 最後の刈り取りで、刻印1つごとの倍率
+      util-seconds: 5                             # util (霊体化): クールタイム (秒)
+      util-power: 1                               # util: 1 tick に進むブロック数 (前へ。Shift を押しながらだと後ろへ。移動中は無敵)
+      util-ticks: 5                               # util: その長さ (tick)
+      util-rate: 0.2                              # util: すり抜けた敵への倍率 (刻印も刻む)
     cleric_melee:
       normal-gap-ticks: 10
     warrior_melee:

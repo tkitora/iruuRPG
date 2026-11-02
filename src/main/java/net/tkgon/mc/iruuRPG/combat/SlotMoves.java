@@ -34,18 +34,27 @@ public final class SlotMoves {
     private SlotMoves() {
     }
 
-    /** The classes whose skills with their favorite weapon are moves of their own, not their old heavy attacks (the assassin's melee: t161, {@link AssassinSkills}). */
-    private static final java.util.Set<String> REWORKED = java.util.Set.of("assassin");
+    /**
+     * The classes whose skills with a kind of weapon are moves of their own, not their old heavy attacks: the assassin's melee (its favorite;
+     * t161, {@link AssassinSkills}) and the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon).
+     */
+    private static final Map<String, AttackType> REWORKED = Map.of("assassin", AttackType.MELEE, "mage", AttackType.MELEE);
 
     /** Registers the moves of every class made so far. */
     public static void register(SkillSlots slots, AttackService attackService) {
         for (Map.Entry<String, Own> entry : OWN.entrySet()) {
             for (SkillSlots.Slot slot : new SkillSlots.Slot[]{SkillSlots.Slot.SMALL, SkillSlots.Slot.MEDIUM, SkillSlots.Slot.LARGE, SkillSlots.Slot.UTIL}) {
                 Own own = entry.getValue();
-                if (REWORKED.contains(entry.getKey())) {
+                if (entry.getKey().equals("assassin")) {
                     // (its own moves with the favorite weapon, the template's heavy attacks with another; the charges and re-activation of the config)
                     slots.register(entry.getKey(), slot, AssassinSkills.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
                             kind -> AssassinSkills.mechanics(attackService.plugin().getConfig(), slot, kind));
+                    continue;
+                }
+                if (entry.getKey().equals("mage")) {
+                    // (the reaper's moves with a scythe, its own heavy attacks with a ranged weapon, the template's with a deployed one)
+                    slots.register(entry.getKey(), slot, MageReaper.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
+                            kind -> MageReaper.mechanics(attackService.plugin().getConfig(), slot, kind));
                     continue;
                 }
                 slots.register(entry.getKey(), slot, (player, weapon) ->
@@ -56,8 +65,7 @@ public final class SlotMoves {
 
     /** Whether a class's skills with a kind of weapon are moves of their own (no old skill numbers: their pictures and guide are their own). */
     public static boolean reworked(String classId, AttackType kind) {
-        Own own = classId == null ? null : OWN.get(classId);
-        return own != null && REWORKED.contains(classId) && kind == own.favorite();
+        return classId != null && kind != null && REWORKED.get(classId) == kind;
     }
 
     /** The heavy attack {@code slot} throws with a kind of weapon: the class's own with its favorite, else the template's (skills 1 - 4). */
