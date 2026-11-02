@@ -294,6 +294,7 @@ public final class SkillSlots implements Listener {
         // 1. an open re-activation comes first: its second part, no charge used
         if (mechanics.recasts() && state.recastUntil > now) {
             state.recastUntil = 0L;
+            if (slot != Slot.UTIL) AssassinSkills.ambushStrike(player);
             // (a skill tried with /iruurpg skilltest whose move has no second part does the move again)
             if (!move.recast(player, weapon) && trying(id, slot)) move.use(player, weapon);
             return Done.RECAST;
@@ -303,7 +304,8 @@ public final class SkillSlots implements Listener {
             coolingClick(player, now);
             return Done.NOTHING;
         }
-        // 2. a charge: the move, then its re-activation opens
+        // 2. a charge: the move, then its re-activation opens (a skill out of the assassin's invisibility hits harder: t165; not util)
+        if (slot != Slot.UTIL) AssassinSkills.ambushStrike(player);
         if (!move.use(player, weapon)) return Done.NOTHING;
         if (state.charges >= mechanics.charges()) {
             state.refillStart = now;

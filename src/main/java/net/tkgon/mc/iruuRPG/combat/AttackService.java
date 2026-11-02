@@ -475,7 +475,9 @@ public final class AttackService {
         PlayerProfile profile = equipmentService.recalculate(attacker);
         double multiplier = Math.max(0.1, 1.0 + profile.finalStats().get(StatType.ATTACK_SPEED) / 100.0);
         int ticks = Math.max(Math.max(1, plugin.getConfig().getInt("combat.min-cooldown-ticks", 1)), (int) Math.round(base / multiplier));
-        return attackCooldowns.tryStart(attacker, AttackType.DEPLOY, ticks);
+        if (!attackCooldowns.tryStart(attacker, AttackType.DEPLOY, ticks)) return false;
+        AssassinSkills.ambushStrike(attacker);
+        return true;
     }
 
     /** The cooldown of the assassin's heavy 0 (a dash) during the item swap skill. */
@@ -921,6 +923,8 @@ public final class AttackService {
             return false;
         }
         beginAttack(attacker);
+        // (a normal attack while the assassin's 大 keeps them invisible: it hits harder and ends it, t165)
+        AssassinSkills.ambushStrike(attacker);
 
         // the normal attack's cooldown is shown by the action bar gauge; the item's own cooldown is the weapon skill's only
         return true;
@@ -1938,6 +1942,8 @@ public final class AttackService {
         if (rangerMoves != null && attacker != null && weapon != null && weapon.attackType() != AttackType.RANGE && isRanger(attacker)) {
             outgoing *= rangerMoves.markMultiplier(victim);
         }
+        // the assassin's ambush out of the invisibility of 大 (t165)
+        outgoing *= AssassinSkills.ambushMultiplier(attacker);
         return outgoing;
     }
 

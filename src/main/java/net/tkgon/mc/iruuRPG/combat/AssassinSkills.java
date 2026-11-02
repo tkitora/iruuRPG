@@ -31,9 +31,11 @@ import java.util.function.ToIntFunction;
  *   <li>中 (Q → right, 12 s): three cuts at random angles ahead, then a slanting cut (a cross cut with a weapon in the off hand). Its re-activation
  *       (within {@code medium-recast-seconds}): a dash ahead (nothing hurts the assassin on the way) that cuts weakly whoever it passes, and a
  *       cross cut where it ends. Only the re-activation is copied by the clones.</li>
- *   <li>大 (Q → Q, 24 s): invisible for 4 s, a clone left where the assassin stood; the mobs that were after the assassin go to the clone. 1.5 s
- *       later, round the assassin and every clone that stands, the enemies within 3 blocks are cut at random every 3 ticks for 2 s (the assassin
- *       cannot move and takes no damage meanwhile); then those clones go. Not copied: it is the clones' own.</li>
+ *   <li>大 (F → F, 24 s): invisible for 4 s, a clone left where the assassin stood; the mobs that were after the assassin go to the clone. 1.5 s
+ *       later, round the assassin and every clone that stands, a level cut at a random angle is made at a random point within 3 blocks every 3
+ *       ticks for 2 s, cutting the enemies on its line (the assassin cannot move and takes no damage meanwhile); then those clones go. Not
+ *       copied: it is the clones' own. While invisible, the next normal attack or skill (not util) does 1.5 times the damage and ends the
+ *       invisibility (t165, {@link #ambushStrike}).</li>
  *   <li>util (F, 5 s): a clone stays where the assassin was (5 s) and the assassin leaps back.</li>
  *   <li>ULT (SATUJIN): while it lasts, the weapon skill's key is a weak re-activation of 中 (a dash and a cross cut), every 2 ticks; the weapon's
  *       skill is not used (its cooldown stays as it is). The rest of SATUJIN is as it was.</li>
@@ -51,6 +53,10 @@ public final class AssassinSkills {
     /** Hides a player from the mobs for some milliseconds, the mobs after them going to a place (the mob service's; set by the plugin). */
     public interface Hider {
         void hide(Player player, Location lure, long millis);
+
+        /** The player is seen again (the invisibility of 大 ended early). */
+        default void reveal(Player player) {
+        }
     }
 
     private static Hider hider = (player, lure, millis) -> {
@@ -59,6 +65,11 @@ public final class AssassinSkills {
     private static final Map<UUID, long[]> SMALL_CHAIN = new HashMap<>();
     /** The tick each assassin may dash with the weapon skill's key again during SATUJIN. */
     private static final Map<UUID, Integer> ULT_DASH_READY = new HashMap<>();
+    /**
+     * The ambush of 大 (t165): {until when it waits for the next attack (the invisibility), until when the attack it went into hits harder (0:
+     * not yet), the multiplier} of each assassin.
+     */
+    private static final Map<UUID, double[]> AMBUSH = new java.util.concurrent.ConcurrentHashMap<>();
 
     private AssassinSkills() {
     }
@@ -274,7 +285,7 @@ public final class AssassinSkills {
         double boost = boost(kit) * share;
         double pass = number(kit, "rush-pass-rate", 0.25) * boost;
         double crossRate = number(kit, "rush-cross-rate", 0.45) * boost;
-        double power = number(kit, "rush-power", 1.3);
+        double power = number(kit, "rush-power", 1.05);
         int ticks = (int) Math.round(number(kit, "rush-ticks", 5.0));
         Location feet = kit.player.getLocation();
         Vector facing = flat(kit.facing());
@@ -354,6 +365,8 @@ public final class AssassinSkills {
         AssassinClones.standOne(kit, spot, yawOf(flat(kit.facing())), delay + storm + 10);
         kit.sound(spot, Sfx.SHADOW_CLONE, 0.7f, 1.0f);
         hider.hide(player, spot, invisible * 50L);
+        // the next normal attack or skill while invisible hits harder and ends the invisibility
+        armAmbush(player.getUniqueId(), System.currentTimeMillis() + invisible * 50L, number(kit, "large-ambush-multiplier", 1.5));
         kit.later(delay, () -> {
             if (!player.isOnline() || player.isDead()) return;
             // the assassin and every clone that stands cut the enemies round them at random; the assassin is held and nothing hurts them
@@ -365,12 +378,11 @@ public final class AssassinSkills {
                 Vector velocity = player.getVelocity();
                 player.setVelocity(new Vector(0.0, Math.min(0.0, velocity.getY()), 0.0));
                 if (age % every != 0) return false;
-                boolean struck = randomCut(kit, null, player.getLocation(), radius, rate);
+                randomCut(kit, null, player.getLocation(), radius, rate);
                 for (AssassinClones.Ghost ghost : clones) {
-                    if (ghost.leaving >= 0) continue;
-                    struck |= randomCut(kit, ghost, ghost.pos, radius, cloneRate);
+                    if (ghost.leaving < 0) randomCut(kit, ghost, ghost.pos, radius, cloneRate);
                 }
-                if (struck) kit.sound(player.getLocation(), Sfx.SHADOW_FLURRY, 0.7f, 0.9f + ThreadLocalRandom.current().nextFloat() * 0.3f);
+                kit.sound(player.getLocation(), Sfx.SHADOW_FLURRY, 0.7f, 0.9f + ThreadLocalRandom.current().nextFloat() * 0.3f);
                 return false;
             });
             // the clones that took part go when it ends
@@ -380,15 +392,28 @@ public final class AssassinSkills {
         });
     }
 
-    /** One random cut round {@code center}: an enemy within {@code radius} at random takes it (a clone, {@code ghost}, turns and swings). */
+    /**
+     * One random cut round {@code center} (t165): a level line at a random angle through a random point within {@code radius}; the enemies on
+     * the line take it (a clone, {@code ghost}, turns and swings). True when it cut someone.
+     */
     private static boolean randomCut(MoveKit kit, AssassinClones.Ghost ghost, Location center, double radius, double rate) {
-        List<LivingEntity> near = kit.around(center, radius);
-        if (near.isEmpty()) return false;
-        LivingEntity victim = near.get(ThreadLocalRandom.current().nextInt(near.size()));
-        Clones.lineCut(kit.player, kit.palette(), victim.getLocation(), ThreadLocalRandom.current().nextDouble() * Math.PI, false);
-        if (ghost == null) kit.hit(victim, rate);
-        else AssassinClones.cloneHit(kit, ghost, victim, rate);
-        return true;
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        double distance = radius * Math.sqrt(random.nextDouble());
+        double at = random.nextDouble() * Math.PI * 2.0;
+        Location point = center.clone().add(Math.cos(at) * distance, 0.0, Math.sin(at) * distance);
+        double yaw = random.nextDouble() * Math.PI;
+        Vector along = new Vector(Math.cos(yaw), 0.0, Math.sin(yaw));
+        double half = number(kit, "large-line-half", 2.6);
+        Clones.lineCut(kit.player, kit.palette(), point, yaw, false);
+        if (ghost != null) {
+            AssassinClones.face(ghost, point);
+            AssassinClones.swing(ghost);
+        }
+        boolean struck = false;
+        for (LivingEntity victim : kit.corridor(point.clone().add(0.0, 1.0, 0.0).subtract(along.clone().multiply(half)), along, half * 2.0, 1.1)) {
+            struck |= ghost == null ? kit.hit(victim, rate) : AssassinClones.cloneHit(kit, ghost, victim, rate);
+        }
+        return struck;
     }
 
     /** The player cannot walk nor jump for {@code ticks} (effects that end by themselves, so nothing stays if the server stops). */
@@ -408,7 +433,7 @@ public final class AssassinSkills {
         kit.sound(feet, Sfx.SHADOW_STEP, 0.8f, 1.0f);
         kit.fx(feet).flatRing(feet.clone().add(0.0, 0.1, 0.0), 1.2, 24, kit.palette(), 0.8, 0.2, 1.0);
         kit.invulnerable(5);
-        kit.hopBack(number(kit, "util-back-power", 1.1), number(kit, "util-back-up", 0.35));
+        kit.hopBack(number(kit, "util-back-power", 0.85), number(kit, "util-back-up", 0.35));
     }
 
     // ---- ULT ----------------------------------------------------------------------------------------------------------------
@@ -431,9 +456,69 @@ public final class AssassinSkills {
         return true;
     }
 
+    // ---- the ambush of 大 (t165) --------------------------------------------------------------------------------------------
+
+    /** The player waits in ambush until {@code untilMillis}: the next attack hits {@code multiplier} times as hard. */
+    static void armAmbush(UUID player, long untilMillis, double multiplier) {
+        AMBUSH.put(player, new double[]{untilMillis, 0.0, multiplier});
+    }
+
+    /**
+     * The player starts a normal attack or a skill (not util): while the invisibility of 大 lasts, this one hits harder (its hits for the next
+     * {@code large-ambush-seconds}, 1.5 s: the time a skill takes) and the invisibility ends. Nothing when the player waits for no ambush.
+     */
+    public static void ambushStrike(Player player) {
+        if (player == null || !takeAmbush(player.getUniqueId(), System.currentTimeMillis(), JavaPluginLookup.INSTANCE.number("large-ambush-seconds", 1.5))) return;
+        player.removePotionEffect(PotionEffectType.INVISIBILITY);
+        hider.reveal(player);
+        player.getWorld().playSound(player.getLocation(), org.bukkit.Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, org.bukkit.SoundCategory.PLAYERS, 0.8f, 0.7f);
+    }
+
+    /** The attack goes into the ambush the player waits in at {@code now}, if any: true then (it hits harder for {@code seconds}). */
+    static boolean takeAmbush(UUID player, long now, double seconds) {
+        double[] ambush = AMBUSH.get(player);
+        if (ambush == null || ambush[1] > 0.0) return false;
+        if (ambush[0] < now) {
+            AMBUSH.remove(player);
+            return false;
+        }
+        ambush[1] = now + seconds * 1000.0;
+        return true;
+    }
+
+    /** What the player's damage is multiplied by now: the ambush's while the attack it went into lasts, else 1. */
+    public static double ambushMultiplier(Player player) {
+        return player == null ? 1.0 : ambushMultiplier(player.getUniqueId(), System.currentTimeMillis());
+    }
+
+    static double ambushMultiplier(UUID player, long now) {
+        double[] ambush = AMBUSH.get(player);
+        if (ambush == null || ambush[1] <= 0.0) return 1.0;
+        if (ambush[1] < now) {
+            AMBUSH.remove(player);
+            return 1.0;
+        }
+        return ambush[2];
+    }
+
+    /** The config's numbers of the skills where no kit is at hand (set by {@link #setHider}'s caller with the plugin). */
+    static final class JavaPluginLookup {
+        static final JavaPluginLookup INSTANCE = new JavaPluginLookup();
+        org.bukkit.plugin.java.JavaPlugin plugin;
+
+        double number(String key, double fallback) {
+            return plugin == null ? fallback : plugin.getConfig().getDouble("combat.combo." + PLAN + "." + key, fallback);
+        }
+    }
+
+    public static void setPlugin(org.bukkit.plugin.java.JavaPlugin plugin) {
+        JavaPluginLookup.INSTANCE.plugin = plugin;
+    }
+
     /** A player leaves: what is kept of them goes. */
     public static void forget(UUID player) {
         SMALL_CHAIN.remove(player);
         ULT_DASH_READY.remove(player);
+        AMBUSH.remove(player);
     }
 }
