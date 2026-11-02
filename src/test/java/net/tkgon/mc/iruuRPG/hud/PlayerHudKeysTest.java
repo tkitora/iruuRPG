@@ -13,21 +13,20 @@ class PlayerHudKeysTest {
 
     @Test
     void theButtonsOfALabelAreTheWeaponsOwn() {
-        // 小 = Q → left, 中 = Q → right: the same with every weapon (t160)
-        assertEquals(HudGlyphs.keyLabel("ql"), PlayerHud.keyGlyph(Slot.SMALL));
-        assertEquals(HudGlyphs.keyLabel("qr"), PlayerHud.keyGlyph(Slot.MEDIUM));
-        assertEquals(HudGlyphs.keyLabel("qq"), PlayerHud.keyGlyph(Slot.LARGE));
-        assertEquals(HudGlyphs.keyLabel("f"), PlayerHud.keyGlyph(Slot.UTIL));
-        assertEquals(HudGlyphs.keyLabel("sf"), PlayerHud.keyGlyph(Slot.ULT));
+        // the default of t164: F → left / right / F, util the other button, shift + Q the ULT, Q the weapon's skill
+        assertEquals(HudGlyphs.keyLabel("fl"), PlayerHud.keyGlyph(Slot.SMALL));
+        assertEquals(HudGlyphs.keyLabel("fr"), PlayerHud.keyGlyph(Slot.MEDIUM));
+        assertEquals(HudGlyphs.keyLabel("ff"), PlayerHud.keyGlyph(Slot.LARGE));
+        assertEquals(HudGlyphs.keyLabel("r"), PlayerHud.keyGlyph(Slot.UTIL, false, true));
+        assertEquals(HudGlyphs.keyLabel("l"), PlayerHud.keyGlyph(Slot.UTIL, false, false));
+        assertEquals(HudGlyphs.keyLabel("sq"), PlayerHud.keyGlyph(Slot.ULT));
+        assertEquals(HudGlyphs.keyLabel("q"), PlayerHud.itemKeyGlyph(false));
         // Q and F swapped (t162)
-        assertEquals(HudGlyphs.keyLabel("fl"), PlayerHud.keyGlyph(Slot.SMALL, true));
-        assertEquals(HudGlyphs.keyLabel("fr"), PlayerHud.keyGlyph(Slot.MEDIUM, true));
-        assertEquals(HudGlyphs.keyLabel("ff"), PlayerHud.keyGlyph(Slot.LARGE, true));
-        assertEquals(HudGlyphs.keyLabel("q"), PlayerHud.keyGlyph(Slot.UTIL, true));
-        assertEquals(HudGlyphs.keyLabel("sq"), PlayerHud.keyGlyph(Slot.ULT, true));
-        // the weapon's skill: its other button
-        assertEquals(HudGlyphs.keyLabel("r"), PlayerHud.itemKeyGlyph(true));
-        assertEquals(HudGlyphs.keyLabel("l"), PlayerHud.itemKeyGlyph(false));
+        assertEquals(HudGlyphs.keyLabel("ql"), PlayerHud.keyGlyph(Slot.SMALL, true, true));
+        assertEquals(HudGlyphs.keyLabel("qr"), PlayerHud.keyGlyph(Slot.MEDIUM, true, false));
+        assertEquals(HudGlyphs.keyLabel("qq"), PlayerHud.keyGlyph(Slot.LARGE, true, true));
+        assertEquals(HudGlyphs.keyLabel("sf"), PlayerHud.keyGlyph(Slot.ULT, true, true));
+        assertEquals(HudGlyphs.keyLabel("f"), PlayerHud.itemKeyGlyph(true));
     }
 
     /** t158: a skill is greyed with the seconds in its middle only while it cannot be used (no charge, no open re-activation). */

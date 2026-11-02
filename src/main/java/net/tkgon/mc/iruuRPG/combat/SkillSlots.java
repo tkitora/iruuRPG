@@ -259,6 +259,11 @@ public final class SkillSlots implements Listener {
         return trying != null && trying.containsKey(slot);
     }
 
+    /** Whether the player's class has a move of {@code slot} (a skill with none does what it did before, {@link Fallback}). */
+    public boolean hasMove(Player player, Slot slot) {
+        return move(classOf.apply(player), slot) != null;
+    }
+
     public boolean has(String classId, Slot slot) {
         return move(classId, slot) != null;
     }

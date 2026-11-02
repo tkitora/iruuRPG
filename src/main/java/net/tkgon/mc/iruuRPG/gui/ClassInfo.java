@@ -152,7 +152,7 @@ public final class ClassInfo {
     static List<String> controls(AttackType kind, String classId, boolean swapped) {
         boolean melee = kind == AttackType.MELEE;
         List<String> lines = new java.util.ArrayList<>();
-        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot, swapped) + ": " + slot.label();
+        java.util.function.Function<net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot, String> keys = slot -> net.tkgon.mc.iruuRPG.combat.SkillInput.keys(slot, swapped, melee) + ": " + slot.label();
         if (kind != AttackType.MELEE && kind != AttackType.RANGE) {
             lines.add("右クリック: 1回目で設置、その後は弱");
             lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT) + " / " + net.tkgon.mc.iruuRPG.combat.SkillInput.removeKeys(swapped) + ": 設置を消す");
@@ -163,7 +163,7 @@ public final class ClassInfo {
         lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.SMALL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.MEDIUM)
                 + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.LARGE));
         lines.add(keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.UTIL) + " / " + keys.apply(net.tkgon.mc.iruuRPG.combat.SkillSlots.Slot.ULT));
-        lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(melee) + ": アイテムスキル");
+        lines.add(net.tkgon.mc.iruuRPG.combat.SkillInput.itemSkillKeys(swapped) + ": アイテムスキル");
         // which skills of the lines below they throw (until the class's own moves are made, 小・中・大 the skills 1 - 3)
         int[] numbers = net.tkgon.mc.iruuRPG.combat.SlotMoves.skillNumbers(classId, kind);
         // (skills of their own: the guide below tells them, t161)
