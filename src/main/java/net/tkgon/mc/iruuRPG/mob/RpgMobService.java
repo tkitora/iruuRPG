@@ -416,6 +416,7 @@ public final class RpgMobService {
         runtimes.remove(uuid);
         targetLocks.remove(uuid);
         provoked.remove(uuid);
+        blindedTo.remove(uuid);
         drivenMelee.remove(uuid);
         nextMelee.remove(uuid);
         lastSeen.remove(uuid);
@@ -2048,7 +2049,33 @@ public final class RpgMobService {
                 && player.getGameMode() == GameMode.ADVENTURE
                 && player.getWorld().equals(entity.getWorld())
                 && !hidden(player)
+                && !blinded(entity, player)
                 && targetFilter.test(entity, player);
+    }
+
+    // ---- mobs that cannot see a player (the veil of the assassin's lantern, t168) ------------------------------------------
+
+    /** The players each mob cannot see, until when (ms). */
+    private final Map<UUID, Map<UUID, Long>> blindedTo = new HashMap<>();
+
+    /** {@code mob} cannot see {@code player} for {@code millis}: it loses them when they are its target. */
+    public void blind(LivingEntity mob, Player player, long millis) {
+        if (millis <= 0L) return;
+        blindedTo.computeIfAbsent(mob.getUniqueId(), ignored -> new HashMap<>()).put(player.getUniqueId(), System.currentTimeMillis() + millis);
+        TargetLock lock = targetLocks.get(mob.getUniqueId());
+        if (lock != null && lock.playerId().equals(player.getUniqueId())) targetLocks.remove(mob.getUniqueId());
+        if (mob instanceof Mob creature && player.equals(creature.getTarget())) creature.setTarget(null);
+    }
+
+    private boolean blinded(LivingEntity mob, Player player) {
+        Map<UUID, Long> players = blindedTo.get(mob.getUniqueId());
+        if (players == null) return false;
+        Long until = players.get(player.getUniqueId());
+        if (until == null) return false;
+        if (until > System.currentTimeMillis()) return true;
+        players.remove(player.getUniqueId());
+        if (players.isEmpty()) blindedTo.remove(mob.getUniqueId());
+        return false;
     }
 
     /**

@@ -764,6 +764,11 @@ public final class IruuRPG extends JavaPlugin {
             public void reveal(Player player) {
                 mobService.reveal(player);
             }
+
+            @Override
+            public void blind(org.bukkit.entity.LivingEntity mob, Player player, long millis) {
+                mobService.blind(mob, player, millis);
+            }
         });
         net.tkgon.mc.iruuRPG.combat.AssassinSkills.setPlugin(this);
         // (the warrior's oath turns the mobs near on them: t168)

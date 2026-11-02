@@ -41,9 +41,11 @@ class SlotMovesTest {
         assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("healer", AttackType.DEPLOY));
         // the assassin's melee skills are its own since t161 (no old skill numbers); with a ranged weapon the template's
         assertTrue(SlotMoves.reworked("assassin", AttackType.MELEE));
-        assertFalse(SlotMoves.reworked("assassin", AttackType.RANGE));
+        // (the shadow bow is its own too since t168)
+        assertTrue(SlotMoves.reworked("assassin", AttackType.RANGE));
         assertNull(SlotMoves.skillNumbers("assassin", AttackType.MELEE));
-        assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("assassin", AttackType.RANGE));
+        assertNull(SlotMoves.skillNumbers("assassin", AttackType.RANGE));
+        assertArrayEquals(new int[]{1, 2, 3, 4}, SlotMoves.skillNumbers("assassin", AttackType.DEPLOY));
         // a class with no moves (no class)
         assertNull(SlotMoves.skillNumbers("nobody", AttackType.MELEE));
         assertNull(SlotMoves.favorite(null));
@@ -56,7 +58,12 @@ class SlotMovesTest {
         assertEquals(new SkillSlots.Mechanics(3, 0.0, 3.0, 8.0), AssassinSkills.mechanics(config, SkillSlots.Slot.SMALL, AttackType.MELEE));
         assertEquals(new SkillSlots.Mechanics(1, 3.0, 0.0, 0.0), AssassinSkills.mechanics(config, SkillSlots.Slot.MEDIUM, AttackType.MELEE));
         assertEquals(SkillSlots.Mechanics.NONE, AssassinSkills.mechanics(config, SkillSlots.Slot.LARGE, AttackType.MELEE));
-        assertEquals(SkillSlots.Mechanics.NONE, AssassinSkills.mechanics(config, SkillSlots.Slot.SMALL, AttackType.RANGE));
+        // (the shadow bow's: 小 3 charges of 2.5 s / 7 s, 中 a re-activation of 3 s and 11 s, 大 22 s, util 6 s; t168)
+        assertEquals(new SkillSlots.Mechanics(3, 0.0, 2.5, 7.0), AssassinSkills.mechanics(config, SkillSlots.Slot.SMALL, AttackType.RANGE));
+        assertEquals(new SkillSlots.Mechanics(1, 3.0, 0.0, 11.0), AssassinSkills.mechanics(config, SkillSlots.Slot.MEDIUM, AttackType.RANGE));
+        assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 22.0), AssassinSkills.mechanics(new org.bukkit.configuration.file.YamlConfiguration(), SkillSlots.Slot.LARGE, AttackType.RANGE));
+        assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), AssassinSkills.mechanics(config, SkillSlots.Slot.UTIL, AttackType.RANGE));
+        assertEquals(SkillSlots.Mechanics.NONE, AssassinSkills.mechanics(config, SkillSlots.Slot.SMALL, AttackType.DEPLOY));
         // (the same without the config: the defaults of the code)
         assertEquals(new SkillSlots.Mechanics(3, 0.0, 3.0, 8.0), AssassinSkills.mechanics(new org.bukkit.configuration.file.YamlConfiguration(), SkillSlots.Slot.SMALL, AttackType.MELEE));
     }

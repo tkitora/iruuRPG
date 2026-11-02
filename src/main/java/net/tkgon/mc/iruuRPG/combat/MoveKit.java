@@ -373,6 +373,11 @@ public final class MoveKit {
         return attack.guard() == null ? 0 : attack.guard().shieldCount(player);
     }
 
+    /** {@code amount} of bleed on {@code target} from this player (the assassin's shadow arrows, t168). */
+    public void bleed(LivingEntity target, double amount) {
+        if (amount > 0.0 && target.isValid() && !target.isDead()) attack.statusEffects().addBleed(target, amount, player.getUniqueId());
+    }
+
     public void confuse(LivingEntity target, double amount) {
         attack.confuse(target, amount, player.getUniqueId());
     }

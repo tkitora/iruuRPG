@@ -24,6 +24,7 @@
 - **レンジャー (t168)** は、自分の音の役割を持つ。ワイヤーは釣り糸と仕掛け線、弓はクロスボウの装填と弦の音、精霊弓は木とアレイ。
   - ワイヤーを投げる音 (`WIRE_THROW`)、張る・巻き取る音 (`WIRE_PULL`)、外れる音 (`WIRE_SNAP`)、ワイヤーで飛ぶ音 (`WIRE_ZIP`)。
   - 弓を引き絞る音 (`BOW_DRAW`)、放つ音 (`BOW_LOOSE`)。精霊弓を立てる音 (`SPIRIT_SET`)、全力射撃 (`SPIRIT_OVERDRIVE`)。
+- **アサシンの影の弓と闇の帳 (t168)**: 影の矢を放つ音 (`SHADE_LOOSE`)、当たる音 (`SHADE_HIT`)、暗殺の一矢を溜める音 (`SHADE_DRAW`) と放つ音・仕留めた音 (`SHADE_EXECUTE`)、闇がふくらむ音 (`VEIL_SWELL`)、茨 (`VEIL_THORNS`)、宵闇 (`VEIL_NIGHTFALL`)。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:

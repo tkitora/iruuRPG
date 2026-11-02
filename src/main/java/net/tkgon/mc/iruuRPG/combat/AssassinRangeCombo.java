@@ -10,12 +10,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The assassin's combo with a ranged weapon: floating blades (the combo that was the mage's melee one) that fly, turn round the assassin and lunge at the enemies close by
- * and fall from above; they are drawn as blades of gradient dust (see {@link Blades}) and the sounds are the wind's. Normal: 1 two swords sweep across the front one after the
- * other (60% x2), 2 two swords cross at the aim (50% each), 3 three swords seek the nearest enemies (40% each), 4 four swords turn round the assassin for 2 s and lunge at the
- * enemies close by (7% a lunge, every 8 ticks), 5 five swords gather above the aimed enemy and fall on it (30% each). Heavy: 0 four swords turn round the assassin for 2 s in a
- * wider ring (6% a lunge every 10 ticks; its own cooldown of 6 s), 1 a fan of five swords (24% each), 2 a great sword charges for 0.4 s and pierces the line ahead (130% on
- * all in it), 3 four seeking swords (35% each), 4 a storm of six swords turning round the aim for 1.2 s (20% on all round every 4 ticks, draws them in).
+ * The assassin's combo with a ranged weapon: the shadow bow (t168, {@link AssassinShade}). Arrows of shadow that fly through blocks, seek the
+ * enemy nearest the line of sight (behind a wall too) and leave afflictions for the assassination of 大. Normal: 1 a shadow arrow (70%, confusion
+ * {@code n1-confusion} 10), 2 two arrows in a narrow V (45% x2, a bleed of {@code n2-bleed} 20% of each hit), 3 three quick arrows (35% x3, slowed
+ * 20% for 1 s), 4 four arrows falling on the aim from above, through any roof (25% x4, confusion 5 each), 5 a great shadow arrow through everything
+ * in the way (150%: confusion 15, bleed 20% and slowed 30%).
+ *
+ * <p>The skills are the shadow bow's own ({@link AssassinShade}); the heavy attacks below (the floating blades) are what they were before t168.
  */
 public final class AssassinRangeCombo extends BaseCombo {
 
@@ -23,7 +24,7 @@ public final class AssassinRangeCombo extends BaseCombo {
 
     public AssassinRangeCombo() {
         super("assassin", AttackType.RANGE, new ComboSpec(PLAN,
-                new double[]{0.37, 0.5, 0.42, 0.07, 0.35}, new int[]{2, 2, 3, 1, 5},
+                new double[]{0.7, 0.45, 0.35, 0.25, 1.5}, new int[]{1, 2, 3, 4, 1},
                 new double[]{0.06, 0.24, 1.3, 0.35, 0.2, 0.2}, new int[]{120, 0, 0, 0, 0, 0}, 40));
     }
 
@@ -49,64 +50,83 @@ public final class AssassinRangeCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.35));
+        kit.palette(AssassinShade.SHADE);
         double rate = step.damageMultiplier();
-        int count = step.extraHits() + 1;
-        Location feet = kit.player.getLocation();
-        Vector facing = kit.facing();
-        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
+        int hits = step.extraHits() + 1;
+        java.util.UUID id = kit.player.getUniqueId();
         switch (step.stage()) {
             case 1 -> {
-                sweep(kit, true, rate);
-                kit.later(3L, () -> sweep(kit, false, rate));
+                Location start = ComboParts.hand(kit);
+                kit.sound(start, Sfx.SHADE_LOOSE, 0.8f, 1.2f);
+                AssassinShade.arrow(kit, start, AssassinShade.seek(kit, start, 28.0), 2.0, 28.0, 1.0, false, victim -> {
+                    if (!kit.hit(victim, rate)) return;
+                    AssassinShade.struck(kit, victim);
+                    kit.confuse(victim, kit.number(PLAN, "n1-confusion", 10.0));
+                });
             }
             case 2 -> {
-                // two swords from the upper sides cross at the aim
-                Location aim = kit.aim();
-                Location mid = kit.eye().add(kit.eye().getDirection().multiply(Math.min(5.0, kit.eye().distance(aim))));
-                for (int side = -1; side <= 1; side += 2) {
-                    Location start = kit.player.getLocation().add(0.0, 1.9, 0.0).add(right.clone().multiply(side * 1.1)).add(facing.clone().multiply(0.6));
-                    Vector toward = mid.toVector().subtract(start.toVector());
-                    Blades.fly(kit, start, toward, 1.5, 7.0, rate, null);
-                }
-            }
-            case 3 -> {
-                // three swords seek the nearest enemies in front (or fly on straight when there are none)
-                List<LivingEntity> targets = new ArrayList<>(kit.cone(9.0, 70.0));
-                targets.sort((a, b) -> Double.compare(a.getLocation().distanceSquared(feet), b.getLocation().distanceSquared(feet)));
-                for (int index = 0; index < count; index++) {
-                    double side = (index - (count - 1) / 2.0) * 0.8;
-                    Location start = kit.player.getLocation().add(0.0, 1.7, 0.0).add(right.clone().multiply(side)).add(facing.clone().multiply(0.5));
-                    Vector heading = targets.isEmpty() ? facing.clone().add(right.clone().multiply(side * 0.2))
-                            : targets.get(index % targets.size()).getLocation().add(0.0, 1.0, 0.0).toVector().subtract(start.toVector());
-                    kit.later(index, () -> Blades.seek(kit, start, heading.clone().add(new Vector(0.0, 0.25, 0.0)), 1.3, 30, 10.0, rate, null));
-                }
-            }
-            case 4 -> Blades.orbit(kit, "assassin_blades", 4, 40, 1.5, 3.4, 8, rate);
-            default -> {
-                // five swords gather above the aimed enemy, then fall on it
-                LivingEntity target = kit.nearest(10.0, 70.0);
-                Location above = target == null ? ComboParts.target(kit).add(0.0, 1.0, 0.0) : target.getLocation();
-                kit.sound(above, Sfx.MAGIC, 0.9f, 1.2f);
-                for (int index = 0; index < count; index++) {
-                    double angle = Math.PI * 2.0 * index / count;
-                    Location top = above.clone().add(Trig.cos(angle) * 1.2, 6.0, Trig.sin(angle) * 1.2);
-                    for (int hover = 0; hover < 5; hover++) kit.later(hover, () -> Blades.draw(kit, top, new Vector(0.0, -1.0, 0.0), 1.2));
-                    kit.later(6L + index, () -> {
-                        Location hit = target != null && target.isValid() && !target.isDead() ? target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0) : above.clone().add(0.0, 0.5, 0.0);
-                        for (int fall = 0; fall < 3; fall++) {
-                            double t = (fall + 1) / 3.0;
-                            Location at = top.clone().add(hit.toVector().subtract(top.toVector()).multiply(t - 0.34));
-                            kit.later(fall, () -> Blades.draw(kit, at, new Vector(0.0, -1.0, 0.0), 1.2));
-                        }
-                        kit.later(2L, () -> {
-                            kit.burst(hit, 1.1);
-                            kit.sound(hit, Sfx.CRACK, 0.6f, 1.5f);
-                            if (target != null) kit.hit(target, rate);
-                            else kit.hitAll(kit.around(hit, 1.6), rate);
+                for (int index = 0; index < hits; index++) {
+                    double turn = Math.toRadians(index % 2 == 0 ? -5.0 : 5.0);
+                    kit.later(index, () -> {
+                        Location start = ComboParts.hand(kit);
+                        kit.sound(start, Sfx.SHADE_LOOSE, 0.6f, 1.4f);
+                        AssassinShade.arrow(kit, start, AssassinShade.seek(kit, start, 28.0).rotateAroundY(turn), 2.0, 28.0, 0.9, false, victim -> {
+                            double before = victim.getHealth();
+                            if (!kit.hit(victim, rate)) return;
+                            AssassinShade.struck(kit, victim);
+                            double dealt = Math.max(0.0, before - victim.getHealth());
+                            if (dealt > 0.0 && victim.isValid() && !victim.isDead()) kit.bleed(victim, dealt * kit.number(PLAN, "n2-bleed", 0.2));
                         });
                     });
                 }
+            }
+            case 3 -> {
+                for (int index = 0; index < hits; index++) {
+                    kit.later(index * 3L, () -> {
+                        Location start = ComboParts.hand(kit);
+                        kit.sound(start, Sfx.SHADE_LOOSE, 0.5f, 1.6f);
+                        AssassinShade.arrow(kit, start, AssassinShade.seek(kit, start, 26.0), 2.3, 26.0, 0.8, false, victim -> {
+                            if (!kit.hit(victim, rate)) return;
+                            AssassinShade.struck(kit, victim);
+                            kit.slow(victim, 20.0, 1.0);
+                        });
+                    });
+                }
+            }
+            case 4 -> {
+                // four arrows fall on the aim from high above, through any roof
+                LivingEntity aimed = kit.nearest(26.0, 25.0);
+                Location aim = aimed != null ? aimed.getLocation() : kit.ground(kit.aim());
+                kit.sound(kit.player.getLocation(), Sfx.SHADE_LOOSE, 0.8f, 0.9f);
+                java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+                for (int index = 0; index < hits; index++) {
+                    double angle = random.nextDouble(Math.PI * 2.0);
+                    double r = index == 0 ? 0.0 : 1.4 * Math.sqrt(random.nextDouble());
+                    Location spot = aim.clone().add(Math.cos(angle) * r, 0.0, Math.sin(angle) * r);
+                    kit.later(4L + index * 2L, () -> AssassinShade.arrow(kit, spot.clone().add(0.3, 9.0, 0.2), new Vector(-0.03, -1.0, -0.02), 2.5, 10.0, 0.9, false, victim -> {
+                        if (!kit.hit(victim, rate)) return;
+                        AssassinShade.struck(kit, victim);
+                        kit.confuse(victim, kit.number(PLAN, "n4-confusion", 5.0));
+                    }));
+                }
+            }
+            default -> {
+                // a great shadow arrow through everything in the way, every affliction at once
+                Location start = ComboParts.hand(kit);
+                kit.sound(start, Sfx.SHADE_DRAW, 0.6f, 1.4f);
+                kit.later(4L, () -> {
+                    Location from = ComboParts.hand(kit);
+                    kit.sound(from, Sfx.SHADE_LOOSE, 1.0f, 0.8f);
+                    AssassinShade.arrow(kit, from, AssassinShade.seek(kit, from, 32.0), 2.6, 32.0, 1.5, true, victim -> {
+                        double before = victim.getHealth();
+                        if (!kit.hit(victim, rate)) return;
+                        AssassinShade.struck(kit, victim);
+                        kit.confuse(victim, kit.number(PLAN, "n5-confusion", 15.0));
+                        kit.slow(victim, 30.0, 1.5);
+                        double dealt = Math.max(0.0, before - victim.getHealth());
+                        if (dealt > 0.0 && victim.isValid() && !victim.isDead()) kit.bleed(victim, dealt * kit.number(PLAN, "n5-bleed", 0.2));
+                    });
+                });
             }
         }
     }
