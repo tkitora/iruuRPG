@@ -1089,6 +1089,11 @@ public final class MoveKit {
         }
     }
 
+    /** Whether the player's class gives them the skill flag {@code name} (an innate or unlocked passive). */
+    public boolean hasSkill(String name) {
+        return attack.hasClassSkill(player, name);
+    }
+
     /** A blessing on {@code ally} from this player (the cleric's, t168): {@link StatusEffectService#applyBuff}. */
     public void buff(Player ally, StatusEffectType type, double percent, long millis) {
         attack.statusEffects().applyBuff(ally, type, percent, millis, player.getUniqueId());

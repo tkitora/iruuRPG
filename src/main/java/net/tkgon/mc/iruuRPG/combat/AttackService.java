@@ -266,6 +266,7 @@ public final class AttackService {
         if (deployHold != null) deployHold.shutdown();
         AssassinClones.shutdown();
         WarriorSwords.shutdown();
+        RangerDeployCombo.shutdown();
         if (comboZones != null) comboZones.shutdown();
     }
 
@@ -286,6 +287,7 @@ public final class AttackService {
         MageReaper.forget(id);
         WarriorSkills.forget(id);
         ClericSkills.forget(id);
+        RangerSkills.forget(id);
         RangerBuffs.forget(id);
         for (Material material : Material.values()) {
             if (material.isItem() && player.hasCooldown(material)) player.setCooldown(material, 0);

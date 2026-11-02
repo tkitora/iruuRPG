@@ -21,6 +21,9 @@
   - メイスの振り (`HOLY_SWING`)、盾で殴る音 (`HOLY_BASH`)、盾を構えて動く音 (`HOLY_STEP`)、盾を掲げる音 (`HOLY_RAISE`)、構えた盾で受けた音 (`HOLY_BLOCK`)、審判の鉄槌 (`HOLY_HAMMER`)、守護の陣 (`HOLY_BASTION`)。
   - 聖光・聖句がたまりきった音 (`HOLY_FULL`)、祝福 (`HOLY_BLESS`)、癒しの光 (`HOLY_MEND`)、詠唱 (`HOLY_CHANT`)。
   - 杖の雷を呼ぶ音 (`STORM_CAST`)、雷が落ちる音 (`STORM_STRIKE`)。
+- **レンジャー (t168)** は、自分の音の役割を持つ。ワイヤーは釣り糸と仕掛け線、弓はクロスボウの装填と弦の音、精霊弓は木とアレイ。
+  - ワイヤーを投げる音 (`WIRE_THROW`)、張る・巻き取る音 (`WIRE_PULL`)、外れる音 (`WIRE_SNAP`)、ワイヤーで飛ぶ音 (`WIRE_ZIP`)。
+  - 弓を引き絞る音 (`BOW_DRAW`)、放つ音 (`BOW_LOOSE`)。精霊弓を立てる音 (`SPIRIT_SET`)、全力射撃 (`SPIRIT_OVERDRIVE`)。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:

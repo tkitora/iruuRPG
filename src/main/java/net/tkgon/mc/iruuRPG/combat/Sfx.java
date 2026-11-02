@@ -217,7 +217,30 @@ public enum Sfx {
     STORM_CAST(new Layer(Sound.ENTITY_EVOKER_CAST_SPELL, 0.4f, 1.6f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.9f)),
     /** Lightning striking: a bolt's impact, thunder far off and a crackle. */
     STORM_STRIKE(new Layer(Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.6f, 1.3f), new Layer(Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.2f, 1.8f),
-            new Layer(Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.3f, 1.6f));
+            new Layer(Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.3f, 1.6f)),
+    // the ranger (t168): the wire sings and snaps, the bow creaks and twangs, the spirit bow hums
+    /** A wire flung: a fishing line cast, a whoosh and a thin metal ring. */
+    WIRE_THROW(new Layer(Sound.ENTITY_FISHING_BOBBER_THROW, 0.7f, 1.3f), new Layer(Sound.ITEM_TRIDENT_THROW, 0.3f, 1.8f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.3f, 2.0f)),
+    /** A wire pulled taut: the fishing line reeled in, a crossbow loading and a tripwire. */
+    WIRE_PULL(new Layer(Sound.ENTITY_FISHING_BOBBER_RETRIEVE, 0.8f, 1.1f), new Layer(Sound.ITEM_CROSSBOW_LOADING_END, 0.5f, 1.4f),
+            new Layer(Sound.BLOCK_TRIPWIRE_ATTACH, 0.6f, 1.2f)),
+    /** A wire let go: a tripwire snapping. */
+    WIRE_SNAP(new Layer(Sound.BLOCK_TRIPWIRE_DETACH, 0.7f, 1.4f), new Layer(Sound.ENTITY_FISHING_BOBBER_RETRIEVE, 0.3f, 1.8f)),
+    /** The ranger zipping along a wire: a riptide's rush, a line reeled fast and a whoosh. */
+    WIRE_ZIP(new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.4f, 1.6f), new Layer(Sound.ENTITY_FISHING_BOBBER_RETRIEVE, 0.6f, 1.6f),
+            new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.3f, 1.7f)),
+    /** A bow drawn hard: a crossbow loading and the string creaking. */
+    BOW_DRAW(new Layer(Sound.ITEM_CROSSBOW_LOADING_MIDDLE, 0.7f, 0.8f), new Layer(Sound.ITEM_CROSSBOW_LOADING_START, 0.5f, 0.9f)),
+    /** An arrow loosed: the bow's twang and a whoosh. */
+    BOW_LOOSE(new Layer(Sound.ENTITY_ARROW_SHOOT, 0.8f, 0.9f), new Layer(Sound.ITEM_CROSSBOW_SHOOT, 0.4f, 1.2f),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.25f, 1.7f)),
+    /** The spirit bow set: wood placed, a beacon and the allay. */
+    SPIRIT_SET(new Layer(Sound.BLOCK_WOOD_PLACE, 0.9f, 0.9f), new Layer(Sound.BLOCK_BEACON_ACTIVATE, 0.4f, 1.8f),
+            new Layer(Sound.ENTITY_ALLAY_ITEM_GIVEN, 0.4f, 1.2f)),
+    /** The spirit bow's overdrive: a beacon's power, the allay and a fast crossbow. */
+    SPIRIT_OVERDRIVE(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.6f, 1.6f), new Layer(Sound.ENTITY_ALLAY_AMBIENT_WITH_ITEM, 0.6f, 1.5f),
+            new Layer(Sound.ITEM_CROSSBOW_QUICK_CHARGE_3, 0.6f, 1.2f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {

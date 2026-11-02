@@ -39,13 +39,15 @@ public final class SlotMoves {
     /**
      * The classes whose skills with a kind of weapon are moves of their own, not their old heavy attacks: the assassin's melee (its favorite;
      * t161, {@link AssassinSkills}), the mage's melee, the reaper (t167, {@link MageReaper}; the mage's favorite stays its ranged weapon), and the
-     * warrior's and the cleric's melee and ranged ones (t168, {@link WarriorSkills}, {@link ClericSkills}).
+     * warrior's, the cleric's and the ranger's melee and ranged ones (t168, {@link WarriorSkills}, {@link ClericSkills}, {@link RangerSkills}; the
+     * ranger's bow keeps three of its skills, only 小 is new).
      */
     private static final Map<String, Set<AttackType>> REWORKED = Map.of(
             "assassin", EnumSet.of(AttackType.MELEE),
             "mage", EnumSet.of(AttackType.MELEE),
             "warrior", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
-            "healer", EnumSet.of(AttackType.MELEE, AttackType.RANGE));
+            "healer", EnumSet.of(AttackType.MELEE, AttackType.RANGE),
+            "gifted", EnumSet.of(AttackType.MELEE, AttackType.RANGE));
 
     /** Registers the moves of every class made so far. */
     public static void register(SkillSlots slots, AttackService attackService) {
@@ -68,6 +70,12 @@ public final class SlotMoves {
                     // (the mace and shield's moves with a melee weapon, the staff's with a ranged one, the template's with a deployed one)
                     slots.register(entry.getKey(), slot, ClericSkills.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
                             kind -> ClericSkills.mechanics(attackService.plugin().getConfig(), slot, kind));
+                    continue;
+                }
+                if (entry.getKey().equals("gifted")) {
+                    // (the knife and wire's moves with a melee weapon; with the bow 小 is the power shot and the rest its heavy attacks; the template's with a deployed one)
+                    slots.register(entry.getKey(), slot, RangerSkills.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
+                            kind -> RangerSkills.mechanics(attackService.plugin().getConfig(), slot, kind));
                     continue;
                 }
                 if (entry.getKey().equals("mage")) {
