@@ -94,7 +94,7 @@ final class ProceduralMenu implements Listener {
         TreeSettings.Key[] keysFor(TreeSettings settings) {
             ProcKind kind = settings.kind();
             // (a web has no height and width: the points decide how big it is; a tree is as big as its own numbers make it)
-            if (this == BASIC && (kind.web() || kind.tree())) return new TreeSettings.Key[]{};
+            if (this == BASIC && (kind.web() || kind.tree() || kind == ProcKind.HOUSE)) return new TreeSettings.Key[]{};
             if (kind.tree() && this != BASIC) return treeKeys(settings.algorithm(), this);
             if (this != SHAPE) return keys;
             return switch (kind) {
@@ -104,6 +104,9 @@ final class ProceduralMenu implements Listener {
                         TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS};
                 case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.CRYSTAL_FACETS, TreeSettings.Key.CRYSTAL_TIP, TreeSettings.Key.CRYSTAL_THICK, TreeSettings.Key.CRYSTAL_VARIANCE,
                         TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
+                case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
+                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG, TreeSettings.Key.HOUSE_WINDOWS,
+                        TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
                 default -> new TreeSettings.Key[]{};
             };
         }
@@ -146,6 +149,17 @@ final class ProceduralMenu implements Listener {
     private static final Map<TreeSettings.Key, Material> ICONS = new EnumMap<>(TreeSettings.Key.class);
 
     static {
+        ICONS.put(TreeSettings.Key.HOUSE_WIDTH, Material.LEAD);
+        ICONS.put(TreeSettings.Key.HOUSE_DEPTH, Material.LEAD);
+        ICONS.put(TreeSettings.Key.HOUSE_FLOORS, Material.LADDER);
+        ICONS.put(TreeSettings.Key.HOUSE_STOREY, Material.SCAFFOLDING);
+        ICONS.put(TreeSettings.Key.HOUSE_PILLARS, Material.BROWN_WOOL);
+        ICONS.put(TreeSettings.Key.HOUSE_ROOF, Material.RED_WOOL);
+        ICONS.put(TreeSettings.Key.HOUSE_PITCH, Material.OAK_STAIRS);
+        ICONS.put(TreeSettings.Key.HOUSE_OVERHANG, Material.OAK_SLAB);
+        ICONS.put(TreeSettings.Key.HOUSE_WINDOWS, Material.GLASS_PANE);
+        ICONS.put(TreeSettings.Key.HOUSE_DOOR, Material.OAK_DOOR);
+        ICONS.put(TreeSettings.Key.HOUSE_FOUNDATION, Material.STONE_BRICKS);
         ICONS.put(TreeSettings.Key.HEIGHT, Material.LADDER);
         ICONS.put(TreeSettings.Key.WIDTH, Material.LEAD);
         ICONS.put(TreeSettings.Key.CURVE, Material.CHAIN);
@@ -283,6 +297,7 @@ final class ProceduralMenu implements Listener {
 
     private static String number(TreeSettings.Key key, double value) {
         if (key.toggle()) return value >= 0.5 ? "オン" : "オフ";
+        if (key == TreeSettings.Key.HOUSE_ROOF) return ProceduralShapes.roofName((int) Math.round(value));
         return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
     }
 

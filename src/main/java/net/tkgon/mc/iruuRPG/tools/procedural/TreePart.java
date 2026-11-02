@@ -26,6 +26,11 @@ enum TreePart {
     WEB_FRAME("web-frame", "巣の枠糸", 0, Material.COBWEB),
     /** The threads that catch (the spiral, the grid, the tangle). */
     WEB("web", "巣の糸", 1, Material.COBWEB),
+    /** The parts of the house base (t179: a block-out in wool, no materials to choose: the shape only). */
+    HOUSE_PILLAR("house-pillar", "柱", 0, Material.BROWN_WOOL),
+    HOUSE_FLOOR("house-floor", "床", 1, Material.LIGHT_GRAY_WOOL),
+    HOUSE_ROOF("house-roof", "屋根", 2, Material.RED_WOOL),
+    HOUSE_WALL("house-wall", "壁", 3, Material.WHITE_WOOL),
     /** The shades of the leaf gradient above the lowest ({@link #LEAF}): their blocks are the entries of the gradient of the settings. */
     LEAF_2("leaf-2", "葉 (2段目)", 4, Material.OAK_LEAVES),
     LEAF_3("leaf-3", "葉 (3段目)", 4, Material.OAK_LEAVES),
