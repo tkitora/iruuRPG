@@ -156,6 +156,8 @@ final class HouseDesigner {
         final int overlap;
         final boolean roof;
         final boolean look;
+        /** (t193) the shape (the size, the storeys, the pillars) chosen too; off: as it is. */
+        final boolean shape;
         final boolean symmetric;
         final int target;
         Plan plan;
@@ -176,6 +178,7 @@ final class HouseDesigner {
             overlap = s.getInt(Key.HOUSE_GEN_OVERLAP);
             roof = s.on(Key.HOUSE_GEN_ROOF);
             look = s.on(Key.HOUSE_GEN_LOOK);
+            shape = s.on(Key.HOUSE_GEN_SHAPE);
             int symmetry = s.getInt(Key.HOUSE_GEN_SYMMETRY);
             symmetric = symmetry == 1 || symmetry == 0 && switch (pattern) {
                 case MANOR -> true;
@@ -256,16 +259,33 @@ final class HouseDesigner {
                     depth = range(6 + size, 8 + size);
                 }
             }
-            s.set(Key.HOUSE_WIDTH, width);
-            s.set(Key.HOUSE_DEPTH, depth);
-            s.set(Key.HOUSE_FLOORS, floors);
-            s.set(Key.HOUSE_STOREY, storey);
-            s.set(Key.HOUSE_PILLARS, spacing);
-            s.set(Key.HOUSE_PILLAR_MIRROR, 1);
-            s.set(Key.HOUSE_WINDOWS, 1);
-            s.set(Key.HOUSE_DOOR, 1);
+            // (t193: the shape kept as it is when it is not to be chosen; odd both ways, so every roof has a ridge of one block)
+            if (shape) {
+                s.set(Key.HOUSE_WIDTH, odd(width));
+                s.set(Key.HOUSE_DEPTH, odd(depth));
+                s.set(Key.HOUSE_FLOORS, floors);
+                s.set(Key.HOUSE_STOREY, storey);
+                s.set(Key.HOUSE_PILLARS, spacing);
+                s.set(Key.HOUSE_PILLAR_MIRROR, 1);
+                s.set(Key.HOUSE_WINDOWS, 1);
+                s.set(Key.HOUSE_DOOR, 1);
+            }
             if (roof) roof();
-            if (look) look(floors);
+            if (look) look(s.getInt(Key.HOUSE_FLOORS));
+        }
+
+        /** {@code n} made odd (one more or one less, at least 5). */
+        private int odd(int n) {
+            if (n % 2 == 1) return n;
+            return n <= 5 || r.nextBoolean() ? n + 1 : n - 1;
+        }
+
+        /** An odd size from {@code min} to {@code max} (at least 3): a tower or a volume with a point or a ridge of one block on top. */
+        private int oddSize(int min, int max) {
+            int low = Math.max(3, min) | 1;
+            int high = Math.max(low, max);
+            if (high % 2 == 0) high--;
+            return low + 2 * r.nextInt((high - low) / 2 + 1);
         }
 
         /** A width in the range; a house the same both ways needs an odd one whose middle is not a pillar (so the door is in the middle). */
@@ -469,18 +489,20 @@ final class HouseDesigner {
         private void frontGable(boolean own) {
             place(own, 6, () -> {
                 int w = 5 + 2 * r.nextInt(2);
-                int in = range(1, 2);
-                return List.of(volume(0, plan.doorU(), -in, w, in + range(2, 3), plan.floors, 0, -1, 2));
+                int d = 3 + 2 * r.nextInt(2);
+                int in = range(1, d - 2);
+                return List.of(volume(0, plan.doorU(), -in, w, d, plan.floors, 0, -1, 2));
             });
         }
 
         /** A small square tower in the middle of the roof, from the top storey up over the ridge, its top storey jutting out (a second layer of roof). */
         private void stackedTower() {
             place(false, 4, () -> {
-                // (its top storey, the one that juts out, all over the ridge)
-                HouseModule tower = plan.spire(symmetric ? 5 + 2 * r.nextInt(2) : range(5, 7), plan.ridgeRise() + plan.storey + range(1, 2));
+                // (as big as the house allows; its top storey, the one that juts out, all over what is round it)
+                HouseModule tower = plan.spire(oddSize(3, Math.min(plan.width, plan.depth) - 6), 1);
                 tower.shape = 2;
                 tower.jetty = 1;
+                tower.height = plan.towerHeight(tower, plan.storey + 1 + r.nextInt(Math.max(1, tower.width / 2 + 1)));
                 return List.of(tower);
             });
         }
@@ -489,12 +511,12 @@ final class HouseDesigner {
         private void sideBlock(int side, boolean own) {
             place(own, 8, () -> {
                 int length = plan.length(side);
-                int w = Math.max(5, Math.min(length - 2, range(5, Math.max(5, length - 2))));
+                int w = oddSize(5, Math.max(5, length - 2));
                 int end = r.nextInt(3) - 1;
                 int along = end == 0 ? 0 : endAlong(side, w, end < 0);
                 int storeys = Math.max(1, plan.floors - 1 - (plan.floors >= 3 && chance(0.4) ? 1 : 0));
                 int roofShape = chance(0.5) ? -1 : pick(new int[]{1, 9, 3}, new int[]{50, 35, 15});
-                return group(volume(side, along, -range(0, 1), w, range(4, 6), storeys, 0, roofShape, r.nextInt(3)));
+                return group(volume(side, along, -range(0, 1), w, 3 + 2 * r.nextInt(2), storeys, 0, roofShape, r.nextInt(3)));
             });
         }
 
@@ -505,16 +527,17 @@ final class HouseDesigner {
                 int level = range(1, plan.floors - 1);
                 int w = 5 + 2 * r.nextInt(2);
                 int along = range(plan.low(side) + w / 2 + 1, Math.max(plan.low(side) + w / 2 + 1, plan.high(side) - w / 2 - 1));
-                return group(volume(side, along, -1, w, range(3, 4), Math.max(1, Math.min(2, plan.floors - level)), level, chance(0.5) ? -1 : 9, 2));
+                return group(volume(side, along, -1, w, 3, Math.max(1, Math.min(2, plan.floors - level)), level, chance(0.5) ? -1 : 9, 2));
             });
         }
 
         /** A slender tower from the ground at a corner, over the ridge, its top storey jutting out. */
         private void slimTower(boolean own) {
             place(own, 6, () -> {
-                HouseModule tower = plan.cornerTower(r.nextInt(4), range(4, 5), 0, plan.ridgeRise() + range(3, 6), 1);
+                HouseModule tower = plan.cornerTower(r.nextInt(4), oddSize(3, Math.min(plan.width, plan.depth) / 2), 0, 1, 1);
                 tower.shape = pick(new int[]{0, 1, 2}, new int[]{50, 30, 20});
                 tower.jetty = 1;
+                tower.height = plan.towerHeight(tower, Math.max(3, (int) Math.round(tower.width * (0.8 + 1.2 * r.nextDouble()))));
                 return group(tower);
             });
         }
@@ -660,14 +683,22 @@ final class HouseDesigner {
 
         /** A round tower from the ground at {@code corner} (0 front left, 1 front right, 2 back right, 3 back left), above the ridge. */
         private HouseModule bigTower(int corner, boolean own) {
-            return place(own, 6, () -> group(plan.cornerTower(corner, range(5, 6 + size), 0, plan.ridgeRise() + range(3, 7), 1)));
+            return place(own, 6, () -> {
+                // (as wide as a third to two thirds of the house; over what is round it by half to one and a half of its width)
+                int across = Math.min(plan.width, plan.depth);
+                HouseModule tower = plan.cornerTower(corner, oddSize(across / 3 + 1, across * 2 / 3), 0, 1, 1);
+                tower.height = plan.towerHeight(tower, Math.max(2, (int) Math.round(tower.width * (0.5 + 1.1 * r.nextDouble()))));
+                return group(tower);
+            });
         }
 
         /** A turret on a corbel at {@code corner}, from the top storey (from the second when the house is tall). */
         private HouseModule turret(int corner, boolean own) {
             return place(own, 6, () -> {
                 int level = Math.max(1, plan.floors - 1 - (plan.floors >= 3 && chance(0.5) ? 1 : 0));
-                return group(plan.cornerTower(corner, range(3, 4), level, Math.max(2, plan.ridgeRise() / 2 + r.nextInt(3)), r.nextInt(2)));
+                HouseModule tower = plan.cornerTower(corner, oddSize(3, Math.min(plan.width, plan.depth) / 3), level, 1, r.nextInt(2));
+                tower.height = plan.towerHeight(tower, 1 + r.nextInt(tower.width / 2 + 2));
+                return group(tower);
             });
         }
 
@@ -798,6 +829,8 @@ final class HouseDesigner {
         private final Map<Long, Integer> owner = new HashMap<>();
         /** The door and the three blocks in front of it, 2 high: kept clear. */
         private final Set<Long> door = new HashSet<>();
+        /** The rank of the part each block is of (see {@link House#rank}). */
+        private final Map<Long, Integer> ranks = new HashMap<>();
         int conflicts;
 
         Plan(TreeSettings s, int tolerance) {
@@ -984,7 +1017,7 @@ final class HouseDesigner {
             for (HouseModule module : group) {
                 if (!inRange(module) || !fits(module)) return null;
                 Build build = house.prepare(local, tops, module);
-                if (blocksDoor(build) || module.type == Type.WING && highest(build) > ridge) return null;
+                if (blocksDoor(build) || module.type == Type.WING && highest(build) > ridge || !connected(module, build)) return null;
                 hits += hits(build, exempt) + intoHouse(module, build);
                 cells += build.over.map.size() + build.under.map.size();
                 builds.add(build);
@@ -1006,14 +1039,93 @@ final class HouseDesigner {
                 HouseModule module = trial.group().get(index);
                 Build build = trial.builds().get(index);
                 int at = s.modules().size();
+                int rank = House.rank(module.type);
                 s.modules().add(module);
-                for (long key : build.carved) owner.remove(key);
-                for (long key : build.over.map.keySet()) owner.put(key, at);
+                // (as the house is built: not over nor out of a part of a higher rank)
+                for (long key : build.carved) if (ranks.getOrDefault(key, 0) <= rank) owner.remove(key);
+                for (long key : build.over.map.keySet()) if (ranks.getOrDefault(key, 0) <= rank) owner.put(key, at);
                 for (long key : build.under.map.keySet()) if (!local.map.containsKey(key)) owner.put(key, at);
-                build.apply();
+                build.apply(ranks, rank);
                 tops = Build.tops(local);
             }
             conflicts += trial.hits();
+        }
+
+        /**
+         * (t193) The height of a tower over the eaves so its walls end {@code over} blocks over the highest of what is round it (the base and the parts so
+         * far, within 3 of its wall): a tower as high as what it stands among asks.
+         */
+        int towerHeight(HouseModule tower, int over) {
+            Side side = house.side(tower.side, house.storeyOf(tower));
+            int size = Math.max(3, tower.width);
+            int lo = -(size - 1) / 2;
+            double cu = tower.along + (2 * lo + size - 1) / 2.0;
+            double cv = tower.offset + (1 + size) / 2.0;
+            int reach = size / 2 + 3;
+            int high = house.top;
+            for (int du = -reach; du <= reach; du++) {
+                for (int dv = -reach; dv <= reach; dv++) {
+                    int u = (int) Math.round(cu + du);
+                    int v = (int) Math.round(cv + dv);
+                    Integer top = tops.get(HouseShape.column(side.a(u, v), side.b(u, v)));
+                    if (top != null) high = Math.max(high, top);
+                }
+            }
+            return Math.max(1, high + over - house.top);
+        }
+
+        /**
+         * (t193) Whether a part is joined to the house as such a part is: stairs and a balcony lead through a wall into a room (the wall there to open, the
+         * room behind it); a bay window stands on a wall with a room behind; a chimney outside leans on a wall; a volume or a tower over the ground touches
+         * what is there.
+         */
+        private boolean connected(HouseModule module, Build build) {
+            return switch (module.type) {
+                case STAIR -> doorway(module, Math.max(1, Math.min(Math.max(1, floors - 1), module.level)) * storey);
+                case BALCONY -> doorway(module, Math.max(0, Math.min(floors, module.level)) * storey);
+                case BAY -> doorway(module, Math.max(0, Math.min(floors - 1, module.level)) * storey);
+                case CHIMNEY -> module.offset < 0 || leans(module);
+                case VOLUME, TOWER -> module.level == 0 || touches(build);
+                default -> true;
+            };
+        }
+
+        /** A wall of the house to open at the middle of a part over {@code floor} (2 high; on its line or set back one), and a room behind it. */
+        private boolean doorway(HouseModule module, int floor) {
+            Side side = house.side(module.side, house.storeyOf(module));
+            for (int y = floor + 1; y <= floor + 2; y++) {
+                int wall = local.has(side.a(module.along, 0), y, side.b(module.along, 0)) ? 0 : local.has(side.a(module.along, -1), y, side.b(module.along, -1)) ? -1 : 1;
+                if (wall > 0) return false;
+                int ia = side.a(module.along, wall - 1);
+                int ib = side.b(module.along, wall - 1);
+                if (local.has(ia, y, ib) || !house.inside(ia, ib, y)) return false;
+            }
+            return true;
+        }
+
+        /** The wall of the house behind the whole width of a chimney (from the ground up 2). */
+        private boolean leans(HouseModule module) {
+            Side side = house.side(module.side, 0);
+            int lo = -(module.width - 1) / 2;
+            for (int u = lo; u < lo + module.width; u++) {
+                for (int y = 1; y <= 2; y++) {
+                    if (!local.has(side.a(module.along + u, 0), y, side.b(module.along + u, 0))) return false;
+                }
+            }
+            return true;
+        }
+
+        /** Whether a part has a block on, in or next to what is there. */
+        private boolean touches(Build build) {
+            for (long key : build.over.map.keySet()) {
+                int x = TreeVoxelizer.unpackX(key);
+                int y = TreeVoxelizer.unpackY(key);
+                int z = TreeVoxelizer.unpackZ(key);
+                if (local.has(x, y, z) || local.has(x + 1, y, z) || local.has(x - 1, y, z) || local.has(x, y, z + 1) || local.has(x, y, z - 1) || local.has(x, y - 1, z)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         /** The numbers of a part are as it would keep them (nothing to bring into range). */

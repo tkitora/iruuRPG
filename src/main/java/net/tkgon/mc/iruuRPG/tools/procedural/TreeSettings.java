@@ -75,6 +75,7 @@ final class TreeSettings {
         HOUSE_GEN_SYMMETRY("house-gen-symmetry", "対称", 0, 2, 0, 1, 1, "0 パターン次第 / 1 左右対称 / 2 崩す (非対称)"),
         HOUSE_GEN_TOWERS("house-gen-towers", "塔", 0, 3, 0, 1, 1, "0 パターン次第 / 1 なし / 2 少し / 3 多め"),
         HOUSE_GEN_OVERLAP("house-gen-overlap", "重なりの許容", 0, 2, 1, 1, 1, "パーツ同士が重なるのを、どこまで許すか: 0 なし / 1 少し / 2 多め"),
+        HOUSE_GEN_SHAPE("house-gen-shape", "形もおまかせ", true, "オン: 幅・奥行き・階数・1階の高さ・柱の間隔もパターンから決める (幅と奥行きは奇数: 棟が 1 列) / オフ: いまの形のまま (t193)"),
         HOUSE_GEN_ROOF("house-gen-roof", "屋根もおまかせ", true, "オン: 屋根の形・勾配・段もパターンから決める / オフ: いまの屋根のまま"),
         HOUSE_GEN_LOOK("house-gen-look", "外観もおまかせ", true, "オン: 石の1階・木組み・張り出しもパターンから決める / オフ: いまのまま"),
         // ---- the canopy tree (CanopyTree): a fractal of branches, canopies one above the other ----
