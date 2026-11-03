@@ -41,6 +41,11 @@ final class TreePreview {
         return ((long) (x & 0x3FFFFFF) << 38) | ((long) (z & 0x3FFFFFF) << 12) | ((y + 2048) & 0xFFFL);
     }
 
+    /** Whether the player is shown a block of the preview at {@code (x, y, z)} (t246: what the wand's ray hits). */
+    static boolean shows(TreeSession session, int x, int y, int z) {
+        return session.shown.containsKey(key(x, y, z));
+    }
+
     private static int keyX(long key) {
         return (int) (key >> 38);
     }
@@ -84,6 +89,8 @@ final class TreePreview {
             session.autoSeed = false;
             session.settings.setSeed(0L);
         }
+        session.view = null;
+        session.highlighted = -1;
         if (tell && was) player.sendMessage(ProceduralModule.PREFIX + "プレビューをオフにしました。");
     }
 
@@ -102,6 +109,8 @@ final class TreePreview {
         cancelTasks(session);
         restore(player, session);
         session.autoSeed = false;
+        session.view = null;
+        session.highlighted = -1;
     }
 
     private long delay() {
@@ -157,12 +166,16 @@ final class TreePreview {
         }
         TreeGround terrain = ground;
         org.bukkit.util.Vector aim = session.aim == null ? null : session.aim.clone();
+        // (t246: a house shows the part being edited in glass, and keeps which part each block is of, for the wand)
+        boolean house = settings.kind() == ProcKind.HOUSE;
+        int highlight = house ? module.highlight(player, session) : -1;
+        Map<Long, Integer> owners = house ? new HashMap<>() : null;
         session.computing = true;
         int job = ++session.job;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks = null;
             try {
-                blocks = TreeGenerator.build(settings, seed, terrain, aim, webInput);
+                blocks = house ? ProceduralShapes.house(settings, terrain, aim, highlight, owners) : TreeGenerator.build(settings, seed, terrain, aim, webInput);
             } catch (RuntimeException exception) {
                 if (!(exception instanceof TreeVoxelizer.TooBig)) plugin.getLogger().warning("tree preview failed: " + exception);
             }
@@ -170,7 +183,12 @@ final class TreePreview {
             try {
                 Bukkit.getScheduler().runTask(plugin, () -> {
                     session.computing = false;
-                    if (result != null && session.preview && job == session.job && player.isOnline()) show(player, session, settings, base, result);
+                    if (result == null || !session.preview || job != session.job || !player.isOnline()) return;
+                    session.highlighted = highlight;
+                    session.view = house ? new TreeSession.HouseView(base.getWorld(), base.getBlockX(), base.getBlockY(), base.getBlockZ(),
+                            HouseShape.Placement.of(aim, settings.getInt(TreeSettings.Key.HOUSE_ROTATION), settings.getInt(TreeSettings.Key.HOUSE_WIDTH),
+                                    settings.getInt(TreeSettings.Key.HOUSE_DEPTH)), settings.getInt(TreeSettings.Key.HOUSE_RAISE), owners) : null;
+                    show(player, session, settings, base, result);
                 });
             } catch (RuntimeException exception) {
                 // the plugin is being disabled: nothing more to do

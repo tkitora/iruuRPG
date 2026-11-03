@@ -48,7 +48,9 @@ enum TreePart {
     LEAF_3("leaf-3", "葉 (3段目)", 4, Material.OAK_LEAVES),
     LEAF_4("leaf-4", "葉 (4段目)", 4, Material.OAK_LEAVES),
     LEAF_5("leaf-5", "葉 (5段目)", 4, Material.OAK_LEAVES),
-    LEAF_6("leaf-6", "葉 (6段目)", 4, Material.OAK_LEAVES);
+    LEAF_6("leaf-6", "葉 (6段目)", 4, Material.OAK_LEAVES),
+    /** (t246) The part of a house being edited, in the preview only (never put in the world): stained glass, so it stands out from the wool. */
+    HOUSE_SELECTED("house-selected", "編集中のパーツ (プレビュー)", 0, Material.LIME_STAINED_GLASS);
 
     /** How many blocks the leaf gradient can have. */
     static final int SHADES = 6;

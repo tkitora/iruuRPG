@@ -1086,6 +1086,8 @@ treetool:
   # プレビューで1tickに送るブロック数 / プレビューする木のブロック数の上限 (超えたら見せない)
   preview-blocks-per-tick: 3000
   preview-max-blocks: 40000
+  # (t246) ツールとパーツの杖が届く距離 (ブロック)。遠くのブロックも、見てクリックすればクリックしたのと同じ (8〜256)
+  reach: 96
   # true にすると、地形など固いブロックも置き換える。false は空気と草花だけ
   replace-solid: false
   # メニューで設定できる高さと幅の上限 (岩・スパイク・結晶。木の大きさは、木の数字で決まる)
@@ -1120,6 +1122,8 @@ treetool:
     house-stone: GRAY_WOOL
     house-beam: ORANGE_WOOL
     house-window: LIGHT_BLUE_WOOL
+    # (t246) 編集中のパーツ (杖を持っている間・追加パーツのページを開いている間の、プレビューだけ。置くときには出ない)
+    house-selected: LIME_STAINED_GLASS
     lobby-pave: LIGHT_GRAY_CONCRETE
     lobby-path: GRAY_CONCRETE
     lobby-bed: POLISHED_ANDESITE

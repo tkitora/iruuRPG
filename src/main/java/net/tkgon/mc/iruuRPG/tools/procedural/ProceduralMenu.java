@@ -70,6 +70,8 @@ final class ProceduralMenu implements Listener {
     private static final int M_ON = 38;
     private static final int M_COPY = 39;
     private static final int M_DELETE = 41;
+    /** (t246) the button that gives the part wand (on the bottom row of the parts page). */
+    private static final int M_WAND = 46;
     /** (t190) the numbers only some kinds have (a volume's roof, ridge and jetty; a tower's shape and jetty; the way stairs go up). */
     private static final int[] M_EXTRA = {40, 42, 43};
     // the roof page of a roof of steps (t185): the steps from the eaves to the ridge, the shapes to choose from, the section of this house
@@ -338,8 +340,6 @@ final class ProceduralMenu implements Listener {
         private Page page = Page.BASIC;
         /** The block slot waiting for a block from the player's inventory: "part:<PART>" or "shade:<index>"; null when none. */
         private String picking;
-        /** The part of the house chosen on the page of the parts (its place in the list). */
-        private int module;
 
         @Override
         public @NotNull Inventory getInventory() {
@@ -417,6 +417,8 @@ final class ProceduralMenu implements Listener {
         TreeSettings settings = session.settings;
         Page page = holder.page;
         session.lastPage = page.name();
+        // (t246: the parts page opened or left, a part chosen: the glass follows)
+        tool.refreshHighlightLater(player);
         inventory.clear();
         ItemStack frame = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of());
         for (int slot = 0; slot < SIZE; slot++) {
@@ -438,7 +440,7 @@ final class ProceduralMenu implements Listener {
         }
 
         if (page == Page.BASIC) renderBasic(player, inventory, session, settings);
-        else if (page == Page.MODULES) renderModules(inventory, holder, settings);
+        else if (page == Page.MODULES) renderModules(inventory, session, settings);
         else if (page == Page.DESIGN) renderDesign(inventory, session, settings);
         else inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
                 text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
@@ -702,7 +704,11 @@ final class ProceduralMenu implements Listener {
             return;
         }
         if (holder.page == Page.MODULES) {
-            if (moduleClick(holder, settings, slot, left, big)) {
+            if (slot == M_WAND) {
+                tool.giveWand(player);
+                return;
+            }
+            if (moduleClick(session, settings, slot, left, big)) {
                 tool.changed(player);
                 render(player, holder);
                 return;
@@ -770,6 +776,16 @@ final class ProceduralMenu implements Listener {
     /** Shows the menu again when the player has it open (a random house came in). */
     void refresh(Player player) {
         if (player.getOpenInventory().getTopInventory().getHolder() instanceof Holder holder) render(player, holder);
+    }
+
+    /** (t246) Whether the player has the parts page of the menu open (the part chosen is then shown in glass). */
+    boolean onParts(Player player) {
+        return player.getOpenInventory().getTopInventory().getHolder() instanceof Holder holder && holder.page == Page.MODULES;
+    }
+
+    @EventHandler
+    public void onClose(org.bukkit.event.inventory.InventoryCloseEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof Holder && event.getPlayer() instanceof Player player) tool.refreshHighlightLater(player);
     }
 
     /**
@@ -1012,17 +1028,21 @@ final class ProceduralMenu implements Listener {
      * one, and under it the numbers of the one chosen: its kind, side, place, size and storey, and buttons to turn it off, to copy it (mirrored) and to
      * take it away. The base of the house is never changed here: every part is made again on it from the list.
      */
-    private void renderModules(Inventory inventory, Holder holder, TreeSettings settings) {
+    private void renderModules(Inventory inventory, TreeSession session, TreeSettings settings) {
         List<HouseModule> modules = settings.modules();
-        if (holder.module >= modules.size()) holder.module = Math.max(0, modules.size() - 1);
+        if (session.module >= modules.size()) session.module = modules.size() - 1;
         inventory.setItem(INFO, item(Material.SPRUCE_TRAPDOOR, "追加パーツ (" + modules.size() + " / " + TreeSettings.MAX_MODULES + ")", NamedTextColor.GOLD, List.of(
                 text("家の土台に、ドーマー窓・煙突・塔・翼棟・ポーチ・バルコニー・出窓・棟・外階段を足す", NamedTextColor.GRAY),
                 text("土台は書き換えない: パーツは毎回、土台の上に作り直す (消す・オフにすると元どおり)", NamedTextColor.GRAY),
-                text("プレビュー中は、変えて 0.75 秒後に家が変わる", NamedTextColor.GRAY),
+                text("プレビュー中は、変えて 0.75 秒後に家が変わる。このページを開いている間と杖を持っている間、選んだパーツはステンドグラスで見える", NamedTextColor.GRAY),
                 text("上の列: 左クリックで選ぶ / 右クリックでオン・オフ。下の列: 選んだパーツの数字", NamedTextColor.YELLOW))));
+        inventory.setItem(M_WAND, item(Material.BLAZE_ROD, "パーツの杖", NamedTextColor.LIGHT_PURPLE, List.of(
+                text("家のプレビューや地面を指して (遠くても)、パーツを選ぶ・動かす・足す・引き伸ばす", NamedTextColor.GRAY),
+                text("棟を足して引き伸ばせば、土台の形 (L 字・T 字・ずらし など) を目で見ながら作れる", NamedTextColor.GRAY),
+                text("クリックで杖を受け取る", NamedTextColor.YELLOW))));
         for (int index = 0; index < modules.size() && index < MODULE_SLOTS.length; index++) {
             HouseModule module = modules.get(index);
-            boolean chosen = index == holder.module;
+            boolean chosen = index == session.module;
             List<Component> lore = new ArrayList<>();
             lore.add(text(modulePlace(module), NamedTextColor.WHITE));
             lore.add(text("幅 " + module.width + " / 奥行き " + module.depth + " / " + module.type.heightLabel() + " " + module.height
@@ -1038,7 +1058,13 @@ final class ProceduralMenu implements Listener {
                     text("クリックで足す", NamedTextColor.YELLOW))));
         }
         if (modules.isEmpty()) return;
-        HouseModule module = modules.get(holder.module);
+        if (session.module < 0) {
+            inventory.setItem(M_TYPE, item(Material.GRAY_DYE, "パーツを選んでいません", NamedTextColor.GRAY, List.of(
+                    text("上の列でパーツを左クリック、または杖でプレビューのパーツを指して左クリック", NamedTextColor.GRAY),
+                    text("杖で土台を指して左クリックすると、土台を選んだことになる (Shift+左クリックで土台の大きさ)", NamedTextColor.GRAY))));
+            return;
+        }
+        HouseModule module = modules.get(session.module);
         List<Component> typeLore = new ArrayList<>();
         typeLore.add(text(module.type.description(), NamedTextColor.GRAY));
         for (HouseModule.Type type : HouseModule.Type.values()) typeLore.add(text((type == module.type ? "▶ " : "   ") + type.label, type == module.type ? NamedTextColor.GOLD : NamedTextColor.WHITE));
@@ -1099,24 +1125,24 @@ final class ProceduralMenu implements Listener {
     }
 
     /** A click on the page of the parts of a house; false when it was on none of its buttons. */
-    private static boolean moduleClick(Holder holder, TreeSettings settings, int slot, boolean left, boolean big) {
+    private static boolean moduleClick(TreeSession session, TreeSettings settings, int slot, boolean left, boolean big) {
         List<HouseModule> modules = settings.modules();
         for (int index = 0; index < MODULE_SLOTS.length; index++) {
             if (MODULE_SLOTS[index] != slot) continue;
             if (index < modules.size()) {
-                if (left) holder.module = index;
+                if (left) session.module = index;
                 else modules.get(index).on = !modules.get(index).on;
                 return true;
             }
             if (index == modules.size() && modules.size() < TreeSettings.MAX_MODULES) {
                 modules.add(new HouseModule(HouseModule.Type.DORMER));
-                holder.module = modules.size() - 1;
+                session.module = modules.size() - 1;
                 return true;
             }
             return false;
         }
-        if (modules.isEmpty() || holder.module >= modules.size()) return false;
-        HouseModule module = modules.get(holder.module);
+        if (session.module < 0 || session.module >= modules.size()) return false;
+        HouseModule module = modules.get(session.module);
         int sign = left ? 1 : -1;
         HouseModule.Type[] types = HouseModule.Type.values();
         List<ModuleExtra> extras = ModuleExtra.of(module.type);
@@ -1144,13 +1170,13 @@ final class ProceduralMenu implements Listener {
                 HouseModule copy = module.copy();
                 copy.along = module.along != 0 ? -module.along : module.along + module.width + 1;
                 copy.limit();
-                modules.add(holder.module + 1, copy);
-                holder.module++;
+                modules.add(session.module + 1, copy);
+                session.module++;
             }
             case M_DELETE -> {
                 if (!big) return false;
-                modules.remove(holder.module);
-                holder.module = Math.max(0, Math.min(holder.module, modules.size() - 1));
+                modules.remove(session.module);
+                session.module = Math.min(session.module, modules.size() - 1);
             }
             default -> {
                 return false;
