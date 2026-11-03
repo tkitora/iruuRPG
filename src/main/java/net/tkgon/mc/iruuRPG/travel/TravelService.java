@@ -69,6 +69,10 @@ public final class TravelService implements Listener {
     private final Map<String, Waypoint> waypoints = new LinkedHashMap<>();
     private final Map<UUID, Set<String>> discovered = new HashMap<>();
     private final Map<UUID, BukkitTask> channels = new HashMap<>();
+    /** Where each player who has just died fell, until they respawn. */
+    private final Map<UUID, Location> deaths = new HashMap<>();
+    /** Players whose respawn is somebody else's (e.g. a tutorial run) and is left alone. */
+    private java.util.function.Predicate<Player> respawnExempt = player -> false;
     private final List<Entity> labels = new ArrayList<>();
     private int tick;
 
@@ -372,6 +376,49 @@ public final class TravelService implements Listener {
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
         interrupt(event.getPlayer());
+        deaths.remove(event.getPlayer().getUniqueId());
+    }
+
+    public void setRespawnExempt(java.util.function.Predicate<Player> respawnExempt) {
+        this.respawnExempt = respawnExempt;
+    }
+
+    /** Before the other death handlers (the tutorial ends its run in one) look at who is in what. */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onDeath(org.bukkit.event.entity.PlayerDeathEvent event) {
+        Player player = event.getEntity();
+        if (respawnExempt.test(player)) deaths.remove(player.getUniqueId());
+        else deaths.put(player.getUniqueId(), player.getLocation());
+    }
+
+    /** A player comes back at the nearest fast travel point they have found, in the world they died in. The dungeon (HIGHEST) still decides for its own players. */
+    @EventHandler(priority = EventPriority.LOW)
+    public void onRespawn(org.bukkit.event.player.PlayerRespawnEvent event) {
+        Player player = event.getPlayer();
+        Location died = deaths.remove(player.getUniqueId());
+        if (died == null || died.getWorld() == null) return;
+        Waypoint point = nearest(all(), discovered.getOrDefault(player.getUniqueId(), Set.of()), died.getWorld().getName(), died.getX(), died.getY(), died.getZ());
+        if (point == null) return;
+        Location at = point.location();
+        if (at != null) event.setRespawnLocation(at);
+    }
+
+    /** The found point nearest to (x, y, z) in {@code world}, or null when none was found there. */
+    static Waypoint nearest(List<Waypoint> points, Set<String> found, String world, double x, double y, double z) {
+        Waypoint best = null;
+        double bestSquared = Double.MAX_VALUE;
+        for (Waypoint point : points) {
+            if (!found.contains(point.id()) || !point.world().equals(world)) continue;
+            double dx = point.x() - x;
+            double dy = point.y() - y;
+            double dz = point.z() - z;
+            double squared = dx * dx + dy * dy + dz * dz;
+            if (squared < bestSquared) {
+                bestSquared = squared;
+                best = point;
+            }
+        }
+        return best;
     }
 
     // ---- admin ------------------------------------------------------------------------------------------------------
