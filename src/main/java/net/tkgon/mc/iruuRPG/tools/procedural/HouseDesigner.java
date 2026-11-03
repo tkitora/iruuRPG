@@ -103,6 +103,14 @@ final class HouseDesigner {
         };
     }
 
+    static String planName(int plan) {
+        return switch (plan) {
+            case 1 -> "四角だけ";
+            case 2 -> "組み合わせ";
+            default -> "パターン次第";
+        };
+    }
+
     static String overlapName(int overlap) {
         return switch (overlap) {
             case 0 -> "なし";
@@ -163,6 +171,8 @@ final class HouseDesigner {
         final int detail;
         final int towers;
         final int overlap;
+        /** (t246) {@link Key#HOUSE_GEN_PLAN}: blocks of the plan as the pattern has it, none, or many. */
+        final int planRule;
         final boolean roof;
         final boolean look;
         /** (t193) the shape (the size, the storeys, the pillars) chosen too; off: as it is. */
@@ -189,6 +199,7 @@ final class HouseDesigner {
             detail = s.getInt(Key.HOUSE_GEN_DETAIL);
             towers = s.getInt(Key.HOUSE_GEN_TOWERS);
             overlap = s.getInt(Key.HOUSE_GEN_OVERLAP);
+            planRule = s.getInt(Key.HOUSE_GEN_PLAN);
             roof = s.on(Key.HOUSE_GEN_ROOF);
             look = s.on(Key.HOUSE_GEN_LOOK);
             shape = s.on(Key.HOUSE_GEN_SHAPE);
@@ -208,6 +219,8 @@ final class HouseDesigner {
         void make() {
             if (!partsOnly) base();
             plan = new Plan(s, overlap);
+            // (t246: first the blocks of the plan, for a pattern that is not about them itself: the house is then not one rectangle)
+            planBlocks();
             switch (pattern) {
                 case TOWNHOUSE -> townhouse();
                 case FARM -> farm();
@@ -811,13 +824,64 @@ final class HouseDesigner {
 
         /** A volume from an upper storey jutting out over the ground on brackets, its gable to the outside. */
         private void cantilever(boolean own) {
-            place(own, 8, () -> {
-                int side = r.nextInt(4);
-                int level = range(1, plan.floors - 1);
-                int w = fitWidth(5, Math.max(5, Math.min(7, plan.length(side) - 4)));
-                int along = range(plan.low(side) + w / 2 + 1, Math.max(plan.low(side) + w / 2 + 1, plan.high(side) - w / 2 - 1));
-                return group(volume(side, along, -1, w, 3, Math.max(1, Math.min(2, plan.floors - level)), level, chance(0.5) ? -1 : 9, 2));
-            });
+            place(own, 8, this::jutting);
+        }
+
+        private List<HouseModule> jutting() {
+            int side = r.nextInt(4);
+            int level = range(1, plan.floors - 1);
+            int w = fitWidth(5, Math.max(5, Math.min(7, plan.length(side) - 4)));
+            int along = range(plan.low(side) + w / 2 + 1, Math.max(plan.low(side) + w / 2 + 1, plan.high(side) - w / 2 - 1));
+            return group(volume(side, along, -1, w, 3, Math.max(1, Math.min(2, plan.floors - level)), level, chance(0.5) ? -1 : 9, 2));
+        }
+
+        /** (t246) How likely a house of the pattern is of several blocks when the rule leaves it to the pattern (a plan house is about them already). */
+        private double planOdds() {
+            return switch (pattern) {
+                case STORYBOOK, COMPOUND -> 0.55;
+                case HUB, TOWER -> 0.45;
+                case COTTAGE, TOWNHOUSE -> 0.35;
+                case MANOR, FARM -> 0.2;
+                default -> 0.0;
+            };
+        }
+
+        /**
+         * (t246) A plan that is not one rectangle, for any pattern: blocks on the sides and the back (the front is the pattern's), each as deep as two thirds of
+         * the house, as high as it or a storey lower, at an end of the side or in its middle, mostly with the house's roof turned out (a cross gable); and now
+         * and then an upper storey jutting out over the ground (storeys of other shapes). Not counted against the parts asked for; mirrored on a house the
+         * same both ways. Left to the pattern, none on a house asked to have few parts (detail 0).
+         */
+        private void planBlocks() {
+            if (pattern == Pattern.PLAN || planRule == 1) return;
+            boolean many = planRule == 2;
+            // (left to the pattern, a house asked to have few parts stays one rectangle)
+            if (!many && (detail == 0 || !chance(planOdds()))) return;
+            int count = many ? 1 + r.nextInt(2) + (detail >= 3 ? 1 : 0) : 1 + (detail >= 2 && chance(0.35) ? 1 : 0);
+            Set<Integer> sides = new HashSet<>();
+            for (int n = 0; n < count; n++) {
+                int side = pick(new int[]{1, 3, 2}, new int[]{40, 40, 20});
+                if (!sides.add(side) && !many) continue;
+                HouseModule put = extra(8, () -> {
+                    int w = fitWidth(5, Math.max(5, Math.min(plan.length(side) - 2, plan.across(side))));
+                    int d = oddSize(5, Math.max(5, plan.across(side) * 2 / 3));
+                    int storeys = Math.max(1, plan.floors - (chance(0.35) ? 1 : 0));
+                    int end = r.nextInt(3) - 1;
+                    int along = end == 0 ? 0 : endAlong(side, w, end < 0);
+                    int roofShape = chance(0.7) ? -1 : blockRoof();
+                    int ridge = roofShape == 2 || roofShape == 8 || roofShape == 10 ? 0 : 2;
+                    return group(volume(side, along, -1, w, d, storeys, 0, roofShape, ridge));
+                });
+                if (put != null) blocks.add(put);
+            }
+            if (plan.floors >= 2 && (many || chance(0.35))) extra(8, this::jutting);
+        }
+
+        /** (t246) Puts the best of {@code tries} groups like the pattern's own parts (not counted against the parts asked for), but missed by no rule. */
+        private HouseModule extra(int tries, Supplier<List<HouseModule>> make) {
+            HouseModule put = place(true, tries, make);
+            if (put == null) missed--;
+            return put;
         }
 
         /** A slender tower from the ground at a corner, over the ridge, its top storey jutting out. */

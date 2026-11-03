@@ -100,7 +100,7 @@ final class ProceduralMenu implements Listener {
         MODULES(5, Material.SPRUCE_TRAPDOOR, "追加パーツ", new TreeSettings.Key[]{}),
         /** (t185) the random houses (HouseDesigner): the rules, and the buttons that make one and go back. */
         DESIGN(6, Material.NETHER_STAR, "おまかせ生成", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_GEN_PATTERN, TreeSettings.Key.HOUSE_GEN_SIZE,
-                TreeSettings.Key.HOUSE_GEN_DETAIL, TreeSettings.Key.HOUSE_GEN_SYMMETRY, TreeSettings.Key.HOUSE_GEN_TOWERS, TreeSettings.Key.HOUSE_GEN_OVERLAP,
+                TreeSettings.Key.HOUSE_GEN_DETAIL, TreeSettings.Key.HOUSE_GEN_SYMMETRY, TreeSettings.Key.HOUSE_GEN_TOWERS, TreeSettings.Key.HOUSE_GEN_PLAN, TreeSettings.Key.HOUSE_GEN_OVERLAP,
                 TreeSettings.Key.HOUSE_GEN_SHAPE, TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK}),
         /** (t190) the walls of a house: stone, timber, the depth of the walls and the windows. */
         WALLS(7, Material.STRIPPED_SPRUCE_LOG, "壁", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_PLINTH, TreeSettings.Key.HOUSE_TIMBER,
@@ -390,7 +390,7 @@ final class ProceduralMenu implements Listener {
     /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
     private static boolean named(TreeSettings.Key key) {
         return switch (key) {
-            case HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
+            case HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
             default -> false;
         };
     }
@@ -405,6 +405,7 @@ final class ProceduralMenu implements Listener {
         if (key == TreeSettings.Key.HOUSE_GEN_SIZE) return HouseDesigner.sizeName(whole);
         if (key == TreeSettings.Key.HOUSE_GEN_SYMMETRY) return HouseDesigner.symmetryName(whole);
         if (key == TreeSettings.Key.HOUSE_GEN_TOWERS) return HouseDesigner.towersName(whole);
+        if (key == TreeSettings.Key.HOUSE_GEN_PLAN) return HouseDesigner.planName(whole);
         if (key == TreeSettings.Key.HOUSE_GEN_OVERLAP) return HouseDesigner.overlapName(whole);
         if (key == TreeSettings.Key.LOBBY_SHAPE) return LobbyShape.shapeName(whole);
         if (key == TreeSettings.Key.LOBBY_CENTER) return LobbyShape.centerName(whole);

@@ -21,7 +21,8 @@ import java.util.Random;
  * (t239) Pictures of random houses, to look at what the rules make: {@code ./gradlew test --tests '*HouseSamplesTest' -PhouseSamples=<folder>} draws, for
  * every pattern (or those in {@code -PhouseSamplePatterns=storybook,tower}) and size, a few seeds as PNGs (the front seen flat, and from the front right
  * and the front left) with their numbers beside them. {@code -PhouseSampleShape=21,13,3,5,6} keeps that shape (width, depth, storeys, storey height,
- * pillar spacing; "形もおまかせ" off) instead of the sizes. Without the folder it does nothing.
+ * pillar spacing; "形もおまかせ" off) instead of the sizes; {@code -PhouseSampleSet=house-gen-plan=2,house-gen-symmetry=1} sets any numbers of the settings (t246).
+ * Without the folder it does nothing.
  */
 class HouseSamplesTest {
 
@@ -34,6 +35,7 @@ class HouseSamplesTest {
         String only = System.getProperty("house.samples.patterns", "");
         int seeds = Integer.getInteger("house.samples.seeds", 4);
         String shape = System.getProperty("house.samples.shape", "");
+        String set = System.getProperty("house.samples.set", "");
         for (HouseDesigner.Pattern pattern : HouseDesigner.Pattern.values()) {
             if (pattern == HouseDesigner.Pattern.ANY || !only.isBlank() && !List.of(only.split(",")).contains(pattern.id)) continue;
             for (int size = shape.isBlank() ? 0 : 1; size <= (shape.isBlank() ? 2 : 1); size++) {
@@ -43,6 +45,10 @@ class HouseSamplesTest {
                     rules.set(TreeSettings.Key.HOUSE_GEN_PATTERN, pattern.ordinal());
                     rules.set(TreeSettings.Key.HOUSE_GEN_SIZE, size);
                     rules.set(TreeSettings.Key.HOUSE_GEN_DETAIL, 2);
+                    for (String pair : set.isBlank() ? new String[0] : set.split(",")) {
+                        String[] kv = pair.split("=");
+                        for (TreeSettings.Key key : TreeSettings.Key.values()) if (key.id().equals(kv[0].trim())) rules.set(key, Double.parseDouble(kv[1].trim()));
+                    }
                     if (!shape.isBlank()) {
                         String[] n = shape.split(",");
                         rules.set(TreeSettings.Key.HOUSE_GEN_SHAPE, 0);
