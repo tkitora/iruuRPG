@@ -171,6 +171,8 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.item.ItemPatchService itemPatchService;
     private YmlSyncService ymlSyncService;
     private net.tkgon.mc.iruuRPG.balance.BalanceService balanceService;
+    /** The looks of the travel and dungeon menus (menus/*.yml of the yml repository, t220). */
+    private net.tkgon.mc.iruuRPG.gui.MenuLooks menuLooks;
 
     @Override
     public void onEnable() {
@@ -377,6 +379,7 @@ public final class IruuRPG extends JavaPlugin {
         this.dungeonService.setBgmSettings(bgmSettings);
         this.dungeonService.setWorldLabels(worldLabels);
         this.dungeonMenu = new DungeonMenu(dungeonService);
+        this.dungeonMenu.setLooks(menuLooks());
         this.dungeonEditor = new DungeonEditor(this, dungeonService, mobRegistry);
         this.dungeonEditor.setBgmSettings(bgmSettings);
         this.fieldSpawnerService = new FieldSpawnerService(this, mobService, mobRegistry);
@@ -402,6 +405,7 @@ public final class IruuRPG extends JavaPlugin {
         this.travelService.setWorldLabels(worldLabels);
         this.travelService.setRespawnExempt(tutorialService::isRunning);
         this.travelMenu = new TravelMenu(travelService);
+        this.travelMenu.setLooks(menuLooks());
         this.travelMenu.setMainMenu(mainMenu);
         this.mainMenu.setTravelMenu(travelMenu);
         this.travelService.start();
@@ -873,6 +877,15 @@ public final class IruuRPG extends JavaPlugin {
         }
     }
 
+    /** The looks of the menus, read once when first asked for (and again with the data). */
+    private net.tkgon.mc.iruuRPG.gui.MenuLooks menuLooks() {
+        if (menuLooks == null) {
+            menuLooks = new net.tkgon.mc.iruuRPG.gui.MenuLooks(getDataFolder(), problem -> getLogger().warning(problem));
+            menuLooks.reload();
+        }
+        return menuLooks;
+    }
+
     /** The balance's numbers over the config (a fault never stops the plugin: the config's numbers stay). */
     private void applyBalance() {
         try {
@@ -905,6 +918,7 @@ public final class IruuRPG extends JavaPlugin {
         profileManager.saveAll();
         reloadConfig();
         applyBalance();
+        menuLooks().reload();
         net.tkgon.mc.iruuRPG.combat.Sfx.configure(getConfig().getConfigurationSection("sound-design"), problem -> getLogger().warning(problem));
         itemSkillRegistry.reload();
         skillRegistry.reload();
