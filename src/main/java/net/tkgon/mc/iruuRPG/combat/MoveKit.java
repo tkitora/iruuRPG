@@ -364,9 +364,14 @@ public final class MoveKit {
         if (attack.guard() != null) attack.guard().addShield(player);
     }
 
-    /** All the shields of a bulwark. */
+    /** All the shields of a bulwark, of the weapon's color (t198). */
     public void bulwark() {
-        if (attack.guard() != null) attack.guard().gainShields(player);
+        if (attack.guard() != null) attack.guard().gainShields(player, Guard.glass(weapon.element()));
+    }
+
+    /** Takes all the player's shields away at once (they are thrown: the warrior's 大, t198): how many there were. */
+    public int releaseShields() {
+        return attack.guard() == null ? 0 : attack.guard().releaseShields(player);
     }
 
     public int shields() {

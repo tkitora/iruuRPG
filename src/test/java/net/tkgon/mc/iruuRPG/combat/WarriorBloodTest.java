@@ -6,7 +6,7 @@ import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-/** The warrior's wounds (t168): a share of the damage stays, fades after the last blow, is drunk back by hits and held by the oath. */
+/** The warrior's wounds (t168): a share of the damage stays, fades after the last blow and is drunk back by hits; the great bow's bonus (t198). */
 class WarriorBloodTest {
 
     private static final long FADE = 5000L;
@@ -30,17 +30,13 @@ class WarriorBloodTest {
         WarriorBlood.forget(warrior);
     }
 
+    /** t198: the great bow's bonus: an unhurt enemy, each block past the start of the distance (to the cap), and the mark of 中 add up. */
     @Test
-    void theOathHoldsTheWoundUntilItEnds() {
-        UUID warrior = UUID.randomUUID();
-        WarriorBlood.wound(warrior, 100.0, 0.5, 1000.0, FADE, 0L);
-        WarriorBlood.hold(warrior, 8000L, FADE, 1000L);
-        // held: what was left at the hold (40) stays, and new wounds add to it without fading
-        assertEquals(40.0, WarriorBlood.left(warrior, FADE, 7000L), 1.0E-9);
-        assertEquals(50.0, WarriorBlood.wound(warrior, 20.0, 0.5, 1000.0, FADE, 7000L), 1.0E-9);
-        assertEquals(50.0, WarriorBlood.left(warrior, FADE, 8000L), 1.0E-9);
-        // then it fades as usual
-        assertEquals(25.0, WarriorBlood.left(warrior, FADE, 10500L), 1.0E-9);
-        WarriorBlood.forget(warrior);
+    void theGreatBowHitsTheUnhurtAndTheFarHarder() {
+        assertEquals(1.0, WarriorSkills.bowBonus(false, 5.0, false, 0.5, 8.0, 0.025, 0.4, 0.25), 1.0E-9);
+        assertEquals(1.5, WarriorSkills.bowBonus(true, 5.0, false, 0.5, 8.0, 0.025, 0.4, 0.25), 1.0E-9);
+        assertEquals(1.1, WarriorSkills.bowBonus(false, 12.0, false, 0.5, 8.0, 0.025, 0.4, 0.25), 1.0E-9);
+        assertEquals(1.4, WarriorSkills.bowBonus(false, 60.0, false, 0.5, 8.0, 0.025, 0.4, 0.25), 1.0E-9);
+        assertEquals(2.15, WarriorSkills.bowBonus(true, 60.0, true, 0.5, 8.0, 0.025, 0.4, 0.25), 1.0E-9);
     }
 }

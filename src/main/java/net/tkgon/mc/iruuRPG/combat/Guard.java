@@ -83,6 +83,13 @@ public final class Guard {
 
     /** Puts up shields (the number and the seconds from {@code combat.combo.warrior}: {@code shield-count} 3, {@code shield-seconds} 10). */
     public void gainShields(Player player) {
+        gainShields(player, Material.LIGHT_BLUE_STAINED_GLASS);
+    }
+
+    /** Puts up shields of {@code plate} (a block: the glass of the weapon's color, t198). */
+    public void gainShields(Player player, Material plate) {
+        plateLook.put(player.getUniqueId(), plate);
+        removePlates(player.getUniqueId());
         shields.put(player.getUniqueId(), (int) number("shield-count", 3.0));
         shieldUntil.put(player.getUniqueId(), System.currentTimeMillis() + Math.round(number("shield-seconds", 10.0) * 1000.0));
         World world = player.getWorld();
@@ -104,6 +111,25 @@ public final class Guard {
         shieldUntil.put(player.getUniqueId(), System.currentTimeMillis() + Math.round(number("shield-seconds", 10.0) * 1000.0));
         player.getWorld().playSound(player.getLocation(), Sound.ITEM_ARMOR_EQUIP_CHAIN, SoundCategory.PLAYERS, 0.7f, 1.1f);
         ensureShieldTask();
+    }
+
+    /** Takes every shield of {@code player} away at once (the warrior's shields thrown, t198): how many there were (0 when none or run out). */
+    public int releaseShields(Player player) {
+        int count = shieldExpired(player) ? 0 : shieldCount(player);
+        dropShields(player.getUniqueId());
+        return count;
+    }
+
+    /** The glass of each element (the shields of a weapon of that element). */
+    public static Material glass(net.tkgon.mc.iruuRPG.stat.Element element) {
+        if (element == null) return Material.LIGHT_BLUE_STAINED_GLASS;
+        return switch (element) {
+            case RED -> Material.RED_STAINED_GLASS;
+            case BLUE -> Material.LIGHT_BLUE_STAINED_GLASS;
+            case WHITE -> Material.WHITE_STAINED_GLASS;
+            case GREEN -> Material.LIME_STAINED_GLASS;
+            case ORANGE -> Material.ORANGE_STAINED_GLASS;
+        };
     }
 
     /**
@@ -139,6 +165,8 @@ public final class Guard {
 
     /** The shields as plates of light blue stained glass floating on a circle round the player, turning with it (display entities, seen by everyone). */
     private final Map<UUID, List<org.bukkit.entity.BlockDisplay>> plates = new HashMap<>();
+    /** The block each player's shields are made of. */
+    private final Map<UUID, Material> plateLook = new HashMap<>();
 
     private void showPlates(Player owner, int count) {
         List<org.bukkit.entity.BlockDisplay> list = plates.computeIfAbsent(owner.getUniqueId(), id -> new ArrayList<>());
@@ -147,7 +175,7 @@ public final class Guard {
         Location center = owner.getLocation().add(0.0, 1.1, 0.0);
         while (list.size() < count) {
             org.bukkit.entity.BlockDisplay display = owner.getWorld().spawn(center, org.bukkit.entity.BlockDisplay.class, spawned -> {
-                spawned.setBlock(Material.LIGHT_BLUE_STAINED_GLASS.createBlockData());
+                spawned.setBlock(plateLook.getOrDefault(owner.getUniqueId(), Material.LIGHT_BLUE_STAINED_GLASS).createBlockData());
                 spawned.setPersistent(false);
                 spawned.setInvulnerable(true);
                 spawned.setBrightness(new org.bukkit.entity.Display.Brightness(15, 15));
@@ -213,6 +241,7 @@ public final class Guard {
 
     public void forget(UUID id) {
         dropShields(id);
+        plateLook.remove(id);
         guards.remove(id);
     }
 

@@ -1,9 +1,7 @@
 package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.vfx.Fx;
-import net.tkgon.mc.iruuRPG.vfx.Gradient;
 import net.tkgon.mc.iruuRPG.vfx.Palettes;
-import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.LivingEntity;
@@ -26,9 +24,6 @@ import org.bukkit.util.Vector;
 public final class WarriorDeployCombo extends BaseCombo {
 
     static final String PLAN = "warrior_deploy";
-    /** The ward's colors: dark iron, amber, the light of the lantern. */
-    static final Gradient WARD = Gradient.of(Color.fromRGB(36, 28, 22), Color.fromRGB(205, 120, 40), Color.fromRGB(255, 225, 160));
-
     public WarriorDeployCombo() {
         super("warrior", AttackType.DEPLOY, new ComboSpec(PLAN,
                 new double[]{0.9, 0.3, 0.8, 0.35, 0.6}, new int[]{1, 1, 1, 3, 1},
@@ -37,7 +32,6 @@ public final class WarriorDeployCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(WARD);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         Location target = ComboParts.target(kit);
@@ -66,8 +60,8 @@ public final class WarriorDeployCombo extends BaseCombo {
         if (alone) {
             Location feet = victim.getLocation().add(0.0, 0.1, 0.0);
             Fx fx = kit.fx(feet);
-            fx.flatRing(feet, Math.max(0.7, victim.getWidth() + 0.3), 20, WARD, 0.85, 0.15, 1.1);
-            fx.flatRing(feet.clone().add(0.0, victim.getHeight() + 0.3, 0.0), 0.45, 10, WARD, 1.0, 0.0, 0.9);
+            fx.flatRing(feet, Math.max(0.7, victim.getWidth() + 0.3), 20, kit.palette(), 0.85, 0.15, 1.1);
+            fx.flatRing(feet.clone().add(0.0, victim.getHeight() + 0.3, 0.0), 0.45, 10, kit.palette(), 1.0, 0.0, 0.9);
             kit.sound(feet, Sfx.WARD_ISOLATED, 0.6f, 1.0f);
         }
         return true;
@@ -98,12 +92,12 @@ public final class WarriorDeployCombo extends BaseCombo {
     private static void wedge(MoveKit kit, Location target, double rate) {
         kit.sound(target, Sfx.WARD_WEDGE, 1.0f, 1.0f);
         Fx fx = kit.fx(target);
-        fx.line(target.clone().add(0.0, 4.0, 0.0), target.clone().add(0.0, 0.2, 0.0), WARD, 0.2, 1.0, 2.0, 1.3, 0.2, null, 1);
+        fx.line(target.clone().add(0.0, 4.0, 0.0), target.clone().add(0.0, 0.2, 0.0), kit.palette(), 0.2, 1.0, 2.0, 1.3, 0.2, null, 1);
         kit.shockwave(target, 0.5, 2.6, 4, 1.1);
         for (int index = 0; index < 4; index++) {
             double angle = Math.PI * 0.5 * index + Math.PI * 0.25;
             Location to = target.clone().add(Math.cos(angle) * 2.0, 0.15, Math.sin(angle) * 2.0);
-            kit.later(1L, () -> kit.fx(target).line(target.clone().add(0.0, 0.15, 0.0), to, WARD, 0.9, 0.3, 0.0, 0.9, 0.2, null, 1));
+            kit.later(1L, () -> kit.fx(target).line(target.clone().add(0.0, 0.15, 0.0), to, kit.palette(), 0.9, 0.3, 0.0, 0.9, 0.2, null, 1));
         }
         for (LivingEntity victim : kit.around(target, 2.4)) {
             if (wardHit(kit, victim, rate, 1.0)) kit.push(victim, target.toVector(), 0.55, 0.15);
@@ -125,7 +119,7 @@ public final class WarriorDeployCombo extends BaseCombo {
             if (age % 4 == 0) {
                 for (int index = 0; index < posts.size(); index++) {
                     Location post = posts.get(index);
-                    fx.line(post, post.clone().add(0.0, 1.6, 0.0), WARD, 0.2, 0.8, 0.0, 1.0, 0.2, null, 1);
+                    fx.line(post, post.clone().add(0.0, 1.6, 0.0), kit.palette(), 0.2, 0.8, 0.0, 1.0, 0.2, null, 1);
                     if (index + 1 < posts.size()) {
                         WarriorSwords.chain(kit, post.clone().add(0.0, 1.3, 0.0), posts.get(index + 1).clone().add(0.0, 1.3, 0.0), 0.25);
                         WarriorSwords.chain(kit, post.clone().add(0.0, 0.6, 0.0), posts.get(index + 1).clone().add(0.0, 0.6, 0.0), 0.15);
@@ -188,10 +182,10 @@ public final class WarriorDeployCombo extends BaseCombo {
                 for (int index = 0; index < 10; index++) {
                     double angle = index * Math.PI / 5.0;
                     Location bar = center.clone().add(Math.cos(angle) * radius, 0.1, Math.sin(angle) * radius);
-                    fx.line(bar, bar.clone().add(0.0, 2.4, 0.0), WARD, 0.3, 0.9, 0.0, 0.9, 0.25, null, 1);
+                    fx.line(bar, bar.clone().add(0.0, 2.4, 0.0), kit.palette(), 0.3, 0.9, 0.0, 0.9, 0.25, null, 1);
                 }
-                fx.flatRing(center.clone().add(0.0, 2.5, 0.0), radius, 30, WARD, 0.8, 0.2, 1.0);
-                fx.flatRing(center.clone().add(0.0, 0.12, 0.0), radius, 30, WARD, 0.5, 0.2, 1.0);
+                fx.flatRing(center.clone().add(0.0, 2.5, 0.0), radius, 30, kit.palette(), 0.8, 0.2, 1.0);
+                fx.flatRing(center.clone().add(0.0, 0.12, 0.0), radius, 30, kit.palette(), 0.5, 0.2, 1.0);
             }
             // nobody else comes in
             for (LivingEntity other : kit.around(center, radius + 0.4)) {
@@ -201,7 +195,7 @@ public final class WarriorDeployCombo extends BaseCombo {
                 struck[0]++;
                 kit.sound(center, Sfx.WARD_WEDGE, 0.5f, 1.4f);
                 Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
-                fx.line(center.clone().add(0.0, 2.5, 0.0), chest, WARD, 0.3, 1.0, 1.5, 1.1, 0.2, null, 1);
+                fx.line(center.clone().add(0.0, 2.5, 0.0), chest, kit.palette(), 0.3, 1.0, 1.5, 1.1, 0.2, null, 1);
                 wardHit(kit, victim, rate, 1.0);
             }
         }, zone -> kit.shockwave(center, radius, radius + 1.0, 3, 0.9));
@@ -218,7 +212,7 @@ public final class WarriorDeployCombo extends BaseCombo {
         for (int index = 0; index <= 6; index++) {
             double y = 2.4 + index * 0.25;
             double r = 1.2 - 0.14 * index;
-            fx.flatRing(at.clone().add(0.0, y, 0.0), r, 18, WARD, 0.4 + 0.08 * index, 0.2, 1.0);
+            fx.flatRing(at.clone().add(0.0, y, 0.0), r, 18, kit.palette(), 0.4 + 0.08 * index, 0.2, 1.0);
         }
         for (int wave = 0; wave < 3; wave++) {
             int which = wave;

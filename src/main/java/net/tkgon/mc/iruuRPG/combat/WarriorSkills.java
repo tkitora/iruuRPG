@@ -7,52 +7,57 @@ import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Particle;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.function.ToIntFunction;
 
 /**
- * The warrior's own skills (t168: nekorozv left the skills, the combos, the look, the effects and the sounds to us, keeping the class's concepts).
- * Every number is under {@code combat.combo.warrior_melee} / {@code warrior_range} (all provisional); the cooldowns are there too (the class's
- * {@code combat.skill-slots.cooldown-seconds} are not used by them).
+ * The warrior's own skills (t168, retuned by t198: a fighter or a tank of the front line, of middling staying power, whose sustain rises during
+ * the ULT). Every number is under {@code combat.combo.warrior_melee} / {@code warrior_range} (all provisional); the cooldowns are there too (the
+ * class's {@code combat.skill-slots.cooldown-seconds} are not used by them). The effects are drawn in the weapon's colors (its element), the blood
+ * and the steel only as touches (t198).
  *
- * <p><b>The blood knight</b> (a melee weapon of the class's combo; staying power and sustain on the front line, not heavy armor): a share of the
- * damage the warrior takes stays as a <b>wound</b> ({@link WarriorBlood}; {@code rally-share} 50%, at most {@code rally-cap} 50% of the life) that
- * fades over {@code rally-seconds} (5) after the last blow; every melee hit drinks it back ({@code rally-rate} 60% of the damage dealt, healed). The
- * wound shows by the HP of the status ("+N" in dark red). Some skills also drain (heal a share of the damage they deal) and bleed.
+ * <p><b>The shield and the blood</b> (a melee weapon of the class's combo): during the ULT (武神の一撃) a share of the damage the warrior takes stays
+ * as a <b>wound</b> ({@link WarriorBlood}; {@code rally-share} 50%, at most {@code rally-cap} 50% of the life) that fades over
+ * {@code rally-seconds} (5) after the last blow, and every melee hit drinks it back ({@code rally-rate} 80% of the damage dealt, healed); the
+ * wound shows by the HP of the status ("+N" in dark red). Out of the ULT there is no wound and no drinking (t198: the warrior's damage, staying
+ * power and sustain were all too strong). The skills bleed; none of them drains.
  * <ul>
- *   <li>小 blood rend (2 charges): two cuts crossing ahead; they drain and bleed.</li>
- *   <li>中 crimson whirl: a spin of a second that draws the enemies round in and drains; its re-activation is a slam on the spot that drinks the
- *       wound twice as fast.</li>
- *   <li>大 blood oath (8 s): the enemies round turn on the warrior, who takes less damage; the wound does not fade and is drunk faster; at the end
- *       the blood bursts out round them, harder the more they took meanwhile.</li>
+ *   <li>小 blood rend: two cuts crossing ahead; they bleed.</li>
+ *   <li>中 crimson whirl: a spin of a second that draws the enemies round in, ended by a slam on the spot that throws them up.</li>
+ *   <li>大 guardian shield (the shield of 2026-11-02 back, t198): a bash of the shield ahead, and shields turning round the warrior
+ *       ({@link Guard}: each cuts one blow by 40% and breaks); its re-activation, while some are up, throws them all out at the enemies round
+ *       (each shield a hit): the warrior keeps them to hold the line, or spends them to strike.</li>
  *   <li>util parry: a step back with the blade raised; a blow that comes within the moment is turned aside (no damage), and the warrior strikes
- *       back at once (the wound drunk twice as fast, a little life back).</li>
+ *       back at once.</li>
  * </ul>
  *
- * <p><b>Swords and chains</b> (a ranged weapon of the class's combo): greatswords hover behind the warrior ({@link WarriorSwords}) and are sent at
- * the enemies; chains <b>bind</b> them to a point (they can move only a little way from it), and a bound enemy takes {@code bound-bonus} more from
- * the swords.
+ * <p><b>The great bow</b> (a ranged weapon of the class's combo, t198: not the ranger's many arrows, but the first blow from afar and the time of
+ * the draw): every arrow of the warrior hits a still unhurt enemy (full life) {@code first-strike-bonus} (50%) harder and a far one more for each
+ * block past {@code distance-from} (8; {@code distance-per-block} 2.5%, at most {@code distance-max} 40%); while the warrior draws they are slowed
+ * and take {@code draw-guard} (25%) less damage.
  * <ul>
- *   <li>小 piercing greatsword (3 charges): a greatsword flies straight through every enemy in the way.</li>
- *   <li>中 binding chain: a chain to the enemy aimed at binds it beside a sword planted by it; its re-activation yanks the bound enemy to the
- *       warrior and the hovering swords stab it.</li>
- *   <li>大 prison of swords: eight greatswords fall in a ring at the aim, chained together: the enemies inside cannot get out, the swords stab
- *       inward, and at the end all eight plunge into the middle.</li>
- *   <li>util retreat: a leap back; a sword falls where the warrior stood and chains the enemies near it there.</li>
+ *   <li>小 power draw: the bow is drawn (at most {@code small-draw-ticks}); its re-activation looses it, harder the longer it was drawn (fully
+ *       drawn it goes through every enemy and bursts); it looses by itself when fully drawn and held to the end.</li>
+ *   <li>中 pinning stake: a stake of an arrow that pins the enemy it hits (it can hardly move) and marks it: the warrior's arrows hit it
+ *       {@code mark-bonus} harder for a while.</li>
+ *   <li>大 siege arrow: a long draw (the warrior stands, guarded), then a great arrow through every enemy in its way that bursts where it
+ *       stops.</li>
+ *   <li>util spacing (2 charges): a shove of the enemies near, and a leap back.</li>
  * </ul>
  * With a deployed weapon there are no skills (the user's wish of 2026-11-02); its combo is {@link WarriorDeployCombo}. The ULT is the class's.
  */
@@ -60,12 +65,10 @@ public final class WarriorSkills {
 
     static final String MELEE = WarriorMeleeCombo.PLAN;
     static final String RANGE = WarriorRangeCombo.PLAN;
-    /** The blood knight's colors: old blood, crimson, a bright red. */
+    /** The blood (a touch: drops and the drinking), not the colors of the skills. */
     static final Gradient BLOOD = Gradient.of(Color.fromRGB(38, 0, 6), Color.fromRGB(165, 12, 28), Color.fromRGB(255, 120, 105));
-    static final List<Color> BLOOD_SLASH = List.of(Color.fromRGB(60, 0, 8), Color.fromRGB(190, 20, 35), Color.fromRGB(255, 150, 140));
-    static final List<Color> STEEL_SLASH = List.of(Color.fromRGB(50, 60, 88), Color.fromRGB(160, 186, 225), Color.fromRGB(245, 250, 255));
 
-    /** The mobs turn on a warrior (the oath of 大): set by the plugin (the mobs' service). */
+    /** The mobs turn on a warrior (the cleric's bastion): set by the plugin (the mobs' service). */
     public interface Provoker {
         void provoke(Player player, double radius, long millis);
     }
@@ -73,49 +76,48 @@ public final class WarriorSkills {
     private static AttackService attack;
     private static Provoker provoker = (player, radius, millis) -> {
     };
+    /** Whether a warrior is in the surge of their ULT now (the wound is kept and drunk only then): set by the plugin. */
+    private static Predicate<Player> surging = player -> false;
 
     /** What a skill's melee hits do with the blood (see {@link #strike}). */
     static final class Blood {
         final double rally;
-        final double drain;
         final double bleed;
-        double capLeft;
 
-        Blood(double rally, double drain, double capLeft, double bleed) {
+        Blood(double rally, double bleed) {
             this.rally = rally;
-            this.drain = drain;
-            this.capLeft = capLeft;
             this.bleed = bleed;
         }
     }
 
     /** The blood of the hit being struck now, per warrior. */
     private static final Map<UUID, Blood> BLOOD_NOW = new HashMap<>();
-
-    /** A warrior's oath (大): until when, the life it was sworn with and what was taken meanwhile. */
-    private static final class Oath {
-        final long until;
-        final double maxHp;
-        double taken;
-
-        Oath(long until, double maxHp) {
-            this.until = until;
-            this.maxHp = maxHp;
-        }
-    }
-
-    private static final Map<UUID, Oath> OATHS = new HashMap<>();
     /** The warriors parrying (util): until when (ms) and the weapon they strike back with. */
     private static final Map<UUID, Object[]> PARRIES = new HashMap<>();
-    /** The enemy each warrior bound with 中 (for its re-activation). */
-    private static final Map<UUID, UUID> CHAINED = new HashMap<>();
     /** When each warrior's drinking was last drawn (ticks). */
     private static final Map<UUID, Integer> DRAWN = new HashMap<>();
+    /** The bows being drawn (小 and 大), per warrior. */
+    private static final Map<UUID, Draw> DRAWS = new HashMap<>();
+    /** The enemies pinned by 中 and marked: until when (ms). */
+    private static final Map<UUID, Long> MARKED = new HashMap<>();
+
+    /** A draw of the great bow: when it began, how long it may go on, and what is loosed at its end. */
+    private static final class Draw {
+        final long start;
+        final int ticks;
+        final Consumer<Double> loose;
+
+        Draw(long start, int ticks, Consumer<Double> loose) {
+            this.start = start;
+            this.ticks = ticks;
+            this.loose = loose;
+        }
+    }
 
     private WarriorSkills() {
     }
 
-    /** The mobs within {@code radius} of {@code player} turn on them for {@code millis} (the warrior's oath; the cleric's bastion too). */
+    /** The mobs within {@code radius} of {@code player} turn on them for {@code millis} (the cleric's bastion). */
     static void provoke(Player player, double radius, long millis) {
         provoker.provoke(player, radius, millis);
     }
@@ -123,6 +125,11 @@ public final class WarriorSkills {
     public static void setProvoker(Provoker provoker) {
         WarriorSkills.provoker = provoker == null ? (player, radius, millis) -> {
         } : provoker;
+    }
+
+    /** {@code surging}: whether a warrior is in the surge of their ULT (武神の一撃) now. */
+    public static void setSurging(Predicate<Player> surging) {
+        WarriorSkills.surging = surging == null ? player -> false : surging;
     }
 
     // ---- registering --------------------------------------------------------------------------------------------------------
@@ -138,11 +145,10 @@ public final class WarriorSkills {
                 MoveKit kit = attackService.skillKit(player, weapon);
                 if (kit == null) return false;
                 if (weapon.attackType() == AttackType.MELEE) {
-                    lookBlood(kit);
                     switch (slot) {
                         case SMALL -> rend(kit);
                         case MEDIUM -> whirl(kit);
-                        case LARGE -> oath(kit);
+                        case LARGE -> shield(kit);
                         case UTIL -> parry(kit);
                         default -> {
                             return false;
@@ -150,12 +156,11 @@ public final class WarriorSkills {
                     }
                     return true;
                 }
-                lookSteel(kit);
                 switch (slot) {
-                    case SMALL -> piercer(kit);
-                    case MEDIUM -> bindingChain(kit);
-                    case LARGE -> prison(kit);
-                    case UTIL -> retreat(kit);
+                    case SMALL -> powerDraw(kit);
+                    case MEDIUM -> stake(kit);
+                    case LARGE -> siege(kit);
+                    case UTIL -> spacing(kit);
                     default -> {
                         return false;
                     }
@@ -165,32 +170,28 @@ public final class WarriorSkills {
 
             @Override
             public boolean recast(Player player, RpgItemDefinition weapon) {
-                if (slot != SkillSlots.Slot.MEDIUM || weapon == null || !reworked(attackService, player, weapon)) return false;
+                if (weapon == null || !reworked(attackService, player, weapon)) return false;
                 MoveKit kit = attackService.skillKit(player, weapon);
                 if (kit == null) return false;
-                if (weapon.attackType() == AttackType.MELEE) {
-                    lookBlood(kit);
-                    quake(kit);
-                    return true;
-                }
-                lookSteel(kit);
-                return yank(kit);
+                if (weapon.attackType() == AttackType.MELEE) return slot == SkillSlots.Slot.LARGE && release(kit);
+                return slot == SkillSlots.Slot.SMALL && loose(player);
             }
         };
     }
 
     /**
-     * The charges, re-activations and cooldowns of the warrior's own skills: the blood knight's 小 2 charges and 中 a re-activation, the swords' 小
-     * 3 charges and 中 a re-activation; their own seconds (the class's cooldowns are not used by them). With a deployed weapon none.
+     * The charges, re-activations and cooldowns of the warrior's own skills (t198: spread by what each skill is): with a melee weapon 大 opens its
+     * re-activation (the shields thrown) for as long as the shields last; with the bow 小 is a draw and its re-activation the loosing, and util
+     * keeps 2 charges. Their own seconds (the class's cooldowns are not used by them). With a deployed weapon none.
      */
     static SkillSlots.Mechanics mechanics(ConfigurationSection config, SkillSlots.Slot slot, AttackType kind) {
         if (kind == AttackType.MELEE) {
             String base = "combat.combo." + MELEE + ".";
             return switch (slot) {
-                case SMALL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "small-charges", 2.0)), 0.0,
-                        config.getDouble(base + "small-charge-seconds", 5.0), config.getDouble(base + "small-empty-seconds", 10.0));
-                case MEDIUM -> new SkillSlots.Mechanics(1, config.getDouble(base + "medium-recast-seconds", 3.0), 0.0, config.getDouble(base + "medium-seconds", 11.0));
-                case LARGE -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "large-seconds", 26.0));
+                case SMALL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "small-seconds", 6.0));
+                case MEDIUM -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "medium-seconds", 10.0));
+                case LARGE -> new SkillSlots.Mechanics(1, config.getDouble("combat.combo.warrior.shield-seconds", 10.0), 0.0,
+                        config.getDouble(base + "large-seconds", 22.0));
                 case UTIL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "util-seconds", 6.0));
                 default -> SkillSlots.Mechanics.NONE;
             };
@@ -198,11 +199,12 @@ public final class WarriorSkills {
         if (kind == AttackType.RANGE) {
             String base = "combat.combo." + RANGE + ".";
             return switch (slot) {
-                case SMALL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "small-charges", 3.0)), 0.0,
-                        config.getDouble(base + "small-charge-seconds", 3.5), config.getDouble(base + "small-empty-seconds", 9.0));
-                case MEDIUM -> new SkillSlots.Mechanics(1, config.getDouble(base + "medium-recast-seconds", 4.0), 0.0, config.getDouble(base + "medium-seconds", 10.0));
+                case SMALL -> new SkillSlots.Mechanics(1, config.getDouble(base + "small-draw-ticks", 50.0) / 20.0, 0.0,
+                        config.getDouble(base + "small-seconds", 7.0));
+                case MEDIUM -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "medium-seconds", 10.0));
                 case LARGE -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "large-seconds", 24.0));
-                case UTIL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "util-seconds", 6.0));
+                case UTIL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "util-charges", 2.0)), 0.0,
+                        config.getDouble(base + "util-charge-seconds", 6.0), config.getDouble(base + "util-empty-seconds", 10.0));
                 default -> SkillSlots.Mechanics.NONE;
             };
         }
@@ -212,18 +214,6 @@ public final class WarriorSkills {
     private static boolean reworked(AttackService attackService, Player player, RpgItemDefinition weapon) {
         AttackType kind = weapon.attackType();
         return (kind == AttackType.MELEE || kind == AttackType.RANGE) && attackService.hasClassCombo(player, weapon);
-    }
-
-    /** The blood knight's look: old blood and crimson. */
-    static void lookBlood(MoveKit kit) {
-        kit.palette(BLOOD);
-        kit.slashColors(BLOOD_SLASH);
-    }
-
-    /** The swords' look: pale spectral steel. */
-    static void lookSteel(MoveKit kit) {
-        kit.palette(WarriorSwords.STEEL);
-        kit.slashColors(STEEL_SLASH);
     }
 
     private static double number(String plan, String key, double fallback) {
@@ -238,21 +228,15 @@ public final class WarriorSkills {
         return kit.number(RANGE, key, fallback);
     }
 
-    private static Vector flat(Vector vector) {
-        Vector flat = vector.clone().setY(0.0);
-        return flat.lengthSquared() < 1.0E-6 ? new Vector(0.0, 0.0, 1.0) : flat.normalize();
-    }
-
     // ---- the blood ------------------------------------------------------------------------------------------------------------
 
     private static long fadeMillis() {
         return Math.round(number(MELEE, "rally-seconds", 5.0) * 1000.0);
     }
 
-    /** The blood of a skill: drinks {@code rally} times as fast, drains {@code drain} of its damage (at most {@code capPercent} of the life), bleeds. */
-    static Blood blood(MoveKit kit, double rally, double drain, double capPercent, double bleed) {
-        double maxHp = attack == null ? 0.0 : attack.profileForPlayer(kit.player).maxHp();
-        return new Blood(rally, drain, maxHp * capPercent / 100.0, bleed);
+    /** The blood of a skill: it drinks {@code rally} times as fast (during the ULT) and bleeds {@code bleed} of its damage. */
+    static Blood blood(double rally, double bleed) {
+        return new Blood(rally, bleed);
     }
 
     /** One melee hit of {@code rate} on {@code victim} with the blood of a skill (null: a plain hit, which drinks the wound as any hit does). */
@@ -268,46 +252,36 @@ public final class WarriorSkills {
         }
     }
 
-    /**
-     * A warrior took {@code damage} ({@link AttackService#applyPlayerDamage}): a share of it stays as a wound, and during the oath it is counted.
-     */
+    /** A warrior took {@code damage} ({@link AttackService#applyPlayerDamage}): during the ULT a share of it stays as a wound. */
     public static void taken(Player player, double maxHp, double damage) {
-        if (damage <= 0.0 || attack == null) return;
-        UUID id = player.getUniqueId();
-        long now = System.currentTimeMillis();
-        WarriorBlood.wound(id, damage, number(MELEE, "rally-share", 0.5), maxHp * number(MELEE, "rally-cap", 50.0) / 100.0, fadeMillis(), now);
-        Oath oath = OATHS.get(id);
-        if (oath != null && oath.until > now) oath.taken += damage;
+        if (damage <= 0.0 || attack == null || !surging.test(player)) return;
+        WarriorBlood.wound(player.getUniqueId(), damage, number(MELEE, "rally-share", 0.5), maxHp * number(MELEE, "rally-cap", 50.0) / 100.0,
+                fadeMillis(), System.currentTimeMillis());
     }
 
     /**
-     * A warrior's hit landed ({@link ClassEffectService#onDamageDealt}): with a melee weapon it drinks back the wound ({@code rally-rate} of the
-     * damage), and a skill's hit drains and bleeds as it says.
+     * A warrior's hit landed ({@link ClassEffectService#onDamageDealt}): a skill's hit bleeds as it says; during the ULT a melee hit drinks back
+     * the wound ({@code rally-rate} of the damage). Out of the ULT what is left of a wound is gone.
      */
     public static void dealt(Player attacker, LivingEntity victim, RpgItemDefinition weapon, double damage) {
         if (attack == null || weapon == null || weapon.attackType() != AttackType.MELEE || damage <= 0.0) return;
         UUID id = attacker.getUniqueId();
         Blood blood = BLOOD_NOW.get(id);
-        long now = System.currentTimeMillis();
-        Oath oath = OATHS.get(id);
-        double oathRally = oath != null && oath.until > now ? number(MELEE, "large-rally", 1.5) : 1.0;
-        double rate = number(MELEE, "rally-rate", 0.6) * (blood == null ? 1.0 : blood.rally) * oathRally;
-        double drunk = WarriorBlood.drink(id, damage * rate, fadeMillis(), now);
-        double drained = 0.0;
-        if (blood != null && blood.drain > 0.0 && blood.capLeft > 0.0) {
-            drained = Math.min(blood.capLeft, damage * blood.drain);
-            blood.capLeft -= drained;
-        }
         if (blood != null && blood.bleed > 0.0 && victim.isValid() && !victim.isDead()) attack.statusEffects().addBleed(victim, damage * blood.bleed, id);
-        double heal = drunk + drained;
-        if (heal <= 0.0) return;
-        attack.healPlayer(attacker, heal);
+        if (!surging.test(attacker)) {
+            WarriorBlood.forget(id);
+            return;
+        }
+        double rate = number(MELEE, "rally-rate", 0.8) * (blood == null ? 1.0 : blood.rally);
+        double drunk = WarriorBlood.drink(id, damage * rate, fadeMillis(), System.currentTimeMillis());
+        if (drunk <= 0.0) return;
+        attack.healPlayer(attacker, drunk);
         drawDrink(attacker, victim);
     }
 
-    /** The wound a warrior can still drink back (the status shows it by the HP while they hold a melee weapon), 0 when none. */
+    /** The wound a warrior can still drink back during the ULT (the status shows it by the HP while they hold a melee weapon), 0 when none. */
     public static double woundShown(Player player) {
-        if (attack == null) return 0.0;
+        if (attack == null || !surging.test(player)) return 0.0;
         double left = WarriorBlood.left(player.getUniqueId(), fadeMillis(), System.currentTimeMillis());
         if (left <= 0.0) return 0.0;
         RpgItemDefinition weapon = attack.weaponInMainHand(player);
@@ -328,28 +302,50 @@ public final class WarriorSkills {
         if (last == null || tick - last > 20) Sfx.BLOOD_DRINK.play(to, 0.45f, 1.0f);
     }
 
-    /** Blood bursts from an enemy cut along {@code direction}. */
+    /** A cut through an enemy along {@code direction}: a streak of the weapon's colors and a few drops of blood. */
     static void bled(MoveKit kit, LivingEntity victim, Vector direction) {
         Location at = victim.getLocation().add(0.0, victim.getHeight() * 0.6, 0.0);
         Vector way = direction.lengthSquared() < 1.0E-6 ? kit.facing() : direction.clone().normalize();
         Fx fx = kit.fx(at);
-        fx.line(at.clone().subtract(way.clone().multiply(0.4)), at.clone().add(way.clone().multiply(1.1)).subtract(0.0, 0.3, 0.0), BLOOD, 0.2, 0.9, 1.5, 1.0, 0.25, null, 1);
-        fx.sphereShell(at, 0.3, 0.0, 8, BLOOD, 0.8);
+        fx.line(at.clone().subtract(way.clone().multiply(0.4)), at.clone().add(way.clone().multiply(1.1)).subtract(0.0, 0.3, 0.0), kit.palette(), 0.2, 0.9, 1.5, 1.0, 0.25, null, 1);
+        fx.sphereShell(at, 0.3, 0.0, 6, BLOOD, 0.7);
     }
 
     /** Cuts every enemy within {@code reach} and {@code halfAngle} degrees ahead: {@code rate} with {@code blood}; how many were hit. */
     static int cutAhead(MoveKit kit, double reach, double halfAngle, double rate, Blood blood) {
-        int hit = 0;
-        Vector facing = kit.facing();
-        for (LivingEntity victim : kit.cone(reach, halfAngle)) {
-            if (!strike(kit, victim, rate, blood)) continue;
-            bled(kit, victim, facing);
-            hit++;
-        }
-        return hit;
+        return cutAll(kit, kit.cone(reach, halfAngle), kit.facing(), rate, blood, false);
     }
 
-    /** Spikes of blood out of the ground round {@code at} ({@code count} of them at {@code radius}), rising over a few ticks. */
+    /**
+     * Cuts each of {@code victims} ({@code rate} with {@code blood}); with {@code normal} (an attack of the combo) the class's innate 薙ぎ払い
+     * ({@code melee_area}, t198: it did nothing with the class's combo) also hits the other enemies within {@code combat.area-radius} (3) of
+     * each one struck, {@code combat.melee-area-damage-rate} (65%) of it, once each. How many of {@code victims} were hit.
+     */
+    static int cutAll(MoveKit kit, List<LivingEntity> victims, Vector direction, double rate, Blood blood, boolean normal) {
+        java.util.Set<UUID> struck = new java.util.HashSet<>();
+        java.util.List<LivingEntity> landed = new java.util.ArrayList<>();
+        for (LivingEntity victim : victims) {
+            struck.add(victim.getUniqueId());
+            if (!strike(kit, victim, rate, blood)) continue;
+            bled(kit, victim, direction);
+            landed.add(victim);
+        }
+        if (normal && !landed.isEmpty() && kit.hasSkill("melee_area") && attack != null) {
+            double radius = attack.plugin().getConfig().getDouble("combat.area-radius", 3.0);
+            double share = attack.plugin().getConfig().getDouble("combat.melee-area-damage-rate", 0.65);
+            for (LivingEntity victim : landed) {
+                for (LivingEntity near : kit.around(victim.getLocation(), radius)) {
+                    if (!struck.add(near.getUniqueId())) continue;
+                    if (!kit.hit(near, rate * share)) continue;
+                    Location from = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
+                    kit.fx(from).line(from, near.getLocation().add(0.0, near.getHeight() * 0.5, 0.0), kit.palette(), 0.2, 0.8, 0.5, 0.7, 0.3, null, 1);
+                }
+            }
+        }
+        return landed.size();
+    }
+
+    /** Spikes of the weapon's colors out of the ground round {@code at} ({@code count} of them at {@code radius}), rising over a few ticks. */
     static void spikes(MoveKit kit, Location at, double radius, int count, double height) {
         double turn = ThreadLocalRandom.current().nextDouble(Math.PI * 2.0);
         for (int index = 0; index < count; index++) {
@@ -358,18 +354,18 @@ public final class WarriorSkills {
             Vector lean = new Vector(Math.cos(angle) * 0.25, 1.0, Math.sin(angle) * 0.25).normalize();
             for (int step = 0; step < 3; step++) {
                 double rise = height * (step + 1) / 3.0;
-                kit.later(step, () -> kit.fx(base).line(base, base.clone().add(lean.clone().multiply(rise)), BLOOD, 0.1, 1.0, 2.0, 1.1, 0.25, null, 1));
+                kit.later(step, () -> kit.fx(base).line(base, base.clone().add(lean.clone().multiply(rise)), kit.palette(), 0.1, 1.0, 2.0, 1.1, 0.25, null, 1));
             }
         }
     }
 
-    // ---- the blood knight: 小 --------------------------------------------------------------------------------------------------------
+    // ---- the shield and the blood: 小 --------------------------------------------------------------------------------------------------
 
-    /** Blood rend: two cuts that cross ahead, one from each side; they drain and bleed. */
+    /** Blood rend: two cuts that cross ahead, one from each side; they bleed. */
     private static void rend(MoveKit kit) {
-        double rate = melee(kit, "small-rate", 0.6);
+        double rate = melee(kit, "small-rate", 0.5);
         double reach = melee(kit, "small-reach", 4.2);
-        Blood blood = blood(kit, 1.0, melee(kit, "small-drain", 0.2), melee(kit, "small-drain-cap", 6.0), melee(kit, "small-bleed", 0.25));
+        Blood blood = blood(1.0, melee(kit, "small-bleed", 0.2));
         Location feet = kit.player.getLocation();
         kit.slash("drop", reach, 130.0, 40.0, 0.0, reach * 0.55, 0.25, 0.0, 1.5, 0.13, 0.0);
         kit.sound(feet, Sfx.BLOOD_SWING, 0.9f, 1.0f);
@@ -384,48 +380,55 @@ public final class WarriorSkills {
             Fx fx = kit.fx(mark);
             Vector[] axes = {kit.facing().rotateAroundY(Math.PI / 4.0), kit.facing().rotateAroundY(-Math.PI / 4.0)};
             for (Vector axis : axes) {
-                fx.line(mark.clone().add(axis.clone().multiply(-1.4)).add(0.0, 0.12, 0.0), mark.clone().add(axis.clone().multiply(1.4)).add(0.0, 0.12, 0.0), BLOOD, 0.3, 0.9, 0.0, 1.0, 0.2, null, 1);
+                fx.line(mark.clone().add(axis.clone().multiply(-1.4)).add(0.0, 0.12, 0.0), mark.clone().add(axis.clone().multiply(1.4)).add(0.0, 0.12, 0.0), kit.palette(), 0.3, 0.9, 0.0, 1.0, 0.2, null, 1);
             }
         });
     }
 
-    // ---- the blood knight: 中 --------------------------------------------------------------------------------------------------------
+    // ---- the shield and the blood: 中 --------------------------------------------------------------------------------------------------
 
-    /** Crimson whirl: a spin of a second; everyone round is cut every 4 ticks (draining) and drawn in a little, the warrior guarded meanwhile. */
+    /**
+     * Crimson whirl: a spin of a second; everyone round is cut every 4 ticks and drawn in a little, the warrior guarded a little meanwhile; it ends
+     * in a slam on the spot that throws up everyone round (t198: the slam was its re-activation).
+     */
     private static void whirl(MoveKit kit) {
-        double rate = melee(kit, "medium-rate", 0.28);
+        double rate = melee(kit, "medium-rate", 0.24);
         double radius = melee(kit, "medium-radius", 3.8);
         double pull = melee(kit, "medium-pull", 0.05);
-        Blood blood = blood(kit, 1.0, melee(kit, "medium-drain", 0.1), melee(kit, "medium-drain-cap", 5.0), 0.0);
-        kit.guard(melee(kit, "medium-guard", 0.3), 22);
+        int spin = 21;
+        kit.guard(melee(kit, "medium-guard", 0.15), spin + 1);
         kit.sound(kit.player.getLocation(), Sfx.BLOOD_WHIRL, 1.0f, 1.0f);
-        kit.every(21, age -> {
+        kit.every(spin + 1, age -> {
             Location at = kit.player.getLocation();
+            if (age >= spin) {
+                quake(kit);
+                return true;
+            }
             if (age % 4 == 0) {
                 kit.slash("arc", radius * 0.8, 330.0, 75.0, age % 8 == 0 ? 0.0 : 180.0, 0.3, 0.6, 0.0, 1.35, 0.08, 0.0);
                 kit.sound(at, Sfx.BLOOD_SWING, 0.5f, 1.05f + 0.05f * (age / 4));
                 for (LivingEntity victim : kit.around(at, radius)) {
                     Vector off = victim.getLocation().toVector().subtract(at.toVector()).setY(0.0);
-                    if (strike(kit, victim, rate, blood)) bled(kit, victim, new Vector(-off.getZ(), 0.0, off.getX()));
+                    if (strike(kit, victim, rate, null)) bled(kit, victim, new Vector(-off.getZ(), 0.0, off.getX()));
                 }
             }
             for (LivingEntity victim : kit.around(at, radius + 1.5)) kit.drift(victim, at, pull);
             Fx fx = kit.fx(at);
-            fx.flatRing(at.clone().add(0.0, 0.9 + 0.08 * Math.sin(age * 0.6), 0.0), radius * 0.85, 34, BLOOD, 0.35 + 0.04 * (age % 10), 0.4, 1.1);
+            fx.flatRing(at.clone().add(0.0, 0.9 + 0.08 * Math.sin(age * 0.6), 0.0), radius * 0.85, 34, kit.palette(), 0.35 + 0.04 * (age % 10), 0.4, 1.1);
             if (age % 3 == 0) {
                 double angle = age * 0.9;
                 Location from = at.clone().add(Math.cos(angle) * radius * 0.8, 0.9, Math.sin(angle) * radius * 0.8);
-                fx.line(from, from.clone().add(Math.cos(angle) * 1.2, -0.6, Math.sin(angle) * 1.2), BLOOD, 0.5, 0.15, 0.0, 0.9, 0.25, null, 1);
+                fx.line(from, from.clone().add(Math.cos(angle) * 1.2, -0.6, Math.sin(angle) * 1.2), kit.palette(), 0.5, 0.15, 0.0, 0.9, 0.25, null, 1);
             }
             return false;
         });
     }
 
-    /** The re-activation of 中: a slam on the spot that throws up everyone round and drinks the wound twice as fast. */
+    /** The end of the whirl: a slam on the spot that throws up everyone round (it drinks the wound twice as fast during the ULT). */
     private static void quake(MoveKit kit) {
-        double rate = melee(kit, "recast-rate", 1.3);
-        double radius = melee(kit, "recast-radius", 4.0);
-        Blood blood = blood(kit, melee(kit, "recast-rally", 2.0), 0.0, 0.0, 0.0);
+        double rate = melee(kit, "slam-rate", 0.9);
+        double radius = melee(kit, "slam-radius", 4.0);
+        Blood blood = blood(melee(kit, "slam-rally", 2.0), 0.0);
         Location feet = kit.player.getLocation();
         kit.slash("drop", 3.6, 150.0, 5.0, 0.0, 1.8, 0.3, 0.0, 1.8, 0.2, 0.0);
         kit.sound(feet, Sfx.BLOOD_SLAM, 1.0f, 0.9f);
@@ -438,78 +441,74 @@ public final class WarriorSkills {
         }
     }
 
-    // ---- the blood knight: 大 --------------------------------------------------------------------------------------------------------
+    // ---- the shield and the blood: 大 --------------------------------------------------------------------------------------------------
 
     /**
-     * Blood oath: for {@code large-duration} (8 s) the enemies within {@code large-radius} turn on the warrior, who takes {@code large-guard} less
-     * damage; the wound does not fade and every hit drinks it {@code large-rally} times as fast. At the end the blood bursts out round them:
-     * {@code large-burst-rate}, and {@code large-burst-per-percent} more for each percent of the life taken meanwhile (at most
-     * {@code large-burst-max} more).
+     * Guardian shield (t198, the shield skill back): a step in and a bash of the shield on the enemies just ahead ({@code large-rate}, thrown back
+     * and slowed {@code large-slow} for a second), then the shields of a bulwark turn round the warrior ({@code combat.combo.warrior}:
+     * {@code shield-count} 3 for {@code shield-seconds} 10; each cuts one blow by {@code shield-cut} 40% and breaks).
      */
-    private static void oath(MoveKit kit) {
-        Player player = kit.player;
-        UUID id = player.getUniqueId();
-        double seconds = melee(kit, "large-duration", 8.0);
-        int ticks = (int) Math.round(seconds * 20.0);
-        long now = System.currentTimeMillis();
-        long millis = Math.round(seconds * 1000.0);
-        double radius = melee(kit, "large-radius", 10.0);
-        Oath oath = new Oath(now + millis, attack.profileForPlayer(player).maxHp());
-        OATHS.put(id, oath);
-        WarriorBlood.hold(id, now + millis, fadeMillis(), now);
-        kit.guard(melee(kit, "large-guard", 0.3), ticks);
-        provoker.provoke(player, radius, millis);
-        Location feet = player.getLocation();
-        kit.sound(feet, Sfx.BLOOD_OATH, 1.0f, 1.0f);
-        kit.shockwave(feet, 0.8, radius * 0.5, 6, 1.2);
-        spikes(kit, feet, 1.6, 6, 2.4);
-        kit.fx(feet).sphereShell(feet.clone().add(0.0, 1.0, 0.0), 1.4, 0.0, 30, BLOOD, 1.1);
-        kit.every(ticks + 1, age -> {
-            if (OATHS.get(id) != oath) return true;
-            Location at = player.getLocation();
-            if (age >= ticks) {
-                OATHS.remove(id);
-                burst(kit, oath);
-                return true;
+    private static void shield(MoveKit kit) {
+        double rate = melee(kit, "large-rate", 1.0);
+        double reach = melee(kit, "large-reach", 3.4);
+        double slow = melee(kit, "large-slow", 40.0);
+        Location feet = kit.player.getLocation();
+        kit.sound(feet, Sfx.SHIELD_BASH, 1.0f, 1.0f);
+        kit.dash(kit.facing(), 0.45, 3, end -> {
+            Vector facing = kit.facing();
+            Location front = end.clone().add(0.0, 1.0, 0.0).add(facing.clone().multiply(1.2));
+            Fx fx = kit.fx(front);
+            Vector side = new Vector(-facing.getZ(), 0.0, facing.getX());
+            // the face of the shield struck forward, and a ring of the blow
+            fx.disc(front, side, new Vector(0.0, 1.0, 0.0), 0.8, 26, kit.palette(), 0.6, 1.1);
+            fx.ring(front, side, new Vector(0.0, 1.0, 0.0), 1.3, 30, kit.palette(), 0.8, 0.1, 1.0);
+            kit.particle(Particle.CRIT, front, 10, 0.4, 0.2);
+            for (LivingEntity victim : kit.cone(reach, 60.0)) {
+                if (!strike(kit, victim, rate, null)) continue;
+                kit.push(victim, end.toVector(), 0.7, 0.25);
+                kit.slow(victim, slow, 1.0);
             }
-            // the mobs that came near meanwhile turn on the warrior too
-            if (age > 0 && age % 40 == 0) provoker.provoke(player, radius, oath.until - System.currentTimeMillis());
-            if (age % 20 == 0) kit.sound(at, Sfx.BLOOD_HEARTBEAT, 0.8f, 1.0f);
-            if (age % 2 == 0) {
-                Fx fx = kit.fx(at);
-                double beat = age % 20 < 4 ? 1.25 : 1.0;
-                fx.flatRing(at.clone().add(0.0, 0.1, 0.0), 1.3 * beat, 26, BLOOD, 0.5, 0.35, 1.1);
-                double angle = age * 0.35;
-                for (int strand = 0; strand < 2; strand++) {
-                    double a = angle + strand * Math.PI;
-                    double y = (age * 0.09 + strand * 1.0) % 2.0;
-                    fx.dust(at.getX() + Math.cos(a) * 0.7, at.getY() + 0.1 + y, at.getZ() + Math.sin(a) * 0.7, BLOOD, 0.4 + 0.3 * y, 1.0);
-                }
-                if (age % 10 == 0) fx.flatRing(at.clone().add(0.0, 0.12, 0.0), radius, 60, BLOOD, 0.15, 0.2, 0.8);
-            }
-            return false;
+            kit.bulwark();
+            kit.later(2L, () -> {
+                Location at = kit.player.getLocation();
+                kit.fx(at).sphereShell(at.clone().add(0.0, 1.0, 0.0), 1.4, 0.0, 26, kit.palette(), 1.0);
+            });
         });
     }
 
-    /** The end of the oath: the blood bursts out round the warrior, harder the more they took. */
-    private static void burst(MoveKit kit, Oath oath) {
-        double radius = melee(kit, "large-burst-radius", 5.0);
-        double taken = oath.maxHp <= 0.0 ? 0.0 : oath.taken / oath.maxHp * 100.0;
-        double rate = melee(kit, "large-burst-rate", 1.2) + Math.min(melee(kit, "large-burst-max", 2.0), taken * melee(kit, "large-burst-per-percent", 0.04));
+    /**
+     * The re-activation of 大 (while shields are up): every shield is thrown out at the enemies within {@code release-radius}, each a hit of
+     * {@code release-rate}, and they are thrown back; false when no shield is left.
+     */
+    private static boolean release(MoveKit kit) {
+        int count = kit.releaseShields();
+        if (count <= 0) return false;
+        double rate = melee(kit, "release-rate", 0.6);
+        double radius = melee(kit, "release-radius", 4.5);
         Location at = kit.player.getLocation();
-        kit.sound(at, Sfx.BLOOD_BURST, 1.0f, 1.0f);
-        kit.shockwave(at, 1.0, radius + 0.5, 7, 1.4);
-        spikes(kit, at, radius * 0.45, 10, 2.6);
-        kit.later(2L, () -> spikes(kit, kit.player.getLocation(), radius * 0.85, 14, 2.0));
-        kit.fx(at).sphereShell(at.clone().add(0.0, 1.0, 0.0), 2.2, 0.0, 40, BLOOD, 1.2);
-        for (LivingEntity victim : kit.around(at, radius)) {
-            if (!strike(kit, victim, rate, null)) continue;
-            kit.push(victim, at.toVector(), 0.55, 0.3);
-            bled(kit, victim, new Vector(0.0, 1.0, 0.0));
+        Location chest = at.clone().add(0.0, 1.1, 0.0);
+        kit.sound(at, Sfx.SHIELD_RELEASE, 1.0f, 1.0f);
+        kit.shockwave(at, 0.8, radius, 5, 1.3);
+        double turn = Math.atan2(kit.facing().getZ(), kit.facing().getX());
+        for (int index = 0; index < count; index++) {
+            double angle = turn + index * Math.PI * 2.0 / count;
+            Vector out = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
+            for (int step = 0; step < 4; step++) {
+                int stage = step;
+                kit.later(step, () -> {
+                    Location plate = chest.clone().add(out.clone().multiply(1.3 + stage * (radius - 1.3) / 3.0));
+                    kit.fx(plate).disc(plate, out.clone().crossProduct(new Vector(0.0, 1.0, 0.0)), new Vector(0.0, 1.0, 0.0), 0.5, 14, kit.palette(), 0.6, 1.0);
+                });
+            }
         }
+        // (each shield a hit: struck as one blow of all of them)
+        for (LivingEntity victim : kit.around(at, radius)) {
+            if (strike(kit, victim, rate * count, null)) kit.push(victim, at.toVector(), 0.6, 0.3);
+        }
+        return true;
     }
 
-    // ---- the blood knight: util -------------------------------------------------------------------------------------------------------
+    // ---- the shield and the blood: util ---------------------------------------------------------------------------------------------------
 
     /** Parry: a step back with the blade raised for {@code util-parry-ticks}; a blow then is turned aside and answered ({@link #parried}). */
     private static void parry(MoveKit kit) {
@@ -529,7 +528,7 @@ public final class WarriorSkills {
                 Vector side = new Vector(-facing.getZ(), 0.0, facing.getX());
                 Location middle = eye.clone().add(facing.clone().multiply(0.8)).subtract(0.0, 0.5, 0.0);
                 kit.fx(middle).line(middle.clone().add(side.clone().multiply(-0.6)).add(0.0, 0.6, 0.0), middle.clone().add(side.clone().multiply(0.6)).subtract(0.0, 0.3, 0.0),
-                        BLOOD, 0.4, 1.0, 0.0, 0.8, 0.15, null, 1);
+                        kit.palette(), 0.4, 1.0, 0.0, 0.8, 0.15, null, 1);
             }
             return false;
         });
@@ -544,26 +543,24 @@ public final class WarriorSkills {
         if (stance == null) return false;
         PARRIES.remove(player.getUniqueId());
         if ((long) stance[0] < System.currentTimeMillis() || attack == null) return false;
+        RpgItemDefinition weapon = (RpgItemDefinition) stance[1];
         Location at = player.getLocation().add(0.0, 1.0, 0.0);
         Sfx.BLOOD_PARRY.play(at, 1.0f, 1.0f);
-        Fx.of(player, player.getWorld(), at).sphereShell(at, 0.8, 0.0, 18, BLOOD, 1.0);
+        Fx.of(player, player.getWorld(), at).sphereShell(at, 0.8, 0.0, 18, net.tkgon.mc.iruuRPG.vfx.Palettes.of(weapon.element()), 1.0);
         // (struck back the next tick, out of the blow's damage event)
-        RpgItemDefinition weapon = (RpgItemDefinition) stance[1];
         Bukkit.getScheduler().runTask(attack.plugin(), () -> riposte(player, weapon));
         return true;
     }
 
-    /** The answer to a parried blow: a lunge (nothing hurts the warrior) and a cut that drinks the wound twice as fast, and a little life back. */
+    /** The answer to a parried blow: a lunge (nothing hurts the warrior) and a cut that drinks the wound twice as fast during the ULT. */
     private static void riposte(Player player, RpgItemDefinition weapon) {
         if (!player.isOnline() || player.isDead() || attack == null) return;
         MoveKit kit = attack.skillKit(player, weapon);
         if (kit == null) return;
-        lookBlood(kit);
         Vector heading = kit.facing();
-        double rate = melee(kit, "riposte-rate", 1.3);
-        Blood blood = blood(kit, melee(kit, "riposte-rally", 2.0), 0.0, 0.0, 0.0);
+        double rate = melee(kit, "riposte-rate", 1.1);
+        Blood blood = blood(melee(kit, "riposte-rally", 2.0), 0.0);
         kit.invulnerable(10);
-        kit.heal(melee(kit, "riposte-heal", 3.0));
         kit.dash(heading, 0.9, 4, end -> {
             kit.slash("arc", 3.4, 160.0, 25.0, 0.0, 1.6, 0.35, 0.0, 1.5, 0.12, 0.0);
             kit.sound(end, Sfx.BLOOD_HIT, 1.0f, 1.1f);
@@ -571,265 +568,283 @@ public final class WarriorSkills {
         });
     }
 
-    // ---- swords and chains: helpers -----------------------------------------------------------------------------------------------------
+    // ---- the great bow: helpers ---------------------------------------------------------------------------------------------------------
 
-    /** One hit of a sword: {@code bound-bonus} more on a bound enemy; a glint of steel where it struck. */
-    static boolean swordHit(MoveKit kit, LivingEntity victim, double rate) {
-        boolean bound = WarriorSwords.bound(victim);
-        if (!kit.hit(victim, bound ? rate * (1.0 + range(kit, "bound-bonus", 0.3)) : rate)) return false;
+    /**
+     * How much harder an arrow of the warrior hits (a multiplier): {@code firstStrike} on an enemy still at full life, {@code perBlock} for each
+     * block it is past {@code from} (at most {@code distanceMax}), and {@code markBonus} on an enemy marked by 中. Pure, for the tests.
+     */
+    static double bowBonus(boolean fullLife, double distance, boolean marked, double firstStrike, double from, double perBlock, double distanceMax, double markBonus) {
+        double bonus = fullLife ? firstStrike : 0.0;
+        bonus += Math.min(distanceMax, Math.max(0.0, distance - from) * perBlock);
+        if (marked) bonus += markBonus;
+        return 1.0 + Math.max(0.0, bonus);
+    }
+
+    private static double maxHealth(LivingEntity victim) {
+        AttributeInstance attribute = victim.getAttribute(Attribute.GENERIC_MAX_HEALTH);
+        return attribute == null ? victim.getHealth() : attribute.getValue();
+    }
+
+    private static boolean marked(LivingEntity victim) {
+        Long until = MARKED.get(victim.getUniqueId());
+        if (until == null) return false;
+        if (until > System.currentTimeMillis()) return true;
+        MARKED.remove(victim.getUniqueId());
+        return false;
+    }
+
+    /** One hit of an arrow of the warrior's bow: {@code rate} times its bonus ({@link #bowBonus}); a first strike rings out. */
+    static boolean arrowHit(MoveKit kit, LivingEntity victim, double rate) {
+        boolean full = victim.getHealth() >= maxHealth(victim) - 1.0E-6;
+        double distance = kit.player.getWorld() == victim.getWorld() ? kit.player.getLocation().distance(victim.getLocation()) : 0.0;
+        double bonus = bowBonus(full, distance, marked(victim), range(kit, "first-strike-bonus", 0.5), range(kit, "distance-from", 8.0),
+                range(kit, "distance-per-block", 0.025), range(kit, "distance-max", 0.4), range(kit, "mark-bonus", 0.25));
+        if (!kit.hit(victim, rate * bonus)) return false;
         Location at = victim.getLocation().add(0.0, victim.getHeight() * 0.6, 0.0);
-        kit.particle(Particle.CRIT, at, bound ? 8 : 4, 0.25, 0.15);
-        if (bound) kit.fx(at).sphereShell(at, 0.45, 0.0, 10, WarriorSwords.CHAIN, 0.8);
+        kit.particle(Particle.CRIT, at, 6, 0.25, 0.2);
+        if (full) {
+            kit.fx(at).sphereShell(at, 0.6, 0.0, 14, kit.palette(), 1.0);
+            kit.sound(at, Sfx.GREATBOW_FIRST, 0.8f, 1.0f);
+        }
         return true;
     }
 
-    /** Where the warrior aims, at most {@code range} blocks away. */
-    static Location aimWithin(MoveKit kit, double range) {
+    /** Where the warrior aims, at most {@code reach} blocks away. */
+    static Location aimWithin(MoveKit kit, double reach) {
         Location eye = kit.eye();
         Location aim = kit.aim();
         Vector way = aim.toVector().subtract(eye.toVector());
-        if (way.length() > range) aim = eye.clone().add(way.normalize().multiply(range));
+        if (way.length() > reach) aim = eye.clone().add(way.normalize().multiply(reach));
         return aim;
     }
 
-    /** The swords keep hovering behind the warrior a while after this. */
-    static void hover(MoveKit kit) {
-        WarriorSwords.hover(kit, range(kit, "hover-seconds", 6.0));
-    }
-
-    // ---- swords and chains: 小 ---------------------------------------------------------------------------------------------------------
-
-    private static int piercerSide;
-
-    /** Piercing greatsword: a greatsword flies straight from behind the warrior's shoulder, through every enemy in the way. */
-    private static void piercer(MoveKit kit) {
-        hover(kit);
-        double rate = range(kit, "small-rate", 0.85);
-        double reach = range(kit, "small-range", 20.0);
-        Location from = WarriorSwords.launch(kit.player, piercerSide++ & 1);
+    /** The way from the bow to where the warrior aims. */
+    static Vector toAim(MoveKit kit, Location from, double reach) {
         Vector way = aimWithin(kit, reach).toVector().subtract(from.toVector());
-        if (way.lengthSquared() < 1.0E-6) way = kit.axes()[0];
-        Location far = from.clone().add(way.normalize().multiply(reach));
-        kit.sound(from, Sfx.SWORD_FLY, 1.0f, 0.9f);
-        WarriorSwords.fly(kit, from, far, 2.4, range(kit, "small-speed", 1.6), 1.2, victim -> swordHit(kit, victim, rate), end -> {
-            kit.burst(end, 1.0);
-            kit.sound(end, Sfx.SWORD_IMPACT, 0.7f, 1.1f);
-        });
+        return way.lengthSquared() < 1.0E-6 ? kit.axes()[0] : way.normalize();
     }
-
-    // ---- swords and chains: 中 ---------------------------------------------------------------------------------------------------------
 
     /**
-     * Binding chain: a chain flies to the enemy aimed at (or the nearest ahead within {@code medium-range}); it is struck, a sword falls beside it,
-     * and it is bound there ({@code medium-bind-radius}) for {@code medium-bind-seconds}, slowed. With no enemy the chain flies out and falls.
+     * A heavy arrow of the warrior's bow from {@code from} along {@code way}: {@code speed} blocks a tick for up to {@code reach}; into the first
+     * enemy, or through every one ({@code pierce}); {@code onHit} for each; its trail as thick as {@code weight} (1 a plain arrow); {@code onEnd}
+     * where it stopped.
      */
-    private static void bindingChain(MoveKit kit) {
-        hover(kit);
-        Player player = kit.player;
-        double reach = range(kit, "medium-range", 18.0);
-        LivingEntity target = kit.nearest(reach, 30.0);
-        Location hand = ComboParts.hand(kit);
-        kit.sound(hand, Sfx.CHAIN_THROW, 1.0f, 1.0f);
-        if (target == null) {
-            Location end = aimWithin(kit, reach);
-            throwChain(kit, hand, () -> end, null);
-            return;
-        }
-        UUID id = player.getUniqueId();
-        throwChain(kit, hand, () -> target.getLocation().add(0.0, target.getHeight() * 0.55, 0.0), () -> {
-            if (!target.isValid() || target.isDead()) return;
-            swordHit(kit, target, range(kit, "medium-rate", 0.5));
-            int ticks = (int) Math.round(range(kit, "medium-bind-seconds", 4.0) * 20.0);
-            Location spot = kit.ground(target.getLocation());
-            Vector side = flat(spot.toVector().subtract(player.getLocation().toVector())).rotateAroundY(Math.PI / 2.0).multiply(0.9);
-            Location anchor = spot.clone().add(side);
-            kit.sound(spot, Sfx.CHAIN_BIND, 1.0f, 1.0f);
-            WarriorSwords.fall(kit, anchor, 1.8, 4.0, 3, ticks, land -> kit.sound(land, Sfx.SWORD_IMPACT, 0.6f, 1.2f));
-            kit.slow(target, range(kit, "medium-slow", 30.0), ticks / 20.0);
-            CHAINED.put(id, target.getUniqueId());
-            WarriorSwords.bind(kit, target, anchor.clone().add(0.0, 0.6, 0.0), range(kit, "medium-bind-radius", 1.2), ticks, gone -> CHAINED.remove(id, gone.getUniqueId()));
+    static void heavyArrow(MoveKit kit, Location from, Vector way, double speed, double reach, double weight, boolean pierce,
+                           Consumer<LivingEntity> onHit, Consumer<Location> onEnd) {
+        boolean[] stopped = {false};
+        Location[] last = {from.clone()};
+        kit.pierceArrow(from, way, speed, reach, kit.palette(), victim -> {
+            if (stopped[0]) return;
+            if (!pierce) stopped[0] = true;
+            onHit.accept(victim);
+        }, at -> {
+            if (weight > 1.0) {
+                Fx fx = kit.fx(at);
+                fx.line(last[0], at, kit.palette(), 0.3, 0.9, 0.0, 0.8 + 0.4 * weight, 0.25, null, 1);
+                Vector side = way.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+                if (side.lengthSquared() < 1.0E-6) side = new Vector(1.0, 0.0, 0.0);
+                fx.ring(at, side.normalize(), side.clone().crossProduct(way).normalize(), 0.25 * weight, 10, kit.palette(), 0.7, 0.05, 0.9);
+            }
+            last[0] = at.clone();
+            return stopped[0];
+        }, end -> {
+            kit.sound(end, Sfx.GREATBOW_IMPACT, 0.4f + 0.2f * (float) weight, 1.2f - 0.1f * (float) weight);
+            if (onEnd != null) onEnd.accept(end);
         });
     }
 
-    /** A chain flung from {@code hand} to where {@code end} says (it may move), 2 blocks a tick; {@code onReach} when it gets there (null: it falls). */
-    private static void throwChain(MoveKit kit, Location hand, java.util.function.Supplier<Location> end, Runnable onReach) {
-        double[] out = {0.0};
-        kit.every(14, age -> {
-            Location to = end.get();
-            if (to.getWorld() != hand.getWorld()) return true;
-            Location from = ComboParts.hand(kit);
-            Vector way = to.toVector().subtract(from.toVector());
-            double length = way.length();
-            out[0] += 2.0;
-            if (out[0] >= length) {
-                WarriorSwords.chain(kit, from, to, 0.1);
-                if (onReach != null) onReach.run();
-                else {
-                    kit.particle(Particle.CRIT, to, 6, 0.3, 0.1);
-                    kit.sound(to, Sfx.CHAIN_BREAK, 0.5f, 1.3f);
-                }
+    /** Where the bow is, a little ahead of the warrior's hand. */
+    static Location bow(MoveKit kit) {
+        return ComboParts.hand(kit).add(kit.axes()[0].clone().multiply(0.3));
+    }
+
+    /** Slows the warrior and guards them while they draw, for {@code ticks} (refreshed by the drawing). */
+    private static void bracing(MoveKit kit, int ticks, int slowLevel, double guard) {
+        kit.player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, ticks, slowLevel, false, false, false));
+        kit.guard(guard, ticks);
+    }
+
+    /** The string drawn back and the light gathering at the bow, {@code power} 0 - 1 of a full draw. */
+    static void drawLook(MoveKit kit, double power) {
+        Location bow = bow(kit);
+        Vector[] axes = kit.axes();
+        Fx fx = kit.fx(bow);
+        Location nock = bow.clone().subtract(axes[0].clone().multiply(0.35 + 0.45 * power));
+        Location top = bow.clone().add(0.0, 0.75, 0.0);
+        Location bottom = bow.clone().subtract(0.0, 0.75, 0.0);
+        fx.line(top, nock, kit.palette(), 0.4, 0.9, 0.0, 0.5, 0.15, null, 1);
+        fx.line(bottom, nock, kit.palette(), 0.4, 0.9, 0.0, 0.5, 0.15, null, 1);
+        fx.ring(bow, axes[1], axes[2], 0.3 + 0.5 * (1.0 - power), 12, kit.palette(), 0.4 + 0.6 * power, 0.05, 0.8 + 0.4 * power);
+    }
+
+    // ---- the great bow: 小 ---------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Power draw: the bow is drawn for at most {@code small-draw-ticks} (the warrior slowed and guarded meanwhile); the re-activation looses it
+     * ({@link #loose}): {@code small-rate-min} + {@code small-rate-gain} times the share drawn; fully drawn it goes through every enemy and bursts
+     * where it stops ({@code small-burst-rate}). Held to the end, it looses by itself.
+     */
+    private static void powerDraw(MoveKit kit) {
+        Player player = kit.player;
+        UUID id = player.getUniqueId();
+        int ticks = Math.max(4, (int) Math.round(range(kit, "small-draw-ticks", 50.0)));
+        double guard = range(kit, "draw-guard", 0.25);
+        double min = range(kit, "small-rate-min", 0.8);
+        double gain = range(kit, "small-rate-gain", 1.2);
+        double reach = range(kit, "aim-range", 24.0);
+        Draw draw = new Draw(System.currentTimeMillis(), ticks, share -> {
+            boolean full = share >= 0.95;
+            Location from = bow(kit);
+            Vector way = toAim(kit, from, reach * 1.5);
+            double rate = min + gain * share;
+            kit.sound(from, Sfx.GREATBOW_LOOSE, 0.8f + 0.3f * share.floatValue(), 1.1f - 0.3f * share.floatValue());
+            kit.particle(Particle.SWEEP_ATTACK, from, 0, 0.0, 0.0);
+            heavyArrow(kit, from, way, 1.6 + share, reach * 1.5, 1.0 + share, full, victim -> arrowHit(kit, victim, rate), end -> {
+                if (!full) return;
+                double radius = range(kit, "small-burst-radius", 2.5);
+                kit.shockwave(end, 0.5, radius, 4, 1.2);
+                kit.particle(Particle.EXPLOSION_LARGE, end, 1, 0.0, 0.0);
+                for (LivingEntity victim : kit.around(end, radius)) arrowHit(kit, victim, rate * range(kit, "small-burst-rate", 0.5));
+            });
+        });
+        DRAWS.put(id, draw);
+        kit.sound(player.getLocation(), Sfx.GREATBOW_DRAW, 1.0f, 0.9f);
+        kit.every(ticks + 1, age -> {
+            if (DRAWS.get(id) != draw) return true;
+            if (age >= ticks) {
+                loose(player);
                 return true;
             }
-            WarriorSwords.chain(kit, from, from.clone().add(way.normalize().multiply(out[0])), 0.05);
+            if (age % 5 == 0) bracing(kit, 6, 1, guard);
+            double power = Math.min(1.0, (double) age / ticks);
+            drawLook(kit, power);
+            if (age == ticks * 19 / 20) kit.sound(player.getLocation(), Sfx.GREATBOW_FULL, 0.8f, 1.0f);
             return false;
         });
     }
 
-    /** The re-activation of 中: the bound enemy is yanked to the warrior and the hovering swords stab it; false when nothing is bound. */
-    private static boolean yank(MoveKit kit) {
-        Player player = kit.player;
-        UUID chained = CHAINED.remove(player.getUniqueId());
-        Entity entity = chained == null ? null : Bukkit.getEntity(chained);
-        if (!(entity instanceof LivingEntity target) || !target.isValid() || target.isDead() || target.getWorld() != player.getWorld()) return false;
-        hover(kit);
-        WarriorSwords.release(target);
-        Location before = target.getLocation().add(0.0, target.getHeight() * 0.55, 0.0);
-        WarriorSwords.chain(kit, ComboParts.hand(kit), before, 0.0);
-        kit.sound(player.getLocation(), Sfx.CHAIN_THROW, 1.0f, 0.7f);
-        kit.pull(target, player.getLocation().add(kit.facing().multiply(2.0)), 1.25);
-        double rate = range(kit, "recast-rate", 0.45);
-        for (int index = 0; index < 3; index++) {
-            int which = index;
-            kit.later(5L + index * 3L, () -> {
-                if (!target.isValid() || target.isDead()) return;
-                Location from = WarriorSwords.launch(player, which & 1).add(0.0, 0.4 * which, 0.0);
-                Location to = target.getLocation().add(0.0, target.getHeight() * 0.5, 0.0);
-                Vector way = to.toVector().subtract(from.toVector());
-                if (way.lengthSquared() < 1.0E-6) return;
-                Location past = to.clone().add(way.normalize().multiply(1.0));
-                kit.sound(from, Sfx.SWORD_FLY, 0.7f, 1.2f + 0.1f * which);
-                WarriorSwords.fly(kit, from, past, 1.7, 1.8, 0.9, victim -> {
-                    if (victim.equals(target)) swordHit(kit, victim, rate);
-                }, null);
-            });
-        }
+    /** The re-activation of 小: looses the bow being drawn (false when none is); the share drawn sets how hard. */
+    private static boolean loose(Player player) {
+        Draw draw = DRAWS.remove(player.getUniqueId());
+        if (draw == null) return false;
+        player.removePotionEffect(PotionEffectType.SLOW);
+        double share = Math.min(1.0, (System.currentTimeMillis() - draw.start) / (draw.ticks * 50.0));
+        draw.loose.accept(share);
         return true;
     }
 
-    // ---- swords and chains: 大 ---------------------------------------------------------------------------------------------------------
+    // ---- the great bow: 中 ---------------------------------------------------------------------------------------------------------------
 
     /**
-     * Prison of swords: eight greatswords fall in a ring ({@code large-radius} 5) at the aim, chained one to the next; for
-     * {@code large-prison-seconds} the enemies inside cannot get out (they are bound in it) and the swords stab inward every half second
-     * ({@code large-stab-rate}); then the eight rise and plunge into the middle ({@code large-final-rate}, thrown up).
+     * Pinning stake: a stake of an arrow into the first enemy ({@code medium-rate}): it can hardly move ({@code medium-pin} slowed for
+     * {@code medium-pin-seconds}) and is marked for {@code medium-mark-seconds} (the warrior's arrows hit it {@code mark-bonus} harder).
      */
-    private static void prison(MoveKit kit) {
-        hover(kit);
-        double radius = range(kit, "large-radius", 5.0);
-        int held = (int) Math.round(range(kit, "large-prison-seconds", 4.0) * 20.0);
-        double stab = range(kit, "large-stab-rate", 0.22);
-        double finale = range(kit, "large-final-rate", 1.4);
-        Location center = kit.ground(aimWithin(kit, range(kit, "large-range", 18.0)));
-        int count = 8;
-        int fall = 2 * count + 4;
-        List<ItemDisplay> swords = new ArrayList<>();
-        List<Location> posts = new ArrayList<>();
-        double turn = Math.atan2(kit.facing().getZ(), kit.facing().getX());
-        kit.sound(center, Sfx.SWORD_SUMMON, 1.0f, 0.7f);
-        for (int index = 0; index < count; index++) {
-            double angle = turn + index * Math.PI * 2.0 / count;
-            Location ground = kit.ground(center.clone().add(Math.cos(angle) * radius, 0.0, Math.sin(angle) * radius));
-            posts.add(ground);
-            kit.later(index * 2L, () -> swords.add(WarriorSwords.fall(kit, ground, 2.2, 7.0, 4, held + fall + 30, land -> {
-                kit.sound(land, Sfx.SWORD_IMPACT, 0.7f, 0.9f + 0.03f * swords.size());
-                kit.particle(Particle.CRIT, land.clone().add(0.0, 0.3, 0.0), 6, 0.3, 0.1);
-            })));
-        }
-        Set<UUID> inside = new HashSet<>();
-        kit.every(fall + held + 1, age -> {
-            if (age < fall) return false;
-            int t = age - fall;
-            if (t == 0) kit.sound(center, Sfx.CHAIN_BIND, 1.0f, 0.8f);
-            // the chains between the swords, and the floor of the prison
-            if (t % 3 == 0) {
-                for (int index = 0; index < count; index++) {
-                    Location a = posts.get(index).clone().add(0.0, 1.0, 0.0);
-                    Location b = posts.get((index + 1) % count).clone().add(0.0, 1.0, 0.0);
-                    WarriorSwords.chain(kit, a, b, 0.35);
+    private static void stake(MoveKit kit) {
+        double rate = range(kit, "medium-rate", 1.1);
+        double reach = range(kit, "aim-range", 24.0);
+        Location from = bow(kit);
+        kit.sound(from, Sfx.GREATBOW_LOOSE, 0.9f, 0.9f);
+        heavyArrow(kit, from, toAim(kit, from, reach), 2.0, reach, 1.4, false, victim -> {
+            if (!arrowHit(kit, victim, rate)) return;
+            kit.slow(victim, range(kit, "medium-pin", 90.0), range(kit, "medium-pin-seconds", 2.0));
+            long until = System.currentTimeMillis() + Math.round(range(kit, "medium-mark-seconds", 4.0) * 1000.0);
+            MARKED.put(victim.getUniqueId(), until);
+            Location ground = kit.ground(victim.getLocation());
+            kit.sound(ground, Sfx.GREATBOW_PIN, 1.0f, 1.0f);
+            // the stake through it into the ground, and the mark on it for as long as it lasts
+            kit.fx(ground).line(ground.clone().add(0.0, victim.getHeight() + 0.8, 0.0), ground.clone().subtract(0.0, 0.2, 0.0), kit.palette(), 0.3, 1.0, 0.0, 1.2, 0.15, null, 1);
+            int life = (int) Math.round(range(kit, "medium-mark-seconds", 4.0) * 20.0);
+            kit.every(life, age -> {
+                if (!victim.isValid() || victim.isDead() || !marked(victim)) return true;
+                if (age % 4 == 0) {
+                    Location top = victim.getLocation().add(0.0, victim.getHeight() + 0.5, 0.0);
+                    kit.fx(top).flatRing(top, 0.35 + 0.05 * Math.sin(age * 0.5), 10, kit.palette(), 0.8, 0.0, 0.8);
+                    Location feet = victim.getLocation().add(0.0, 0.1, 0.0);
+                    if (age < 40) kit.fx(feet).flatRing(feet, 0.8, 14, kit.palette(), 0.5, 0.0, 0.8);
                 }
-                kit.fx(center).flatRing(center.clone().add(0.0, 0.1, 0.0), radius, 50, WarriorSwords.STEEL, 0.3, 0.2, 0.8);
+                return false;
+            });
+        }, null);
+    }
+
+    // ---- the great bow: 大 ---------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Siege arrow: a draw of {@code large-draw-ticks} (the warrior cannot move and takes {@code large-guard} less damage), then a great arrow
+     * through every enemy in its way for up to {@code large-range} blocks ({@code large-rate}) that bursts where it stops
+     * ({@code large-burst-rate} within {@code large-burst-radius}). The bonus of the bow is on both.
+     */
+    private static void siege(MoveKit kit) {
+        Player player = kit.player;
+        int ticks = Math.max(4, (int) Math.round(range(kit, "large-draw-ticks", 30.0)));
+        double guard = range(kit, "large-guard", 0.4);
+        double rate = range(kit, "large-rate", 2.5);
+        double reach = range(kit, "large-range", 40.0);
+        double radius = range(kit, "large-burst-radius", 4.0);
+        double burst = range(kit, "large-burst-rate", 1.2);
+        kit.sound(player.getLocation(), Sfx.GREATBOW_DRAW, 1.0f, 0.6f);
+        bracing(kit, ticks + 2, 9, guard);
+        kit.every(ticks + 1, age -> {
+            if (!player.isOnline() || player.isDead()) return true;
+            double power = Math.min(1.0, (double) age / ticks);
+            drawLook(kit, power);
+            Location bow = bow(kit);
+            Fx fx = kit.fx(bow);
+            // the light gathers on the arrow, and a ring of it on the ground grows under the warrior
+            if (age % 2 == 0) {
+                Location feet = player.getLocation().add(0.0, 0.1, 0.0);
+                fx.flatRing(feet, 0.6 + 1.6 * power, 24, kit.palette(), 0.4 + 0.5 * power, 0.1, 1.0);
+                double angle = age * 0.6;
+                Vector[] axes = kit.axes();
+                Location mote = bow.clone().add(axes[1].clone().multiply(Math.cos(angle) * 1.2 * (1.0 - power))).add(axes[2].clone().multiply(Math.sin(angle) * 1.2 * (1.0 - power)));
+                fx.line(mote, bow, kit.palette(), 0.3, 1.0, 0.0, 0.8, 0.2, null, 1);
             }
-            // nobody inside gets out
-            for (LivingEntity victim : kit.around(center, radius + 0.3)) {
-                if (inside.add(victim.getUniqueId())) WarriorSwords.bind(kit, victim, center, Math.max(0.5, radius - 0.6), held - t + 1, null);
-            }
-            if (t > 0 && t % 10 == 0) {
-                kit.sound(center, Sfx.SWORD_IMPACT, 0.6f, 1.3f);
-                for (LivingEntity victim : kit.around(center, radius)) {
-                    if (!swordHit(kit, victim, stab)) continue;
-                    Location at = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
-                    Vector out = at.toVector().subtract(center.toVector()).setY(0.0);
-                    Location from = at.clone().add(out.lengthSquared() < 1.0E-6 ? new Vector(1.0, 0.0, 0.0) : out.normalize().multiply(1.5));
-                    kit.fx(from).line(from, at, WarriorSwords.STEEL, 0.2, 1.0, 1.5, 1.0, 0.2, null, 1);
+            if (age < ticks) return false;
+            player.removePotionEffect(PotionEffectType.SLOW);
+            Location from = bow(kit);
+            Vector way = toAim(kit, from, reach);
+            kit.sound(from, Sfx.GREATBOW_LOOSE, 1.3f, 0.6f);
+            kit.sound(from, Sfx.GREATBOW_FULL, 0.8f, 0.7f);
+            kit.shockwave(player.getLocation(), 0.4, 2.0, 3, 1.0);
+            heavyArrow(kit, from, way, 2.6, reach, 2.6, true, victim -> {
+                if (arrowHit(kit, victim, rate)) kit.push(victim, player.getLocation().toVector(), 0.6, 0.2);
+            }, end -> {
+                kit.sound(end, Sfx.GREATBOW_IMPACT, 1.2f, 0.6f);
+                kit.shockwave(end, 0.8, radius + 0.5, 6, 1.4);
+                kit.particle(Particle.EXPLOSION_LARGE, end, 2, 0.6, 0.0);
+                kit.fx(end).sphereShell(end, radius * 0.5, 0.0, 36, kit.palette(), 1.3);
+                spikes(kit, kit.ground(end), radius * 0.6, 10, 2.2);
+                for (LivingEntity victim : kit.around(end, radius)) {
+                    if (arrowHit(kit, victim, burst)) kit.push(victim, end.toVector(), 0.5, 0.35);
                 }
-            }
-            if (t >= held) {
-                plunge(kit, center, radius, finale, swords);
-                return true;
-            }
-            return false;
+            });
+            return true;
         });
     }
 
-    /** The end of the prison: the swords rise and plunge into the middle, everyone inside struck and thrown up. */
-    private static void plunge(MoveKit kit, Location center, double radius, double rate, List<ItemDisplay> swords) {
-        Vector up = new Vector(0.0, 1.0, 0.0);
-        for (ItemDisplay sword : swords) {
-            if (!sword.isValid()) continue;
-            WarriorSwords.move(sword, sword.getLocation().add(0.0, 3.0, 0.0), up, 2.2, 6);
-        }
-        kit.sound(center, Sfx.SWORD_SUMMON, 0.9f, 1.3f);
-        kit.later(7L, () -> {
-            Location middle = center.clone().add(0.0, 1.2, 0.0);
-            for (ItemDisplay sword : swords) {
-                if (!sword.isValid()) continue;
-                Vector way = middle.toVector().subtract(sword.getLocation().toVector());
-                WarriorSwords.move(sword, middle, way, 2.2, 4);
-            }
-        });
-        kit.later(11L, () -> {
-            kit.sound(center, Sfx.SWORD_GRAND, 1.0f, 1.0f);
-            kit.shockwave(center, 0.8, radius + 0.5, 6, 1.4);
-            kit.burst(center.clone().add(0.0, 1.0, 0.0), 2.4);
-            kit.particle(Particle.EXPLOSION_LARGE, center.clone().add(0.0, 1.0, 0.0), 1, 0.0, 0.0);
-            for (LivingEntity victim : kit.around(center, radius)) {
-                WarriorSwords.release(victim);
-                if (swordHit(kit, victim, rate)) kit.lift(victim, 0.5);
-            }
-            for (ItemDisplay sword : swords) WarriorSwords.vanish(kit, sword, up, 5);
-        });
-    }
+    // ---- the great bow: util -------------------------------------------------------------------------------------------------------------
 
-    // ---- swords and chains: util ---------------------------------------------------------------------------------------------------------
-
-    /** Retreat: a leap back; a sword falls where the warrior stood and chains the enemies near it there. */
-    private static void retreat(MoveKit kit) {
-        hover(kit);
-        Location spot = kit.ground(kit.player.getLocation());
-        double radius = range(kit, "util-radius", 3.5);
+    /** Spacing (2 charges): the enemies within {@code util-radius} are shoved away ({@code util-rate}) and the warrior leaps back. */
+    private static void spacing(MoveKit kit) {
+        Location feet = kit.player.getLocation();
+        double radius = range(kit, "util-radius", 3.0);
         double rate = range(kit, "util-rate", 0.3);
-        int ticks = (int) Math.round(range(kit, "util-bind-seconds", 2.0) * 20.0);
-        double hold = range(kit, "util-bind-radius", 1.5);
+        kit.sound(feet, Sfx.SHIELD_BASH, 0.7f, 1.3f);
+        kit.shockwave(feet, 0.5, radius, 4, 1.1);
+        for (LivingEntity victim : kit.around(feet, radius)) {
+            if (kit.hit(victim, rate)) kit.push(victim, feet.toVector(), range(kit, "util-push", 0.8), 0.25);
+        }
         kit.hopBack(range(kit, "util-back", 0.9), range(kit, "util-up", 0.35));
-        kit.sound(spot, Sfx.SWORD_FLY, 0.8f, 0.8f);
-        WarriorSwords.fall(kit, spot, 2.0, 5.0, 5, ticks + 4, land -> {
-            kit.sound(land, Sfx.CHAIN_BIND, 0.9f, 1.1f);
-            kit.shockwave(land, 0.6, radius, 4, 1.1);
-            for (LivingEntity victim : kit.around(land, radius)) {
-                swordHit(kit, victim, rate);
-                WarriorSwords.bind(kit, victim, land.clone().add(0.0, 0.6, 0.0), hold, ticks, null);
-            }
-        });
     }
 
     /** A player leaves (or changes class): what is kept of them goes. */
     public static void forget(UUID player) {
         WarriorBlood.forget(player);
         WarriorSwords.forget(player);
-        OATHS.remove(player);
         PARRIES.remove(player);
-        CHAINED.remove(player);
         DRAWN.remove(player);
         BLOOD_NOW.remove(player);
+        DRAWS.remove(player);
     }
 }
