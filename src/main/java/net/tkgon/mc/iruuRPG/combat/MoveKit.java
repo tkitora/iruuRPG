@@ -162,6 +162,7 @@ public final class MoveKit {
     }
 
     public List<LivingEntity> around(Location center, double radius) {
+        radius *= areaScale();
         List<LivingEntity> result = new ArrayList<>();
         for (Entity entity : center.getWorld().getNearbyEntities(center, radius, Math.max(2.0, radius * 0.6), radius)) {
             if (!attack.isAttackTarget(entity, player)) continue;
@@ -172,6 +173,27 @@ public final class MoveKit {
             result.add(living);
         }
         return result;
+    }
+
+    /** Whether the mage's 広域魔法 is on this kit's attacks (null until asked). */
+    private Boolean expanded;
+
+    /**
+     * The mage's 広域魔法 ({@code range_area_expand}, t198: it did nothing with the class's combo and skills): with a ranged weapon the areas are
+     * {@code combat.range-area-expanded-scale} (1.3) times as wide ({@link #around}) and the hits {@code combat.range-area-expanded-bonus} (15%)
+     * stronger ({@link #hit}).
+     */
+    private boolean expanded() {
+        if (expanded == null) expanded = weapon.attackType() == AttackType.RANGE && hasSkill("range_area_expand");
+        return expanded;
+    }
+
+    private double areaScale() {
+        return expanded() ? Math.max(1.0, plugin.getConfig().getDouble("combat.range-area-expanded-scale", 1.3)) : 1.0;
+    }
+
+    private double areaBonus() {
+        return expanded() ? 1.0 + Math.max(0.0, plugin.getConfig().getDouble("combat.range-area-expanded-bonus", 0.15)) : 1.0;
     }
 
     /** The enemies within {@code radius} (flat) of {@code base}, from 2 blocks below it up to {@code height} blocks above it (also those in the air). */
@@ -225,7 +247,7 @@ public final class MoveKit {
     public boolean hit(LivingEntity target, double rate) {
         boolean landed;
         if (weapon.attackType() == AttackType.RANGE) {
-            landed = attack.strikeRanged(player, target, weapon, rate);
+            landed = attack.strikeRanged(player, target, weapon, rate * areaBonus());
         } else if (weapon.attackType() == AttackType.DEPLOY) {
             // placed things hit 10% harder, but however many overlap, an enemy takes the hits of one of them at a time
             if (source != null && !zones.allowDeployHit(player, target, source)) return false;

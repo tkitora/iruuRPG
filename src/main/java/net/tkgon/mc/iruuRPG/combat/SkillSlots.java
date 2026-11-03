@@ -299,10 +299,6 @@ public final class SkillSlots implements Listener {
             if (!move.recast(player, weapon) && trying(id, slot)) move.use(player, weapon);
             return Done.RECAST;
         }
-        // (a skill that costs nothing now, the mage's torrent: t168) the move, no charge used, nothing starts cooling down
-        if (MageArcana.free(id, slot, kindOf(weapon))) {
-            return move.use(player, weapon) ? Done.USED : Done.NOTHING;
-        }
         // 3. no charge left: nothing
         if (state.charges <= 0) {
             coolingClick(player, now);
@@ -384,6 +380,22 @@ public final class SkillSlots implements Listener {
             state.charges++;
             state.refillStart += state.refillMillis;
         }
+    }
+
+    /**
+     * What is left of the cooldown of {@code slot} with a kind of weapon is {@code millis} shorter (the mage's flow, t198): the wait for all its
+     * charges when none is left, else the refill of the next one.
+     */
+    public void shorten(UUID player, Slot slot, AttackType kind, long millis, long now) {
+        Map<Kept, State> own = states.get(player);
+        State state = own == null ? null : own.get(new Kept(kind == AttackType.RANGE || kind == AttackType.DEPLOY ? kind : AttackType.MELEE, slot));
+        if (state == null || millis <= 0L) return;
+        shorten(state, millis, now);
+    }
+
+    static void shorten(State state, long millis, long now) {
+        if (state.charges <= 0 && state.emptyUntil > now) state.emptyUntil = Math.max(now, state.emptyUntil - millis);
+        else if (state.refillMillis > 0L) state.refillStart -= millis;
     }
 
     /** A skill of one charge used at {@code now}: its cooldown is {@code millis} (for tests and the fallback's look). */
