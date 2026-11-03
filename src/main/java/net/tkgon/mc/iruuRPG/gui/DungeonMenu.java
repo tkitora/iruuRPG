@@ -2,6 +2,7 @@ package net.tkgon.mc.iruuRPG.gui;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonDefinition;
 import net.tkgon.mc.iruuRPG.dungeon.DungeonRegistry;
@@ -25,7 +26,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** The dungeon list: what each dungeon is, whether it can be entered now, and a button to leave while inside. */
+/**
+ * The dungeon list: what each dungeon is, whether it can be entered now, and a button to leave while inside; their order and look (name,
+ * colour, icon, lines, recommended level) from {@link MenuLooks} (t220).
+ */
 public final class DungeonMenu implements Listener {
 
     private static final int SIZE = 54;
@@ -34,6 +38,7 @@ public final class DungeonMenu implements Listener {
 
     private final DungeonService service;
     private MainMenu mainMenu;
+    private MenuLooks looks;
 
     public DungeonMenu(DungeonService service) {
         this.service = service;
@@ -43,6 +48,19 @@ public final class DungeonMenu implements Listener {
         this.mainMenu = mainMenu;
     }
 
+    public void setLooks(MenuLooks looks) {
+        this.looks = looks;
+    }
+
+    private MenuLooks.Look look(DungeonDefinition definition) {
+        return looks == null ? MenuLooks.Look.NONE : looks.dungeon(definition.id());
+    }
+
+    private String shownName(DungeonDefinition definition) {
+        String name = look(definition).name();
+        return name != null ? name : definition.name();
+    }
+
     /** Clicking a dungeon's gate: a small screen to enter it (or not). */
     public void openConfirm(Player player, String id, DungeonRegistry.Gate gate) {
         DungeonDefinition definition = service.registry().find(id).orElse(null);
@@ -50,7 +68,7 @@ public final class DungeonMenu implements Listener {
         Holder holder = new Holder(player.getUniqueId());
         holder.confirm = true;
         holder.gate = gate;
-        Inventory inventory = Bukkit.createInventory(holder, 27, Component.text("ダンジョン: " + definition.name()));
+        Inventory inventory = Bukkit.createInventory(holder, 27, Component.text((looks == null ? "ダンジョン" : looks.dungeonTitle("ダンジョン")) + ": " + shownName(definition)));
         holder.inventory = inventory;
         ItemStack frame = pane();
         for (int slot = 0; slot < 27; slot++) inventory.setItem(slot, frame);
@@ -69,14 +87,15 @@ public final class DungeonMenu implements Listener {
 
     public void open(Player player) {
         Holder holder = new Holder(player.getUniqueId());
-        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text("ダンジョン"));
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text(looks == null ? "ダンジョン" : looks.dungeonTitle("ダンジョン")));
         holder.inventory = inventory;
 
         ItemStack frame = pane();
         for (int slot = 45; slot < SIZE; slot++) inventory.setItem(slot, frame);
 
         int slot = 0;
-        for (DungeonDefinition definition : service.registry().all()) {
+        List<DungeonDefinition> dungeons = looks == null ? service.registry().all() : looks.dungeonOrder(service.registry().all(), DungeonDefinition::id);
+        for (DungeonDefinition definition : dungeons) {
             if (slot >= 45) break;
             inventory.setItem(slot, dungeonItem(player, definition));
             holder.actions.put(slot, definition.id());
@@ -96,11 +115,12 @@ public final class DungeonMenu implements Listener {
     private ItemStack dungeonItem(Player player, DungeonDefinition definition) {
         String problem = service.whyNot(player, definition);
         boolean inside = service.instanceOf(player) != null;
-        Material icon = !definition.ready() ? Material.GRAY_DYE : problem == null ? Material.SPAWNER : Material.IRON_BARS;
+        MenuLooks.Look look = look(definition);
+        Material icon = !definition.ready() ? Material.GRAY_DYE : look.icon() != null ? look.icon() : problem == null ? Material.SPAWNER : Material.IRON_BARS;
         List<Component> lore = new ArrayList<>();
-        for (String line : definition.description()) lore.add(text(line, NamedTextColor.GRAY));
+        for (String line : look.lore() != null ? look.lore() : definition.description()) lore.add(text(line, NamedTextColor.GRAY));
         lore.add(Component.empty());
-        lore.add(text("推奨 Lv" + definition.minLevel() + " 以上", NamedTextColor.YELLOW));
+        lore.add(text("推奨 Lv" + (look.recommendedLevel() != null ? look.recommendedLevel() : definition.minLevel()) + " 以上", NamedTextColor.YELLOW));
         lore.add(text("制限時間 " + (definition.timeLimitSeconds() / 60) + "分" + (definition.timeLimitSeconds() % 60 == 0 ? "" : (definition.timeLimitSeconds() % 60) + "秒"), NamedTextColor.WHITE));
         if (definition.deathMode() == DungeonDefinition.DeathMode.LIVES) {
             lore.add(text("残機 " + definition.lives(), NamedTextColor.AQUA));
@@ -123,7 +143,8 @@ public final class DungeonMenu implements Listener {
         } else {
             lore.add(text(inside ? "ダンジョンの中にいる" : problem, NamedTextColor.RED));
         }
-        return item(icon, definition.name(), problem == null ? NamedTextColor.GREEN : NamedTextColor.GRAY, lore);
+        TextColor color = look.color() != null ? look.color() : problem == null ? NamedTextColor.GREEN : NamedTextColor.GRAY;
+        return item(icon, shownName(definition), color, lore);
     }
 
     @EventHandler
@@ -182,7 +203,7 @@ public final class DungeonMenu implements Listener {
         return Component.text(value, color).decoration(TextDecoration.ITALIC, false);
     }
 
-    private ItemStack item(Material material, String name, NamedTextColor color, List<Component> lore) {
+    private ItemStack item(Material material, String name, TextColor color, List<Component> lore) {
         ItemStack stack = new ItemStack(material);
         ItemMeta meta = stack.getItemMeta();
         if (meta != null) {
