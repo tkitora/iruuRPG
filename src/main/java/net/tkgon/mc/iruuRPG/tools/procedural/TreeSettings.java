@@ -132,6 +132,7 @@ final class TreeSettings {
         TIER_ROOT_FLARE("tier-root-flare", "根の張り", 0.0, 10.0, 2.0, 0.25, 1, "根元から斜めに張り出す根の長さ (0.5 以下で根なし)"),
         TIER_SPACING("tier-spacing", "段の間隔", 1, 10, 4, 1, 1, "枝の段と段の間 (ブロック)"),
         TIER_BRANCHES("tier-branches", "1段の枝の数", 1, 21, 5, 1, 3, "1つの段から出る枝の数"),
+        TIER_STAGGER("tier-stagger", "枝の高さのずれ", 0.0, 1.0, 0.7, 0.05, 0.25, "1つの段の枝の付け根を、段の間隔のこの割合の幅で上下にずらす (向きも少し崩す)。0 で全部同じ高さ (t242)"),
         TIER_BRANCH_LENGTH("tier-branch-length", "枝の長さ", 0.5, 50.0, 10.0, 0.5, 2, "一番下の段の枝の長さ (上の段ほど短い)"),
         TIER_SAG("tier-sag", "枝の垂れ", 0.0, 2.0, 0.0, 0.05, 0.25, "枝先が下へ垂れる量 (雪があるとさらに垂れる)"),
         TIER_LEAF_SIZE("tier-leaf-size", "葉の大きさ", 0.5, 8.0, 2.0, 0.25, 1, "枝に沿って付ける葉の塊の半径"),
