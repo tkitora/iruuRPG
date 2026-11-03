@@ -170,6 +170,8 @@ final class BbItemModel {
             if (element != null) model.elements.add(element);
         }
         if (model.elements.isEmpty()) model.warnings.add("the model has no cubes with a texture");
+        // (t213) a Generic Model is made with its front to -Z (north), as the mobs are; the game shows an item's +Z side: turn it round
+        if (model.centered()) model.turnAround();
 
         if (root.has("display") && root.get("display").isJsonObject()) {
             for (Map.Entry<String, JsonElement> slot : root.getAsJsonObject("display").entrySet()) {
@@ -182,6 +184,39 @@ final class BbItemModel {
             }
         }
         return model;
+    }
+
+    /**
+     * Turns the model half round about its upright middle line (x = z = 8): its front (-Z, the side seen in Blockbench's front view, as the
+     * mobs are made) comes to +Z, the side the game shows of an item (in the slot, in the hand). A turn, not a mirror: the left and the right of
+     * the model stay as they were made, and so do its faces' pictures (t213: the items looked reversed, seen from behind). The boxes, their turns
+     * (about x and z the other way round), their faces (north and south, east and west change places; the top and the bottom turn their
+     * pictures half round) and the grip.
+     */
+    void turnAround() {
+        for (Element element : elements) {
+            double[] from = element.from.clone();
+            double[] to = element.to.clone();
+            element.from[0] = 16.0 - to[0];
+            element.to[0] = 16.0 - from[0];
+            element.from[2] = 16.0 - to[2];
+            element.to[2] = 16.0 - from[2];
+            if ("x".equals(element.axis) || "z".equals(element.axis)) element.angle = -element.angle;
+            Map<String, Face> turned = new LinkedHashMap<>();
+            for (Map.Entry<String, Face> face : element.faces.entrySet()) {
+                Face f = face.getValue();
+                switch (face.getKey()) {
+                    case "north" -> turned.put("south", f);
+                    case "south" -> turned.put("north", f);
+                    case "east" -> turned.put("west", f);
+                    case "west" -> turned.put("east", f);
+                    default -> turned.put(face.getKey(), new Face(f.uv(), f.texture(), (f.rotation() + 180) % 360));
+                }
+            }
+            element.faces.clear();
+            element.faces.putAll(turned);
+        }
+        if (grip != null) grip = new double[]{16.0 - grip[0], grip[1], 16.0 - grip[2]};
     }
 
     /** Goes through the outliner: which groups each cube and locator is in, and the groups that mark the grip. */
