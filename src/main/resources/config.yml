@@ -166,6 +166,8 @@ combat:
       shield-count: 3
       shield-seconds: 10
       shield-cut: 0.4
+    # (2026-11-03) クラスのコンボとスキルの数値は、yml リポジトリの balance/<クラス>.yml の値が、ここの値の上に重なる (docs/balance.md。ツールサイトの「倍率」タブ)。
+    #   ここの値は、balance に無い項目の既定値。
     # クラスごと・武器の種類ごとのコンボ (得意な武器を持ったときだけ出る)。通常攻撃5回 (5回目が最終段) と、強攻撃 強1〜強5 (小・中・大 が強1〜強3)。
     # 設定のリスト (heavy-damage-multiplier / heavy-cooldown-ticks) は強1〜強5 の順 (番号 0〜4)。強攻撃のあとも、通常攻撃のコンボは続く。
     # heavy-cooldown-ticks を書かないとき、強2〜強5 のクールタイムは heavy-input.later-cooldown-ticks (60 / 80 / 100 / 120 tick。強1 は各コンボの値)。

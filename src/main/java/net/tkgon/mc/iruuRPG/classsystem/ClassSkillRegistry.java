@@ -22,6 +22,7 @@ public final class ClassSkillRegistry {
 
     public void reload() {
         definitions.clear();
+        fileValues.clear();
 
         File folder = new File(plugin.getDataFolder(), "cskill");
         ensureFolder(folder, "cskill/warrior_strike.yml", "cskill/ice_lance.yml", "cskill/meteor.yml", "cskill/instinct_release.yml", "cskill/sanctuary.yml", "cskill/satsujin.yml");
@@ -39,6 +40,29 @@ public final class ClassSkillRegistry {
     /** Skills made from templates (skills/*.yml) can be class active skills too: they answer to find() as well. */
     public void setGeneralSkills(net.tkgon.mc.iruuRPG.skill.SkillRegistry generalSkills) {
         this.generalSkills = generalSkills;
+    }
+
+    /** The values of each class skill as its file has them, before the balance was laid over them (by id). */
+    private final Map<String, Map<String, Double>> fileValues = new HashMap<>();
+
+    /**
+     * Lays the balance's numbers over the class skills' values (the yml repository's balance/*.yml, after {@link #reload}): {@code over} gives,
+     * for a skill id, the values to put in place of the file's (keys already normalized; null or empty: none).
+     */
+    public void applyBalance(java.util.function.Function<String, Map<String, Double>> over) {
+        for (Map.Entry<String, ClassSkillDefinition> entry : new java.util.ArrayList<>(definitions.entrySet())) {
+            ClassSkillDefinition skill = entry.getValue();
+            Map<String, Double> changed = over.apply(entry.getKey());
+            if (changed == null || changed.isEmpty()) continue;
+            Map<String, Double> values = new HashMap<>(skill.values());
+            values.putAll(changed);
+            definitions.put(entry.getKey(), new ClassSkillDefinition(skill.id(), skill.name(), skill.cost(), skill.cooldownTicks(), skill.description(), values));
+        }
+    }
+
+    /** The values of class skill {@code id} as its file has them (not the balance's), empty when there is no such skill. */
+    public Map<String, Double> fileValues(String id) {
+        return fileValues.getOrDefault(id == null ? "" : id.trim().toLowerCase(), Map.of());
     }
 
     public Optional<ClassSkillDefinition> find(String id) {
@@ -76,6 +100,7 @@ public final class ClassSkillRegistry {
         Map<String, Double> values = values(yaml.getConfigurationSection("values"));
 
         definitions.put(id.toLowerCase(), new ClassSkillDefinition(id, name, cost, cooldownTicks, description, values));
+        fileValues.put(id.toLowerCase(), Map.copyOf(values));
     }
 
     private int cooldownTicks(YamlConfiguration yaml) {

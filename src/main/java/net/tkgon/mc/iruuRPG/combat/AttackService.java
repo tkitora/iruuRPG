@@ -251,6 +251,11 @@ public final class AttackService {
         meleeCombo.register(combo.spec());
     }
 
+    /** The combos described by a spec (every class's and the mage's ranged one), by plan. */
+    public Map<String, ComboSpec> comboSpecs() {
+        return meleeCombo.specs();
+    }
+
     public void shutdownCombos() {
         if (deployHold != null) deployHold.shutdown();
         AssassinClones.shutdown();

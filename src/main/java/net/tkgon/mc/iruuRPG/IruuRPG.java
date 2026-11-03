@@ -170,10 +170,14 @@ public final class IruuRPG extends JavaPlugin {
     private StorageMenu storageMenu;
     private net.tkgon.mc.iruuRPG.item.ItemPatchService itemPatchService;
     private YmlSyncService ymlSyncService;
+    private net.tkgon.mc.iruuRPG.balance.BalanceService balanceService;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        // the classes' balance numbers of the yml repository (balance/*.yml) over the config, in memory (config.yml is not written)
+        this.balanceService = new net.tkgon.mc.iruuRPG.balance.BalanceService(getDataFolder(), problem -> getLogger().warning(problem));
+        applyBalance();
 
         ItemKeys itemKeys = new ItemKeys(this);
         this.itemIdentifier = new ItemIdentifier(itemKeys);
@@ -206,6 +210,7 @@ public final class IruuRPG extends JavaPlugin {
         this.classRegistry.reload();
         this.classSkillRegistry = new ClassSkillRegistry(this);
         this.classSkillRegistry.reload();
+        applyUltBalance();
         this.itemFactory = new RpgItemFactory(this, itemIdentifier, itemSkillRegistry);
         // the pack of the items' looks (a base item that wears another vanilla item's texture, by custom model data): made from the items' texture:
         this.itemPackService = new net.tkgon.mc.iruuRPG.itempack.ItemPackService(this, () -> itemRegistry.all().values());
@@ -308,6 +313,7 @@ public final class IruuRPG extends JavaPlugin {
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorMeleeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorRangeCombo());
         this.attackService.registerCombo(new net.tkgon.mc.iruuRPG.combat.WarriorDeployCombo());
+        writeBalanceSchema();
         this.attackService.setGuard(new net.tkgon.mc.iruuRPG.combat.Guard(this));
         this.attackService.setStackHook(itemSkillService::onStackTrigger);
         this.statsMenu = new StatsMenu(equipmentService, levelService);
@@ -866,14 +872,44 @@ public final class IruuRPG extends JavaPlugin {
         }
     }
 
+    /** The balance's numbers over the config (a fault never stops the plugin: the config's numbers stay). */
+    private void applyBalance() {
+        try {
+            int laid = balanceService.apply(getConfig());
+            if (laid > 0) getLogger().info("balance: " + laid + " number(s) of balance/*.yml laid over the config");
+        } catch (RuntimeException | LinkageError e) {
+            getLogger().log(java.util.logging.Level.SEVERE, "balance: balance/*.yml could not be laid over the config; the config's numbers stay", e);
+        }
+    }
+
+    /** The balance's values of the ULTs over the class skills' files (after the class skills are loaded). */
+    private void applyUltBalance() {
+        try {
+            classSkillRegistry.applyBalance(id -> balanceService.ultValues(id, classSkillRegistry.fileValues(id)));
+        } catch (RuntimeException | LinkageError e) {
+            getLogger().log(java.util.logging.Level.SEVERE, "balance: the ULT values could not be laid over the class skills; their files' values stay", e);
+        }
+    }
+
+    /** The list of the balance's numbers for the tool site (balance-schema.json); a fault is only logged. */
+    private void writeBalanceSchema() {
+        try {
+            balanceService.writeSchema(getConfig(), attackService.comboSpecs(), classSkillRegistry);
+        } catch (RuntimeException | LinkageError e) {
+            getLogger().log(java.util.logging.Level.WARNING, "balance: balance-schema.json could not be written", e);
+        }
+    }
+
     private void reloadPluginData() {
         profileManager.saveAll();
         reloadConfig();
+        applyBalance();
         net.tkgon.mc.iruuRPG.combat.Sfx.configure(getConfig().getConfigurationSection("sound-design"), problem -> getLogger().warning(problem));
         itemSkillRegistry.reload();
         skillRegistry.reload();
         classRegistry.reload();
         classSkillRegistry.reload();
+        applyUltBalance();
         itemRegistry.reload();
         // the pack of the items' looks changed: the players online get the new one (a player who joins later is offered it anyway)
         if (itemPackService.rebuild() && resourcePackService != null) resourcePackService.resend("items");
@@ -891,5 +927,6 @@ public final class IruuRPG extends JavaPlugin {
             levelService.syncBar(player, profile);
             mainMenuItemService.ensure(player);
         }
+        writeBalanceSchema();
     }
 }
