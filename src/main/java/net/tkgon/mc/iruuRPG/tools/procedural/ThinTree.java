@@ -9,42 +9,55 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * (t252) The thin tree: a trunk one block thick (one stem or a few from the foot), leaning and bending a little, and thin branches drawn in the blocks
- * builders use for them: where a branch runs up a block it is a post (a wall near the trunk, a fence further out), where it runs along it is a slab (the bottom
- * or the top half, as high as it passes), so a slanting branch steps up in half blocks; the first blocks of the main branches are logs. The branches fork and
- * kink, and each end carries a flattish clump of leaves over it; round the wood the leaves keep a space (but where they hang on the tips), so the branches
- * are seen under and in the crown; a clump can let vines down (a willow). The connections of the fences and the walls and the halves of the slabs are given
- * as the blocks are put ({@link #shape}).
+ * (t252, t258 after a tree tutorial iru sent) The thin tree. Its skeleton is laid as builders lay one of single blocks: a short trunk that soon splits,
+ * one of the parts about twice as long as the other, every branch at about the same angle, side branches at several heights and forks at the ends, the
+ * crown some four times as tall as the clear trunk. Over it the wood is dressed thinner the further it is from the foot: logs near the foot (the main
+ * trunk the heaviest), then walls where a branch runs up and slabs where it runs out (the bottom or the top half, as high as it passes), fences at the
+ * thin ends; a log stepping up as it goes over is joined by a stair, and stairs round the foot give it weight. The leaves are laid as with a sphere brush
+ * of a few blocks, filled only in part: over the tips and along the outer branches, in passes from the darkest leaf to the brightest (each a little
+ * higher, so the crown is lit from above), kept off the wood (the branches show in it) but where they hang on the tips, and no leaf left alone; vines can
+ * hang from the lowest. The connections of the fences and walls, the halves of the slabs and the ways of the stairs are given as the blocks are put
+ * ({@link #shape}).
  */
 final class ThinTree {
 
-    /** Where a thin branch passes in a block: its lower half, its upper half (bits), and how thin it is there (the least level). */
-    private record Pass(int halves, int level) {
+    /** Where a thin branch passes in a block: its lower half, its upper half (bits), and how far from the foot it is there (the least). */
+    private record Pass(int halves, double distance, int level) {
     }
 
     private final TreeVoxelizer voxels;
     private final Random random;
     private final double kink;
-    private final double rise;
+    private final double angle;
     private final int logReach;
-    /** The blocks of the trunk (level 0) and the log ends of the main branches (level 1). */
-    private final Map<Long, Integer> logs = new HashMap<>();
+    private final boolean stairs;
+    /** The blocks of the logs (by their distance from the foot along the wood), and those of them that are the trunk. */
+    private final Map<Long, Double> logs = new HashMap<>();
+    private final Set<Long> trunk = new HashSet<>();
+    /** The stairs: the part of each (its way). */
+    private final Map<Long, TreePart> steps = new HashMap<>();
     private final Map<Long, Pass> passes = new HashMap<>();
-    /** The ends of the branches: where the clumps of leaves are. */
+    /** The ends of the branches. */
     private final List<double[]> tips = new ArrayList<>();
+    /** Points along the outer branches where leaves hang too. */
+    private final List<double[]> along = new ArrayList<>();
+    private final double alongEvery;
 
     private ThinTree(TreeSettings s, Random random) {
         this.voxels = new TreeVoxelizer(s.leafShades());
         this.random = random;
         this.kink = s.get(TreeSettings.Key.THIN_KINK);
-        this.rise = s.get(TreeSettings.Key.THIN_RISE);
+        // (the angle a branch leaves its parent at, the same all through the tree: 15 to 70 degrees from upright)
+        this.angle = Math.toRadians(70.0 - 55.0 * s.get(TreeSettings.Key.THIN_RISE));
         this.logReach = s.getInt(TreeSettings.Key.THIN_LOG_REACH);
+        this.stairs = s.on(TreeSettings.Key.THIN_STAIRS);
+        this.alongEvery = s.get(TreeSettings.Key.THIN_LEAF_ALONG);
     }
 
     static Map<Long, TreePart> build(TreeSettings s, Random random) {
         ThinTree tree = new ThinTree(s, random);
         tree.grow(s);
-        tree.wood();
+        tree.wood(s);
         tree.leaves(s);
         return tree.voxels.blocks();
     }
@@ -52,87 +65,58 @@ final class ThinTree {
     // ---- the skeleton ------------------------------------------------------------------------------------------------------------
 
     private void grow(TreeSettings s) {
-        int height = s.getInt(TreeSettings.Key.THIN_HEIGHT);
+        int clear = s.getInt(TreeSettings.Key.THIN_HEIGHT);
         int stems = s.getInt(TreeSettings.Key.THIN_STEMS);
         double lean = s.get(TreeSettings.Key.THIN_LEAN);
         double curve = s.get(TreeSettings.Key.THIN_CURVE);
-        int branches = s.getInt(TreeSettings.Key.THIN_BRANCHES);
+        int split = s.getInt(TreeSettings.Key.THIN_BRANCHES);
         int side = s.getInt(TreeSettings.Key.THIN_SIDE);
-        double length = s.get(TreeSettings.Key.THIN_LENGTH);
+        double crown = s.get(TreeSettings.Key.THIN_LENGTH);
         int depth = s.getInt(TreeSettings.Key.THIN_DEPTH);
         double turn = random.nextDouble() * Math.PI * 2.0;
         for (int stem = 0; stem < stems; stem++) {
-            // (several stems lean away from each other from the foot, the first the most upright)
+            // (several stems lean away from each other from the foot, the first the most upright and the tallest)
             double azimuth = turn + stem * Math.PI * 2.0 / stems + (random.nextDouble() - 0.5) * 0.6;
-            double tilt = lean * 0.45 + (stems > 1 ? 0.18 + 0.1 * stem : 0.0);
-            int tall = stems > 1 ? (int) Math.round(height * (1.0 - 0.15 * stem)) : height;
+            double tilt = lean * 0.4 + (stems > 1 ? 0.2 + 0.1 * stem : 0.0);
+            int tall = Math.max(1, stems > 1 ? (int) Math.round(clear * (1.0 - 0.2 * stem)) : clear);
             double phase = random.nextDouble() * Math.PI * 2.0;
             double[] at = {0.0, 0.0, 0.0};
-            List<double[]> path = new ArrayList<>();
-            path.add(at.clone());
+            double[] last = at;
             for (int y = 1; y <= tall; y++) {
-                double up = (double) y / tall;
-                double sway = curve * 0.9 * Math.sin(phase + y * 0.55);
-                at = new double[]{
-                        Math.sin(tilt) * Math.cos(azimuth) * y * up + sway * Math.cos(azimuth + Math.PI / 2.0),
-                        y,
-                        Math.sin(tilt) * Math.sin(azimuth) * y * up + sway * Math.sin(azimuth + Math.PI / 2.0)};
-                path.add(at);
+                double sway = curve * 0.8 * Math.sin(phase + y * 0.6);
+                at = new double[]{Math.sin(tilt) * Math.cos(azimuth) * y + sway * Math.cos(azimuth + Math.PI / 2.0), y,
+                        Math.sin(tilt) * Math.sin(azimuth) * y + sway * Math.sin(azimuth + Math.PI / 2.0)};
+                line(last, at, 0, y - 1.0, y);
+                last = at;
             }
-            for (int index = 1; index < path.size(); index++) line(path.get(index - 1), path.get(index), 0, 0.0);
-            double[] top = path.get(path.size() - 1);
-            // branches from the upper trunk, under the crown
-            for (int n = 0; n < side; n++) {
-                int y = (int) Math.round(tall * (0.45 + 0.4 * random.nextDouble()));
-                double[] from = path.get(Math.max(1, Math.min(path.size() - 1, y)));
-                double az = random.nextDouble() * Math.PI * 2.0;
-                branch(1, from, direction(az, rise * 0.6), length * (0.45 + 0.25 * random.nextDouble()), Math.max(0, depth - 1));
-            }
-            // the crown: the main branches from the top, evenly round with a little play
-            int crown = Math.max(1, stems > 1 ? Math.max(1, branches - stem) : branches);
+            double[] up = normal(new double[]{Math.sin(tilt) * Math.cos(azimuth), Math.cos(tilt), Math.sin(tilt) * Math.sin(azimuth)});
+            // the first split: the parts round the stem's way, each at the tree's angle, one about twice as long as the next
             double first = random.nextDouble() * Math.PI * 2.0;
-            for (int n = 0; n < crown; n++) {
-                double az = first + n * Math.PI * 2.0 / crown + (random.nextDouble() - 0.5) * 0.7;
-                branch(1, top, direction(az, rise + (random.nextDouble() - 0.5) * 0.25), length * (0.8 + 0.4 * random.nextDouble()), depth);
+            double size = crown * (stems > 1 ? 1.0 - 0.15 * stem : 1.0);
+            for (int part = 0; part < split; part++) {
+                double around = first + part * Math.PI * 2.0 / split + (random.nextDouble() - 0.5) * 0.5;
+                // (the longest stands nearly upright and carries the crown over the trunk; the others, shorter, lean out at the tree's angle)
+                double length = size * (part == 0 ? 1.0 : 0.55 + 0.2 * random.nextDouble());
+                double spread = angle * (part == 0 ? 0.3 : 1.0);
+                branch(1, at, turned(up, spread, around), length, depth, tall, side);
             }
-            // (the stem goes on a little over its fork, a leader)
-            tips.add(new double[]{top[0], top[1] + 1.0, top[2]});
         }
     }
 
-    /** A way out at azimuth {@code az} rising by {@code up} (0 level, 1 straight up). */
-    private static double[] direction(double az, double up) {
-        double elevation = Math.max(-0.2, Math.min(1.0, up)) * Math.PI / 2.0 * 0.85;
-        return new double[]{Math.cos(az) * Math.cos(elevation), Math.sin(elevation), Math.sin(az) * Math.cos(elevation)};
+    /** {@code way} turned by {@code by} away from itself, toward {@code around} (an azimuth round it). */
+    private static double[] turned(double[] way, double by, double around) {
+        double[] w = normal(way);
+        // two ways across it
+        double[] a = Math.abs(w[1]) < 0.9 ? normal(cross(w, new double[]{0.0, 1.0, 0.0})) : normal(cross(w, new double[]{1.0, 0.0, 0.0}));
+        double[] b = cross(w, a);
+        double sin = Math.sin(by);
+        double cos = Math.cos(by);
+        double[] off = {a[0] * Math.cos(around) + b[0] * Math.sin(around), a[1] * Math.cos(around) + b[1] * Math.sin(around), a[2] * Math.cos(around) + b[2] * Math.sin(around)};
+        return normal(new double[]{w[0] * cos + off[0] * sin, w[1] * cos + off[1] * sin, w[2] * cos + off[2] * sin});
     }
 
-    /** A branch of {@code level} from {@code from}: two or three kinked runs, then forks (to {@code depth} more), and a tip at the end. */
-    private void branch(int level, double[] from, double[] way, double length, int depth) {
-        int runs = length > 5.0 ? 3 : 2;
-        double[] at = from.clone();
-        double[] d = normal(way);
-        double done = 0.0;
-        for (int run = 0; run < runs; run++) {
-            double part = length / runs;
-            // a kink: turned a little, and drawn back toward the rise the branch has
-            d = normal(new double[]{d[0] + (random.nextDouble() - 0.5) * kink, d[1] + (random.nextDouble() - 0.5) * kink * 0.6 + (rise - 0.3) * 0.15,
-                    d[2] + (random.nextDouble() - 0.5) * kink});
-            double[] to = {at[0] + d[0] * part, at[1] + d[1] * part, at[2] + d[2] * part};
-            line(at, to, level, done);
-            done += part;
-            at = to;
-        }
-        if (depth <= 0 || length < 1.5) {
-            tips.add(at);
-            return;
-        }
-        int children = 2 + (random.nextDouble() < 0.25 ? 1 : 0);
-        double az = Math.atan2(d[2], d[0]);
-        for (int child = 0; child < children; child++) {
-            double spread = (child - (children - 1) / 2.0) * (0.55 + 0.35 * random.nextDouble()) + (random.nextDouble() - 0.5) * 0.3;
-            double up = Math.asin(Math.max(-1.0, Math.min(1.0, d[1]))) / (Math.PI / 2.0 * 0.85) + (random.nextDouble() - 0.3) * 0.3;
-            branch(level + 1, at, direction(az + spread, up), length * (0.55 + 0.2 * random.nextDouble()), depth - 1);
-        }
+    private static double[] cross(double[] a, double[] b) {
+        return new double[]{a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]};
     }
 
     private static double[] normal(double[] v) {
@@ -141,76 +125,180 @@ final class ThinTree {
     }
 
     /**
-     * Draws the wood from {@code a} to {@code b}: the trunk (level 0) and the first {@link #logReach} blocks of a main branch in logs, the rest as passes
-     * through the halves of the blocks. A block of a point is the one round it ({@code round}); a step that changes both x and z goes through one of the
-     * two blocks between, so posts touch by a face.
+     * A branch of {@code level} from {@code from} ({@code distance} from the foot along the wood): runs that kink a little (drawn back up when one sags),
+     * {@code side} side branches at several heights along it, at the tree's angle round it, and at its end a fork of two (to {@code depth} more), else a tip.
      */
-    private void line(double[] a, double[] b, int level, double from) {
+    private void branch(int level, double[] from, double[] way, double length, int depth, double distance, int side) {
+        int runs = Math.max(2, (int) Math.ceil(length / 3.0));
+        double[] at = from.clone();
+        double[] d = normal(way);
+        double done = 0.0;
+        List<double[]> points = new ArrayList<>();
+        points.add(at.clone());
+        for (int run = 0; run < runs; run++) {
+            double part = length / runs;
+            d = normal(new double[]{d[0] + (random.nextDouble() - 0.5) * kink * 0.6, d[1] + (random.nextDouble() - 0.5) * kink * 0.4 + 0.06,
+                    d[2] + (random.nextDouble() - 0.5) * kink * 0.6});
+            double[] to = {at[0] + d[0] * part, at[1] + d[1] * part, at[2] + d[2] * part};
+            line(at, to, level, distance + done, distance + done + part);
+            done += part;
+            at = to;
+            points.add(at.clone());
+        }
+        // leaves along the outer branches
+        if (alongEvery > 0.0 && (level >= 2 || distance > logReach * 1.5)) {
+            for (double t = alongEvery; t < length - 1.0; t += alongEvery) along.add(pointAt(points, t / length));
+        }
+        if (depth > 0 && length >= 2.0) {
+            // side branches at several heights, each round the branch away from the last, leaning out of the crown
+            double around = random.nextDouble() * Math.PI * 2.0;
+            for (int n = 0; n < side; n++) {
+                double t = 0.3 + 0.55 * (n + random.nextDouble()) / Math.max(1, side);
+                around += Math.PI * (0.6 + 0.8 * random.nextDouble());
+                double[] base = pointAt(points, t);
+                branch(level + 1, base, outward(turned(d, angle * (0.9 + 0.3 * random.nextDouble()), around), base), length * (1.0 - t) * (0.75 + 0.25 * random.nextDouble()),
+                        depth - 1, distance + length * t, Math.max(0, side - 1));
+            }
+            // the fork at its end: two parts, one twice as long as the other
+            double fork = random.nextDouble() * Math.PI * 2.0;
+            for (int part = 0; part < 2; part++) {
+                double next = length * (part == 0 ? 0.7 : 0.4) * (0.85 + 0.3 * random.nextDouble());
+                if (next < 1.5) continue;
+                branch(level + 1, at, outward(turned(d, angle * (part == 0 ? 0.5 : 1.0), fork + part * Math.PI), at), next, depth - 1, distance + length,
+                        Math.max(0, side - 1));
+            }
+        } else {
+            tips.add(at);
+        }
+    }
+
+    /** {@code way} leaned a little out of the crown (away from the tree's middle, flat), so the crown spreads as a real one does. */
+    private static double[] outward(double[] way, double[] at) {
+        double flat = Math.hypot(at[0], at[2]);
+        if (flat < 0.5) return way;
+        return normal(new double[]{way[0] + at[0] / flat * 0.35, way[1], way[2] + at[2] / flat * 0.35});
+    }
+
+    /** The point {@code share} of the way along a run of points (by the runs, each as long). */
+    private static double[] pointAt(List<double[]> points, double share) {
+        double place = Math.max(0.0, Math.min(1.0, share)) * (points.size() - 1);
+        int index = Math.min(points.size() - 2, (int) Math.floor(place));
+        double f = place - index;
+        double[] a = points.get(index);
+        double[] b = points.get(index + 1);
+        return new double[]{a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f};
+    }
+
+    /**
+     * Draws the wood from {@code a} to {@code b}, {@code from} to {@code to} from the foot along it: a log while it is within {@link #logReach} of the foot
+     * (and of the trunk or a main branch), else passes through the halves of the blocks. A block of a point is the one round it; a step that changes both x
+     * and z goes through one of the two blocks between, so posts touch by a face; a log that goes up a block as it goes over one is joined by a stair under
+     * the higher one (or steps up, without stairs).
+     */
+    private void line(double[] a, double[] b, int level, double from, double to) {
         double length = Math.sqrt(Math.pow(b[0] - a[0], 2) + Math.pow(b[1] - a[1], 2) + Math.pow(b[2] - a[2], 2));
-        int steps = Math.max(1, (int) Math.ceil(length * 4.0));
+        int samples = Math.max(1, (int) Math.ceil(length * 4.0));
         int lastX = Integer.MIN_VALUE;
         int lastZ = Integer.MIN_VALUE;
         int lastY = Integer.MIN_VALUE;
-        for (int step = 0; step <= steps; step++) {
-            double t = (double) step / steps;
+        for (int sample = 0; sample <= samples; sample++) {
+            double t = (double) sample / samples;
             double x = a[0] + (b[0] - a[0]) * t;
             double y = a[1] + (b[1] - a[1]) * t;
             double z = a[2] + (b[2] - a[2]) * t;
+            double distance = from + (to - from) * t;
             int bx = (int) Math.round(x);
             int bz = (int) Math.round(z);
             int by = (int) Math.floor(y + 0.5);
-            boolean log = level == 0 || level == 1 && from + length * t < logReach;
-            if (lastX != Integer.MIN_VALUE && bx != lastX && bz != lastZ) mark(bx, lastY, lastZ, y, log, level);
-            // (logs that go up a block as they go over one would touch only by an edge: they go up first, a step; slabs meet so, half over half)
-            if (log && lastX != Integer.MIN_VALUE && by != lastY && (bx != lastX || bz != lastZ)) mark(lastX, by, lastZ, y, true, level);
-            mark(bx, by, bz, y, log, level);
+            boolean log = level <= 1 && distance < logReach;
+            if (lastX != Integer.MIN_VALUE && bx != lastX && bz != lastZ) mark(bx, lastY, lastZ, y, log, distance, level);
+            if (log && lastX != Integer.MIN_VALUE && by == lastY + 1 && (bx != lastX || bz != lastZ)) {
+                // (a log one up and one over: a stair under the higher one, its back to the lower, or the log steps up)
+                if (stairs) steps(bx, lastY, bz, bx - lastX, bz - lastZ);
+                else mark(lastX, by, lastZ, y, true, distance, level);
+            }
+            mark(bx, by, bz, y, log, distance, level);
             lastX = bx;
             lastY = by;
             lastZ = bz;
         }
     }
 
-    private void mark(int x, int y, int z, double exact, boolean log, int level) {
+    /** A stair at {@code (x, y, z)} its back toward the way it came from ({@code -dx, -dz}). */
+    private void steps(int x, int y, int z, int dx, int dz) {
+        TreePart part = Math.abs(dx) >= Math.abs(dz) ? (dx > 0 ? TreePart.BRANCH_STAIR_WEST : TreePart.BRANCH_STAIR_EAST)
+                : (dz > 0 ? TreePart.BRANCH_STAIR : TreePart.BRANCH_STAIR_SOUTH);
+        steps.putIfAbsent(TreeVoxelizer.pack(x, y, z), part);
+    }
+
+    private void mark(int x, int y, int z, double exact, boolean log, double distance, int level) {
         long key = TreeVoxelizer.pack(x, y, z);
         if (log) {
-            logs.merge(key, level, Math::min);
+            logs.merge(key, distance, Math::min);
+            if (level == 0) trunk.add(key);
             return;
         }
         // (the half of the block the branch passes through: its lower half under its middle, else its upper half)
         int half = exact + 0.5 - y < 0.5 ? 1 : 2;
         Pass before = passes.get(key);
-        passes.put(key, before == null ? new Pass(half, level) : new Pass(before.halves() | half, Math.min(before.level(), level)));
+        passes.put(key, before == null ? new Pass(half, distance, level) : new Pass(before.halves() | half, Math.min(before.distance(), distance), Math.min(before.level(), level)));
     }
 
-    /** The wood as blocks: logs (the trunk, the log ends of the branches); a block passed through in both halves a post (a wall near the trunk, a fence further out), in one a slab of that half. */
-    private void wood() {
-        for (Map.Entry<Long, Integer> entry : logs.entrySet()) {
+    /**
+     * The wood as blocks: logs (the trunk; the main branches near the foot); a block passed through in both halves a post, a wall within twice the logs'
+     * reach of the foot, a fence further out; in one half a slab of that half; the stairs where nothing else is; stairs round the foot.
+     */
+    private void wood(TreeSettings s) {
+        for (Map.Entry<Long, Double> entry : logs.entrySet()) {
             long key = entry.getKey();
-            voxels.set(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key), TreeVoxelizer.unpackZ(key), entry.getValue() == 0 ? TreePart.TRUNK : TreePart.BRANCH);
+            voxels.set(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key), TreeVoxelizer.unpackZ(key), trunk.contains(key) ? TreePart.TRUNK : TreePart.BRANCH);
         }
         for (Map.Entry<Long, Pass> entry : passes.entrySet()) {
             long key = entry.getKey();
             if (logs.containsKey(key)) continue;
             Pass pass = entry.getValue();
-            TreePart part = pass.halves() == 3 ? (pass.level() <= 1 ? TreePart.BRANCH_WALL : TreePart.BRANCH_FENCE)
+            TreePart part = pass.halves() == 3 ? (pass.distance() < logReach * 2.2 && pass.level() <= 2 ? TreePart.BRANCH_WALL : TreePart.BRANCH_FENCE)
                     : pass.halves() == 1 ? TreePart.BRANCH_SLAB : TreePart.BRANCH_SLAB_TOP;
             voxels.set(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key), TreeVoxelizer.unpackZ(key), part);
+        }
+        for (Map.Entry<Long, TreePart> entry : steps.entrySet()) {
+            long key = entry.getKey();
+            if (voxels.blocks().containsKey(key)) continue;
+            voxels.set(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key), TreeVoxelizer.unpackZ(key), entry.getValue());
+        }
+        // the foot: stairs round the trunk, their backs to it (two to four of them; two rows for a heavier foot)
+        int foot = s.getInt(TreeSettings.Key.THIN_FOOT);
+        if (foot > 0) {
+            int[][] sides = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+            TreePart[] facing = {TreePart.BRANCH_STAIR_WEST, TreePart.BRANCH_STAIR_EAST, TreePart.BRANCH_STAIR, TreePart.BRANCH_STAIR_SOUTH};
+            for (int row = 0; row < foot; row++) {
+                for (int index = 0; index < 4; index++) {
+                    if (row == 0 && foot == 1 && random.nextDouble() < 0.35) continue;
+                    if (row == 1 && random.nextDouble() < 0.5) continue;
+                    int x = sides[index][0];
+                    int z = sides[index][1];
+                    if (!voxels.blocks().containsKey(TreeVoxelizer.pack(x, row, z))) voxels.set(x, row, z, facing[index]);
+                }
+            }
         }
     }
 
     // ---- the leaves ------------------------------------------------------------------------------------------------------------
 
     /**
-     * A clump over each tip: flattened by {@code THIN_LEAF_FLAT}, thinned by the density; no leaf on the wood nor within {@code THIN_CLEARANCE} of it, but
-     * near a tip (the clump hangs on it); with vines, strings of leaves down from the underside.
+     * Blobs of leaves as a sphere brush lays them, filled in part ({@code THIN_LEAF_DENSITY} a pass): over every tip and every few blocks along the outer
+     * branches, in {@code THIN_LEAF_PASSES} passes from the darkest leaf to the brightest, each a little higher and smaller (lit from above); not on the wood
+     * nor within {@code THIN_CLEARANCE} of it but near a tip; then no leaf left alone (one with no leaf nor wood by a face). Vines from the first pass.
      */
     private void leaves(TreeSettings s) {
         double size = s.get(TreeSettings.Key.THIN_LEAF_SIZE);
-        double density = s.get(TreeSettings.Key.THIN_LEAF_DENSITY);
+        double density = s.get(TreeSettings.Key.THIN_LEAF_DENSITY) / 100.0;
         double flat = s.get(TreeSettings.Key.THIN_LEAF_FLAT);
         double clearance = s.get(TreeSettings.Key.THIN_CLEARANCE);
+        int layers = s.getInt(TreeSettings.Key.THIN_LEAF_PASSES);
         boolean vines = s.on(TreeSettings.Key.THIN_VINES);
         double vineScale = s.get(TreeSettings.Key.THIN_VINE_SCALE);
+        int shades = Math.max(1, voxels.shades());
         Set<Long> wood = new HashSet<>(voxels.blocks().keySet());
         Set<Long> clear = new HashSet<>();
         int reach = (int) Math.ceil(clearance);
@@ -228,42 +316,65 @@ final class ThinTree {
                 }
             }
         }
-        for (double[] tip : tips) {
-            double r = size * (0.75 + 0.5 * random.nextDouble());
-            double ry = Math.max(0.8, r * (1.0 - 0.6 * flat));
-            double cx = tip[0];
-            double cy = tip[1] + ry * 0.35;
-            double cz = tip[2];
-            int ri = (int) Math.ceil(r);
-            int ryi = (int) Math.ceil(ry);
-            for (int dx = -ri; dx <= ri; dx++) {
-                for (int dy = -ryi; dy <= ryi; dy++) {
-                    for (int dz = -ri; dz <= ri; dz++) {
-                        int x = (int) Math.round(cx) + dx;
-                        int y = (int) Math.round(cy) + dy;
-                        int z = (int) Math.round(cz) + dz;
-                        double ex = (x - cx) / r;
-                        double ey = (y - cy) / ry;
-                        double ez = (z - cz) / r;
-                        double inside = ex * ex + ey * ey + ez * ez;
-                        if (inside > 1.0 + 0.25 * TreeVoxelizer.jitter(x, y, z)) continue;
-                        if (random.nextDouble() * 100.0 > density) continue;
-                        long key = TreeVoxelizer.pack(x, y, z);
-                        if (wood.contains(key)) continue;
-                        boolean nearTip = Math.pow(x - tip[0], 2) + Math.pow(y - tip[1], 2) + Math.pow(z - tip[2], 2) <= 2.25;
-                        if (clear.contains(key) && !nearTip) continue;
-                        voxels.leaf(x, y, z, (y - (cy - ry)) / (2.0 * ry), TreeVoxelizer.jitter(x, y, z));
-                        if (vines && ey < -0.3 && random.nextDouble() < 0.12 * vineScale) {
-                            int hang = (int) Math.ceil((1.5 + random.nextDouble() * 4.0) * vineScale);
-                            for (int down = 1; down <= hang; down++) {
-                                long below = TreeVoxelizer.pack(x, y - down, z);
-                                if (wood.contains(below)) break;
-                                voxels.leaf(x, y - down, z, 0.0, 0.0);
+        List<double[]> centres = new ArrayList<>();
+        for (double[] tip : tips) centres.add(new double[]{tip[0], tip[1], tip[2], 1.0});
+        for (double[] point : along) centres.add(new double[]{point[0], point[1], point[2], 0.75});
+        Set<Long> leafy = new HashSet<>();
+        for (int layer = 0; layer < layers; layer++) {
+            int shade = layers <= 1 ? 0 : (int) Math.round(layer * (shades - 1) / (double) (layers - 1));
+            for (double[] centre : centres) {
+                double r = size * centre[3] * (1.0 - 0.12 * layer) * (0.85 + 0.3 * random.nextDouble());
+                double ry = Math.max(0.8, r * (1.0 - 0.6 * flat));
+                double cx = centre[0] + (random.nextDouble() - 0.5) * 0.8;
+                double cy = centre[1] + ry * 0.3 + layer * 0.4;
+                double cz = centre[2] + (random.nextDouble() - 0.5) * 0.8;
+                int ri = (int) Math.ceil(r);
+                int ryi = (int) Math.ceil(ry);
+                for (int dx = -ri; dx <= ri; dx++) {
+                    for (int dy = -ryi; dy <= ryi; dy++) {
+                        for (int dz = -ri; dz <= ri; dz++) {
+                            int x = (int) Math.round(cx) + dx;
+                            int y = (int) Math.round(cy) + dy;
+                            int z = (int) Math.round(cz) + dz;
+                            double ex = (x - cx) / r;
+                            double ey = (y - cy) / ry;
+                            double ez = (z - cz) / r;
+                            if (ex * ex + ey * ey + ez * ez > 1.0) continue;
+                            if (random.nextDouble() > density) continue;
+                            long key = TreeVoxelizer.pack(x, y, z);
+                            if (wood.contains(key)) continue;
+                            boolean nearTip = Math.pow(x - centre[0], 2) + Math.pow(y - centre[1], 2) + Math.pow(z - centre[2], 2) <= 2.25 && centre[3] >= 1.0;
+                            if (clear.contains(key) && !nearTip) continue;
+                            voxels.set(x, y, z, TreePart.leaf(shade));
+                            leafy.add(key);
+                            if (vines && layer == 0 && ey < -0.3 && random.nextDouble() < 0.12 * vineScale) {
+                                int hang = (int) Math.ceil((1.5 + random.nextDouble() * 4.0) * vineScale);
+                                for (int down = 1; down <= hang; down++) {
+                                    long below = TreeVoxelizer.pack(x, y - down, z);
+                                    if (wood.contains(below)) break;
+                                    voxels.set(x, y - down, z, TreePart.leaf(0));
+                                    leafy.add(below);
+                                }
                             }
                         }
                     }
                 }
             }
+        }
+        // no leaf alone: one with no leaf nor wood by any face goes
+        int[][] faces = {{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
+        for (long key : leafy) {
+            int x = TreeVoxelizer.unpackX(key);
+            int y = TreeVoxelizer.unpackY(key);
+            int z = TreeVoxelizer.unpackZ(key);
+            boolean touches = false;
+            for (int[] face : faces) {
+                if (voxels.blocks().containsKey(TreeVoxelizer.pack(x + face[0], y + face[1], z + face[2]))) {
+                    touches = true;
+                    break;
+                }
+            }
+            if (!touches) voxels.blocks().remove(key);
         }
     }
 
@@ -303,6 +414,20 @@ final class ThinTree {
             org.bukkit.block.data.type.Slab top = (org.bukkit.block.data.type.Slab) slab.clone();
             top.setType(org.bukkit.block.data.type.Slab.Type.TOP);
             return top;
+        }
+        // (t258) a stair turned its way, its bottom half full
+        org.bukkit.block.BlockFace stairWay = switch (part) {
+            case BRANCH_STAIR -> org.bukkit.block.BlockFace.NORTH;
+            case BRANCH_STAIR_EAST -> org.bukkit.block.BlockFace.EAST;
+            case BRANCH_STAIR_SOUTH -> org.bukkit.block.BlockFace.SOUTH;
+            case BRANCH_STAIR_WEST -> org.bukkit.block.BlockFace.WEST;
+            default -> null;
+        };
+        if (stairWay != null && look instanceof org.bukkit.block.data.type.Stairs stair) {
+            org.bukkit.block.data.type.Stairs turned = (org.bukkit.block.data.type.Stairs) stair.clone();
+            turned.setFacing(stairWay);
+            turned.setHalf(org.bukkit.block.data.Bisected.Half.BOTTOM);
+            return turned;
         }
         if (part != TreePart.BRANCH_FENCE && part != TreePart.BRANCH_WALL) return look;
         org.bukkit.block.BlockFace[] faces = {org.bukkit.block.BlockFace.NORTH, org.bukkit.block.BlockFace.EAST, org.bukkit.block.BlockFace.SOUTH, org.bukkit.block.BlockFace.WEST};

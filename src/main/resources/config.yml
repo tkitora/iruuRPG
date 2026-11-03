@@ -1116,6 +1116,8 @@ treetool:
     branch-wall: MUD_BRICK_WALL
     branch-fence: OAK_FENCE
     branch-slab: OAK_SLAB
+    # (t258) 細い木の階段 (丸太が上がりながらずれる継ぎ目と、根元の張り。向きは形から決まる)
+    branch-stair: OAK_STAIRS
     # 岩・スパイク・結晶の部位
     stone: GRAY_WOOL
     stone-light: LIGHT_GRAY_WOOL
