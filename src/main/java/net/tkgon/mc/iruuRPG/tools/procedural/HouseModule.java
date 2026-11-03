@@ -6,7 +6,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * One part added to the house base (t181): a dormer, a chimney, a tower, a wing, a porch, a balcony or a bay window. It is kept with the settings as a list,
+ * One part added to the house base (t181): a dormer, a chimney, a tower, a wing, a porch, a balcony, a bay window; (t190) a volume, stairs. It is kept with the settings as a list,
  * apart from the base: the base is made from its numbers first, then every part is built on it (and may open the base where it joins it), so a part can be
  * moved, changed, turned off or taken away at any time without anything of the base being lost (non-destructive). Its place is given from a side of the house
  * ({@link #side}: 0 front, 1 right, 2 back, 3 left, seen from the front), {@link #along} that side from its middle (to the right of someone outside facing it)
@@ -22,7 +22,11 @@ final class HouseModule {
         WING("wing", "翼棟", 5, 5, 1, 0, 0),
         PORCH("porch", "ポーチ", 5, 3, 3, 0, 0),
         BALCONY("balcony", "バルコニー", 5, 2, 1, 1, 0),
-        BAY("bay", "出窓", 3, 1, 3, 1, 0);
+        BAY("bay", "出窓", 3, 1, 3, 1, 0),
+        /** (t190) a whole box of storeys with its own roof, anywhere: on the ground, on the house, jutting out from it, through its roof. */
+        VOLUME("volume", "棟", 7, 5, 2, 0, 0),
+        /** (t190) stairs outside along a wall, up to a doorway of an upper storey. */
+        STAIR("stair", "外階段", 2, 1, 0, 1, 0);
 
         final String id;
         final String label;
@@ -57,12 +61,14 @@ final class HouseModule {
                 case PORCH -> "屋根の高さ";
                 case BALCONY -> "手すりの高さ";
                 case BAY -> "高さ";
+                case VOLUME -> "階数";
+                case STAIR -> "(使わない)";
             };
         }
 
         /** Whether the level (the storey it starts at) means anything for this kind. */
         boolean usesLevel() {
-            return this == TOWER || this == BALCONY || this == BAY;
+            return this == TOWER || this == BALCONY || this == BAY || this == VOLUME || this == STAIR;
         }
 
         /** What the part is, for the menu. */
@@ -75,6 +81,8 @@ final class HouseModule {
                 case PORCH -> "入口の前の、柱と片流れの屋根の下の床";
                 case BALCONY -> "上の階から張り出す床と手すり。壁に出入り口をあける";
                 case BAY -> "壁から張り出す窓の箱";
+                case VOLUME -> "階と屋根を持つ箱 (棟) を、好きな位置・高さに。家と重なる所は中がつながり、家より高ければ屋根を突き抜ける。階を上げると、家に載る・宙に張り出す";
+                case STAIR -> "壁に沿って上の階の入口まで上がる、石の外階段。上に踊り場と入口";
             };
         }
     }
@@ -101,6 +109,15 @@ final class HouseModule {
     static final int MAX_HEIGHT = 30;
     static final int MAX_LEVEL = 5;
 
+    /** The roof of a volume: -1 the house's shape, else the shape (0 to 10). */
+    int roof = -1;
+    /** The way the ridge of a volume runs (0 auto, 1 along the side it stands on, 2 across). */
+    int ridge;
+    /** The shape of a tower (0 round, 1 octagonal, 2 square); the way stairs go up (0 to the right, 1 to the left). */
+    int shape;
+    /** How far the top storey of a tower juts out; the jetty of a volume (-1 the house's). */
+    int jetty;
+
     Type type;
     int side;
     int along;
@@ -124,6 +141,10 @@ final class HouseModule {
         height = type.height;
         level = type.level;
         offset = type.offset;
+        roof = -1;
+        ridge = 0;
+        shape = 0;
+        jetty = type == Type.VOLUME ? -1 : 0;
     }
 
     /** Changes the kind; the numbers become those of the new kind. */
@@ -143,6 +164,10 @@ final class HouseModule {
         copy.height = height;
         copy.level = level;
         copy.on = on;
+        copy.roof = roof;
+        copy.ridge = ridge;
+        copy.shape = shape;
+        copy.jetty = jetty;
         return copy;
     }
 
@@ -155,6 +180,10 @@ final class HouseModule {
         depth = clamp(depth, 1, MAX_DEPTH);
         height = clamp(height, 0, MAX_HEIGHT);
         level = clamp(level, 0, MAX_LEVEL);
+        roof = clamp(roof, -1, 10);
+        ridge = clamp(ridge, 0, 2);
+        shape = clamp(shape, 0, 2);
+        jetty = clamp(jetty, -1, 3);
     }
 
     private static int clamp(int value, int min, int max) {
@@ -172,6 +201,10 @@ final class HouseModule {
         map.put("height", height);
         map.put("level", level);
         map.put("on", on);
+        map.put("roof", roof);
+        map.put("ridge", ridge);
+        map.put("shape", shape);
+        map.put("jetty", jetty);
         return map;
     }
 
@@ -190,6 +223,10 @@ final class HouseModule {
         if (map.get("height") instanceof Number number) module.height = number.intValue();
         if (map.get("level") instanceof Number number) module.level = number.intValue();
         if (map.get("on") instanceof Boolean value) module.on = value;
+        if (map.get("roof") instanceof Number number) module.roof = number.intValue();
+        if (map.get("ridge") instanceof Number number) module.ridge = number.intValue();
+        if (map.get("shape") instanceof Number number) module.shape = number.intValue();
+        if (map.get("jetty") instanceof Number number) module.jetty = number.intValue();
         module.limit();
         return module;
     }

@@ -11,7 +11,8 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The house base of the procedural tool (t179; t181 the turn, the fantasy roofs and the parts added on), a block-out in the parts' wool after the
+ * The house base of the procedural tool (t179; t181 the turn, the fantasy roofs and the parts added on; t190 the depth and layers of walls and roofs,
+ * volumes, stairs, the shapes of towers), a block-out in the parts' wool after the
  * building generators of Houdini. The house is made in its own coordinates ({@code a} along the front from its left, {@code b} from the back to the
  * front, y up from the block over the one clicked): first the base from its numbers (the storeys with their floors, walls, pillars and openings, a
  * timber frame and a stone ground floor when asked, the upper storeys jettied out, the roof), then every part of the list of {@link HouseModule} on it
@@ -109,8 +110,20 @@ final class HouseShape {
         final boolean mirror;
         /** The section of a roof of steps (9, 10; t185). */
         final Steps steps;
+        /** (t190) the jetty on all four sides, brackets under it, the walls set back behind the frame, glass in the windows, a stone plinth, roofs between the storeys, a ridge beam. */
+        final boolean jettySides;
+        final boolean brackets;
+        final boolean recess;
+        final boolean glass;
+        final int plinth;
+        final int skirt;
+        final boolean ridgeBeam;
         /** The height of the eaves: the top of the walls of the last storey. */
         final int top;
+        /** The base: the box of the house's own storeys and roof. */
+        final Box base;
+        /** The highest block of each column of the base (by {@link #column}), once it is made: what is "in the house" for a volume. */
+        private Map<Long, Integer> baseTops = Map.of();
 
         House(TreeSettings s) {
             width = s.getInt(TreeSettings.Key.HOUSE_WIDTH);
@@ -129,7 +142,15 @@ final class HouseShape {
             timber = s.on(TreeSettings.Key.HOUSE_TIMBER);
             mirror = s.on(TreeSettings.Key.HOUSE_PILLAR_MIRROR);
             steps = Steps.of(s.roofSteps(), s.on(TreeSettings.Key.HOUSE_STEP_FIT));
+            jettySides = s.on(TreeSettings.Key.HOUSE_JETTY_SIDES);
+            brackets = s.on(TreeSettings.Key.HOUSE_BRACKETS);
+            recess = s.on(TreeSettings.Key.HOUSE_RECESS);
+            glass = s.on(TreeSettings.Key.HOUSE_GLASS);
+            plinth = s.getInt(TreeSettings.Key.HOUSE_PLINTH);
+            skirt = s.getInt(TreeSettings.Key.HOUSE_SKIRT);
+            ridgeBeam = s.on(TreeSettings.Key.HOUSE_RIDGE_BEAM);
             top = floors * storey;
+            base = new Box(width, depth, floors, roof, ridge, jetty, door, stone, true);
         }
 
         /** How thick the roof is (its steepest slope with no holes). */
@@ -142,59 +163,235 @@ final class HouseShape {
             return roof == 9 || roof == 10;
         }
 
-        /** How far storey {@code k} (0 = the ground) reaches out past the ground storey at the front and at the back (the jetty, at most 3). */
+        /** How far storey {@code k} (0 = the ground) of the base reaches out past its ground storey at the front and at the back (the jetty, at most 3). */
         int out(int k) {
-            return Math.min(3, Math.max(0, k) * jetty);
+            return base.out(k);
         }
 
-        /** The plan of storey {@code k}: as wide as the house, as deep as the ground storey and its jetty both ways; the door only on the ground. */
+        /** How far storey {@code k} of the base reaches out at the sides (with the jetty on all four sides; else 0). */
+        int outA(int k) {
+            return base.outA(k);
+        }
+
+        /** The plan of storey {@code k} of the base. */
         HousePlan plan(int k) {
-            return new HousePlan(width, depth + 2 * out(k), storey, spacing, windows, door && k == 0, mirror);
+            return base.plan(k);
+        }
+
+        /** The base, into {@code out}; what of it is "in the house" is kept for the volumes. */
+        void body(Blocks out) {
+            base.build(out);
+            baseTops = Build.tops(out);
         }
 
         /**
-         * The base: the storeys, each a floor at its foot, walls round its edge (with the door and the windows; a beam at the foot and braces between
-         * the pillars with a timber frame; stone on the ground with a stone base), pillars at the corners and along the walls; on top the roof out past
-         * the walls by the overhang, the floor under it and the walls up to it.
+         * Whether the house's block {@code (a, y, b)} is in the base: inside (or on) the walls of the storey at that height, or under its roof (inside its
+         * eaves, below the top of the roof there).
          */
-        void body(Blocks out) {
-            for (int k = 0; k < floors; k++) {
-                HousePlan plan = plan(k);
+        boolean inside(int a, int b, int y) {
+            if (y < 0) return false;
+            if (y < top) {
+                int k = y / storey;
+                return a >= -outA(k) && a <= width - 1 + outA(k) && b >= -out(k) && b <= depth - 1 + out(k);
+            }
+            Integer high = baseTops.get(column(a, b));
+            int e = out(floors - 1);
+            int eA = outA(floors - 1);
+            return high != null && y < high && a >= -eA - overhang && a <= width - 1 + eA + overhang && b >= -e - overhang && b <= depth - 1 + e + overhang;
+        }
+
+        /**
+         * A box of storeys under a roof (t190): the base of the house, or a volume added on it. Each storey a floor at its foot, walls round its edge (with
+         * the door and the windows, glass set back in them; the walls set back behind the frame; a beam at the foot and braces between the pillars with a
+         * timber frame; stone on the ground with a stone base), pillars at the corners and along the walls; the upper storeys jettied out (on all four sides
+         * when asked) on brackets; roofs between the storeys; a stone plinth round the ground storey; on top the roof out past the walls by the overhang,
+         * with a ridge beam, the floor under it and the walls up to it.
+         */
+        final class Box {
+            final int width;
+            final int depth;
+            final int floors;
+            final int roof;
+            final int ridge;
+            final int jetty;
+            final boolean door;
+            final boolean stoneGround;
+            final boolean ground;
+            final int top;
+
+            Box(int width, int depth, int floors, int roof, int ridge, int jetty, boolean door, boolean stoneGround, boolean ground) {
+                this.width = width;
+                this.depth = depth;
+                this.floors = floors;
+                this.roof = roof;
+                this.ridge = ridge;
+                this.jetty = jetty;
+                this.door = door;
+                this.stoneGround = stoneGround;
+                this.ground = ground;
+                top = floors * storey;
+            }
+
+            int out(int k) {
+                return Math.min(3, Math.max(0, k) * jetty);
+            }
+
+            int outA(int k) {
+                return jettySides ? out(k) : 0;
+            }
+
+            /** The plan of storey {@code k}: as wide and as deep as the ground storey and its jetty both ways; the door only on the ground. */
+            HousePlan plan(int k) {
+                return new HousePlan(width + 2 * outA(k), depth + 2 * out(k), storey, spacing, windows, door && k == 0, mirror);
+            }
+
+            /** Whether {@code (a, b)} (in the box) is a corner of storey {@code k}. */
+            boolean corner(int a, int b, int k) {
                 int e = out(k);
-                for (int a = 0; a < width; a++) {
-                    for (int pb = 0; pb < plan.depth(); pb++) {
-                        boolean edge = a == 0 || pb == 0 || a == width - 1 || pb == plan.depth() - 1;
-                        for (int level = 0; level < storey; level++) {
-                            TreePart part = cell(plan, a, pb, level, edge, stone && k == 0);
-                            if (part != null) out.put(a, k * storey + level, pb - e, part);
+                int eA = outA(k);
+                return (a == -eA || a == width - 1 + eA) && (b == -e || b == depth - 1 + e);
+            }
+
+            void build(Blocks out) {
+                for (int k = 0; k < floors; k++) {
+                    HousePlan plan = plan(k);
+                    int e = out(k);
+                    int eA = outA(k);
+                    for (int pa = 0; pa < plan.width(); pa++) {
+                        for (int pb = 0; pb < plan.depth(); pb++) {
+                            boolean edge = pa == 0 || pb == 0 || pa == plan.width() - 1 || pb == plan.depth() - 1;
+                            for (int level = 0; level < storey; level++) {
+                                int y = k * storey + level;
+                                TreePart part = cell(plan, pa, pb, level, edge, stoneGround && k == 0);
+                                if (part == null) {
+                                    // (a window's glass one block in from the face of the wall)
+                                    if (glass && edge && plan.window(pa, pb, level)) {
+                                        int[] in = inward(plan, pa, pb);
+                                        out.put(pa - eA + in[0], y, pb - e + in[1], TreePart.HOUSE_WINDOW);
+                                    }
+                                    continue;
+                                }
+                                if (recess && edge && level > 0 && part == TreePart.HOUSE_WALL) {
+                                    int[] in = inward(plan, pa, pb);
+                                    out.put(pa - eA + in[0], y, pb - e + in[1], part);
+                                } else {
+                                    out.put(pa - eA, y, pb - e, part);
+                                }
+                            }
+                        }
+                    }
+                    if (k > 0 && brackets) brackets(out, k);
+                }
+                int e = out(floors - 1);
+                int eA = outA(floors - 1);
+                HousePlan plan = plan(floors - 1);
+                int lowA = -eA - overhang;
+                int lowB = -e - overhang;
+                int highA = width - 1 + eA + overhang;
+                int highB = depth - 1 + e + overhang;
+                int[][] bottom = HouseShape.roof(out::put, roof, ridge, pitch, steps, top, lowA, highA, lowB, highB);
+                if (ridgeBeam) HouseShape.ridgeBeam(out::put, roof, ridge, pitch, steps, top, lowA, highA, lowB, highB);
+                if (roof != 0) {
+                    boolean stoneTop = stoneGround && floors == 1;
+                    for (int pa = 0; pa < plan.width(); pa++) {
+                        for (int pb = 0; pb < plan.depth(); pb++) {
+                            boolean edge = pa == 0 || pb == 0 || pa == plan.width() - 1 || pb == plan.depth() - 1;
+                            int a = pa - eA;
+                            int b = pb - e;
+                            // the floor of the storey that holds up the roof (a flat roof is that floor itself), where the roof is not down on it
+                            if (!edge) {
+                                if (!out.has(a, top, b)) out.put(a, top, b, TreePart.HOUSE_FLOOR);
+                                continue;
+                            }
+                            // the gaps under the roof over the walls (the gables, the high side of a shed) are walled up; the pillars go on up
+                            boolean pillar = plan.pillar(pa, pb);
+                            int[] in = inward(plan, pa, pb);
+                            for (int y = top; y < top + bottom[a - lowA][b - lowB]; y++) {
+                                TreePart part = stoneTop ? TreePart.HOUSE_STONE : pillar ? TreePart.HOUSE_PILLAR : timber && y == top ? TreePart.HOUSE_BEAM : TreePart.HOUSE_WALL;
+                                // (set back over the line of the ceiling, as the walls of a storey are over its sill)
+                                if (recess && part == TreePart.HOUSE_WALL && y > top) out.put(a + in[0], y, b + in[1], part);
+                                else out.put(a, y, b, part);
+                            }
+                        }
+                    }
+                }
+                skirts(out);
+                if (ground) plinth(out);
+            }
+
+            /** The brackets under the storey {@code k} where it juts out past the one under it: from the pillars below, up and out to its floor. */
+            private void brackets(Blocks out, int k) {
+                HousePlan below = plan(k - 1);
+                int e = out(k - 1);
+                int eA = outA(k - 1);
+                int j = out(k) - e;
+                int jA = outA(k) - eA;
+                int floor = k * storey;
+                for (int s = 1; s <= j; s++) {
+                    for (int pa = 0; pa < below.width(); pa++) {
+                        if (!below.pillar(pa, 0)) continue;
+                        out.put(pa - eA, floor - 1 - (j - s), depth - 1 + e + s, TreePart.HOUSE_BEAM);
+                        out.put(pa - eA, floor - 1 - (j - s), -e - s, TreePart.HOUSE_BEAM);
+                    }
+                }
+                for (int s = 1; s <= jA; s++) {
+                    for (int pb = 0; pb < below.depth(); pb++) {
+                        if (!below.pillar(0, pb)) continue;
+                        out.put(-eA - s, floor - 1 - (jA - s), pb - e, TreePart.HOUSE_BEAM);
+                        out.put(width - 1 + eA + s, floor - 1 - (jA - s), pb - e, TreePart.HOUSE_BEAM);
+                    }
+                }
+            }
+
+            /**
+             * The roofs between the storeys: at the foot of each upper storey, out from the walls of the one under it by {@link #skirt}, one lower each block
+             * out (the corners hipped); not on a side the upper storey juts out on.
+             */
+            private void skirts(Blocks out) {
+                if (skirt <= 0) return;
+                for (int k = 1; k < floors; k++) {
+                    int floor = k * storey;
+                    boolean frontBack = out(k) == out(k - 1);
+                    boolean sides = outA(k) == outA(k - 1);
+                    int lowA = -outA(k - 1);
+                    int highA = width - 1 + outA(k - 1);
+                    int lowB = -out(k - 1);
+                    int highB = depth - 1 + out(k - 1);
+                    for (int a = lowA - skirt; a <= highA + skirt; a++) {
+                        for (int b = lowB - skirt; b <= highB + skirt; b++) {
+                            int da = a < lowA ? lowA - a : a > highA ? a - highA : 0;
+                            int db = b < lowB ? lowB - b : b > highB ? b - highB : 0;
+                            if (da == 0 && db == 0 || da > 0 && !sides || db > 0 && !frontBack) continue;
+                            int y = floor - (Math.max(da, db) - 1);
+                            if (!out.has(a, y, b)) out.put(a, y, b, TreePart.HOUSE_ROOF);
                         }
                     }
                 }
             }
-            int e = out(floors - 1);
-            HousePlan plan = plan(floors - 1);
-            int lowA = -overhang;
-            int lowB = -e - overhang;
-            int[][] bottom = roof(out::put, roof, ridge, pitch, steps, top, lowA, width - 1 + overhang, lowB, depth - 1 + e + overhang);
-            if (roof == 0) return;
-            boolean stoneTop = stone && floors == 1;
-            for (int a = 0; a < width; a++) {
-                for (int pb = 0; pb < plan.depth(); pb++) {
-                    boolean edge = a == 0 || pb == 0 || a == width - 1 || pb == plan.depth() - 1;
-                    int b = pb - e;
-                    // the floor of the storey that holds up the roof (a flat roof is that floor itself), where the roof is not down on it
-                    if (!edge) {
-                        if (!out.has(a, top, b)) out.put(a, top, b, TreePart.HOUSE_FLOOR);
-                        continue;
-                    }
-                    // the gaps under the roof over the walls (the gables, the high side of a shed) are walled up; the pillars go on up
-                    boolean pillar = plan.pillar(a, pb);
-                    for (int y = top; y < top + bottom[a - lowA][b - lowB]; y++) {
-                        TreePart part = stoneTop ? TreePart.HOUSE_STONE : pillar || timber && y == top ? TreePart.HOUSE_PILLAR : TreePart.HOUSE_WALL;
-                        out.put(a, y, b, part);
+
+            /** The stone plinth: one block out round the ground storey, {@link #plinth} high (the way in at the door left open over its foot). */
+            private void plinth(Blocks out) {
+                if (plinth <= 0) return;
+                int doorAt = door ? plan(0).doorAt() : Integer.MIN_VALUE;
+                for (int a = -1; a <= width; a++) {
+                    for (int b = -1; b <= depth; b++) {
+                        if (a >= 0 && a < width && b >= 0 && b < depth) continue;
+                        for (int y = 0; y < plinth; y++) {
+                            if (y > 0 && a == doorAt && b == depth) continue;
+                            if (!out.has(a, y, b)) out.put(a, y, b, TreePart.HOUSE_STONE);
+                        }
                     }
                 }
             }
+        }
+
+        /** One block in from the edge of a plan at {@code (a, b)}, toward the inside: {da, db}. */
+        private static int[] inward(HousePlan plan, int a, int b) {
+            if (b == plan.depth() - 1) return new int[]{0, -1};
+            if (b == 0) return new int[]{0, 1};
+            if (a == 0) return new int[]{1, 0};
+            if (a == plan.width() - 1) return new int[]{-1, 0};
+            return new int[]{0, 0};
         }
 
         /** The block of a storey at {@code (a, b)} of its plan, {@code level} over its floor; null for none (inside, or an opening). */
@@ -203,7 +400,7 @@ final class HouseShape {
             if (!edge) return level == 0 ? TreePart.HOUSE_FLOOR : null;
             if (plan.opening(a, b, level)) return null;
             if (stoneStorey) return TreePart.HOUSE_STONE;
-            if (timber && (level == 0 || brace(plan, a, b, level))) return TreePart.HOUSE_PILLAR;
+            if (timber && (level == 0 || brace(plan, a, b, level))) return TreePart.HOUSE_BEAM;
             return TreePart.HOUSE_WALL;
         }
 
@@ -219,18 +416,20 @@ final class HouseShape {
 
         /** Side {@code index} of storey {@code k} as a frame for a part (0 front, 1 right, 2 back, 3 left; right and left as seen from the front). */
         Side side(int index, int k) {
-            int e = out(Math.max(0, Math.min(floors - 1, k)));
+            int storeyK = Math.max(0, Math.min(floors - 1, k));
+            int e = out(storeyK);
+            int eA = outA(storeyK);
             return switch (Math.floorMod(index, 4)) {
-                case 1 -> new Side(1, width - 1, (depth - 1) / 2);
+                case 1 -> new Side(1, width - 1 + eA, (depth - 1) / 2);
                 case 2 -> new Side(2, -e, (width - 1) / 2);
-                case 3 -> new Side(3, 0, (depth - 1) / 2);
+                case 3 -> new Side(3, -eA, (depth - 1) / 2);
                 default -> new Side(0, depth - 1 + e, (width - 1) / 2);
             };
         }
 
         /** Half the house across from {@code side} to the ridge (how far back the roof of a wing on that side reaches into the house's). */
         int halfAcross(int side) {
-            return side % 2 == 0 ? (depth - 1) / 2 + out(floors - 1) : (width - 1) / 2;
+            return side % 2 == 0 ? (depth - 1) / 2 + out(floors - 1) : (width - 1) / 2 + outA(floors - 1);
         }
 
         /** Builds one part on what is there ({@code out}: the base and the parts before it). */
@@ -242,7 +441,8 @@ final class HouseShape {
         int storeyOf(HouseModule m) {
             return switch (m.type) {
                 case DORMER -> floors - 1;
-                case TOWER, BALCONY, BAY -> m.level;
+                case TOWER, BALCONY, BAY, STAIR -> m.level;
+                case VOLUME -> Math.min(m.level, floors - 1);
                 default -> 0;
             };
         }
@@ -258,6 +458,8 @@ final class HouseShape {
                 case PORCH -> porch(build, m);
                 case BALCONY -> balcony(build, m);
                 case BAY -> bay(build, m);
+                case VOLUME -> volume(build, m);
+                case STAIR -> stair(build, m);
             }
             return build;
         }
@@ -331,9 +533,10 @@ final class HouseShape {
         }
 
         /**
-         * A round tower of {@code width} across, out from the wall (by default half in it), from storey {@code level} up to {@code height} over the house's
-         * eaves, with a floor at every storey, windows to the front and the sides and a steep cone of a roof; from a storey over the ground it hangs on the
-         * wall on a corbel (a turret). Its inside opens into the house.
+         * A tower of {@code width} across (round, octagonal or square: {@code shape}), out from the wall (by default half in it), from storey {@code level} up
+         * to {@code height} over the house's eaves, with a floor at every storey, windows to the front and the sides and a steep cone of a roof (a pyramid on
+         * a square one); from a storey over the ground it hangs on the wall on a corbel (a turret). Its top storey may jut out by {@code jetty} on brackets
+         * (t190). Its inside opens into the house.
          */
         private void tower(Build p, HouseModule m) {
             int size = Math.max(3, m.width);
@@ -341,53 +544,60 @@ final class HouseShape {
             double cu = (lo + lo + size - 1) / 2.0;
             double cv = (1 + size) / 2.0;
             double radius = size / 2.0;
+            int shape = m.shape;
+            int flare = Math.max(0, Math.min(2, m.jetty));
             int level = Math.max(0, Math.min(floors - 1, m.level));
             int foot = level * storey;
             int head = Math.max(foot + storey, top + m.height);
+            // (the top storey that juts out starts a storey under the head)
+            int jut = flare > 0 ? Math.max(foot + 1, head - storey) : head;
             TreePart wall = level == 0 ? TreePart.HOUSE_STONE : TreePart.HOUSE_WALL;
             int reach = (int) Math.ceil(radius) + 2;
-            for (int u = lo - 2; u <= lo + size + 1; u++) {
-                for (int v = -1; v <= size + 2; v++) {
+            for (int u = lo - 2 - flare; u <= lo + size + 1 + flare; u++) {
+                for (int v = -1 - flare; v <= size + 2 + flare; v++) {
                     double du = u - cu;
                     double dv = v - cv;
-                    double d = Math.hypot(du, dv);
-                    if (d <= radius) {
-                        boolean ring = !inside(u + 1, v, cu, cv, radius) || !inside(u - 1, v, cu, cv, radius) || !inside(u, v + 1, cu, cv, radius)
-                                || !inside(u, v - 1, cu, cv, radius) || !inside(u + 1, v + 1, cu, cv, radius) || !inside(u - 1, v - 1, cu, cv, radius)
-                                || !inside(u + 1, v - 1, cu, cv, radius) || !inside(u - 1, v + 1, cu, cv, radius);
-                        double angle = Math.atan2(du, dv);
-                        boolean facing = Math.abs(angle) < 0.35 || Math.abs(Math.abs(angle) - Math.PI / 2.0) < 0.35;
-                        for (int y = foot; y < head; y++) {
-                            int inStorey = Math.floorMod(y, storey);
-                            if (ring) {
-                                boolean window = facing && storey >= 4 && inStorey >= 2 && inStorey <= storey - 2;
-                                if (window) p.carve(u, v, y);
-                                else p.put(u, v, y, wall);
-                            } else if (inStorey == 0) {
-                                p.put(u, v, y, TreePart.HOUSE_FLOOR);
-                            } else {
-                                p.carve(u, v, y);
-                            }
+                    double d = metric(shape, du, dv);
+                    double angle = Math.atan2(du, dv);
+                    boolean facing = Math.abs(angle) < 0.35 || Math.abs(Math.abs(angle) - Math.PI / 2.0) < 0.35;
+                    boolean ringLow = edge(shape, u, v, cu, cv, radius);
+                    boolean ringHigh = edge(shape, u, v, cu, cv, radius + flare);
+                    for (int y = foot; y < head; y++) {
+                        boolean high = y >= jut;
+                        if (d > (high ? radius + flare : radius)) continue;
+                        int inStorey = Math.floorMod(y, storey);
+                        if (high ? ringHigh : ringLow) {
+                            boolean window = facing && storey >= 4 && inStorey >= 2 && inStorey <= storey - 2;
+                            if (window) p.carve(u, v, y);
+                            else p.put(u, v, y, high && flare > 0 ? TreePart.HOUSE_WALL : wall);
+                        } else if (inStorey == 0 || y == jut) {
+                            p.put(u, v, y, TreePart.HOUSE_FLOOR);
+                        } else {
+                            p.carve(u, v, y);
                         }
-                        // the corbel of a turret: rings narrowing down under it
-                        if (level > 0) {
-                            for (int k = 1; k <= reach; k++) {
-                                double r = radius - k;
-                                if (r < 0.5 || d > r || foot - k < 0) continue;
-                                if (d > r - 1.0) p.put(u, v, foot - k, wall);
-                            }
+                    }
+                    // the brackets under the top storey that juts out
+                    if (flare > 0 && d > radius && d <= radius + 1.0 && facing && jut - 1 >= foot) p.put(u, v, jut - 1, TreePart.HOUSE_BEAM);
+                    // the corbel of a turret: rings narrowing down under it
+                    if (level > 0 && d <= radius) {
+                        for (int k = 1; k <= reach; k++) {
+                            double r = radius - k;
+                            if (r < 0.5 || d > r || foot - k < 0) continue;
+                            if (d > r - 1.0) p.put(u, v, foot - k, wall);
                         }
                     }
                     // the cone, one block out past the walls (on a roof of steps: its steps, half as steep again, a witch's hat)
-                    double eaves = radius + 1.0;
+                    double eaves = radius + flare + 1.0;
                     if (d <= eaves) {
                         int rise;
                         int thick;
+                        // (a round cone is a witch's hat; an octagonal one less steep; a square one a pyramid about as steep as the house's roof)
+                        double sharp = shape == 2 ? 1.25 / 2.5 : shape == 1 ? 2.0 / 2.5 : 1.0;
                         if (stepped()) {
-                            rise = (int) Math.round(steps.rise((int) Math.floor(eaves - d), (int) Math.floor(eaves)) * CONE_STEEP);
-                            thick = (int) Math.ceil(steps.highest() * CONE_STEEP);
+                            rise = (int) Math.round(steps.rise((int) Math.floor(eaves - d), (int) Math.floor(eaves)) * CONE_STEEP * sharp);
+                            thick = (int) Math.ceil(steps.highest() * CONE_STEEP * sharp);
                         } else {
-                            double steep = Math.max(1.5, pitch * 2.5);
+                            double steep = Math.max(shape == 2 ? 1.0 : 1.5, pitch * 2.5 * sharp);
                             rise = (int) Math.floor((eaves - d) * steep);
                             thick = (int) Math.ceil(steep);
                         }
@@ -400,8 +610,26 @@ final class HouseShape {
         /** How much steeper the cone of a tower is than the house's roof of steps. */
         private static final double CONE_STEEP = 1.5;
 
-        private static boolean inside(int u, int v, double cu, double cv, double radius) {
-            return Math.hypot(u - cu, v - cv) <= radius;
+        /** The distance from the middle of a tower in its shape (0 round, 1 octagonal, 2 square): what is within its radius is in it. */
+        static double metric(int shape, double x, double y) {
+            double ax = Math.abs(x);
+            double ay = Math.abs(y);
+            return switch (shape) {
+                case 1 -> Math.max(Math.max(ax, ay), (ax + ay) / Math.sqrt(2.0));
+                case 2 -> Math.max(ax, ay);
+                default -> Math.hypot(x, y);
+            };
+        }
+
+        /** Whether {@code (u, v)} is on the wall of a tower of {@code radius}: in it, with one of its eight neighbours out of it. */
+        private static boolean edge(int shape, int u, int v, double cu, double cv, double radius) {
+            if (metric(shape, u - cu, v - cv) > radius) return false;
+            for (int du = -1; du <= 1; du++) {
+                for (int dv = -1; dv <= 1; dv++) {
+                    if ((du != 0 || dv != 0) && metric(shape, u + du - cu, v + dv - cv) > radius) return true;
+                }
+            }
+            return false;
         }
 
         /**
@@ -452,7 +680,7 @@ final class HouseShape {
                     int under = bottom[i - lowA][j - lowB];
                     boolean edge = i == 0 || i == w - 1 || j == d - 1;
                     for (int y = eaves; y < eaves + under; y++) {
-                        if (edge) p.put(lo + i, j, y, plan.pillar(i, j) || timber && y == eaves ? TreePart.HOUSE_PILLAR : TreePart.HOUSE_WALL);
+                        if (edge) p.put(lo + i, j, y, plan.pillar(i, j) ? TreePart.HOUSE_PILLAR : timber && y == eaves ? TreePart.HOUSE_BEAM : TreePart.HOUSE_WALL);
                         // (inside its roof: what of the house's eaves is there goes; the house's own wall on the line it joins stays)
                         else if (y > eaves && j > 0) p.carve(lo + i, j, y);
                     }
@@ -508,7 +736,7 @@ final class HouseShape {
             for (int u : new int[]{lo, hi}) {
                 for (int v = 1; v <= d; v++) {
                     int y = floorY - 1 - (d - v);
-                    if (y >= 0) p.put(u, v, y, TreePart.HOUSE_PILLAR);
+                    if (y >= 0) p.put(u, v, y, TreePart.HOUSE_BEAM);
                 }
             }
             if (level > 0 && storey >= 3) {
@@ -535,13 +763,96 @@ final class HouseShape {
                     }
                 }
                 // a bracket under each end
-                if ((u == lo || u == hi) && foot - 1 > 0) p.put(u, 1, foot - 1, TreePart.HOUSE_PILLAR);
+                if ((u == lo || u == hi) && foot - 1 > 0) p.put(u, 1, foot - 1, TreePart.HOUSE_BEAM);
             }
             int from = w >= 3 ? lo + 1 : lo;
             int to = w >= 3 ? hi - 1 : hi;
             for (int u = from; u <= to; u++) {
                 for (int y = foot + 1; y < foot + h; y++) p.carveWall(u, y);
             }
+        }
+
+        /**
+         * A volume (t190): a box of {@code height} storeys, {@code width} along the side and {@code depth} out (from the wall line moved by the offset), from
+         * storey {@code level} up, with its own roof ({@code roof}, -1 the house's; {@code ridge}) and the house's walls, windows, timber, jetty ({@code jetty},
+         * -1 the house's) and so on. Where it is in the house its walls are left out and the house is opened into it (its corners stay); inside it, what of
+         * the house is there is taken away, so it stands through the house's roof when it is higher; out of the house over the ground it stands on brackets.
+         */
+        private void volume(Build p, HouseModule m) {
+            int w = Math.max(3, m.width);
+            int d = Math.max(3, m.depth);
+            int storeys = Math.max(1, Math.min(6, m.height));
+            int level = Math.max(0, m.level);
+            int baseY = level * storey;
+            // (one on the ground at the front has a door of its own in the middle of its front, so a volume in front of the house's door does not shut it)
+            boolean front = door && level == 0 && Math.floorMod(m.side, 4) == 0;
+            Box box = new Box(w, d, storeys, m.roof < 0 ? roof : m.roof, m.ridge, m.jetty < 0 ? jetty : m.jetty, front, stone && level == 0, level == 0);
+            Blocks mass = new Blocks();
+            box.build(mass);
+            int lo = -(w - 1) / 2;
+            Map<Long, int[]> spans = new HashMap<>();
+            for (Map.Entry<Long, TreePart> entry : mass.map.entrySet()) {
+                long key = entry.getKey();
+                int a = TreeVoxelizer.unpackX(key);
+                int y = TreeVoxelizer.unpackY(key);
+                int b = TreeVoxelizer.unpackZ(key);
+                spans.merge(column(a, b), new int[]{y, y}, (one, two) -> new int[]{Math.min(one[0], two[0]), Math.max(one[1], two[1])});
+                int u = lo + a;
+                int wy = y + baseY;
+                TreePart part = entry.getValue();
+                boolean corner = y < box.top && box.corner(a, b, Math.min(storeys - 1, y / storey));
+                if (part != TreePart.HOUSE_FLOOR && !corner && inside(p.a(u, b), p.b(u, b), wy)) {
+                    p.carve(u, b, wy);
+                    continue;
+                }
+                p.put(u, b, wy, part);
+            }
+            // its inside: in each of its columns, between its lowest and highest blocks, what it has not
+            for (Map.Entry<Long, int[]> entry : spans.entrySet()) {
+                int a = (int) (entry.getKey() >> 32);
+                int b = (int) (long) entry.getKey();
+                for (int y = entry.getValue()[0]; y <= entry.getValue()[1]; y++) {
+                    if (!mass.has(a, y, b)) p.carve(lo + a, b, y + baseY);
+                }
+            }
+            // over the ground and out of the house: a bracket under each pillar of its outer walls
+            if (level > 0 && brackets) {
+                HousePlan plan = box.plan(0);
+                for (int pa = 0; pa < plan.width(); pa++) {
+                    for (int pb = 0; pb < plan.depth(); pb++) {
+                        boolean edge = pa == 0 || pb == 0 || pa == plan.width() - 1 || pb == plan.depth() - 1;
+                        if (!edge || !plan.pillar(pa, pb)) continue;
+                        int u = lo + pa;
+                        if (inside(p.a(u, pb), p.b(u, pb), baseY - 1)) continue;
+                        int[] in = inward(plan, pa, pb);
+                        p.soft(u, pb, baseY - 1, TreePart.HOUSE_BEAM);
+                        if (baseY - 2 >= 0) p.soft(u + in[0], pb + in[1], baseY - 2, TreePart.HOUSE_BEAM);
+                    }
+                }
+            }
+        }
+
+        /**
+         * Stairs outside (t190): a stone landing in front of a doorway of storey {@code level} (opened in the wall), and the flight down along the wall from
+         * it, {@code width} wide, going up to the right ({@code shape} 0) or to the left (1); solid under it down to the ground.
+         */
+        private void stair(Build p, HouseModule m) {
+            int level = Math.max(1, Math.min(Math.max(1, floors - 1), m.level));
+            int floorY = level * storey;
+            int w = Math.max(1, Math.min(3, m.width));
+            int up = m.shape == 1 ? -1 : 1;
+            for (int u = -1; u <= 1; u++) {
+                for (int v = 1; v <= w; v++) {
+                    for (int y = 0; y <= floorY; y++) p.put(u, v, y, TreePart.HOUSE_STONE);
+                }
+            }
+            for (int k = 1; k < floorY; k++) {
+                int u = -up * (1 + k);
+                for (int v = 1; v <= w; v++) {
+                    for (int y = 0; y <= floorY - k; y++) p.put(u, v, y, TreePart.HOUSE_STONE);
+                }
+            }
+            for (int y = floorY + 1; y <= floorY + 2; y++) p.carveWall(0, y);
         }
     }
 
@@ -607,11 +918,12 @@ final class HouseShape {
             return tops;
         }
 
-        private int a(int u, int v) {
+        /** The house's {@code a} and {@code b} of the part's {@code (u, v)}. */
+        int a(int u, int v) {
             return side.a(along + u, offset + v);
         }
 
-        private int b(int u, int v) {
+        int b(int u, int v) {
             return side.b(along + u, offset + v);
         }
 
@@ -688,6 +1000,42 @@ final class HouseShape {
             }
         }
         return bottom;
+    }
+
+    /**
+     * The ridge beam (t190): a beam over the highest blocks of a roof (the ridge, or the top of a hip); where the ridge runs out to a gable, it juts two blocks
+     * past it and its tip is turned up.
+     */
+    static void ridgeBeam(Sink sink, int type, int ridge, double pitch, Steps steps, int base, int lowA, int highA, int lowB, int highB) {
+        if (type == 0 || type == 3) return;
+        int sizeA = highA - lowA + 1;
+        int sizeB = highB - lowB + 1;
+        int[][] rise = new int[sizeA][sizeB];
+        int high = Integer.MIN_VALUE;
+        for (int i = 0; i < sizeA; i++) {
+            for (int j = 0; j < sizeB; j++) {
+                rise[i][j] = roofRise(type, ridge, lowA + i, lowB + j, lowA, highA, lowB, highB, pitch, steps);
+                high = Math.max(high, rise[i][j]);
+            }
+        }
+        int y = base + high + 1;
+        for (int i = 0; i < sizeA; i++) {
+            for (int j = 0; j < sizeB; j++) {
+                if (rise[i][j] != high) continue;
+                int a = lowA + i;
+                int b = lowB + j;
+                sink.put(a, y, b, TreePart.HOUSE_BEAM);
+                // (the ends of a ridge at a gable)
+                int da = i == 0 ? -1 : i == sizeA - 1 ? 1 : 0;
+                int db = j == 0 ? -1 : j == sizeB - 1 ? 1 : 0;
+                if (sizeA > 1 && sizeB > 1 && (da != 0) == (db != 0)) continue;
+                if (da != 0 || db != 0) {
+                    sink.put(a + da, y, b + db, TreePart.HOUSE_BEAM);
+                    sink.put(a + 2 * da, y, b + 2 * db, TreePart.HOUSE_BEAM);
+                    sink.put(a + 2 * da, y + 1, b + 2 * db, TreePart.HOUSE_BEAM);
+                }
+            }
+        }
     }
 
     /** Whether the ridge runs along {@code a} (the front): as {@code ridge} says (1 along, 2 across), or along the longer side. */
@@ -810,10 +1158,19 @@ final class HouseShape {
             return false;
         }
 
-        /** Whether the wall block at {@code (a, b)}, {@code level} over the floor of the storey, is an opening: the door (the middle of the front, 2 high), or a window. */
+        /** Whether the wall block at {@code (a, b)}, {@code level} over the floor of the storey, is an opening: the door or a window. */
         boolean opening(int a, int b, int level) {
+            return doorway(a, b, level) || window(a, b, level);
+        }
+
+        /** The door: the middle of the front, 2 high. */
+        boolean doorway(int a, int b, int level) {
+            return door && b == depth - 1 && (level == 1 || level == 2) && storey >= 3 && a == doorAt();
+        }
+
+        /** A window: in the middle of a stretch of wall between two pillars (not the one with the door), from 2 over the floor to 2 under the next. */
+        boolean window(int a, int b, int level) {
             boolean front = b == depth - 1;
-            if (door && front && (level == 1 || level == 2) && storey >= 3 && a == doorAt()) return true;
             if (!windows || storey < 4 || level < 2 || level > storey - 2) return false;
             // the window of the stretch of wall between two pillars: in its middle, 1 wide (2 when the stretch is 5 or more)
             int[] panel = panel(a, b);
