@@ -23,6 +23,7 @@ import org.bukkit.util.RayTraceResult;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -216,6 +217,14 @@ public final class BrushModule implements Listener {
         Integer last = lastUse.put(player.getUniqueId(), tick);
         if (last != null && tick - last < Math.max(1, plugin.getConfig().getInt("brush.cooldown-ticks", 4))) return;
         use(player, player.isSneaking());
+    }
+
+    /** A typed //undo or //redo meets the stroke still being held the same way the menu buttons do. */
+    @EventHandler(priority = org.bukkit.event.EventPriority.LOWEST, ignoreCancelled = true)
+    public void onHistoryCommand(org.bukkit.event.player.PlayerCommandPreprocessEvent event) {
+        String message = event.getMessage().toLowerCase(Locale.ROOT).trim();
+        if (message.matches("/+(worldedit:)?/?(undo|un)(\\s.*)?")) finishStroke(event.getPlayer());
+        else if (message.matches("/+(worldedit:)?/?(redo|re)(\\s.*)?")) forgetStroke(event.getPlayer().getUniqueId());
     }
 
     @EventHandler
@@ -500,6 +509,8 @@ public final class BrushModule implements Listener {
             return;
         }
         preview.clear(player);
+        // a stroke still being held is laid first, so the undo takes that one back (laid after the undo it would be a new edit that wipes out the redo)
+        finishStroke(player);
         player.performCommand("/undo");
         resendLastBiomes(player);
     }
@@ -516,6 +527,8 @@ public final class BrushModule implements Listener {
             return;
         }
         preview.clear(player);
+        // a stroke still being held would be laid after the redo and empty the redo history, so it is dropped
+        forgetStroke(player.getUniqueId());
         player.performCommand("/redo");
         resendLastBiomes(player);
     }
