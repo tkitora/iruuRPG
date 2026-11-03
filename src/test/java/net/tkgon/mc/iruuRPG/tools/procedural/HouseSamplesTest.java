@@ -251,6 +251,7 @@ class HouseSamplesTest {
             case BRANCH_FENCE -> new Color(0xc49a5c);
             case BRANCH_SLAB -> new Color(0xe8d070);
             case BRANCH_SLAB_TOP -> new Color(0xe89a40);
+            case BRANCH_STAIR, BRANCH_STAIR_EAST, BRANCH_STAIR_SOUTH, BRANCH_STAIR_WEST -> new Color(0xa0522d);
             case SNOW -> new Color(0xf4f4f4);
             default -> new Color(0x7fa060);
         };

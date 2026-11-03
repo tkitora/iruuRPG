@@ -181,11 +181,12 @@ final class ProceduralMenu implements Listener {
                 default -> new TreeSettings.Key[]{};
             };
             case "thin" -> switch (page) {
-                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.THIN_HEIGHT, TreeSettings.Key.THIN_STEMS, TreeSettings.Key.THIN_LEAN, TreeSettings.Key.THIN_CURVE};
-                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.THIN_BRANCHES, TreeSettings.Key.THIN_SIDE, TreeSettings.Key.THIN_LENGTH, TreeSettings.Key.THIN_DEPTH,
-                        TreeSettings.Key.THIN_RISE, TreeSettings.Key.THIN_KINK, TreeSettings.Key.THIN_LOG_REACH};
-                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LEAF_SIZE, TreeSettings.Key.THIN_LEAF_DENSITY, TreeSettings.Key.THIN_LEAF_FLAT, TreeSettings.Key.THIN_CLEARANCE,
-                        TreeSettings.Key.THIN_VINES, TreeSettings.Key.THIN_VINE_SCALE};
+                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.THIN_HEIGHT, TreeSettings.Key.THIN_STEMS, TreeSettings.Key.THIN_LEAN, TreeSettings.Key.THIN_CURVE,
+                        TreeSettings.Key.THIN_FOOT, TreeSettings.Key.THIN_LOG_REACH, TreeSettings.Key.THIN_STAIRS};
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LENGTH, TreeSettings.Key.THIN_BRANCHES, TreeSettings.Key.THIN_SIDE, TreeSettings.Key.THIN_DEPTH,
+                        TreeSettings.Key.THIN_RISE, TreeSettings.Key.THIN_KINK};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LEAF_SIZE, TreeSettings.Key.THIN_LEAF_DENSITY, TreeSettings.Key.THIN_LEAF_PASSES, TreeSettings.Key.THIN_LEAF_ALONG,
+                        TreeSettings.Key.THIN_LEAF_FLAT, TreeSettings.Key.THIN_CLEARANCE, TreeSettings.Key.THIN_VINES, TreeSettings.Key.THIN_VINE_SCALE};
                 default -> new TreeSettings.Key[]{};
             };
             case "palm" -> switch (page) {
@@ -565,7 +566,7 @@ final class ProceduralMenu implements Listener {
                 text("樹冠: 枝が同じ規則で分かれ続けるフラクタル。樹冠を重ねる・柳のつる・Beta 1.7.3 の葉", NamedTextColor.GRAY),
                 text("段の枝: 幹に段ごとに枝が出る (針葉樹など)。ねじれ・編み込みの幹・雪・柳のつる", NamedTextColor.GRAY),
                 text("ヤシ: S字の幹、てっぺんに葉の層。二股・支柱の根", NamedTextColor.GRAY),
-                text("細い木: 丸太1本の幹、壁・フェンス・ハーフの細い枝、枝先の葉の塊 (枝のまわりにすき間)。柳のつる (t252)", NamedTextColor.GRAY),
+                text("細い木: すぐ分かれる短い幹、根元から離れるほど 丸太 → 壁・ハーフ → フェンス と細る枝、階段の継ぎ目、重ね塗りの葉 (t252・t258)", NamedTextColor.GRAY),
                 text("左クリック: 次 / 右クリック: 前 (数字は、アルゴリズムごとに別々に残る)", NamedTextColor.YELLOW))));
     }
 
@@ -623,7 +624,7 @@ final class ProceduralMenu implements Listener {
             if (settings.grows("palm")) parts.remove(TreePart.BRANCH);
             // (t252: the thin branches only on a thin tree; no roots on it)
             if (settings.grows("thin")) parts.remove(TreePart.ROOT);
-            else parts.removeAll(List.of(TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB));
+            else parts.removeAll(List.of(TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_STAIR));
         }
         return parts;
     }

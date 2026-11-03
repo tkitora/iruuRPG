@@ -43,8 +43,8 @@ class TreeAlgorithmsTest {
             Map<Long, TreePart> a = TreeGenerator.build(settings, 9L, null);
             assertEquals(a, TreeGenerator.build(settings, 9L, null), algorithm);
             Map<TreePart, Integer> parts = count(a);
-            // (t252: a thin tree's trunk is one block thick)
-            assertTrue(parts.getOrDefault(TreePart.TRUNK, 0) > (algorithm.equals("thin") ? 5 : 20), algorithm + " " + parts);
+            // (t252: a thin tree's trunk is one block thick; t258: and short, it soon splits)
+            assertTrue(parts.getOrDefault(TreePart.TRUNK, 0) > (algorithm.equals("thin") ? 3 : 20), algorithm + " " + parts);
             assertTrue(parts.getOrDefault(TreePart.LEAF, 0) > 50, algorithm + " " + parts);
         }
         assertTrue(count(TreeGenerator.build(tree("canopy"), 9L, null)).containsKey(TreePart.BRANCH));
@@ -191,7 +191,7 @@ class TreeAlgorithmsTest {
             Map<Long, TreePart> blocks = TreeGenerator.build(tree("thin"), seed, null);
             Map<TreePart, Integer> counts = count(blocks);
             String what = "seed " + seed + " " + counts;
-            for (TreePart part : new TreePart[]{TreePart.TRUNK, TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_SLAB_TOP}) {
+            for (TreePart part : new TreePart[]{TreePart.TRUNK, TreePart.BRANCH, TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_SLAB_TOP}) {
                 assertTrue(counts.getOrDefault(part, 0) > 0, part + " " + what);
             }
             assertTrue(blocks.values().stream().filter(part -> part.shade() >= 0).count() > 100, what);
@@ -244,5 +244,58 @@ class TreeAlgorithmsTest {
         assertTrue(ThinTree.post(blocks, joined, 0, 0, 0));
         blocks.put(TreeVoxelizer.pack(0, 0, -1), TreePart.BRANCH_FENCE);
         assertTrue(ThinTree.joined(blocks, 0, 0, 0)[0]);
+    }
+
+    @Test
+    void aThinTreeSplitsSoonThinsOutAndIsDressedWithStairs() {
+        // (t258) the trunk splits at its height: more than one block of wood a layer just over it; stairs at the foot (the foot is heavy)
+        TreeSettings settings = tree("thin");
+        int split = settings.getInt(TreeSettings.Key.THIN_HEIGHT);
+        int forked = 0;
+        int footed = 0;
+        for (long seed = 1; seed <= 8; seed++) {
+            Map<Long, TreePart> blocks = TreeGenerator.build(settings, seed, null);
+            long over = blocks.entrySet().stream().filter(entry -> entry.getValue().shade() < 0 && TreeVoxelizer.unpackY(entry.getKey()) == split + 2).count();
+            if (over >= 2) forked++;
+            if (blocks.entrySet().stream().anyMatch(entry -> entry.getValue().blockOf() == TreePart.BRANCH_STAIR && TreeVoxelizer.unpackY(entry.getKey()) == 0)) footed++;
+            // the further out, the thinner: no log far up the crown, fences only beyond the walls
+            double logs = blocks.entrySet().stream().filter(entry -> entry.getValue() == TreePart.TRUNK || entry.getValue() == TreePart.BRANCH)
+                    .mapToInt(entry -> TreeVoxelizer.unpackY(entry.getKey())).average().orElse(0.0);
+            double fences = blocks.entrySet().stream().filter(entry -> entry.getValue() == TreePart.BRANCH_FENCE)
+                    .mapToInt(entry -> TreeVoxelizer.unpackY(entry.getKey())).average().orElse(0.0);
+            assertTrue(logs < fences, "seed " + seed + " logs " + logs + " fences " + fences);
+        }
+        assertTrue(forked >= 6, Integer.toString(forked));
+        assertTrue(footed >= 6, Integer.toString(footed));
+        // no foot asked for: no stair at the foot
+        settings.set(TreeSettings.Key.THIN_FOOT, 0);
+        settings.set(TreeSettings.Key.THIN_STAIRS, 0);
+        assertTrue(TreeGenerator.build(settings, 1L, null).values().stream().noneMatch(part -> part.blockOf() == TreePart.BRANCH_STAIR));
+    }
+
+    @Test
+    void theLeavesOfAThinTreeAreLaidDarkToBrightAndNoneAlone() {
+        // (t258) three shades in three passes, the brighter higher; every leaf touches a leaf or the wood
+        TreeSettings settings = tree("thin");
+        settings.setLeafGradient(java.util.List.of("DARK_OAK_LEAVES", "OAK_LEAVES", "AZALEA_LEAVES"));
+        Map<Long, TreePart> blocks = TreeGenerator.build(settings, 4L, null);
+        double[] height = new double[3];
+        int[] count = new int[3];
+        for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
+            int shade = entry.getValue().shade();
+            if (shade < 0) continue;
+            height[shade] += TreeVoxelizer.unpackY(entry.getKey());
+            count[shade]++;
+            int x = TreeVoxelizer.unpackX(entry.getKey());
+            int y = TreeVoxelizer.unpackY(entry.getKey());
+            int z = TreeVoxelizer.unpackZ(entry.getKey());
+            boolean touches = false;
+            for (int[] step : new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}) {
+                touches |= blocks.containsKey(TreeVoxelizer.pack(x + step[0], y + step[1], z + step[2]));
+            }
+            assertTrue(touches, "a leaf alone at " + x + "," + y + "," + z);
+        }
+        for (int shade = 0; shade < 3; shade++) assertTrue(count[shade] > 20, java.util.Arrays.toString(count));
+        assertTrue(height[0] / count[0] < height[2] / count[2], java.util.Arrays.toString(height) + " " + java.util.Arrays.toString(count));
     }
 }

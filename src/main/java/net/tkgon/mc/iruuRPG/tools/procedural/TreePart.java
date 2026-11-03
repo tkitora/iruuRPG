@@ -56,7 +56,21 @@ enum TreePart {
     BRANCH_FENCE("branch-fence", "細い枝 (フェンス)", 3, Material.OAK_FENCE),
     BRANCH_SLAB("branch-slab", "横の枝 (ハーフ)", 3, Material.OAK_SLAB),
     /** The upper half of a block a slab branch passes: the block of {@link #BRANCH_SLAB}, as its top half. */
-    BRANCH_SLAB_TOP("branch-slab-top", "横の枝 (ハーフの上)", 3, Material.OAK_SLAB);
+    BRANCH_SLAB_TOP("branch-slab-top", "横の枝 (ハーフの上)", 3, Material.OAK_SLAB),
+    /** (t258) a stair of the thin tree: where a log steps up as it goes over, and round the foot. Its way: the back toward north (this), east, south, west; one block for all. */
+    BRANCH_STAIR("branch-stair", "幹・枝の階段", 1, Material.OAK_STAIRS),
+    BRANCH_STAIR_EAST("branch-stair-east", "幹・枝の階段 (東)", 1, Material.OAK_STAIRS),
+    BRANCH_STAIR_SOUTH("branch-stair-south", "幹・枝の階段 (南)", 1, Material.OAK_STAIRS),
+    BRANCH_STAIR_WEST("branch-stair-west", "幹・枝の階段 (西)", 1, Material.OAK_STAIRS);
+
+    /** (t258) The part whose block this one is put in (a stair's other ways and a slab's top half are their first part's block). */
+    TreePart blockOf() {
+        return switch (this) {
+            case BRANCH_SLAB_TOP -> BRANCH_SLAB;
+            case BRANCH_STAIR_EAST, BRANCH_STAIR_SOUTH, BRANCH_STAIR_WEST -> BRANCH_STAIR;
+            default -> this;
+        };
+    }
 
     /** How many blocks the leaf gradient can have. */
     static final int SHADES = 6;
