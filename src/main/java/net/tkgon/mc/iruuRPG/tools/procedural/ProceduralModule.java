@@ -139,7 +139,7 @@ public final class ProceduralModule implements Listener {
 
     /** The block of a part when nothing is chosen in the settings: {@code treetool.materials.<part>} of the config, else the part's default. */
     Material material(TreePart part) {
-        TreePart base = part.shade() > 0 ? TreePart.LEAF : part;
+        TreePart base = part.shade() > 0 ? TreePart.LEAF : part == TreePart.BRANCH_SLAB_TOP ? TreePart.BRANCH_SLAB : part;
         String name = plugin.getConfig().getString("treetool.materials." + base.key(), base.defaultMaterial().name());
         Material material = name == null ? null : Material.matchMaterial(name);
         return material != null && material.isBlock() && !material.isAir() ? material : base.defaultMaterial();
@@ -157,6 +157,8 @@ public final class ProceduralModule implements Listener {
 
     /** The name chosen for the part in the settings (a shade of the gradient for a leaf), or null. */
     private static String chosenName(TreePart part, TreeSettings settings) {
+        // (t252: the top half of a slab branch is the slab of the slab branches)
+        if (part == TreePart.BRANCH_SLAB_TOP) part = TreePart.BRANCH_SLAB;
         int shade = part.shade();
         List<String> gradient = settings.leafGradient();
         if (shade >= 0 && !gradient.isEmpty()) return gradient.get(Math.min(shade, gradient.size() - 1));
@@ -769,11 +771,13 @@ public final class ProceduralModule implements Listener {
                         Block block = world.getBlockAt(x, y, z);
                         if (webKind ? !block.getType().isAir() : !replaceable(block, replaceSolid)) continue;
                         TreePart part = blocks.get(key);
-                        counts.merge(part.shade() > 0 ? TreePart.LEAF : part, 1, Integer::sum);
+                        counts.merge(part.shade() > 0 ? TreePart.LEAF : part == TreePart.BRANCH_SLAB_TOP ? TreePart.BRANCH_SLAB : part, 1, Integer::sum);
+                        // (t252: fences and walls joined to the wood next to them, top slabs)
+                        BlockData data = ThinTree.shape(materials.get(part), part, blocks, TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key), TreeVoxelizer.unpackZ(key));
                         if (worldEdit) {
-                            changes.add(new TreeWorldEdit.Change(x, y, z, materials.get(part)));
+                            changes.add(new TreeWorldEdit.Change(x, y, z, data));
                         } else {
-                            block.setBlockData(materials.get(part), false);
+                            block.setBlockData(data, false);
                             direct++;
                         }
                     }
@@ -843,6 +847,7 @@ public final class ProceduralModule implements Listener {
         return switch (algorithm) {
             case "tiered" -> "段の枝 (針葉樹・雪)";
             case "palm" -> "ヤシ";
+            case "thin" -> "細い木 (壁・フェンス・ハーフの枝)";
             default -> "樹冠 (フラクタル)";
         };
     }

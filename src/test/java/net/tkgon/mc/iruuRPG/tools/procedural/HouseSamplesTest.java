@@ -202,6 +202,13 @@ class HouseSamplesTest {
             case HOUSE_STONE -> new Color(0x9a9a96);
             case HOUSE_FLOOR -> new Color(0xc9b48c);
             case HOUSE_WINDOW -> new Color(0x8fc6e8);
+            // (t252: the parts of a tree, for the thin trees)
+            case TRUNK, BRANCH, ROOT -> new Color(0x6e5034);
+            case BRANCH_WALL -> new Color(0x4a4a52);
+            case BRANCH_FENCE -> new Color(0xc49a5c);
+            case BRANCH_SLAB -> new Color(0xe8d070);
+            case BRANCH_SLAB_TOP -> new Color(0xe89a40);
+            case SNOW -> new Color(0xf4f4f4);
             default -> new Color(0x7fa060);
         };
     }

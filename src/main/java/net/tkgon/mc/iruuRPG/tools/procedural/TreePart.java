@@ -50,7 +50,13 @@ enum TreePart {
     LEAF_5("leaf-5", "葉 (5段目)", 4, Material.OAK_LEAVES),
     LEAF_6("leaf-6", "葉 (6段目)", 4, Material.OAK_LEAVES),
     /** (t246) The part of a house being edited, in the preview only (never put in the world): stained glass, so it stands out from the wool. */
-    HOUSE_SELECTED("house-selected", "編集中のパーツ (プレビュー)", 0, Material.LIME_STAINED_GLASS);
+    HOUSE_SELECTED("house-selected", "編集中のパーツ (プレビュー)", 0, Material.LIME_STAINED_GLASS),
+    /** (t252) the thin branches of a thin tree: a post near the trunk (a wall), a post further out (a fence), a branch along (a slab, its bottom or top half). */
+    BRANCH_WALL("branch-wall", "枝 (壁)", 2, Material.MUD_BRICK_WALL),
+    BRANCH_FENCE("branch-fence", "細い枝 (フェンス)", 3, Material.OAK_FENCE),
+    BRANCH_SLAB("branch-slab", "横の枝 (ハーフ)", 3, Material.OAK_SLAB),
+    /** The upper half of a block a slab branch passes: the block of {@link #BRANCH_SLAB}, as its top half. */
+    BRANCH_SLAB_TOP("branch-slab-top", "横の枝 (ハーフの上)", 3, Material.OAK_SLAB);
 
     /** How many blocks the leaf gradient can have. */
     static final int SHADES = 6;

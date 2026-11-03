@@ -1104,6 +1104,10 @@ treetool:
     twig: OAK_LOG
     leaf: OAK_LEAVES
     snow: SNOW_BLOCK
+    # (t252) 細い木の枝: 幹に近い縦の枝 (壁) / 先の縦の枝 (フェンス) / 横の枝 (ハーフ。下半分・上半分は形から決まる)
+    branch-wall: MUD_BRICK_WALL
+    branch-fence: OAK_FENCE
+    branch-slab: OAK_SLAB
     # 岩・スパイク・結晶の部位
     stone: GRAY_WOOL
     stone-light: LIGHT_GRAY_WOOL
