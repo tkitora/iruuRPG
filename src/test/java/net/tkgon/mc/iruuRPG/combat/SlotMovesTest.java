@@ -109,21 +109,21 @@ class SlotMovesTest {
     }
 
     /**
-     * t168: the mace's 小 has 2 charges (6 s, 12 s), 中 a re-activation of 2.5 s and 12 s, 大 28 s, util 6 s; the staff's 小 2 charges (4 s, 9 s), 中
-     * a re-activation of 4 s and 14 s, 大 26 s, util 6 s. The code's defaults are the config's.
+     * t198: the mace's 小 7 s, 中 a re-activation of 2.5 s and 12 s, 大 28 s, util 2 charges (6 s, 12 s); the staff's 小 2 charges (4 s, 9 s), 中
+     * 14 s, 大 a re-activation while its bell rings (120 ticks = 6 s) and 22 s, util 6 s. The code's defaults are the config's.
      */
     @Test
     void theClericsSkillsHaveTheirChargesAndTimes() {
         org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File("src/main/resources/config.yml"));
         org.bukkit.configuration.file.YamlConfiguration none = new org.bukkit.configuration.file.YamlConfiguration();
         for (org.bukkit.configuration.file.YamlConfiguration each : java.util.List.of(config, none)) {
-            assertEquals(new SkillSlots.Mechanics(2, 0.0, 6.0, 12.0), ClericSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 7.0), ClericSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.MELEE));
             assertEquals(new SkillSlots.Mechanics(1, 2.5, 0.0, 12.0), ClericSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.MELEE));
             assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 28.0), ClericSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.MELEE));
-            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), ClericSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(2, 0.0, 6.0, 12.0), ClericSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.MELEE));
             assertEquals(new SkillSlots.Mechanics(2, 0.0, 4.0, 9.0), ClericSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.RANGE));
-            assertEquals(new SkillSlots.Mechanics(1, 4.0, 0.0, 14.0), ClericSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.RANGE));
-            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 26.0), ClericSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.RANGE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 14.0), ClericSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.RANGE));
+            assertEquals(new SkillSlots.Mechanics(1, 6.0, 0.0, 22.0), ClericSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.RANGE));
             assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), ClericSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.RANGE));
         }
         assertEquals(SkillSlots.Mechanics.NONE, ClericSkills.mechanics(config, SkillSlots.Slot.LARGE, AttackType.DEPLOY));

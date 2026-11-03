@@ -1131,9 +1131,10 @@ public final class MoveKit {
         attack.statusEffects().applyBuff(ally, type, percent, millis, player.getUniqueId());
     }
 
+    /** Heals the player by {@code percent} of their maximum HP, with their own heal bonuses (the cleric's 加護の手, t198: it was left out here). */
     public void heal(double percent) {
         PlayerProfile profile = attack.profileForPlayer(player);
-        attack.healPlayer(player, profile.maxHp() * percent / 100.0);
+        attack.healPlayerBy(player, player, profile.maxHp() * percent / 100.0);
     }
 
     /** The boost of the ranger's loop for the next ranged attack: {damage multiplier, speed multiplier}; takes it. */

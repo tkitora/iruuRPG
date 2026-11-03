@@ -44,7 +44,6 @@ public final class ClericMeleeCombo implements ClassCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        ClericSkills.lookHoly(kit);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
