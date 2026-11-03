@@ -166,6 +166,8 @@ public final class IruuRPG extends JavaPlugin {
     private SettingsMenu settingsMenu;
     private TravelService travelService;
     private TravelMenu travelMenu;
+    /** (t254) The admins' dictionary: every item, every mob, every travel point and their own points ({@code /iruurpg dic}). */
+    private net.tkgon.mc.iruuRPG.gui.DictionaryMenu dictionaryMenu;
     private StorageService storageService;
     private StorageMenu storageMenu;
     private net.tkgon.mc.iruuRPG.item.ItemPatchService itemPatchService;
@@ -409,6 +411,8 @@ public final class IruuRPG extends JavaPlugin {
         this.travelMenu.setMainMenu(mainMenu);
         this.mainMenu.setTravelMenu(travelMenu);
         this.travelService.start();
+        this.dictionaryMenu = new net.tkgon.mc.iruuRPG.gui.DictionaryMenu(this, itemRegistry, itemFactory, mobRegistry, mobService, travelService,
+                new net.tkgon.mc.iruuRPG.travel.PersonalPoints(getDataFolder(), message -> getLogger().warning(message)), this::bossIds);
         this.storageService = new StorageService(this, profileManager);
         this.storageMenu = new StorageMenu(this, storageService, item -> !mainMenuItemService.isMenuItem(item));
         this.storageMenu.start();
@@ -705,6 +709,7 @@ public final class IruuRPG extends JavaPlugin {
         executor.setSyncAction(ymlSyncService::sync);
         executor.setPackService(() -> resourcePackService);
         executor.setSkillSlots(() -> skillSlots);
+        executor.setDictionary(() -> dictionaryMenu);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
@@ -787,6 +792,7 @@ public final class IruuRPG extends JavaPlugin {
         getServer().getPluginManager().registerEvents(travelService, this);
         getServer().getPluginManager().registerEvents(worldLabels, this);
         getServer().getPluginManager().registerEvents(travelMenu, this);
+        if (dictionaryMenu != null) getServer().getPluginManager().registerEvents(dictionaryMenu, this);
         getServer().getPluginManager().registerEvents(storageMenu, this);
         getServer().getPluginManager().registerEvents(itemPatchService, this);
         PluginCommand itemMigrationCommand = getCommand("itemmigration");
@@ -878,6 +884,16 @@ public final class IruuRPG extends JavaPlugin {
     }
 
     /** The looks of the menus, read once when first asked for (and again with the data). */
+    /** (t254) The mobs that are a dungeon's boss (for the dictionary's filter). */
+    private java.util.Set<String> bossIds() {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        if (dungeonRegistry == null) return ids;
+        for (net.tkgon.mc.iruuRPG.dungeon.DungeonDefinition dungeon : dungeonRegistry.all()) {
+            if (dungeon.boss() != null && !dungeon.boss().isBlank()) ids.add(dungeon.boss());
+        }
+        return ids;
+    }
+
     private net.tkgon.mc.iruuRPG.gui.MenuLooks menuLooks() {
         if (menuLooks == null) {
             menuLooks = new net.tkgon.mc.iruuRPG.gui.MenuLooks(getDataFolder(), problem -> getLogger().warning(problem));
