@@ -773,6 +773,8 @@ public final class IruuRPG extends JavaPlugin {
         net.tkgon.mc.iruuRPG.combat.AssassinSkills.setPlugin(this);
         // (the warrior's oath turns the mobs near on them: t168)
         net.tkgon.mc.iruuRPG.combat.WarriorSkills.setProvoker(mobService::provoke);
+        // (the warrior's wound is kept and drunk back only in the surge of their ULT: t198)
+        net.tkgon.mc.iruuRPG.combat.WarriorSkills.setSurging(player -> classEffectService != null && classEffectService.surgeLevel(player) > 0);
         getServer().getPluginManager().registerEvents(sniperMode, this);
         getServer().getPluginManager().registerEvents(settingsMenu, this);
         getServer().getPluginManager().registerEvents(travelService, this);

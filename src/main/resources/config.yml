@@ -161,7 +161,7 @@ combat:
       sphere-flow-count: 140
       vfx-density: 0.6                            # メイジの演出の粒の量 / 大きさ (1 = 減らさない)。画面を占めすぎないように
       vfx-size: 0.85
-    # 戦士のシールド (戦士の近接コンボの強1「堅陣」と、通常2・強2で増える): 数 / 軽減する割合 / 残る最長の秒数。受けるたびに1枚なくなる
+    # 戦士のシールド (戦士の近接の大「守護の盾」、t198): 数 / 残る最長の秒数 / 軽減する割合。受けるたびに1枚なくなる。大の再発動で、残りを周りへ放つ
     warrior:
       shield-count: 3
       shield-seconds: 10
@@ -490,93 +490,91 @@ combat:
       bless-might: 12                             # 通常2: 中のプレイヤーの与ダメージの増え方 (%、5秒)
       veil-protection: 15                         # 通常3: 中のプレイヤーの被ダメージの減り方 (%、5秒)
       rain-heal: 3                                # 通常4: 中のプレイヤーの回復 (%)
-    # 戦士の近接 = 血の騎士 (t168、nekorozv がすべて任せた。WarriorMeleeCombo の通常攻撃と WarriorSkills のスキル)。倍率は武器ダメージ比。値はすべて仮。
-    # 受けたダメージの一部が「傷」として残り、近接の攻撃を当てると取り返せる (回復)。傷はステータスの HP の横に「+数」(暗い赤) で出る。
+    # 戦士の近接 = 盾と血の騎士 (t168、t198 で調整: 火力・耐久・サステインを下げ、盾のスキルを戻し、吸血は ULT の間だけ)。色は武器の属性の色。
+    # WarriorMeleeCombo の通常攻撃と WarriorSkills のスキル。倍率は武器ダメージ比。値はすべて仮。
+    # ULT の間だけ、受けたダメージの一部が「傷」として残り、近接の攻撃を当てると取り返せる (回復)。傷はステータスの HP の横に「+数」(暗い赤) で出る。
     # スキルのクールタイムは、ここの秒 (combat.skill-slots.cooldown-seconds の戦士の値は使わない)。
     warrior_melee:
       normal-gap-ticks: 10
-      # 通常1〜5: 1回の倍率 / 当たる回数 (1 斬り下ろし、2 斬り上げ、3 踏み込んで2連、4 回りながら2回薙ぐ、5 振り下ろし + 血の波)
-      # hit-rate: [0.7, 0.85, 0.55, 0.7, 1.6]
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 斬り下ろし、2 斬り上げ、3 踏み込んで2連、4 回りながら2回薙ぐ、5 振り下ろし + 地を走る波)
+      # hit-rate: [0.6, 0.7, 0.45, 0.55, 1.3]
       # hit-counts: [1, 1, 2, 2, 1]
-      finisher-rally: 2.0                         # 通常5の振り下ろしは、傷を取り返す速さがこの倍
-      wave-share: 0.5                             # 通常5の血の波の倍率 (振り下ろしの倍率比)
+      # (固有の「薙ぎ払い」: 通常攻撃が当たった敵の周り combat.area-radius の別の敵にも、combat.melee-area-damage-rate の割合で当たる)
+      finisher-rally: 2.0                         # 通常5の振り下ろしは、傷を取り返す速さがこの倍 (ULT の間)
+      wave-share: 0.5                             # 通常5の波の倍率 (振り下ろしの倍率比)
       wave-range: 8                               # その進む距離 (ブロック)
+      # 傷 (ULT = 武神の一撃 の間だけ。ULT の外では傷は残らず、攻撃しても回復しない)
       rally-share: 0.5                            # 受けたダメージのうち、傷として残る割合
       rally-cap: 50                               # 傷の上限 (最大体力の%)
       rally-seconds: 5                            # 傷が消えるまでの秒数 (最後にダメージを受けてから、だんだん減る)
-      rally-rate: 0.6                             # 近接の攻撃を当てたとき、与えたダメージのこの割合だけ傷を取り返す (回復)
-      small-charges: 2                            # 小 (血裂き): ためておける数
-      small-charge-seconds: 5                     # 小: 1つ以上残っている間、1つ戻る秒数
-      small-empty-seconds: 10                     # 小: 使い切ったとき、全部まとめて戻るまでの秒数
-      small-rate: 0.6                             # 小: 交差する2回の斬りの、1回の倍率
+      rally-rate: 0.8                             # 近接の攻撃を当てたとき、与えたダメージのこの割合だけ傷を取り返す (回復)
+      small-seconds: 6                            # 小 (血裂き): クールタイム (秒)
+      small-rate: 0.5                             # 小: 交差する2回の斬りの、1回の倍率
       small-reach: 4.2                            # 小: 届く距離 (ブロック)
-      small-drain: 0.2                            # 小: 与えたダメージのこの割合を吸血 (傷とは別)
-      small-drain-cap: 6                          # 小: 1回の吸血の上限 (最大体力の%)
-      small-bleed: 0.25                           # 小: 与えたダメージのこの割合を出血にする
-      medium-seconds: 11                          # 中 (紅の旋風): クールタイム (秒)
-      medium-rate: 0.28                           # 中: 1秒の回転で4 tick ごとに周りを斬る倍率 (5回)
+      small-bleed: 0.2                            # 小: 与えたダメージのこの割合を出血にする
+      medium-seconds: 10                          # 中 (紅の旋風): クールタイム (秒)
+      medium-rate: 0.24                           # 中: 1秒の回転で4 tick ごとに周りを斬る倍率 (5回)
       medium-radius: 3.8                          # 中: 届く半径 (ブロック)
       medium-pull: 0.05                           # 中: 周りの敵を引き寄せる強さ (1 tick ごと)
-      medium-guard: 0.3                           # 中: 回転中に受けるダメージが減る割合
-      medium-drain: 0.1                           # 中: 吸血の割合
-      medium-drain-cap: 5                         # 中: 吸血の上限 (最大体力の%)
-      medium-recast-seconds: 3                    # 中: 再発動 (叩きつけ) を受け付ける秒数
-      recast-rate: 1.3                            # 叩きつけ: 周りの敵への倍率 (打ち上げ)
-      recast-radius: 4                            # 叩きつけ: 半径 (ブロック)
-      recast-rally: 2.0                           # 叩きつけ: 傷を取り返す速さがこの倍
-      large-seconds: 26                           # 大 (血の誓い): クールタイム (秒)
-      large-duration: 8                           # 大: 続く秒数
-      large-radius: 10                            # 大: 自分に引きつける敵の範囲 (ブロック。2秒ごとに範囲に入った敵も)
-      large-guard: 0.3                            # 大: その間、受けるダメージが減る割合
-      large-rally: 1.5                            # 大: その間、傷は消えず、取り返す速さがこの倍
-      large-burst-radius: 5                       # 大: 終わりに血が噴き出す半径 (ブロック)
-      large-burst-rate: 1.2                       # 大: その倍率
-      large-burst-per-percent: 0.04               # 大: 誓いの間に受けたダメージ (最大体力の%) 1 につき足す倍率
-      large-burst-max: 2.0                        # 大: 足す倍率の上限
+      medium-guard: 0.15                          # 中: 回転中に受けるダメージが減る割合
+      slam-rate: 0.9                              # 中の終わりの叩きつけ: 周りの敵への倍率 (打ち上げ)
+      slam-radius: 4                              # 叩きつけ: 半径 (ブロック)
+      slam-rally: 2.0                             # 叩きつけ: 傷を取り返す速さがこの倍 (ULT の間)
+      large-seconds: 22                           # 大 (守護の盾): クールタイム (秒)。盾の数・秒・軽減は combat.combo.warrior の shield-*
+      large-rate: 1.0                             # 大: 盾で殴る倍率 (前の敵)
+      large-reach: 3.4                            # 大: その届く距離 (ブロック)
+      large-slow: 40                              # 大: 殴った敵の鈍足 (%、1秒)
+      release-rate: 0.6                           # 大の再発動 (盾を放つ): 盾1枚ごとに、周りの敵への倍率
+      release-radius: 4.5                         # 再発動: 届く半径 (ブロック)
       util-seconds: 6                             # util (受け流し): クールタイム (秒)
       util-back: 0.6                              # util: 後ろへ下がる強さ
       util-parry-ticks: 12                        # util: 受け流せる時間 (tick。この間の攻撃はダメージ0になり、反撃する)
-      riposte-rate: 1.3                           # 反撃: 前へ踏み込んで斬る倍率
-      riposte-rally: 2.0                          # 反撃: 傷を取り返す速さがこの倍
-      riposte-heal: 3                             # 反撃: 回復 (最大体力の%)
-    # 戦士の遠距離 = 浮遊する大剣と鎖 (t168)。大剣が肩の後ろに浮かび、攻撃のたびに飛んでいく。鎖で縛った敵は、その点から少ししか動けない。
+      riposte-rate: 1.1                           # 反撃: 前へ踏み込んで斬る倍率
+      riposte-rally: 2.0                          # 反撃: 傷を取り返す速さがこの倍 (ULT の間)
+    # 戦士の遠距離 = 剛弓 (t198)。レンジャーのような手数ではなく、遠くからの先制の一撃と、引き絞る時間で戦う。色は武器の属性の色。
+    # 戦士の矢は、まだ傷のない (体力が満タンの) 敵に first-strike-bonus、distance-from より遠い敵に 1 ブロックごとに distance-per-block (上限 distance-max) だけ強く当たる。
     warrior_range:
-      # 通常1〜5: 1回の倍率 / 当たる回数 (1 剣が貫く、2 2本が交差、3 回る剣 x4、4 3本が降る、5 大剣が落ちて鎖で縛る)
-      # hit-rate: [0.75, 0.5, 0.25, 0.45, 1.6]
-      # hit-counts: [1, 2, 4, 3, 1]
-      aim-range: 18                               # 狙える距離 (ブロック)
-      hover-seconds: 6                            # 最後の攻撃のあと、大剣が浮かんでいる秒数
-      bound-bonus: 0.3                            # 鎖で縛られた敵が剣から受けるダメージの増え方
-      finisher-radius: 2.6                        # 通常5: 大剣の当たる半径 (ブロック)
-      finisher-bind-seconds: 3                    # 通常5: 鎖で縛る秒数
-      finisher-bind-radius: 2                     # 通常5: 縛られた敵が動ける半径 (ブロック)
-      small-charges: 3                            # 小 (穿剣): ためておける数
-      small-charge-seconds: 3.5                   # 小: 1つ以上残っている間、1つ戻る秒数
-      small-empty-seconds: 9                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
-      small-rate: 0.85                            # 小: 通り道の敵すべてへの倍率
-      small-range: 20                             # 小: 飛ぶ距離 (ブロック。壁で止まる)
-      small-speed: 1.6                            # 小: 速さ (1 tick あたりのブロック数)
-      medium-seconds: 10                          # 中 (縛鎖): クールタイム (秒)
-      medium-range: 18                            # 中: 鎖の届く距離 (狙った敵、いなければ前の近い敵)
-      medium-rate: 0.5                            # 中: 当たったときの倍率
-      medium-bind-seconds: 4                      # 中: 縛る秒数 (横に剣が刺さる)
-      medium-bind-radius: 1.2                     # 中: 縛られた敵が動ける半径 (ブロック)
-      medium-slow: 30                             # 中: その間の鈍足 (%)
-      medium-recast-seconds: 4                    # 中: 再発動 (引き寄せ) を受け付ける秒数
-      recast-rate: 0.45                           # 引き寄せ: 浮かぶ剣が3回刺す、1回の倍率
-      large-seconds: 24                           # 大 (千剣の檻): クールタイム (秒)
-      large-range: 18                             # 大: 檻を出せる距離 (ブロック)
-      large-radius: 5                             # 大: 檻の半径 (8本の大剣が輪に降る)
-      large-prison-seconds: 4                     # 大: 中の敵が出られない秒数
-      large-stab-rate: 0.22                       # 大: 0.5秒ごとに中の敵を刺す倍率
-      large-final-rate: 1.4                       # 大: 最後に8本が真ん中へ突き刺さる倍率 (打ち上げ)
-      util-seconds: 6                             # util (退き打ち): クールタイム (秒)
+      normal-gap-ticks: 14
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 重い矢、2 2本続けて、3 貫く矢、4 3本を扇に、5 引き絞って剛射 + 着弾の衝撃)
+      # hit-rate: [0.9, 0.55, 1.0, 0.4, 2.0]
+      # hit-counts: [1, 2, 1, 3, 1]
+      aim-range: 24                               # 狙える距離 (ブロック)
+      first-strike-bonus: 0.5                     # 先制: 体力が満タンの敵への増え方
+      distance-from: 8                            # この距離 (ブロック) より遠い敵に、距離の分が乗る
+      distance-per-block: 0.025                   # 1 ブロックごとの増え方
+      distance-max: 0.4                           # 距離の分の上限
+      draw-guard: 0.25                            # 引き絞っている間 (小・通常5) に受けるダメージが減る割合 (遅くもなる)
+      fan-degrees: 9                              # 通常4: 3本の矢の開き (度)
+      finisher-draw-ticks: 15                     # 通常5: 引き絞る時間 (tick)
+      finisher-burst-share: 0.25                  # 通常5: 着弾の衝撃の倍率 (剛射の倍率比)
+      finisher-burst-radius: 2.5                  # 通常5: 衝撃の半径 (ブロック)
+      small-seconds: 7                            # 小 (剛射): クールタイム (秒)
+      small-draw-ticks: 50                        # 小: いちばん長く引ける時間 (tick)。もう一度押す (再発動) と放つ。最後まで引くと自動で放つ
+      small-rate-min: 0.8                         # 小: すぐ放ったときの倍率
+      small-rate-gain: 1.2                        # 小: 引ききったときに足される倍率 (引いた割合に比例)
+      small-burst-radius: 2.5                     # 小: 引ききった矢は貫通し、着弾で衝撃 (半径)
+      small-burst-rate: 0.5                       # 小: その倍率 (剛射の倍率比)
+      medium-seconds: 10                          # 中 (縫い留め): クールタイム (秒)
+      medium-rate: 1.1                            # 中: 杭の矢の倍率
+      medium-pin: 90                              # 中: 当たった敵の鈍足 (%、ほとんど動けない)
+      medium-pin-seconds: 2                       # 中: その秒数
+      medium-mark-seconds: 4                      # 中: 「標的」の秒数 (戦士の矢が mark-bonus だけ強く当たる)
+      mark-bonus: 0.25                            # 標的への増え方
+      large-seconds: 24                           # 大 (破城の一矢): クールタイム (秒)
+      large-draw-ticks: 30                        # 大: 引き絞る時間 (tick。動けないが、受けるダメージが減る)
+      large-guard: 0.4                            # 大: 引き絞っている間に受けるダメージが減る割合
+      large-rate: 2.5                             # 大: 通り道の敵すべてへの倍率
+      large-range: 40                             # 大: 飛ぶ距離 (ブロック。壁で止まる)
+      large-burst-radius: 4                       # 大: 着弾の爆発の半径
+      large-burst-rate: 1.2                       # 大: その倍率
+      util-charges: 2                             # util (間合い): ためておける数
+      util-charge-seconds: 6                      # util: 1つ以上残っている間、1つ戻る秒数
+      util-empty-seconds: 10                      # util: 使い切ったとき、全部まとめて戻るまでの秒数
+      util-radius: 3                              # util: 押し返す半径 (ブロック)
+      util-rate: 0.3                              # util: その倍率
+      util-push: 0.8                              # util: 押し返す強さ
       util-back: 0.9                              # util: 後ろへ跳ぶ強さ
       util-up: 0.35                               # util: 上への強さ
-      util-radius: 3.5                            # util: 元いた所に落ちる剣が縛る半径 (ブロック)
-      util-rate: 0.3                              # util: その倍率
-      util-bind-seconds: 2                        # util: 縛る秒数
-      util-bind-radius: 1.5                       # util: 縛られた敵が動ける半径
     # 戦士のランタン = 孤立させる結界 (t168)。周り3.5ブロックに他の敵がいない「孤立」した敵には、ランタンの攻撃が強く当たる。スタンは無し。
     warrior_deploy:
       # 通常1〜5: 1回の倍率 / 当たる回数 (1 鉄の楔、2 鎖の柵 (触れるたび)、3 引き剥がす鉤、4 檻 x3、5 断罪の鐘)

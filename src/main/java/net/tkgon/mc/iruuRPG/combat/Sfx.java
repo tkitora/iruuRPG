@@ -172,6 +172,28 @@ public enum Sfx {
             new Layer(Sound.BLOCK_CHAIN_PLACE, 0.5f, 0.5f)),
     /** A chain let go: chains breaking, high. */
     CHAIN_BREAK(new Layer(Sound.BLOCK_CHAIN_BREAK, 0.6f, 1.3f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.4f, 1.5f)),
+    /** The warrior's shield struck forward (t198): a shield taking a blow, an iron golem's swing, a ring of an anvil. */
+    SHIELD_BASH(new Layer(Sound.ITEM_SHIELD_BLOCK, 0.9f, 0.7f), new Layer(Sound.ENTITY_IRON_GOLEM_ATTACK, 0.6f, 0.9f),
+            new Layer(Sound.BLOCK_ANVIL_PLACE, 0.2f, 1.5f)),
+    /** The warrior's shields thrown out (t198): shields breaking, an iron door struck, a throw. */
+    SHIELD_RELEASE(new Layer(Sound.ITEM_SHIELD_BREAK, 0.9f, 0.9f), new Layer(Sound.ENTITY_ZOMBIE_ATTACK_IRON_DOOR, 0.5f, 1.2f),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 1.0f)),
+    /** The warrior's great bow drawn (t198): a crossbow loading, low, and a creak of wood. */
+    GREATBOW_DRAW(new Layer(Sound.ITEM_CROSSBOW_LOADING_MIDDLE, 0.8f, 0.55f), new Layer(Sound.ITEM_CROSSBOW_LOADING_START, 0.6f, 0.6f),
+            new Layer(Sound.BLOCK_WOOD_STEP, 0.4f, 0.6f)),
+    /** The great bow fully drawn: the crossbow's end of loading and a low chime. */
+    GREATBOW_FULL(new Layer(Sound.ITEM_CROSSBOW_LOADING_END, 0.9f, 0.7f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.4f, 0.6f)),
+    /** The great bow loosed: a crossbow's shot, low, an arrow and a heavy whoosh. */
+    GREATBOW_LOOSE(new Layer(Sound.ITEM_CROSSBOW_SHOOT, 1.0f, 0.6f), new Layer(Sound.ENTITY_ARROW_SHOOT, 0.6f, 0.5f),
+            new Layer(Sound.ITEM_TRIDENT_THROW, 0.4f, 0.7f)),
+    /** A heavy arrow striking: an arrow's hit, low, a ring of an anvil and a dull blast. */
+    GREATBOW_IMPACT(new Layer(Sound.ENTITY_ARROW_HIT, 0.8f, 0.6f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.25f, 1.4f),
+            new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.2f, 1.6f)),
+    /** A first strike on an unhurt enemy: a sharp crit and a bell. */
+    GREATBOW_FIRST(new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.8f, 0.8f), new Layer(Sound.BLOCK_BELL_USE, 0.35f, 1.6f)),
+    /** The stake of 中 driven in: a trident into the ground, chains. */
+    GREATBOW_PIN(new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 1.0f, 0.7f), new Layer(Sound.BLOCK_CHAIN_PLACE, 0.8f, 0.8f),
+            new Layer(Sound.BLOCK_ANVIL_LAND, 0.2f, 1.8f)),
     /** The ward's iron wedge struck in: the anvil, the iron golem's blow and deepslate. */
     WARD_WEDGE(new Layer(Sound.BLOCK_ANVIL_LAND, 0.45f, 0.8f), new Layer(Sound.ENTITY_IRON_GOLEM_ATTACK, 0.5f, 0.8f),
             new Layer(Sound.BLOCK_DEEPSLATE_BREAK, 0.5f, 0.7f)),

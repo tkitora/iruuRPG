@@ -5,18 +5,16 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * The warrior's wounds (t168, the blood knight of {@link WarriorSkills}): a share of the damage a warrior takes stays as a <b>wound</b> that can be
- * drunk back by hitting enemies with a melee weapon. A wound fades to nothing over some seconds after the last damage (a new one adds to what is left
- * and starts the fading again); while it is held ({@link #hold}) it does not fade. Only the counting is here (times in milliseconds), so that it can
- * be tested.
+ * The warrior's wounds (t168; since t198 only during the ULT, {@link WarriorSkills}): a share of the damage a warrior takes stays as a <b>wound</b>
+ * that can be drunk back by hitting enemies with a melee weapon. A wound fades to nothing over some seconds after the last damage (a new one adds to
+ * what is left and starts the fading again). Only the counting is here (times in milliseconds), so that it can be tested.
  */
 final class WarriorBlood {
 
-    /** A wound of {@code amount} that starts fading at {@code since} and is held until {@code heldUntil}. */
+    /** A wound of {@code amount} that starts fading at {@code since}. */
     static final class Wound {
         double amount;
         long since;
-        long heldUntil;
     }
 
     private static final Map<UUID, Wound> WOUNDS = new ConcurrentHashMap<>();
@@ -39,13 +37,13 @@ final class WarriorBlood {
 
     /**
      * {@code player} took {@code damage}: {@code share} of it is added to what is left of the wound (never more than {@code cap} in all), and its
-     * fading starts again (after the hold, while one lasts). The wound now.
+     * fading starts again. The wound now.
      */
     static double wound(UUID player, double damage, double share, double cap, long fadeMillis, long now) {
         Wound wound = WOUNDS.computeIfAbsent(player, ignored -> new Wound());
         double left = left(wound, fadeMillis, now);
         wound.amount = Math.max(0.0, Math.min(Math.max(0.0, cap), left + Math.max(0.0, damage) * Math.max(0.0, share)));
-        wound.since = Math.max(now, wound.heldUntil);
+        wound.since = now;
         return wound.amount;
     }
 
@@ -64,14 +62,6 @@ final class WarriorBlood {
         double fraction = left <= 0.0 ? 0.0 : rest / left;
         wound.amount *= fraction;
         return drunk;
-    }
-
-    /** The wound of {@code player} does not fade until {@code until} (the oath of 大); after that it fades as usual. */
-    static void hold(UUID player, long until, long fadeMillis, long now) {
-        Wound wound = WOUNDS.computeIfAbsent(player, ignored -> new Wound());
-        wound.amount = left(wound, fadeMillis, now);
-        wound.heldUntil = Math.max(wound.heldUntil, until);
-        wound.since = wound.heldUntil;
     }
 
     static void forget(UUID player) {

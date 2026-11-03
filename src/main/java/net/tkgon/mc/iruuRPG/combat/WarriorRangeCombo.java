@@ -1,22 +1,21 @@
 package net.tkgon.mc.iruuRPG.combat;
 
-import net.tkgon.mc.iruuRPG.vfx.Palettes;
 import org.bukkit.Location;
-import org.bukkit.Sound;
+import org.bukkit.Particle;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
-import java.util.concurrent.ThreadLocalRandom;
-
 /**
- * The warrior's combo with a ranged weapon: floating greatswords and chains (t168, {@link WarriorSkills}, {@link WarriorSwords}). Two greatswords
- * hover behind the warrior's shoulders while they fight, and every attack sends swords at the aim (where the warrior looks: the first enemy or
- * block, at most the weapon's range).
+ * The warrior's combo with a ranged weapon: the great bow (t198, {@link WarriorSkills}; the floating greatswords of t168 went to the assassin's
+ * knives). Not the ranger's many arrows: few heavy ones, the first blow from afar and the time of the draw. Every arrow has the bow's bonus
+ * ({@link WarriorSkills#arrowHit}: an unhurt enemy and a far one are hit harder); the attacks are farther apart than the other combos'
+ * ({@code normal-gap-ticks} 14). Drawn in the weapon's colors.
  *
- * <p>Normal: 1 a sword flies from behind the shoulder through everything in the way (75%), 2 two swords from both shoulders cross at the aim
- * (50% x2), 3 a sword turns flat at the aim, cutting round it (25% x4), 4 three swords fall round the aim (45% x3), 5 a great sword falls on the
- * aim (160% round it) and stays planted for 3 s, its chains binding the enemies near it to it ({@code finisher-bind-seconds} 3: they can move
- * only {@code finisher-bind-radius} 2 blocks from it). A bound enemy takes {@code bound-bonus} (30%) more from the swords.
+ * <p>Normal: 1 a heavy arrow (90%), 2 two arrows one after the other (55% x2), 3 an arrow through everything in the way (100%), 4 three arrows
+ * fanned out (40% x3), 5 a draw of {@code finisher-draw-ticks} (15; slowed and guarded) and a mighty shot through everything in the way (200%)
+ * that bursts where it stops ({@code finisher-burst-share} 25% of it round it).
  *
  * <p>The skills are the warrior's own ({@link WarriorSkills}); the combo has no heavy attacks since t168.
  */
@@ -26,108 +25,78 @@ public final class WarriorRangeCombo extends BaseCombo {
 
     public WarriorRangeCombo() {
         super("warrior", AttackType.RANGE, new ComboSpec(PLAN,
-                new double[]{0.75, 0.5, 0.25, 0.45, 1.6}, new int[]{1, 2, 4, 3, 1},
-                new double[]{0.25, 1.3, 0.15, 1.2, 1.5, 0.7}, new int[]{150, 0, 0, 0, 0, 0}, 40));
+                new double[]{0.9, 0.55, 1.0, 0.4, 2.0}, new int[]{1, 2, 1, 3, 1},
+                new double[]{0.25, 1.3, 0.15, 1.2, 1.5, 0.7}, new int[]{150, 0, 0, 0, 0, 0}, 44));
+    }
+
+    @Override
+    public int normalGapTicks() {
+        return 14;
     }
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        WarriorSkills.lookSteel(kit);
-        WarriorSkills.hover(kit);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
-        double reach = Math.max(6.0, kit.number(PLAN, "aim-range", 18.0));
-        Location aim = WarriorSkills.aimWithin(kit, reach);
+        double reach = Math.max(8.0, kit.number(PLAN, "aim-range", 24.0));
         switch (step.stage()) {
-            case 1 -> {
-                // a sword from behind the shoulder, straight through everything in the way
-                Location from = WarriorSwords.launch(kit.player, 1);
-                Vector way = aim.toVector().subtract(from.toVector());
-                if (way.lengthSquared() < 1.0E-6) way = kit.axes()[0];
-                kit.sound(from, Sfx.SWORD_FLY, 0.8f, 1.1f);
-                WarriorSwords.fly(kit, from, from.clone().add(way.normalize().multiply(reach)), 1.8, 1.6, 1.0, victim -> WarriorSkills.swordHit(kit, victim, rate),
-                        end -> kit.burst(end, 0.7));
-            }
+            case 1 -> shot(kit, reach, rate, 0.0, false, 1.2);
             case 2 -> {
-                // two swords, one from each shoulder, cross at the aim
                 for (int index = 0; index < hits; index++) {
                     int which = index;
-                    kit.later(index * 2L, () -> {
-                        Location from = WarriorSwords.launch(kit.player, which & 1);
-                        Vector way = aim.toVector().subtract(from.toVector());
-                        if (way.lengthSquared() < 1.0E-6) return;
-                        Location past = aim.clone().add(way.normalize().multiply(1.5));
-                        kit.sound(from, Sfx.SWORD_FLY, 0.7f, 1.2f + 0.1f * which);
-                        WarriorSwords.fly(kit, from, past, 1.7, 1.5, 1.0, victim -> WarriorSkills.swordHit(kit, victim, rate), null);
-                    });
+                    kit.later(index * 4L, () -> shot(kit, reach, rate, 0.0, false, 1.0 + 0.1 * which));
                 }
-                kit.later(hits * 2L + 6L, () -> kit.burst(aim, 1.2));
             }
-            case 3 -> spinner(kit, aim, rate, hits);
+            case 3 -> shot(kit, reach, rate, 0.0, true, 1.5);
             case 4 -> {
-                // three swords fall round the aim
-                Location ground = kit.ground(aim);
+                double spread = kit.number(PLAN, "fan-degrees", 9.0);
                 for (int index = 0; index < hits; index++) {
-                    double angle = Math.PI * 2.0 * index / hits + ThreadLocalRandom.current().nextDouble(0.6);
-                    double spread = index == 0 ? 0.0 : 1.6;
-                    Location spot = kit.ground(ground.clone().add(Math.cos(angle) * spread, 0.0, Math.sin(angle) * spread));
-                    kit.later(index * 3L, () -> WarriorSwords.fall(kit, spot, 1.6, 6.0, 4, 8, land -> {
-                        kit.sound(land, Sfx.SWORD_IMPACT, 0.6f, 1.1f);
-                        kit.particle(org.bukkit.Particle.CRIT, land.clone().add(0.0, 0.3, 0.0), 5, 0.3, 0.1);
-                        for (LivingEntity victim : kit.around(land, 1.5)) WarriorSkills.swordHit(kit, victim, rate);
-                    }));
+                    double turn = (index - (hits - 1) / 2.0) * spread;
+                    kit.later(index, () -> shot(kit, reach, rate, turn, false, 1.0));
                 }
             }
-            default -> {
-                // the finisher: a great sword falls on the aim and stays; its chains bind the enemies near it to it
-                Location ground = kit.ground(aim);
-                double radius = kit.number(PLAN, "finisher-radius", 2.6);
-                int ticks = (int) Math.round(kit.number(PLAN, "finisher-bind-seconds", 3.0) * 20.0);
-                double hold = kit.number(PLAN, "finisher-bind-radius", 2.0);
-                kit.sound(ground, Sfx.SWORD_SUMMON, 0.8f, 0.8f);
-                WarriorSwords.fall(kit, ground, 3.2, 9.0, 5, ticks, land -> {
-                    kit.sound(land, Sfx.SWORD_GRAND, 1.0f, 1.0f);
-                    kit.shockwave(land, 0.8, radius + 0.6, 5, 1.3);
-                    kit.burst(land.clone().add(0.0, 0.5, 0.0), radius);
-                    Location anchor = land.clone().add(0.0, 0.8, 0.0);
-                    for (LivingEntity victim : kit.around(land, radius)) WarriorSkills.swordHit(kit, victim, rate);
-                    for (LivingEntity victim : kit.around(land, radius + 1.5)) WarriorSwords.bind(kit, victim, anchor, hold, ticks, null);
-                    kit.sound(land, Sfx.CHAIN_BIND, 0.8f, 1.0f);
-                });
-            }
+            default -> finisher(kit, reach, rate);
         }
     }
 
-    /** A sword turning flat at {@code aim}: everyone round it is cut {@code hits} times, 4 ticks apart. */
-    private static void spinner(MoveKit kit, Location aim, double rate, int hits) {
-        Location at = aim.clone().add(0.0, 0.2, 0.0);
-        Location from = WarriorSwords.launch(kit.player, 0);
-        kit.sound(from, Sfx.SWORD_FLY, 0.7f, 0.9f);
-        org.bukkit.entity.ItemDisplay sword = WarriorSwords.spawn(from, at.toVector().subtract(from.toVector()), 1.7);
-        kit.later(1L, () -> WarriorSwords.move(sword, at, at.toVector().subtract(from.toVector()), 1.7, 4));
-        int life = 6 + hits * 4;
-        kit.every(life + 1, age -> {
-            if (age < 5) return false;
-            double angle = age * 0.9;
-            Vector blade = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
-            WarriorSwords.move(sword, at, blade, 1.7, 1);
-            kit.fx(at).flatRing(at, 1.7, 22, WarriorSwords.STEEL, 0.5, 0.4, 1.0);
-            if ((age - 5) % 4 == 0 && (age - 5) / 4 < hits) {
-                kit.sound(at, Sfx.SWORD_FLY, 0.4f, 1.5f);
-                for (LivingEntity victim : kit.around(at, 1.9)) WarriorSkills.swordHit(kit, victim, rate);
-            }
-            if (age >= life) {
-                WarriorSwords.vanish(kit, sword, blade, 4);
-                return true;
-            }
-            return false;
+    /** One heavy arrow at the aim (turned {@code turn} degrees aside), into the first enemy or through all ({@code pierce}); {@code weight} its look. */
+    private static void shot(MoveKit kit, double reach, double rate, double turn, boolean pierce, double weight) {
+        Location from = WarriorSkills.bow(kit);
+        Vector way = WarriorSkills.toAim(kit, from, reach);
+        if (turn != 0.0) way.rotateAroundY(Math.toRadians(turn));
+        kit.sound(from, Sfx.GREATBOW_LOOSE, 0.6f, 1.0f + 0.1f * (float) Math.random());
+        WarriorSkills.heavyArrow(kit, from, way, 1.8, reach, weight, pierce, victim -> {
+            if (WarriorSkills.arrowHit(kit, victim, rate)) kit.push(victim, kit.player.getLocation().toVector(), 0.15 * weight, 0.05);
+        }, null);
+    }
+
+    /** The finisher: a short draw, then a mighty arrow through everything in the way that bursts where it stops. */
+    private static void finisher(MoveKit kit, double reach, double rate) {
+        int ticks = Math.max(2, (int) Math.round(kit.number(PLAN, "finisher-draw-ticks", 15.0)));
+        double share = kit.number(PLAN, "finisher-burst-share", 0.25);
+        double radius = kit.number(PLAN, "finisher-burst-radius", 2.5);
+        kit.player.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, ticks, 1, false, false, false));
+        kit.guard(kit.number(PLAN, "draw-guard", 0.25), ticks);
+        kit.sound(kit.player.getLocation(), Sfx.GREATBOW_DRAW, 0.9f, 0.8f);
+        kit.every(ticks + 1, age -> {
+            WarriorSkills.drawLook(kit, Math.min(1.0, (double) age / ticks));
+            if (age < ticks) return false;
+            Location from = WarriorSkills.bow(kit);
+            Vector way = WarriorSkills.toAim(kit, from, reach * 1.3);
+            kit.sound(from, Sfx.GREATBOW_LOOSE, 1.1f, 0.75f);
+            WarriorSkills.heavyArrow(kit, from, way, 2.2, reach * 1.3, 2.0, true, victim -> {
+                if (WarriorSkills.arrowHit(kit, victim, rate)) kit.push(victim, kit.player.getLocation().toVector(), 0.4, 0.1);
+            }, end -> {
+                kit.shockwave(end, 0.5, radius, 4, 1.2);
+                kit.particle(Particle.EXPLOSION_NORMAL, end, 8, 0.4, 0.05);
+                for (LivingEntity victim : kit.around(end, radius)) WarriorSkills.arrowHit(kit, victim, rate * share);
+            });
+            return true;
         });
-        org.bukkit.Bukkit.getScheduler().runTaskLater(kit.plugin(), () -> WarriorSwords.remove(sword), life + 20L);
     }
 
     @Override
     public void heavy(MoveKit kit, MeleeCombo.Step step) {
         // (t168) no heavy attack of this combo is thrown any more: the class's skills are its own (WarriorSkills).
     }
-
 }
