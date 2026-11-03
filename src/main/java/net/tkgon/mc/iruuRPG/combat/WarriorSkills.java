@@ -644,8 +644,8 @@ public final class WarriorSkills {
                 fx.line(last[0], at, kit.palette(), 0.3, 0.9, 0.0, 0.8 + 0.4 * weight, 0.25, null, 1);
                 Vector side = way.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
                 if (side.lengthSquared() < 1.0E-6) side = new Vector(1.0, 0.0, 0.0);
-                if (kit.rippleLines()) kit.lineRing(at, way, 0.25 * weight, 0.7);
-                else fx.ring(at, side.normalize(), side.clone().crossProduct(way).normalize(), 0.25 * weight, 10, kit.palette(), 0.7, 0.05, 0.9);
+                // (t257) with the lines of texture there is no ring along the line of the shot
+                if (!kit.rippleLines()) fx.ring(at, side.normalize(), side.clone().crossProduct(way).normalize(), 0.25 * weight, 10, kit.palette(), 0.7, 0.05, 0.9);
             }
             last[0] = at.clone();
             return stopped[0];
@@ -676,7 +676,7 @@ public final class WarriorSkills {
         Location bottom = bow.clone().subtract(0.0, 0.75, 0.0);
         fx.line(top, nock, kit.palette(), 0.4, 0.9, 0.0, 0.5, 0.15, null, 1);
         fx.line(bottom, nock, kit.palette(), 0.4, 0.9, 0.0, 0.5, 0.15, null, 1);
-        if (kit.rippleLines()) kit.lineRing(bow, axes[0], 0.3 + 0.5 * (1.0 - power), 0.4 + 0.6 * power);
+        if (kit.rippleLines()) kit.drawRing(bow, axes[0], 0.3 + 0.5 * (1.0 - power), 0.4 + 0.6 * power);
         else fx.ring(bow, axes[1], axes[2], 0.3 + 0.5 * (1.0 - power), 12, kit.palette(), 0.4 + 0.6 * power, 0.05, 0.8 + 0.4 * power);
     }
 

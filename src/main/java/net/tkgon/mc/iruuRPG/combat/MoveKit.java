@@ -53,6 +53,8 @@ public final class MoveKit {
     private Gradient palette;
     /** Whether the rings at the muzzle are lines of texture (the ranger's normal attack, t257) and not particles. */
     private boolean rippleLines;
+    /** The ring of the draw that is under way, as a line of texture (null when none). */
+    private LineRipples.Follow drawRing;
     /** The key of the placed thing whose zone is running (null outside one): see {@link #hit}. */
     private String source;
     private Location origin;
@@ -994,20 +996,19 @@ public final class MoveKit {
     }
 
     /**
-     * A ring that hangs where it is for the trail ticks of the config, as a ring of particles does: a line of texture, facing {@code normal}, in the palette at
-     * {@code t}. Both sides are drawn (the shooter sees it from behind). Use it where {@link #rippleLines()}.
+     * The ring of a draw as one thin line of texture that follows the bow and closes in as the draw goes ({@code radius} now, in the palette at {@code t}),
+     * made at the first call and moved at each; {@link #endDrawRing()} takes it away. Use it where {@link #rippleLines()}.
      */
-    void lineRing(Location at, Vector normal, double radius, double t) {
-        LineRipples.still(plugin, at, normal, radius, palette.at(t), 235, 0.5, LineRipples.trailTicks(plugin), true);
+    void drawRing(Location at, Vector normal, double radius, double t) {
+        if (drawRing == null) drawRing = LineRipples.Follow.start(plugin, at, normal, radius, 0.5, palette.at(t), 235);
+        else drawRing.update(at, normal, radius, palette.at(t));
     }
 
-    /** {@link #shockwave} as lines of texture: the same rings, on the same ticks, each hanging flat on the ground for the trail ticks. */
-    void lineShockwave(Location center, double r0, double r1, int ticks) {
-        for (int step = 0; step < ticks; step++) {
-            double r = Curves.lerp(r0, r1, Curves.expOut((step + 1.0) / ticks, 3.0));
-            double t = 1.0 - 0.6 * step / Math.max(1, ticks - 1);
-            later(step, () -> LineRipples.still(plugin, center.clone().add(0.0, 0.15, 0.0), Y, r, palette.at(t), 235, 0.5, LineRipples.trailTicks(plugin), false));
-        }
+    /** Takes the draw's ring away (the arrow is loosed). */
+    void endDrawRing() {
+        if (drawRing == null) return;
+        drawRing.remove();
+        drawRing = null;
     }
 
     public void rangerBegin(boolean normal) {
