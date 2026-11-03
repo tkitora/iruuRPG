@@ -63,10 +63,8 @@ class HouseDesignerTest {
                             case FARM -> assertTrue(count(made, HouseModule.Type.WING) >= 1, what);
                             case TOWER -> assertTrue(count(made, HouseModule.Type.TOWER) >= 1, what);
                             case MANOR -> assertTrue(count(made, HouseModule.Type.WING) >= 2, what);
-                            case HUB -> {
-                                assertTrue(count(made, HouseModule.Type.WING) >= 2, what);
-                                assertTrue(count(made, HouseModule.Type.TOWER) >= 2, what);
-                            }
+                            case HUB -> assertTrue(count(made, HouseModule.Type.VOLUME) + count(made, HouseModule.Type.TOWER) >= 1, what);
+                            case COMPOUND -> assertTrue(count(made, HouseModule.Type.VOLUME) >= 1, what);
                             default -> {
                             }
                         }

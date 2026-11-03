@@ -33,6 +33,10 @@ enum TreePart {
     HOUSE_WALL("house-wall", "壁", 3, Material.WHITE_WOOL),
     /** (t181) the stone of a stone ground storey, a chimney and a tower. */
     HOUSE_STONE("house-stone", "石", 0, Material.GRAY_WOOL),
+    /** (t190) the beams: the timber frame's beams and braces, the brackets under a jetty, the ridge beam (the posts are {@link #HOUSE_PILLAR}). */
+    HOUSE_BEAM("house-beam", "梁", 0, Material.ORANGE_WOOL),
+    /** (t190) the glass of a window, set back from the face of the wall. */
+    HOUSE_WINDOW("house-window", "窓", 4, Material.LIGHT_BLUE_WOOL),
     /** The shades of the leaf gradient above the lowest ({@link #LEAF}): their blocks are the entries of the gradient of the settings. */
     LEAF_2("leaf-2", "葉 (2段目)", 4, Material.OAK_LEAVES),
     LEAF_3("leaf-3", "葉 (3段目)", 4, Material.OAK_LEAVES),

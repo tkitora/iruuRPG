@@ -21,7 +21,7 @@ import java.util.function.Supplier;
 
 /**
  * The random houses of the procedural tool (t185): a house of several parts made by the rules of a pattern (a cottage, a timber townhouse, an L-shaped
- * farmhouse, a manor, a tower house, a hub), not by chance alone. It only writes the numbers: the base and the list of parts of the settings (the roof and
+ * farmhouse, a manor, a tower house; t190 a house in the style of the lobby (hub) builds, a house of volumes of several heights), not by chance alone. It only writes the numbers: the base and the list of parts of the settings (the roof and
  * the look too when asked), so the house is then the same as one set up by hand, every part can be moved, changed or taken away, and a house that is liked
  * is grown on from there.
  * <p>
@@ -51,7 +51,8 @@ final class HouseDesigner {
         FARM("farm", "L字の農家", "横長の本体に翼棟を足した L 字 (多いと U 字や T 字)。煙突、ドーマー窓、ポーチ"),
         MANOR("manor", "館", "幅の広い左右対称の屋敷。両端の翼棟、中央の入口とバルコニー、並んだドーマー窓、両端の煙突"),
         TOWER("tower", "塔の家", "小さめの本体の角に高い丸塔、別の角に小塔。尖った屋根、バルコニー"),
-        HUB("hub", "ハブ (城館)", "大きな左右対称の建物。左右の翼棟とその先の塔、角の小塔、中央の尖塔、正面のポーチ。拠点 (hub) のような大きさ");
+        HUB("hub", "ハブの家", "ロビー・スポーン (hub) の建築スタイルの家 (t190)。急で大きな屋根 (棟木・階の間の庇・屋根の上の四角い塔で屋根を重ねる)、石の1階と基壇、木組みと奥まった壁・窓、張り出した上の階、正面の破風の棟"),
+        COMPOUND("compound", "組み合わせの家", "高さの違う棟を組み合わせた、家の形のひな型 (t190)。背の高い本体、低い横の棟、上の階から宙に張り出した棟、上の階が張り出す細い塔、外階段、急な屋根");
 
         /** The name in the command ({@code /proceduraltool random <id>}). */
         final String id;
@@ -177,8 +178,8 @@ final class HouseDesigner {
             look = s.on(Key.HOUSE_GEN_LOOK);
             int symmetry = s.getInt(Key.HOUSE_GEN_SYMMETRY);
             symmetric = symmetry == 1 || symmetry == 0 && switch (pattern) {
-                case MANOR, HUB -> true;
-                case TOWNHOUSE -> r.nextDouble() < 0.5;
+                case MANOR -> true;
+                case TOWNHOUSE, HUB -> r.nextDouble() < 0.5;
                 case COTTAGE -> r.nextDouble() < 0.2;
                 default -> false;
             };
@@ -194,6 +195,7 @@ final class HouseDesigner {
                 case MANOR -> manor();
                 case TOWER -> towerHouse();
                 case HUB -> hub();
+                case COMPOUND -> compound();
                 default -> cottage();
             }
         }
@@ -234,10 +236,17 @@ final class HouseDesigner {
                 }
                 case HUB -> {
                     spacing = 4;
-                    floors = size == 0 ? 2 : 3;
+                    floors = size == 0 ? 2 : 2 + r.nextInt(2);
                     storey = 5;
-                    width = width(17 + 4 * size, 19 + 4 * size, spacing);
-                    depth = range(11 + 2 * size, 13 + 2 * size);
+                    width = width(9 + 2 * size, 11 + 2 * size, spacing);
+                    depth = range(8 + size, 10 + size);
+                }
+                case COMPOUND -> {
+                    spacing = 3 + r.nextInt(2);
+                    floors = 2 + (size >= 1 ? r.nextInt(2) : 0) + (size == 2 ? 1 : 0);
+                    storey = r.nextDouble() < 0.3 ? 5 : 4;
+                    width = width(7 + size, 9 + size, spacing);
+                    depth = range(7 + size, 9 + size);
                 }
                 default -> {
                     spacing = 3 + r.nextInt(2);
@@ -297,18 +306,26 @@ final class HouseDesigner {
                 case FARM -> pick(new int[]{1, 9, 7, 4, 6}, new int[]{30, 25, 15, 15, 15});
                 case MANOR -> pick(new int[]{10, 2, 6, 5, 9}, new int[]{30, 20, 20, 15, 15});
                 case TOWER -> pick(new int[]{9, 8, 1, 7}, new int[]{40, 25, 20, 15});
-                case HUB -> pick(new int[]{10, 9, 2, 6, 5}, new int[]{35, 20, 15, 15, 15});
+                case HUB -> pick(new int[]{9, 4, 1, 7, 6}, new int[]{30, 25, 25, 10, 10});
+                case COMPOUND -> pick(new int[]{9, 1, 7}, new int[]{50, 35, 15});
                 default -> pick(new int[]{9, 1, 8, 7, 6}, new int[]{35, 25, 15, 15, 10});
             };
+            boolean steep = pattern == Pattern.HUB || pattern == Pattern.COMPOUND;
             double pitch = switch (type) {
                 case 4, 5 -> 0.6 + 0.3 * r.nextDouble();
                 case 8 -> 0.8 + 0.3 * r.nextDouble();
-                default -> 0.9 + 0.5 * r.nextDouble();
+                default -> steep ? 1.2 + 0.4 * r.nextDouble() : 0.9 + 0.5 * r.nextDouble();
             };
             s.set(Key.HOUSE_ROOF, type);
             s.set(Key.HOUSE_PITCH, Math.round(pitch * 20.0) / 20.0);
-            s.set(Key.HOUSE_OVERHANG, 1);
-            s.set(Key.HOUSE_RIDGE, pattern == Pattern.TOWNHOUSE ? (chance(0.8) ? 2 : 1) : pattern == Pattern.TOWER || pattern == Pattern.COTTAGE ? (chance(0.8) ? 1 : 0) : 1);
+            s.set(Key.HOUSE_OVERHANG, pattern == Pattern.HUB && chance(0.4) ? 2 : 1);
+            s.set(Key.HOUSE_RIDGE, switch (pattern) {
+                case TOWNHOUSE -> chance(0.8) ? 2 : 1;
+                case TOWER, COTTAGE -> chance(0.8) ? 1 : 0;
+                case HUB -> chance(0.6) ? 1 : 2;
+                case COMPOUND -> chance(0.5) ? 2 : 1;
+                default -> 1;
+            });
             if (type == 9 || type == 10) {
                 int[] presets = new int[HouseShape.STEP_PRESETS.size()];
                 for (int index = 0; index < presets.length; index++) presets[index] = index;
@@ -317,45 +334,32 @@ final class HouseDesigner {
             }
         }
 
+        /**
+         * The look: how likely each is for the pattern, in the order stone ground storey, timber frame, jetty, jetty on all four sides, walls set back, glass,
+         * plinth, roofs between the storeys, ridge beam (t190).
+         */
+        private static final Map<Pattern, double[]> LOOKS = Map.of(
+                Pattern.COTTAGE, new double[]{0.5, 0.35, 0.2, 0.2, 0.3, 0.5, 0.3, 0.2, 0.3},
+                Pattern.TOWNHOUSE, new double[]{0.7, 0.9, 0.8, 0.3, 0.5, 0.6, 0.3, 0.2, 0.3},
+                Pattern.FARM, new double[]{0.4, 0.4, 0.0, 0.0, 0.2, 0.4, 0.3, 0.1, 0.2},
+                Pattern.MANOR, new double[]{0.7, 0.3, 0.0, 0.0, 0.3, 0.6, 0.6, 0.3, 0.2},
+                Pattern.TOWER, new double[]{0.6, 0.5, 0.4, 0.3, 0.4, 0.5, 0.5, 0.2, 0.3},
+                Pattern.HUB, new double[]{0.9, 0.85, 0.5, 0.4, 0.7, 0.8, 0.75, 0.65, 0.75},
+                Pattern.COMPOUND, new double[]{0.8, 0.85, 0.6, 0.5, 0.6, 0.7, 0.5, 0.3, 0.4});
+
         private void look(int floors) {
-            double stone;
-            double timber;
-            double jetty;
-            switch (pattern) {
-                case TOWNHOUSE -> {
-                    stone = 0.7;
-                    timber = 0.9;
-                    jetty = 0.8;
-                }
-                case FARM -> {
-                    stone = 0.4;
-                    timber = 0.4;
-                    jetty = 0.0;
-                }
-                case MANOR -> {
-                    stone = 0.7;
-                    timber = 0.3;
-                    jetty = 0.0;
-                }
-                case TOWER -> {
-                    stone = 0.6;
-                    timber = 0.5;
-                    jetty = 0.4;
-                }
-                case HUB -> {
-                    stone = 0.85;
-                    timber = 0.3;
-                    jetty = 0.0;
-                }
-                default -> {
-                    stone = 0.5;
-                    timber = 0.35;
-                    jetty = 0.2;
-                }
-            }
-            s.set(Key.HOUSE_STONE, chance(stone) ? 1 : 0);
-            s.set(Key.HOUSE_TIMBER, chance(timber) ? 1 : 0);
-            s.set(Key.HOUSE_JETTY, floors >= 2 && chance(jetty) ? 1 : 0);
+            double[] odds = LOOKS.getOrDefault(pattern, LOOKS.get(Pattern.COTTAGE));
+            boolean jetty = floors >= 2 && chance(odds[2]);
+            s.set(Key.HOUSE_STONE, chance(odds[0]) ? 1 : 0);
+            s.set(Key.HOUSE_TIMBER, chance(odds[1]) ? 1 : 0);
+            s.set(Key.HOUSE_JETTY, jetty ? 1 : 0);
+            s.set(Key.HOUSE_JETTY_SIDES, jetty && chance(odds[3]) ? 1 : 0);
+            s.set(Key.HOUSE_BRACKETS, jetty || chance(0.5) ? 1 : 0);
+            s.set(Key.HOUSE_RECESS, chance(odds[4]) ? 1 : 0);
+            s.set(Key.HOUSE_GLASS, chance(odds[5]) ? 1 : 0);
+            s.set(Key.HOUSE_PLINTH, chance(odds[6]) ? (chance(0.3) ? 2 : 1) : 0);
+            s.set(Key.HOUSE_SKIRT, floors >= 2 && chance(odds[7]) ? (chance(0.25) ? 2 : 1) : 0);
+            s.set(Key.HOUSE_RIDGE_BEAM, chance(odds[8]) ? 1 : 0);
         }
 
         // ---- the patterns ---------------------------------------------------------------------------------------------------------
@@ -432,26 +436,111 @@ final class HouseDesigner {
         }
 
         private void hub() {
-            // the wings to both sides (the pattern's own), a hall behind with more parts
-            HouseModule wing = wingPair(1, w -> 0, Math.max(5, plan.depth - 2 - 2 * r.nextInt(2)) | 1, range(5 + size, 7 + 2 * size),
-                    Math.max(1, plan.floors - (chance(0.6) ? 1 : 0)), true);
-            if (detail >= 2 && chance(0.5)) wing(2, 0, Math.max(1, plan.floors - 1), false);
-            int many = towerCount(4);
-            if (many > 0) {
-                if (wing != null) {
-                    wingTowers(wing, true);
-                    if (many > 2) wingTowers(wing, false);
-                } else {
-                    cornerTowers(many, true, true);
-                }
-            }
-            if (towers != 1 && (detail >= 2 || towers == 3)) spire();
-            if (detail >= 2 && towers != 1) cornerTowers(2, false, false);
-            porch(true);
-            if (detail >= 3) balcony(0, 1, false);
-            dormers(detail >= 2 ? 4 : 2, false);
+            // the gable to the front (a box as high as the house, its ridge out to the front: the pattern's own), the layers of roofs (a small square
+            // tower on the roof, its top storey jutting out under a pyramid)
+            frontGable(chance(0.75));
+            int many = towerCount(1);
+            if (many > 0) stackedTower();
+            if (many > 1) cornerTowers(many - 1, false, false);
+            if (detail >= 1 && chance(0.6)) porch(false);
+            if (detail >= 1 && chance(0.5)) sideBlock(chance(0.5) ? 1 : 3, false);
+            if (detail >= 2 && chance(0.5)) balcony(0, plan.floors - 1, symmetric);
+            dormers(detail >= 2 ? 3 : 2, false);
             if (detail >= 3) dormers(2, true);
-            chimneys(2, false);
+            chimneys(1, false);
+        }
+
+        private void compound() {
+            // the blocks of other heights (the pattern's own): a lower one to a side, one jutting out from an upper storey over the ground
+            int side = chance(0.5) ? 1 : 3;
+            sideBlock(side, true);
+            if (plan.floors >= 2) cantilever(true);
+            int many = towerCount(1);
+            if (many > 0) slimTower(true);
+            if (many > 1) turret(2 + r.nextInt(2), false);
+            if (detail >= 1) stairs(false);
+            if (detail >= 2 && chance(0.5)) porch(false);
+            if (detail >= 2 && chance(0.5)) balcony(r.nextInt(4), plan.floors - 1, false);
+            if (detail >= 1) dormers(1 + r.nextInt(2), false);
+            chimneys(detail >= 2 ? 2 : 1, false);
+        }
+
+        /** A volume to the front as high as the house, its ridge out to the front (a cross gable), with its own door in front of the house's. */
+        private void frontGable(boolean own) {
+            place(own, 6, () -> {
+                int w = 5 + 2 * r.nextInt(2);
+                int in = range(1, 2);
+                return List.of(volume(0, plan.doorU(), -in, w, in + range(2, 3), plan.floors, 0, -1, 2));
+            });
+        }
+
+        /** A small square tower in the middle of the roof, from the top storey up over the ridge, its top storey jutting out (a second layer of roof). */
+        private void stackedTower() {
+            place(false, 4, () -> {
+                // (its top storey, the one that juts out, all over the ridge)
+                HouseModule tower = plan.spire(symmetric ? 5 + 2 * r.nextInt(2) : range(5, 7), plan.ridgeRise() + plan.storey + range(1, 2));
+                tower.shape = 2;
+                tower.jetty = 1;
+                return List.of(tower);
+            });
+        }
+
+        /** A volume lower than the house on {@code side}, at an end of it or in its middle (a mirrored pair on a house the same both ways). */
+        private void sideBlock(int side, boolean own) {
+            place(own, 8, () -> {
+                int length = plan.length(side);
+                int w = Math.max(5, Math.min(length - 2, range(5, Math.max(5, length - 2))));
+                int end = r.nextInt(3) - 1;
+                int along = end == 0 ? 0 : endAlong(side, w, end < 0);
+                int storeys = Math.max(1, plan.floors - 1 - (plan.floors >= 3 && chance(0.4) ? 1 : 0));
+                int roofShape = chance(0.5) ? -1 : pick(new int[]{1, 9, 3}, new int[]{50, 35, 15});
+                return group(volume(side, along, -range(0, 1), w, range(4, 6), storeys, 0, roofShape, r.nextInt(3)));
+            });
+        }
+
+        /** A volume from an upper storey jutting out over the ground on brackets, its gable to the outside. */
+        private void cantilever(boolean own) {
+            place(own, 8, () -> {
+                int side = r.nextInt(4);
+                int level = range(1, plan.floors - 1);
+                int w = 5 + 2 * r.nextInt(2);
+                int along = range(plan.low(side) + w / 2 + 1, Math.max(plan.low(side) + w / 2 + 1, plan.high(side) - w / 2 - 1));
+                return group(volume(side, along, -1, w, range(3, 4), Math.max(1, Math.min(2, plan.floors - level)), level, chance(0.5) ? -1 : 9, 2));
+            });
+        }
+
+        /** A slender tower from the ground at a corner, over the ridge, its top storey jutting out. */
+        private void slimTower(boolean own) {
+            place(own, 6, () -> {
+                HouseModule tower = plan.cornerTower(r.nextInt(4), range(4, 5), 0, plan.ridgeRise() + range(3, 6), 1);
+                tower.shape = pick(new int[]{0, 1, 2}, new int[]{50, 30, 20});
+                tower.jetty = 1;
+                return group(tower);
+            });
+        }
+
+        /** Stairs outside along a side up to the second storey: the flight where the side has room for it. */
+        private void stairs(boolean own) {
+            if (plan.floors < 2) return;
+            place(own, 8, () -> {
+                int side = r.nextInt(4);
+                int length = plan.storey + 2;
+                int up = chance(0.5) ? 1 : -1;
+                int low = plan.low(side) + 1 + (up > 0 ? length : 1);
+                int high = plan.high(side) - 1 - (up > 0 ? 1 : length);
+                if (high < low) return null;
+                HouseModule stair = part(Type.STAIR, side, range(low, high), 0, range(1, 2), 1, 0, 1);
+                stair.shape = up > 0 ? 0 : 1;
+                return group(stair);
+            });
+        }
+
+        /** A volume: on {@code side}, {@code along} it, its near wall {@code offset} out from the wall, so big, from {@code level}, with its roof and ridge. */
+        private static HouseModule volume(int side, int along, int offset, int width, int depth, int storeys, int level, int roof, int ridge) {
+            HouseModule volume = part(Type.VOLUME, side, along, offset, width, depth, storeys, level);
+            volume.roof = roof;
+            volume.ridge = ridge;
+            return volume;
         }
 
         /** The number of towers: as the pattern has it, none, a few (1 or 2), or many (4). */
@@ -580,19 +669,6 @@ final class HouseDesigner {
                 int level = Math.max(1, plan.floors - 1 - (plan.floors >= 3 && chance(0.5) ? 1 : 0));
                 return group(plan.cornerTower(corner, range(3, 4), level, Math.max(2, plan.ridgeRise() / 2 + r.nextInt(3)), r.nextInt(2)));
             });
-        }
-
-        /** Towers at the two outer corners of a wing (and of its mirror), at its front end ({@code front}) or its back end. */
-        private void wingTowers(HouseModule wing, boolean front) {
-            // (a tower on the corner of a wing is meant to stand in it: the wings may be covered)
-            Set<Integer> exempt = new HashSet<>();
-            for (int i = 0; i < s.modules().size(); i++) if (s.modules().get(i).type == Type.WING) exempt.add(i);
-            place(true, 6, () -> group(plan.wingTower(wing, front, range(5, 6), plan.ridgeRise() + range(2, 6))), exempt);
-        }
-
-        /** A tall tower in the middle of the house, from its top storey up through the roof. */
-        private void spire() {
-            place(true, 4, () -> List.of(plan.spire(symmetric ? 5 + 2 * r.nextInt(2) : range(5, 7), plan.ridgeRise() + range(5, 9))));
         }
 
         /** A porch at the door (the middle of the front). */
@@ -790,10 +866,13 @@ final class HouseDesigner {
         HouseModule mirror(HouseModule module) {
             HouseModule mirror = module.copy();
             int w = switch (module.type) {
-                case DORMER, TOWER, WING -> Math.max(3, module.width);
+                case DORMER, TOWER, WING, VOLUME -> Math.max(3, module.width);
                 case BAY -> Math.max(2, module.width);
+                case STAIR -> 3;
                 default -> module.width;
             };
+            // (stairs mirrored go up the other way)
+            if (module.type == Type.STAIR) mirror.shape = 1 - module.shape;
             int lo = -(w - 1) / 2;
             int hi = lo + w - 1;
             int shift = switch (module.side) {
@@ -837,6 +916,7 @@ final class HouseDesigner {
             int k = Math.max(0, Math.min(floors - 1, level));
             HousePlan plan = house.plan(k);
             int e = house.out(k);
+            int eA = house.outA(k);
             List<Integer> found = new ArrayList<>();
             int length = side % 2 == 0 ? plan.width() : plan.depth();
             for (int along = 1; along < length - 1; along++) {
@@ -848,9 +928,9 @@ final class HouseDesigner {
                 if (middle != along) continue;
                 found.add(switch (side) {
                     case 1 -> midB - (along - e);
-                    case 2 -> midA - along;
+                    case 2 -> midA - (along - eA);
                     case 3 -> along - e - midB;
-                    default -> along - midA;
+                    default -> along - eA - midA;
                 });
             }
             return found;
@@ -873,23 +953,6 @@ final class HouseDesigner {
             tower.offset = out - (1 + size) / 2;
             tower.level = level;
             tower.height = height;
-            return tower;
-        }
-
-        /** A tower at an outer corner of a wing (its front end or its back end, as seen from the front of the house). */
-        HouseModule wingTower(HouseModule wing, boolean front, int size, int height) {
-            int w = Math.max(3, wing.width);
-            int lo = -(w - 1) / 2;
-            int hi = lo + w - 1;
-            // (on the right the front is toward the low u, on the left toward the high u; on the back both ends are "front")
-            boolean low = wing.side == 1 ? front : wing.side == 3 != front;
-            HouseModule tower = new HouseModule(Type.TOWER);
-            tower.side = wing.side;
-            tower.width = size;
-            tower.along = wing.along + (low ? lo : hi);
-            tower.offset = wing.depth - (1 + size) / 2;
-            tower.height = height;
-            tower.level = 0;
             return tower;
         }
 
@@ -967,6 +1030,8 @@ final class HouseDesigner {
                 case BALCONY -> floors >= 2 && module.level >= 1 && module.level < floors;
                 case BAY -> module.level < floors;
                 case CHIMNEY -> module.offset >= 0 || inside(module);
+                case VOLUME -> module.level <= floors;
+                case STAIR -> floors >= 2 && module.level >= 1 && module.level < floors;
                 default -> true;
             };
         }
@@ -1045,7 +1110,7 @@ final class HouseDesigner {
          */
         private int intoHouse(HouseModule module, Build build) {
             boolean outside = switch (module.type) {
-                case PORCH, BAY, BALCONY -> true;
+                case PORCH, BAY, BALCONY, STAIR -> true;
                 case CHIMNEY -> module.offset >= 0;
                 default -> false;
             };
@@ -1075,7 +1140,8 @@ final class HouseDesigner {
             for (Map.Entry<Integer, Integer> entry : high.entrySet()) {
                 if (entry.getKey() >= s.modules().size()) continue;
                 Type type = s.modules().get(entry.getKey()).type;
-                if (type == Type.TOWER && entry.getValue() > ridge + 1 || type == Type.WING && entry.getValue() < ridge - 1) peaks++;
+                if (type == Type.TOWER && entry.getValue() > ridge + 1 || type == Type.WING && entry.getValue() < ridge - 1
+                        || type == Type.VOLUME && Math.abs(entry.getValue() - ridge) >= 2) peaks++;
             }
             return peaks;
         }

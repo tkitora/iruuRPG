@@ -16,8 +16,8 @@ enum ProcKind {
     SPIKE("スパイク", Material.POINTED_DRIPSTONE, "見ているブロックから、こちら(視点)へ向かって生える1本の尖った柱。角の数・ねじれ・筋・先の鋭さを調整できる", List.of(TreePart.STONE, TreePart.STONE_LIGHT, TreePart.STONE_DARK)),
     CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "見ているブロックから、こちら(視点)へ向かって生える結晶。かたまり・大きな1本・薄い刃から作り方を選べる", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE)),
     WEB("クモの巣", Material.COBWEB, "ブロックをクリックして点を2つ以上選び、その間と周りの地形に合わせて巣を張る (円網・棚網・皿網・漏斗網・不規則網・条網)。空気のブロックにだけ置く", List.of(TreePart.WEB_FRAME, TreePart.WEB)),
-    HOUSE("家の土台", Material.BRICKS, "家の骨組み (柱・壁・床・屋根) をウールで。幅・奥行き・階数・屋根の形を決めると、正面がこちら(視点)を向いて建つ。回転・ドーマー窓や塔などの追加パーツも", List.of(TreePart.HOUSE_PILLAR,
-            TreePart.HOUSE_WALL, TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE));
+    HOUSE("家の土台", Material.BRICKS, "家の骨組み (柱・壁・床・屋根) をウールで。幅・奥行き・階数・屋根の形を決めると、正面がこちら(視点)を向いて建つ。回転・ドーマー窓や塔や棟などの追加パーツ・おまかせ生成も", List.of(TreePart.HOUSE_PILLAR,
+            TreePart.HOUSE_WALL, TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW));
 
     private final String label;
     private final Material icon;

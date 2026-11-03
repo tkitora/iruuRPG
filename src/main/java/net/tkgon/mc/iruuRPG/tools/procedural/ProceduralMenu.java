@@ -53,7 +53,7 @@ final class ProceduralMenu implements Listener {
     private static final int SEED = 14;
     private static final int LOAD = 16;
     private static final int RESET = 25;
-    private static final int[] LEGEND_SLOTS = {37, 38, 39, 40, 41};
+    private static final int[] LEGEND_SLOTS = {37, 38, 39, 40, 41, 42, 43};
     // the leaf page: the leaf gradient from the bottom of a clump to its top, and its help
     private static final int[] SHADE_SLOTS = {28, 29, 30, 31, 32, 33};
     private static final int SHADE_HELP = 34;
@@ -70,10 +70,12 @@ final class ProceduralMenu implements Listener {
     private static final int M_ON = 38;
     private static final int M_COPY = 39;
     private static final int M_DELETE = 41;
+    /** (t190) the numbers only some kinds have (a volume's roof, ridge and jetty; a tower's shape and jetty; the way stairs go up). */
+    private static final int[] M_EXTRA = {40, 42, 43};
     // the roof page of a roof of steps (t185): the steps from the eaves to the ridge, the shapes to choose from, the section of this house
     private static final int[] STEP_SLOTS = {28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41};
-    private static final int STEP_PRESET = 24;
-    private static final int STEP_VIEW = 25;
+    private static final int STEP_PRESET = 15;
+    private static final int STEP_VIEW = 16;
     // the page of the random houses (t185)
     private static final int D_BACK = 11;
     private static final int D_NEW = 12;
@@ -91,13 +93,16 @@ final class ProceduralMenu implements Listener {
         SHAPE(3, Material.COBBLESTONE, "形", new TreeSettings.Key[]{}),
         /** (t181) the roof of a house. */
         ROOF(4, Material.RED_WOOL, "屋根", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG,
-                TreeSettings.Key.HOUSE_RIDGE}),
+                TreeSettings.Key.HOUSE_RIDGE, TreeSettings.Key.HOUSE_RIDGE_BEAM, TreeSettings.Key.HOUSE_SKIRT}),
         /** (t181) the parts added on a house (HouseModule): its own buttons, no numbers of the settings. */
         MODULES(5, Material.SPRUCE_TRAPDOOR, "追加パーツ", new TreeSettings.Key[]{}),
         /** (t185) the random houses (HouseDesigner): the rules, and the buttons that make one and go back. */
         DESIGN(6, Material.NETHER_STAR, "おまかせ生成", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_GEN_PATTERN, TreeSettings.Key.HOUSE_GEN_SIZE,
                 TreeSettings.Key.HOUSE_GEN_DETAIL, TreeSettings.Key.HOUSE_GEN_SYMMETRY, TreeSettings.Key.HOUSE_GEN_TOWERS, TreeSettings.Key.HOUSE_GEN_OVERLAP,
-                TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK});
+                TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK}),
+        /** (t190) the walls of a house: stone, timber, the depth of the walls and the windows. */
+        WALLS(7, Material.STRIPPED_SPRUCE_LOG, "壁", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_PLINTH, TreeSettings.Key.HOUSE_TIMBER,
+                TreeSettings.Key.HOUSE_RECESS, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_GLASS});
 
         final int tab;
         final Material icon;
@@ -117,7 +122,7 @@ final class ProceduralMenu implements Listener {
             return switch (this) {
                 case BASIC -> true;
                 case SHAPE -> !kind.tree();
-                case ROOF, MODULES, DESIGN -> kind == ProcKind.HOUSE;
+                case ROOF, MODULES, DESIGN, WALLS -> kind == ProcKind.HOUSE;
                 case BRANCH -> kind.tree() && !settings.grows("palm");
                 default -> kind.tree();
             };
@@ -132,7 +137,7 @@ final class ProceduralMenu implements Listener {
             // (a roof of steps has one more: how its steps fit the house)
             if (this == ROOF && stepped(settings)) {
                 return new TreeSettings.Key[]{TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG, TreeSettings.Key.HOUSE_RIDGE,
-                        TreeSettings.Key.HOUSE_STEP_FIT};
+                        TreeSettings.Key.HOUSE_RIDGE_BEAM, TreeSettings.Key.HOUSE_SKIRT, TreeSettings.Key.HOUSE_STEP_FIT};
             }
             if (this != SHAPE) return keys;
             return switch (kind) {
@@ -143,8 +148,8 @@ final class ProceduralMenu implements Listener {
                 case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.CRYSTAL_FACETS, TreeSettings.Key.CRYSTAL_TIP, TreeSettings.Key.CRYSTAL_THICK, TreeSettings.Key.CRYSTAL_VARIANCE,
                         TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
                 case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
-                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_PILLAR_MIRROR, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY, TreeSettings.Key.HOUSE_STONE,
-                        TreeSettings.Key.HOUSE_TIMBER, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
+                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_PILLAR_MIRROR, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY,
+                        TreeSettings.Key.HOUSE_JETTY_SIDES, TreeSettings.Key.HOUSE_BRACKETS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
                 default -> new TreeSettings.Key[]{};
             };
         }
@@ -210,6 +215,13 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_STONE, Material.COBBLESTONE);
         ICONS.put(TreeSettings.Key.HOUSE_TIMBER, Material.STRIPPED_SPRUCE_LOG);
         ICONS.put(TreeSettings.Key.HOUSE_PILLAR_MIRROR, Material.ARMOR_STAND);
+        ICONS.put(TreeSettings.Key.HOUSE_JETTY_SIDES, Material.SPRUCE_SLAB);
+        ICONS.put(TreeSettings.Key.HOUSE_BRACKETS, Material.SPRUCE_FENCE);
+        ICONS.put(TreeSettings.Key.HOUSE_RECESS, Material.SPRUCE_TRAPDOOR);
+        ICONS.put(TreeSettings.Key.HOUSE_GLASS, Material.LIGHT_BLUE_STAINED_GLASS);
+        ICONS.put(TreeSettings.Key.HOUSE_PLINTH, Material.STONE_BRICKS);
+        ICONS.put(TreeSettings.Key.HOUSE_SKIRT, Material.BRICK_SLAB);
+        ICONS.put(TreeSettings.Key.HOUSE_RIDGE_BEAM, Material.DARK_OAK_LOG);
         ICONS.put(TreeSettings.Key.HOUSE_STEP_FIT, Material.SCAFFOLDING);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_PATTERN, Material.PAINTING);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_SIZE, Material.PISTON);
@@ -900,7 +912,61 @@ final class ProceduralMenu implements Listener {
             case PORCH -> Material.OAK_FENCE;
             case BALCONY -> Material.SPRUCE_FENCE;
             case BAY -> Material.GLASS;
+            case VOLUME -> Material.BRICKS;
+            case STAIR -> Material.STONE_BRICK_STAIRS;
         };
+    }
+
+    /** (t190) A number only some kinds of part have, with its slot's icon, its name and how a click steps it. */
+    private enum ModuleExtra {
+        ROOF(Material.RED_WOOL, "屋根の形", "棟の屋根 (家と同じ / 平ら / 切妻 / … / 尖り寄棟)"),
+        RIDGE(Material.END_ROD, "棟の向き", "棟の屋根の棟が、付けた面と平行か直角か (自動は長い辺に沿う)"),
+        JETTY(Material.DARK_OAK_SLAB, "張り出し", "棟の上の階の張り出し (家と同じ / 0〜3)。塔では、いちばん上の階の張り出し"),
+        SHAPE(Material.CHISELED_STONE_BRICKS, "塔の形", "丸 / 八角 / 四角 (四角はピラミッドの屋根)"),
+        UP(Material.STONE_BRICK_STAIRS, "上がる向き", "外から壁を見て、右へ上がるか左へ上がるか");
+
+        final Material icon;
+        final String label;
+        final String description;
+
+        ModuleExtra(Material icon, String label, String description) {
+            this.icon = icon;
+            this.label = label;
+            this.description = description;
+        }
+
+        static List<ModuleExtra> of(HouseModule.Type type) {
+            return switch (type) {
+                case VOLUME -> List.of(ROOF, RIDGE, JETTY);
+                case TOWER -> List.of(SHAPE, JETTY);
+                case STAIR -> List.of(UP);
+                default -> List.of();
+            };
+        }
+
+        String text(HouseModule module) {
+            return switch (this) {
+                case ROOF -> module.roof < 0 ? "家と同じ" : HouseShape.roofName(module.roof);
+                case RIDGE -> HouseShape.ridgeName(module.ridge);
+                case JETTY -> module.jetty < 0 ? "家と同じ" : Integer.toString(module.jetty);
+                case SHAPE -> switch (module.shape) {
+                    case 1 -> "八角";
+                    case 2 -> "四角";
+                    default -> "丸";
+                };
+                case UP -> module.shape == 1 ? "左へ" : "右へ";
+            };
+        }
+
+        void step(HouseModule module, int sign) {
+            switch (this) {
+                case ROOF -> module.roof = Math.floorMod(module.roof + 1 + sign, 12) - 1;
+                case RIDGE -> module.ridge = Math.floorMod(module.ridge + sign, 3);
+                case JETTY -> module.jetty = module.type == HouseModule.Type.TOWER ? Math.floorMod(module.jetty + sign, 3) : Math.floorMod(module.jetty + 1 + sign, 5) - 1;
+                case SHAPE -> module.shape = Math.floorMod(module.shape + sign, 3);
+                case UP -> module.shape = 1 - Math.max(0, Math.min(1, module.shape));
+            }
+        }
     }
 
     /** The place of a part, in words: its side, how far along it and out from it. */
@@ -921,7 +987,7 @@ final class ProceduralMenu implements Listener {
         List<HouseModule> modules = settings.modules();
         if (holder.module >= modules.size()) holder.module = Math.max(0, modules.size() - 1);
         inventory.setItem(INFO, item(Material.SPRUCE_TRAPDOOR, "追加パーツ (" + modules.size() + " / " + TreeSettings.MAX_MODULES + ")", NamedTextColor.GOLD, List.of(
-                text("家の土台に、ドーマー窓・煙突・塔・翼棟・ポーチ・バルコニー・出窓を足す", NamedTextColor.GRAY),
+                text("家の土台に、ドーマー窓・煙突・塔・翼棟・ポーチ・バルコニー・出窓・棟・外階段を足す", NamedTextColor.GRAY),
                 text("土台は書き換えない: パーツは毎回、土台の上に作り直す (消す・オフにすると元どおり)", NamedTextColor.GRAY),
                 text("プレビュー中は、変えて 0.75 秒後に家が変わる", NamedTextColor.GRAY),
                 text("上の列: 左クリックで選ぶ / 右クリックでオン・オフ。下の列: 選んだパーツの数字", NamedTextColor.YELLOW))));
@@ -954,18 +1020,36 @@ final class ProceduralMenu implements Listener {
                 text("左クリック: 次の面 / 右クリック: 前の面", NamedTextColor.YELLOW))));
         inventory.setItem(M_ALONG, moduleNumber(Material.LEAD, "横の位置", module.along, "その面のまん中から横へずらす (外からその面を見て右が +)", 1, 5));
         inventory.setItem(M_OFFSET, moduleNumber(Material.PISTON, "壁からの位置", module.offset, "壁から外へずらす (マイナスで家の中へ。塔は初期値で半分めり込む)", 1, 3));
-        inventory.setItem(M_WIDTH, moduleNumber(Material.OAK_SLAB, "幅", module.width, "面に沿った幅 (塔は直径)", 1, 4));
-        inventory.setItem(M_DEPTH, moduleNumber(Material.OAK_PLANKS, "奥行き", module.depth, module.type == HouseModule.Type.DORMER
-                ? "屋根の中へ入る長さ (足りなければ屋根に届くまで伸びる)" : "壁から外へ出る長さ", 1, 4));
+        inventory.setItem(M_WIDTH, moduleNumber(Material.OAK_SLAB, "幅", module.width, switch (module.type) {
+            case TOWER -> "直径";
+            case STAIR -> "階段の幅 (1〜3)";
+            default -> "面に沿った幅";
+        }, 1, 4));
+        inventory.setItem(M_DEPTH, moduleNumber(Material.OAK_PLANKS, "奥行き", module.depth, switch (module.type) {
+            case DORMER -> "屋根の中へ入る長さ (足りなければ屋根に届くまで伸びる)";
+            case VOLUME -> "壁の線 (壁からの位置) から外へ出る長さ";
+            case TOWER, STAIR -> "(この種類では使わない)";
+            default -> "壁から外へ出る長さ";
+        }, 1, 4));
         inventory.setItem(M_HEIGHT, moduleNumber(Material.LADDER, module.type.heightLabel(), module.height, "高さの数字の意味は種類で違う", 1, 5));
-        inventory.setItem(M_LEVEL, moduleNumber(Material.SCAFFOLDING, "階", module.level, module.type.usesLevel()
-                ? "何階から始まるか (0 = 1階)" : "(この種類では使わない)", 1, 1));
+        inventory.setItem(M_LEVEL, moduleNumber(Material.SCAFFOLDING, "階", module.level, switch (module.type) {
+            case VOLUME -> "何階の高さから建つか (0 = 地面。上げると家に載る・宙に張り出す)";
+            case STAIR -> "上がった先の階 (1 = 2階)";
+            default -> module.type.usesLevel() ? "何階から始まるか (0 = 1階)" : "(この種類では使わない)";
+        }, 1, 1));
         inventory.setItem(M_ON, item(module.on ? Material.LIME_DYE : Material.GRAY_DYE, module.on ? "オン" : "オフ", module.on ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
                 text("オフにすると、リストに残したまま作らない", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
         inventory.setItem(M_COPY, item(Material.PAPER, "左右反転して複製", NamedTextColor.AQUA, List.of(
                 text("同じパーツを、面のまん中をはさんで反対側に足す (まん中にあるときは横に並べる)", NamedTextColor.GRAY),
                 text("クリックで複製", NamedTextColor.YELLOW))));
+        List<ModuleExtra> extras = ModuleExtra.of(module.type);
+        for (int index = 0; index < extras.size(); index++) {
+            ModuleExtra extra = extras.get(index);
+            inventory.setItem(M_EXTRA[index], item(extra.icon, extra.label + ": " + extra.text(module), NamedTextColor.GREEN, List.of(
+                    text(extra.description, NamedTextColor.GRAY),
+                    text("左クリック: 次 / 右クリック: 前", NamedTextColor.YELLOW))));
+        }
         inventory.setItem(M_DELETE, item(Material.BARRIER, "このパーツを消す", NamedTextColor.RED, List.of(
                 text("リストから消す (土台は変わらない)", NamedTextColor.GRAY),
                 text("Shift+クリックで消す (誤クリック防止)", NamedTextColor.YELLOW))));
@@ -998,6 +1082,13 @@ final class ProceduralMenu implements Listener {
         HouseModule module = modules.get(holder.module);
         int sign = left ? 1 : -1;
         HouseModule.Type[] types = HouseModule.Type.values();
+        List<ModuleExtra> extras = ModuleExtra.of(module.type);
+        for (int index = 0; index < extras.size(); index++) {
+            if (M_EXTRA[index] != slot) continue;
+            extras.get(index).step(module, sign);
+            module.limit();
+            return true;
+        }
         switch (slot) {
             case M_TYPE -> module.setType(types[Math.floorMod(module.type.ordinal() + sign, types.length)]);
             case M_SIDE -> module.side += sign;

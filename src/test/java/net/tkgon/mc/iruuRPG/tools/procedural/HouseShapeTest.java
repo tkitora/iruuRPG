@@ -10,6 +10,7 @@ import java.util.Random;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -198,9 +199,10 @@ class HouseShapeTest {
         assertEquals(TreePart.HOUSE_PILLAR, at(blocks, -5, 5, 5));
         assertEquals(TreePart.HOUSE_PILLAR, at(blocks, -5, 5, -5));
         assertEquals(TreePart.HOUSE_FLOOR, at(blocks, 0, 4, 4));
-        // the timber frame: a beam at the foot of the upper storey's walls, braces in them
-        assertEquals(TreePart.HOUSE_PILLAR, at(blocks, 2, 4, 5));
-        assertTrue(count(blocks, TreePart.HOUSE_PILLAR) > count(build(house(11, 9, 2, 4, 1), SOUTH), TreePart.HOUSE_PILLAR) + 20);
+        // the timber frame: a beam at the foot of the upper storey's walls, braces in them (t190: of the beam part)
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, 2, 4, 5));
+        assertTrue(count(blocks, TreePart.HOUSE_BEAM) > 20);
+        assertEquals(0, count(build(house(11, 9, 2, 4, 1), SOUTH), TreePart.HOUSE_BEAM));
     }
 
     @Test
@@ -395,6 +397,135 @@ class HouseShapeTest {
     }
 
     @Test
+    void theUpperStoreysJutOutOnAllSidesOnBrackets() {
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        settings.set(TreeSettings.Key.HOUSE_JETTY, 1);
+        settings.set(TreeSettings.Key.HOUSE_JETTY_SIDES, 1);
+        settings.set(TreeSettings.Key.HOUSE_BRACKETS, 1);
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        // the upper storey reaches one out at the left side too (x = -6), over nothing
+        assertNotNull(at(blocks, -6, 5, 0));
+        assertNull(at(blocks, -6, 1, 0));
+        // a bracket under it at each pillar of the wall below: the sides (z = -4: the back corner) and the front (x = -5: the left corner)
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, -6, 3, -4));
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, -5, 3, 5));
+        assertNull(at(blocks, -6, 3, -3));
+    }
+
+    @Test
+    void theWallsAreSetBackBehindTheFrameAndTheWindowsHaveGlass() {
+        // one storey of 5: a window in each stretch of wall 2 and 3 over the floor; the front at z = 4, pillars at x = -5, -1, 3, 5
+        TreeSettings settings = house(11, 9, 1, 5, 1);
+        settings.set(TreeSettings.Key.HOUSE_RECESS, 1);
+        settings.set(TreeSettings.Key.HOUSE_GLASS, 1);
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_PILLAR, at(blocks, -1, 1, 4));
+        assertNull(at(blocks, -4, 1, 4));
+        assertEquals(TreePart.HOUSE_WALL, at(blocks, -4, 1, 3));
+        // the sill stays on the line of the frame
+        assertEquals(TreePart.HOUSE_WALL, at(blocks, -4, 0, 4));
+        // the glass of the window, in the plane of the wall set back
+        assertEquals(TreePart.HOUSE_WINDOW, at(blocks, -3, 2, 3));
+        assertNull(at(blocks, -3, 2, 4));
+    }
+
+    @Test
+    void aPlinthRoofsBetweenTheStoreysAndARidgeBeam() {
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        settings.set(TreeSettings.Key.HOUSE_OVERHANG, 1);
+        settings.set(TreeSettings.Key.HOUSE_RIDGE, 1);
+        settings.set(TreeSettings.Key.HOUSE_PLINTH, 2);
+        settings.set(TreeSettings.Key.HOUSE_SKIRT, 1);
+        settings.set(TreeSettings.Key.HOUSE_RIDGE_BEAM, 1);
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        // the plinth: one out from the walls, 2 high; at the door only its foot
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, -6, 0, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, -6, 1, 0));
+        assertNull(at(blocks, -6, 2, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 0, 0, 5));
+        assertNull(at(blocks, 0, 1, 5));
+        // a roof between the storeys at the foot of the upper one, one out
+        assertEquals(TreePart.HOUSE_ROOF, at(blocks, 0, 4, 5));
+        assertEquals(TreePart.HOUSE_ROOF, at(blocks, -6, 4, 0));
+        // the ridge beam over the ridge (8 + 5), out two past the gables and turned up at the tips
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, 0, 14, 0));
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, -8, 14, 0));
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, -8, 15, 0));
+        assertEquals(TreePart.HOUSE_BEAM, at(blocks, 8, 15, 0));
+        assertNull(at(blocks, -9, 14, 0));
+    }
+
+    @Test
+    void aVolumeOpensTheHouseRisesThroughItsRoofAndJutsOutOnBrackets() {
+        // a volume of 4 storeys, 5 wide and 5 deep, 3 into the house at the front: x -2..2, z 1..5
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        HouseModule volume = module(settings, HouseModule.Type.VOLUME, 0);
+        volume.offset = -3;
+        volume.width = 5;
+        volume.depth = 5;
+        volume.height = 4;
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        // its walls over the house's roof, its inside open through the house (the house's roof and front wall in it are gone)
+        assertNotNull(at(blocks, -2, 13, 3));
+        assertNull(at(blocks, 0, 9, 3));
+        assertNull(at(blocks, 0, 2, 4));
+        // its door in the middle of its front, in front of the house's
+        assertNull(at(blocks, 0, 1, 5));
+        assertEquals(TreePart.HOUSE_PILLAR, at(blocks, -2, 1, 5));
+        // from the second storey out of the right side, on brackets
+        TreeSettings jutting = house(11, 9, 2, 4, 1);
+        jutting.set(TreeSettings.Key.HOUSE_BRACKETS, 1);
+        HouseModule out = module(jutting, HouseModule.Type.VOLUME, 1);
+        out.level = 1;
+        out.offset = -1;
+        out.width = 5;
+        out.depth = 4;
+        out.height = 1;
+        Map<Long, TreePart> hanging = build(jutting, SOUTH);
+        assertNotNull(at(hanging, 7, 5, 0));
+        for (int y = 0; y < 3; y++) assertNull(at(hanging, 7, y, 0));
+        assertEquals(TreePart.HOUSE_BEAM, at(hanging, 7, 3, -2));
+    }
+
+    @Test
+    void stairsGoUpAlongTheWallToADoorway() {
+        // on the right side (x = 5), up toward the back to a landing at z -1..-3, x = 6
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        HouseModule stair = module(settings, HouseModule.Type.STAIR, 1);
+        stair.along = 2;
+        stair.width = 1;
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 6, 4, -2));
+        assertNull(at(blocks, 5, 5, -2));
+        assertNull(at(blocks, 5, 6, -2));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 6, 3, 0));
+        assertNull(at(blocks, 6, 4, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 6, 1, 2));
+        assertNull(at(blocks, 6, 2, 2));
+    }
+
+    @Test
+    void towersAreRoundOctagonalOrSquareAndTheirTopStoreyCanJutOut() {
+        // a tower 5 across at the front, half in the wall: x -2..2, z 3..7
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        HouseModule tower = module(settings, HouseModule.Type.TOWER, 0);
+        assertNull(at(build(settings, SOUTH), 2, 1, 7));
+        tower.shape = 2;
+        assertEquals(TreePart.HOUSE_STONE, at(build(settings, SOUTH), 2, 1, 7));
+        tower.shape = 1;
+        Map<Long, TreePart> octagon = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_STONE, at(octagon, 2, 1, 6));
+        assertNull(at(octagon, 2, 1, 7));
+        // its top storey (from 10, a storey under its head at 14) one out on brackets
+        tower.shape = 2;
+        tower.jetty = 1;
+        Map<Long, TreePart> jutting = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_WALL, at(jutting, 3, 11, 5));
+        assertEquals(TreePart.HOUSE_BEAM, at(jutting, 3, 9, 5));
+        assertNull(at(jutting, 3, 8, 5));
+    }
+
+    @Test
     void thePartsAreSavedAndCopiedWithTheSettings() {
         TreeSettings settings = house(11, 9, 2, 4, 6);
         HouseModule tower = module(settings, HouseModule.Type.TOWER, 3);
@@ -412,6 +543,17 @@ class HouseShapeTest {
         settings.modules().clear();
         assertEquals(2, copy.modules().size());
         assertEquals(HouseModule.Type.TOWER.width, copy.modules().get(0).width);
+        // (t190) the numbers only some kinds have
+        TreeSettings more = house(11, 9, 2, 4, 1);
+        module(more, HouseModule.Type.TOWER, 0).shape = 1;
+        HouseModule volume = module(more, HouseModule.Type.VOLUME, 2);
+        volume.roof = 9;
+        volume.ridge = 2;
+        volume.jetty = 2;
+        TreeSettings again = TreeSettings.fromMap(more.toMap(), "house");
+        assertEquals(more.modules().get(1).toMap(), again.modules().get(1).toMap());
+        assertEquals(1, again.modules().get(0).shape);
+        assertEquals(-1, new HouseModule(HouseModule.Type.VOLUME).jetty);
         // a part of a kind that is not known is left out; out of range is brought in
         TreeSettings odd = TreeSettings.fromMap(Map.of("kind", "house", "house-modules", List.of(Map.of("type", "moat"), Map.of("type", "chimney", "width", 99))), "odd");
         assertEquals(1, odd.modules().size());

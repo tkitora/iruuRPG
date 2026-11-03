@@ -1089,6 +1089,8 @@ treetool:
     house-floor: LIGHT_GRAY_WOOL
     house-roof: RED_WOOL
     house-stone: GRAY_WOOL
+    house-beam: ORANGE_WOOL
+    house-window: LIGHT_BLUE_WOOL
 
 # モデル機能 (model/): Blockbench の .bbmodel を、敵に着せる。モデルは plugins/iruuRPG/models/*.bbmodel、パックは resourcepacks/iruumodel.zip (docs/models.md)
 model:
