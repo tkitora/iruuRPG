@@ -172,7 +172,8 @@ final class ProceduralMenu implements Listener {
                 case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.TIER_HEIGHT, TreeSettings.Key.TIER_STUMP, TreeSettings.Key.TIER_RADIUS, TreeSettings.Key.TIER_TWIST,
                         TreeSettings.Key.TIER_BRAIDED, TreeSettings.Key.TIER_BRAID_INTENSITY, TreeSettings.Key.TIER_BRAID_WOBBLE, TreeSettings.Key.TIER_ROOT_FLARE,
                         TreeSettings.Key.TIER_WIND, TreeSettings.Key.TIER_WIND_DIR};
-                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.TIER_SPACING, TreeSettings.Key.TIER_BRANCHES, TreeSettings.Key.TIER_BRANCH_LENGTH, TreeSettings.Key.TIER_SAG};
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.TIER_SPACING, TreeSettings.Key.TIER_BRANCHES, TreeSettings.Key.TIER_STAGGER, TreeSettings.Key.TIER_BRANCH_LENGTH,
+                        TreeSettings.Key.TIER_SAG};
                 case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.TIER_LEAF_SIZE, TreeSettings.Key.TIER_LEAF_DENSITY, TreeSettings.Key.TIER_WILLOW, TreeSettings.Key.TIER_WILLOW_SCALE,
                         TreeSettings.Key.TIER_SNOW, TreeSettings.Key.TIER_SNOW_AMOUNT};
                 default -> new TreeSettings.Key[]{};
@@ -300,6 +301,7 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.TIER_BRAID_WOBBLE, Material.STRING);
         ICONS.put(TreeSettings.Key.TIER_ROOT_FLARE, Material.MANGROVE_ROOTS);
         ICONS.put(TreeSettings.Key.TIER_SPACING, Material.SCAFFOLDING);
+        ICONS.put(TreeSettings.Key.TIER_STAGGER, Material.BAMBOO);
         ICONS.put(TreeSettings.Key.TIER_BRANCHES, Material.OAK_FENCE);
         ICONS.put(TreeSettings.Key.TIER_BRANCH_LENGTH, Material.BAMBOO);
         ICONS.put(TreeSettings.Key.TIER_SAG, Material.WEEPING_VINES);

@@ -6,7 +6,8 @@ import java.util.Random;
 /**
  * The tiered tree: a tapering trunk (it can twist into a corkscrew, or two strands braided round a core, and bend down wind), tiers of straight branches every
  * {@code tierSpacing} blocks above the stump (shorter and more upright higher up, sagging, leaves all along them, snow on top, willow vines from the outer
- * leaves), five shrinking leaf clusters for the top, and roots flaring out of the foot. Ported from the Lua tree script nekorozv gave (t114, pastebin 844aFmQQ).
+ * leaves; t242: each branch of a tier from its own height and a little off its even turn), five shrinking leaf clusters for the top, and roots flaring out of
+ * the foot. Ported from the Lua tree script nekorozv gave (t114, pastebin 844aFmQQ).
  */
 final class TieredTree {
 
@@ -85,6 +86,33 @@ final class TieredTree {
         }
     }
 
+    /**
+     * (t242) The heights the {@code count} branches of the tier at {@code y} start from: spread over {@code stagger} of the spacing round it, one to each even
+     * share of that band in a shuffled order (so they neither bunch up nor climb in a stair), the band kept from {@code low} to {@code high}. With no stagger all at
+     * {@code y}, as before (and no random numbers drawn, so a tree without it is the same as it was). Package-private, for the tests.
+     */
+    static int[] heights(Random random, int y, int spacing, int count, double stagger, int low, int high) {
+        int[] heights = new int[count];
+        java.util.Arrays.fill(heights, y);
+        double band = spacing * stagger;
+        if (band <= 0.0 || count <= 0) return heights;
+        int[] order = new int[count];
+        for (int i = 0; i < count; i++) order[i] = i;
+        for (int i = count - 1; i > 0; i--) {
+            int j = random.nextInt(i + 1);
+            int swap = order[i];
+            order[i] = order[j];
+            order[j] = swap;
+        }
+        // (the band moved, not cut, at the stump and the top: no tier bunched on its edge)
+        double middle = high - low <= band ? (low + high) / 2.0 : Math.max(low + band / 2.0, Math.min(high - band / 2.0, y));
+        for (int i = 0; i < count; i++) {
+            double share = (order[i] + random.nextDouble()) / count;
+            heights[i] = Math.max(low, Math.min(high, round(middle + (share - 0.5) * band)));
+        }
+        return heights;
+    }
+
     private void grow(TreeSettings s) {
         int treeHeight = s.getInt(TreeSettings.Key.TIER_HEIGHT);
         int stumpHeight = s.getInt(TreeSettings.Key.TIER_STUMP);
@@ -161,13 +189,17 @@ final class TieredTree {
         double branchLength = s.get(TreeSettings.Key.TIER_BRANCH_LENGTH);
         double sagSetting = s.get(TreeSettings.Key.TIER_SAG);
         double leafRadius = s.get(TreeSettings.Key.TIER_LEAF_SIZE);
+        double stagger = s.get(TreeSettings.Key.TIER_STAGGER);
         double rotation = random.nextDouble() * Math.PI * 2;
         for (int currentY = stumpHeight; currentY <= treeHeight - 3; currentY += tierSpacing) {
-            double hp = (double) currentY / treeHeight;
-            double[] at = braided && !wobble ? core[currentY] : trunk[currentY];
             rotation += Math.toRadians(40 + random.nextInt(101));
+            int[] heights = heights(random, currentY, tierSpacing, perTier, stagger, stumpHeight, treeHeight - 3);
             for (int b = 1; b <= perTier; b++) {
-                double yaw = rotation + ((double) b / perTier) * Math.PI * 2;
+                int y = heights[b - 1];
+                double hp = (double) y / treeHeight;
+                double[] at = braided && !wobble ? core[y] : trunk[y];
+                // (t242: a little off the even turn, as much as the heights are)
+                double yaw = rotation + ((double) b / perTier) * Math.PI * 2 + (stagger > 0 ? (random.nextDouble() - 0.5) * stagger * Math.PI / perTier : 0.0);
                 double pitch = Math.toRadians(105 - hp * 50);
                 double dirX = Math.sin(pitch) * Math.cos(yaw), dirY = Math.cos(pitch), dirZ = Math.sin(pitch) * Math.sin(yaw);
                 double len = branchLength * (1 - hp);
