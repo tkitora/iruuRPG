@@ -802,7 +802,9 @@ public final class MoveKit {
                 double radius = 0.3 + 0.32 * which;
                 double strength = 0.9 - 0.18 * which;
                 if (lines) {
-                    LineRipples.ring(plugin, at, heading, radius, trail.at(0.5), (int) Math.round(255 * strength), which < 3 ? player : null);
+                    // the outermost ring is the one the shooter sees (first person: from behind, at the edge of the view), so it is drawn on both sides and stronger
+                    boolean seen = which == 3;
+                    LineRipples.ring(plugin, at, heading, radius, trail.at(0.5), (int) Math.round(255 * (seen ? Math.max(strength, 0.8) : strength)), seen ? null : player, seen);
                     return;
                 }
                 Fx ring = fx(ringAt);

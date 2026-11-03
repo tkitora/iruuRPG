@@ -45,9 +45,10 @@ public final class LineRipples {
 
     /**
      * One ring of {@code radius} blocks round {@code centre}, facing {@code heading}, in {@code color} at {@code opacity} (4..255); it opens and fades
-     * for the configured ticks. {@code hideFrom} (may be null) does not see it.
+     * for the configured ticks. {@code hideFrom} (may be null) does not see it. {@code bothSides}: a second display faces the other way, so that the ring is
+     * drawn when seen from behind too (the shooter looks at the ring from behind: first person).
      */
-    public static void ring(JavaPlugin plugin, Location centre, Vector heading, double radius, Color color, int opacity, Player hideFrom) {
+    public static void ring(JavaPlugin plugin, Location centre, Vector heading, double radius, Color color, int opacity, Player hideFrom, boolean bothSides) {
         if (centre.getWorld() == null || radius <= 0.0) return;
         ConfigurationSection section = config(plugin);
         double lineWidth = section == null ? 0.025 : section.getDouble("line-width", 0.025);
@@ -56,6 +57,12 @@ public final class LineRipples {
         char glyph = MarkGlyphs.disc(MarkGlyphs.Part.RIM, MarkGlyphs.nearestRim(lineWidth / radius));
         Vector way = heading.lengthSquared() < 1.0E-6 ? new Vector(0.0, 0.0, 1.0) : heading.clone().normalize();
         Quaternionf turn = new Quaternionf().rotateTo(new Vector3f(0.0f, 0.0f, 1.0f), new Vector3f((float) way.getX(), (float) way.getY(), (float) way.getZ()));
+        show(plugin, centre, glyph, turn, radius, color, opacity, hideFrom, open, ticks);
+        if (bothSides) show(plugin, centre, glyph, new Quaternionf(turn).rotateY((float) Math.PI), radius, color, opacity, hideFrom, open, ticks);
+    }
+
+    private static void show(JavaPlugin plugin, Location centre, char glyph, Quaternionf turn, double radius, Color color, int opacity, Player hideFrom,
+                             double open, int ticks) {
         TextDisplay display = centre.getWorld().spawn(centre, TextDisplay.class, spawned -> {
             spawned.text(Component.text(String.valueOf(glyph)).font(FONT).color(TextColor.color(color.asRGB())));
             spawned.setBillboard(Display.Billboard.FIXED);
