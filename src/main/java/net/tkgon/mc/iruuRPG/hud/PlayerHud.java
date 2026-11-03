@@ -107,14 +107,20 @@ public final class PlayerHud {
         }
         RpgItemDefinition weapon = heavyIconsOn() && skillSlots != null ? attackService.weaponInMainHand(player) : null;
         for (SkillSlots.Slot slot : SkillSlots.Slot.values()) {
-            // (not for the ULT's long cooldown)
-            if (weapon == null || !weapon.isWeaponLike() || slot == SkillSlots.Slot.ULT) continue;
+            // (the ULT's long cooldown counts too: t217, a skill's cooldown is always on the bar)
+            if (weapon == null || !weapon.isWeaponLike()) continue;
             SkillSlots.View view = skillSlots.view(player, slot, weapon);
             // (a cooldown, an open re-activation, or a charge refilling)
             if (view.cooldown() != null && (view.cooldown()[0] > 0L || view.recasting() || view.charged() && view.refill() >= 0.0)) {
                 lastActive.put(player.getUniqueId(), now);
                 return true;
             }
+        }
+        // the weapon's skill cooling down (t217)
+        if (weapon != null && weapon.isWeaponLike() && itemSkills != null && itemSkills.hasKeySkill(weapon)
+                && itemSkills.hudCooldown(player, weapon.attackType())[0] > 0L) {
+            lastActive.put(player.getUniqueId(), now);
+            return true;
         }
         // stay on the gauges a moment after the last cooldown, so the bar does not flip back and forth between swings
         Long last = lastActive.get(player.getUniqueId());
