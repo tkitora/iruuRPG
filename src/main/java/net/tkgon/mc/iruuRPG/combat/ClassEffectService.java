@@ -209,9 +209,9 @@ public final class ClassEffectService {
     /**
      * Healer: the heals the healer receives (items, skills, allies) gather into a pulse of green damage on every enemy within 7 blocks
      * ({@code class-effects.healer.pulse-radius}), at most once in {@code pulse-interval-ticks} (20; a heal in between waits for it): the life truly
-     * healed counts whole, the overheal only {@code pulse-overheal-share} (25%); the pulse is {@code pulse-rate} (100%) of what gathered, at most
-     * {@code pulse-cap} (100%) of the healer's maximum life, with the green damage buffs. (t168: it was the whole heal, overheal included, times
-     * level / 25 on every heal, which made the healer's damage far too strong.)
+     * healed counts, the overheal only {@code pulse-overheal-share} (0); the pulse is {@code pulse-rate} (40%) of what gathered, at most
+     * {@code pulse-cap} (15%) of the healer's maximum life, with the green damage buffs. (t168: it was the whole heal, overheal included, times
+     * level / 25 on every heal; t198: still too strong at 100% of all that was healed, up to the whole life in a pulse.)
      */
     public void onSelfHealed(Player player, double healAmount, double healed) {
         if (healAmount <= 0.0 || attackService == null) return;
@@ -219,7 +219,7 @@ public final class ClassEffectService {
         PlayerProfile profile = profileManager.getOrCreate(player);
         if (!classService.hasSkill(profile, HEALER_PULSE)) return;
 
-        double share = pulseShare(healAmount, healed, plugin.getConfig().getDouble("class-effects.healer.pulse-overheal-share", 0.25));
+        double share = pulseShare(healAmount, healed, plugin.getConfig().getDouble("class-effects.healer.pulse-overheal-share", 0.0));
         if (share <= 0.0) return;
         double[] pulse = pulses.computeIfAbsent(player.getUniqueId(), ignored -> new double[]{0.0, -1.0E9, 0.0});
         pulse[0] += share;
@@ -243,7 +243,7 @@ public final class ClassEffectService {
         double[] pulse = pulses.get(player.getUniqueId());
         if (pulse == null || pulse[0] <= 0.0) return;
         PlayerProfile profile = profileManager.getOrCreate(player);
-        double gathered = Math.min(pulse[0], profile.maxHp() * plugin.getConfig().getDouble("class-effects.healer.pulse-cap", 100.0) / 100.0);
+        double gathered = Math.min(pulse[0], profile.maxHp() * plugin.getConfig().getDouble("class-effects.healer.pulse-cap", 15.0) / 100.0);
         pulse[0] = 0.0;
         pulse[1] = Bukkit.getCurrentTick();
         double radius = plugin.getConfig().getDouble("class-effects.healer.pulse-radius", 7.0);
@@ -252,7 +252,7 @@ public final class ClassEffectService {
         if (wide) radius *= Math.max(1.0, plugin.getConfig().getDouble("class-effects.healer.wide-radius-multiplier", 1.5));
         double slowPercent = plugin.getConfig().getDouble("class-effects.healer.wide-slow-percent", 40.0);
         long slowMillis = Math.round(plugin.getConfig().getDouble("class-effects.healer.wide-slow-seconds", 3.0) * 1000.0);
-        double damage = gathered * plugin.getConfig().getDouble("class-effects.healer.pulse-rate", 1.0) * greenFactor(profile);
+        double damage = gathered * plugin.getConfig().getDouble("class-effects.healer.pulse-rate", 0.4) * greenFactor(profile);
         if (damage <= 0.0) return;
 
         Location center = player.getLocation();

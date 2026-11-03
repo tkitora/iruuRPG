@@ -54,7 +54,6 @@ public final class ClericDeployCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(ClericSkills.HOLY);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         Location center = kit.ground(kit.origin());
@@ -68,7 +67,7 @@ public final class ClericDeployCombo extends BaseCombo {
                 Location top = center.clone().add(0.0, 1.6, 0.0);
                 java.util.List<LivingEntity> enemies = kit.around(center, radius);
                 enemies.sort(java.util.Comparator.comparingDouble(victim -> victim.getLocation().distanceSquared(center)));
-                kit.sound(top, Sfx.STORM_CAST, 0.6f, 1.5f);
+                kit.sound(top, Sfx.HOLY_BELL, 0.4f, 1.7f);
                 for (int index = 0; index < Math.min(hits, enemies.size()); index++) {
                     LivingEntity victim = enemies.get(index);
                     kit.later(index * 3L, () -> {

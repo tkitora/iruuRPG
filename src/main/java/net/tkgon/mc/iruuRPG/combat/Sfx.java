@@ -235,6 +235,11 @@ public enum Sfx {
     HOLY_MEND(new Layer(Sound.ENTITY_PLAYER_LEVELUP, 0.35f, 1.6f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.6f, 1.5f)),
     /** A chant: the evoker's prayer and a beacon's hum. */
     HOLY_CHANT(new Layer(Sound.ENTITY_EVOKER_PREPARE_SUMMON, 0.45f, 1.3f), new Layer(Sound.BLOCK_BEACON_AMBIENT, 0.8f, 1.4f)),
+    /** A bell of light rung (the cleric's staff, t198): a bell, its ringing on, and a chime. */
+    HOLY_BELL(new Layer(Sound.BLOCK_BELL_USE, 0.9f, 1.1f), new Layer(Sound.BLOCK_BELL_RESONATE, 0.4f, 1.3f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.5f, 1.4f)),
+    /** A feather of light sent from the staff: a soft wing beat and a chime. */
+    HOLY_FEATHER(new Layer(Sound.ENTITY_PARROT_FLY, 0.6f, 1.6f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.3f, 1.9f)),
     /** Lightning called from the staff: a crackle and a cast. */
     STORM_CAST(new Layer(Sound.ENTITY_EVOKER_CAST_SPELL, 0.4f, 1.6f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.9f)),
     /** Lightning striking: a bolt's impact, thunder far off and a crackle. */

@@ -407,9 +407,7 @@ combat:
       radiance-max: 5                             # 聖光の上限
       radiance-seconds: 6                         # 最後にたまってから、聖光が消えるまでの秒数
       radiance-gap-ticks: 10                      # 攻撃を受けてたまるのは、この間隔 (tick) に1つまで (盾を構えている間は毎回)
-      small-charges: 2                            # 小 (盾打ち): ためておける数
-      small-charge-seconds: 6                     # 小: 1つ以上残っている間、1つ戻る秒数
-      small-empty-seconds: 12                     # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-seconds: 7                            # 小 (盾打ち): クールタイム (秒。t198: ストックをやめた)
       small-rate: 0.9                             # 小: 前の敵への倍率 (吹き飛ばし)
       small-stack-rate: 0.2                       # 小: 聖光1つごとに足す倍率
       small-stun: 0.5                             # 小: 気絶 (秒)
@@ -435,49 +433,51 @@ combat:
       large-heal: 1.5                             # 大: 1秒ごとの、陣の中のプレイヤー (自分も) の回復 (%)
       large-burst-rate: 0.8                       # 大: 終わりの光の倍率 (吹き飛ばし)
       large-burst-stun: 0.6                       # 大: その気絶 (秒)
-      util-seconds: 6                             # util (盾突進): クールタイム (秒)
+      util-charges: 2                             # util (盾突進): ためておける数 (t198)
+      util-charge-seconds: 6                      # util: 1つ以上残っている間、1つ戻る秒数
+      util-empty-seconds: 12                      # util: 使い切ったとき、全部まとめて戻るまでの秒数
       util-power: 1                               # util: 1 tick に進むブロック数 (Shift を押しながらだと、後ろへ小さく跳ぶ)
       util-ticks: 5                               # util: その長さ (tick)
       util-guard: 0.5                             # util: その間、受けるダメージが減る割合
       util-rate: 0.3                              # util: 通り抜けた敵への倍率 (横へ押しのける。聖光を最大2つ)
       util-back: 0.8                              # util: Shift のときの後ろへの強さ
-    # クレリックの遠距離 = 杖 (祝福・回復・詠唱、雷と光) (t168)。通常攻撃が当たると「聖句」がたまり (最大5)、大の詠唱が使い切る。
+    # クレリックの遠距離 = 杖 (t168、t198: 攻撃を減らし、雷と光線をやめて、鐘・羽・光の輪にした)。通常攻撃が当たると「聖句」がたまり (最大5)、大の鐘が使い切る。
+    # 色は武器の属性の色 (聖なる金は差し色)。
     cleric_range:
-      # 通常1〜5: 1回の倍率 / 当たる回数 (1 光弾 x2、2 連鎖する雷 x3、3 光線、4 扇の光弾 x3、5 落雷)
-      # hit-rate: [0.45, 0.35, 1.0, 0.3, 1.4]
-      # hit-counts: [2, 3, 1, 3, 1]
-      shot-heal: 0.5                              # 通常1: 光弾が当たった所の周りの味方の回復 (%)
-      beam-heal: 2                                # 通常3: 光線の中の味方の回復 (%)
-      strike-heal: 2                              # 通常5: 落雷の周りの味方の回復 (%)
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 光の雫、2 鐘の波、3 光の羽 x3、4 聖なる輪、5 審判の鐘)
+      # hit-rate: [0.6, 0.4, 0.35, 0.45, 1.3]
+      # hit-counts: [1, 1, 3, 1, 1]
+      shot-heal: 0.5                              # 通常1: 光の雫が落ちた所の周りの味方の回復 (%)
+      wave-reach: 6                               # 通常2: 鐘の波の届く距離 (ブロック)
+      ring-radius: 4                              # 通常4: 聖なる輪の半径
+      ring-heal: 1                                # 通常4: 輪の中の味方の回復 (%)
+      strike-heal: 2                              # 通常5: 審判の鐘の周りの味方の回復 (%)
       strike-self-heal: 1                         # 通常5: 自分の回復 (%)
       verse-max: 5                                # 聖句の上限
       verse-seconds: 10                           # 最後にたまってから、聖句が消えるまでの秒数
-      small-charges: 2                            # 小 (聖雷): ためておける数
+      small-charges: 2                            # 小 (癒しの光): ためておける数
       small-charge-seconds: 4                     # 小: 1つ以上残っている間、1つ戻る秒数
       small-empty-seconds: 9                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
-      small-range: 18                             # 小: 最初の敵を探す距離 (ブロック)
-      small-rate: 0.8                             # 小: 最初の敵への倍率 (跳ぶたびに small-decay 倍)
-      small-decay: 0.85                           # 小: 跳ぶたびの倍率の減り方
-      small-jumps: 4                              # 小: 跳ぶ回数
-      small-jump-range: 6                         # 小: 跳ぶ距離 (ブロック)
-      small-heal: 1                               # 小: 当たった敵1体ごとの自分の回復 (%)
-      small-heal-cap: 4                           # 小: その上限 (%)
-      medium-seconds: 14                          # 中 (祝福): クールタイム (秒)
+      small-range: 20                             # 小: 見ている味方を探す距離 (いなければ自分)
+      small-heal: 6                               # 小: その味方の回復 (%)
+      small-radius: 2.5                           # 小: その周りの敵に光が当たる半径
+      small-rate: 0.3                             # 小: その倍率
+      medium-seconds: 14                          # 中 (祝福): クールタイム (秒。t198: 再発動をやめ、大へ移した)
       medium-radius: 8                            # 中: 祝福する範囲 (ブロック。自分も)
       medium-buff-seconds: 8                      # 中: 祝福の秒数
       medium-might: 15                            # 中: 与えるダメージが増える割合 (%。どの武器でも)
       medium-protection: 15                       # 中: 受けるダメージが減る割合 (%)
-      medium-recast-seconds: 4                    # 中: 再発動 (癒しの光) を受け付ける秒数
-      recast-heal: 8                              # 癒しの光: 範囲の中のプレイヤーの回復 (%。すぐに)
-      large-seconds: 26                           # 大 (天罰の詠唱): クールタイム (秒)
-      large-range: 20                             # 大: 陣を出せる距離 (ブロック)
-      large-radius: 5                             # 大: 陣の半径
-      large-chant-ticks: 30                       # 大: 詠唱の長さ (tick)
-      large-strikes: 6                            # 大: 落ちる雷の数 (0.3秒ごと)
-      large-strike-rate: 0.35                     # 大: 雷1つの倍率 (周り1.6ブロック)
-      large-final-rate: 1.0                       # 大: 最後の光の柱の倍率 (陣の中すべて)
-      large-verse-rate: 0.15                      # 大: 聖句1つごとに、すべての倍率がこの割合だけ増える
-      large-heal: 1                               # 大: 雷1つごとの、陣の中の味方の回復 (%)
+      large-seconds: 22                           # 大 (聖鐘): クールタイム (秒)
+      large-range: 20                             # 大: 鐘を置ける距離 (ブロック)
+      large-radius: 5                             # 大: 鐘の届く半径
+      large-bell-ticks: 120                       # 大: 鐘がある時間 (tick)。この間は再発動 (鐘を呼ぶ) ができる
+      large-rings: 3                              # 大: 鳴る回数
+      large-heal: 4                               # 大: 1回鳴るごとの、範囲の味方の回復 (%)
+      large-verse-heal: 0.1                       # 大: 聖句1つごとに、その回復がこの割合だけ増える
+      large-rate: 0.35                            # 大: 1回鳴るごとの、範囲の敵への倍率
+      large-slow: 30                              # 大: そのときの鈍足 (%、1.5秒)
+      recast-heal: 8                              # 大の再発動 (鐘を呼ぶ): 自分の所で大きく鳴ったときの味方の回復 (%)
+      recast-rate: 0.6                            # 大の再発動: 敵への倍率 (押し返し)
       util-seconds: 6                             # util (光の歩み): クールタイム (秒)
       util-power: 1.2                             # util: 1 tick に進むブロック数 (Shift で後ろへ。移動中は無敵)
       util-ticks: 5                               # util: その長さ (tick)
@@ -803,9 +803,9 @@ class-effects:
     pulse-radius: 7
     # (t168 で計算を直した) 受けた回復をためて、1回の反響で周りの敵に与える。レベルの倍率は無くした
     pulse-interval-ticks: 20                    # 反響は、この間隔 (tick) に1回まで (その間の回復はためて、次の反響で出す)
-    pulse-overheal-share: 0.25                  # 回復しすぎた分 (HP が満タンで入らなかった分) は、この割合だけ数える
-    pulse-rate: 1.0                             # ためた回復のこの割合が、ダメージになる (緑属性の強化が掛かる)
-    pulse-cap: 100                              # 1回の反響でためられる上限 (最大体力の%)
+    pulse-overheal-share: 0.0                   # 回復しすぎた分 (HP が満タンで入らなかった分) は、この割合だけ数える (t198: 0.25 → 0)
+    pulse-rate: 0.4                             # ためた回復のこの割合が、ダメージになる (緑属性の強化が掛かる。t198: 1.0 → 0.4)
+    pulse-cap: 15                               # 1回の反響でためられる上限 (最大体力の%。t198: 100 → 15)
 
 tutorial:
   # デバッグ用チュートリアル (/tutorialstart, /tutorialstop)

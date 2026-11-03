@@ -12,41 +12,43 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.ToIntFunction;
 
 /**
  * The cleric's own skills (t168: nekorozv left the skills, the combos, the look, the effects and the sounds to us, keeping the class's concepts:
- * every way of fighting heals). Every number is under {@code combat.combo.cleric_melee} / {@code cleric_range} (all provisional), the cooldowns too.
+ * every way of fighting heals; t198: the staff attacks less and no longer looks like the mage's). Every number is under
+ * {@code combat.combo.cleric_melee} / {@code cleric_range} (all provisional), the cooldowns too. The effects are drawn in the weapon's colors
+ * (its element), with the gold of holy light as a touch (halos, motes, bells).
  *
  * <p><b>The mace and the shield</b> (a melee weapon of the class's combo; the second tank, who holds on and strikes at the openings with stuns and
  * knockbacks): the blows the cleric takes build <b>radiance</b> ({@code radiance-max} 5, lost {@code radiance-seconds} 6 after the last one; at
  * most one every half second from blows; golden motes round the cleric), and the stronger blows spend it all: each stack adds to the damage, the
  * stun and the heal. Stuns cannot be chained ({@link StatusEffectService#stunFor}: 5 s of immunity after one).
  * <ul>
- *   <li>小 shield bash (2 charges): a step in and a bash of the shield: thrown back and stunned; spends the radiance.</li>
+ *   <li>小 shield bash: a step in and a bash of the shield: thrown back and stunned; spends the radiance.</li>
  *   <li>中 aegis: the shield raised for 1.5 s (much less damage; every blow taken gives radiance and a little life); its re-activation is the
  *       hammer of judgment, a slam round the cleric that stuns, spending the radiance.</li>
  *   <li>大 bastion (6 s): the enemies round turn on the cleric (the second tank), who takes less damage; the allies near are protected and healed
  *       and the radiance grows every second; at the end the light bursts out, throwing back and stunning.</li>
- *   <li>util shield charge: a charge with the shield up through the enemies, thrown aside (radiance for each); with shift a hop back.</li>
+ *   <li>util shield charge (2 charges): a charge with the shield up through the enemies, thrown aside (radiance for each); with shift a hop
+ *       back.</li>
  * </ul>
  *
- * <p><b>The staff</b> (a ranged weapon of the class's combo; blessings, heals, chants, lightning and light): every normal attack that hits adds a
- * <b>verse</b> ({@code verse-max} 5, lost {@code verse-seconds} 10 after the last; small runes over the head), and the chant of 大 spends them.
+ * <p><b>The staff</b> (a ranged weapon of the class's combo; blessings, heals, bells, feathers and halos of light; t198: no more lightning and
+ * beams, and one skill that hurts): every normal attack that hits adds a <b>verse</b> ({@code verse-max} 5, lost {@code verse-seconds} 10 after
+ * the last; small runes over the head), and the bell of 大 spends them.
  * <ul>
- *   <li>小 holy lightning (2 charges): lightning from the enemy aimed at, jumping on to the ones near; a little life back for each.</li>
- *   <li>中 blessing: the cleric and the allies near deal more and take less for 8 s; its re-activation is a mending light that heals them at
- *       once.</li>
- *   <li>大 chant of judgment: a circle at the aim; after the chant, lightning strikes in it and a pillar of light ends it, stronger for each
- *       verse; the allies in it are healed by the strikes.</li>
+ *   <li>小 healing light (2 charges): a column of light on the ally looked at (else the cleric) heals them; the enemies round them are struck
+ *       lightly.</li>
+ *   <li>中 blessing: the cleric and the allies near deal more and take less for 8 s.</li>
+ *   <li>大 sanctus bell: a bell of light at the aim rings three times, healing the allies under it (more for each verse) and slowing and striking
+ *       the enemies; its re-activation calls the bell to the cleric, where it rings out at once, healing more and throwing the enemies back.</li>
  *   <li>util light step: a step of light ahead (back with shift); where it began, a glyph heals the allies on it for 3 s.</li>
  * </ul>
  * With a deployed weapon there are no skills; its combo is {@link ClericDeployCombo}. The ULT is the class's (the sanctuary).
@@ -57,10 +59,7 @@ public final class ClericSkills {
     static final String RANGE = ClericRangeCombo.PLAN;
     /** The holy light: old gold, gold, white. */
     static final Gradient HOLY = Gradient.of(Color.fromRGB(110, 80, 20), Color.fromRGB(255, 212, 100), Color.fromRGB(255, 252, 232));
-    static final List<Color> HOLY_SLASH = List.of(Color.fromRGB(150, 110, 30), Color.fromRGB(255, 220, 120), Color.fromRGB(255, 255, 240));
     /** The staff's lightning: a deep blue, pale blue, white. */
-    static final Gradient STORM = Gradient.of(Color.fromRGB(40, 60, 150), Color.fromRGB(150, 200, 255), Color.fromRGB(250, 252, 255));
-    static final List<Color> STORM_SLASH = List.of(Color.fromRGB(60, 80, 170), Color.fromRGB(170, 215, 255), Color.fromRGB(255, 255, 255));
 
     private static AttackService attack;
     static final Stacks RADIANCE = new Stacks();
@@ -89,7 +88,6 @@ public final class ClericSkills {
                 MoveKit kit = attackService.skillKit(player, weapon);
                 if (kit == null) return false;
                 if (weapon.attackType() == AttackType.MELEE) {
-                    lookHoly(kit);
                     switch (slot) {
                         case SMALL -> shieldBash(kit);
                         case MEDIUM -> aegis(kit);
@@ -101,11 +99,10 @@ public final class ClericSkills {
                     }
                     return true;
                 }
-                lookStorm(kit);
                 switch (slot) {
-                    case SMALL -> holyLightning(kit);
+                    case SMALL -> healingLight(kit);
                     case MEDIUM -> blessing(kit);
-                    case LARGE -> chant(kit);
+                    case LARGE -> bell(kit);
                     case UTIL -> lightStep(kit);
                     default -> {
                         return false;
@@ -116,31 +113,33 @@ public final class ClericSkills {
 
             @Override
             public boolean recast(Player player, RpgItemDefinition weapon) {
-                if (slot != SkillSlots.Slot.MEDIUM || weapon == null || !reworked(attackService, player, weapon)) return false;
+                if (weapon == null || !reworked(attackService, player, weapon)) return false;
                 MoveKit kit = attackService.skillKit(player, weapon);
                 if (kit == null) return false;
                 if (weapon.attackType() == AttackType.MELEE) {
-                    lookHoly(kit);
+                    if (slot != SkillSlots.Slot.MEDIUM) return false;
                     hammer(kit);
                     return true;
                 }
-                lookStorm(kit);
-                mendingLight(kit);
-                return true;
+                return slot == SkillSlots.Slot.LARGE && callBell(kit);
             }
         };
     }
 
-    /** The charges, re-activations and cooldowns of the cleric's own skills (their own seconds); with a deployed weapon none. */
+    /**
+     * The charges, re-activations and cooldowns of the cleric's own skills (their own seconds; t198: spread by what each skill is): with the mace
+     * 中 has its re-activation and util 2 charges; with the staff 小 (a heal) 2 charges and 大 a re-activation for as long as its bell rings. With a
+     * deployed weapon none.
+     */
     static SkillSlots.Mechanics mechanics(ConfigurationSection config, SkillSlots.Slot slot, AttackType kind) {
         if (kind == AttackType.MELEE) {
             String base = "combat.combo." + MELEE + ".";
             return switch (slot) {
-                case SMALL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "small-charges", 2.0)), 0.0,
-                        config.getDouble(base + "small-charge-seconds", 6.0), config.getDouble(base + "small-empty-seconds", 12.0));
+                case SMALL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "small-seconds", 7.0));
                 case MEDIUM -> new SkillSlots.Mechanics(1, config.getDouble(base + "medium-recast-seconds", 2.5), 0.0, config.getDouble(base + "medium-seconds", 12.0));
                 case LARGE -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "large-seconds", 28.0));
-                case UTIL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "util-seconds", 6.0));
+                case UTIL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "util-charges", 2.0)), 0.0,
+                        config.getDouble(base + "util-charge-seconds", 6.0), config.getDouble(base + "util-empty-seconds", 12.0));
                 default -> SkillSlots.Mechanics.NONE;
             };
         }
@@ -149,8 +148,9 @@ public final class ClericSkills {
             return switch (slot) {
                 case SMALL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "small-charges", 2.0)), 0.0,
                         config.getDouble(base + "small-charge-seconds", 4.0), config.getDouble(base + "small-empty-seconds", 9.0));
-                case MEDIUM -> new SkillSlots.Mechanics(1, config.getDouble(base + "medium-recast-seconds", 4.0), 0.0, config.getDouble(base + "medium-seconds", 14.0));
-                case LARGE -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "large-seconds", 26.0));
+                case MEDIUM -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "medium-seconds", 14.0));
+                case LARGE -> new SkillSlots.Mechanics(1, config.getDouble(base + "large-bell-ticks", 120.0) / 20.0, 0.0,
+                        config.getDouble(base + "large-seconds", 22.0));
                 case UTIL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "util-seconds", 6.0));
                 default -> SkillSlots.Mechanics.NONE;
             };
@@ -161,16 +161,6 @@ public final class ClericSkills {
     private static boolean reworked(AttackService attackService, Player player, RpgItemDefinition weapon) {
         AttackType kind = weapon.attackType();
         return (kind == AttackType.MELEE || kind == AttackType.RANGE) && attackService.hasClassCombo(player, weapon);
-    }
-
-    static void lookHoly(MoveKit kit) {
-        kit.palette(HOLY);
-        kit.slashColors(HOLY_SLASH);
-    }
-
-    static void lookStorm(MoveKit kit) {
-        kit.palette(STORM);
-        kit.slashColors(STORM_SLASH);
     }
 
     private static double number(String plan, String key, double fallback) {
@@ -493,16 +483,10 @@ public final class ClericSkills {
                     double t = count == 1 ? 0.0 : index / (double) (count - 1) - 0.5;
                     Location rune = head.clone().add(side.clone().multiply(t * 1.2)).add(0.0, -0.15 * t * t * 4.0 + 0.05 * Math.sin(age * 0.2 + index), 0.0);
                     fx.dust(rune.getX(), rune.getY(), rune.getZ(), HOLY, 0.9, 0.8);
-                    fx.dust(rune.getX(), rune.getY() + 0.12, rune.getZ(), STORM, 0.9, 0.5);
+                    fx.dust(rune.getX(), rune.getY() + 0.12, rune.getZ(), HOLY, 1.0, 0.5);
                 }
             }
         }.runTaskTimer(attack.plugin(), 0L, 2L);
-    }
-
-    /** A bolt of lightning from {@code from} down to {@code to}. */
-    static void lightning(MoveKit kit, Location from, Location to, boolean big) {
-        SkillFx.bolt(kit.player, from, to, big ? 10 : 7, big ? 0.7 : 0.45, STORM, big);
-        kit.particle(Particle.ELECTRIC_SPARK, to, big ? 10 : 5, 0.3, 0.15);
     }
 
     /** Heals the players within {@code radius} of {@code at} by {@code percent} at once (a skill's heal: not held to the staff's cap). */
@@ -517,57 +501,71 @@ public final class ClericSkills {
 
     // ---- the staff: 小 --------------------------------------------------------------------------------------------------------------------
 
-    /** Holy lightning: lightning from the enemy aimed at (or the nearest ahead), jumping on to the ones near; a little life back for each. */
-    private static void holyLightning(MoveKit kit) {
+    /**
+     * Healing light (2 charges): the ally looked at within {@code small-range} (else the cleric) is healed {@code small-heal} (a column of light
+     * falls on them, feathers drift down, a halo over the head); the enemies within {@code small-radius} of them are struck ({@code small-rate}).
+     */
+    private static void healingLight(MoveKit kit) {
         Player player = kit.player;
-        double reach = range(kit, "small-range", 18.0);
-        double rate = range(kit, "small-rate", 0.8);
-        double decay = range(kit, "small-decay", 0.85);
-        int jumps = (int) Math.round(range(kit, "small-jumps", 4.0));
-        double jumpRange = range(kit, "small-jump-range", 6.0);
-        double heal = range(kit, "small-heal", 1.0);
-        double healCap = range(kit, "small-heal-cap", 4.0);
-        LivingEntity first = kit.nearest(reach, 30.0);
-        Location hand = ComboParts.hand(kit);
-        kit.sound(hand, Sfx.STORM_CAST, 1.0f, 1.0f);
-        if (first == null) {
-            Location aim = kit.ground(kit.aim());
-            lightning(kit, aim.clone().add(0.0, 8.0, 0.0), aim, false);
-            kit.sound(aim, Sfx.STORM_STRIKE, 0.7f, 1.2f);
-            for (LivingEntity victim : kit.around(aim, 1.6)) kit.hit(victim, rate);
-            return;
-        }
-        Set<UUID> struck = new HashSet<>();
-        double[] healed = {0.0};
-        chainStep(kit, hand, first, struck, jumps, jumpRange, rate, decay, heal, healCap, healed, 0);
+        Player ally = lookedAt(kit, range(kit, "small-range", 20.0));
+        Player healed = ally == null ? player : ally;
+        Location feet = healed.getLocation();
+        kit.sound(ComboParts.hand(kit), Sfx.HOLY_MEND, 0.9f, 1.2f);
+        if (ally != null) kit.fx(ComboParts.hand(kit)).line(ComboParts.hand(kit), feet.clone().add(0.0, 1.0, 0.0), HOLY, 0.3, 1.0, 1.0, 0.8, 0.3, null, 1);
+        attack.healPlayerBy(player, healed, attack.profileForPlayer(healed).maxHp() * range(kit, "small-heal", 6.0) / 100.0);
+        descend(kit, feet, 1.1, 5.0);
+        double radius = range(kit, "small-radius", 2.5);
+        double rate = range(kit, "small-rate", 0.3);
+        kit.later(4L, () -> {
+            Location at = healed.getLocation();
+            kit.sound(at, Sfx.HOLY_BELL, 0.5f, 1.6f);
+            kit.shockwave(at, 0.4, radius, 4, 1.0);
+            for (LivingEntity victim : kit.around(at, radius)) {
+                if (kit.hit(victim, rate)) kit.push(victim, at.toVector(), 0.25, 0.1);
+            }
+        });
     }
 
-    private static void chainStep(MoveKit kit, Location from, LivingEntity victim, Set<UUID> struck, int left, double jumpRange, double rate, double decay,
-                                  double heal, double healCap, double[] healed, int jump) {
-        if (!victim.isValid() || victim.isDead()) return;
-        struck.add(victim.getUniqueId());
-        Location to = victim.getLocation().add(0.0, victim.getHeight() * 0.6, 0.0);
-        SkillFx.trail(kit.player, from, to, STORM, 1.1);
-        kit.particle(Particle.ELECTRIC_SPARK, to, 6, 0.3, 0.15);
-        kit.sound(to, Sfx.STORM_STRIKE, 0.6f, 1.2f + 0.08f * jump);
-        if (kit.hit(victim, rate * Math.pow(decay, jump)) && healed[0] < healCap) {
-            double now = Math.min(heal, healCap - healed[0]);
-            healed[0] += now;
-            kit.heal(now);
-        }
-        if (left <= 0) return;
-        kit.later(2L, () -> {
-            LivingEntity next = null;
-            double best = jumpRange * jumpRange;
-            for (LivingEntity candidate : kit.around(victim.getLocation(), jumpRange)) {
-                if (struck.contains(candidate.getUniqueId())) continue;
-                double distance = candidate.getLocation().distanceSquared(victim.getLocation());
-                if (distance < best) {
-                    best = distance;
-                    next = candidate;
-                }
+    /** The other player nearest the line of sight within {@code reach} (at most 12 degrees off it), or null. */
+    static Player lookedAt(MoveKit kit, double reach) {
+        Location eye = kit.eye();
+        Vector look = eye.getDirection().normalize();
+        Player best = null;
+        double bestAngle = Math.toRadians(12.0);
+        for (Player other : eye.getWorld().getPlayers()) {
+            if (other.equals(kit.player) || other.isDead()) continue;
+            Vector to = other.getLocation().add(0.0, 1.0, 0.0).toVector().subtract(eye.toVector());
+            double distance = to.length();
+            if (distance > reach || distance < 1.0E-6) continue;
+            double angle = to.angle(look);
+            if (angle < bestAngle) {
+                bestAngle = angle;
+                best = other;
             }
-            if (next != null) chainStep(kit, to, next, struck, left - 1, jumpRange, rate, decay, heal, healCap, healed, jump + 1);
+        }
+        return best;
+    }
+
+    /**
+     * Holy light coming down on {@code feet}: a column in the weapon's colors from {@code height} blocks up, a golden halo over the head, and
+     * feathers of light drifting down.
+     */
+    static void descend(MoveKit kit, Location feet, double radius, double height) {
+        Location top = feet.clone().add(0.0, height, 0.0);
+        for (int step = 0; step < 5; step++) {
+            int which = step;
+            kit.later(step, () -> {
+                double y = height * (1.0 - (which + 1) / 5.0);
+                Fx fx = kit.fx(feet);
+                fx.line(top, feet.clone().add(0.0, y, 0.0), kit.palette(), 0.4, 1.0, 0.0, 1.2, 0.2, null, 1);
+                fx.flatRing(feet.clone().add(0.0, y + 0.1, 0.0), radius * (0.6 + 0.4 * which / 4.0), 16, kit.palette(), 0.6, 0.2, 1.0);
+            });
+        }
+        kit.later(5L, () -> {
+            Location head = feet.clone().add(0.0, 2.3, 0.0);
+            kit.fx(head).flatRing(head, 0.45, 14, HOLY, 1.0, 0.0, 0.9);
+            kit.particle(Particle.END_ROD, feet.clone().add(0.0, 2.5, 0.0), 6, 0.6, 0.01);
+            kit.fx(feet).flatRing(feet.clone().add(0.0, 0.1, 0.0), radius, 22, HOLY, 0.8, 0.2, 1.0);
         });
     }
 
@@ -582,7 +580,7 @@ public final class ClericSkills {
         double might = range(kit, "medium-might", 15.0);
         double protection = range(kit, "medium-protection", 15.0);
         kit.sound(at, Sfx.HOLY_BLESS, 1.0f, 1.0f);
-        kit.palette(HOLY);
+        kit.sound(at, Sfx.HOLY_BELL, 0.6f, 1.2f);
         kit.shockwave(at, 0.8, radius, 7, 1.2);
         for (Player ally : at.getWorld().getPlayers()) {
             if (ally.isDead() || ally.getLocation().distanceSquared(at) > radius * radius) continue;
@@ -591,98 +589,123 @@ public final class ClericSkills {
             Location feet = ally.getLocation();
             for (int step = 0; step < 6; step++) {
                 int which = step;
-                kit.later(step * 2L, () -> kit.fx(feet).flatRing(feet.clone().add(0.0, 0.2 + 0.35 * which, 0.0), 0.8 - 0.08 * which, 16, HOLY, 0.4 + 0.1 * which, 0.2, 1.0));
+                kit.later(step * 2L, () -> kit.fx(feet).flatRing(feet.clone().add(0.0, 0.2 + 0.35 * which, 0.0), 0.8 - 0.08 * which, 16, which % 2 == 0 ? kit.palette() : HOLY, 0.4 + 0.1 * which, 0.2, 1.0));
             }
         }
     }
 
-    /** The re-activation of 中: a mending light that heals the cleric and the allies within {@code medium-radius} at once. */
-    private static void mendingLight(MoveKit kit) {
-        Location at = kit.player.getLocation();
-        double radius = range(kit, "medium-radius", 8.0);
-        kit.sound(at, Sfx.HOLY_MEND, 1.0f, 1.0f);
-        kit.palette(HOLY);
-        kit.shockwave(at, radius, 0.8, 6, 1.1);
-        lightPillar(kit, at, 1.0, 3.0);
-        healAround(kit, at, radius, range(kit, "recast-heal", 8.0));
-    }
-
     // ---- the staff: 大 --------------------------------------------------------------------------------------------------------------------
 
+    /** The bell of each cleric while it rings (for the re-activation of 大). */
+    private static final Map<UUID, Bell> BELLS = new HashMap<>();
+
+    /** A sanctus bell: where it hangs (it can be called to the cleric), what each ring heals, and whether it rang out. */
+    private static final class Bell {
+        Location at;
+        final double heal;
+        boolean done;
+
+        Bell(Location at, double heal) {
+            this.at = at;
+            this.heal = heal;
+        }
+    }
+
     /**
-     * Chant of judgment: a circle at the aim ({@code large-radius} 5, at most {@code large-range} away); after {@code large-chant-ticks} of
-     * chanting, {@code large-strikes} lightning strikes fall in it (on the enemies, else anywhere in it) and a pillar of light ends it. Each verse
-     * adds {@code large-verse-rate}; the allies in it are healed by every strike.
+     * Sanctus bell: a bell of light at the aim (at most {@code large-range} away) for {@code large-bell-ticks}; it rings {@code large-rings} times
+     * (the first a moment after it appears): the allies within {@code large-radius} are healed {@code large-heal} (and {@code large-verse-heal} more
+     * for each verse spent when it was rung up), the enemies slowed ({@code large-slow} for 1.5 s) and struck ({@code large-rate}).
      */
-    private static void chant(MoveKit kit) {
+    private static void bell(MoveKit kit) {
         Player player = kit.player;
-        int verses = VERSES.take(player.getUniqueId(), System.currentTimeMillis());
-        double bonus = 1.0 + range(kit, "large-verse-rate", 0.15) * verses;
+        UUID id = player.getUniqueId();
+        int verses = VERSES.take(id, System.currentTimeMillis());
+        double heal = range(kit, "large-heal", 4.0) * (1.0 + range(kit, "large-verse-heal", 0.1) * verses);
         double radius = range(kit, "large-radius", 5.0);
-        int chanting = (int) Math.round(range(kit, "large-chant-ticks", 30.0));
-        int strikes = (int) Math.round(range(kit, "large-strikes", 6.0));
-        double strikeRate = range(kit, "large-strike-rate", 0.35) * bonus;
-        double finalRate = range(kit, "large-final-rate", 1.0) * bonus;
-        double heal = range(kit, "large-heal", 1.0);
+        int life = (int) Math.round(range(kit, "large-bell-ticks", 120.0));
+        int rings = Math.max(1, (int) Math.round(range(kit, "large-rings", 3.0)));
+        int gap = Math.max(1, (life - 10) / rings);
+        double rate = range(kit, "large-rate", 0.35);
+        double slow = range(kit, "large-slow", 30.0);
         Location eye = kit.eye();
         Location aim = kit.aim();
         double reach = range(kit, "large-range", 20.0);
         Vector way = aim.toVector().subtract(eye.toVector());
         if (way.length() > reach) aim = eye.clone().add(way.normalize().multiply(reach));
-        Location center = kit.ground(aim);
-        kit.sound(player.getLocation(), Sfx.HOLY_CHANT, 1.0f, 1.0f);
-        int gap = 6;
-        int total = chanting + strikes * gap + 8;
-        kit.every(total + 1, age -> {
-            Fx fx = kit.fx(center);
-            if (age < chanting) {
-                // the circle grows while the cleric chants: its rim, a turning star in it, and a ring over the cleric
-                double grow = radius * Math.min(1.0, (age + 1.0) / chanting);
-                if (age % 2 == 0) {
-                    fx.flatRing(center.clone().add(0.0, 0.12, 0.0), grow, 48, STORM, 0.5, 0.3, 1.0);
-                    for (int index = 0; index < 5; index++) {
-                        double a1 = age * 0.06 + index * Math.PI * 2.0 / 5.0;
-                        double a2 = age * 0.06 + (index + 2) * Math.PI * 2.0 / 5.0;
-                        Location p1 = center.clone().add(Math.cos(a1) * grow, 0.12, Math.sin(a1) * grow);
-                        Location p2 = center.clone().add(Math.cos(a2) * grow, 0.12, Math.sin(a2) * grow);
-                        fx.line(p1, p2, HOLY, 0.4, 0.9, 0.0, 0.8, 0.35, null, 1);
-                    }
-                    Location head = player.getLocation().add(0.0, 2.4, 0.0);
-                    kit.fx(head).flatRing(head, 0.6, 14, HOLY, 0.9, 0.1, 0.8);
-                }
-                if (age % 10 == 0) kit.sound(player.getLocation(), Sfx.HOLY_CHANT, 0.4f, 1.2f + 0.1f * (age / 10));
-                return false;
-            }
-            int t = age - chanting;
-            if (t % 2 == 0) fx.flatRing(center.clone().add(0.0, 0.12, 0.0), radius, 48, STORM, 0.6, 0.3, 1.0);
-            if (t % gap == 0 && t / gap < strikes) {
-                List<LivingEntity> inside = kit.around(center, radius);
-                ThreadLocalRandom random = ThreadLocalRandom.current();
-                Location spot;
-                if (!inside.isEmpty()) {
-                    spot = inside.get(random.nextInt(inside.size())).getLocation();
-                } else {
-                    double angle = random.nextDouble(Math.PI * 2.0);
-                    double r = radius * Math.sqrt(random.nextDouble());
-                    spot = kit.ground(center.clone().add(Math.cos(angle) * r, 0.0, Math.sin(angle) * r));
-                }
-                lightning(kit, spot.clone().add(0.0, 10.0, 0.0), spot, false);
-                kit.sound(spot, Sfx.STORM_STRIKE, 0.9f, 1.0f);
-                kit.fx(spot).flatRing(spot.clone().add(0.0, 0.1, 0.0), 1.6, 18, STORM, 0.9, 0.2, 1.0);
-                for (LivingEntity victim : kit.around(spot, 1.6)) kit.hit(victim, strikeRate);
-                kit.healAllies(center, radius, heal);
-            }
-            if (t == strikes * gap + 4) {
-                kit.palette(HOLY);
-                kit.sound(center, Sfx.HOLY_HAMMER, 1.0f, 0.8f);
-                kit.shockwave(center, 1.0, radius + 0.5, 6, 1.4);
-                lightPillar(kit, center, radius * 0.5, 6.0);
-                lightning(kit, center.clone().add(0.0, 14.0, 0.0), center, true);
-                for (LivingEntity victim : kit.around(center, radius)) kit.hit(victim, finalRate);
+        Bell bell = new Bell(kit.ground(aim), heal);
+        BELLS.put(id, bell);
+        kit.sound(bell.at, Sfx.HOLY_CHANT, 1.0f, 1.1f);
+        kit.every(life + 1, age -> {
+            if (bell.done || BELLS.get(id) != bell) return true;
+            if (age >= life) {
+                BELLS.remove(id, bell);
+                kit.fx(bell.at).sphereShell(bell.at.clone().add(0.0, 2.6, 0.0), 0.8, 0.0, 14, HOLY, 0.8);
                 return true;
             }
+            double drop = Math.max(0.0, 1.0 - age / 6.0);
+            if (age % 2 == 0) {
+                drawBell(kit, bell.at.clone().add(0.0, 2.2 + 3.0 * drop, 0.0), 0.9, Math.sin(age * 0.35) * (age % gap < 8 ? 0.25 : 0.05));
+                kit.fx(bell.at).flatRing(bell.at.clone().add(0.0, 0.12, 0.0), radius, 44, kit.palette(), 0.5, 0.2, 1.0);
+            }
+            if (age >= 10 && (age - 10) % gap == 0 && (age - 10) / gap < rings) ring(kit, bell.at, radius, bell.heal, rate, slow, 1.0);
             return false;
         });
+    }
+
+    /** The re-activation of 大: the bell is called to the cleric and rings out at once (more heal, the enemies thrown back); false when none rings. */
+    private static boolean callBell(MoveKit kit) {
+        Bell bell = BELLS.remove(kit.player.getUniqueId());
+        if (bell == null || bell.done) return false;
+        bell.done = true;
+        Location from = bell.at.clone().add(0.0, 2.2, 0.0);
+        Location to = kit.ground(kit.player.getLocation());
+        kit.fx(from).line(from, to.clone().add(0.0, 2.2, 0.0), HOLY, 0.3, 1.0, 1.5, 1.0, 0.3, null, 1);
+        kit.later(3L, () -> {
+            Location at = kit.ground(kit.player.getLocation());
+            drawBell(kit, at.clone().add(0.0, 2.4, 0.0), 1.2, 0.3);
+            double radius = range(kit, "large-radius", 5.0);
+            ring(kit, at, radius, range(kit, "recast-heal", 8.0), range(kit, "recast-rate", 0.6), range(kit, "large-slow", 30.0), 1.6);
+            for (LivingEntity victim : kit.around(at, radius)) kit.push(victim, at.toVector(), 0.6, 0.3);
+        });
+        return true;
+    }
+
+    /** One ring of the bell at {@code at}: the allies within {@code radius} healed {@code heal}, the enemies slowed and struck; {@code loud} its size. */
+    private static void ring(MoveKit kit, Location at, double radius, double heal, double rate, double slow, double loud) {
+        kit.sound(at, Sfx.HOLY_BELL, (float) loud, 1.0f / (float) Math.sqrt(loud));
+        kit.shockwave(at, 0.6, radius, 6, 1.1 * loud);
+        kit.later(2L, () -> kit.shockwave(at, 0.3, radius * 0.7, 5, 0.9 * loud));
+        for (int y = 0; y < 3; y++) {
+            int level = y;
+            kit.later(level, () -> kit.fx(at).flatRing(at.clone().add(0.0, 2.0 - 0.6 * level, 0.0), 0.9 + 0.8 * level * loud, 20, HOLY, 0.9 - 0.2 * level, 0.1, 1.0));
+        }
+        healAround(kit, at, radius, heal);
+        for (LivingEntity victim : kit.around(at, radius)) {
+            if (kit.hit(victim, rate)) kit.slow(victim, slow, 1.5);
+        }
+    }
+
+    /** A bell of light hanging at {@code top} ({@code size} its lip's radius), swung by {@code swing} (its lip shifted aside). */
+    static void drawBell(MoveKit kit, Location top, double size, double swing) {
+        Fx fx = kit.fx(top);
+        if (!fx.active()) return;
+        Vector side = kit.facing().rotateAroundY(Math.PI / 2.0).multiply(swing);
+        // the crown, the shoulder, the waist and the lip, from the top down; the lip swings the most
+        double[][] rings = {{0.0, 0.25}, {-0.25, 0.5}, {-0.7, 0.6}, {-1.1, 1.0}};
+        Location previous = null;
+        for (double[] ring : rings) {
+            Location at = top.clone().add(0.0, ring[0] * size, 0.0).add(side.clone().multiply(-ring[0]));
+            fx.flatRing(at, ring[1] * size, 10 + (int) (ring[1] * 14), ring == rings[3] ? HOLY : kit.palette(), 0.6 + 0.3 * -ring[0], 0.0, 1.0);
+            if (previous != null) {
+                for (int edge = 0; edge < 4; edge++) {
+                    double angle = edge * Math.PI / 2.0 + Math.PI / 4.0;
+                    Vector out = new Vector(Math.cos(angle), 0.0, Math.sin(angle));
+                    fx.line(previous.clone().add(out.clone().multiply(size * 0.5)), at.clone().add(out.clone().multiply(ring[1] * size)), kit.palette(), 0.5, 0.8, 0.0, 0.7, 0.3, null, 1);
+                }
+            }
+            previous = at;
+        }
+        fx.dust(top.getX(), top.getY() + 0.2, top.getZ(), HOLY, 1.0, 1.2);
     }
 
     // ---- the staff: util ------------------------------------------------------------------------------------------------------------------
@@ -698,17 +721,16 @@ public final class ClericSkills {
         double radius = range(kit, "util-glyph-radius", 2.0);
         kit.invulnerable(ticks + 3);
         kit.sound(start, Sfx.HOLY_STEP, 1.0f, 1.3f);
-        kit.palette(HOLY);
         kit.every(ticks + 1, age -> {
             Location at = player.getLocation();
-            kit.fx(at).line(at.clone().add(0.0, 0.1, 0.0), at.clone().add(0.0, 1.9, 0.0), STORM, 0.2, 0.9, 0.0, 0.9, 0.3, null, 1);
+            kit.fx(at).line(at.clone().add(0.0, 0.1, 0.0), at.clone().add(0.0, 1.9, 0.0), kit.palette(), 0.2, 0.9, 0.0, 0.9, 0.3, null, 1);
             return false;
         });
         kit.dash(heading, power, ticks, null);
         int life = (int) Math.round(range(kit, "util-glyph-seconds", 3.0) * 20.0);
         kit.zone("cleric_glyph", start, life, 10, zone -> {
             Fx fx = kit.fx(start);
-            fx.flatRing(start.clone().add(0.0, 0.1, 0.0), radius, 30, HOLY, 0.7, 0.3, 1.0);
+            fx.flatRing(start.clone().add(0.0, 0.1, 0.0), radius, 30, kit.palette(), 0.7, 0.3, 1.0);
             fx.flatRing(start.clone().add(0.0, 0.1, 0.0), radius * 0.5, 16, HOLY, 0.9, 0.2, 0.9);
             kit.healAllies(start, radius, heal);
         }, null);
@@ -734,6 +756,7 @@ public final class ClericSkills {
         VERSES.forget(player);
         AEGIS.remove(player);
         LAST_BLOW.remove(player);
+        BELLS.remove(player);
         ClericDeployCombo.forget(player);
     }
 }
