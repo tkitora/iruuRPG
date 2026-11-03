@@ -140,30 +140,11 @@ public enum Sfx {
             new Layer(Sound.BLOCK_SLIME_BLOCK_FALL, 0.5f, 0.6f), new Layer(Sound.ENTITY_RAVAGER_ATTACK, 0.4f, 0.8f)),
     /** Life drunk back from a wound: the witch drinking and the sculk's bloom, faint. */
     BLOOD_DRINK(new Layer(Sound.ENTITY_WITCH_DRINK, 0.4f, 0.8f), new Layer(Sound.BLOCK_SCULK_CATALYST_BLOOM, 0.3f, 1.4f)),
-    /** The oath sworn: the ravager's roar, an anchor charging low and a heartbeat. */
-    BLOOD_OATH(new Layer(Sound.ENTITY_RAVAGER_ROAR, 0.6f, 0.8f), new Layer(Sound.BLOCK_RESPAWN_ANCHOR_CHARGE, 0.5f, 0.5f),
-            new Layer(Sound.ENTITY_WARDEN_HEARTBEAT, 0.9f, 1.0f)),
-    /** The oath's heart beating. */
-    BLOOD_HEARTBEAT(new Layer(Sound.ENTITY_WARDEN_HEARTBEAT, 0.8f, 1.1f)),
-    /** The oath's blood bursting out: a sonic boom, an explosion, the ravager and a wet crash. */
-    BLOOD_BURST(new Layer(Sound.ENTITY_WARDEN_SONIC_BOOM, 0.3f, 1.4f), new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 0.8f),
-            new Layer(Sound.ENTITY_RAVAGER_ROAR, 0.4f, 1.2f), new Layer(Sound.BLOCK_SLIME_BLOCK_BREAK, 0.6f, 0.5f)),
     /** The blade raised to parry: steel ringing. */
     BLOOD_GUARD(new Layer(Sound.ITEM_ARMOR_EQUIP_IRON, 0.6f, 1.2f), new Layer(Sound.ITEM_TRIDENT_RETURN, 0.4f, 1.5f)),
     /** A blow parried: a shield's clang, the anvil high and a trident's strike. */
     BLOOD_PARRY(new Layer(Sound.ITEM_SHIELD_BLOCK, 0.8f, 1.3f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.3f, 1.9f),
             new Layer(Sound.ITEM_TRIDENT_HIT, 0.5f, 1.5f)),
-    /** The swords called: a beacon, netherite and a crystal's hum. */
-    SWORD_SUMMON(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.35f, 1.6f), new Layer(Sound.ITEM_ARMOR_EQUIP_NETHERITE, 0.4f, 1.2f),
-            new Layer(Sound.BLOCK_AMETHYST_BLOCK_RESONATE, 0.3f, 0.9f)),
-    /** A sword sent flying: a trident thrown and a riptide's rush. */
-    SWORD_FLY(new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 1.1f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.6f)),
-    /** A sword stabbed into the ground: a trident landing, the anvil and stone. */
-    SWORD_IMPACT(new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.7f, 0.8f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.25f, 1.3f),
-            new Layer(Sound.BLOCK_STONE_BREAK, 0.4f, 0.8f)),
-    /** A great sword landing: an explosion, the anvil low, a trident deep in the ground and the iron golem. */
-    SWORD_GRAND(new Layer(Sound.ENTITY_GENERIC_EXPLODE, 0.5f, 0.7f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.5f, 0.5f),
-            new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.8f, 0.5f), new Layer(Sound.ENTITY_IRON_GOLEM_DAMAGE, 0.4f, 0.6f)),
     /** A chain flung: chains placed, mail and a whoosh. */
     CHAIN_THROW(new Layer(Sound.BLOCK_CHAIN_PLACE, 0.7f, 1.0f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.6f, 0.8f),
             new Layer(Sound.ITEM_TRIDENT_THROW, 0.3f, 1.4f)),
@@ -172,6 +153,21 @@ public enum Sfx {
             new Layer(Sound.BLOCK_CHAIN_PLACE, 0.5f, 0.5f)),
     /** A chain let go: chains breaking, high. */
     CHAIN_BREAK(new Layer(Sound.BLOCK_CHAIN_BREAK, 0.6f, 1.3f), new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.4f, 1.5f)),
+    /** A knife thrown from the assassin's fan (t198): a sharp, high whoosh, a flick of wings and a glint of chain. */
+    KNIFE_THROW(new Layer(Sound.ITEM_TRIDENT_THROW, 0.5f, 1.95f), new Layer(Sound.ENTITY_PHANTOM_FLAP, 0.25f, 2.0f),
+            new Layer(Sound.ITEM_ARMOR_EQUIP_CHAIN, 0.25f, 2.0f)),
+    /** A knife striking: a trident's hit, high, a chain struck and a crit. */
+    KNIFE_HIT(new Layer(Sound.ITEM_TRIDENT_HIT, 0.6f, 1.7f), new Layer(Sound.BLOCK_CHAIN_HIT, 0.5f, 1.9f),
+            new Layer(Sound.ENTITY_PLAYER_ATTACK_CRIT, 0.3f, 1.7f)),
+    /** The knives called round (the fan, the ring of 大): chains laid, iron put on, a chime. */
+    KNIFE_SUMMON(new Layer(Sound.BLOCK_CHAIN_PLACE, 0.6f, 1.7f), new Layer(Sound.ITEM_ARMOR_EQUIP_IRON, 0.4f, 1.9f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.35f, 1.9f)),
+    /** Many knives plunging at once: a riptide, high, a ring of an anvil and tridents into the ground. */
+    KNIFE_STORM(new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.6f, 1.6f), new Layer(Sound.BLOCK_ANVIL_LAND, 0.2f, 2.0f),
+            new Layer(Sound.ITEM_TRIDENT_HIT_GROUND, 0.7f, 1.4f)),
+    /** An afterimage taking a blow in the veil (t198): a mirror's move, a whoosh and a chime. */
+    VEIL_DODGE(new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.7f, 1.4f), new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.35f, 1.8f),
+            new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.3f, 1.6f)),
     /** The warrior's shield struck forward (t198): a shield taking a blow, an iron golem's swing, a ring of an anvil. */
     SHIELD_BASH(new Layer(Sound.ITEM_SHIELD_BLOCK, 0.9f, 0.7f), new Layer(Sound.ENTITY_IRON_GOLEM_ATTACK, 0.6f, 0.9f),
             new Layer(Sound.BLOCK_ANVIL_PLACE, 0.2f, 1.5f)),
@@ -240,11 +236,6 @@ public enum Sfx {
             new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.5f, 1.4f)),
     /** A feather of light sent from the staff: a soft wing beat and a chime. */
     HOLY_FEATHER(new Layer(Sound.ENTITY_PARROT_FLY, 0.6f, 1.6f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.3f, 1.9f)),
-    /** Lightning called from the staff: a crackle and a cast. */
-    STORM_CAST(new Layer(Sound.ENTITY_EVOKER_CAST_SPELL, 0.4f, 1.6f), new Layer(Sound.ITEM_TRIDENT_RIPTIDE_1, 0.25f, 1.9f)),
-    /** Lightning striking: a bolt's impact, thunder far off and a crackle. */
-    STORM_STRIKE(new Layer(Sound.ENTITY_LIGHTNING_BOLT_IMPACT, 0.6f, 1.3f), new Layer(Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.2f, 1.8f),
-            new Layer(Sound.BLOCK_AMETHYST_CLUSTER_BREAK, 0.3f, 1.6f)),
     // the ranger (t168): the wire sings and snaps, the bow creaks and twangs, the spirit bow hums
     /** A wire flung: a fishing line cast, a whoosh and a thin metal ring. */
     WIRE_THROW(new Layer(Sound.ENTITY_FISHING_BOBBER_THROW, 0.7f, 1.3f), new Layer(Sound.ITEM_TRIDENT_THROW, 0.3f, 1.8f),
@@ -268,17 +259,9 @@ public enum Sfx {
     /** The spirit bow's overdrive: a beacon's power, the allay and a fast crossbow. */
     SPIRIT_OVERDRIVE(new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.6f, 1.6f), new Layer(Sound.ENTITY_ALLAY_AMBIENT_WITH_ITEM, 0.6f, 1.5f),
             new Layer(Sound.ITEM_CROSSBOW_QUICK_CHARGE_3, 0.6f, 1.2f)),
-    // the assassin's shadow bow and veil (t168): arrows that whisper through walls, the night closing in
-    /** A shadow arrow loosed: a soft twang, the illusioner's breath and a whoosh. */
-    SHADE_LOOSE(new Layer(Sound.ENTITY_ARROW_SHOOT, 0.5f, 1.4f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.35f, 1.6f),
-            new Layer(Sound.ITEM_TRIDENT_THROW, 0.25f, 1.9f)),
-    /** A shadow arrow striking: a dull stab and the squid's ink. */
+    // the assassin's veil (t168): a stab in the dark, the night closing in
+    /** A stab out of the shadow (the veil's bonds and thorns): a dull stab and the squid's ink. */
     SHADE_HIT(new Layer(Sound.ITEM_TRIDENT_HIT, 0.45f, 1.3f), new Layer(Sound.ENTITY_SQUID_SQUIRT, 0.4f, 1.2f)),
-    /** The long draw of the assassination: a crossbow loading slowly and the illusioner preparing. */
-    SHADE_DRAW(new Layer(Sound.ITEM_CROSSBOW_LOADING_MIDDLE, 0.7f, 0.6f), new Layer(Sound.ENTITY_ILLUSIONER_PREPARE_BLINDNESS, 0.6f, 1.0f)),
-    /** The assassination loosed (and an enemy finished): the warden's boom, low, and the wither's breath. */
-    SHADE_EXECUTE(new Layer(Sound.ENTITY_WARDEN_SONIC_BOOM, 0.25f, 1.8f), new Layer(Sound.ENTITY_ARROW_SHOOT, 0.8f, 0.6f),
-            new Layer(Sound.ENTITY_WITHER_SHOOT, 0.15f, 1.6f)),
     /** The veil swelling: the illusioner's blindness and smoke. */
     VEIL_SWELL(new Layer(Sound.ENTITY_ILLUSIONER_CAST_SPELL, 0.6f, 0.8f), new Layer(Sound.BLOCK_FIRE_EXTINGUISH, 0.4f, 0.6f)),
     /** The thorns of the veil: sweet berry bushes and a vine's creak. */

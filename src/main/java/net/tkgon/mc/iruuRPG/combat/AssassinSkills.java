@@ -2,6 +2,7 @@ package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.vfx.Gradient;
+import net.tkgon.mc.iruuRPG.vfx.Palettes;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -47,7 +48,6 @@ public final class AssassinSkills {
     static final String PLAN = AssassinMeleeCombo.PLAN;
     /** The skills' colors: deep indigo, violet, pale lilac. */
     static final Gradient SHADOW = Gradient.of(Color.fromRGB(32, 18, 64), Color.fromRGB(128, 70, 220), Color.fromRGB(226, 212, 255));
-    private static final List<Color> SHADOW_SLASH = List.of(Color.fromRGB(40, 20, 80), Color.fromRGB(140, 80, 230), Color.fromRGB(235, 222, 255));
     private static final List<Color> RED_BLACK_SLASH = List.of(Color.fromRGB(90, 0, 8), Color.fromRGB(230, 25, 30), Color.fromRGB(255, 120, 100));
 
     /** Hides a player from the mobs for some milliseconds, the mobs after them going to a place (the mob service's; set by the plugin). */
@@ -58,9 +58,6 @@ public final class AssassinSkills {
         default void reveal(Player player) {
         }
 
-        /** {@code mob} cannot see {@code player} for {@code millis} (the veil of the assassin's lantern, t168). */
-        default void blind(org.bukkit.entity.LivingEntity mob, Player player, long millis) {
-        }
     }
 
     /** The mobs lose {@code player} for {@code millis} and go to {@code lure} (null: they only lose them). */
@@ -71,11 +68,6 @@ public final class AssassinSkills {
     /** The mobs see {@code player} again. */
     static void reveal(Player player) {
         hider.reveal(player);
-    }
-
-    /** {@code mob} cannot see {@code player} for {@code millis}. */
-    static void blind(org.bukkit.entity.LivingEntity mob, Player player, long millis) {
-        hider.blind(mob, player, millis);
     }
 
     private static Hider hider = (player, lure, millis) -> {
@@ -106,8 +98,8 @@ public final class AssassinSkills {
             @Override
             public boolean use(Player player, RpgItemDefinition weapon) {
                 if (weapon == null) return false;
-                // (the shadow bow's own skills since t168)
-                if (AssassinShade.own(attack, player, weapon)) return AssassinShade.use(attack, player, weapon, slot);
+                // (the knives' own skills with a ranged weapon: t198; the shadow bow of t168 before)
+                if (AssassinKnives.own(attack, player, weapon)) return AssassinKnives.use(attack, player, weapon, slot);
                 if (!reworked(attack, player, weapon)) return attack.slotHeavy(player, weapon, heavyOf.applyAsInt(weapon.attackType()));
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;
@@ -128,7 +120,7 @@ public final class AssassinSkills {
 
             @Override
             public boolean recast(Player player, RpgItemDefinition weapon) {
-                if (slot == SkillSlots.Slot.MEDIUM && AssassinShade.own(attack, player, weapon)) return AssassinShade.recast(attack, player, weapon);
+                if (AssassinKnives.own(attack, player, weapon)) return AssassinKnives.recast(attack, player, weapon, slot);
                 if (slot != SkillSlots.Slot.MEDIUM || weapon == null || !reworked(attack, player, weapon)) return false;
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;
@@ -142,7 +134,7 @@ public final class AssassinSkills {
 
     /** The charges and re-activation of the assassin's skills: 小 has charges and 中 a re-activation with a melee weapon; the others none. */
     static SkillSlots.Mechanics mechanics(ConfigurationSection config, SkillSlots.Slot slot, AttackType kind) {
-        if (kind == AttackType.RANGE) return AssassinShade.mechanics(config, slot);
+        if (kind == AttackType.RANGE) return AssassinKnives.mechanics(config, slot);
         if (kind != AttackType.MELEE) return SkillSlots.Mechanics.NONE;
         String base = "combat.combo." + PLAN + ".";
         return switch (slot) {
@@ -157,14 +149,14 @@ public final class AssassinSkills {
         return weapon.attackType() == AttackType.MELEE && attack.hasClassCombo(player, weapon);
     }
 
-    /** The look: steel and shadow, or (during SATUJIN) red and black. */
+    /** The look: the weapon's colors with a touch of steel, as the combo's (t198; the shadow only on the clones' cuts), or (during SATUJIN) red and black. */
     private static void look(MoveKit kit) {
         if (kit.frenzy() > 0) {
             kit.palette(Clones.RED_BLACK);
             kit.slashColors(RED_BLACK_SLASH);
         } else {
-            kit.palette(SHADOW);
-            kit.slashColors(SHADOW_SLASH);
+            kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
+            kit.slashColors(null);
         }
     }
 
@@ -544,7 +536,7 @@ public final class AssassinSkills {
         SMALL_CHAIN.remove(player);
         ULT_DASH_READY.remove(player);
         AMBUSH.remove(player);
-        AssassinShade.forget(player);
+        AssassinKnives.forget(player);
         AssassinDeployCombo.forget(player);
     }
 }

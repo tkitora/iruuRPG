@@ -1595,6 +1595,8 @@ public final class AttackService {
         boolean warrior = "warrior".equals(classId);
         // the warrior's parry (util of the blood knight, t168) turns the blow aside, and they strike back
         if (warrior && damage > 0.0 && WarriorSkills.parried(player)) return;
+        // the assassin in the veil of their lantern: a blow may strike an afterimage instead (t198)
+        if ("assassin".equals(classId) && damage > 0.0 && AssassinDeployCombo.dodges(player)) return;
         // an invulnerable moment, a guard and the warrior's shields cut the damage (shields break)
         if (guard != null) damage = guard.absorb(player, damage);
         double finalDamage = statusEffectService.modifyIncomingDamage(player, damage);

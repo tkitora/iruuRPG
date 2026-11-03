@@ -13,18 +13,19 @@
   - `HIT_PIERCE`: 遠距離の命中。矢の命中、刺さる音、水晶の音。
   - `HIT_CRIT`: 会心のときに足す音。
 - **リーパー (メイジの大鎌、t167)** は、自分の音の役割を持つ (`REAPER_*`): 低い風切りと魂の息 (`REAPER_SWING`)、重い刈り (`REAPER_HEAVY`)、刻印がそろった音 (`REAPER_MARK`)、刈り取り (`REAPER_REAP`)、魂を取り込む音 (`REAPER_SOUL`)、回る鎌 (`REAPER_THROW`)、霊体のすり抜け (`REAPER_PHASE`)、門 (`REAPER_GATE`)、大鎌の 1 周 (`REAPER_GRAND`)。
-- **戦士 (t168)** は、武器の種類ごとに自分の音の役割を持つ (戦士の置き換え `remap` は掛からない)。
-  - 近接 (血の騎士) `BLOOD_*`: 重い刃の風切り (`BLOOD_SWING`)、肉を斬る音 (`BLOOD_HIT`)、旋風 (`BLOOD_WHIRL`)、叩きつけ (`BLOOD_SLAM`)、傷を取り返す音 (`BLOOD_DRINK`)、誓い (`BLOOD_OATH`) と心臓の音 (`BLOOD_HEARTBEAT`)、血が噴き出す音 (`BLOOD_BURST`)、受け流しの構え (`BLOOD_GUARD`) と受け流した音 (`BLOOD_PARRY`)。
-  - 遠距離 (浮遊する大剣と鎖) `SWORD_*`・`CHAIN_*`: 大剣を呼ぶ音 (`SWORD_SUMMON`)、飛ぶ剣 (`SWORD_FLY`)、地面に刺さる剣 (`SWORD_IMPACT`)、巨大な剣 (`SWORD_GRAND`)、鎖を投げる音 (`CHAIN_THROW`)、縛る音 (`CHAIN_BIND`)、ほどける音 (`CHAIN_BREAK`)。
+- **戦士 (t168、t198)** は、武器の種類ごとに自分の音の役割を持つ (戦士の置き換え `remap` は掛からない)。
+  - 近接 (盾と血の騎士) `BLOOD_*`・`SHIELD_*`: 重い刃の風切り (`BLOOD_SWING`)、肉を斬る音 (`BLOOD_HIT`)、旋風 (`BLOOD_WHIRL`)、叩きつけ (`BLOOD_SLAM`)、傷を取り返す音 (`BLOOD_DRINK`)、受け流しの構え (`BLOOD_GUARD`) と受け流した音 (`BLOOD_PARRY`)、盾で殴る音 (`SHIELD_BASH`)、盾を放つ音 (`SHIELD_RELEASE`)。誓いの音 (`BLOOD_OATH`・`BLOOD_HEARTBEAT`・`BLOOD_BURST`) は、技といっしょに消した (t198)。
+  - 遠距離 (剛弓、t198) `GREATBOW_*`: 引き絞る音 (`GREATBOW_DRAW`)、引ききった音 (`GREATBOW_FULL`)、放つ音 (`GREATBOW_LOOSE`)、重い矢の着弾 (`GREATBOW_IMPACT`)、先制の一撃 (`GREATBOW_FIRST`)、杭を打ち込む音 (`GREATBOW_PIN`)。浮遊する大剣の音 (`SWORD_*`) は消した。
+  - ランタンの鎖 `CHAIN_*`: 鎖を投げる音 (`CHAIN_THROW`)、縛る音 (`CHAIN_BIND`)、ほどける音 (`CHAIN_BREAK`)。
   - ランタン (孤立させる結界) `WARD_*`: 鉄の楔 (`WARD_WEDGE`)、鎖の柵 (`WARD_FENCE`)、檻 (`WARD_CAGE`)、断罪の鐘 (`WARD_BELL`)、孤立した敵に当たった音 (`WARD_ISOLATED`)。
-- **クレリック (t168)** は、自分の音の役割を持つ。メイスと盾は鐘と打った鉄、杖は雷と澄んだ音。
+- **クレリック (t168、t198)** は、自分の音の役割を持つ。メイスと盾は鐘と打った鉄、杖は鐘と澄んだ音 (t198: 雷をやめた)。
   - メイスの振り (`HOLY_SWING`)、盾で殴る音 (`HOLY_BASH`)、盾を構えて動く音 (`HOLY_STEP`)、盾を掲げる音 (`HOLY_RAISE`)、構えた盾で受けた音 (`HOLY_BLOCK`)、審判の鉄槌 (`HOLY_HAMMER`)、守護の陣 (`HOLY_BASTION`)。
   - 聖光・聖句がたまりきった音 (`HOLY_FULL`)、祝福 (`HOLY_BLESS`)、癒しの光 (`HOLY_MEND`)、詠唱 (`HOLY_CHANT`)。
-  - 杖の雷を呼ぶ音 (`STORM_CAST`)、雷が落ちる音 (`STORM_STRIKE`)。
+  - 杖の鐘 (`HOLY_BELL`)、光の羽 (`HOLY_FEATHER`)。雷の音 (`STORM_*`) は消した (t198)。
 - **レンジャー (t168)** は、自分の音の役割を持つ。ワイヤーは釣り糸と仕掛け線、弓はクロスボウの装填と弦の音、精霊弓は木とアレイ。
   - ワイヤーを投げる音 (`WIRE_THROW`)、張る・巻き取る音 (`WIRE_PULL`)、外れる音 (`WIRE_SNAP`)、ワイヤーで飛ぶ音 (`WIRE_ZIP`)。
   - 弓を引き絞る音 (`BOW_DRAW`)、放つ音 (`BOW_LOOSE`)。精霊弓を立てる音 (`SPIRIT_SET`)、全力射撃 (`SPIRIT_OVERDRIVE`)。
-- **アサシンの影の弓と闇の帳 (t168)**: 影の矢を放つ音 (`SHADE_LOOSE`)、当たる音 (`SHADE_HIT`)、暗殺の一矢を溜める音 (`SHADE_DRAW`) と放つ音・仕留めた音 (`SHADE_EXECUTE`)、闇がふくらむ音 (`VEIL_SWELL`)、茨 (`VEIL_THORNS`)、宵闇 (`VEIL_NIGHTFALL`)。
+- **アサシンの影の短剣と闇の帳 (t198)**: 短剣を飛ばす鋭い音 (`KNIFE_THROW`)、刺さる音 (`KNIFE_HIT`)、短剣を呼ぶ音 (`KNIFE_SUMMON`)、一斉に突き刺さる音 (`KNIFE_STORM`)、闇の中の刺し傷 (`SHADE_HIT`)、闇がふくらむ音 (`VEIL_SWELL`)、茨 (`VEIL_THORNS`)、宵闇 (`VEIL_NIGHTFALL`)、残像が攻撃を受けた音 (`VEIL_DODGE`)。影の弓の音 (`SHADE_LOOSE`・`SHADE_DRAW`・`SHADE_EXECUTE`) は消した。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:

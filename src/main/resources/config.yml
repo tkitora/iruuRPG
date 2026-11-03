@@ -248,39 +248,44 @@ combat:
       util-back-up: 0.35                          # util: 跳ぶ高さ
       ult-dash-share: 0.15                        # ULT (SATUJIN) 中、アイテムスキルのキーで出す突進十字斬りの強さ (中の再発動の倍率比)
       ult-dash-ticks: 2                           # その間隔 (tick)
-    # アサシンの遠距離 = 影の弓 (t168、nekorozv がすべて任せた。AssassinShade と AssassinRangeCombo)。値はすべて仮。
-    # 影の矢は壁を抜け、見ている方向にいちばん近い敵へ向かう (壁の向こうでも)。状態異常を重ね、大の暗殺の一矢で仕留める。スキルのクールタイムは、ここの秒。
+    # アサシンの遠距離 = 影の短剣 (t198、AssassinKnives と AssassinRangeCombo。影の弓 (t168) から作り直し)。値はすべて仮。色は武器の属性の色。
+    # 背中に短剣 6 本が扇に浮かび、攻撃のたびに飛んでいく。手数が多く、出血と混乱を重ねる。スキルのクールタイムは、ここの秒。
     assassin_range:
-      # 通常1〜5: 1回の倍率 / 当たる回数 (1 影の矢、2 2本、3 3連射、4 頭上から4本、5 貫く大きな影の矢)
-      # hit-rate: [0.7, 0.45, 0.35, 0.25, 1.5]
-      # hit-counts: [1, 2, 3, 4, 1]
-      n1-confusion: 10                            # 通常1: 混乱
-      n2-bleed: 0.2                               # 通常2: 当たったダメージのこの割合を出血に
-      n4-confusion: 5                             # 通常4: 1本ごとの混乱
-      n5-confusion: 15                            # 通常5: 混乱
-      n5-bleed: 0.2                               # 通常5: 出血の割合
-      small-charges: 3                            # 小 (毒矢): ためておける数
+      normal-gap-ticks: 8
+      # 通常1〜5: 1回の倍率 / 当たる回数 (1 短剣2本、2 3本が交差、3 回る短剣 x6、4 扇に5本、5 6本を次々に)
+      # hit-rate: [0.35, 0.3, 0.15, 0.25, 0.3]
+      # hit-counts: [2, 3, 6, 5, 6]
+      aim-range: 28                               # 狙える距離 (ブロック)
+      hover-seconds: 6                            # 最後の攻撃のあと、短剣が背中に浮かんでいる秒数
+      knife-speed: 2.2                            # 短剣の速さ (1 tick あたりのブロック数)
+      fan-degrees: 24                             # 通常4: 扇の開き (片側の度)
+      n5-confusion: 20                            # 通常5: 混乱 (6本の合計)
+      n5-bleed: 0.2                               # 通常5: 当たったダメージのこの割合を出血に
+      small-charges: 3                            # 小 (投げナイフ): ためておける数
       small-charge-seconds: 2.5                   # 小: 1つ以上残っている間、1つ戻る秒数
       small-empty-seconds: 7                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
-      small-rate: 0.4                             # 小: 倍率
-      small-bleed: 0.6                            # 小: 当たったダメージのこの割合を出血に
-      small-confusion: 15                         # 小: 混乱
-      medium-seconds: 11                          # 中 (影縫い): クールタイム (秒)
+      small-count: 3                              # 小: 短剣の数
+      small-rate: 0.3                             # 小: 1本の倍率
+      small-bleed: 0.4                            # 小: 当たったダメージのこの割合を出血に
+      medium-seconds: 10                          # 中 (影縫い): クールタイム (秒)
       medium-rate: 0.6                            # 中: 倍率
       medium-pin-seconds: 1.5                     # 中: 動けない秒数
-      medium-confusion: 20                        # 中: 混乱
-      medium-recast-seconds: 3                    # 中: 再発動 (分身が背後から刺す) を受け付ける秒数
-      recast-rate: 0.6                            # 再発動: 分身の1回の倍率 (2回)
-      large-seconds: 22                           # 大 (暗殺の一矢): クールタイム (秒)
-      large-draw-ticks: 16                        # 大: 溜める長さ (tick)
-      large-rate: 1.5                             # 大: 倍率 (壁も敵もすべて貫く)
-      large-affliction-rate: 0.5                  # 大: 敵の状態異常の種類1つごとに足す倍率 (出血・鈍足・腐食・腐敗・混乱・気絶・爆発)
-      execute-percent: 25                         # 大: 敵の体力がこの割合 (%) 以下なら
-      execute-multiplier: 2.0                     # 大: この倍
-      util-seconds: 6                             # util (影隠れ): クールタイム (秒)
+      medium-confusion: 30                        # 中: 混乱
+      large-seconds: 22                           # 大 (千本刃): クールタイム (秒)
+      large-range: 20                             # 大: 出せる距離 (ブロック)
+      large-radius: 3.5                           # 大: 短剣の輪の半径
+      large-count: 12                             # 大: 短剣の数
+      large-ring-ticks: 80                        # 大: 輪が立つ時間 (tick)。この間は再発動 (突き刺す) ができる。過ぎると自動で突き刺す
+      large-tick-rate: 0.12                       # 大: 0.5秒ごとに輪の中の敵を斬る倍率
+      large-plunge-rate: 0.15                     # 大: 突き刺さる短剣1本ごとの倍率 (真ん中の周り2ブロック)
+      util-seconds: 6                             # util (影跳び): クールタイム (秒)
       util-back: 0.9                              # util: 後ろへ跳ぶ強さ
-      util-hide-seconds: 1.5                      # util: 敵が自分を見失う秒数 (煙の所へ向かう)
-    # アサシンのランタン = 闇の帳 (t168)。設置の周りの闇の中の敵は、自分を見失い (0.5秒ごとに少しの間)、遅くなる。自分が中にいると、与えるダメージが増える (自分だけ)。
+      util-knives: 3                              # util: 元いた所に残る短剣の数
+      util-seconds-left: 3                        # util: 短剣が残る秒数
+      util-radius: 3                              # util: 短剣が飛ぶ、元いた所の周りの半径
+      util-rate: 0.4                              # util: 短剣1本の倍率
+    # アサシンのランタン = 闇の帳 (t168、t198)。設置の周りの闇の中の敵は、遅くなり、混乱がたまる。自分が中にいると、与えるダメージが増え、攻撃が残像に外れることがある (自分だけ)。
+    # (t198: 敵が自分を見失う働きは、強すぎたので消した)
     assassin_deploy:
       # 通常1〜5: 1回の倍率 / 当たる回数 (1 影の刃 x2、2 煙がふくらむ、3 茨のふち (越えるたび)、4 影縛り x3、5 宵闇)
       # hit-rate: [0.35, 0.3, 0.3, 0.35, 0.8]
@@ -289,11 +294,14 @@ combat:
       veil-slow: 20                               # 中の敵の鈍足 (%)
       veil-might: 25                              # 自分が中にいるときの、与えるダメージの増え方 (%)
       knife-confusion: 8                          # 通常1: 混乱
-      swell-blind-seconds: 2.5                    # 通常2: 中の敵が自分を見失う秒数
-      swell-confusion: 10                         # 通常2: 混乱
+      veil-confusion: 4                           # 0.5秒ごとに、中の敵にたまる混乱
+      veil-dodge: 0.25                            # 自分が中にいるとき、受ける攻撃が残像に当たって外れる確率
+      swell-confusion: 30                         # 通常2: 混乱
+      swell-slow: 40                              # 通常2: 鈍足 (%)
+      swell-slow-seconds: 2                       # 通常2: その秒数
       thorn-root-seconds: 0.6                     # 通常3: ふちを越えた敵が動けない秒数
       bond-seconds: 1.2                           # 通常4: 縛られた敵が動けない秒数
-      nightfall-blind-seconds: 3                  # 通常5: 中の敵が自分を見失う秒数
+      nightfall-confusion: 40                     # 通常5: 中の敵の混乱
       nightfall-seconds: 4                        # 通常5: 自分の闇纏い (veil-might の2倍) の秒数
     # メイジの遠距離のスキル (t168、t198 で作り直し。MageArcana)。通常攻撃は上の mage のまま。値はすべて仮。色は武器の属性の色 (星の白は差し色)。
     # 前の「自動リキャスト (強攻撃をもう一度出す)」は、スキルからは出なくなった。スキルのクールタイムは、ここの秒。
