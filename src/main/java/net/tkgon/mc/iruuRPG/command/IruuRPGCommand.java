@@ -51,6 +51,13 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
         this.skillSlots = skillSlots;
     }
 
+    private java.util.function.Supplier<net.tkgon.mc.iruuRPG.gui.DictionaryMenu> dictionary = () -> null;
+
+    /** (t254) The admins' dictionary (/iruurpg dictionary, /iruurpg dic; looked up when the command runs). */
+    public void setDictionary(java.util.function.Supplier<net.tkgon.mc.iruuRPG.gui.DictionaryMenu> dictionary) {
+        this.dictionary = dictionary;
+    }
+
     /** /iruurpg sync: pull the yml repository now and reload when it changed. */
     public void setSyncAction(java.util.function.Consumer<CommandSender> syncAction) {
         this.syncAction = syncAction;
@@ -102,8 +109,9 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             case "btdebug", "btview" -> btView(sender, args);
             case "dummy", "target" -> spawnDummy(sender);
             case "skilltest" -> skillTest(sender, args);
+            case "dictionary", "dic" -> openDictionary(sender);
             default -> {
-                sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy>");
+                sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy|dictionary>");
                 yield true;
             }
         };
@@ -112,7 +120,7 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 1) {
-            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack", "skilltest"), args[0]);
+            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack", "skilltest", "dictionary", "dic"), args[0]);
         }
 
         if (args[0].equalsIgnoreCase("skilltest")) {
@@ -506,6 +514,22 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
 
         LivingEntity target = debugTargetService.spawn(player);
         sender.sendMessage("Spawned debug target: " + target.getUniqueId());
+        return true;
+    }
+
+    /** (t254) Opens the admins' dictionary: every item, every mob, every travel point and the admin's own points. */
+    private boolean openDictionary(CommandSender sender) {
+        if (!(sender instanceof org.bukkit.entity.Player player)) {
+            sender.sendMessage("Only players can open the dictionary.");
+            return true;
+        }
+        if (!requireAdmin(sender)) return true;
+        net.tkgon.mc.iruuRPG.gui.DictionaryMenu menu = dictionary.get();
+        if (menu == null) {
+            sender.sendMessage("The dictionary is not ready.");
+            return true;
+        }
+        menu.open(player);
         return true;
     }
 
