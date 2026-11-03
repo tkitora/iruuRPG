@@ -80,14 +80,16 @@ class HouseSamplesTest {
         BufferedImage f = front(blocks);
         BufferedImage a = view(blocks);
         BufferedImage b = view(left);
-        BufferedImage both = new BufferedImage(f.getWidth() + a.getWidth() + b.getWidth(), Math.max(f.getHeight(), Math.max(a.getHeight(), b.getHeight())) + 20,
-                BufferedImage.TYPE_INT_RGB);
+        BufferedImage t = top(blocks);
+        BufferedImage both = new BufferedImage(f.getWidth() + a.getWidth() + b.getWidth() + t.getWidth(),
+                Math.max(Math.max(f.getHeight(), t.getHeight()), Math.max(a.getHeight(), b.getHeight())) + 20, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = both.createGraphics();
         g.setColor(new Color(0xd8e4ee));
         g.fillRect(0, 0, both.getWidth(), both.getHeight());
         g.drawImage(f, 0, both.getHeight() - f.getHeight(), null);
         g.drawImage(a, f.getWidth(), 20, null);
         g.drawImage(b, f.getWidth() + a.getWidth(), 20, null);
+        g.drawImage(t, f.getWidth() + a.getWidth() + b.getWidth(), 20, null);
         g.setColor(Color.DARK_GRAY);
         g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 13));
         g.drawString(title, 6, 15);
@@ -97,6 +99,47 @@ class HouseSamplesTest {
 
     private static final int C = 10;
     private static final int F = 10;
+
+    /** (t250) Seen from above, the front down: the highest block of each column, darker the lower it is (a hole in a roof shows as what is under it). */
+    private static BufferedImage top(Map<Long, TreePart> blocks) {
+        Map<Long, long[]> highest = new HashMap<>();
+        int minX = Integer.MAX_VALUE;
+        int maxX = Integer.MIN_VALUE;
+        int minZ = Integer.MAX_VALUE;
+        int maxZ = Integer.MIN_VALUE;
+        int minY = Integer.MAX_VALUE;
+        int maxY = Integer.MIN_VALUE;
+        for (long key : blocks.keySet()) {
+            int x = TreeVoxelizer.unpackX(key);
+            int y = TreeVoxelizer.unpackY(key);
+            int z = TreeVoxelizer.unpackZ(key);
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minZ = Math.min(minZ, z);
+            maxZ = Math.max(maxZ, z);
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            long column = ((long) x << 32) | (z & 0xffffffffL);
+            long[] seen = highest.get(column);
+            if (seen == null || y > seen[0]) highest.put(column, new long[]{y, key});
+        }
+        if (highest.isEmpty()) return new BufferedImage(10, 10, BufferedImage.TYPE_INT_RGB);
+        BufferedImage image = new BufferedImage((maxX - minX + 1) * F + 20, (maxZ - minZ + 1) * F + 20, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        g.setColor(new Color(0xd8e4ee));
+        g.fillRect(0, 0, image.getWidth(), image.getHeight());
+        int span = Math.max(1, maxY - minY);
+        for (Map.Entry<Long, long[]> entry : highest.entrySet()) {
+            int x = (int) (entry.getKey() >> 32);
+            int z = (int) (long) entry.getKey();
+            double shade = 0.45 + 0.55 * (entry.getValue()[0] - minY) / span;
+            Color color = color(blocks.get(entry.getValue()[1]));
+            g.setColor(new Color((int) (color.getRed() * shade), (int) (color.getGreen() * shade), (int) (color.getBlue() * shade)));
+            g.fillRect(10 + (x - minX) * F, 10 + (z - minZ) * F, F, F);
+        }
+        g.dispose();
+        return image;
+    }
 
     /** The front (+z) seen flat: each block the nearest of its row, darker the farther back it is. */
     private static BufferedImage front(Map<Long, TreePart> blocks) {

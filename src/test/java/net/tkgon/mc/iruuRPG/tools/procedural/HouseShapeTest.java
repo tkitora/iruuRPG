@@ -649,4 +649,74 @@ class HouseShapeTest {
         assertEquals(1, odd.modules().size());
         assertEquals(HouseModule.MAX_WIDTH, odd.modules().get(0).width);
     }
+
+    @Test
+    void aVolumeLowerThanTheHouseTakesNothingOfTheHouseAboveItsStoreys() {
+        // (t250) a storey of volume set 2 into the side of a house of 2: the house's wall, floor and roof over its storey stay whole
+        TreeSettings bare = house(11, 9, 2, 4, 1);
+        bare.set(TreeSettings.Key.HOUSE_WINDOWS, 0);
+        Map<Long, TreePart> house = build(bare, SOUTH);
+        TreeSettings joined = house(11, 9, 2, 4, 1);
+        joined.set(TreeSettings.Key.HOUSE_WINDOWS, 0);
+        HouseModule volume = new HouseModule(HouseModule.Type.VOLUME);
+        volume.side = 1;
+        volume.offset = -2;
+        volume.width = 5;
+        volume.depth = 5;
+        volume.height = 1;
+        volume.roof = 1;
+        volume.ridge = 2;
+        joined.modules().add(volume);
+        Map<Long, TreePart> with = build(joined, SOUTH);
+        for (Map.Entry<Long, TreePart> entry : house.entrySet()) {
+            if (TreeVoxelizer.unpackY(entry.getKey()) >= 4) assertNotNull(with.get(entry.getKey()), "lost " + TreeVoxelizer.unpackX(entry.getKey()) + ","
+                    + TreeVoxelizer.unpackY(entry.getKey()) + "," + TreeVoxelizer.unpackZ(entry.getKey()) + " " + entry.getValue());
+        }
+        // its own storey still opens into the house (the house's wall where it joins it is gone under its eaves)
+        long opened = house.keySet().stream().filter(key -> TreeVoxelizer.unpackY(key) > 0 && TreeVoxelizer.unpackY(key) < 4 && !with.containsKey(key)).count();
+        assertTrue(opened > 0);
+    }
+
+    @Test
+    void theRoomOfAPartIsNotFilledByAPartAfterIt() {
+        // (t250) a tower, then a volume (of a lower rank) across it and a chimney through it: nothing of them inside the tower
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        HouseModule tower = new HouseModule(HouseModule.Type.TOWER);
+        tower.side = 0;
+        tower.width = 7;
+        tower.offset = -2;
+        tower.height = 6;
+        settings.modules().add(tower);
+        Map<Long, TreePart> alone = build(settings, SOUTH);
+        HouseModule volume = new HouseModule(HouseModule.Type.VOLUME);
+        volume.side = 0;
+        volume.offset = -1;
+        volume.width = 9;
+        volume.depth = 5;
+        volume.height = 2;
+        HouseModule chimney = new HouseModule(HouseModule.Type.CHIMNEY);
+        chimney.side = 0;
+        chimney.along = 1;
+        chimney.offset = 1;
+        chimney.width = 2;
+        chimney.depth = 2;
+        chimney.height = 3;
+        settings.modules().add(volume);
+        settings.modules().add(chimney);
+        Map<Long, TreePart> with = build(settings, SOUTH);
+        // the tower's middle: on the front's middle, 2 out of the wall (the house 11 by 9 set round its middle; the front at z 4)
+        int inside = 0;
+        for (int x = -3; x <= 3; x++) {
+            for (int z = 3; z <= 9; z++) {
+                if (Math.hypot(x, z - 6) > 2.5) continue;
+                for (int y = 1; y < 14; y++) {
+                    long key = TreeVoxelizer.pack(x, y, z);
+                    if (alone.containsKey(key)) continue;
+                    inside++;
+                    assertNull(with.get(key), "in the tower at " + x + "," + y + "," + z);
+                }
+            }
+        }
+        assertTrue(inside > 100, Integer.toString(inside));
+    }
 }
