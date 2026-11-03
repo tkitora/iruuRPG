@@ -87,6 +87,11 @@ public final class MeleeCombo {
         specs.put(spec.plan(), spec);
     }
 
+    /** The combos described by a spec, by plan (the balance's list of numbers reads their defaults). */
+    public Map<String, ComboSpec> specs() {
+        return Map.copyOf(specs);
+    }
+
     private Step nextSpec(Player player, ComboSpec spec) {
         String plan = spec.plan();
         long now = System.currentTimeMillis();
