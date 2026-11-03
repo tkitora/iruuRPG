@@ -384,6 +384,77 @@ public final class ProceduralModule implements Listener {
         return new WebInput(points, WebTerrain.sample(session.pointsWorld, min, max));
     }
 
+    // ---- the random houses (t185) ---------------------------------------------------------------------------------------------
+
+    /** How many random houses are kept to go back to. */
+    static final int MAX_DESIGNS = 20;
+
+    /**
+     * Makes a random house by the pattern and the rules of the settings ({@link HouseDesigner}; with {@code partsOnly} only its parts, on the base as it
+     * is), off the main thread; the settings become it, and the house before is kept to go back to. {@code seed} 0: a new one.
+     */
+    void design(Player player, boolean partsOnly, long seed) {
+        TreeSession session = session(player);
+        if (session.settings.kind() != ProcKind.HOUSE) {
+            player.sendMessage(PREFIX + "おまかせ生成は、作るものが「家の土台」のときに使えます。");
+            return;
+        }
+        if (session.designing) {
+            player.sendMessage(PREFIX + "前の案をまだ作っています。");
+            return;
+        }
+        TreeSettings from = session.settings.copy();
+        long used = seed > 0L ? seed : 1L + new Random().nextInt(999_999);
+        session.designing = true;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            HouseDesigner.Result result;
+            try {
+                result = HouseDesigner.design(from, used, partsOnly);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("house design failed: " + exception);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    session.designing = false;
+                    player.sendMessage(PREFIX + "案を作れませんでした (ログを見てください)。");
+                });
+                return;
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                session.designing = false;
+                if (!player.isOnline()) return;
+                keepDesign(session, result.settings());
+                changed(player);
+                menu.refresh(player);
+                player.sendMessage(PREFIX + "案 " + (session.design + 1) + " / " + session.designs.size() + ": " + result.pattern().label + (partsOnly ? " (パーツだけ)" : "")
+                        + "、追加パーツ " + result.settings().modules().size() + " 個、seed " + used + "。同じ家は /proceduraltool random " + result.pattern().id
+                        + (partsOnly ? " parts " : " ") + used + (session.preview ? "" : "  (プレビューで見られます)"));
+            });
+        });
+    }
+
+    /** The new house becomes the settings; the settings as they were (with what was changed by hand since) stay in the list to go back to. */
+    private static void keepDesign(TreeSession session, TreeSettings made) {
+        if (session.designs.isEmpty()) session.designs.add(session.settings.copy());
+        else if (session.design >= 0 && session.design < session.designs.size()) session.designs.set(session.design, session.settings.copy());
+        session.designs.add(made.copy());
+        while (session.designs.size() > MAX_DESIGNS) session.designs.remove(0);
+        session.design = session.designs.size() - 1;
+        session.settings = made;
+        session.autoSeed = false;
+    }
+
+    /** Goes to the house before or after in the list ({@code step} -1 or 1), keeping what was changed by hand in this one; false when there is none. */
+    boolean stepDesign(Player player, int step) {
+        TreeSession session = session(player);
+        int next = session.design + step;
+        if (session.design < 0 || session.design >= session.designs.size() || next < 0 || next >= session.designs.size()) return false;
+        session.designs.set(session.design, session.settings.copy());
+        session.design = next;
+        session.settings = session.designs.get(next).copy();
+        session.autoSeed = false;
+        changed(player);
+        return true;
+    }
+
     // ---- generating ---------------------------------------------------------------------------------------------------------
 
     /** Grows the tree of the player's settings on their base block and puts it in the world. */

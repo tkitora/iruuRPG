@@ -46,7 +46,7 @@ final class TreeSettings {
         HOUSE_FLOORS("house-floors", "階数", 1, 6, 2, 1, 1, "何階建てか"),
         HOUSE_STOREY("house-storey", "1階の高さ", 3, 8, 4, 1, 1, "床から次の床までの高さ (ブロック。床の1段を含む)"),
         HOUSE_PILLARS("house-pillar-spacing", "柱の間隔", 0, 12, 4, 1, 2, "壁に柱を立てる間隔 (ブロック)。0 で四隅だけ"),
-        HOUSE_ROOF("house-roof", "屋根の形", 0, 8, 1, 1, 1, "0 平ら / 1 切妻 / 2 寄棟 / 3 片流れ / 4 腰折れ / 5 マンサード / 6 入母屋 / 7 半切妻 / 8 反り屋根"),
+        HOUSE_ROOF("house-roof", "屋根の形", 0, 10, 1, 1, 1, "0 平ら / 1 切妻 / 2 寄棟 / 3 片流れ / 4 腰折れ / 5 マンサード / 6 入母屋 / 7 半切妻 / 8 反り屋根 / 9 尖り屋根 / 10 尖り寄棟 (9・10 は「屋根の段」で断面を決める)"),
         HOUSE_PITCH("house-pitch", "屋根の勾配", 0.25, 2.0, 0.75, 0.05, 0.25, "屋根が1ブロック内へ入るごとに上がる高さ (1 で 45 度)"),
         HOUSE_OVERHANG("house-overhang", "軒の出", 0, 3, 1, 1, 1, "屋根が壁から外へ出る長さ (ブロック)"),
         HOUSE_WINDOWS("house-windows", "窓", true, "柱と柱の間の壁に、階ごとに窓の穴をあける"),
@@ -54,10 +54,21 @@ final class TreeSettings {
         HOUSE_FOUNDATION("house-foundation", "基礎", true, "地面が低い所では、柱を地面まで伸ばす"),
         // ---- (t181) the turn, the fantasy roofs and the storeys of a timber-framed house; the parts added on are the list of HouseModule ----
         HOUSE_RIDGE("house-ridge", "棟の向き", 0, 2, 0, 1, 1, "0 自動 (長い辺に沿う) / 1 正面と平行 (平入り) / 2 正面と直角 (妻入り: 正面に三角の破風)"),
-        HOUSE_ROTATION("house-rotation", "回転", 0, 345, 0, 15, 45, "正面をこちらに向けたあと、さらに時計回りに回す角度 (度、上から見て)。90 の倍数以外は斜めに並ぶ"),
+        HOUSE_ROTATION("house-rotation", "回転", 0, 359, 0, 1, 5, "正面をこちらに向けたあと、さらに時計回りに回す角度 (度、上から見て)。1 度ずつ、359 の次は 0。90 の倍数以外は斜めに並ぶ"),
         HOUSE_JETTY("house-jetty", "上の階の張り出し", 0, 2, 0, 1, 1, "2階から上は、1階上がるごとに正面と裏へこれだけ張り出す (最大 3 ブロック)"),
         HOUSE_STONE("house-stone-base", "1階を石に", false, "1階の壁と柱を石の部位にする (基礎があれば、壁ごと地面まで)"),
         HOUSE_TIMBER("house-timber", "木組み", false, "石でない階の壁に、床の高さの梁と斜めの筋交いを柱の部位で入れる (ハーフティンバー)"),
+        // ---- (t185) the roof of steps, and the random houses (HouseDesigner): the rules it makes a house by ----
+        HOUSE_PILLAR_MIRROR("house-pillar-mirror", "柱を両端から", false, "オン: 柱の間隔を壁の両端の角から数える (左右対称の柱・窓) / オフ: 左の角から数える"),
+        HOUSE_STEP_FIT("house-roof-steps-fit", "段を大きさに合わせる", true, "オン: 段の列を、軒から棟までの長さに伸び縮みさせる / オフ: 棟から段の列のまま並べ、足りない軒側は最初の段を繰り返す"),
+        HOUSE_GEN_PATTERN("house-gen-pattern", "パターン", 0, 6, 0, 1, 1, "どんな家を作るか: 0 おまかせ / 1 コテージ / 2 木組みの町家 / 3 L字の農家 / 4 館 / 5 塔の家 / 6 ハブ (城館)"),
+        HOUSE_GEN_SIZE("house-gen-size", "規模", 0, 2, 1, 1, 1, "0 小 / 1 中 / 2 大"),
+        HOUSE_GEN_DETAIL("house-gen-detail", "パーツの多さ", 0, 3, 2, 1, 1, "追加パーツをいくつ付けるか (0 で 2 個ほど、3 で 10 個ほど)"),
+        HOUSE_GEN_SYMMETRY("house-gen-symmetry", "対称", 0, 2, 0, 1, 1, "0 パターン次第 / 1 左右対称 / 2 崩す (非対称)"),
+        HOUSE_GEN_TOWERS("house-gen-towers", "塔", 0, 3, 0, 1, 1, "0 パターン次第 / 1 なし / 2 少し / 3 多め"),
+        HOUSE_GEN_OVERLAP("house-gen-overlap", "重なりの許容", 0, 2, 1, 1, 1, "パーツ同士が重なるのを、どこまで許すか: 0 なし / 1 少し / 2 多め"),
+        HOUSE_GEN_ROOF("house-gen-roof", "屋根もおまかせ", true, "オン: 屋根の形・勾配・段もパターンから決める / オフ: いまの屋根のまま"),
+        HOUSE_GEN_LOOK("house-gen-look", "外観もおまかせ", true, "オン: 石の1階・木組み・張り出しもパターンから決める / オフ: いまのまま"),
         // ---- the canopy tree (CanopyTree): a fractal of branches, canopies one above the other ----
         CANOPY_TRUNK_HEIGHT("canopy-trunk-height", "幹の高さ", 0, 40, 0, 1, 5, "最初の枝分かれまでの、まっすぐな幹の長さ (0 で根元からすぐ分かれる)"),
         CANOPY_LENGTH("canopy-length", "最初の長さ", 1, 40, 10, 0.5, 2, "樹冠の最初の枝 (主幹) の長さ。子の枝は、長さの倍率ずつ短くなる"),
@@ -222,6 +233,15 @@ final class TreeSettings {
 
     /** How many parts a house can have. */
     static final int MAX_MODULES = 12;
+    /** (t185) The section of a roof of steps (9, 10): how many blocks each column shows, from the eaves to the ridge. */
+    private final List<Integer> roofSteps = new ArrayList<>(DEFAULT_STEPS);
+    /** (t185) The number of the random house these settings were made as (0: none); shown, and given back to make it again. */
+    private long designSeed;
+
+    /** The steps a roof of steps starts with: nekorozv's "1 1 1 2 3 3 3 2 1 1 1", half of it (the middle is the ridge). */
+    static final List<Integer> DEFAULT_STEPS = List.of(1, 1, 1, 2, 3, 3);
+    static final int MAX_STEPS = 12;
+    static final int MAX_STEP = 8;
 
     public TreeSettings copy() {
         TreeSettings copy = new TreeSettings();
@@ -236,7 +256,51 @@ final class TreeSettings {
         copy.leafGradient.addAll(leafGradient);
         // (the generation reads the copy off the main thread while the menu may change the parts: each is copied)
         for (HouseModule module : modules) copy.modules.add(module.copy());
+        copy.roofSteps.clear();
+        copy.roofSteps.addAll(roofSteps);
+        copy.designSeed = designSeed;
         return copy;
+    }
+
+    /** The steps of a roof of steps, from the eaves to the ridge (a copy). */
+    List<Integer> roofSteps() {
+        return List.copyOf(roofSteps);
+    }
+
+    /** Sets the steps (each 0 to {@link #MAX_STEP}, at most {@link #MAX_STEPS}; none: the default). */
+    void setRoofSteps(List<Integer> steps) {
+        roofSteps.clear();
+        for (Integer step : steps) {
+            if (step != null && roofSteps.size() < MAX_STEPS) roofSteps.add(Math.max(0, Math.min(MAX_STEP, step)));
+        }
+        if (roofSteps.isEmpty()) roofSteps.addAll(DEFAULT_STEPS);
+    }
+
+    /**
+     * The steps written as numbers ({@code "1 1 1 2 3 3"}, or with commas); a whole section (the same both ways, 5 numbers or more: "1 1 1 2 3 3 3 2 1 1 1")
+     * gives its half from the eaves to the middle. Null when it is not numbers.
+     */
+    static List<Integer> parseSteps(String text) {
+        if (text == null || text.isBlank()) return null;
+        List<Integer> steps = new ArrayList<>();
+        for (String word : text.trim().split("[\\s,]+")) {
+            try {
+                steps.add(Integer.parseInt(word));
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+        boolean mirrored = steps.size() >= 5;
+        for (int index = 0; mirrored && index < steps.size() / 2; index++) mirrored = steps.get(index).equals(steps.get(steps.size() - 1 - index));
+        return mirrored ? new ArrayList<>(steps.subList(0, (steps.size() + 1) / 2)) : steps;
+    }
+
+    long designSeed() {
+        return designSeed;
+    }
+
+    void setDesignSeed(long seed) {
+        designSeed = Math.max(0L, seed);
     }
 
     /** The block chosen for {@code part} (a material name), or null when the config decides. */
@@ -326,6 +390,11 @@ final class TreeSettings {
     }
 
     public void adjust(Key key, double delta) {
+        // (the turn of a house goes round: one down from 0 is 359)
+        if (key == Key.HOUSE_ROTATION) {
+            set(key, Math.floorMod((int) Math.round(get(key) + delta), 360));
+            return;
+        }
         set(key, get(key) + delta);
     }
 
@@ -439,6 +508,8 @@ final class TreeSettings {
         List<Map<String, Object>> parts = new ArrayList<>();
         for (HouseModule module : modules) parts.add(module.toMap());
         map.put("house-modules", parts);
+        map.put("house-roof-steps", new ArrayList<>(roofSteps));
+        map.put("house-design-seed", designSeed);
         return map;
     }
 
@@ -476,6 +547,12 @@ final class TreeSettings {
                 if (module != null) settings.modules.add(module);
             }
         }
+        if (map.get("house-roof-steps") instanceof List<?> list) {
+            List<Integer> steps = new ArrayList<>();
+            for (Object entry : list) if (entry instanceof Number number) steps.add(number.intValue());
+            settings.setRoofSteps(steps);
+        }
+        if (map.get("house-design-seed") instanceof Number number) settings.setDesignSeed(number.longValue());
         return settings;
     }
 }

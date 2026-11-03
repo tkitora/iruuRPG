@@ -35,9 +35,23 @@ final class HouseShape {
             case 6 -> "入母屋";
             case 7 -> "半切妻";
             case 8 -> "反り屋根";
+            case 9 -> "尖り屋根";
+            case 10 -> "尖り寄棟";
             default -> "切妻";
         };
     }
+
+    /** A section of a roof of steps that can be chosen from the menu (t185), and that the random houses use. */
+    record StepPreset(String label, List<Integer> steps) {
+    }
+
+    static final List<StepPreset> STEP_PRESETS = List.of(
+            new StepPreset("定番の尖り", List.of(1, 1, 1, 2, 3, 3)),
+            new StepPreset("鋭い尖り", List.of(1, 1, 2, 2, 3, 4)),
+            new StepPreset("裾の長い反り", List.of(1, 1, 1, 1, 2, 3)),
+            new StepPreset("垂れた軒", List.of(2, 1, 1, 2, 3, 3)),
+            new StepPreset("塔のような急勾配", List.of(1, 2, 3, 4, 5)),
+            new StepPreset("ゆるい反り", List.of(1, 1, 1, 1, 1, 2, 2)));
 
     /** The names of the ways the ridge runs ({@link TreeSettings.Key#HOUSE_RIDGE}). */
     static String ridgeName(int ridge) {
@@ -58,7 +72,7 @@ final class HouseShape {
         }
         Placement placement = Placement.of(aim, s.getInt(TreeSettings.Key.HOUSE_ROTATION), house.width, house.depth);
         if (s.on(TreeSettings.Key.HOUSE_FOUNDATION) && ground != null) foundation(local, placement, ground);
-        placement.place(local, blocks, roofThickness(house.roof, house.pitch));
+        placement.place(local, blocks, house.thick());
     }
 
     /** How far from the block clicked the terrain must be read for the foundation of this house (its footprint, the eaves and the parts). */
@@ -91,6 +105,10 @@ final class HouseShape {
         final boolean door;
         final boolean stone;
         final boolean timber;
+        /** The pillars are counted from both corners of a wall (t185): a house the same both ways. */
+        final boolean mirror;
+        /** The section of a roof of steps (9, 10; t185). */
+        final Steps steps;
         /** The height of the eaves: the top of the walls of the last storey. */
         final int top;
 
@@ -109,7 +127,19 @@ final class HouseShape {
             door = s.on(TreeSettings.Key.HOUSE_DOOR);
             stone = s.on(TreeSettings.Key.HOUSE_STONE);
             timber = s.on(TreeSettings.Key.HOUSE_TIMBER);
+            mirror = s.on(TreeSettings.Key.HOUSE_PILLAR_MIRROR);
+            steps = Steps.of(s.roofSteps(), s.on(TreeSettings.Key.HOUSE_STEP_FIT));
             top = floors * storey;
+        }
+
+        /** How thick the roof is (its steepest slope with no holes). */
+        int thick() {
+            return roofThickness(roof, pitch, steps);
+        }
+
+        /** Whether the roof is one of steps (its section from {@link #steps}). */
+        boolean stepped() {
+            return roof == 9 || roof == 10;
         }
 
         /** How far storey {@code k} (0 = the ground) reaches out past the ground storey at the front and at the back (the jetty, at most 3). */
@@ -119,7 +149,7 @@ final class HouseShape {
 
         /** The plan of storey {@code k}: as wide as the house, as deep as the ground storey and its jetty both ways; the door only on the ground. */
         HousePlan plan(int k) {
-            return new HousePlan(width, depth + 2 * out(k), storey, spacing, windows, door && k == 0);
+            return new HousePlan(width, depth + 2 * out(k), storey, spacing, windows, door && k == 0, mirror);
         }
 
         /**
@@ -145,7 +175,7 @@ final class HouseShape {
             HousePlan plan = plan(floors - 1);
             int lowA = -overhang;
             int lowB = -e - overhang;
-            int[][] bottom = roof(out::put, roof, ridge, pitch, top, lowA, width - 1 + overhang, lowB, depth - 1 + e + overhang);
+            int[][] bottom = roof(out::put, roof, ridge, pitch, steps, top, lowA, width - 1 + overhang, lowB, depth - 1 + e + overhang);
             if (roof == 0) return;
             boolean stoneTop = stone && floors == 1;
             for (int a = 0; a < width; a++) {
@@ -205,12 +235,21 @@ final class HouseShape {
 
         /** Builds one part on what is there ({@code out}: the base and the parts before it). */
         void module(Blocks out, HouseModule m) {
-            int k = switch (m.type) {
+            prepare(out, Build.tops(out), m).apply();
+        }
+
+        /** The storey a part's place is taken from (the jetty of that storey moves the front and back walls). */
+        int storeyOf(HouseModule m) {
+            return switch (m.type) {
                 case DORMER -> floors - 1;
                 case TOWER, BALCONY, BAY -> m.level;
                 default -> 0;
             };
-            Build build = new Build(out, side(m.side, k), m.along, m.offset);
+        }
+
+        /** Works out one part on what is there without putting it in ({@code tops}: the highest block of each column of {@code out}, see {@link Build#tops}). */
+        Build prepare(Blocks out, Map<Long, Integer> tops, HouseModule m) {
+            Build build = new Build(out, tops, side(m.side, storeyOf(m)), m.along, m.offset);
             switch (m.type) {
                 case DORMER -> dormer(build, m);
                 case CHIMNEY -> chimney(build, m);
@@ -220,7 +259,7 @@ final class HouseShape {
                 case BALCONY -> balcony(build, m);
                 case BAY -> bay(build, m);
             }
-            build.apply();
+            return build;
         }
 
         /**
@@ -234,7 +273,7 @@ final class HouseShape {
             int hi = lo + w - 1;
             int h = Math.max(2, m.height);
             int eaves = top + h;
-            int thick = Math.max(1, (int) Math.ceil(pitch));
+            int thick = stepped() ? steps.highest() : Math.max(1, (int) Math.ceil(pitch));
             int ridgeY = eaves + dormerRise(0, lo, hi);
             int back = Math.max(1, m.depth);
             for (int k = 1; k <= 20; k++) {
@@ -268,9 +307,11 @@ final class HouseShape {
             }
         }
 
-        /** How high the roof of a dormer from {@code lo} to {@code hi} is over its eaves at {@code u} (a gable, out by one each side). */
-        private int dormerRise(int u, int lo, int hi) {
-            return (int) Math.floor(Math.min(u - (lo - 1), hi + 1 - u) * pitch);
+        /** How high the roof of a dormer from {@code lo} to {@code hi} is over its eaves at {@code u} (a gable, out by one each side; of steps on a roof of steps). */
+        int dormerRise(int u, int lo, int hi) {
+            int in = Math.min(u - (lo - 1), hi + 1 - u);
+            if (stepped()) return steps.rise(in, (hi - lo + 2) / 2);
+            return (int) Math.floor(in * pitch);
         }
 
         /** A chimney: a stone stack outside the wall (inside with a negative offset), from the ground to {@code height} over the highest of the house near it. */
@@ -337,17 +378,27 @@ final class HouseShape {
                             }
                         }
                     }
-                    // the cone, one block out past the walls
+                    // the cone, one block out past the walls (on a roof of steps: its steps, half as steep again, a witch's hat)
                     double eaves = radius + 1.0;
                     if (d <= eaves) {
-                        double steep = Math.max(1.5, pitch * 2.5);
-                        int rise = (int) Math.floor((eaves - d) * steep);
-                        int thick = (int) Math.ceil(steep);
+                        int rise;
+                        int thick;
+                        if (stepped()) {
+                            rise = (int) Math.round(steps.rise((int) Math.floor(eaves - d), (int) Math.floor(eaves)) * CONE_STEEP);
+                            thick = (int) Math.ceil(steps.highest() * CONE_STEEP);
+                        } else {
+                            double steep = Math.max(1.5, pitch * 2.5);
+                            rise = (int) Math.floor((eaves - d) * steep);
+                            thick = (int) Math.ceil(steep);
+                        }
                         for (int y = head + rise; y > head + rise - thick && y >= head; y--) p.put(u, v, y, TreePart.HOUSE_ROOF);
                     }
                 }
             }
         }
+
+        /** How much steeper the cone of a tower is than the house's roof of steps. */
+        private static final double CONE_STEEP = 1.5;
 
         private static boolean inside(int u, int v, double cu, double cv, double radius) {
             return Math.hypot(u - cu, v - cv) <= radius;
@@ -363,7 +414,7 @@ final class HouseShape {
             int d = Math.max(1, m.depth) + 1;
             int stories = Math.max(1, Math.min(6, m.height));
             int eaves = stories * storey;
-            HousePlan plan = new HousePlan(w, d, storey, spacing, windows, false);
+            HousePlan plan = new HousePlan(w, d, storey, spacing, windows, false, mirror);
             for (int i = 0; i < w; i++) {
                 for (int j = 0; j < d; j++) {
                     boolean edge = i == 0 || j == 0 || i == w - 1 || j == d - 1;
@@ -395,7 +446,7 @@ final class HouseShape {
             int[][] bottom = roof((i, y, j, part) -> {
                 if (j >= 0) p.put(lo + i, j, y, part);
                 else if (y > p.topAt(lo + i, j)) p.put(lo + i, j, y, part);
-            }, roof, 2, pitch, eaves, lowA, w - 1 + overhang, lowB, d - 1 + overhang);
+            }, roof, 2, pitch, steps, eaves, lowA, w - 1 + overhang, lowB, d - 1 + overhang);
             for (int i = 0; i < w; i++) {
                 for (int j = 0; j < d; j++) {
                     int under = bottom[i - lowA][j - lowB];
@@ -410,7 +461,7 @@ final class HouseShape {
             }
         }
 
-        /** A porch: a floor out in front of the wall, posts at its outer edge and a roof sloping away from the house at {@code height}. */
+        /** A porch: a floor out in front of the wall, posts at its outer edge (the same both ways) and a roof sloping away from the house at {@code height}. */
         private void porch(Build p, HouseModule m) {
             int lo = -(m.width - 1) / 2;
             int hi = lo + m.width - 1;
@@ -419,7 +470,10 @@ final class HouseShape {
             for (int u = lo; u <= hi; u++) {
                 for (int v = 1; v <= d; v++) {
                     p.put(u, v, 0, TreePart.HOUSE_FLOOR);
-                    boolean post = v == d && (u == lo || u == hi || (u - lo) % 4 == 0);
+                    // (posts at the corners and every 4 from both of them, the same both ways; none in the middle, where the door is)
+                    int k = u - lo;
+                    int last = hi - lo;
+                    boolean post = v == d && (k == 0 || k == last || Math.min(k, last - k) % 4 == 0 && 2 * k != last);
                     if (post) {
                         for (int y = 0; y < h; y++) p.put(u, v, y, TreePart.HOUSE_PILLAR);
                     }
@@ -530,20 +584,27 @@ final class HouseShape {
         private final Side side;
         private final int along;
         private final int offset;
-        private final Blocks over = new Blocks();
-        private final Blocks under = new Blocks();
-        private final Set<Long> carved = new HashSet<>();
+        final Blocks over = new Blocks();
+        final Blocks under = new Blocks();
+        final Set<Long> carved = new HashSet<>();
         /** The highest block of each column of what is there (by {@link #column}). */
-        private final Map<Long, Integer> tops = new HashMap<>();
+        private final Map<Long, Integer> tops;
 
-        Build(Blocks out, Side side, int along, int offset) {
+        Build(Blocks out, Map<Long, Integer> tops, Side side, int along, int offset) {
             this.out = out;
+            this.tops = tops;
             this.side = side;
             this.along = along;
             this.offset = offset;
-            for (long key : out.map.keySet()) {
+        }
+
+        /** The highest block of each column of {@code blocks} (by {@link #column}). */
+        static Map<Long, Integer> tops(Blocks blocks) {
+            Map<Long, Integer> tops = new HashMap<>();
+            for (long key : blocks.map.keySet()) {
                 tops.merge(column(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackZ(key)), TreeVoxelizer.unpackY(key), Math::max);
             }
+            return tops;
         }
 
         private int a(int u, int v) {
@@ -585,7 +646,7 @@ final class HouseShape {
         }
     }
 
-    private static long column(int a, int b) {
+    static long column(int a, int b) {
         return ((long) a << 32) ^ (b & 0xFFFFFFFFL);
     }
 
@@ -594,17 +655,21 @@ final class HouseShape {
     /**
      * Puts a roof of {@code type} over the rectangle from ({@code lowA}, {@code lowB}) to ({@code highA}, {@code highB}) (the eaves, already out by the
      * overhang), its eaves at {@code base}: each column gets roof down to one over its lowest neighbour, at most as thick as the steepest slope of the
-     * shape needs; below that (a step of the roof: the gable of a hip-and-gable or of a clipped gable) wall. Returns how high over {@code base} the lowest
-     * block of each column is (by {@code [a - lowA][b - lowB]}).
+     * shape needs; below that (a step of the roof: the gable of a hip-and-gable or of a clipped gable) wall. A roof of steps whose first step is more than
+     * 1 hangs that much down at its eaves. Returns how high over {@code base} the lowest block of each column is (by {@code [a - lowA][b - lowB]}).
      */
-    static int[][] roof(Sink sink, int type, int ridge, double pitch, int base, int lowA, int highA, int lowB, int highB) {
+    static int[][] roof(Sink sink, int type, int ridge, double pitch, Steps steps, int base, int lowA, int highA, int lowB, int highB) {
         int sizeA = highA - lowA + 1;
         int sizeB = highB - lowB + 1;
         int[][] rise = new int[sizeA][sizeB];
         for (int i = 0; i < sizeA; i++) {
-            for (int j = 0; j < sizeB; j++) rise[i][j] = roofRise(type, ridge, lowA + i, lowB + j, lowA, highA, lowB, highB, pitch);
+            for (int j = 0; j < sizeB; j++) rise[i][j] = roofRise(type, ridge, lowA + i, lowB + j, lowA, highA, lowB, highB, pitch, steps);
         }
-        int thick = roofThickness(type, pitch);
+        int thick = roofThickness(type, pitch, steps);
+        // (the eaves of a roof of steps: all four edges of the hipped one, the two along the ridge of the gabled one)
+        boolean stepped = type == 9 || type == 10;
+        boolean alongA = ridgeAlongA(ridge, highA - lowA, highB - lowB);
+        int drop = stepped ? steps.at(0, (type == 10 ? Math.min(highA - lowA, highB - lowB) : alongA ? highB - lowB : highA - lowA) / 2) - 1 : 0;
         int[][] bottom = new int[sizeA][sizeB];
         for (int i = 0; i < sizeA; i++) {
             for (int j = 0; j < sizeB; j++) {
@@ -615,26 +680,40 @@ final class HouseShape {
                 if (j > 0) lowest = Math.min(lowest, rise[i][j - 1]);
                 if (j < sizeB - 1) lowest = Math.min(lowest, rise[i][j + 1]);
                 int low = lowest == Integer.MAX_VALUE ? r : Math.min(r, lowest + 1);
+                boolean eaves = type == 10 ? i == 0 || j == 0 || i == sizeA - 1 || j == sizeB - 1
+                        : alongA ? j == 0 || j == sizeB - 1 : i == 0 || i == sizeA - 1;
+                if (drop > 0 && eaves) low = Math.min(low, r - drop);
                 bottom[i][j] = low;
-                for (int y = r; y >= low; y--) sink.put(lowA + i, base + y, lowB + j, r - y < thick ? TreePart.HOUSE_ROOF : TreePart.HOUSE_WALL);
+                for (int y = r; y >= low; y--) sink.put(lowA + i, base + y, lowB + j, r - y < thick || y < 0 ? TreePart.HOUSE_ROOF : TreePart.HOUSE_WALL);
             }
         }
         return bottom;
+    }
+
+    /** Whether the ridge runs along {@code a} (the front): as {@code ridge} says (1 along, 2 across), or along the longer side. */
+    private static boolean ridgeAlongA(int ridge, int spanA, int spanB) {
+        return ridge == 1 || ridge == 0 && spanA >= spanB;
+    }
+
+    /** {@link #roofRise(int, int, int, int, int, int, int, int, double, Steps)} of a roof that is not one of steps. */
+    static int roofRise(int roof, int ridge, int a, int b, int lowA, int highA, int lowB, int highB, double pitch) {
+        return roofRise(roof, ridge, a, b, lowA, highA, lowB, highB, pitch, Steps.DEFAULT);
     }
 
     /**
      * How high the roof is over the eaves at {@code (a, b)} of the rectangle of the eaves: flat 0; a gable rises toward a ridge (along the longer side, or
      * as {@code ridge} says: 1 along the front, 2 across it), a hip toward the middle from all four sides, a shed from the front to the back (at half the
      * pitch; across with ridge 2), a gambrel (a barn: steep, then gentle near the ridge) and a mansard (the same from all four sides, near flat on top), a
-     * hip-and-gable (a hip low at the ends, a small gable over it), a clipped gable (a gable whose top is hipped) and a curved roof (concave from all four
-     * sides: the eaves flare out, the top is steep).
+     * hip-and-gable (a hip low at the ends, a small gable over it), a clipped gable (a gable whose top is hipped), a curved roof (concave from all four
+     * sides: the eaves flare out, the top is steep), and the roofs of steps (t185): a gable (9) and a hip (10) whose section is {@code steps}, how many
+     * blocks each column shows from the eaves to the ridge (1 1 1 2 3 3: sharp, curving up).
      */
-    static int roofRise(int roof, int ridge, int a, int b, int lowA, int highA, int lowB, int highB, double pitch) {
+    static int roofRise(int roof, int ridge, int a, int b, int lowA, int highA, int lowB, int highB, double pitch, Steps steps) {
         int acrossA = Math.min(a - lowA, highA - a);
         int acrossB = Math.min(b - lowB, highB - b);
         int spanA = highA - lowA;
         int spanB = highB - lowB;
-        boolean alongA = ridge == 1 || ridge == 0 && spanA >= spanB;
+        boolean alongA = ridgeAlongA(ridge, spanA, spanB);
         // (from the eaves toward the ridge, and from the ends of the ridge)
         int across = alongA ? acrossB : acrossA;
         int end = alongA ? acrossA : acrossB;
@@ -655,6 +734,8 @@ final class HouseShape {
                 double inner = Math.max(1.0, Math.min(spanA, spanB) / 2.0);
                 yield (int) Math.floor(inner * pitch * 1.25 * Math.pow(Math.min(1.0, hip / inner), 1.8));
             }
+            case 9 -> steps.rise(across, (alongA ? spanB : spanA) / 2);
+            case 10 -> steps.rise(hip, Math.min(spanA, spanB) / 2);
             default -> (int) Math.floor(across * pitch);
         };
     }
@@ -664,8 +745,9 @@ final class HouseShape {
         return (int) Math.floor(t <= knee ? t * steep : knee * steep + (t - knee) * gentle);
     }
 
-    /** How thick a roof must be so its steepest slope has no holes (seen from the side). */
-    static int roofThickness(int roof, double pitch) {
+    /** How thick a roof must be so its steepest slope has no holes (seen from the side; a roof of steps: its highest step). */
+    static int roofThickness(int roof, double pitch, Steps steps) {
+        if (roof == 9 || roof == 10) return steps.highest();
         double slope = switch (roof) {
             case 3 -> pitch * 0.5;
             case 4 -> pitch * 2.0;
@@ -676,17 +758,55 @@ final class HouseShape {
         return Math.max(1, (int) Math.ceil(slope - 1.0E-9));
     }
 
-    /** Where the pillars and the openings of a storey are (in its own coordinates: {@code a} along the front, {@code b} from the back to the front). */
-    record HousePlan(int width, int depth, int storey, int spacing, boolean windows, boolean door) {
+    /**
+     * The section of a roof of steps (t185): how many blocks each column shows, from the eaves ({@code values[0]}: more than 1 hangs down) to the ridge.
+     * Fitted ({@code fit}) it is stretched or squeezed to the columns from the eaves to the ridge; else it is laid from the ridge out, and the first step goes
+     * on where the roof is wider than it.
+     */
+    record Steps(int[] values, boolean fit) {
 
-        /** A pillar: a corner, or every {@code spacing} along a wall (counted from the corner). */
+        static final Steps DEFAULT = of(TreeSettings.DEFAULT_STEPS, true);
+
+        static Steps of(List<Integer> values, boolean fit) {
+            int[] array = new int[Math.max(1, values.size())];
+            array[0] = 1;
+            for (int index = 0; index < values.size(); index++) array[index] = Math.max(0, values.get(index));
+            return new Steps(array, fit);
+        }
+
+        /** The step of the column {@code d} in from the eaves, on a roof whose ridge is {@code reach} in. */
+        int at(int d, int reach) {
+            int n = values.length;
+            int index = fit ? reach <= 0 ? n - 1 : (int) Math.round(d * (n - 1) / (double) reach) : n - 1 - (reach - d);
+            return values[Math.max(0, Math.min(n - 1, index))];
+        }
+
+        /** How high the column {@code d} in from the eaves is over the eaves (the steps of the columns between added up). */
+        int rise(int d, int reach) {
+            int sum = 0;
+            for (int k = 1; k <= d; k++) sum += at(k, reach);
+            return sum;
+        }
+
+        /** The highest step (how thick the roof is), at least 1. */
+        int highest() {
+            int high = 1;
+            for (int value : values) high = Math.max(high, value);
+            return high;
+        }
+    }
+
+    /** Where the pillars and the openings of a storey are (in its own coordinates: {@code a} along the front, {@code b} from the back to the front). */
+    record HousePlan(int width, int depth, int storey, int spacing, boolean windows, boolean door, boolean mirror) {
+
+        /** A pillar: a corner, or every {@code spacing} along a wall (counted from the corner; with {@code mirror} from the nearer corner, the same both ways). */
         boolean pillar(int a, int b) {
             boolean sideA = a == 0 || a == width - 1;
             boolean sideB = b == 0 || b == depth - 1;
             if (sideA && sideB) return true;
             if (spacing <= 0) return false;
-            if (sideB) return a % spacing == 0;
-            if (sideA) return b % spacing == 0;
+            if (sideB) return (mirror ? Math.min(a, width - 1 - a) : a) % spacing == 0;
+            if (sideA) return (mirror ? Math.min(b, depth - 1 - b) : b) % spacing == 0;
             return false;
         }
 
@@ -703,6 +823,11 @@ final class HouseShape {
             int inside = end - start - 1;
             if (inside < 3) return false;
             if (front && door && doorAt() > start && doorAt() < end) return false;
+            if (mirror) {
+                // (the same both ways: in the very middle, 1 wide (3 from 7) on an odd stretch, 2 wide on an even one)
+                int wide = inside % 2 == 1 ? (inside >= 7 ? 3 : 1) : 2;
+                return Math.abs(2 * panel[2] - (start + end)) < wide;
+            }
             int middle = start + 1 + (inside - 1) / 2;
             return inside >= 5 ? panel[2] == middle || panel[2] == middle + 1 : panel[2] == middle;
         }
@@ -723,10 +848,14 @@ final class HouseShape {
             return new int[]{start, end, along};
         }
 
-        /** The block of the front wall the door is in: the middle (moved off a pillar). */
+        /** The block of the front wall the door is in: the middle, or the nearest block to it that is not a pillar (one to the right first). */
         int doorAt() {
             int middle = (width - 1) / 2;
-            return pillar(middle, depth - 1) ? middle + 1 : middle;
+            for (int k = 0; k < width; k++) {
+                int a = middle + (k % 2 == 1 ? (k + 1) / 2 : -(k / 2));
+                if (a > 0 && a < width - 1 && !pillar(a, depth - 1)) return a;
+            }
+            return middle;
         }
     }
 

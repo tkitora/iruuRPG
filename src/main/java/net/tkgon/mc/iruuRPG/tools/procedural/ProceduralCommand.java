@@ -15,7 +15,8 @@ import java.util.Locale;
 final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block");
+    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
+            "random");
 
     private final ProceduralModule tool;
 
@@ -92,6 +93,7 @@ final class ProceduralCommand implements TabExecutor {
                 }
             }
             case "block" -> block(player, session.settings, args);
+            case "random" -> random(player, session, args);
             case "list" -> {
                 List<String> names = tool.store().list();
                 player.sendMessage(PREFIX + "保存した設定 (" + names.size() + "): " + (names.isEmpty() ? "なし" : String.join(", ", names)));
@@ -101,9 +103,34 @@ final class ProceduralCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/proceduraltool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]]");
         }
         return true;
+    }
+
+    /** (t185) {@code /proceduraltool random [pattern|parts] [seed]}: a random house (of that pattern; only new parts; the same house again by its seed). */
+    private void random(Player player, TreeSession session, String[] args) {
+        boolean parts = false;
+        long seed = 0L;
+        for (int index = 1; index < args.length; index++) {
+            String arg = args[index].toLowerCase(Locale.ROOT);
+            HouseDesigner.Pattern pattern = HouseDesigner.Pattern.byId(arg);
+            if (arg.equals("parts")) {
+                parts = true;
+            } else if (pattern != null) {
+                session.settings.set(TreeSettings.Key.HOUSE_GEN_PATTERN, pattern.ordinal());
+            } else {
+                try {
+                    seed = Long.parseLong(arg);
+                } catch (NumberFormatException exception) {
+                    List<String> ids = new ArrayList<>();
+                    for (HouseDesigner.Pattern each : HouseDesigner.Pattern.values()) ids.add(each.id);
+                    player.sendMessage(PREFIX + "/proceduraltool random [" + String.join("|", ids) + "] [parts] [seed]");
+                    return;
+                }
+            }
+        }
+        tool.design(player, parts, seed);
     }
 
     /**
@@ -166,16 +193,30 @@ final class ProceduralCommand implements TabExecutor {
             player.sendMessage("  " + key.id() + " = " + (key.toggle() ? (settings.on(key) ? "1 (オン)" : "0 (オフ)") : key.whole() ? Integer.toString(settings.getInt(key)) : Double.toString(settings.get(key)))
                     + (key.toggle() ? "" : "  (" + key.min() + " 〜 " + key.max() + ")") + " " + key.label());
         }
+        if (settings.kind() == ProcKind.HOUSE) {
+            player.sendMessage("  house-roof-steps = " + String.join(" ", settings.roofSteps().stream().map(String::valueOf).toList()) + " 屋根の段 (軒 → 棟)");
+            player.sendMessage("  追加パーツ " + settings.modules().size() + " 個" + (settings.designSeed() > 0L ? " / おまかせ生成の seed " + settings.designSeed() : ""));
+        }
     }
 
     private void set(Player player, TreeSettings settings, String[] args) {
         if (args.length < 3) {
-            player.sendMessage(PREFIX + "/proceduraltool set <項目> <値>  項目: algorithm, seed, " + keyIds());
+            player.sendMessage(PREFIX + "/proceduraltool set <項目> <値>  項目: algorithm, seed, house-roof-steps, " + keyIds());
             return;
         }
         String item = args[1].toLowerCase(Locale.ROOT);
         String value = args[2].toLowerCase(Locale.ROOT);
         switch (item) {
+            case "house-roof-steps" -> {
+                // (t185) the section of a roof of steps: its numbers, or the whole section (made half)
+                List<Integer> steps = TreeSettings.parseSteps(String.join(" ", java.util.Arrays.copyOfRange(args, 2, args.length)));
+                if (steps == null) {
+                    player.sendMessage(PREFIX + "house-roof-steps は数字の列 (軒 → 棟): 1 1 1 2 3 3  (断面全体 1 1 1 2 3 3 3 2 1 1 1 でもよい)");
+                    return;
+                }
+                settings.setRoofSteps(steps);
+                value = String.join(" ", settings.roofSteps().stream().map(String::valueOf).toList());
+            }
             case "algorithm" -> {
                 if (!TreeSettings.ALGORITHMS.contains(value)) {
                     player.sendMessage(PREFIX + "algorithm は " + String.join(" / ", TreeSettings.ALGORITHMS));
@@ -251,7 +292,7 @@ final class ProceduralCommand implements TabExecutor {
         if (args.length == 1) {
             options.addAll(SUBS);
         } else if (args.length == 2 && args[0].equalsIgnoreCase("set")) {
-            options.addAll(List.of("algorithm", "seed"));
+            options.addAll(List.of("algorithm", "seed", "house-roof-steps"));
             for (TreeSettings.Key key : TreeSettings.Key.values()) options.add(key.id());
         } else if (args.length == 2 && args[0].equalsIgnoreCase("point")) {
             options.addAll(List.of("list", "clear", "undo", "shape"));
@@ -270,6 +311,9 @@ final class ProceduralCommand implements TabExecutor {
                 options.add((head + material.name()).toLowerCase(Locale.ROOT));
                 found++;
             }
+        } else if (args.length >= 2 && args[0].equalsIgnoreCase("random")) {
+            for (HouseDesigner.Pattern pattern : HouseDesigner.Pattern.values()) options.add(pattern.id);
+            options.add("parts");
         } else if (args.length == 2 && args[0].equalsIgnoreCase("kind")) {
             for (ProcKind kind : ProcKind.values()) options.add(kind.name().toLowerCase(Locale.ROOT));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
