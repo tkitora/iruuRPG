@@ -1,0 +1,19 @@
+# 見本の木: 樹形 しだれ (柳) (ユーザーの送った木の生成の作り方。パレットもその標準) (プロシージャルツールの読み込み、または /proceduraltool load silhouette_weeping)
+settings:
+  kind: tree
+  algorithm: silhouette
+  sil-shape: 1
+  sil-height: 0
+  seed: 0
+  blocks:
+    trunk: DARK_OAK_LOG
+    branch: DARK_OAK_WOOD
+    branch-stair: SPRUCE_STAIRS
+    branch-slab: SPRUCE_SLAB
+    branch-fence: DARK_OAK_FENCE
+    branch-wall: MUD_BRICK_WALL
+  leaf-gradient:
+  - DARK_OAK_LEAVES
+  - JUNGLE_LEAVES
+  - OAK_LEAVES
+  - AZALEA_LEAVES

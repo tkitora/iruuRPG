@@ -1,0 +1,18 @@
+# 見本の木: 樹形 傘 (藤) (ユーザーの送った木の生成の作り方。パレットもその標準) (プロシージャルツールの読み込み、または /proceduraltool load silhouette_dome)
+settings:
+  kind: tree
+  algorithm: silhouette
+  sil-shape: 4
+  sil-height: 0
+  seed: 0
+  blocks:
+    trunk: SPRUCE_LOG
+    branch: SPRUCE_WOOD
+    branch-stair: SPRUCE_STAIRS
+    branch-slab: SPRUCE_SLAB
+    branch-fence: DARK_OAK_FENCE
+  leaf-gradient:
+  - AMETHYST_BLOCK
+  - PURPLE_STAINED_GLASS
+  - MAGENTA_STAINED_GLASS
+  - PINK_STAINED_GLASS

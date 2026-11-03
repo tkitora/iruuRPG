@@ -27,6 +27,7 @@ final class TreeGenerator {
             case "tiered" -> TieredTree.build(settings, random);
             case "palm" -> PalmTree.build(settings, random);
             case "thin" -> ThinTree.build(settings, random);
+            case "silhouette" -> SilhouetteTree.build(settings, random);
             default -> CanopyTree.build(settings, random);
         };
     }
