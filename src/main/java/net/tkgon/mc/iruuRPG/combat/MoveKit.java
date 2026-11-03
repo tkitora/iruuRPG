@@ -51,6 +51,8 @@ public final class MoveKit {
     public final Player player;
     public final RpgItemDefinition weapon;
     private Gradient palette;
+    /** Whether the rings at the muzzle are lines of texture (the ranger's normal attack, t257) and not particles. */
+    private boolean rippleLines;
     /** The key of the placed thing whose zone is running (null outside one): see {@link #hit}. */
     private String source;
     private Location origin;
@@ -791,12 +793,21 @@ public final class MoveKit {
         Vector v = heading.clone().crossProduct(u).normalize();
         Vector ringU = u;
         Location ringAt = start.clone().add(heading.clone().multiply(0.5));
+        // (t257) the ranger's normal attack draws them as thin lines of texture ({@link LineRipples}), not as particles
+        boolean lines = rippleLines && LineRipples.enabled(plugin);
         for (int step = 0; step < 4; step++) {
             int which = step;
             later(step, () -> {
+                Location at = ringAt.clone().add(heading.clone().multiply(0.15 * which));
+                double radius = 0.3 + 0.32 * which;
+                double strength = 0.9 - 0.18 * which;
+                if (lines) {
+                    LineRipples.ring(plugin, at, heading, radius, trail.at(0.5), (int) Math.round(255 * strength), which < 3 ? player : null);
+                    return;
+                }
                 Fx ring = fx(ringAt);
                 if (which < 3) ring = ring.exceptOwner();
-                ring.ring(ringAt.clone().add(heading.clone().multiply(0.15 * which)), ringU, v, 0.3 + 0.32 * which, 20, trail, 0.9 - 0.18 * which, 0.1, 1.0);
+                ring.ring(at, ringU, v, radius, 20, trail, strength, 0.1, 1.0);
             });
         }
         double speed = Math.max(0.5, attack.projectileSpeed(player) * speedScale / 20.0);
@@ -972,6 +983,7 @@ public final class MoveKit {
      */
     public void rangerBegin(boolean normal) {
         attackBuff = normal ? RangerBuffs.takeAttack(player.getUniqueId()) : null;
+        rippleLines = normal;
     }
 
     /**
