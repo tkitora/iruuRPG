@@ -117,6 +117,8 @@ final class HouseModule {
     int shape;
     /** How far the top storey of a tower juts out; the jetty of a volume (-1 the house's). */
     int jetty;
+    /** (t195) How much higher (lower when negative) a volume's floor is than the storey it starts at: a foundation of its own height. */
+    int raise;
 
     Type type;
     int side;
@@ -145,6 +147,7 @@ final class HouseModule {
         ridge = 0;
         shape = 0;
         jetty = type == Type.VOLUME ? -1 : 0;
+        raise = 0;
     }
 
     /** Changes the kind; the numbers become those of the new kind. */
@@ -168,6 +171,7 @@ final class HouseModule {
         copy.ridge = ridge;
         copy.shape = shape;
         copy.jetty = jetty;
+        copy.raise = raise;
         return copy;
     }
 
@@ -184,6 +188,7 @@ final class HouseModule {
         ridge = clamp(ridge, 0, 2);
         shape = clamp(shape, 0, 2);
         jetty = clamp(jetty, -1, 3);
+        raise = clamp(raise, -8, 8);
     }
 
     private static int clamp(int value, int min, int max) {
@@ -205,6 +210,7 @@ final class HouseModule {
         map.put("ridge", ridge);
         map.put("shape", shape);
         map.put("jetty", jetty);
+        map.put("raise", raise);
         return map;
     }
 
@@ -227,6 +233,7 @@ final class HouseModule {
         if (map.get("ridge") instanceof Number number) module.ridge = number.intValue();
         if (map.get("shape") instanceof Number number) module.shape = number.intValue();
         if (map.get("jetty") instanceof Number number) module.jetty = number.intValue();
+        if (map.get("raise") instanceof Number number) module.raise = number.intValue();
         module.limit();
         return module;
     }

@@ -72,6 +72,7 @@ final class HouseShape {
         for (HouseModule module : s.modules()) {
             if (module.on) house.module(local, ranks, module);
         }
+        local = house.podium(local);
         Placement placement = Placement.of(aim, s.getInt(TreeSettings.Key.HOUSE_ROTATION), house.width, house.depth);
         if (s.on(TreeSettings.Key.HOUSE_FOUNDATION) && ground != null) foundation(local, placement, ground);
         placement.place(local, blocks, house.thick());
@@ -86,7 +87,7 @@ final class HouseShape {
             double out = Math.max(width, depth) / 2.0 + module.depth + Math.max(0, module.offset) + module.width / 2.0;
             far = Math.max(far, Math.hypot(out, Math.abs(module.along) + module.width / 2.0));
         }
-        return Math.min(32, (int) Math.ceil(far) + s.getInt(TreeSettings.Key.HOUSE_OVERHANG) + 2);
+        return Math.min(32, (int) Math.ceil(far) + s.getInt(TreeSettings.Key.HOUSE_OVERHANG) + s.getInt(TreeSettings.Key.HOUSE_TERRACE) + s.getInt(TreeSettings.Key.HOUSE_RAISE) + 2);
     }
 
     // ---- the house in its own coordinates -----------------------------------------------------------------------------------------------
@@ -119,6 +120,14 @@ final class HouseShape {
         final int plinth;
         final int skirt;
         final boolean ridgeBeam;
+        /** (t195) the height of the podium the house stands on, how far its terrace reaches out past the walls. */
+        final int raise;
+        final int terrace;
+        /** (t195) What stands on the ground, by column (its floor over the house's), the terraces round the volumes, the doors: for the podium. */
+        private final Map<Long, Integer> standing = new HashMap<>();
+        private final List<Map<Long, Integer>> aprons = new ArrayList<>();
+        private final List<Integer> apronFloors = new ArrayList<>();
+        private final List<int[]> doors = new ArrayList<>();
         /** The height of the eaves: the top of the walls of the last storey. */
         final int top;
         /** The base: the box of the house's own storeys and roof. */
@@ -150,6 +159,8 @@ final class HouseShape {
             plinth = s.getInt(TreeSettings.Key.HOUSE_PLINTH);
             skirt = s.getInt(TreeSettings.Key.HOUSE_SKIRT);
             ridgeBeam = s.on(TreeSettings.Key.HOUSE_RIDGE_BEAM);
+            raise = s.getInt(TreeSettings.Key.HOUSE_RAISE);
+            terrace = s.getInt(TreeSettings.Key.HOUSE_TERRACE);
             top = floors * storey;
             base = new Box(width, depth, floors, roof, ridge, jetty, door, stone, true);
         }
@@ -436,7 +447,122 @@ final class HouseShape {
 
         /** Builds one part on what is there ({@code out}: the base and the parts before it; {@code ranks}: the rank of the part each of their blocks is of). */
         void module(Blocks out, Map<Long, Integer> ranks, HouseModule m) {
-            prepare(out, Build.tops(out), m).apply(ranks, rank(m.type));
+            Build build = prepare(out, Build.tops(out), m);
+            build.apply(ranks, rank(m.type));
+            // (what of it stands on the ground: its lowest layer, for the podium; a volume's terrace and door)
+            if (build.floor != Integer.MIN_VALUE) {
+                for (long key : build.over.map.keySet()) {
+                    if (TreeVoxelizer.unpackY(key) == build.floor) standing.merge(column(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackZ(key)), build.floor, Math::max);
+                }
+            }
+            if (!build.apron.isEmpty()) {
+                aprons.add(build.apron);
+                apronFloors.add(build.floor);
+            }
+            doors.addAll(build.doors);
+        }
+
+        /**
+         * (t195) The foundations. Everything is lifted by the height of the house's podium; under all that stands on the ground (the house, the volumes
+         * at their own floors, the towers, the wings, the porch, the chimneys and the stairs) stone up to its floor; round the house and each volume on the
+         * ground its terrace (each column of a terrace as high as the nearest of them: where two meet at different heights, a step), a low parapet on its
+         * edge where it is 2 or more over what is beside it; from each door over the ground, stairs down: on from the door over what is there (a terrace, a
+         * porch) to its edge, then one lower each block to the ground. Without a podium and with all floors on the ground nothing changes.
+         */
+        Blocks podium(Blocks local) {
+            int lift = raise;
+            // the base, its terrace
+            for (int a = 0; a < width; a++) {
+                for (int b = 0; b < depth; b++) standing.merge(column(a, b), 0, Math::max);
+            }
+            Map<Long, Integer> baseApron = new HashMap<>();
+            for (int a = -terrace; a < width + terrace; a++) {
+                for (int b = -terrace; b < depth + terrace; b++) {
+                    int ring = Math.max(Math.max(-a, a - width + 1), Math.max(-b, b - depth + 1));
+                    if (ring > 0) baseApron.put(column(a, b), ring);
+                }
+            }
+            if (terrace > 0) {
+                aprons.add(0, baseApron);
+                apronFloors.add(0, 0);
+            }
+            if (door) doors.add(0, new int[]{plan(0).doorAt(), depth - 1, 0, 0, 1});
+            boolean flat = lift == 0;
+            for (int floor : standing.values()) flat &= floor <= 0;
+            if (flat) return local;
+            Blocks lifted = new Blocks();
+            for (Map.Entry<Long, TreePart> entry : local.map.entrySet()) {
+                long key = entry.getKey();
+                lifted.map.put(TreeVoxelizer.pack(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key) + lift, TreeVoxelizer.unpackZ(key)), entry.getValue());
+            }
+            // under what stands: stone up to its floor
+            for (Map.Entry<Long, Integer> entry : standing.entrySet()) {
+                int x = (int) (entry.getKey() >> 32);
+                int z = (int) (long) entry.getKey();
+                for (int y = 0; y < lift + entry.getValue(); y++) {
+                    if (!lifted.has(x, y, z)) lifted.put(x, y, z, TreePart.HOUSE_STONE);
+                }
+            }
+            // the terraces: each column to the floor of the nearest (of two as near, the lower)
+            Map<Long, Integer> tops = new HashMap<>();
+            Map<Long, Integer> nearest = new HashMap<>();
+            for (int index = 0; index < aprons.size(); index++) {
+                int top = lift + apronFloors.get(index);
+                for (Map.Entry<Long, Integer> entry : aprons.get(index).entrySet()) {
+                    long column = entry.getKey();
+                    if (standing.containsKey(column)) continue;
+                    Integer near = nearest.get(column);
+                    if (near == null || entry.getValue() < near || entry.getValue().equals(near) && top < tops.get(column)) {
+                        nearest.put(column, entry.getValue());
+                        tops.put(column, top);
+                    }
+                }
+            }
+            for (Map.Entry<Long, Integer> entry : tops.entrySet()) {
+                int x = (int) (entry.getKey() >> 32);
+                int z = (int) (long) entry.getKey();
+                for (int y = 0; y <= entry.getValue(); y++) {
+                    if (!lifted.has(x, y, z)) lifted.put(x, y, z, TreePart.HOUSE_STONE);
+                }
+            }
+            // stairs from the doors over the ground
+            Set<Long> flights = new HashSet<>();
+            for (int[] at : doors) {
+                int floor = lift + at[2];
+                if (floor <= 0) continue;
+                int t = 1;
+                while (t < 16 && lifted.has(at[0] + at[3] * t, floor, at[1] + at[4] * t)) t++;
+                for (int k = 0; floor - 1 - k >= 0; k++) {
+                    int x = at[0] + at[3] * (t + k);
+                    int z = at[1] + at[4] * (t + k);
+                    for (int side = -1; side <= 1; side++) {
+                        int sx = x + at[4] * side;
+                        int sz = z + at[3] * side;
+                        for (int y = 0; y <= floor - 1 - k; y++) {
+                            if (!lifted.has(sx, y, sz)) lifted.put(sx, y, sz, TreePart.HOUSE_STONE);
+                        }
+                        flights.add(column(sx, sz));
+                    }
+                }
+            }
+            // the parapet on the edges of the terraces, where they are high over what is beside them (not by the stairs)
+            for (Map.Entry<Long, Integer> entry : tops.entrySet()) {
+                int x = (int) (entry.getKey() >> 32);
+                int z = (int) (long) entry.getKey();
+                int top = entry.getValue();
+                if (top < 1) continue;
+                boolean edge = false;
+                for (int[] step : new int[][]{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}) {
+                    long next = column(x + step[0], z + step[1]);
+                    if (flights.contains(next)) {
+                        edge = false;
+                        break;
+                    }
+                    if (!standing.containsKey(next) && tops.getOrDefault(next, -1) < top - 1) edge = true;
+                }
+                if (edge && !flights.contains(entry.getKey()) && !lifted.has(x, top + 1, z)) lifted.put(x, top + 1, z, TreePart.HOUSE_STONE);
+            }
+            return lifted;
         }
 
         /**
@@ -476,6 +602,11 @@ final class HouseShape {
                 case BAY -> bay(build, m);
                 case VOLUME -> volume(build, m);
                 case STAIR -> stair(build, m);
+            }
+            // (t195: what stands on the ground from its foot: a tower from the ground, a wing, a porch, a chimney, stairs)
+            if (m.type == HouseModule.Type.WING || m.type == HouseModule.Type.PORCH || m.type == HouseModule.Type.CHIMNEY || m.type == HouseModule.Type.STAIR
+                    || m.type == HouseModule.Type.TOWER && m.level == 0) {
+                build.floor = 0;
             }
             return build;
         }
@@ -798,7 +929,8 @@ final class HouseShape {
             int d = Math.max(3, m.depth);
             int storeys = Math.max(1, Math.min(6, m.height));
             int level = Math.max(0, m.level);
-            int baseY = level * storey;
+            // (t195: its floor raised or lowered from the storey by its own foundation, not under the ground)
+            int baseY = Math.max(-raise, level * storey + m.raise);
             // (one on the ground at the front has a door of its own in the middle of its front, so a volume in front of the house's door does not shut it)
             boolean front = door && level == 0 && Math.floorMod(m.side, 4) == 0;
             Box box = new Box(w, d, storeys, m.roof < 0 ? roof : m.roof, m.ridge, m.jetty < 0 ? jetty : m.jetty, front, stone && level == 0, level == 0);
@@ -828,6 +960,22 @@ final class HouseShape {
                 int b = (int) (long) entry.getKey();
                 for (int y = entry.getValue()[0]; y <= entry.getValue()[1]; y++) {
                     if (!mass.has(a, y, b)) p.carve(lo + a, b, y + baseY);
+                }
+            }
+            // (t195) on the ground: what of it stands there (its lowest layer), its terrace, its door
+            if (level == 0) {
+                p.floor = baseY;
+                for (int a = -terrace; a < w + terrace; a++) {
+                    for (int b = -terrace; b < d + terrace; b++) {
+                        int ring = Math.max(Math.max(-a, a - w + 1), Math.max(-b, b - d + 1));
+                        if (ring > 0) p.apron.put(column(p.a(lo + a, b), p.b(lo + a, b)), ring);
+                    }
+                }
+                if (front) {
+                    int at = lo + box.plan(0).doorAt();
+                    int x = p.a(at, d - 1);
+                    int z = p.b(at, d - 1);
+                    p.doors.add(new int[]{x, z, baseY, p.a(at, d) - x, p.b(at, d) - z});
                 }
             }
             // over the ground and out of the house: a bracket under each pillar of its outer walls
@@ -923,6 +1071,10 @@ final class HouseShape {
         final Blocks over = new Blocks();
         final Blocks under = new Blocks();
         final Set<Long> carved = new HashSet<>();
+        /** (t195) The floor of a part that stands on the ground (its lowest layer), or MIN_VALUE; the terrace round it (column → how far out); its doors. */
+        int floor = Integer.MIN_VALUE;
+        final Map<Long, Integer> apron = new HashMap<>();
+        final List<int[]> doors = new ArrayList<>();
         /** The highest block of each column of what is there (by {@link #column}). */
         private final Map<Long, Integer> tops;
 

@@ -52,7 +52,8 @@ final class HouseDesigner {
         MANOR("manor", "館", "幅の広い左右対称の屋敷。両端の翼棟、中央の入口とバルコニー、並んだドーマー窓、両端の煙突"),
         TOWER("tower", "塔の家", "小さめの本体の角に高い丸塔、別の角に小塔。尖った屋根、バルコニー"),
         HUB("hub", "ハブの家", "ロビー・スポーン (hub) の建築スタイルの家 (t190)。急で大きな屋根 (棟木・階の間の庇・屋根の上の四角い塔で屋根を重ねる)、石の1階と基壇、木組みと奥まった壁・窓、張り出した上の階、正面の破風の棟"),
-        COMPOUND("compound", "組み合わせの家", "高さの違う棟を組み合わせた、家の形のひな型 (t190)。背の高い本体、低い横の棟、上の階から宙に張り出した棟、上の階が張り出す細い塔、外階段、急な屋根");
+        COMPOUND("compound", "組み合わせの家", "高さの違う棟を組み合わせた、家の形のひな型 (t190)。背の高い本体、低い横の棟、上の階から宙に張り出した棟、上の階が張り出す細い塔、外階段、急な屋根"),
+        PLAN("plan", "複合プランの家", "長方形をいくつも組み合わせた平面 (L・T・U・十字・ずらし) の家 (t195)。棟ごとに違う形の屋根、棟ごとに高さの違う土台とテラス、背の高い塔の棟、内角の塔、片流れの下屋");
 
         /** The name in the command ({@code /proceduraltool random <id>}). */
         final String id;
@@ -164,6 +165,10 @@ final class HouseDesigner {
         /** (t193) the shape (the size, the storeys, the pillars) chosen too; off: as it is. */
         final boolean shape;
         final boolean symmetric;
+        /** The kind of plan of a house of several blocks (-1: not one). */
+        final int planType;
+        /** The blocks of the plan put so far (where their inner corners are). */
+        final List<HouseModule> blocks = new ArrayList<>();
         final int target;
         Plan plan;
         /** Parts put that the pattern is not about (counted against {@link #target}); the pattern's own parts that found no place. */
@@ -185,10 +190,13 @@ final class HouseDesigner {
             look = s.on(Key.HOUSE_GEN_LOOK);
             shape = s.on(Key.HOUSE_GEN_SHAPE);
             int symmetry = s.getInt(Key.HOUSE_GEN_SYMMETRY);
+            // (t195: the plan of a house of several blocks: 0 L, 1 T, 2 U, 3 a cross, 4 staggered)
+            planType = pattern == Pattern.PLAN ? new int[]{0, 0, 0, 1, 1, 2, 2, 3, 3, 4}[r.nextInt(10)] : -1;
             symmetric = symmetry == 1 || symmetry == 0 && switch (pattern) {
                 case MANOR -> true;
                 case TOWNHOUSE, HUB -> r.nextDouble() < 0.5;
                 case COTTAGE -> r.nextDouble() < 0.2;
+                case PLAN -> (planType == 1 || planType == 2 || planType == 3) && r.nextDouble() < 0.6;
                 default -> false;
             };
             target = TARGET[Math.max(0, Math.min(TARGET.length - 1, detail))];
@@ -204,6 +212,7 @@ final class HouseDesigner {
                 case TOWER -> towerHouse();
                 case HUB -> hub();
                 case COMPOUND -> compound();
+                case PLAN -> plan();
                 default -> cottage();
             }
         }
@@ -248,6 +257,13 @@ final class HouseDesigner {
                     storey = 5;
                     width = width(9 + 2 * size, 11 + 2 * size, spacing);
                     depth = range(8 + size, 10 + size);
+                }
+                case PLAN -> {
+                    spacing = 3 + r.nextInt(2);
+                    floors = size == 0 ? 1 + r.nextInt(2) : size == 1 ? 2 : 2 + r.nextInt(2);
+                    storey = r.nextDouble() < 0.4 ? 5 : 4;
+                    width = width(9 + 2 * size, 11 + 2 * size, spacing);
+                    depth = range(7 + size, 9 + size);
                 }
                 case COMPOUND -> {
                     spacing = 3 + r.nextInt(2);
@@ -333,6 +349,7 @@ final class HouseDesigner {
                 case TOWER -> pick(new int[]{9, 8, 1, 7}, new int[]{40, 25, 20, 15});
                 case HUB -> pick(new int[]{9, 4, 1, 7, 6}, new int[]{30, 25, 25, 10, 10});
                 case COMPOUND -> pick(new int[]{9, 1, 7}, new int[]{50, 35, 15});
+                case PLAN -> pick(new int[]{1, 9, 7, 4, 6}, new int[]{35, 30, 15, 10, 10});
                 default -> pick(new int[]{9, 1, 8, 7, 6}, new int[]{35, 25, 15, 15, 10});
             };
             boolean steep = pattern == Pattern.HUB || pattern == Pattern.COMPOUND;
@@ -370,7 +387,8 @@ final class HouseDesigner {
                 Pattern.MANOR, new double[]{0.7, 0.3, 0.0, 0.0, 0.3, 0.6, 0.6, 0.3, 0.2},
                 Pattern.TOWER, new double[]{0.6, 0.5, 0.4, 0.3, 0.4, 0.5, 0.5, 0.2, 0.3},
                 Pattern.HUB, new double[]{0.9, 0.85, 0.5, 0.4, 0.7, 0.8, 0.75, 0.65, 0.75},
-                Pattern.COMPOUND, new double[]{0.8, 0.85, 0.6, 0.5, 0.6, 0.7, 0.5, 0.3, 0.4});
+                Pattern.COMPOUND, new double[]{0.8, 0.85, 0.6, 0.5, 0.6, 0.7, 0.5, 0.3, 0.4},
+                Pattern.PLAN, new double[]{0.7, 0.7, 0.4, 0.3, 0.5, 0.6, 0.2, 0.3, 0.4});
 
         private void look(int floors) {
             double[] odds = LOOKS.getOrDefault(pattern, LOOKS.get(Pattern.COTTAGE));
@@ -385,6 +403,17 @@ final class HouseDesigner {
             s.set(Key.HOUSE_PLINTH, chance(odds[6]) ? (chance(0.3) ? 2 : 1) : 0);
             s.set(Key.HOUSE_SKIRT, floors >= 2 && chance(odds[7]) ? (chance(0.25) ? 2 : 1) : 0);
             s.set(Key.HOUSE_RIDGE_BEAM, chance(odds[8]) ? 1 : 0);
+            // (t195) the podium and its terrace
+            double podium = switch (pattern) {
+                case PLAN -> 0.75;
+                case MANOR -> 0.5;
+                case HUB -> 0.4;
+                case COMPOUND, TOWER -> 0.3;
+                default -> 0.15;
+            };
+            int raise = chance(podium) ? range(1, 3) : 0;
+            s.set(Key.HOUSE_RAISE, raise);
+            s.set(Key.HOUSE_TERRACE, raise > 0 ? range(pattern == Pattern.PLAN ? 1 : 0, 2) : 0);
         }
 
         // ---- the patterns ---------------------------------------------------------------------------------------------------------
@@ -488,6 +517,131 @@ final class HouseDesigner {
             if (detail >= 2 && chance(0.5)) balcony(r.nextInt(4), plan.floors - 1, false);
             if (detail >= 1) dormers(1 + r.nextInt(2), false);
             chimneys(detail >= 2 ? 2 : 1, false);
+        }
+
+        private void plan() {
+            // the blocks of the plan (the pattern's own): big volumes, each its own roof, each on a foundation of its own height
+            switch (planType) {
+                case 1 -> {
+                    int side = chance(0.7) ? 2 : 0;
+                    block(side, w -> 0, true);
+                }
+                case 2 -> {
+                    int side = chance(0.5) ? 0 : 2;
+                    if (symmetric) {
+                        block(side, w -> endAlong(side, w, false), true);
+                    } else {
+                        block(side, w -> endAlong(side, w, false), true);
+                        block(side, w -> endAlong(side, w, true), true);
+                    }
+                }
+                case 3 -> {
+                    if (symmetric) {
+                        block(1, w -> 0, true);
+                    } else {
+                        block(1, w -> 0, true);
+                        block(3, w -> 0, true);
+                    }
+                }
+                case 4 -> {
+                    // (staggered: a block at an end of a side, deep, and one at the other end of the other side)
+                    boolean front = chance(0.5);
+                    block(1, w -> endAlong(1, w, front), true);
+                    block(3, w -> endAlong(3, w, front), false);
+                }
+                default -> {
+                    int side = chance(0.5) ? 1 : 3;
+                    block(side, w -> endAlong(side, w, chance(0.5)), true);
+                }
+            }
+            if (detail >= 1 && chance(0.55)) tallBlock();
+            if (towerCount(detail >= 2 ? 1 : 0) > 0) jointTower();
+            if (detail >= 1 && chance(0.5)) shed(false);
+            if (detail >= 1 && chance(0.5)) porch(false);
+            if (detail >= 1) dormers(symmetric ? 2 : 1 + r.nextInt(2), false);
+            chimneys(detail >= 2 ? 2 : 1, false);
+        }
+
+        /** The roofs a block of a plan may have: other shapes than the house's (and than the blocks before it, while there are others). */
+        private int blockRoof() {
+            int[] shapes = {1, 2, 4, 6, 7, 8, 9, 10};
+            int[] weights = {20, 15, 10, 10, 15, 10, 15, 10};
+            Set<Integer> used = new HashSet<>();
+            used.add(s.getInt(Key.HOUSE_ROOF));
+            for (HouseModule block : blocks) used.add(block.roof < 0 ? s.getInt(Key.HOUSE_ROOF) : block.roof);
+            for (int index = 0; index < shapes.length; index++) if (used.contains(shapes[index])) weights[index] = used.size() >= shapes.length ? weights[index] : 0;
+            return pick(shapes, weights);
+        }
+
+        /**
+         * A block of the plan on {@code side} at {@code along} (from its width): as deep as the house is about, its storeys the house's or one fewer, a roof
+         * of its own (a gable turned out to the side: a cross gable), its floor on a foundation of its own height (up or down from the house's).
+         */
+        private void block(int side, IntUnaryOperator along, boolean own) {
+            HouseModule put = place(own, 8, () -> {
+                // (as wide as the house is deep at most: its cross gable then stays under the house's ridge; at least two thirds of that, an arm of the plan)
+                int most = Math.max(5, Math.min(plan.length(side) - 2, plan.depth));
+                int w = oddSize(Math.max(5, most * 2 / 3), most);
+                int d = oddSize(5, 7 + 2 * size);
+                int storeys = Math.max(1, plan.floors - (chance(0.4) ? 1 : 0));
+                int shape = blockRoof();
+                int ridge = shape == 2 || shape == 8 || shape == 10 || shape == 5 ? 0 : 2;
+                HouseModule block = volume(side, along.applyAsInt(w), -1, w, d, storeys, 0, shape, ridge);
+                block.raise = Math.max(-s.getInt(Key.HOUSE_RAISE), pick(new int[]{-2, -1, 0, 1, 2}, new int[]{15, 25, 25, 25, 10}));
+                return group(block);
+            });
+            if (put != null) {
+                blocks.add(put);
+                if (symmetric) blocks.add(s.modules().get(s.modules().size() - 1));
+            }
+        }
+
+        /** A tower house: a square block higher than the house (a storey or two), a hipped or curved roof (a pyramid on it), at a corner of the house. */
+        private void tallBlock() {
+            place(false, 6, () -> {
+                int across = oddSize(5, Math.min(7, Math.min(plan.width, plan.depth) - 2));
+                HouseModule block = plan.blockAtCorner(r.nextInt(4), across, plan.floors + 1 + (chance(0.4) ? 1 : 0));
+                block.roof = pick(new int[]{2, 8, 10}, new int[]{40, 30, 30});
+                block.raise = Math.max(-s.getInt(Key.HOUSE_RAISE), r.nextInt(2));
+                plan.tall.add(block);
+                return group(block);
+            });
+        }
+
+        /** A round tower at an inner corner of the plan: where a block meets the house's wall. */
+        private void jointTower() {
+            if (blocks.isEmpty()) {
+                cornerTowers(1, true, false);
+                return;
+            }
+            // (a tower at the corner a block makes with the house stands in both: the blocks may be covered)
+            Set<Integer> exempt = new HashSet<>();
+            for (HouseModule block : blocks) exempt.add(s.modules().indexOf(block));
+            place(false, 6, () -> {
+                HouseModule block = blocks.get(r.nextInt(blocks.size()));
+                int lo = -(Math.max(3, block.width) - 1) / 2;
+                int u = block.along + (chance(0.5) ? lo - 1 : lo + Math.max(3, block.width));
+                int size = oddSize(3, 5);
+                HouseModule tower = new HouseModule(Type.TOWER);
+                tower.side = block.side;
+                tower.width = size;
+                tower.along = u;
+                tower.offset = 1 - (1 + size) / 2;
+                tower.shape = pick(new int[]{0, 1}, new int[]{70, 30});
+                tower.height = plan.towerHeight(tower, Math.max(2, (int) Math.round(size * (0.6 + 1.0 * r.nextDouble()))));
+                return group(tower);
+            }, exempt);
+        }
+
+        /** A lean-to: a one-storey block with a roof sloping away from the house, on a side with no block of the plan. */
+        private void shed(boolean own) {
+            place(own, 6, () -> {
+                int side = r.nextInt(4);
+                for (HouseModule block : blocks) if (block.side == side) return null;
+                int w = oddSize(3, Math.min(7, plan.length(side) - 4));
+                int along = range(plan.low(side) + w / 2 + 1, Math.max(plan.low(side) + w / 2 + 1, plan.high(side) - w / 2 - 1));
+                return group(volume(side, along, 0, w, 3, 1, 0, 3, 0));
+            });
         }
 
         /** A volume to the front as high as the house, its ridge out to the front (a cross gable), with its own door in front of the house's. */
@@ -601,7 +755,10 @@ final class HouseDesigner {
             group.add(module);
             if (symmetric) {
                 HouseModule mirror = plan.mirror(module);
-                if (mirror.side != module.side || mirror.along != module.along) group.add(mirror);
+                if (mirror.side != module.side || mirror.along != module.along) {
+                    group.add(mirror);
+                    if (plan.tall.contains(module)) plan.tall.add(mirror);
+                }
             }
             return group;
         }
@@ -834,6 +991,8 @@ final class HouseDesigner {
         private final Map<Long, Integer> owner = new HashMap<>();
         /** The door and the three blocks in front of it, 2 high: kept clear. */
         private final Set<Long> door = new HashSet<>();
+        /** (t195) The blocks of a plan meant to be higher than the house's ridge (a tower house). */
+        final Set<HouseModule> tall = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
         /** The rank of the part each block is of (see {@link House#rank}). */
         private final Map<Long, Integer> ranks = new HashMap<>();
         int conflicts;
@@ -994,6 +1153,25 @@ final class HouseDesigner {
             return tower;
         }
 
+        /** (t195) A square volume of {@code storeys} with its middle on corner {@code corner} of the house (half in it, half out). */
+        HouseModule blockAtCorner(int corner, int size, int storeys) {
+            boolean front = corner == 0 || corner == 1;
+            int u = switch (corner) {
+                case 1 -> high(0);
+                case 2 -> low(2);
+                case 3 -> high(2);
+                default -> low(0);
+            };
+            HouseModule block = new HouseModule(Type.VOLUME);
+            block.side = front ? 0 : 2;
+            block.along = u;
+            block.width = size;
+            block.depth = size;
+            block.offset = -(size - 1) / 2;
+            block.height = storeys;
+            return block;
+        }
+
         /** A tower in the middle of the house from its top storey, through the roof to {@code height} over the eaves. */
         HouseModule spire(int size, int height) {
             HouseModule tower = new HouseModule(Type.TOWER);
@@ -1022,7 +1200,9 @@ final class HouseDesigner {
             for (HouseModule module : group) {
                 if (!inRange(module) || !fits(module)) return null;
                 Build build = house.prepare(local, tops, module);
-                if (blocksDoor(build) || module.type == Type.WING && highest(build) > ridge || !connected(module, build)) return null;
+                // (a wing, or a block of the plan on the ground, under the house's ridge; a block meant to be high, a tower house, may be over it)
+                boolean under = module.type == Type.WING || module.type == Type.VOLUME && module.level == 0 && !tall.contains(module);
+                if (blocksDoor(build) || under && highest(build) > ridge || !connected(module, build)) return null;
                 hits += hits(build, exempt) + intoHouse(module, build);
                 cells += build.over.map.size() + build.under.map.size();
                 builds.add(build);

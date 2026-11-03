@@ -565,6 +565,57 @@ class HouseShapeTest {
     }
 
     @Test
+    void aPodiumWithATerraceAParapetAndStairsFromTheDoor() {
+        // (t195) raised 3 on a podium, a terrace 2 round it: the house x -5..5, z -4..4; the terrace to x -7..7, z -6..6
+        TreeSettings settings = house(11, 9, 1, 4, 1);
+        settings.set(TreeSettings.Key.HOUSE_RAISE, 3);
+        settings.set(TreeSettings.Key.HOUSE_TERRACE, 2);
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_FLOOR, at(blocks, 0, 3, 0));
+        for (int y = 0; y < 3; y++) assertEquals(TreePart.HOUSE_STONE, at(blocks, 0, y, 0));
+        // the door 3 up; the terrace level with the floor; a parapet on its edge
+        assertNull(at(blocks, 0, 4, 4));
+        assertNull(at(blocks, 0, 5, 4));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, -7, 3, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, -7, 4, 0));
+        assertNull(at(blocks, -8, 3, 0));
+        // the stairs: on from the door over the terrace, then one lower each block, 3 wide; no parapet across them
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 0, 2, 7));
+        assertNull(at(blocks, 0, 3, 7));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 1, 0, 9));
+        assertNull(at(blocks, 1, 1, 9));
+        assertNull(at(blocks, 0, 4, 6));
+        // without a podium nothing of it
+        settings.set(TreeSettings.Key.HOUSE_RAISE, 0);
+        assertEquals(TreePart.HOUSE_FLOOR, at(build(settings, SOUTH), 0, 0, 0));
+    }
+
+    @Test
+    void volumesStandOnFoundationsOfTheirOwnHeights() {
+        // a volume on the right, its floor 2 over the house's: on a podium of its own (x 5..9, z -2..2)
+        TreeSettings settings = house(11, 9, 1, 4, 1);
+        HouseModule volume = module(settings, HouseModule.Type.VOLUME, 1);
+        volume.width = 5;
+        volume.depth = 5;
+        volume.height = 1;
+        volume.raise = 2;
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 7, 0, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 7, 1, 0));
+        assertEquals(TreePart.HOUSE_FLOOR, at(blocks, 7, 2, 0));
+        assertEquals(TreePart.HOUSE_FLOOR, at(blocks, 0, 0, 0));
+        // the house on a podium of 2 with a terrace of 1, the volume one lower: each terrace as high as its own (a step between them)
+        settings.set(TreeSettings.Key.HOUSE_RAISE, 2);
+        settings.set(TreeSettings.Key.HOUSE_TERRACE, 1);
+        volume.raise = -1;
+        Map<Long, TreePart> stepped = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_FLOOR, at(stepped, 7, 1, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(stepped, 10, 1, 0));
+        assertNull(at(stepped, 10, 3, 0));
+        assertEquals(TreePart.HOUSE_STONE, at(stepped, -6, 2, 0));
+    }
+
+    @Test
     void thePartsAreSavedAndCopiedWithTheSettings() {
         TreeSettings settings = house(11, 9, 2, 4, 6);
         HouseModule tower = module(settings, HouseModule.Type.TOWER, 3);
