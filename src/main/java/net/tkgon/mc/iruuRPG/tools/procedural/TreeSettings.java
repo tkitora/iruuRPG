@@ -15,7 +15,7 @@ import java.util.Map;
 final class TreeSettings {
 
     /** The ways a tree is grown: canopy ({@link CanopyTree}), tiered ({@link TieredTree}), palm ({@link PalmTree}). */
-    public static final List<String> ALGORITHMS = List.of("canopy", "tiered", "palm");
+    public static final List<String> ALGORITHMS = List.of("canopy", "tiered", "palm", "thin");
 
     /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
     public enum Key {
@@ -156,7 +156,25 @@ final class TreeSettings {
         PALM_FROND_LENGTH("palm-frond-length", "葉の長さ", 3.0, 25.0, 7.5, 0.5, 2, "1枚の葉の長さ"),
         PALM_FROND_THICK("palm-frond-thick", "葉の厚み", 0.5, 4.0, 1.0, 0.1, 0.5, "葉の付け根の太さ (先へ細る)"),
         PALM_DROOP("palm-droop", "葉の垂れ", 0.0, 4.0, 1.5, 0.1, 0.5, "葉が先へ向かって垂れる強さ"),
-        PALM_PITCH("palm-pitch", "葉の上向きの角度", 0, 90, 45, 5, 15, "一番上の層の葉が出る角度 (度。下の層ほど 18 度ずつ下がる)");
+        PALM_PITCH("palm-pitch", "葉の上向きの角度", 0, 90, 45, 5, 15, "一番上の層の葉が出る角度 (度。下の層ほど 18 度ずつ下がる)"),
+        // ---- the thin tree (ThinTree, t252): a trunk one block thick, branches of walls, fences and slabs, clumps over the tips with room round the wood ----
+        THIN_HEIGHT("thin-height", "幹の高さ", 3, 40, 9, 1, 3, "幹の高さ (ブロック。丸太1本の太さ)"),
+        THIN_STEMS("thin-stems", "幹の本数", 1, 3, 1, 1, 1, "根元から分かれる幹の数 (2本目からは少し低く、外へ傾く)"),
+        THIN_LEAN("thin-lean", "幹の傾き", 0.0, 1.0, 0.25, 0.05, 0.25, "幹が上へ向かって傾く強さ"),
+        THIN_CURVE("thin-curve", "幹の曲がり", 0.0, 1.0, 0.3, 0.05, 0.25, "幹が左右にくねる強さ"),
+        THIN_BRANCHES("thin-branches", "てっぺんの枝の数", 1, 8, 4, 1, 2, "幹のてっぺんから出る枝の数"),
+        THIN_SIDE("thin-side", "幹から出る枝", 0, 8, 2, 1, 2, "幹の上の方 (高さの 45〜85%) から横に出る枝の数"),
+        THIN_LENGTH("thin-length", "枝の長さ", 2.0, 20.0, 6.0, 0.5, 2, "てっぺんの枝の長さ (枝分かれするたびに 55〜75% に)"),
+        THIN_DEPTH("thin-depth", "枝分かれの深さ", 0, 4, 2, 1, 1, "枝が何回分かれるか"),
+        THIN_RISE("thin-rise", "枝の上向き", 0.0, 1.0, 0.45, 0.05, 0.25, "枝の上向きの強さ (0 で水平、1 でほぼ真上)"),
+        THIN_KINK("thin-kink", "枝のくねり", 0.0, 1.0, 0.4, 0.05, 0.25, "枝が途中で折れ曲がる強さ"),
+        THIN_LOG_REACH("thin-log-reach", "丸太の枝", 0, 6, 2, 1, 1, "てっぺんの枝の付け根から、何ブロックを丸太にするか (その先は壁・フェンス・ハーフ)"),
+        THIN_LEAF_SIZE("thin-leaf-size", "葉の塊の大きさ", 1.0, 8.0, 2.5, 0.25, 1, "枝先の葉の塊の半径"),
+        THIN_LEAF_DENSITY("thin-leaf-density", "葉の密度 (%)", 10, 100, 80, 5, 15, "葉の塊の中を、葉で埋める割合"),
+        THIN_LEAF_FLAT("thin-leaf-flat", "葉の平たさ", 0.0, 1.0, 0.35, 0.05, 0.25, "葉の塊を上下につぶす強さ (1 で薄い傘)"),
+        THIN_CLEARANCE("thin-clearance", "枝のまわりのすき間", 0.0, 2.0, 1.0, 0.25, 0.5, "枝や幹からこの距離には葉を置かない (枝先の葉の付け根は除く)。枝が葉の間から見える"),
+        THIN_VINES("thin-vines", "柳のつる", false, "葉の塊の下側から、葉のつるを垂らす"),
+        THIN_VINE_SCALE("thin-vine-scale", "つるの量", 0.1, 3.0, 1.0, 0.1, 0.5, "柳のつるの数と長さの倍率");
 
         private final String id;
         private final String label;

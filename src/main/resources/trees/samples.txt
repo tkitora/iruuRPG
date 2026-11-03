@@ -10,3 +10,5 @@ tiered_weeping
 palm
 palm_twin
 palm_mangrove
+thin_birch
+thin_willow

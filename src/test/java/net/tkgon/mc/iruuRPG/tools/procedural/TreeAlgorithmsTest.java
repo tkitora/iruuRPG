@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -42,7 +43,8 @@ class TreeAlgorithmsTest {
             Map<Long, TreePart> a = TreeGenerator.build(settings, 9L, null);
             assertEquals(a, TreeGenerator.build(settings, 9L, null), algorithm);
             Map<TreePart, Integer> parts = count(a);
-            assertTrue(parts.getOrDefault(TreePart.TRUNK, 0) > 20, algorithm + " " + parts);
+            // (t252: a thin tree's trunk is one block thick)
+            assertTrue(parts.getOrDefault(TreePart.TRUNK, 0) > (algorithm.equals("thin") ? 5 : 20), algorithm + " " + parts);
             assertTrue(parts.getOrDefault(TreePart.LEAF, 0) > 50, algorithm + " " + parts);
         }
         assertTrue(count(TreeGenerator.build(tree("canopy"), 9L, null)).containsKey(TreePart.BRANCH));
@@ -180,5 +182,67 @@ class TreeAlgorithmsTest {
         }
         // (a band of 4 x 0.7 = 2.8 round 12: 11 to 13)
         assertEquals(java.util.Set.of(11, 12, 13), seen);
+    }
+
+    @Test
+    void aThinTreeHasAThinTrunkAndBranchesOfWallsFencesAndSlabs() {
+        // (t252) one block thick, its branches in posts and halves, leaves over the tips
+        for (long seed = 1; seed <= 5; seed++) {
+            Map<Long, TreePart> blocks = TreeGenerator.build(tree("thin"), seed, null);
+            Map<TreePart, Integer> counts = count(blocks);
+            String what = "seed " + seed + " " + counts;
+            for (TreePart part : new TreePart[]{TreePart.TRUNK, TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_SLAB_TOP}) {
+                assertTrue(counts.getOrDefault(part, 0) > 0, part + " " + what);
+            }
+            assertTrue(blocks.values().stream().filter(part -> part.shade() >= 0).count() > 100, what);
+            // the trunk low down: one block a layer (two where it steps over)
+            for (int y = 0; y <= 3; y++) {
+                int layer = y;
+                long trunk = blocks.entrySet().stream().filter(entry -> entry.getValue() == TreePart.TRUNK && TreeVoxelizer.unpackY(entry.getKey()) == layer).count();
+                assertTrue(trunk >= 1 && trunk <= 2, "y " + y + " " + trunk + " " + what);
+            }
+        }
+    }
+
+    @Test
+    void theLeavesOfAThinTreeKeepARoomRoundTheWood() {
+        // (t252) the more room asked for, the fewer leaves touch the branches (those on the tips stay, the clumps hang on them)
+        long[] touching = new long[2];
+        for (int run = 0; run < 2; run++) {
+            TreeSettings settings = tree("thin");
+            settings.set(TreeSettings.Key.THIN_CLEARANCE, run == 0 ? 0.0 : 2.0);
+            Map<Long, TreePart> blocks = TreeGenerator.build(settings, 3L, null);
+            for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
+                if (entry.getValue().shade() < 0) continue;
+                int x = TreeVoxelizer.unpackX(entry.getKey());
+                int y = TreeVoxelizer.unpackY(entry.getKey());
+                int z = TreeVoxelizer.unpackZ(entry.getKey());
+                for (int[] step : new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}}) {
+                    TreePart next = blocks.get(TreeVoxelizer.pack(x + step[0], y + step[1], z + step[2]));
+                    if (next != null && next.shade() < 0) {
+                        touching[run]++;
+                        break;
+                    }
+                }
+            }
+        }
+        assertTrue(touching[1] * 5 < touching[0] * 4, touching[0] + " / " + touching[1]);
+    }
+
+    @Test
+    void fencesAndWallsOfAThinTreeJoinTheWoodNextToThem() {
+        // a post between two logs east and west, a fence to the north, a leaf to the south
+        Map<Long, TreePart> blocks = new java.util.HashMap<>();
+        blocks.put(TreeVoxelizer.pack(1, 0, 0), TreePart.TRUNK);
+        blocks.put(TreeVoxelizer.pack(-1, 0, 0), TreePart.BRANCH);
+        blocks.put(TreeVoxelizer.pack(0, 0, 1), TreePart.LEAF);
+        boolean[] joined = ThinTree.joined(blocks, 0, 0, 0);
+        assertArrayEquals(new boolean[]{false, true, false, true}, joined);
+        // straight through with nothing over it: no post; with wood over it: a post
+        assertFalse(ThinTree.post(blocks, joined, 0, 0, 0));
+        blocks.put(TreeVoxelizer.pack(0, 1, 0), TreePart.BRANCH_FENCE);
+        assertTrue(ThinTree.post(blocks, joined, 0, 0, 0));
+        blocks.put(TreeVoxelizer.pack(0, 0, -1), TreePart.BRANCH_FENCE);
+        assertTrue(ThinTree.joined(blocks, 0, 0, 0)[0]);
     }
 }

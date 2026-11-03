@@ -1,0 +1,23 @@
+# 見本の木: 白樺 (細い木。丸太1本の幹、壁・フェンス・ハーフの白い枝、枝先の葉の塊。t252) (プロシージャルツールの読み込み、または /proceduraltool load thin_birch)
+settings:
+  kind: tree
+  algorithm: thin
+  thin-height: 12
+  thin-side: 3
+  thin-length: 5.5
+  thin-depth: 2
+  thin-rise: 0.55
+  thin-log-reach: 2
+  thin-leaf-size: 2.75
+  thin-leaf-flat: 0.3
+  thin-clearance: 1.0
+  seed: 0
+  blocks:
+    trunk: BIRCH_LOG
+    branch: BIRCH_LOG
+    branch-wall: DIORITE_WALL
+    branch-fence: BIRCH_FENCE
+    branch-slab: BIRCH_SLAB
+  leaf-gradient:
+  - BIRCH_LEAVES
+  - OAK_LEAVES

@@ -26,6 +26,7 @@ final class TreeGenerator {
         return switch (settings.algorithm()) {
             case "tiered" -> TieredTree.build(settings, random);
             case "palm" -> PalmTree.build(settings, random);
+            case "thin" -> ThinTree.build(settings, random);
             default -> CanopyTree.build(settings, random);
         };
     }

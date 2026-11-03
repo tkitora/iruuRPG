@@ -220,7 +220,8 @@ final class TreePreview {
             int z = base.getBlockZ() + TreeVoxelizer.unpackZ(entry.getKey());
             if (y < world.getMinHeight() || y >= world.getMaxHeight()) continue;
             long key = key(x, y, z);
-            target.put(key, looks.get(entry.getValue()));
+            target.put(key, ThinTree.shape(looks.get(entry.getValue()), entry.getValue(), blocks, TreeVoxelizer.unpackX(entry.getKey()), TreeVoxelizer.unpackY(entry.getKey()),
+                    TreeVoxelizer.unpackZ(entry.getKey())));
             if (!target.get(key).equals(session.shown.get(key))) adds.add(key);
         }
         List<Long> removes = new ArrayList<>();
