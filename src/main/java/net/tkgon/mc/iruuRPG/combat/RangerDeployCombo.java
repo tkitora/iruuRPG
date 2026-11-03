@@ -1,15 +1,12 @@
 package net.tkgon.mc.iruuRPG.combat;
 
 import net.tkgon.mc.iruuRPG.vfx.Fx;
-import net.tkgon.mc.iruuRPG.vfx.Gradient;
 import net.tkgon.mc.iruuRPG.vfx.Palettes;
 import org.bukkit.Bukkit;
-import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
-import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.LivingEntity;
@@ -28,12 +25,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * The ranger's combo with a deployed weapon: the <b>spirit bow</b>, a turret (t168: nekorozv wanted a turret, and not a modern one). The first
- * attack of a placement sets it at the placement: a bow floating over a wooden post, turning to its target; it stays as long as the placement
- * does and shoots by itself every {@code turret-period} (20) ticks at an enemy within {@code turret-range} (12) blocks of it ({@code turret-rate}
- * 30%): a tied one first ({@link RangerSkills}: the knife's wire drags the enemies here), {@code tied-bonus} (30%) harder. Every attack is an order
- * to it. With the class's passive ({@code ranger_self_deploy}) it also shoots the enemies within 5 blocks of the ranger (at most 24 blocks from
- * it). The ranger's arrows that pass near it are stronger and a hit of the bow makes it shoot that enemy too (the loop, {@link MoveKit}).
+ * The ranger's combo with a deployed weapon: the <b>spirit bow</b>, a turret (t168: nekorozv wanted a turret, and not a modern one; t198: a bow
+ * floating in the air, no post). The first attack of a placement sets it at the placement: a bow floating and bobbing over a ring of light,
+ * turning to its target; it stays as long as the placement does and shoots by itself every {@code turret-period} (20) ticks at an enemy within
+ * {@code turret-range} (12) blocks of it ({@code turret-rate} 30%): a tied one first ({@link RangerSkills}: the knife's wire drags the enemies
+ * here), {@code tied-bonus} (30%) harder. Every attack is an order to it. The ranger's arrows that pass near it are stronger and a hit of the bow
+ * makes it shoot that enemy too (the loop, {@link MoveKit}). Drawn in the weapon's colors.
+ *
+ * <p>With the class's passive ({@code ranger_self_deploy}, t198: the lantern's effect round the ranger too, now seen) a smaller spirit bow floats
+ * over the ranger's shoulder while the turret stands within {@code self-reach} (24) blocks: every attack of the combo is made from it too, on the
+ * enemies within {@code self-radius} (5) blocks of the ranger ({@code self-share} 60% of it; a ring of that radius lights round the ranger), and it
+ * shoots them by itself with the turret.
  *
  * <p>Normal: 1 three quick arrows at its target (30% x3), 2 a spread at up to five enemies (25% x5), 3 a heavy arrow that pins (100%, slowed 50%
  * for 1.5 s), 4 a volley falling round its target (20% x6), 5 overdrive: an arrow at every enemy in reach (60%), and for {@code overdrive-seconds}
@@ -64,35 +66,69 @@ public final class RangerDeployCombo implements ClassCombo {
         return SPEC;
     }
 
-    /** The wood and the green light of the spirit bow. */
-    static final Gradient SPIRIT = Gradient.of(Color.fromRGB(70, 45, 20), Color.fromRGB(120, 220, 120), Color.fromRGB(235, 255, 220));
-
-    /** A ranger's spirit bow: where it stands, its bow and post, until when it shoots fast (ticks), its target and its last relayed shot. */
-    private static final class Turret {
-        final Location at;
+    /** A spirit bow: the turret at the placement, or the small one over the ranger's shoulder (the passive); where it shoots from. */
+    private abstract static class Bow {
         final ItemDisplay bow;
-        final BlockDisplay post;
+        double facing;
+
+        Bow(ItemDisplay bow) {
+            this.bow = bow;
+        }
+
+        abstract Location top();
+    }
+
+    /** A ranger's spirit bow: where it stands, its bow (and the one over the ranger), until when it shoots fast (ticks), its last relayed shot. */
+    private static final class Turret extends Bow {
+        final Location at;
+        /** The small bow over the ranger's shoulder (the passive), or null. */
+        Companion companion;
         boolean alive = true;
         /** The tick it was last kept by its zone (a zone taken away without its end, as when the placement is removed, leaves it to the watch). */
         int seen = Bukkit.getCurrentTick();
         int fastUntil;
         int lastRelay = -100;
-        double facing;
+        int age;
 
-        Turret(Location at, ItemDisplay bow, BlockDisplay post) {
+        Turret(Location at, ItemDisplay bow) {
+            super(bow);
             this.at = at;
-            this.bow = bow;
-            this.post = post;
         }
 
+        @Override
         Location top() {
-            return at.clone().add(0.0, 1.55, 0.0);
+            return at.clone().add(0.0, 1.6 + 0.15 * Math.sin(age * 0.12), 0.0);
         }
 
         void remove() {
             alive = false;
             if (bow.isValid()) bow.remove();
-            if (post.isValid()) post.remove();
+            if (companion != null) companion.remove();
+        }
+    }
+
+    /** The small spirit bow over the ranger's shoulder (the passive, t198). */
+    private static final class Companion extends Bow {
+        final Player owner;
+
+        Companion(Player owner, ItemDisplay bow) {
+            super(bow);
+            this.owner = owner;
+        }
+
+        /** Over the ranger's right shoulder, a little behind. */
+        @Override
+        Location top() {
+            Location at = owner.getLocation();
+            Vector facing = at.getDirection().setY(0.0);
+            if (facing.lengthSquared() < 1.0E-6) facing = new Vector(0.0, 0.0, 1.0);
+            facing.normalize();
+            Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
+            return at.add(0.0, 2.3, 0.0).add(right.multiply(0.7)).subtract(facing.multiply(0.35));
+        }
+
+        void remove() {
+            if (bow.isValid()) bow.remove();
         }
     }
 
@@ -139,60 +175,71 @@ public final class RangerDeployCombo implements ClassCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.palette(SPIRIT);
         double rate = step.damageMultiplier();
         int count = step.extraHits() + 1;
         Turret turret = turret(kit);
-        List<LivingEntity> targets = targets(kit, turret);
+        attack(kit, step.stage(), turret, targets(kit, turret), rate, count);
+        // (the passive: the same attack from the bow over the ranger's shoulder, on the enemies round the ranger)
+        Companion companion = companion(kit, turret);
+        if (companion == null) return;
+        double radius = kit.number(PLAN, "self-radius", 5.0);
+        List<LivingEntity> near = selfTargets(kit, radius);
+        Location feet = kit.player.getLocation();
+        kit.fx(feet).flatRing(feet.clone().add(0.0, 0.12, 0.0), radius, 48, kit.palette(), 0.6, 0.15, 0.9);
+        if (!near.isEmpty()) attack(kit, step.stage(), companion, near, rate * kit.number(PLAN, "self-share", 0.6), count);
+    }
+
+    /** Normal attack {@code stage} made by {@code from} on {@code targets} (the first first). */
+    private static void attack(MoveKit kit, int stage, Bow from, List<LivingEntity> targets, double rate, int count) {
         LivingEntity first = targets.isEmpty() ? null : targets.get(0);
-        switch (step.stage()) {
+        switch (stage) {
             case 1 -> {
                 if (first == null) {
-                    idle(kit, turret);
+                    idle(kit, from);
                     return;
                 }
                 for (int index = 0; index < count; index++) kit.later(index * 3L, () -> {
-                    if (first.isValid() && !first.isDead()) shoot(kit, turret, first, rate);
+                    if (first.isValid() && !first.isDead()) shoot(kit, from, first, rate);
                 });
             }
             case 2 -> {
                 if (first == null) {
-                    idle(kit, turret);
+                    idle(kit, from);
                     return;
                 }
                 for (int index = 0; index < count; index++) {
                     LivingEntity victim = targets.get(index % targets.size());
                     kit.later(index, () -> {
-                        if (victim.isValid() && !victim.isDead()) shoot(kit, turret, victim, rate);
+                        if (victim.isValid() && !victim.isDead()) shoot(kit, from, victim, rate);
                     });
                 }
             }
             case 3 -> {
                 if (first == null) {
-                    idle(kit, turret);
+                    idle(kit, from);
                     return;
                 }
-                kit.sound(turret.top(), Sfx.BOW_DRAW, 0.8f, 0.8f);
+                kit.sound(from.top(), Sfx.BOW_DRAW, 0.8f, 0.8f);
                 kit.later(4L, () -> {
                     if (!first.isValid() || first.isDead()) return;
-                    if (shoot(kit, turret, first, rate)) kit.slow(first, kit.number(PLAN, "pin-slow", 50.0), 1.5);
+                    if (shoot(kit, from, first, rate)) kit.slow(first, kit.number(PLAN, "pin-slow", 50.0), 1.5);
                     kit.sound(first.getLocation(), Sfx.HIT_PIERCE, 1.0f, 0.7f);
                 });
             }
             case 4 -> {
                 if (first == null) {
-                    idle(kit, turret);
+                    idle(kit, from);
                     return;
                 }
                 Location center = kit.ground(first.getLocation());
-                kit.sound(turret.top(), Sfx.BOW_LOOSE, 0.8f, 1.3f);
+                kit.sound(from.top(), Sfx.BOW_LOOSE, 0.8f, 1.3f);
                 ThreadLocalRandom random = ThreadLocalRandom.current();
                 for (int index = 0; index < count; index++) {
                     double angle = random.nextDouble(Math.PI * 2.0);
                     double r = 2.5 * Math.sqrt(random.nextDouble());
                     Location spot = kit.ground(center.clone().add(Math.cos(angle) * r, 0.0, Math.sin(angle) * r));
                     kit.later(6L + index * 2L, () -> {
-                        kit.fx(spot).line(spot.clone().add(0.6, 6.0, 0.3), spot.clone().add(0.0, 0.1, 0.0), SPIRIT, 0.3, 1.0, 1.5, 1.0, 0.3, null, 1);
+                        kit.fx(spot).line(spot.clone().add(0.6, 6.0, 0.3), spot.clone().add(0.0, 0.1, 0.0), kit.palette(), 0.3, 1.0, 1.5, 1.0, 0.3, null, 1);
                         kit.particle(Particle.CRIT, spot.clone().add(0.0, 0.2, 0.0), 3, 0.2, 0.05);
                         for (LivingEntity victim : kit.around(spot, 1.3)) hitFrom(kit, victim, rate);
                     });
@@ -200,22 +247,37 @@ public final class RangerDeployCombo implements ClassCombo {
                 kit.later(6L, () -> kit.sound(center, Sfx.HIT_PIERCE, 0.7f, 1.2f));
             }
             default -> {
-                // overdrive: an arrow at everyone in reach now, and quick shots for a while
-                turret.fastUntil = Bukkit.getCurrentTick() + (int) Math.round(kit.number(PLAN, "overdrive-seconds", 4.0) * 20.0);
-                kit.sound(turret.top(), Sfx.SPIRIT_OVERDRIVE, 1.0f, 1.0f);
-                kit.shockwave(turret.at, 0.6, 2.6, 4, 1.1);
+                // overdrive: an arrow at everyone in reach now, and (the turret) quick shots for a while
+                if (from instanceof Turret turret) {
+                    turret.fastUntil = Bukkit.getCurrentTick() + (int) Math.round(kit.number(PLAN, "overdrive-seconds", 4.0) * 20.0);
+                    kit.shockwave(turret.at, 0.6, 2.6, 4, 1.1);
+                }
+                kit.sound(from.top(), Sfx.SPIRIT_OVERDRIVE, 1.0f, 1.0f);
                 for (int index = 0; index < targets.size(); index++) {
                     LivingEntity victim = targets.get(index);
                     kit.later(index, () -> {
-                        if (victim.isValid() && !victim.isDead()) shoot(kit, turret, victim, rate);
+                        if (victim.isValid() && !victim.isDead()) shoot(kit, from, victim, rate);
                     });
                 }
             }
         }
     }
 
+    /** A floating bow (an item display of a bow, lit, never saved) at {@code at}, {@code size} large. */
+    private static ItemDisplay spawnBow(Location at, float size) {
+        return at.getWorld().spawn(at, ItemDisplay.class, spawned -> {
+            spawned.setItemStack(new ItemStack(Material.BOW));
+            spawned.setPersistent(false);
+            spawned.setInvulnerable(true);
+            spawned.setBrightness(new Display.Brightness(15, 15));
+            spawned.setTeleportDuration(2);
+            spawned.setTransformation(bowShape(0.0, size));
+        });
+    }
+
     /**
-     * The spirit bow at the placement: the one standing there, or a new one (the old one goes). It shoots by itself while the placement lasts.
+     * The spirit bow at the placement: the one standing there, or a new one (the old one goes). It floats over a ring of light and shoots by itself
+     * while the placement lasts (and the bow over the ranger's shoulder with it, with the passive).
      */
     private static Turret turret(MoveKit kit) {
         UUID id = kit.player.getUniqueId();
@@ -223,27 +285,15 @@ public final class RangerDeployCombo implements ClassCombo {
         Turret old = TURRETS.get(id);
         if (old != null && old.alive && old.at.getWorld() == at.getWorld() && old.at.distanceSquared(at) < 0.25) return old;
         if (old != null) old.remove();
-        BlockDisplay post = at.getWorld().spawn(at, BlockDisplay.class, spawned -> {
-            spawned.setBlock(Material.OAK_FENCE.createBlockData());
-            spawned.setPersistent(false);
-            spawned.setInvulnerable(true);
-            spawned.setTransformation(new Transformation(new Vector3f(-0.5f, 0.0f, -0.5f), new Quaternionf(), new Vector3f(1.0f, 1.1f, 1.0f), new Quaternionf()));
-        });
-        Location top = at.clone().add(0.0, 1.55, 0.0);
-        ItemDisplay bow = at.getWorld().spawn(top, ItemDisplay.class, spawned -> {
-            spawned.setItemStack(new ItemStack(Material.BOW));
-            spawned.setPersistent(false);
-            spawned.setInvulnerable(true);
-            spawned.setBrightness(new Display.Brightness(15, 15));
-            spawned.setTransformation(bowShape(0.0));
-        });
-        Turret turret = new Turret(at, bow, post);
+        Turret turret = new Turret(at, spawnBow(at.clone().add(0.0, 1.6, 0.0), 1.5f));
         TURRETS.put(id, turret);
         kit.sound(at, Sfx.SPIRIT_SET, 1.0f, 1.0f);
         ComboParts.appear(kit, at);
         int period = (int) Math.round(kit.number(PLAN, "turret-period", 20.0));
         int fast = (int) Math.round(kit.number(PLAN, "overdrive-period", 7.0));
         double rate = kit.number(PLAN, "turret-rate", 0.3);
+        double selfRadius = kit.number(PLAN, "self-radius", 5.0);
+        double selfShare = kit.number(PLAN, "self-share", 0.6);
         // (the watch: a turret whose zone is gone without its end goes too)
         new SafeTask(kit.plugin()) {
             @Override
@@ -265,29 +315,48 @@ public final class RangerDeployCombo implements ClassCombo {
                 return;
             }
             int age = zone.age();
+            turret.age = age;
             int tick = Bukkit.getCurrentTick();
             turret.seen = tick;
             boolean quick = tick < turret.fastUntil;
             boolean fire = age > 0 && age % (quick ? fast : period) == 0;
             if (age % 2 != 0 && !fire) return;
+            // the bow bobs over its ring of light; the one over the ranger's shoulder follows them
+            if (turret.bow.isValid()) turret.bow.teleport(turret.top());
+            Companion companion = companion(kit, turret);
+            if (companion != null && companion.bow.isValid()) companion.bow.teleport(companion.top());
             if (age % 4 == 0) {
                 Fx fx = kit.fx(at);
-                fx.flatRing(at.clone().add(0.0, 0.12, 0.0), 0.9, 18, SPIRIT, quick ? 1.0 : 0.6, 0.2, 0.9);
-                fx.dust(top.getX(), top.getY() + 0.05 * Math.sin(age * 0.2), top.getZ(), SPIRIT, 0.9, 1.0);
+                Location top = turret.top();
+                fx.flatRing(at.clone().add(0.0, 0.12, 0.0), 1.2, 24, kit.palette(), quick ? 1.0 : 0.6, 0.2, 1.0);
+                fx.flatRing(top.clone().subtract(0.0, 0.9, 0.0), 0.5 + 0.1 * Math.sin(age * 0.2), 12, kit.palette(), 0.8, 0.1, 0.9);
+                fx.dust(top.getX(), top.getY() - 0.4 - 0.3 * ((age / 4) % 3), top.getZ(), kit.palette(), 0.9, 0.9);
                 if (quick) kit.particle(Particle.VILLAGER_HAPPY, top, 1, 0.3, 0.0);
+                if (companion != null) {
+                    Location shoulder = companion.top();
+                    kit.fx(shoulder).flatRing(shoulder.clone().subtract(0.0, 0.5, 0.0), 0.3, 8, kit.palette(), 0.8, 0.0, 0.8);
+                    if (age % 20 == 0) {
+                        Location feet = kit.player.getLocation();
+                        kit.fx(feet).flatRing(feet.clone().add(0.0, 0.12, 0.0), selfRadius, 40, kit.palette(), 0.3, 0.1, 0.7);
+                    }
+                }
             }
             List<LivingEntity> targets = targets(kit, turret);
             if (targets.isEmpty()) {
                 // nothing to shoot: the bow turns slowly, keeping watch
                 turret.facing += 0.05;
-                if (age % 2 == 0) aimBow(turret, turret.facing, 2);
-                return;
+                if (age % 2 == 0) aimBow(turret, turret.facing, 2, 1.5f);
+            } else {
+                LivingEntity target = targets.get(0);
+                Vector to = target.getLocation().toVector().subtract(at.toVector());
+                turret.facing = Math.atan2(to.getZ(), -to.getX());
+                if (age % 2 == 0) aimBow(turret, turret.facing, 2, 1.5f);
+                if (fire) shoot(kit, turret, target, rate);
             }
-            LivingEntity target = targets.get(0);
-            Vector to = target.getLocation().toVector().subtract(at.toVector());
-            turret.facing = Math.atan2(to.getZ(), -to.getX());
-            if (age % 2 == 0) aimBow(turret, turret.facing, 2);
-            if (fire) shoot(kit, turret, target, rate);
+            if (fire && companion != null) {
+                List<LivingEntity> near = selfTargets(kit, selfRadius);
+                if (!near.isEmpty()) shoot(kit, companion, near.get(0), rate * selfShare);
+            }
         }, zone -> {
             turret.remove();
             TURRETS.remove(id, turret);
@@ -295,52 +364,75 @@ public final class RangerDeployCombo implements ClassCombo {
         return turret;
     }
 
-    /** The bow's turn: upright (the sprite's diagonal stood up) and turned about the vertical by {@code angle}. */
-    private static Transformation bowShape(double angle) {
-        Quaternionf turn = new Quaternionf().rotateY((float) angle).mul(new Quaternionf().rotateZ((float) (-Math.PI / 4.0)));
-        return new Transformation(new Vector3f(), turn, new Vector3f(1.3f, 1.3f, 1.3f), new Quaternionf());
-    }
-
-    private static void aimBow(Turret turret, double angle, int ticks) {
-        if (!turret.bow.isValid()) return;
-        turret.bow.setInterpolationDelay(0);
-        turret.bow.setInterpolationDuration(ticks);
-        turret.bow.setTransformation(bowShape(angle));
-    }
-
     /**
-     * The enemies the spirit bow can shoot, the first one first: the tied ones, then by distance; within its reach, and (with the class's passive)
-     * those within 5 blocks of the ranger too, at most 24 blocks from it.
+     * The bow over the ranger's shoulder (the passive, t198): made when the ranger has the passive and stands within {@code self-reach} of the
+     * turret, taken away when they do not; null then.
      */
-    private static List<LivingEntity> targets(MoveKit kit, Turret turret) {
-        double reach = kit.number(PLAN, "turret-range", 12.0);
-        List<LivingEntity> found = new ArrayList<>(kit.around(turret.at, reach));
+    private static Companion companion(MoveKit kit, Turret turret) {
         Player player = kit.player;
-        if (kit.hasSkill(SELF_ZONE) && player.getWorld() == turret.at.getWorld() && player.getLocation().distanceSquared(turret.at) <= 24.0 * 24.0) {
-            for (LivingEntity near : kit.around(player.getLocation(), 5.0)) {
-                if (!found.contains(near) && near.getLocation().distanceSquared(turret.at) <= 24.0 * 24.0) found.add(near);
+        double reach = kit.number(PLAN, "self-reach", 24.0);
+        boolean on = turret.alive && kit.hasSkill(SELF_ZONE) && player.isOnline() && !player.isDead() && player.getWorld() == turret.at.getWorld()
+                && player.getLocation().distanceSquared(turret.at) <= reach * reach;
+        if (!on) {
+            if (turret.companion != null) {
+                turret.companion.remove();
+                turret.companion = null;
             }
+            return null;
         }
+        if (turret.companion == null || !turret.companion.bow.isValid()) {
+            Companion made = new Companion(player, spawnBow(player.getLocation().add(0.0, 2.3, 0.0), 0.8f));
+            turret.companion = made;
+            kit.fx(made.top()).sphereShell(made.top(), 0.5, 0.0, 12, kit.palette(), 0.9);
+        }
+        return turret.companion;
+    }
+
+    /** The bow's turn: upright (the sprite's diagonal stood up), {@code size} large, turned about the vertical by {@code angle}. */
+    private static Transformation bowShape(double angle, float size) {
+        Quaternionf turn = new Quaternionf().rotateY((float) angle).mul(new Quaternionf().rotateZ((float) (-Math.PI / 4.0)));
+        return new Transformation(new Vector3f(), turn, new Vector3f(size, size, size), new Quaternionf());
+    }
+
+    private static void aimBow(Bow bow, double angle, int ticks, float size) {
+        if (!bow.bow.isValid()) return;
+        bow.bow.setInterpolationDelay(0);
+        bow.bow.setInterpolationDuration(ticks);
+        bow.bow.setTransformation(bowShape(angle, size));
+    }
+
+    /** The enemies the spirit bow can shoot, the first one first: the tied ones, then by distance; within its reach. */
+    private static List<LivingEntity> targets(MoveKit kit, Turret turret) {
+        List<LivingEntity> found = new ArrayList<>(kit.around(turret.at, kit.number(PLAN, "turret-range", 12.0)));
         found.sort(java.util.Comparator.comparing((LivingEntity victim) -> !RangerSkills.tied(victim))
                 .thenComparingDouble(victim -> victim.getLocation().distanceSquared(turret.at)));
         return found;
     }
 
-    /** The ranger's passive that lets the spirit bow shoot the enemies round the ranger. */
+    /** The enemies within {@code radius} of the ranger (the bow over their shoulder), the tied ones first, then the nearest. */
+    private static List<LivingEntity> selfTargets(MoveKit kit, double radius) {
+        Location at = kit.player.getLocation();
+        List<LivingEntity> found = new ArrayList<>(kit.around(at, radius));
+        found.sort(java.util.Comparator.comparing((LivingEntity victim) -> !RangerSkills.tied(victim))
+                .thenComparingDouble(victim -> victim.getLocation().distanceSquared(at)));
+        return found;
+    }
+
+    /** The ranger's passive that brings the spirit bow's attacks round the ranger too. */
     private static final String SELF_ZONE = "ranger_self_deploy";
 
-    /** One arrow of the spirit bow at {@code victim}: drawn from the bow, {@code tied-bonus} more on a tied enemy. True when it hit. */
-    private static boolean shoot(MoveKit kit, Turret turret, LivingEntity victim, double rate) {
-        Location from = turret.top();
+    /** One arrow of a spirit bow at {@code victim}: drawn from the bow, {@code tied-bonus} more on a tied enemy. True when it hit. */
+    private static boolean shoot(MoveKit kit, Bow from, LivingEntity victim, double rate) {
+        Location top = from.top();
         Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
-        if (from.getWorld() != chest.getWorld()) return false;
-        Vector way = chest.toVector().subtract(from.toVector());
+        if (top.getWorld() != chest.getWorld()) return false;
+        Vector way = chest.toVector().subtract(top.toVector());
         if (way.lengthSquared() > 1.0E-6) {
-            turret.facing = Math.atan2(way.getZ(), -way.getX());
-            aimBow(turret, turret.facing, 1);
-            kit.fx(from).line(from, chest, SPIRIT, 0.2, 1.0, 1.5, 0.9, 0.3, null, 1);
+            from.facing = Math.atan2(way.getZ(), -way.getX());
+            aimBow(from, from.facing, 1, from instanceof Turret ? 1.5f : 0.8f);
+            kit.fx(top).line(top, chest, kit.palette(), 0.2, 1.0, 1.5, 0.9, 0.3, null, 1);
         }
-        kit.sound(from, Sfx.BOW_LOOSE, 0.45f, 1.4f);
+        kit.sound(top, Sfx.BOW_LOOSE, 0.45f, from instanceof Turret ? 1.4f : 1.7f);
         kit.particle(Particle.CRIT, chest, 3, 0.15, 0.05);
         return hitFrom(kit, victim, rate);
     }
@@ -354,9 +446,9 @@ public final class RangerDeployCombo implements ClassCombo {
     }
 
     /** The bow has nobody to shoot: a dry twang. */
-    private static void idle(MoveKit kit, Turret turret) {
-        kit.sound(turret.top(), Sfx.BOW_LOOSE, 0.3f, 1.8f);
-        kit.fx(turret.top()).sphereShell(turret.top(), 0.4, 0.0, 8, SPIRIT, 0.7);
+    private static void idle(MoveKit kit, Bow bow) {
+        kit.sound(bow.top(), Sfx.BOW_LOOSE, 0.3f, 1.8f);
+        kit.fx(bow.top()).sphereShell(bow.top(), 0.4, 0.0, 8, kit.palette(), 0.7);
     }
 
     @Override

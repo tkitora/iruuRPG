@@ -3,6 +3,7 @@ package net.tkgon.mc.iruuRPG.combat;
 import net.tkgon.mc.iruuRPG.item.RpgItemDefinition;
 import net.tkgon.mc.iruuRPG.vfx.Fx;
 import net.tkgon.mc.iruuRPG.vfx.Gradient;
+import net.tkgon.mc.iruuRPG.vfx.Palettes;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
 import org.bukkit.Location;
@@ -27,24 +28,25 @@ import java.util.function.ToIntFunction;
 /**
  * The ranger's own skills (t168: nekorozv left them to us, keeping the class's concepts: the ranger changes weapons even in a fight, and the three
  * work together). Every number is under {@code combat.combo.ranger_melee} / {@code ranger_range} (all provisional), the cooldowns of the melee ones
- * too.
+ * too. Drawn in the weapon's colors (t198); the wire stays silver.
  *
  * <p><b>The knife and the wire</b> (a melee weapon of the class's combo): the ranger drags the enemies into the reach of their turret (the spirit
  * bow of the lantern, {@link RangerDeployCombo}) or of their bow. A wire flung at an enemy <b>ties</b> it ({@code tie-seconds} 3): it is pulled to
  * the ranger's turret when one stands within {@code turret-reach} (20) blocks, else to the ranger; the turret shoots a tied enemy first and
  * {@code tied-bonus} (30%) harder.
  * <ul>
- *   <li>小 wire hook (2 charges): a wire to the enemy aimed at, and a yank to the turret (or to the ranger).</li>
+ *   <li>小 wire hook: a wire to the enemy aimed at, and a yank to the turret (or to the ranger).</li>
  *   <li>中 wire net: a net flung at the aim ties the enemies under it together, slowed; its re-activation reels them all in (to the turret, or to
  *       the ranger).</li>
  *   <li>大 grapple assault: wires to up to four enemies near, and the ranger zips from one to the next cutting each (nothing hurts them on the
  *       way); the last is kicked to the turret.</li>
- *   <li>util grapple: a wire to the block aimed at, and the ranger zips there; with shift a flip back.</li>
+ *   <li>util grapple (2 charges, t198): a wire to the block aimed at, and the ranger zips there; with shift a flip back.</li>
  * </ul>
  *
  * <p><b>The bow</b> (a ranged weapon of the class's combo): 小 is new, the power shot (2 charges: a short draw, then an arrow that flies straight
  * through every enemy in the way; more on a marked enemy, more again through the turret's reach); 中・大・util are what they were (the rapid shots,
- * the rain of arrows, the backstep shot), with the class's cooldowns. With a deployed weapon there are no skills. The ULT is the class's.
+ * the rain of arrows (its steps closer together since t198), the backstep shot), with the class's cooldowns. With a deployed weapon there are no
+ * skills. The ULT is the class's.
  */
 public final class RangerSkills {
 
@@ -52,9 +54,6 @@ public final class RangerSkills {
     static final String RANGE = RangerRangeCombo.PLAN;
     /** The wire: a dark line, silver, a bright glint. */
     static final Gradient WIRE = Gradient.of(Color.fromRGB(40, 58, 52), Color.fromRGB(165, 205, 180), Color.fromRGB(245, 255, 248));
-    static final List<Color> KNIFE_SLASH = List.of(Color.fromRGB(45, 70, 55), Color.fromRGB(150, 210, 170), Color.fromRGB(240, 255, 245));
-    /** The power shot's trail: a bright green and white. */
-    static final Gradient SHOT = Gradient.of(Color.fromRGB(30, 110, 60), Color.fromRGB(140, 240, 160), Color.fromRGB(255, 255, 240));
 
     private static AttackService attack;
     /** The enemies tied by a wire: until when (ms). */
@@ -116,18 +115,18 @@ public final class RangerSkills {
     }
 
     /**
-     * The charges, re-activations and cooldowns: the knife's are its own (小 2 charges, 中 a re-activation); the bow's 小 has 2 charges (the power
-     * shot), its other skills the class's cooldowns; a deployed weapon none.
+     * The charges, re-activations and cooldowns (t198: spread by what each skill is): the knife's are its own (小 a cooldown, 中 a re-activation,
+     * util 2 charges: the grapple moves); the bow's 小 has 2 charges (the power shot), its other skills the class's cooldowns; a deployed weapon none.
      */
     static SkillSlots.Mechanics mechanics(ConfigurationSection config, SkillSlots.Slot slot, AttackType kind) {
         if (kind == AttackType.MELEE) {
             String base = "combat.combo." + MELEE + ".";
             return switch (slot) {
-                case SMALL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "small-charges", 2.0)), 0.0,
-                        config.getDouble(base + "small-charge-seconds", 4.0), config.getDouble(base + "small-empty-seconds", 9.0));
+                case SMALL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "small-seconds", 6.0));
                 case MEDIUM -> new SkillSlots.Mechanics(1, config.getDouble(base + "medium-recast-seconds", 3.0), 0.0, config.getDouble(base + "medium-seconds", 10.0));
                 case LARGE -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "large-seconds", 22.0));
-                case UTIL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "util-seconds", 5.0));
+                case UTIL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "util-charges", 2.0)), 0.0,
+                        config.getDouble(base + "util-charge-seconds", 5.0), config.getDouble(base + "util-empty-seconds", 10.0));
                 default -> SkillSlots.Mechanics.NONE;
             };
         }
@@ -139,9 +138,9 @@ public final class RangerSkills {
         return SkillSlots.Mechanics.NONE;
     }
 
+    /** The knife's look (t198): the weapon's colors with a touch of steel, as its combo; the wire stays silver. */
     static void lookWire(MoveKit kit) {
-        kit.palette(WIRE);
-        kit.slashColors(KNIFE_SLASH);
+        kit.palette(Palettes.of(kit.weapon.element()).mix(Palettes.STEEL, 0.3));
     }
 
     private static double melee(MoveKit kit, String key, double fallback) {
@@ -435,11 +434,10 @@ public final class RangerSkills {
         double rate = range(kit, "small-rate", 1.5);
         double markBonus = range(kit, "small-mark-bonus", 0.4);
         double turretBonus = range(kit, "small-turret-bonus", 0.25);
-        kit.palette(SHOT);
         kit.sound(player.getLocation(), Sfx.BOW_DRAW, 1.0f, 1.0f);
         kit.every(draw, age -> {
             Location hand = ComboParts.hand(kit);
-            kit.fx(hand).sphereShell(hand, 0.25 + 0.05 * age, age * 0.6, 8, SHOT, 0.8);
+            kit.fx(hand).sphereShell(hand, 0.25 + 0.05 * age, age * 0.6, 8, kit.palette(), 0.8);
             return false;
         });
         kit.later(draw, () -> {
@@ -450,7 +448,7 @@ public final class RangerSkills {
             Location turret = RangerDeployCombo.turretNear(player, 40.0);
             boolean[] boosted = {false};
             Set<UUID> struck = new HashSet<>();
-            kit.pierceArrow(start, direction, 2.4, range(kit, "small-range", 30.0), SHOT, victim -> {
+            kit.pierceArrow(start, direction, 2.4, range(kit, "small-range", 30.0), kit.palette(), victim -> {
                 if (!struck.add(victim.getUniqueId())) return;
                 double multiplier = 1.0;
                 RangerMoves moves = attack.rangerMoves();
@@ -458,7 +456,7 @@ public final class RangerSkills {
                 if (boosted[0]) multiplier += turretBonus;
                 if (kit.hit(victim, rate * multiplier)) {
                     Location chest = victim.getLocation().add(0.0, victim.getHeight() * 0.5, 0.0);
-                    kit.fx(chest).sphereShell(chest, 0.5, 0.0, 12, SHOT, 1.0);
+                    kit.fx(chest).sphereShell(chest, 0.5, 0.0, 12, kit.palette(), 1.0);
                     kit.sound(chest, Sfx.HIT_PIERCE, 0.8f, 0.9f);
                     RangerDeployCombo.relay(kit, victim);
                 }

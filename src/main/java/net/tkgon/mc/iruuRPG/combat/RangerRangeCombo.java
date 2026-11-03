@@ -20,8 +20,9 @@ import java.util.concurrent.ThreadLocalRandom;
  * Heavy: 0 a backstep shot (the ranger hops back, nothing can hurt for 4 ticks, 130% and slows 50%) that gives one effect to the arrows after it, drawn from a shuffle bag of
  * four (ricochet and poison for the next 5 arrows; a small explosion and orange damage for the next 3 normal attacks; see {@link RangerBuffs}), 1 a straight piercing arrow that
  * hits what it passes for 5% only and breaks a trap or a mine of the ranger it meets, with a burst on the enemies round it, 2 a ring a block ahead for 3 s: an arrow through it
- * is 20% faster and stronger and its tip is red, 3 four homing arrows, one every 2 ticks (35% x4), 4 a volley loosed up into the air that falls a second later in three
- * steps, 3, 6 and 9 blocks ahead (an area of 3.2 blocks each, from the ground up to 10 blocks, so an enemy in the air is hit too; hit twice for 70% each time; the arrows are only the look of it).
+ * is 20% faster and stronger and its tip is red, 3 four homing arrows, one every 2 ticks (35% x4), 4 a volley loosed up into the air that falls 0.7 s later in three
+ * steps, 3, 6 and 9 blocks ahead, 4 ticks apart (t198: closer together; an area of 3.2 blocks each, from the ground up to 10 blocks, so an enemy in the air is hit too; hit
+ * twice, 4 ticks apart, for 70% each time; the arrows are only the look of it).
  */
 public final class RangerRangeCombo implements ClassCombo {
 
@@ -237,7 +238,7 @@ public final class RangerRangeCombo implements ClassCombo {
                 }
             }
             case 4 -> {
-                // a volley loosed up into the air that comes down a second later in three steps, 3, 6 and 9 blocks ahead; the arrows are the look of it, the damage is the area
+                // a volley loosed up into the air that comes down a moment later in three steps, 3, 6 and 9 blocks ahead; the arrows are the look of it, the damage is the area
                 // (where the player stands and looks now, not where the combo began: origin() is the start of the combo)
                 Location origin = kit.player.getLocation();
                 Vector forward = kit.facing();
@@ -245,9 +246,13 @@ public final class RangerRangeCombo implements ClassCombo {
                 ThreadLocalRandom random = ThreadLocalRandom.current();
                 kit.sound(feet, Sound.ENTITY_ARROW_SHOOT, 1.0f, 0.7f);
                 kit.sound(feet, Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 0.7f, 1.3f);
+                // (t198: the steps come closer together: rain-step-ticks apart, falling rain-fall-ticks after they are loosed, hit again rain-again-ticks later)
+                int stepTicks = Math.max(1, (int) Math.round(kit.number(PLAN, "rain-step-ticks", 4.0)));
+                int fallTicks = Math.max(4, (int) Math.round(kit.number(PLAN, "rain-fall-ticks", 14.0)));
+                long againTicks = Math.max(1L, Math.round(kit.number(PLAN, "rain-again-ticks", 4.0)));
                 for (int stage = 0; stage < 3; stage++) {
                     Location centre = kit.ground(origin.clone().add(forward.clone().multiply(3.0 * (stage + 1))));
-                    int begin = stage * 6;
+                    int begin = stage * stepTicks;
                     kit.later(begin, () -> {
                         // the arrows loosed up and out, an arc each
                         Location from = muzzle(kit, 0.0, -0.1);
@@ -263,10 +268,10 @@ public final class RangerRangeCombo implements ClassCombo {
                         kit.sound(from, Sound.ENTITY_ARROW_SHOOT, 0.6f, 1.2f);
                         kit.fx(centre).flatRing(centre.clone().add(0.0, 0.15, 0.0), 3.2, 44, kit.palette(), 0.5, 0.2, 1.0);
                     });
-                    for (int tick = 6; tick < 20; tick += 4) {
+                    for (int tick = 4; tick < fallTicks; tick += 4) {
                         kit.later(begin + tick, () -> kit.fx(centre).flatRing(centre.clone().add(0.0, 0.15, 0.0), 3.2, 44, kit.palette(), 0.5, 0.2, 0.9));
                     }
-                    kit.later(begin + 20L, () -> {
+                    kit.later(begin + fallTicks, () -> {
                         // the arrows fall
                         for (int arrow = 0; arrow < 10; arrow++) {
                             double angle = random.nextDouble(Math.PI * 2.0);
@@ -288,7 +293,7 @@ public final class RangerRangeCombo implements ClassCombo {
                             kit.sound(centre, Sound.ENTITY_GENERIC_EXPLODE, 0.4f, 1.6f);
                             kit.hitAll(kit.column(centre, 3.2, 10.0), rate);
                             // and a second hit of the same area a moment later
-                            kit.later(6L, () -> {
+                            kit.later(againTicks, () -> {
                                 kit.burst(centre.clone().add(0.0, 0.3, 0.0), 1.8);
                                 kit.shockwave(centre, 0.6, 3.2, 3, 0.8);
                                 kit.sound(centre, Sound.ENTITY_ARROW_HIT, 0.7f, 1.0f);

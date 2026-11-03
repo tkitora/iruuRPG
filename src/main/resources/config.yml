@@ -606,9 +606,7 @@ combat:
       pull-max: 1.8                               # 引き込む強さの上限 (距離が長いほど強い)
       tie-seconds: 3                              # 拘束の秒数
       tied-bonus: 0.3                             # 拘束された敵への、精霊弓のダメージの増え方
-      small-charges: 2                            # 小 (ワイヤーフック): ためておける数
-      small-charge-seconds: 4                     # 小: 1つ以上残っている間、1つ戻る秒数
-      small-empty-seconds: 9                      # 小: 使い切ったとき、全部まとめて戻るまでの秒数
+      small-seconds: 6                            # 小 (ワイヤーフック): クールタイム (秒。t198: ストックをやめた)
       small-range: 14                             # 小: 届く距離 (ブロック)
       small-rate: 0.5                             # 小: 当たったときの倍率
       medium-seconds: 10                          # 中 (ワイヤー網): クールタイム (秒)
@@ -625,12 +623,15 @@ combat:
       large-targets: 4                            # 大: 飛び移る敵の数 (近い順)
       large-rate: 0.8                             # 大: 1体ごとの倍率 (移動中は無敵)
       large-last-share: 1.5                       # 大: 最後の敵はこの倍
-      util-seconds: 5                             # util (グラップル): クールタイム (秒)
+      util-charges: 2                             # util (グラップル): ためておける数 (t198)
+      util-charge-seconds: 5                      # util: 1つ以上残っている間、1つ戻る秒数
+      util-empty-seconds: 10                      # util: 使い切ったとき、全部まとめて戻るまでの秒数
       util-range: 16                              # util: ワイヤーが届く距離 (ブロック)
       util-power: 1.4                             # util: 飛ぶ速さ (1 tick あたりのブロック数の上限)
       util-back: 0.9                              # util: Shift のときの後ろへの強さ
-    # レンジャーのランタン = 精霊弓 (t168)。設置の場所に立つ砲台が、設置の間、近くの敵を自分で撃ち続ける。弱攻撃は精霊弓への命令。
-    # クラスのパッシブ (ranger_self_deploy) があると、自分の周り5ブロックの敵も狙う (精霊弓から24ブロックまで)。
+    # レンジャーのランタン = 精霊弓 (t168、t198: 柱をやめ、宙に浮かぶ弓)。設置の場所に浮かぶ弓が、設置の間、近くの敵を自分で撃ち続ける。弱攻撃は精霊弓への命令。
+    # クラスのパッシブ (ranger_self_deploy、t198) があると、精霊弓から self-reach の内にいる間、自分の肩の上にも小さな精霊弓が浮かぶ。
+    # 弱攻撃は、その弓からも、自分の周り self-radius の敵へ同じように出る (self-share の倍率)。自分で撃つのも同じ。色は武器の属性の色。
     ranger_deploy:
       normal-gap-ticks: 10
       # 通常1〜5: 1回の倍率 / 当たる回数 (1 3連射、2 撃ち分け x5、3 縫い留め、4 矢の雨 x6、5 全力射撃 (届く敵すべて))
@@ -642,6 +643,9 @@ combat:
       pin-slow: 50                                # 通常3: 縫い留めの鈍足 (%、1.5秒)
       overdrive-seconds: 4                        # 通常5: 速く撃つ秒数
       overdrive-period: 7                         # 通常5: その間の撃つ間隔 (tick)
+      self-reach: 24                              # パッシブ: 精霊弓からこの距離 (ブロック) の内にいる間、肩の上の弓が出る
+      self-radius: 5                              # パッシブ: 肩の上の弓が狙う、自分の周りの半径 (ブロック)
+      self-share: 0.6                             # パッシブ: 肩の上の弓の攻撃の倍率 (精霊弓の攻撃の倍率比)
     # レンジャーの遠距離 = 弓。小だけ新しく「強射」(t168)。中・大・util は今までどおり (クールタイムも combat.skill-slots のまま)。
     ranger_range:
       normal-gap-ticks: 8
@@ -653,6 +657,10 @@ combat:
       small-range: 30                             # 小: 飛ぶ距離 (ブロック)
       small-mark-bonus: 0.4                       # 小: 印の敵への増え方
       small-turret-bonus: 0.25                    # 小: 精霊弓の近くを通った矢の増え方 (当たった敵を精霊弓も撃つ)
+      # 大 (矢の雨、今までの強5): t198 で段の間を短くした
+      rain-step-ticks: 4                          # 3つの段 (3・6・9 ブロック先) を放つ間隔 (tick。前は 6)
+      rain-fall-ticks: 14                         # 放ってから落ちるまで (tick。前は 20)
+      rain-again-ticks: 4                         # 1回目の当たりから2回目までの間 (tick。前は 6)
   # 武器 (アイテム) のスキルの発動: 武器の別のボタン (近接は右、遠距離は左。combat.skill-slots を見る)
   # 近接の範囲攻撃: 全員が持つ小さな範囲 (戦士の「近接範囲攻撃化」の下位互換)。戦士は上の 0.65 / area-radius
   melee-area-base-damage-rate: 0.40
