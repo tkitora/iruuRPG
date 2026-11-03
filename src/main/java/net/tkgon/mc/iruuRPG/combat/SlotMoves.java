@@ -82,6 +82,7 @@ public final class SlotMoves {
                 if (entry.getKey().equals("mage")) {
                     // (the reaper's moves with a scythe, the arcana's with a ranged weapon (t168), the template's with a deployed one)
                     MageArcana.setAttack(attackService);
+                    MageArcana.setSlots(slots);
                     slots.register(entry.getKey(), slot, MageReaper.move(attackService, slot, kind -> heavyOf(own, slot, kind)),
                             kind -> kind == AttackType.RANGE ? MageArcana.mechanics(attackService.plugin().getConfig(), slot)
                                     : MageReaper.mechanics(attackService.plugin().getConfig(), slot, kind));

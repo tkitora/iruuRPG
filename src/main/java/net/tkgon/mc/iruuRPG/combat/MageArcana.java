@@ -12,39 +12,50 @@ import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
 import java.util.EnumMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.ToIntFunction;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * The mage's skills with a ranged weapon (t168: nekorozv wanted the mage to be able to cast its skills again and again once a condition is met;
- * the echo that threw a heavy attack again by itself did not go with the re-activations, so it is replaced). The class is about the order of its
- * skills: casting 小, 中 and 大 each within {@code rotation-seconds} (10) opens the <b>torrent</b> for {@code torrent-seconds} (4): 小 and 中 cost
- * nothing then (no charge used, no cooldown started; {@link SkillSlots}) and hit {@code torrent-bonus} (20%) harder. Every number is under
- * {@code combat.combo.mage_range} (all provisional), the cooldowns too.
+ * The mage's skills with a ranged weapon (t168, redesigned by t198: the torrent that let 小 and 中 be cast for nothing was too strong, and the
+ * skills looked too plain to be fun). The class is about the order of its skills, the <b>flow</b>:
  * <ul>
- *   <li>小 arcane missiles (2 charges): three missiles that seek the enemies near the aim.</li>
- *   <li>中 crystal lance: a lance through everything in the line, shattering at its end.</li>
- *   <li>大 astral vortex: a vortex at the aim draws the enemies in and hurts them, then collapses.</li>
- *   <li>util blink: a flash ahead (back with shift), nothing hurts the mage on it; a rune left where it began bursts a second later.</li>
+ *   <li>each of 小・中・大 cast takes {@code flow-seconds} (1.5) off what is left of the cooldowns of the other two ({@link SkillSlots#shorten});</li>
+ *   <li>casting 小, 中 and 大 each within {@code rotation-seconds} (10) makes the third a <b>completion</b>: {@code completion-bonus} (40%) harder,
+ *       and a starfall follows it at the aim ({@code starfall-count} stars, {@code starfall-rate} each). The ULT (the meteor) with a ranged weapon
+ *       makes the next skill a completion. Nothing is ever cast for free.</li>
  * </ul>
- * The normal combo is the mage's as before ({@link MageMoves}); its echo and re-activations of the heavy attacks are no longer thrown by the
- * skills. The mage's lantern is {@link MageDeployCombo} (its criticality is counted here: {@link #vulnerability}).
+ * The effects are drawn in the weapon's colors (its element) with a white of stars, large and at the aim (not in front of the eyes). Every number
+ * is under {@code combat.combo.mage_range} (all provisional), the cooldowns too.
+ * <ul>
+ *   <li>小 star bolts: a magic circle opens behind the mage and five star bolts spiral out of it after the enemies near the aim; each bursts into
+ *       a star.</li>
+ *   <li>中 crystal lance: a magic circle at the feet, and a great lance of crystal through everything in the line; crystals stay along it and
+ *       shatter together a moment later.</li>
+ *   <li>大 astral vortex: a magic circle opens in the sky over the aim and a vortex under it draws the enemies in; a pillar of light falls from
+ *       the circle and it bursts (a supernova).</li>
+ *   <li>util blink (2 charges): a flash ahead (back with shift), nothing hurts the mage on it; a rune left where it began bursts a second later.</li>
+ * </ul>
+ * The normal combo is the mage's as before ({@link MageMoves}). The mage's lantern is {@link MageDeployCombo} (its criticality is counted here:
+ * {@link #vulnerability}).
  */
 public final class MageArcana {
 
     static final String PLAN = "mage_range";
-    /** The arcane light: deep violet, violet, a pale lilac. */
-    static final Gradient ARCANE = Gradient.of(Color.fromRGB(40, 20, 95), Color.fromRGB(150, 95, 255), Color.fromRGB(235, 222, 255));
-    /** The torrent: violet to gold. */
-    static final Gradient TORRENT = Gradient.of(Color.fromRGB(90, 40, 170), Color.fromRGB(230, 150, 255), Color.fromRGB(255, 236, 170));
+    /** The light of the stars: the touch of white over the weapon's colors (the cores of the stars, the completion). */
+    static final Gradient STAR = Gradient.of(Color.fromRGB(200, 190, 255), Color.fromRGB(245, 240, 255), Color.fromRGB(255, 255, 255));
+    /** The furnace burning white (the lantern's criticality, {@link MageDeployCombo}). */
+    static final Gradient WHITE_HOT = Gradient.of(Color.fromRGB(255, 190, 120), Color.fromRGB(255, 236, 205), Color.fromRGB(255, 255, 255));
 
     private static AttackService attack;
+    private static SkillSlots slots;
     /** When each of 小・中・大 was last cast, per mage (ms). */
     private static final Map<UUID, Map<SkillSlots.Slot, Long>> CAST = new ConcurrentHashMap<>();
-    /** The mages in a torrent: until when (ms). */
-    private static final Map<UUID, Long> TORRENT_UNTIL = new ConcurrentHashMap<>();
+    /** The mages whose next skill is a completion (the meteor). */
+    private static final Set<UUID> PRIMED = ConcurrentHashMap.newKeySet();
 
     private MageArcana() {
     }
@@ -61,55 +72,48 @@ public final class MageArcana {
         attack = attackService;
         MoveKit kit = attackService.skillKit(player, weapon);
         if (kit == null) return false;
-        kit.palette(ARCANE);
-        boolean torrent = torrent(player.getUniqueId());
-        double boost = torrent ? 1.0 + kit.number(PLAN, "torrent-bonus", 0.2) : 1.0;
-        if (torrent) kit.palette(TORRENT);
+        if (slot == SkillSlots.Slot.UTIL) {
+            blink(kit);
+            return true;
+        }
+        UUID id = player.getUniqueId();
+        Map<SkillSlots.Slot, Long> casts = CAST.computeIfAbsent(id, ignored -> new EnumMap<>(SkillSlots.Slot.class));
+        long now = System.currentTimeMillis();
+        boolean completion = completes(casts, slot, now, Math.round(kit.number(PLAN, "rotation-seconds", 10.0) * 1000.0)) | PRIMED.remove(id);
+        double boost = completion ? 1.0 + kit.number(PLAN, "completion-bonus", 0.4) : 1.0;
+        Location target;
         switch (slot) {
-            case SMALL -> missiles(kit, boost);
-            case MEDIUM -> lance(kit, boost);
-            case LARGE -> vortex(kit, boost);
-            case UTIL -> blink(kit);
+            case SMALL -> target = starBolts(kit, boost);
+            case MEDIUM -> target = lance(kit, boost);
+            case LARGE -> target = vortex(kit, boost);
             default -> {
                 return false;
             }
         }
-        if (slot != SkillSlots.Slot.UTIL) rotate(kit, slot);
+        flow(kit, slot);
+        if (completion) {
+            casts.clear();
+            complete(kit, target);
+        } else {
+            runes(kit, casts.size());
+        }
         return true;
     }
 
-    /** The cooldowns of the mage's ranged skills (their own seconds; 小 2 charges); with another kind of weapon none. */
+    /** The cooldowns of the mage's ranged skills (their own seconds; util 2 charges, t198); with another kind of weapon none. */
     static SkillSlots.Mechanics mechanics(ConfigurationSection config, SkillSlots.Slot slot) {
         String base = "combat.combo." + PLAN + ".";
         return switch (slot) {
-            case SMALL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "small-charges", 2.0)), 0.0,
-                    config.getDouble(base + "small-charge-seconds", 3.0), config.getDouble(base + "small-empty-seconds", 7.0));
-            case MEDIUM -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "medium-seconds", 8.0));
+            case SMALL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "small-seconds", 5.0));
+            case MEDIUM -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "medium-seconds", 9.0));
             case LARGE -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "large-seconds", 20.0));
-            case UTIL -> new SkillSlots.Mechanics(1, 0.0, 0.0, config.getDouble(base + "util-seconds", 5.0));
+            case UTIL -> new SkillSlots.Mechanics((int) Math.round(config.getDouble(base + "util-charges", 2.0)), 0.0,
+                    config.getDouble(base + "util-charge-seconds", 5.0), config.getDouble(base + "util-empty-seconds", 9.0));
             default -> SkillSlots.Mechanics.NONE;
         };
     }
 
-    private static double number(String key, double fallback) {
-        return attack == null ? fallback : attack.plugin().getConfig().getDouble("combat.combo." + PLAN + "." + key, fallback);
-    }
-
-    // ---- the torrent ----------------------------------------------------------------------------------------------------------
-
-    /** Whether {@code player} is in a torrent now. */
-    static boolean torrent(UUID player) {
-        Long until = TORRENT_UNTIL.get(player);
-        if (until == null) return false;
-        if (until > System.currentTimeMillis()) return true;
-        TORRENT_UNTIL.remove(player);
-        return false;
-    }
-
-    /** Whether the skill {@code slot} with a kind of weapon costs nothing for {@code player} now (小 and 中 of a ranged weapon in a torrent). */
-    static boolean free(UUID player, SkillSlots.Slot slot, AttackType kind) {
-        return kind == AttackType.RANGE && (slot == SkillSlots.Slot.SMALL || slot == SkillSlots.Slot.MEDIUM) && torrent(player);
-    }
+    // ---- the flow -------------------------------------------------------------------------------------------------------------
 
     /**
      * Whether casting {@code slot} at {@code now} completes the order: 小, 中 and 大 each cast within {@code window} milliseconds (the casts are
@@ -124,67 +128,110 @@ public final class MageArcana {
         return true;
     }
 
-    /** A skill of the order was cast: when it completes the order (outside a torrent), the torrent opens. */
-    private static void rotate(MoveKit kit, SkillSlots.Slot slot) {
-        Player player = kit.player;
-        UUID id = player.getUniqueId();
-        if (torrent(id)) return;
-        Map<SkillSlots.Slot, Long> casts = CAST.computeIfAbsent(id, ignored -> new EnumMap<>(SkillSlots.Slot.class));
+    /** {@code slot} was cast: what is left of the cooldowns of the other two of 小・中・大 is {@code flow-seconds} shorter. */
+    private static void flow(MoveKit kit, SkillSlots.Slot slot) {
+        if (slots == null) return;
+        long millis = Math.round(kit.number(PLAN, "flow-seconds", 1.5) * 1000.0);
         long now = System.currentTimeMillis();
-        if (!completes(casts, slot, now, Math.round(kit.number(PLAN, "rotation-seconds", 10.0) * 1000.0))) {
-            // (a rune lights for each skill of the order cast)
-            Location head = player.getLocation().add(0.0, 2.3, 0.0);
-            kit.fx(head).flatRing(head, 0.25 + 0.15 * casts.size(), 10, ARCANE, 0.9, 0.0, 0.8);
-            return;
+        for (SkillSlots.Slot other : new SkillSlots.Slot[]{SkillSlots.Slot.SMALL, SkillSlots.Slot.MEDIUM, SkillSlots.Slot.LARGE}) {
+            if (other != slot) slots.shorten(kit.player.getUniqueId(), other, AttackType.RANGE, millis, now);
         }
-        casts.clear();
-        openTorrent(kit, (int) Math.round(kit.number(PLAN, "torrent-seconds", 4.0) * 20.0));
     }
 
-    /** Opens the torrent for {@code ticks} (the order completed, or the meteor: {@link #ultimate}). */
-    private static void openTorrent(MoveKit kit, int ticks) {
+    /** The runes over the mage's head: one lit for each skill of the order cast. */
+    private static void runes(MoveKit kit, int lit) {
         Player player = kit.player;
-        UUID id = player.getUniqueId();
-        long until = System.currentTimeMillis() + ticks * 50L;
-        TORRENT_UNTIL.put(id, until);
-        kit.sound(player.getLocation(), Sfx.MAGE_SURGE, 1.0f, 1.2f);
-        kit.palette(TORRENT);
-        kit.shockwave(player.getLocation(), 0.6, 3.5, 5, 1.2);
-        kit.every(ticks + 1, age -> {
-            Long current = TORRENT_UNTIL.get(id);
-            if (current == null || current != until) return true;
-            if (age >= ticks) {
-                TORRENT_UNTIL.remove(id);
-                kit.sound(player.getLocation(), Sfx.MAGIC, 0.5f, 0.7f);
-                return true;
-            }
-            if (age % 2 == 0) {
-                Location at = player.getLocation();
-                Fx fx = kit.fx(at);
-                for (int ring = 0; ring < 2; ring++) {
-                    double y = 0.4 + ring * 1.2;
-                    double turn = (ring == 0 ? 1 : -1) * age * 0.2;
-                    for (int index = 0; index < 4; index++) {
-                        double angle = turn + index * Math.PI / 2.0;
-                        fx.dust(at.getX() + Math.cos(angle) * 0.9, at.getY() + y, at.getZ() + Math.sin(angle) * 0.9, TORRENT, 0.6 + 0.3 * ring, 1.0);
-                    }
-                }
+        kit.every(16, age -> {
+            Location head = player.getLocation().add(0.0, 2.4, 0.0);
+            Fx fx = kit.fx(head);
+            for (int rune = 0; rune < 3; rune++) {
+                double angle = age * 0.25 + rune * Math.PI * 2.0 / 3.0;
+                Location at = head.clone().add(Math.cos(angle) * 0.55, 0.0, Math.sin(angle) * 0.55);
+                fx.sphereShell(at, rune < lit ? 0.14 : 0.08, age * 0.4, rune < lit ? 8 : 4, rune < lit ? STAR : kit.palette(), rune < lit ? 1.0 : 0.6);
             }
             return false;
         });
+        kit.sound(player.getLocation(), Sfx.MAGIC, 0.4f, 1.2f + 0.2f * lit);
+    }
+
+    /** A completion: a burst of starlight round the mage, and a starfall at {@code target}. */
+    private static void complete(MoveKit kit, Location target) {
+        Location at = kit.player.getLocation();
+        kit.sound(at, Sfx.MAGE_SURGE, 1.0f, 1.3f);
+        kit.fx(at).sphereShell(at.clone().add(0.0, 1.0, 0.0), 1.3, 0.0, 30, STAR, 1.1);
+        kit.shockwave(at, 0.5, 3.0, 5, 1.1);
+        if (target != null) starfall(kit, target);
     }
 
     /**
-     * The mage's ULT, the meteor, was cast with {@code weapon} (t168): with a ranged weapon it opens the torrent ({@code torrent-seconds} of the
-     * meteor, 6); with the lantern the criticality is full at once (the meteor's hits mark the reaper's enemies: {@link MageReaper#meteorMark}).
+     * The starfall of a completion: {@code starfall-count} stars fall one after another on points round {@code center} (within
+     * {@code starfall-radius}), each {@code starfall-rate} on the enemies within 2 blocks where it lands.
+     */
+    private static void starfall(MoveKit kit, Location center) {
+        int count = (int) Math.round(kit.number(PLAN, "starfall-count", 6.0));
+        double radius = kit.number(PLAN, "starfall-radius", 3.5);
+        double rate = kit.number(PLAN, "starfall-rate", 0.25);
+        Location ground = kit.ground(center);
+        for (int index = 0; index < count; index++) {
+            kit.later(4L + index * 5L, () -> {
+                ThreadLocalRandom random = ThreadLocalRandom.current();
+                double angle = random.nextDouble(Math.PI * 2.0);
+                double r = Math.sqrt(random.nextDouble()) * radius;
+                Location land = kit.ground(ground.clone().add(Math.cos(angle) * r, 0.0, Math.sin(angle) * r)).add(0.0, 0.3, 0.0);
+                Location sky = land.clone().add(random.nextDouble(-2.0, 2.0), 9.0, random.nextDouble(-2.0, 2.0));
+                fallingStar(kit, sky, land, rate);
+            });
+        }
+    }
+
+    /** One star falling from {@code sky} to {@code land} over 4 ticks, bursting there ({@code rate} round it). */
+    private static void fallingStar(MoveKit kit, Location sky, Location land, double rate) {
+        Vector step = land.toVector().subtract(sky.toVector()).multiply(0.25);
+        kit.every(5, age -> {
+            if (age < 4) {
+                Location from = sky.clone().add(step.clone().multiply(age));
+                Location to = from.clone().add(step);
+                kit.fx(to).line(from, to, STAR, 0.2, 1.0, 0.0, 1.3, 0.2, Particle.END_ROD, 2);
+                return false;
+            }
+            starBurst(kit, land, 1.0);
+            kit.sound(land, Sfx.MAGE_IMPACT, 0.6f, 1.6f);
+            for (LivingEntity victim : kit.around(land, 2.0)) kit.hit(victim, rate);
+            return true;
+        });
+    }
+
+    /** A star bursting at {@code at}: a five-pointed star of the weapon's colors with a white core, sparks thrown out. */
+    static void starBurst(MoveKit kit, Location at, double size) {
+        Fx fx = kit.fx(at);
+        Vector facing = kit.facing();
+        Vector right = new Vector(-facing.getZ(), 0.0, facing.getX());
+        if (right.lengthSquared() < 1.0E-6) right = new Vector(1.0, 0.0, 0.0);
+        right.normalize();
+        Vector up = new Vector(0.0, 1.0, 0.0);
+        double turn = ThreadLocalRandom.current().nextDouble(Math.PI * 2.0);
+        for (int ray = 0; ray < 5; ray++) {
+            double a0 = turn + Math.PI * 2.0 * ray / 5.0;
+            double a1 = turn + Math.PI * 2.0 * (ray + 2) / 5.0;
+            Location from = at.clone().add(right.clone().multiply(Math.cos(a0) * size)).add(up.clone().multiply(Math.sin(a0) * size));
+            Location to = at.clone().add(right.clone().multiply(Math.cos(a1) * size)).add(up.clone().multiply(Math.sin(a1) * size));
+            fx.line(from, to, kit.palette(), 0.4, 1.0, 0.0, 1.0, 0.18, null, 1);
+        }
+        fx.sphereShell(at, 0.25 * size, 0.0, 10, STAR, 1.2);
+        kit.particle(Particle.FIREWORKS_SPARK, at, (int) Math.round(6 * size), 0.1, 0.12);
+    }
+
+    /**
+     * The mage's ULT, the meteor, was cast with {@code weapon} (t168, t198): with a ranged weapon the next skill is a completion; with the lantern
+     * the criticality is full at once.
      */
     static void ultimate(AttackService attackService, Player player, RpgItemDefinition weapon, java.util.Map<String, Double> values) {
         attack = attackService;
         if (weapon == null) return;
         if (weapon.attackType() == AttackType.RANGE) {
-            MoveKit kit = attackService.kit(player, weapon);
-            kit.palette(TORRENT);
-            openTorrent(kit, (int) Math.round(values.getOrDefault("torrent-seconds", 6.0) * 20.0));
+            PRIMED.add(player.getUniqueId());
+            Location head = player.getLocation().add(0.0, 2.4, 0.0);
+            Fx.of(player, player.getWorld(), head).sphereShell(head, 0.6, 0.0, 16, STAR, 1.0);
         } else if (weapon.attackType() == AttackType.DEPLOY) {
             int max = (int) Math.round(attackService.plugin().getConfig().getDouble("combat.combo." + MageDeployCombo.PLAN + ".critical-max", 8.0));
             CRITICALITY.put(player.getUniqueId(), new long[]{max, System.currentTimeMillis()});
@@ -192,101 +239,211 @@ public final class MageArcana {
         }
     }
 
-    // ---- 小 -------------------------------------------------------------------------------------------------------------------
+    // ---- helpers -----------------------------------------------------------------------------------------------------------------
 
-    /** Arcane missiles: three missiles, 2 ticks apart, that seek the enemies near the aim. */
-    private static void missiles(MoveKit kit, double boost) {
-        double rate = kit.number(PLAN, "small-rate", 0.35) * boost;
-        int count = (int) Math.round(kit.number(PLAN, "small-count", 3.0));
-        Vector[] axes = kit.axes();
-        kit.sound(kit.player.getLocation(), Sfx.MAGE_CAST, 0.8f, 1.4f);
-        for (int index = 0; index < count; index++) {
-            int which = index;
-            kit.later(index * 2L, () -> {
-                double side = (which - (count - 1) / 2.0) * 0.5;
-                Location start = ComboParts.hand(kit).add(axes[1].clone().multiply(side)).add(0.0, 0.2 * (which % 2), 0.0);
-                Vector heading = axes[0].clone().add(axes[1].clone().multiply(side * 0.6)).add(new Vector(0.0, 0.25, 0.0)).normalize();
-                kit.homing(start, heading, 1.3, 30, rate, 10.0, end -> {
-                    kit.burst(end, 0.7);
-                    kit.sound(end, Sfx.MAGE_IMPACT, 0.4f, 1.5f);
-                });
-            });
-        }
-    }
-
-    // ---- 中 -------------------------------------------------------------------------------------------------------------------
-
-    /** Crystal lance: a lance through everything in the line ({@code medium-length}); where it ends it shatters ({@code medium-shatter-rate}). */
-    private static void lance(MoveKit kit, double boost) {
-        double rate = kit.number(PLAN, "medium-rate", 0.9) * boost;
-        double length = kit.number(PLAN, "medium-length", 18.0);
-        double shatter = kit.number(PLAN, "medium-shatter-rate", 0.45) * boost;
-        Location start = ComboParts.hand(kit);
-        Vector direction = kit.aim().toVector().subtract(start.toVector());
-        if (direction.lengthSquared() < 1.0E-6) direction = kit.axes()[0];
-        direction.normalize();
-        org.bukkit.util.RayTraceResult wall = start.getWorld().rayTraceBlocks(start, direction, length, org.bukkit.FluidCollisionMode.NEVER, true);
-        if (wall != null && wall.getHitPosition() != null) length = Math.max(1.0, wall.getHitPosition().distance(start.toVector()));
-        Location end = start.clone().add(direction.clone().multiply(length));
-        kit.sound(start, Sfx.MAGE_CAST, 1.0f, 0.9f);
-        kit.slash("line", 2.4, 60.0, 0.0, 0.0, 1.2, 0.2, 0.0, 1.0, 0.08, 0.0);
-        Fx fx = kit.fx(start);
-        fx.line(start, end, kit.palette(), 0.2, 1.0, 2.0, 1.6, 0.2, Particle.END_ROD, 6);
-        Vector side = direction.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
-        if (side.lengthSquared() < 1.0E-6) side = new Vector(1.0, 0.0, 0.0);
-        side.normalize().multiply(0.25);
-        fx.line(start.clone().add(side), end, kit.palette(), 0.4, 0.9, 0.0, 0.8, 0.3, null, 1);
-        fx.line(start.clone().subtract(side), end, kit.palette(), 0.4, 0.9, 0.0, 0.8, 0.3, null, 1);
-        for (LivingEntity victim : kit.corridor(start, direction, length, 1.0)) kit.hit(victim, rate);
-        kit.later(2L, () -> {
-            kit.sound(end, Sfx.MAGE_IMPACT, 1.0f, 0.9f);
-            kit.fx(end).sphereShell(end, 1.2, 0.0, 28, kit.palette(), 1.1);
-            kit.particle(Particle.END_ROD, end, 10, 0.6, 0.15);
-            for (LivingEntity victim : kit.around(end, 2.5)) kit.hit(victim, shatter);
-        });
-    }
-
-    // ---- 大 -------------------------------------------------------------------------------------------------------------------
-
-    /** Astral vortex: at the aim, a vortex for {@code large-ticks} draws the enemies in and hurts them every half second, then collapses. */
-    private static void vortex(MoveKit kit, double boost) {
-        double reach = kit.number(PLAN, "large-range", 20.0);
+    /** Where the mage aims, at most {@code reach} blocks away. */
+    private static Location aimWithin(MoveKit kit, double reach) {
         Location eye = kit.eye();
         Location aim = kit.aim();
         Vector way = aim.toVector().subtract(eye.toVector());
         if (way.length() > reach) aim = eye.clone().add(way.normalize().multiply(reach));
-        Location center = kit.ground(aim).add(0.0, 1.0, 0.0);
+        return aim;
+    }
+
+    // ---- 小 -------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Star bolts: a magic circle opens behind the mage's shoulders for half a second, and {@code small-count} (5) bolts spiral out of its rim, 2
+     * ticks apart, after the enemies near the aim ({@code small-rate} each); each bursts into a star. Where they were sent (for the starfall).
+     */
+    private static Location starBolts(MoveKit kit, double boost) {
+        double rate = kit.number(PLAN, "small-rate", 0.25) * boost;
+        int count = (int) Math.round(kit.number(PLAN, "small-count", 5.0));
+        Location aim = aimWithin(kit, kit.number(PLAN, "small-range", 24.0));
+        Player player = kit.player;
+        kit.sound(player.getLocation(), Sfx.MAGE_CAST, 0.9f, 1.3f);
+        kit.every(12, age -> {
+            Vector[] axes = kit.axes();
+            Location back = player.getEyeLocation().subtract(axes[0].clone().multiply(0.7)).subtract(0.0, 0.2, 0.0);
+            if (age % 2 == 0) SkillFx.circle(player, back, axes[1], axes[2], 0.9 + 0.03 * age, age, kit.palette());
+            return false;
+        });
+        for (int index = 0; index < count; index++) {
+            int which = index;
+            kit.later(2L + index * 2L, () -> {
+                Vector[] axes = kit.axes();
+                Location back = player.getEyeLocation().subtract(axes[0].clone().multiply(0.7)).subtract(0.0, 0.2, 0.0);
+                double angle = Math.PI * 2.0 * which / count + Math.PI / 2.0;
+                Vector out = axes[1].clone().multiply(Math.cos(angle)).add(axes[2].clone().multiply(Math.sin(angle)));
+                Location start = back.clone().add(out.clone().multiply(1.0));
+                // out to the side first, then they curve in after the enemies
+                Vector heading = out.clone().multiply(0.8).add(aim.toVector().subtract(start.toVector()).normalize()).normalize();
+                kit.sound(start, Sfx.MAGIC, 0.35f, 1.6f + 0.08f * which);
+                kit.homing(start, heading, 1.25, 36, rate, 12.0, end -> {
+                    starBurst(kit, end, 0.7);
+                    kit.sound(end, Sfx.MAGE_IMPACT, 0.4f, 1.7f);
+                });
+            });
+        }
+        return aim;
+    }
+
+    // ---- 中 -------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Crystal lance: a magic circle at the mage's feet, then a great lance of crystal through everything in the line ({@code medium-rate}, up to
+     * {@code medium-length} or a wall). Crystals stay along it every {@code medium-crystal-gap} blocks and shatter together
+     * {@code medium-shatter-ticks} later ({@code medium-shatter-rate} on each enemy within 1.6 blocks of one, once). Where the lance ended.
+     */
+    private static Location lance(MoveKit kit, double boost) {
+        double rate = kit.number(PLAN, "medium-rate", 0.9) * boost;
+        double length = kit.number(PLAN, "medium-length", 18.0);
+        double shatter = kit.number(PLAN, "medium-shatter-rate", 0.35) * boost;
+        double gap = Math.max(1.0, kit.number(PLAN, "medium-crystal-gap", 2.0));
+        int fuse = (int) Math.round(kit.number(PLAN, "medium-shatter-ticks", 12.0));
+        Player player = kit.player;
+        Location start = ComboParts.hand(kit);
+        Vector aimed = kit.aim().toVector().subtract(start.toVector());
+        Vector direction = (aimed.lengthSquared() < 1.0E-6 ? kit.axes()[0] : aimed).normalize();
+        org.bukkit.util.RayTraceResult wall = start.getWorld().rayTraceBlocks(start, direction, length, org.bukkit.FluidCollisionMode.NEVER, true);
+        if (wall != null && wall.getHitPosition() != null) length = Math.max(1.0, wall.getHitPosition().distance(start.toVector()));
+        Location end = start.clone().add(direction.clone().multiply(length));
+        Location feet = kit.ground(player.getLocation()).add(0.0, 0.15, 0.0);
+        SkillFx.circle(player, feet, new Vector(1.0, 0.0, 0.0), new Vector(0.0, 0.0, 1.0), 1.6, 0, kit.palette());
+        kit.sound(start, Sfx.MAGE_CAST, 1.0f, 0.8f);
+        kit.sound(start, Sfx.MAGE_BLAST, 0.6f, 1.4f);
+        Vector across = direction.clone().crossProduct(new Vector(0.0, 1.0, 0.0));
+        Vector side = (across.lengthSquared() < 1.0E-6 ? new Vector(1.0, 0.0, 0.0) : across).normalize();
+        Vector up = side.clone().crossProduct(direction).normalize();
+        double total = length;
+        // the lance grows out along the line over 3 ticks: a bright core and four facets round it
+        for (int step = 0; step < 3; step++) {
+            int grown = step;
+            kit.later(step, () -> {
+                double from = total * grown / 3.0;
+                double to = total * (grown + 1) / 3.0;
+                Location a = start.clone().add(direction.clone().multiply(from));
+                Location b = start.clone().add(direction.clone().multiply(to));
+                Fx fx = kit.fx(a);
+                fx.line(a, b, STAR, 0.4, 1.0, 0.0, 1.5, 0.18, Particle.END_ROD, 3);
+                for (int facet = 0; facet < 4; facet++) {
+                    double angle = facet * Math.PI / 2.0 + Math.PI / 4.0;
+                    Vector off = side.clone().multiply(Math.cos(angle) * 0.35).add(up.clone().multiply(Math.sin(angle) * 0.35));
+                    fx.line(a.clone().add(off), b.clone().add(off.clone().multiply(0.6)), kit.palette(), 0.3, 0.9, 0.0, 1.0, 0.25, null, 1);
+                }
+            });
+        }
+        for (LivingEntity victim : kit.corridor(start, direction, length, 1.1)) kit.hit(victim, rate);
+        // the crystals left along it, and their shattering
+        java.util.List<Location> crystals = new java.util.ArrayList<>();
+        for (double d = gap; d <= length; d += gap) crystals.add(start.clone().add(direction.clone().multiply(d)));
+        crystals.add(end);
+        kit.every(fuse + 1, age -> {
+            if (age < fuse) {
+                if (age % 2 == 0) {
+                    for (Location crystal : crystals) {
+                        double grow = Math.min(1.0, (age + 2) / 6.0);
+                        crystal(kit, crystal, 0.35 + 0.25 * grow, age);
+                    }
+                }
+                return false;
+            }
+            kit.sound(end, Sfx.MAGE_IMPACT, 1.0f, 1.3f);
+            kit.sound(start.clone().add(direction.clone().multiply(total * 0.5)), Sfx.MAGE_BLAST, 0.7f, 1.7f);
+            Set<UUID> shattered = new HashSet<>();
+            for (Location crystal : crystals) {
+                kit.fx(crystal).sphereShell(crystal, 0.8, 0.0, 14, kit.palette(), 1.1);
+                kit.particle(Particle.END_ROD, crystal, 4, 0.3, 0.12);
+                for (LivingEntity victim : kit.around(crystal, 1.6)) {
+                    if (shattered.add(victim.getUniqueId())) kit.hit(victim, shatter);
+                }
+            }
+            kit.fx(end).sphereShell(end, 1.4, 0.0, 30, STAR, 1.2);
+            return true;
+        });
+        return end;
+    }
+
+    /** A crystal of {@code size} at {@code at}: a diamond standing on its point, turning. */
+    private static void crystal(MoveKit kit, Location at, double size, int age) {
+        Fx fx = kit.fx(at);
+        Location top = at.clone().add(0.0, size * 1.4, 0.0);
+        Location bottom = at.clone().subtract(0.0, size * 0.6, 0.0);
+        for (int corner = 0; corner < 4; corner++) {
+            double angle = age * 0.15 + corner * Math.PI / 2.0;
+            Location rim = at.clone().add(Math.cos(angle) * size * 0.5, size * 0.2, Math.sin(angle) * size * 0.5);
+            fx.line(bottom, rim, kit.palette(), 0.3, 0.8, 0.0, 0.7, 0.2, null, 1);
+            fx.line(rim, top, kit.palette(), 0.5, 1.0, 0.0, 0.7, 0.2, null, 1);
+        }
+    }
+
+    // ---- 大 -------------------------------------------------------------------------------------------------------------------
+
+    /**
+     * Astral vortex: at the aim, a magic circle opens in the sky ({@code large-radius}) and a vortex under it draws the enemies in for
+     * {@code large-ticks} ({@code large-tick-rate} every half second); then a pillar of light falls from the circle and it bursts
+     * ({@code large-collapse-rate}). Where it was.
+     */
+    private static Location vortex(MoveKit kit, double boost) {
+        Location center = kit.ground(aimWithin(kit, kit.number(PLAN, "large-range", 20.0))).add(0.0, 1.0, 0.0);
         double radius = kit.number(PLAN, "large-radius", 5.0);
         int ticks = (int) Math.round(kit.number(PLAN, "large-ticks", 50.0));
         double tick = kit.number(PLAN, "large-tick-rate", 0.2) * boost;
         double collapse = kit.number(PLAN, "large-collapse-rate", 1.3) * boost;
         double pull = kit.number(PLAN, "large-pull", 0.07);
+        Player player = kit.player;
+        Location sky = center.clone().add(0.0, 6.0, 0.0);
+        Vector east = new Vector(1.0, 0.0, 0.0);
+        Vector south = new Vector(0.0, 0.0, 1.0);
         kit.sound(center, Sfx.MAGE_SURGE, 1.0f, 0.8f);
-        kit.every(ticks + 1, age -> {
+        kit.every(ticks + 9, age -> {
             Fx fx = kit.fx(center);
-            if (age >= ticks) {
-                kit.sound(center, Sfx.MAGE_IMPACT, 1.0f, 0.6f);
-                kit.shockwave(center.clone().subtract(0.0, 0.9, 0.0), 0.5, radius + 0.5, 6, 1.4);
-                fx.sphereShell(center, radius * 0.5, 0.0, 50, kit.palette(), 1.3);
-                kit.particle(Particle.EXPLOSION_LARGE, center, 1, 0.0, 0.0);
-                for (LivingEntity victim : kit.around(center, radius)) kit.hit(victim, collapse);
-                return true;
-            }
-            double shrink = 1.0 - 0.6 * age / ticks;
-            if (age % 2 == 0) {
-                for (int arm = 0; arm < 3; arm++) {
-                    fx.spiral(center, new Vector(1.0, 0.0, 0.0), new Vector(0.0, 0.0, 1.0), new Vector(0.0, 1.0, 0.0), radius * shrink, 0.3, 1.0,
-                            age * 0.25 + arm * Math.PI * 2.0 / 3.0, 0.0, 18, kit.palette(), 0.9);
+            if (age < ticks) {
+                double open = Math.min(1.0, (age + 1) / 8.0);
+                if (age % 2 == 0) {
+                    SkillFx.circle(player, sky, east, south, radius * open, age, kit.palette());
+                    if (age % 4 == 0) SkillFx.circle(player, center.clone().subtract(0.0, 0.85, 0.0), east, south, radius * 0.9, -age, kit.palette());
+                    double shrink = 1.0 - 0.6 * age / ticks;
+                    for (int arm = 0; arm < 4; arm++) {
+                        fx.spiral(center, east, south, new Vector(0.0, 1.0, 0.0), radius * shrink, 0.3, 1.0,
+                                age * 0.28 + arm * Math.PI / 2.0, 0.0, 18, kit.palette(), 0.9);
+                    }
+                    // stars turning round it
+                    for (int star = 0; star < 3; star++) {
+                        double angle = -age * 0.18 + star * Math.PI * 2.0 / 3.0;
+                        Location at = center.clone().add(Math.cos(angle) * radius * 0.8, 0.6 + 0.4 * Math.sin(age * 0.3 + star), Math.sin(angle) * radius * 0.8);
+                        fx.sphereShell(at, 0.18, age * 0.4, 6, STAR, 1.0);
+                    }
+                    fx.sphereShell(center, 0.4 + 0.2 * Math.sin(age * 0.5), age * 0.3, 12, STAR, 1.0);
                 }
-                fx.sphereShell(center, 0.4 + 0.2 * Math.sin(age * 0.5), age * 0.3, 10, kit.palette(), 1.0);
+                for (LivingEntity victim : kit.around(center, radius + 1.0)) kit.drift(victim, center, pull);
+                if (age > 0 && age % 10 == 0) {
+                    kit.sound(center, Sfx.MAGIC_DARK, 0.5f, 1.3f);
+                    for (LivingEntity victim : kit.around(center, radius)) kit.hit(victim, tick);
+                }
+                return false;
             }
-            for (LivingEntity victim : kit.around(center, radius + 1.0)) kit.drift(victim, center, pull);
-            if (age > 0 && age % 10 == 0) {
-                kit.sound(center, Sfx.MAGIC_DARK, 0.4f, 1.3f);
-                for (LivingEntity victim : kit.around(center, radius)) kit.hit(victim, tick);
+            int fall = age - ticks;
+            if (fall < 8) {
+                // the pillar of light coming down from the circle
+                double reach = 6.0 * (fall + 1) / 8.0;
+                fx.line(sky, sky.clone().subtract(0.0, reach, 0.0), STAR, 0.2, 1.0, 0.0, 2.0, 0.15, Particle.END_ROD, 4);
+                for (double y = 0.0; y < reach; y += 1.0) fx.flatRing(sky.clone().subtract(0.0, y, 0.0), 0.7, 12, kit.palette(), 0.8, 0.0, 1.0);
+                if (fall == 0) kit.sound(sky, Sfx.MAGE_SURGE, 1.0f, 1.5f);
+                return false;
             }
-            return false;
+            kit.sound(center, Sfx.MAGE_BLAST, 1.2f, 0.8f);
+            kit.sound(center, Sfx.MAGE_IMPACT, 1.0f, 0.6f);
+            kit.shockwave(center.clone().subtract(0.0, 0.9, 0.0), 0.5, radius + 1.0, 7, 1.5);
+            kit.pillar(center.clone().subtract(0.0, 0.9, 0.0), radius * 0.5, 7.0);
+            fx.sphereShell(center, radius * 0.6, 0.0, 60, kit.palette(), 1.4);
+            kit.later(2L, () -> kit.fx(center).sphereShell(center, radius * 0.9, 0.5, 70, STAR, 1.1));
+            kit.particle(Particle.EXPLOSION_LARGE, center, 2, 0.8, 0.0);
+            kit.particle(Particle.FIREWORKS_SPARK, center, 30, 0.6, 0.35);
+            for (LivingEntity victim : kit.around(center, radius)) kit.hit(victim, collapse);
+            return true;
         });
+        return center;
     }
 
     // ---- util ----------------------------------------------------------------------------------------------------------------
@@ -309,17 +466,14 @@ public final class MageArcana {
         });
         kit.dash(heading, power, ticks, null);
         kit.every(fuse + 1, age -> {
-            Fx fx = kit.fx(start);
             if (age >= fuse) {
                 kit.sound(start, Sfx.MAGE_IMPACT, 0.8f, 1.1f);
                 kit.shockwave(start, 0.5, 3.0, 4, 1.2);
+                starBurst(kit, start.clone().add(0.0, 1.0, 0.0), 1.2);
                 for (LivingEntity victim : kit.around(start, 3.0)) kit.hit(victim, rate);
                 return true;
             }
-            if (age % 2 == 0) {
-                double r = 1.2 + 0.3 * Math.sin(age * 0.6);
-                fx.flatRing(start.clone().add(0.0, 0.12, 0.0), r, 20, kit.palette(), 0.5 + 0.5 * age / fuse, 0.3, 1.0);
-            }
+            if (age % 2 == 0) SkillFx.circle(player, start.clone().add(0.0, 0.12, 0.0), new Vector(1.0, 0.0, 0.0), new Vector(0.0, 0.0, 1.0), 1.2, age, kit.palette());
             return false;
         });
     }
@@ -371,10 +525,15 @@ public final class MageArcana {
         attack = attackService;
     }
 
+    /** The skills' cooldowns (the flow shortens them). */
+    static void setSlots(SkillSlots skillSlots) {
+        slots = skillSlots;
+    }
+
     /** A player leaves (or changes class): what is kept of them goes. */
     public static void forget(UUID player) {
         CAST.remove(player);
-        TORRENT_UNTIL.remove(player);
+        PRIMED.remove(player);
         CRITICALITY.remove(player);
     }
 }

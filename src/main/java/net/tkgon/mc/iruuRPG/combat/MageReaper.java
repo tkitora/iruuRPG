@@ -49,7 +49,6 @@ public final class MageReaper {
     static final String PLAN = MageMeleeCombo.PLAN;
     /** The reaper's colors: the black of the night, the blue-green of souls, a pale bone white. */
     static final Gradient SOUL = Gradient.of(Color.fromRGB(10, 14, 30), Color.fromRGB(40, 190, 205), Color.fromRGB(215, 255, 248));
-    private static final List<Color> SOUL_SLASH = List.of(Color.fromRGB(14, 22, 40), Color.fromRGB(50, 200, 215), Color.fromRGB(225, 255, 250));
     /** The tick the marks of each reaper were last drawn (a drawing that stopped, the reaper dead or gone, is started again). */
     private static final Map<UUID, Integer> DRAWN = new HashMap<>();
 
@@ -69,7 +68,6 @@ public final class MageReaper {
                 if (!reworked(attack, player, weapon)) return attack.slotHeavy(player, weapon, heavyOf.applyAsInt(weapon.attackType()));
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;
-                look(kit);
                 switch (slot) {
                     case SMALL -> small(kit);
                     case MEDIUM -> medium(kit);
@@ -87,7 +85,6 @@ public final class MageReaper {
                 if (slot != SkillSlots.Slot.MEDIUM || weapon == null || !reworked(attack, player, weapon)) return false;
                 MoveKit kit = attack.skillKit(player, weapon);
                 if (kit == null) return false;
-                look(kit);
                 reapThrough(kit);
                 return true;
             }
@@ -113,12 +110,6 @@ public final class MageReaper {
 
     private static boolean reworked(AttackService attack, Player player, RpgItemDefinition weapon) {
         return weapon.attackType() == AttackType.MELEE && attack.hasClassCombo(player, weapon);
-    }
-
-    /** The look: the night and the blue-green of souls. */
-    static void look(MoveKit kit) {
-        kit.palette(SOUL);
-        kit.slashColors(SOUL_SLASH);
     }
 
     private static double number(MoveKit kit, String key, double fallback) {
@@ -535,7 +526,6 @@ public final class MageReaper {
     static void meteorMark(AttackService attack, Player player, RpgItemDefinition weapon, LivingEntity victim) {
         if (weapon == null || weapon.attackType() != AttackType.MELEE || !attack.hasClassCombo(player, weapon) || !victim.isValid() || victim.isDead()) return;
         MoveKit kit = attack.kit(player, weapon);
-        look(kit);
         mark(kit, victim, 1);
     }
 

@@ -111,7 +111,6 @@ public final class MageMeleeCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        MageReaper.look(kit);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         Location feet = kit.player.getLocation();
