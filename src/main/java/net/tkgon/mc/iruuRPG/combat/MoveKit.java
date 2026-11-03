@@ -53,8 +53,6 @@ public final class MoveKit {
     private Gradient palette;
     /** Whether the rings at the muzzle are lines of texture (the ranger's normal attack, t257) and not particles. */
     private boolean rippleLines;
-    /** The ring of the draw that is under way, as a line of texture (null when none). */
-    private LineRipples.Follow drawRing;
     /** The key of the placed thing whose zone is running (null outside one): see {@link #hit}. */
     private String source;
     private Location origin;
@@ -985,32 +983,6 @@ public final class MoveKit {
      * The ranger's attack begins: a normal attack takes the effect that is on for normal attacks (the small explosion, orange damage; counted once for the attack, every arrow of it
      * has it), a heavy one takes none.
      */
-    /** Whether this kit's rings are thin lines of texture ({@link LineRipples}) and not particles (the normal attacks of the ranger and of the warrior's bow, t257). */
-    boolean rippleLines() {
-        return rippleLines && LineRipples.enabled(plugin);
-    }
-
-    /** Draws the rings of this kit as lines of texture ({@code true}) or as particles. */
-    void rippleLines(boolean on) {
-        rippleLines = on;
-    }
-
-    /**
-     * The ring of a draw as one thin line of texture that follows the bow and closes in as the draw goes ({@code radius} now, in the palette at {@code t}),
-     * made at the first call and moved at each; {@link #endDrawRing()} takes it away. Use it where {@link #rippleLines()}.
-     */
-    void drawRing(Location at, Vector normal, double radius, double t) {
-        if (drawRing == null) drawRing = LineRipples.Follow.start(plugin, at, normal, radius, 0.5, palette.at(t), 235);
-        else drawRing.update(at, normal, radius, palette.at(t));
-    }
-
-    /** Takes the draw's ring away (the arrow is loosed). */
-    void endDrawRing() {
-        if (drawRing == null) return;
-        drawRing.remove();
-        drawRing = null;
-    }
-
     public void rangerBegin(boolean normal) {
         attackBuff = normal ? RangerBuffs.takeAttack(player.getUniqueId()) : null;
         rippleLines = normal;

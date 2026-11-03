@@ -36,7 +36,6 @@ public final class WarriorRangeCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
-        kit.rippleLines(true);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         double reach = Math.max(8.0, kit.number(PLAN, "aim-range", 24.0));
@@ -82,7 +81,6 @@ public final class WarriorRangeCombo extends BaseCombo {
         kit.every(ticks + 1, age -> {
             WarriorSkills.drawLook(kit, Math.min(1.0, (double) age / ticks));
             if (age < ticks) return false;
-            kit.endDrawRing();
             Location from = WarriorSkills.bow(kit);
             Vector way = WarriorSkills.toAim(kit, from, reach * 1.3);
             kit.sound(from, Sfx.GREATBOW_LOOSE, 1.1f, 0.75f);
