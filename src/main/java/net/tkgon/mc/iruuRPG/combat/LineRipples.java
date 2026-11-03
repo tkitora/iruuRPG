@@ -123,59 +123,6 @@ public final class LineRipples {
         return display;
     }
 
-    /**
-     * One thin ring that follows a place and turns and shrinks smoothly (the draw of the warrior's bow: the ring closes in on the bow while the string is
-     * drawn). It is made once, moved each tick with {@link #update}, and taken away with {@link #remove}; if it is not moved for 3 ticks (the draw was cut
-     * off) it goes by itself.
-     */
-    public static final class Follow {
-        private final List<TextDisplay> displays = new ArrayList<>(2);
-        private final BukkitTask watch;
-        private long touched;
-        private int rgb;
-
-        private Follow(JavaPlugin plugin, Location centre, Vector heading, double radius, double lineRadius, Color color, int opacity) {
-            Quaternionf turn = turn(heading);
-            char glyph = glyph(plugin, lineRadius);
-            displays.add(spawn(plugin, centre, glyph, turn, radius, color, opacity, null, 1));
-            displays.add(spawn(plugin, centre, glyph, new Quaternionf(turn).rotateY((float) Math.PI), radius, color, opacity, null, 1));
-            for (TextDisplay display : displays) display.setTeleportDuration(1);
-            rgb = color.asRGB();
-            touched = Bukkit.getCurrentTick();
-            watch = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-                if (Bukkit.getCurrentTick() - touched > 3) remove();
-            }, 1L, 1L);
-        }
-
-        /** Starts a ring of {@code radius} at {@code centre} facing {@code heading}; its line is as wide as a ring of {@code lineRadius} would have it. */
-        public static Follow start(JavaPlugin plugin, Location centre, Vector heading, double radius, double lineRadius, Color color, int opacity) {
-            return new Follow(plugin, centre, heading, radius, lineRadius, color, opacity);
-        }
-
-        /** Moves the ring to {@code centre}, turns it to {@code heading}, sets its {@code radius} and {@code color}. */
-        public void update(Location centre, Vector heading, double radius, Color color) {
-            touched = Bukkit.getCurrentTick();
-            Quaternionf turn = turn(heading);
-            boolean recolor = color.asRGB() != rgb;
-            rgb = color.asRGB();
-            for (int index = 0; index < displays.size(); index++) {
-                TextDisplay display = displays.get(index);
-                if (!display.isValid()) continue;
-                display.teleport(centre);
-                display.setInterpolationDelay(0);
-                display.setInterpolationDuration(1);
-                display.setTransformation(transformation(radius, index == 0 ? turn : new Quaternionf(turn).rotateY((float) Math.PI)));
-                if (recolor) display.text(display.text().color(TextColor.color(rgb)));
-            }
-        }
-
-        public void remove() {
-            watch.cancel();
-            for (TextDisplay display : displays) if (display.isValid()) display.remove();
-            displays.clear();
-        }
-    }
-
     private static Quaternionf turn(Vector heading) {
         Vector way = heading.lengthSquared() < 1.0E-6 ? new Vector(0.0, 0.0, 1.0) : heading.clone().normalize();
         return new Quaternionf().rotateTo(new Vector3f(0.0f, 0.0f, 1.0f), new Vector3f((float) way.getX(), (float) way.getY(), (float) way.getZ()));
