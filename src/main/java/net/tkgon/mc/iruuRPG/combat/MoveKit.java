@@ -983,6 +983,33 @@ public final class MoveKit {
      * The ranger's attack begins: a normal attack takes the effect that is on for normal attacks (the small explosion, orange damage; counted once for the attack, every arrow of it
      * has it), a heavy one takes none.
      */
+    /** Whether this kit's rings are thin lines of texture ({@link LineRipples}) and not particles (the normal attacks of the ranger and of the warrior's bow, t257). */
+    boolean rippleLines() {
+        return rippleLines && LineRipples.enabled(plugin);
+    }
+
+    /** Draws the rings of this kit as lines of texture ({@code true}) or as particles. */
+    void rippleLines(boolean on) {
+        rippleLines = on;
+    }
+
+    /**
+     * A ring that hangs where it is for the trail ticks of the config, as a ring of particles does: a line of texture, facing {@code normal}, in the palette at
+     * {@code t}. Both sides are drawn (the shooter sees it from behind). Use it where {@link #rippleLines()}.
+     */
+    void lineRing(Location at, Vector normal, double radius, double t) {
+        LineRipples.still(plugin, at, normal, radius, palette.at(t), 235, 0.5, LineRipples.trailTicks(plugin), true);
+    }
+
+    /** {@link #shockwave} as lines of texture: the same rings, on the same ticks, each hanging flat on the ground for the trail ticks. */
+    void lineShockwave(Location center, double r0, double r1, int ticks) {
+        for (int step = 0; step < ticks; step++) {
+            double r = Curves.lerp(r0, r1, Curves.expOut((step + 1.0) / ticks, 3.0));
+            double t = 1.0 - 0.6 * step / Math.max(1, ticks - 1);
+            later(step, () -> LineRipples.still(plugin, center.clone().add(0.0, 0.15, 0.0), Y, r, palette.at(t), 235, 0.5, LineRipples.trailTicks(plugin), false));
+        }
+    }
+
     public void rangerBegin(boolean normal) {
         attackBuff = normal ? RangerBuffs.takeAttack(player.getUniqueId()) : null;
         rippleLines = normal;
