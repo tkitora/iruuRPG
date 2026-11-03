@@ -12,10 +12,14 @@ import org.bukkit.entity.Display;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.TextDisplay;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A ripple drawn as a thin line of texture instead of particles (t257): one text display showing the rim of a disc of the font
@@ -49,20 +53,71 @@ public final class LineRipples {
      * drawn when seen from behind too (the shooter looks at the ring from behind: first person).
      */
     public static void ring(JavaPlugin plugin, Location centre, Vector heading, double radius, Color color, int opacity, Player hideFrom, boolean bothSides) {
+        ConfigurationSection section = config(plugin);
+        double open = section == null ? 1.25 : section.getDouble("open", 1.25);
+        int ticks = Math.max(2, section == null ? 5 : section.getInt("ticks", 5));
+        play(plugin, centre, heading, radius, radius * open, color, opacity, 0.0, ticks, hideFrom, bothSides);
+    }
+
+    /**
+     * A ring that stays where it is and as big as it is for {@code ticks}, then goes (the way a ring of particles hangs in the air): the rings of the
+     * warrior's arrow and draw. It fades to {@code fadeTo} (0..1 of {@code opacity}) by its end.
+     */
+    public static void still(JavaPlugin plugin, Location centre, Vector heading, double radius, Color color, int opacity, double fadeTo, int ticks, boolean bothSides) {
+        play(plugin, centre, heading, radius, radius, color, opacity, fadeTo, ticks, null, bothSides);
+    }
+
+    /** How long a still ring hangs (config {@code trail-ticks}, about as long as a particle of the old ring lived). */
+    public static int trailTicks(JavaPlugin plugin) {
+        ConfigurationSection section = config(plugin);
+        return Math.max(2, section == null ? 12 : section.getInt("trail-ticks", 12));
+    }
+
+    private static void play(JavaPlugin plugin, Location centre, Vector heading, double radius, double endRadius, Color color, int opacity, double fadeTo, int ticks,
+                             Player hideFrom, boolean bothSides) {
         if (centre.getWorld() == null || radius <= 0.0) return;
         ConfigurationSection section = config(plugin);
         double lineWidth = section == null ? 0.025 : section.getDouble("line-width", 0.025);
-        double open = section == null ? 1.25 : section.getDouble("open", 1.25);
-        int ticks = Math.max(2, section == null ? 5 : section.getInt("ticks", 5));
-        char glyph = MarkGlyphs.disc(MarkGlyphs.Part.RIM, MarkGlyphs.nearestRim(lineWidth / radius));
+        // the line is as wide as the rim of the glyph for the larger size (so that it does not thicken much while it opens)
+        char glyph = MarkGlyphs.disc(MarkGlyphs.Part.RIM, MarkGlyphs.nearestRim(lineWidth / Math.max(radius, endRadius)));
         Vector way = heading.lengthSquared() < 1.0E-6 ? new Vector(0.0, 0.0, 1.0) : heading.clone().normalize();
         Quaternionf turn = new Quaternionf().rotateTo(new Vector3f(0.0f, 0.0f, 1.0f), new Vector3f((float) way.getX(), (float) way.getY(), (float) way.getZ()));
-        show(plugin, centre, glyph, turn, radius, color, opacity, hideFrom, open, ticks);
-        if (bothSides) show(plugin, centre, glyph, new Quaternionf(turn).rotateY((float) Math.PI), radius, color, opacity, hideFrom, open, ticks);
+        boolean opening = Math.abs(endRadius - radius) > 1.0E-6;
+        List<TextDisplay> displays = new ArrayList<>(2);
+        displays.add(spawn(plugin, centre, glyph, turn, radius, color, opacity, hideFrom, opening ? ticks : 0));
+        if (bothSides) displays.add(spawn(plugin, centre, glyph, new Quaternionf(turn).rotateY((float) Math.PI), radius, color, opacity, hideFrom, opening ? ticks : 0));
+        int every = ticks > 6 ? 2 : 1;
+        int[] age = {0};
+        Bukkit.getScheduler().runTaskTimer(plugin, (BukkitTask task) -> {
+            age[0]++;
+            if (age[0] > ticks || displays.stream().noneMatch(TextDisplay::isValid)) {
+                displays.forEach(display -> {
+                    if (display.isValid()) display.remove();
+                });
+                task.cancel();
+                return;
+            }
+            // opens from the next tick on (the first transformation has to reach the players before the change is smoothed)
+            if (age[0] == 1 && opening) {
+                for (int index = 0; index < displays.size(); index++) {
+                    TextDisplay display = displays.get(index);
+                    if (!display.isValid()) continue;
+                    display.setInterpolationDelay(0);
+                    display.setTransformation(transformation(endRadius, index == 0 ? turn : new Quaternionf(turn).rotateY((float) Math.PI)));
+                }
+            }
+            if (age[0] % every == 0 || age[0] == 1) {
+                double share = 1.0 - (1.0 - fadeTo) * (age[0] - 1.0) / ticks;
+                byte faded = (byte) Math.max(4, Math.min(255, Math.round(opacity * share)));
+                displays.forEach(display -> {
+                    if (display.isValid()) display.setTextOpacity(faded);
+                });
+            }
+        }, 1L, 1L);
     }
 
-    private static void show(JavaPlugin plugin, Location centre, char glyph, Quaternionf turn, double radius, Color color, int opacity, Player hideFrom,
-                             double open, int ticks) {
+    private static TextDisplay spawn(JavaPlugin plugin, Location centre, char glyph, Quaternionf turn, double radius, Color color, int opacity, Player hideFrom,
+                                     int smooth) {
         TextDisplay display = centre.getWorld().spawn(centre, TextDisplay.class, spawned -> {
             spawned.text(Component.text(String.valueOf(glyph)).font(FONT).color(TextColor.color(color.asRGB())));
             spawned.setBillboard(Display.Billboard.FIXED);
@@ -76,28 +131,13 @@ public final class LineRipples {
             spawned.setLineWidth(1000);
             spawned.setRotation(0.0f, 0.0f);
             spawned.setTransformation(transformation(radius, turn));
-            spawned.setInterpolationDuration(ticks);
+            if (smooth > 0) spawned.setInterpolationDuration(smooth);
             spawned.setViewRange(1.0f);
             spawned.setPersistent(false);
             spawned.addScoreboardTag(TAG);
         });
         if (hideFrom != null) hideFrom.hideEntity(plugin, display);
-        // opens from the next tick on (the first transformation has to reach the players before the change is smoothed), fading a step a tick
-        for (int age = 1; age <= ticks; age++) {
-            int step = age;
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                if (!display.isValid()) return;
-                if (step == 1) {
-                    display.setInterpolationDelay(0);
-                    display.setTransformation(transformation(radius * open, turn));
-                }
-                int faded = (int) Math.round(opacity * (1.0 - (step - 1.0) / ticks));
-                display.setTextOpacity((byte) Math.max(4, Math.min(255, faded)));
-            }, step);
-        }
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (display.isValid()) display.remove();
-        }, ticks + 1L);
+        return display;
     }
 
     /** The glyph (0.2 blocks across at scale 1) stretched to a ring of {@code radius}, its centre on the display's place. */

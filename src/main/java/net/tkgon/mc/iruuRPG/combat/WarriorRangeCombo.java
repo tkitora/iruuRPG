@@ -36,6 +36,7 @@ public final class WarriorRangeCombo extends BaseCombo {
 
     @Override
     public void normal(MoveKit kit, MeleeCombo.Step step) {
+        kit.rippleLines(true);
         double rate = step.damageMultiplier();
         int hits = step.extraHits() + 1;
         double reach = Math.max(8.0, kit.number(PLAN, "aim-range", 24.0));
@@ -87,7 +88,8 @@ public final class WarriorRangeCombo extends BaseCombo {
             WarriorSkills.heavyArrow(kit, from, way, 2.2, reach * 1.3, 2.0, true, victim -> {
                 if (WarriorSkills.arrowHit(kit, victim, rate)) kit.push(victim, kit.player.getLocation().toVector(), 0.4, 0.1);
             }, end -> {
-                kit.shockwave(end, 0.5, radius, 4, 1.2);
+                if (kit.rippleLines()) kit.lineShockwave(end, 0.5, radius, 4);
+                else kit.shockwave(end, 0.5, radius, 4, 1.2);
                 kit.particle(Particle.EXPLOSION_NORMAL, end, 8, 0.4, 0.05);
                 for (LivingEntity victim : kit.around(end, radius)) WarriorSkills.arrowHit(kit, victim, rate * share);
             });
