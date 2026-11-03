@@ -56,6 +56,8 @@ class HouseDesignerTest {
                         int width = made.getInt(TreeSettings.Key.HOUSE_WIDTH);
                         int depth = made.getInt(TreeSettings.Key.HOUSE_DEPTH);
                         HouseShape.House house = new HouseShape.House(made);
+                        // (t195: all of it lifted by the podium)
+                        int lift = made.getInt(TreeSettings.Key.HOUSE_RAISE);
                         // (t193) odd both ways, and so the volumes and the towers: every roof has a ridge or a point of one block
                         assertEquals(1, width % 2, what);
                         assertEquals(1, depth % 2, what);
@@ -65,7 +67,7 @@ class HouseDesignerTest {
                             // stairs reach a doorway in a wall: the landing before it, the wall opened over it
                             if (module.type == HouseModule.Type.STAIR) {
                                 HouseShape.Side side = house.side(module.side, module.level);
-                                int floor = module.level * house.storey;
+                                int floor = module.level * house.storey + lift;
                                 int cx = -(width - 1) / 2;
                                 int cz = -(depth - 1) / 2;
                                 assertEquals(TreePart.HOUSE_STONE, blocks.get(TreeVoxelizer.pack(side.a(module.along, 1) + cx, floor, side.b(module.along, 1) + cz)), what);
@@ -74,7 +76,7 @@ class HouseDesignerTest {
                         }
                         int x = house.plan(0).doorAt() - (width - 1) / 2;
                         for (int z = depth - 1; z <= depth + 2; z++) {
-                            for (int y = 1; y <= 2; y++) assertNull(blocks.get(TreeVoxelizer.pack(x, y, z - (depth - 1) / 2)), what + " door at " + x + "," + y + "," + z);
+                            for (int y = 1; y <= 2; y++) assertNull(blocks.get(TreeVoxelizer.pack(x, y + lift, z - (depth - 1) / 2)), what + " door at " + x + "," + y + "," + z);
                         }
                         // the parts the pattern is about
                         switch (pattern) {
@@ -83,6 +85,14 @@ class HouseDesignerTest {
                             case MANOR -> assertTrue(count(made, HouseModule.Type.WING) >= 2, what);
                             case HUB -> assertTrue(count(made, HouseModule.Type.VOLUME) + count(made, HouseModule.Type.TOWER) >= 1, what);
                             case COMPOUND -> assertTrue(count(made, HouseModule.Type.VOLUME) >= 1, what);
+                            case PLAN -> {
+                                // (t195) blocks of the plan, each its own roof: more than one shape of roof
+                                assertTrue(count(made, HouseModule.Type.VOLUME) >= 1, what);
+                                Set<Integer> roofs = new HashSet<>();
+                                roofs.add(made.getInt(TreeSettings.Key.HOUSE_ROOF));
+                                for (HouseModule module : made.modules()) if (module.type == HouseModule.Type.VOLUME) roofs.add(module.roof < 0 ? made.getInt(TreeSettings.Key.HOUSE_ROOF) : module.roof);
+                                assertTrue(roofs.size() >= 2, what + " " + roofs);
+                            }
                             default -> {
                             }
                         }
@@ -115,6 +125,24 @@ class HouseDesignerTest {
         }
         assertTrue(sizes.size() >= 2, sizes.toString());
         assertTrue(heights.size() >= 4, heights.toString());
+    }
+
+    @Test
+    void housesOfPlansStandOnFoundationsOfSeveralHeights() {
+        int raised = 0;
+        int stepped = 0;
+        for (long seed = 1; seed <= 12; seed++) {
+            TreeSettings made = HouseDesigner.design(rules(HouseDesigner.Pattern.PLAN, 1, 2), seed, false).settings();
+            if (made.getInt(TreeSettings.Key.HOUSE_RAISE) > 0) raised++;
+            for (HouseModule module : made.modules()) {
+                if (module.type == HouseModule.Type.VOLUME && module.level == 0 && module.raise != 0) {
+                    stepped++;
+                    break;
+                }
+            }
+        }
+        assertTrue(raised >= 4, Integer.toString(raised));
+        assertTrue(stepped >= 4, Integer.toString(stepped));
     }
 
     @Test

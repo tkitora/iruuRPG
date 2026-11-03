@@ -149,7 +149,8 @@ final class ProceduralMenu implements Listener {
                         TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
                 case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
                         TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_PILLAR_MIRROR, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY,
-                        TreeSettings.Key.HOUSE_JETTY_SIDES, TreeSettings.Key.HOUSE_BRACKETS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
+                        TreeSettings.Key.HOUSE_JETTY_SIDES, TreeSettings.Key.HOUSE_BRACKETS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION,
+                        TreeSettings.Key.HOUSE_RAISE, TreeSettings.Key.HOUSE_TERRACE};
                 case LOBBY -> new TreeSettings.Key[]{TreeSettings.Key.LOBBY_RADIUS, TreeSettings.Key.LOBBY_SHAPE, TreeSettings.Key.LOBBY_HOUSES, TreeSettings.Key.LOBBY_GAP,
                         TreeSettings.Key.LOBBY_ORGANIC, TreeSettings.Key.LOBBY_CENTER, TreeSettings.Key.LOBBY_BEDS, TreeSettings.Key.LOBBY_TREES, TreeSettings.Key.LOBBY_PATHS,
                         TreeSettings.Key.LOBBY_TERRAIN, TreeSettings.Key.HOUSE_GEN_PATTERN, TreeSettings.Key.HOUSE_GEN_DETAIL};
@@ -218,6 +219,8 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_STONE, Material.COBBLESTONE);
         ICONS.put(TreeSettings.Key.HOUSE_TIMBER, Material.STRIPPED_SPRUCE_LOG);
         ICONS.put(TreeSettings.Key.HOUSE_PILLAR_MIRROR, Material.ARMOR_STAND);
+        ICONS.put(TreeSettings.Key.HOUSE_RAISE, Material.STONE_BRICK_STAIRS);
+        ICONS.put(TreeSettings.Key.HOUSE_TERRACE, Material.STONE_BRICK_SLAB);
         ICONS.put(TreeSettings.Key.HOUSE_JETTY_SIDES, Material.SPRUCE_SLAB);
         ICONS.put(TreeSettings.Key.HOUSE_BRACKETS, Material.SPRUCE_FENCE);
         ICONS.put(TreeSettings.Key.HOUSE_RECESS, Material.SPRUCE_TRAPDOOR);
@@ -1048,11 +1051,19 @@ final class ProceduralMenu implements Listener {
             default -> "壁から外へ出る長さ";
         }, 1, 4));
         inventory.setItem(M_HEIGHT, moduleNumber(Material.LADDER, module.type.heightLabel(), module.height, "高さの数字の意味は種類で違う", 1, 5));
-        inventory.setItem(M_LEVEL, moduleNumber(Material.SCAFFOLDING, "階", module.level, switch (module.type) {
-            case VOLUME -> "何階の高さから建つか (0 = 地面。上げると家に載る・宙に張り出す)";
-            case STAIR -> "上がった先の階 (1 = 2階)";
-            default -> module.type.usesLevel() ? "何階から始まるか (0 = 1階)" : "(この種類では使わない)";
-        }, 1, 1));
+        if (module.type == HouseModule.Type.VOLUME) {
+            // (t195: a volume's floor, by the storey and by the block: its own foundation)
+            inventory.setItem(M_LEVEL, item(Material.SCAFFOLDING, "床の高さ: " + module.level + " 階" + (module.raise == 0 ? "" : " " + signed(module.raise) + " ブロック"), NamedTextColor.GREEN, List.of(
+                    text("棟の床が、何階の高さから、さらに何ブロック上 (− で下) か", NamedTextColor.GRAY),
+                    text("1 階のまま上げ下げすると、棟ごとに高さの違う土台に載る (土台の高さ・テラスは家と同じ設定)", NamedTextColor.GRAY),
+                    text("階を上げると、家に載る・宙に張り出す", NamedTextColor.GRAY),
+                    text("左クリック +1 / 右クリック -1 ブロック (Shift で 1 階ずつ)", NamedTextColor.YELLOW))));
+        } else {
+            inventory.setItem(M_LEVEL, moduleNumber(Material.SCAFFOLDING, "階", module.level, switch (module.type) {
+                case STAIR -> "上がった先の階 (1 = 2階)";
+                default -> module.type.usesLevel() ? "何階から始まるか (0 = 1階)" : "(この種類では使わない)";
+            }, 1, 1));
+        }
         inventory.setItem(M_ON, item(module.on ? Material.LIME_DYE : Material.GRAY_DYE, module.on ? "オン" : "オフ", module.on ? NamedTextColor.GREEN : NamedTextColor.GRAY, List.of(
                 text("オフにすると、リストに残したまま作らない", NamedTextColor.GRAY),
                 text("クリックで切り替え", NamedTextColor.YELLOW))));
@@ -1113,7 +1124,10 @@ final class ProceduralMenu implements Listener {
             case M_WIDTH -> module.width += sign * (big ? 4 : 1);
             case M_DEPTH -> module.depth += sign * (big ? 4 : 1);
             case M_HEIGHT -> module.height += sign * (big ? 5 : 1);
-            case M_LEVEL -> module.level += sign;
+            case M_LEVEL -> {
+                if (module.type == HouseModule.Type.VOLUME && !big) module.raise += sign;
+                else module.level += sign;
+            }
             case M_ON -> module.on = !module.on;
             case M_COPY -> {
                 if (modules.size() >= TreeSettings.MAX_MODULES) return false;
