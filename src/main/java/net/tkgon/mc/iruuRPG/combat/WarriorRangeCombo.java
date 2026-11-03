@@ -82,14 +82,14 @@ public final class WarriorRangeCombo extends BaseCombo {
         kit.every(ticks + 1, age -> {
             WarriorSkills.drawLook(kit, Math.min(1.0, (double) age / ticks));
             if (age < ticks) return false;
+            kit.endDrawRing();
             Location from = WarriorSkills.bow(kit);
             Vector way = WarriorSkills.toAim(kit, from, reach * 1.3);
             kit.sound(from, Sfx.GREATBOW_LOOSE, 1.1f, 0.75f);
             WarriorSkills.heavyArrow(kit, from, way, 2.2, reach * 1.3, 2.0, true, victim -> {
                 if (WarriorSkills.arrowHit(kit, victim, rate)) kit.push(victim, kit.player.getLocation().toVector(), 0.4, 0.1);
             }, end -> {
-                if (kit.rippleLines()) kit.lineShockwave(end, 0.5, radius, 4);
-                else kit.shockwave(end, 0.5, radius, 4, 1.2);
+                kit.shockwave(end, 0.5, radius, 4, 1.2);
                 kit.particle(Particle.EXPLOSION_NORMAL, end, 8, 0.4, 0.05);
                 for (LivingEntity victim : kit.around(end, radius)) WarriorSkills.arrowHit(kit, victim, rate * share);
             });
