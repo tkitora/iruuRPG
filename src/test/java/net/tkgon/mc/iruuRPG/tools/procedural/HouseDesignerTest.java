@@ -266,4 +266,45 @@ class HouseDesignerTest {
         }
         return found;
     }
+
+    @Test
+    void housesOfEveryPatternCanBeOfSeveralBlocksOrOne() {
+        // (t246) the plan rule: of several blocks (on the sides and the back), or one rectangle
+        for (HouseDesigner.Pattern pattern : HouseDesigner.Pattern.values()) {
+            if (pattern == HouseDesigner.Pattern.ANY || pattern == HouseDesigner.Pattern.PLAN) continue;
+            int several = 0;
+            for (long seed = 1; seed <= 4; seed++) {
+                TreeSettings rules = rules(pattern, 1, 2);
+                rules.set(TreeSettings.Key.HOUSE_GEN_PLAN, 2);
+                HouseDesigner.Result result = HouseDesigner.design(rules, seed, false);
+                TreeSettings made = result.settings();
+                String what = pattern + " seed " + seed;
+                if (made.modules().stream().anyMatch(m -> m.type == HouseModule.Type.VOLUME && m.level == 0 && m.side != 0 && m.width >= 5)) several++;
+                assertTrue(result.conflicts() <= 40, what);
+                // still a house that fits: the parts in range, odd blocks, the way in at the door clear
+                for (HouseModule module : made.modules()) {
+                    HouseModule kept = module.copy();
+                    kept.limit();
+                    assertEquals(kept.toMap(), module.toMap(), what);
+                    if (module.type == HouseModule.Type.VOLUME) assertEquals(1, module.width % 2, what + " " + module.toMap());
+                }
+                Map<Long, TreePart> blocks = build(made);
+                assertTrue(blocks.size() < 30000, what);
+                int width = made.getInt(TreeSettings.Key.HOUSE_WIDTH);
+                int depth = made.getInt(TreeSettings.Key.HOUSE_DEPTH);
+                int lift = made.getInt(TreeSettings.Key.HOUSE_RAISE);
+                int x = new HouseShape.House(made).plan(0).doorAt() - (width - 1) / 2;
+                for (int z = depth - 1; z <= depth + 2; z++) {
+                    for (int y = 1; y <= 2; y++) assertNull(blocks.get(TreeVoxelizer.pack(x, y + lift, z - (depth - 1) / 2)), what + " door");
+                }
+            }
+            assertTrue(several >= 3, pattern + ": " + several);
+        }
+        // one rectangle: no blocks of the plan on a cottage (which has none of its own)
+        for (long seed = 1; seed <= 6; seed++) {
+            TreeSettings rules = rules(HouseDesigner.Pattern.COTTAGE, 1, 3);
+            rules.set(TreeSettings.Key.HOUSE_GEN_PLAN, 1);
+            assertEquals(0, count(HouseDesigner.design(rules, seed, false).settings(), HouseModule.Type.VOLUME), "seed " + seed);
+        }
+    }
 }
