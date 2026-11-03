@@ -130,7 +130,7 @@ class SlotMovesTest {
     }
 
     /**
-     * t168: the knife's 小 has 2 charges (4 s, 9 s), 中 a re-activation of 3 s and 10 s, 大 22 s, util 5 s; the bow's 小 (the power shot) 2 charges
+     * t198: the knife's 小 6 s, 中 a re-activation of 3 s and 10 s, 大 22 s, util 2 charges (5 s, 10 s); the bow's 小 (the power shot) 2 charges
      * (3 s, 7 s) and its other skills the class's cooldowns (no mechanics of their own). The code's defaults are the config's.
      */
     @Test
@@ -138,10 +138,10 @@ class SlotMovesTest {
         org.bukkit.configuration.file.YamlConfiguration config = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(new java.io.File("src/main/resources/config.yml"));
         org.bukkit.configuration.file.YamlConfiguration none = new org.bukkit.configuration.file.YamlConfiguration();
         for (org.bukkit.configuration.file.YamlConfiguration each : java.util.List.of(config, none)) {
-            assertEquals(new SkillSlots.Mechanics(2, 0.0, 4.0, 9.0), RangerSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 6.0), RangerSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.MELEE));
             assertEquals(new SkillSlots.Mechanics(1, 3.0, 0.0, 10.0), RangerSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.MELEE));
             assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 22.0), RangerSkills.mechanics(each, SkillSlots.Slot.LARGE, AttackType.MELEE));
-            assertEquals(new SkillSlots.Mechanics(1, 0.0, 0.0, 5.0), RangerSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.MELEE));
+            assertEquals(new SkillSlots.Mechanics(2, 0.0, 5.0, 10.0), RangerSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.MELEE));
             assertEquals(new SkillSlots.Mechanics(2, 0.0, 3.0, 7.0), RangerSkills.mechanics(each, SkillSlots.Slot.SMALL, AttackType.RANGE));
             assertEquals(SkillSlots.Mechanics.NONE, RangerSkills.mechanics(each, SkillSlots.Slot.MEDIUM, AttackType.RANGE));
             assertEquals(SkillSlots.Mechanics.NONE, RangerSkills.mechanics(each, SkillSlots.Slot.UTIL, AttackType.RANGE));
