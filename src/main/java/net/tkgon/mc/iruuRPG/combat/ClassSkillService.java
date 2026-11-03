@@ -161,8 +161,8 @@ public final class ClassSkillService {
         } else if (SANCTUARY.equalsIgnoreCase(skill.id())) {
             sanctuary(player, skill, precheck.weapon());
         } else if (SATSUJIN.equalsIgnoreCase(skill.id())) {
-            // (with the shadow bow or the lantern it is the shadow burial: t168)
-            if (precheck.weapon().attackType() != AttackType.MELEE) AssassinShade.burial(attackService, player, precheck.weapon(), skill.values());
+            // (with a ranged weapon or the lantern it is the shadow burial: t168; its knives since t198)
+            if (precheck.weapon().attackType() != AttackType.MELEE) AssassinKnives.burial(attackService, player, precheck.weapon(), skill.values());
             else satsujin(player, skill);
         }
     }
@@ -896,7 +896,7 @@ public final class ClassSkillService {
     public boolean canRecast(Player player, ClassSkillDefinition skill) {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) return surgeStrikeReady(player, skill);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id())) return sniperMode != null && sniperMode.canEnter(player, skill);
-        if (SATSUJIN.equalsIgnoreCase(skill.id()) && AssassinShade.burying(player.getUniqueId())) return AssassinShade.burialReady(player, skill.values());
+        if (SATSUJIN.equalsIgnoreCase(skill.id()) && AssassinKnives.burying(player.getUniqueId())) return AssassinKnives.burialReady(player, skill.values());
         if (SATSUJIN.equalsIgnoreCase(skill.id())) {
             return classEffectService != null && classEffectService.frenzyLevel(player) > 0
                     && classEffectService.frenzyElapsedMillis(player) >= skill.values().getOrDefault("recast-delay-seconds", 1.5) * 1000.0;
@@ -914,7 +914,7 @@ public final class ClassSkillService {
     public boolean tryRecast(Player player, ClassSkillDefinition skill) {
         if (WARRIOR_STRIKE.equalsIgnoreCase(skill.id())) return surgeStrike(player, skill);
         if (INSTINCT_RELEASE.equalsIgnoreCase(skill.id()) && sniperMode != null) return sniperMode.tryEnter(player, skill);
-        if (SATSUJIN.equalsIgnoreCase(skill.id()) && AssassinShade.burying(player.getUniqueId())) return AssassinShade.burialRecast(attackService, player, skill.values());
+        if (SATSUJIN.equalsIgnoreCase(skill.id()) && AssassinKnives.burying(player.getUniqueId())) return AssassinKnives.burialRecast(attackService, player, skill.values());
         if (SATSUJIN.equalsIgnoreCase(skill.id())) return frenzyEcho(player, skill);
         if (METEOR.equalsIgnoreCase(skill.id())) {
             RpgItemDefinition held = attackService.weaponInMainHand(player);

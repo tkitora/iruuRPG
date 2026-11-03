@@ -841,7 +841,6 @@ public final class WarriorSkills {
     /** A player leaves (or changes class): what is kept of them goes. */
     public static void forget(UUID player) {
         WarriorBlood.forget(player);
-        WarriorSwords.forget(player);
         PARRIES.remove(player);
         DRAWN.remove(player);
         BLOOD_NOW.remove(player);

@@ -42,4 +42,13 @@ class AssassinSkillsTest {
         AssassinSkills.forget(gone);
         assertEquals(1.0, AssassinSkills.ambushMultiplier(gone, 200L));
     }
+
+    /** t198: a blow at the assassin in the veil strikes an afterimage at the chance of veil-dodge (a roll below it), never at 0, always at 1. */
+    @Test
+    void aBlowInTheVeilStrikesAnAfterimageAtItsChance() {
+        assertTrue(AssassinDeployCombo.dodged(0.1, 0.25));
+        assertFalse(AssassinDeployCombo.dodged(0.3, 0.25));
+        assertFalse(AssassinDeployCombo.dodged(0.0, 0.0));
+        assertTrue(AssassinDeployCombo.dodged(0.99, 1.0));
+    }
 }
