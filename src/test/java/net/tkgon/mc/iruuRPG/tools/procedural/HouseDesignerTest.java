@@ -85,6 +85,11 @@ class HouseDesignerTest {
                             case MANOR -> assertTrue(count(made, HouseModule.Type.WING) >= 2, what);
                             case HUB -> assertTrue(count(made, HouseModule.Type.VOLUME) + count(made, HouseModule.Type.TOWER) >= 1, what);
                             case COMPOUND -> assertTrue(count(made, HouseModule.Type.VOLUME) >= 1, what);
+                            case STORYBOOK -> {
+                                // (t239) the gable to the front and the tower with its spire
+                                assertTrue(made.modules().stream().anyMatch(m -> m.type == HouseModule.Type.VOLUME && m.side == 0 && m.ridge == 2), what);
+                                assertTrue(made.modules().stream().anyMatch(m -> m.type == HouseModule.Type.TOWER && m.spire > 0), what);
+                            }
                             case PLAN -> {
                                 // (t195) blocks of the plan, each its own roof: more than one shape of roof
                                 assertTrue(count(made, HouseModule.Type.VOLUME) >= 1, what);
@@ -210,5 +215,55 @@ class HouseDesignerTest {
         // few parts and many
         assertTrue(HouseDesigner.design(rules(HouseDesigner.Pattern.COTTAGE, 1, 0), 3L, false).settings().modules().size()
                 < HouseDesigner.design(rules(HouseDesigner.Pattern.COTTAGE, 1, 3), 3L, false).settings().modules().size());
+    }
+
+    @Test
+    void thePartsAreSizedFromTheShapeEvenWhenItIsSetByHand() {
+        // (t239) a big house with pillars far apart, and a small one with them close: the shape kept ("形もおまかせ" off), the parts fitted to it
+        Map<String, Set<Integer>> big = parts(21, 13, 3, 6, 6);
+        Map<String, Set<Integer>> small = parts(9, 9, 2, 4, 3);
+        // dormers as wide as a stretch between pillars (5 between pillars 6 apart; 3 between pillars 3 apart), their walls as high as the storey allows
+        assertTrue(big.get("dormer").stream().allMatch(w -> w >= 5), big.toString());
+        assertTrue(small.get("dormer").stream().allMatch(w -> w == 3), small.toString());
+        assertTrue(big.get("dormer-height").stream().allMatch(h -> h >= 3), big.toString());
+        // bay windows the width of the stretch between pillars
+        assertTrue(big.get("bay").stream().allMatch(w -> w == 5 || w == 7), big.toString());
+        assertTrue(small.get("bay").stream().allMatch(w -> w == 2 || w == 4), small.toString());
+        // the porch from pillar to pillar more often than not on the big house, never wider than the small one
+        assertTrue(big.get("porch").stream().anyMatch(w -> w == 7 || w == 13), big.toString());
+        assertTrue(small.get("porch").stream().allMatch(w -> w <= 5), small.toString());
+    }
+
+    /** The widths (and the dormers' heights) of the parts of 24 houses of several patterns made on a shape set by hand. */
+    private static Map<String, Set<Integer>> parts(int width, int depth, int floors, int storey, int spacing) {
+        Map<String, Set<Integer>> found = new java.util.HashMap<>();
+        for (String key : new String[]{"dormer", "dormer-height", "bay", "porch"}) found.put(key, new HashSet<>());
+        for (HouseDesigner.Pattern pattern : new HouseDesigner.Pattern[]{HouseDesigner.Pattern.COTTAGE, HouseDesigner.Pattern.MANOR, HouseDesigner.Pattern.STORYBOOK}) {
+            for (long seed = 1; seed <= 8; seed++) {
+                TreeSettings rules = rules(pattern, 0, 3);
+                rules.set(TreeSettings.Key.HOUSE_GEN_SHAPE, 0);
+                rules.set(TreeSettings.Key.HOUSE_WIDTH, width);
+                rules.set(TreeSettings.Key.HOUSE_DEPTH, depth);
+                rules.set(TreeSettings.Key.HOUSE_FLOORS, floors);
+                rules.set(TreeSettings.Key.HOUSE_STOREY, storey);
+                rules.set(TreeSettings.Key.HOUSE_PILLARS, spacing);
+                TreeSettings made = HouseDesigner.design(rules, seed, false).settings();
+                assertEquals(width, made.getInt(TreeSettings.Key.HOUSE_WIDTH));
+                assertEquals(spacing, made.getInt(TreeSettings.Key.HOUSE_PILLARS));
+                for (HouseModule module : made.modules()) {
+                    switch (module.type) {
+                        case DORMER -> {
+                            found.get("dormer").add(module.width);
+                            found.get("dormer-height").add(module.height);
+                        }
+                        case BAY -> found.get("bay").add(module.width);
+                        case PORCH -> found.get("porch").add(module.width);
+                        default -> {
+                        }
+                    }
+                }
+            }
+        }
+        return found;
     }
 }

@@ -311,7 +311,8 @@ final class LobbyShape {
 
     /**
      * Trees of the tree tool (round crowns, some conifers; the more organic the more unlike): first in the middle of each gap between two houses, then
-     * anywhere round the houses; not within 4 of a house, 3 of the plaza or a path, 5 of another tree. On the ground where it is known.
+     * anywhere round the houses (t239: out to a little past the farthest of them, so deep houses leave room); not within 4 of a house, 3 of the plaza or
+     * a path, 5 of another tree. On the ground where it is known.
      */
     private static void trees(Blocks blocks, Set<Long> built, Set<Long> paved, int count, int radius, int gap, List<Lot> lots, double organic, Random r, TreeGround ground) {
         if (count <= 0) return;
@@ -326,9 +327,13 @@ final class LobbyShape {
             double distance = radius + gap + 2 + r.nextInt(4);
             spots.add(new double[]{distance * Math.cos(angle), distance * Math.sin(angle)});
         }
+        double far = 0.0;
+        for (long column : built) far = Math.max(far, Math.hypot((int) (column >> 32), (int) column));
+        // (not past where the ground is read)
+        double reach = Math.min(MAX_REACH - 3.0 - radius - gap, Math.max(14.0, far + 6.0 - radius - gap));
         for (int extra = 0; extra < count * 4; extra++) {
             double angle = r.nextDouble() * 2.0 * Math.PI;
-            double distance = radius + gap + 1 + r.nextDouble() * 14.0;
+            double distance = radius + gap + 1 + r.nextDouble() * reach;
             spots.add(new double[]{distance * Math.cos(angle), distance * Math.sin(angle)});
         }
         Set<Long> trunks = new HashSet<>();

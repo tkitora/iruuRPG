@@ -37,6 +37,11 @@ test {
     systemProperty 'itemModel.samples', (project.findProperty('itemModelSamples') ?: '')
     // -PbbmodelSamples=<a folder of .bbmodel files>: BbFormatTest / BbItemFormatTest read each in 4.10 and in 5.0 and compare
     systemProperty 'bbmodel.samples', (project.findProperty('bbmodelSamples') ?: '')
+    // (t239) -PhouseSamples=<a folder>: HouseSamplesTest draws random houses there as PNGs (-PhouseSamplePatterns=storybook,tower; -PhouseSampleSeeds=4; -PhouseSampleShape=21,13,3,5,6)
+    systemProperty 'house.samples', (project.findProperty('houseSamples') ?: '')
+    systemProperty 'house.samples.patterns', (project.findProperty('houseSamplePatterns') ?: '')
+    systemProperty 'house.samples.seeds', (project.findProperty('houseSampleSeeds') ?: '4')
+    systemProperty 'house.samples.shape', (project.findProperty('houseSampleShape') ?: '')
 }
 
 tasks.register('itemPatchTest', Test) {

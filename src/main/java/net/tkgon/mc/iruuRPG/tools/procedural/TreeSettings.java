@@ -72,7 +72,7 @@ final class TreeSettings {
         HOUSE_TERRACE("house-terrace", "土台のテラス", 0, 4, 0, 1, 1, "土台を壁からこれだけ外へ広げたテラス (高い所の縁には低い手すり)。棟ごとの土台は、近い棟の高さになる"),
         HOUSE_PILLAR_MIRROR("house-pillar-mirror", "柱を両端から", false, "オン: 柱の間隔を壁の両端の角から数える (左右対称の柱・窓) / オフ: 左の角から数える"),
         HOUSE_STEP_FIT("house-roof-steps-fit", "段を大きさに合わせる", true, "オン: 段の列を、軒から棟までの長さに伸び縮みさせる / オフ: 棟から段の列のまま並べ、足りない軒側は最初の段を繰り返す"),
-        HOUSE_GEN_PATTERN("house-gen-pattern", "パターン", 0, 8, 0, 1, 1, "どんな家を作るか: 0 おまかせ / 1 コテージ / 2 木組みの町家 / 3 L字の農家 / 4 館 / 5 塔の家 / 6 ハブの家 / 7 組み合わせの家 / 8 複合プランの家"),
+        HOUSE_GEN_PATTERN("house-gen-pattern", "パターン", 0, 9, 0, 1, 1, "どんな家を作るか: 0 おまかせ / 1 コテージ / 2 木組みの町家 / 3 L字の農家 / 4 館 / 5 塔の家 / 6 ハブの家 / 7 組み合わせの家 / 8 複合プランの家 / 9 物語の家"),
         HOUSE_GEN_SIZE("house-gen-size", "規模", 0, 2, 1, 1, 1, "0 小 / 1 中 / 2 大"),
         HOUSE_GEN_DETAIL("house-gen-detail", "パーツの多さ", 0, 3, 2, 1, 1, "追加パーツをいくつ付けるか (0 で 2 個ほど、3 で 10 個ほど)"),
         HOUSE_GEN_SYMMETRY("house-gen-symmetry", "対称", 0, 2, 0, 1, 1, "0 パターン次第 / 1 左右対称 / 2 崩す (非対称)"),
