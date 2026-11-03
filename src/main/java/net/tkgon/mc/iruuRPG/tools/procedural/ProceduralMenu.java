@@ -53,7 +53,7 @@ final class ProceduralMenu implements Listener {
     private static final int SEED = 14;
     private static final int LOAD = 16;
     private static final int RESET = 25;
-    private static final int[] LEGEND_SLOTS = {37, 38, 39, 40, 41, 42, 43};
+    private static final int[] LEGEND_SLOTS = {37, 38, 39, 40, 41, 42, 43, 28, 29, 30, 31, 32, 33, 34};
     // the leaf page: the leaf gradient from the bottom of a clump to its top, and its help
     private static final int[] SHADE_SLOTS = {28, 29, 30, 31, 32, 33};
     private static final int SHADE_HELP = 34;
@@ -132,7 +132,7 @@ final class ProceduralMenu implements Listener {
         TreeSettings.Key[] keysFor(TreeSettings settings) {
             ProcKind kind = settings.kind();
             // (a web has no height and width: the points decide how big it is; a tree is as big as its own numbers make it)
-            if (this == BASIC && (kind.web() || kind.tree() || kind == ProcKind.HOUSE)) return new TreeSettings.Key[]{};
+            if (this == BASIC && (kind.web() || kind.tree() || kind == ProcKind.HOUSE || kind == ProcKind.LOBBY)) return new TreeSettings.Key[]{};
             if (kind.tree() && this != BASIC) return treeKeys(settings.algorithm(), this);
             // (a roof of steps has one more: how its steps fit the house)
             if (this == ROOF && stepped(settings)) {
@@ -150,6 +150,9 @@ final class ProceduralMenu implements Listener {
                 case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
                         TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_PILLAR_MIRROR, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY,
                         TreeSettings.Key.HOUSE_JETTY_SIDES, TreeSettings.Key.HOUSE_BRACKETS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
+                case LOBBY -> new TreeSettings.Key[]{TreeSettings.Key.LOBBY_RADIUS, TreeSettings.Key.LOBBY_SHAPE, TreeSettings.Key.LOBBY_HOUSES, TreeSettings.Key.LOBBY_GAP,
+                        TreeSettings.Key.LOBBY_ORGANIC, TreeSettings.Key.LOBBY_CENTER, TreeSettings.Key.LOBBY_BEDS, TreeSettings.Key.LOBBY_TREES, TreeSettings.Key.LOBBY_PATHS,
+                        TreeSettings.Key.LOBBY_TERRAIN, TreeSettings.Key.HOUSE_GEN_PATTERN, TreeSettings.Key.HOUSE_GEN_DETAIL};
                 default -> new TreeSettings.Key[]{};
             };
         }
@@ -222,6 +225,16 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_PLINTH, Material.STONE_BRICKS);
         ICONS.put(TreeSettings.Key.HOUSE_SKIRT, Material.BRICK_SLAB);
         ICONS.put(TreeSettings.Key.HOUSE_RIDGE_BEAM, Material.DARK_OAK_LOG);
+        ICONS.put(TreeSettings.Key.LOBBY_RADIUS, Material.LIGHT_GRAY_CONCRETE);
+        ICONS.put(TreeSettings.Key.LOBBY_SHAPE, Material.CLAY_BALL);
+        ICONS.put(TreeSettings.Key.LOBBY_HOUSES, Material.BRICKS);
+        ICONS.put(TreeSettings.Key.LOBBY_GAP, Material.LEAD);
+        ICONS.put(TreeSettings.Key.LOBBY_ORGANIC, Material.MOSS_BLOCK);
+        ICONS.put(TreeSettings.Key.LOBBY_CENTER, Material.WATER_BUCKET);
+        ICONS.put(TreeSettings.Key.LOBBY_BEDS, Material.POPPY);
+        ICONS.put(TreeSettings.Key.LOBBY_TREES, Material.OAK_SAPLING);
+        ICONS.put(TreeSettings.Key.LOBBY_PATHS, Material.DIRT_PATH);
+        ICONS.put(TreeSettings.Key.LOBBY_TERRAIN, Material.GRASS_BLOCK);
         ICONS.put(TreeSettings.Key.HOUSE_STEP_FIT, Material.SCAFFOLDING);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_PATTERN, Material.PAINTING);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_SIZE, Material.PISTON);
@@ -371,7 +384,7 @@ final class ProceduralMenu implements Listener {
     /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
     private static boolean named(TreeSettings.Key key) {
         return switch (key) {
-            case HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_OVERLAP -> true;
+            case HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
             default -> false;
         };
     }
@@ -387,6 +400,8 @@ final class ProceduralMenu implements Listener {
         if (key == TreeSettings.Key.HOUSE_GEN_SYMMETRY) return HouseDesigner.symmetryName(whole);
         if (key == TreeSettings.Key.HOUSE_GEN_TOWERS) return HouseDesigner.towersName(whole);
         if (key == TreeSettings.Key.HOUSE_GEN_OVERLAP) return HouseDesigner.overlapName(whole);
+        if (key == TreeSettings.Key.LOBBY_SHAPE) return LobbyShape.shapeName(whole);
+        if (key == TreeSettings.Key.LOBBY_CENTER) return LobbyShape.centerName(whole);
         return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
     }
 

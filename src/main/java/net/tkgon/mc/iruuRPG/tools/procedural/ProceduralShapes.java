@@ -51,6 +51,11 @@ final class ProceduralShapes {
                 HouseShape.build(blocks, s, aim, ground);
                 return blocks.map;
             }
+            case LOBBY -> {
+                // (t190: the plaza round the block clicked, the houses round it, each on the ground where it stands)
+                LobbyShape.build(blocks, s, seed, ground);
+                return blocks.map;
+            }
             default -> {
             }
         }

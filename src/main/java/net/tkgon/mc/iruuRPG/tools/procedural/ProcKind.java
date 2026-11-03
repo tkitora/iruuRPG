@@ -17,7 +17,11 @@ enum ProcKind {
     CRYSTAL("結晶", Material.AMETHYST_CLUSTER, "見ているブロックから、こちら(視点)へ向かって生える結晶。かたまり・大きな1本・薄い刃から作り方を選べる", List.of(TreePart.CRYSTAL, TreePart.CRYSTAL_CORE, TreePart.STONE)),
     WEB("クモの巣", Material.COBWEB, "ブロックをクリックして点を2つ以上選び、その間と周りの地形に合わせて巣を張る (円網・棚網・皿網・漏斗網・不規則網・条網)。空気のブロックにだけ置く", List.of(TreePart.WEB_FRAME, TreePart.WEB)),
     HOUSE("家の土台", Material.BRICKS, "家の骨組み (柱・壁・床・屋根) をウールで。幅・奥行き・階数・屋根の形を決めると、正面がこちら(視点)を向いて建つ。回転・ドーマー窓や塔や棟などの追加パーツ・おまかせ生成も", List.of(TreePart.HOUSE_PILLAR,
-            TreePart.HOUSE_WALL, TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW));
+            TreePart.HOUSE_WALL, TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW)),
+    /** (t190) a plaza with houses round it, as the lobbies (central spawns) of servers are built. */
+    LOBBY("ロビー (街並み)", Material.BELL, "中央の広場 (床の模様・噴水か台座・花壇) のまわりに、おまかせ生成の家を、広場を向けて高さ・大きさ・角度を少しずつ変えて並べる。家への道、すきまの木、地形へのなじませも", List.of(
+            TreePart.LOBBY_PAVE, TreePart.LOBBY_PATH, TreePart.LOBBY_BED, TreePart.LOBBY_SOIL, TreePart.LOBBY_WATER, TreePart.HOUSE_PILLAR, TreePart.HOUSE_WALL,
+            TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW, TreePart.TRUNK, TreePart.LEAF));
 
     private final String label;
     private final Material icon;

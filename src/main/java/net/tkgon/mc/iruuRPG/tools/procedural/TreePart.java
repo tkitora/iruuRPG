@@ -37,6 +37,12 @@ enum TreePart {
     HOUSE_BEAM("house-beam", "梁", 0, Material.ORANGE_WOOL),
     /** (t190) the glass of a window, set back from the face of the wall. */
     HOUSE_WINDOW("house-window", "窓", 4, Material.LIGHT_BLUE_WOOL),
+    /** (t190) the lobby: the paving of the plaza, its paths (the border, the grid of the tiles, the ways to the doors), the rims of the raised beds and of a fountain, their soil, the water. */
+    LOBBY_PAVE("lobby-pave", "広場の床", 5, Material.LIGHT_GRAY_CONCRETE),
+    LOBBY_PATH("lobby-path", "道", 5, Material.GRAY_CONCRETE),
+    LOBBY_BED("lobby-bed", "花壇・噴水の縁", 3, Material.POLISHED_ANDESITE),
+    LOBBY_SOIL("lobby-soil", "花壇の土", 5, Material.GREEN_WOOL),
+    LOBBY_WATER("lobby-water", "水", 5, Material.LIGHT_BLUE_CONCRETE),
     /** The shades of the leaf gradient above the lowest ({@link #LEAF}): their blocks are the entries of the gradient of the settings. */
     LEAF_2("leaf-2", "葉 (2段目)", 4, Material.OAK_LEAVES),
     LEAF_3("leaf-3", "葉 (3段目)", 4, Material.OAK_LEAVES),
