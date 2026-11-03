@@ -77,6 +77,17 @@ final class TreeSettings {
         HOUSE_GEN_OVERLAP("house-gen-overlap", "重なりの許容", 0, 2, 1, 1, 1, "パーツ同士が重なるのを、どこまで許すか: 0 なし / 1 少し / 2 多め"),
         HOUSE_GEN_ROOF("house-gen-roof", "屋根もおまかせ", true, "オン: 屋根の形・勾配・段もパターンから決める / オフ: いまの屋根のまま"),
         HOUSE_GEN_LOOK("house-gen-look", "外観もおまかせ", true, "オン: 石の1階・木組み・張り出しもパターンから決める / オフ: いまのまま"),
+        // ---- (t190) the lobby (LobbyShape): a plaza, houses round it, paths, beds, trees ----
+        LOBBY_RADIUS("lobby-radius", "広場の半径", 4, 20, 10, 1, 3, "中央の広場の大きさ (ブロック)"),
+        LOBBY_SHAPE("lobby-shape", "広場の形", 0, 2, 0, 1, 1, "0 丸 / 1 八角 / 2 四角"),
+        LOBBY_HOUSES("lobby-houses", "家の数", 2, 12, 6, 1, 2, "広場のまわりに建てる家の数 (まわりに入りきらない分は建てない)"),
+        LOBBY_GAP("lobby-gap", "広場から家まで", 1, 8, 3, 1, 2, "広場の縁から家の正面までのあき (ブロック)"),
+        LOBBY_ORGANIC("lobby-organic", "ばらつき", 0.0, 1.0, 0.5, 0.05, 0.25, "家の大きさ・広場からの距離・向き・間隔をどれだけ不ぞろいにするか (0 で整列、1 で自然な街並み)"),
+        LOBBY_CENTER("lobby-center", "広場の中央", 0, 2, 1, 1, 1, "0 なし / 1 噴水 / 2 台座"),
+        LOBBY_BEDS("lobby-beds", "花壇の数", 0, 12, 4, 1, 2, "広場の縁に置く、一段高い花壇の数 (道の上には置かない)"),
+        LOBBY_TREES("lobby-trees", "木の数", 0, 16, 6, 1, 2, "家と家のすきまやまわりに植える木の数 (丸い木と針葉樹。家に近すぎる所には植えない)"),
+        LOBBY_PATHS("lobby-paths", "家への道", true, "広場から各家の入口まで道を通す"),
+        LOBBY_TERRAIN("lobby-terrain", "地形になじませる", true, "広場・道の下を地面まで埋め、家の基礎を地面まで伸ばす。木は地面に植える"),
         // ---- the canopy tree (CanopyTree): a fractal of branches, canopies one above the other ----
         CANOPY_TRUNK_HEIGHT("canopy-trunk-height", "幹の高さ", 0, 40, 0, 1, 5, "最初の枝分かれまでの、まっすぐな幹の長さ (0 で根元からすぐ分かれる)"),
         CANOPY_LENGTH("canopy-length", "最初の長さ", 1, 40, 10, 0.5, 2, "樹冠の最初の枝 (主幹) の長さ。子の枝は、長さの倍率ずつ短くなる"),

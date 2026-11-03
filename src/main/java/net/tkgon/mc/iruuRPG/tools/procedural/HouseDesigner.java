@@ -121,12 +121,17 @@ final class HouseDesigner {
      * {@code partsOnly} the base stays as it is and only the parts are made again.
      */
     static Result design(TreeSettings from, long seed, boolean partsOnly) {
+        return design(from, seed, partsOnly, TRIES);
+    }
+
+    /** {@link #design(TreeSettings, long, boolean)} with {@code tries} houses made for one (fewer for the many houses of a lobby). */
+    static Result design(TreeSettings from, long seed, boolean partsOnly, int tries) {
         Random root = new Random(seed);
         Pattern chosen = Pattern.of(from.getInt(Key.HOUSE_GEN_PATTERN));
         Pattern pattern = chosen == Pattern.ANY ? Pattern.values()[1 + root.nextInt(Pattern.values().length - 1)] : chosen;
         Maker best = null;
         double bestScore = Double.NEGATIVE_INFINITY;
-        for (int attempt = 0; attempt < TRIES; attempt++) {
+        for (int attempt = 0; attempt < Math.max(1, tries); attempt++) {
             Maker maker = new Maker(from, pattern, new Random(root.nextLong()), partsOnly);
             maker.make();
             double score = maker.score();
