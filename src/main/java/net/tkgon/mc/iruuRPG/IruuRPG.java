@@ -400,6 +400,7 @@ public final class IruuRPG extends JavaPlugin {
         this.mobService.setPartyService(partyService);
         this.travelService = new TravelService(this, profileManager);
         this.travelService.setWorldLabels(worldLabels);
+        this.travelService.setRespawnExempt(tutorialService::isRunning);
         this.travelMenu = new TravelMenu(travelService);
         this.travelMenu.setMainMenu(mainMenu);
         this.mainMenu.setTravelMenu(travelMenu);
