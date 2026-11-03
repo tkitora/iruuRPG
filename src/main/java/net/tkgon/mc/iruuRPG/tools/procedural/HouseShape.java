@@ -989,17 +989,22 @@ final class HouseShape {
                 TreePart part = entry.getValue();
                 boolean corner = y < box.top && box.corner(a, b, Math.min(storeys - 1, y / storey));
                 if (part != TreePart.HOUSE_FLOOR && !corner && inside(p.a(u, b), p.b(u, b), wy)) {
-                    p.carve(u, b, wy);
+                    // (t250: its storeys open into the house; its roof and gables over them, where they are in the house, are the house's: a volume lower
+                    // than the house takes nothing of the house's walls, floors or roof above its own storeys)
+                    if (y < box.top) p.carve(u, b, wy);
                     continue;
                 }
                 p.put(u, b, wy, part);
             }
-            // its inside: in each of its columns, between its lowest and highest blocks, what it has not
+            // its inside: in each of its columns, between its lowest and highest blocks, what it has not (t250: under its roof, what of the house is there
+            // only up to its own storeys)
             for (Map.Entry<Long, int[]> entry : spans.entrySet()) {
                 int a = (int) (entry.getKey() >> 32);
                 int b = (int) (long) entry.getKey();
                 for (int y = entry.getValue()[0]; y <= entry.getValue()[1]; y++) {
-                    if (!mass.has(a, y, b)) p.carve(lo + a, b, y + baseY);
+                    if (mass.has(a, y, b)) continue;
+                    if (y >= box.top && inside(p.a(lo + a, b), p.b(lo + a, b), y + baseY)) continue;
+                    p.carve(lo + a, b, y + baseY);
                 }
             }
             // (t195) on the ground: what of it stands there (its lowest layer), its terrace, its door
@@ -1169,23 +1174,35 @@ final class HouseShape {
             return top == null ? Integer.MIN_VALUE : top;
         }
 
-        /** Puts the part in: what it takes away, what it puts over, what it puts where nothing is; not over or out of a part of a higher {@code ranks}. */
+        /**
+         * Puts the part in: what it takes away, what it puts over, what it puts where nothing is; not over or out of a part of a higher {@code ranks}.
+         * (t250) What a part takes away stays its own, as empty: no part after it of its rank or lower puts anything there (a chimney through a tower,
+         * the wall of a volume in the room of another), so the room of a part is never filled by another; a part's own blocks in its own room are put.
+         */
         void apply(Map<Long, Integer> ranks, int rank) {
             for (long key : carved) {
                 Integer owner = ranks.get(key);
                 if (owner != null && owner > rank) continue;
                 out.map.remove(key);
-                ranks.remove(key);
+                ranks.put(key, rank);
             }
             for (Map.Entry<Long, TreePart> entry : over.map.entrySet()) {
-                Integer owner = ranks.get(entry.getKey());
-                if (owner != null && owner > rank) continue;
-                out.map.put(entry.getKey(), entry.getValue());
-                ranks.put(entry.getKey(), rank);
+                long key = entry.getKey();
+                Integer owner = ranks.get(key);
+                if (owner != null && (owner > rank || owner == rank && emptied(key))) continue;
+                out.map.put(key, entry.getValue());
+                ranks.put(key, rank);
             }
             for (Map.Entry<Long, TreePart> entry : under.map.entrySet()) {
-                if (out.map.putIfAbsent(entry.getKey(), entry.getValue()) == null) ranks.put(entry.getKey(), rank);
+                long key = entry.getKey();
+                if (ranks.containsKey(key) && emptied(key)) continue;
+                if (out.map.putIfAbsent(key, entry.getValue()) == null) ranks.put(key, rank);
             }
+        }
+
+        /** (t250) Whether a block was taken away by a part before this one (it is empty and some part's, not this part's own room). */
+        private boolean emptied(long key) {
+            return !out.map.containsKey(key) && !carved.contains(key);
         }
     }
 
