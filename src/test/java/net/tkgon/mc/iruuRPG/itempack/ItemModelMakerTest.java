@@ -23,6 +23,7 @@ import java.util.TreeMap;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -96,9 +97,10 @@ class ItemModelMakerTest {
         // 30 degrees is not allowed: 22.5, and the player is told
         assertEquals(22.5, model.elements.get(1).angle);
         assertTrue(model.warnings.stream().anyMatch(w -> w.contains("'odd'")), model.warnings.toString());
-        // a cube in a turned group takes the group's turn (about the group's origin)
+        // a cube in a turned group takes the group's turn (about the group's origin); the Generic Model is turned half round to face the front
+        // (t213), so a turn about z goes the other way
         assertEquals("z", model.elements.get(2).axis);
-        assertEquals(45.0, model.elements.get(2).angle);
+        assertEquals(-45.0, model.elements.get(2).angle);
         assertEquals(1, model.warnings.size(), model.warnings.toString());
     }
 
@@ -307,5 +309,33 @@ class ItemModelMakerTest {
             for (ZipEntry entry = in.getNextEntry(); entry != null; entry = in.getNextEntry()) files.put(entry.getName(), in.readAllBytes());
         }
         return files;
+    }
+
+    /**
+     * t213: a Generic Model is made with its front to -Z (Blockbench's front view, as the mobs); the game shows the +Z side of an item. It is
+     * turned half round about its upright middle line: a box goes to the other side of x and z, its north face becomes its south face, the
+     * top's picture turns half round, the grip comes along; a Java Block/Item model (its display is Blockbench's own) is not turned.
+     */
+    @Test
+    void aGenericModelIsTurnedHalfRoundToShowItsFront() {
+        String json = "{\"meta\":{\"model_format\":\"free\"},\"elements\":["
+                + "{\"name\":\"guard\",\"uuid\":\"g\",\"from\":[1,0,-2],\"to\":[3,2,-1],\"faces\":{"
+                + "\"north\":{\"uv\":[0,0,2,2],\"texture\":0},\"east\":{\"uv\":[2,0,3,2],\"texture\":0},\"up\":{\"uv\":[0,2,2,3],\"texture\":0}}}"
+                + "],\"outliner\":[{\"name\":\"grip\",\"origin\":[1,0,-1],\"uuid\":\"h\",\"children\":[\"g\"]}],"
+                + "\"textures\":[{\"name\":\"t\",\"source\":\"" + PNG + "\"}]}";
+        BbItemModel model = BbItemModel.parse("m", json);
+        BbItemModel.Element guard = model.elements.get(0);
+        // x 1..3 and z -2..-1 (centered: 9..11, 6..7) turned about x = z = 8: x 5..7, z 9..10
+        assertArrayEquals(new double[]{5, 0, 9}, guard.from, 1.0E-9);
+        assertArrayEquals(new double[]{7, 2, 10}, guard.to, 1.0E-9);
+        assertTrue(guard.faces.containsKey("south") && !guard.faces.containsKey("north"));
+        assertTrue(guard.faces.containsKey("west") && !guard.faces.containsKey("east"));
+        assertEquals(180, guard.faces.get("up").rotation());
+        // the grip (1, 0, -1) → centered (9, 0, 7) → turned (7, 0, 9)
+        assertArrayEquals(new double[]{7, 0, 9}, model.grip, 1.0E-9);
+        // a Java Block/Item model keeps its place
+        BbItemModel java = BbItemModel.parse("j", json.replace("\"free\"", "\"java_block\""));
+        assertArrayEquals(new double[]{1, 0, -2}, java.elements.get(0).from, 1.0E-9);
+        assertTrue(java.elements.get(0).faces.containsKey("north"));
     }
 }
