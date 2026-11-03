@@ -526,6 +526,45 @@ class HouseShapeTest {
     }
 
     @Test
+    void partsDoNotOpenHolesInEachOtherOrUnderTheEaves() {
+        // (t193) a tower at the front, then a low volume over it: the volume neither takes away nor covers the tower's wall
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        module(settings, HouseModule.Type.TOWER, 0);
+        HouseModule volume = module(settings, HouseModule.Type.VOLUME, 0);
+        volume.offset = -3;
+        volume.width = 7;
+        volume.depth = 5;
+        volume.height = 1;
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, -2, 1, 5));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 0, 1, 3));
+        // the tower is a plain prism: no window in its wall
+        for (int y = 0; y < 14; y++) assertEquals(TreePart.HOUSE_STONE, at(blocks, 0, y, 7), "y " + y);
+        // a volume higher than the house against its gable: its wall is there under the eaves too
+        TreeSettings eaves = house(11, 9, 2, 4, 1);
+        eaves.set(TreeSettings.Key.HOUSE_OVERHANG, 1);
+        HouseModule tall = module(eaves, HouseModule.Type.VOLUME, 1);
+        tall.offset = 1;
+        tall.width = 5;
+        tall.depth = 3;
+        tall.height = 3;
+        assertNotNull(at(build(eaves, SOUTH), 6, 9, 0));
+    }
+
+    @Test
+    void stairsUnderAJettiedStoreyStandOnTheWallOfTheGround() {
+        // the back, the upper storey one out (z = -5): the stairs filled back to the ground storey's wall (z = -4)
+        TreeSettings settings = house(11, 9, 2, 4, 1);
+        settings.set(TreeSettings.Key.HOUSE_JETTY, 1);
+        module(settings, HouseModule.Type.STAIR, 2).width = 1;
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 0, 4, -6));
+        assertEquals(TreePart.HOUSE_STONE, at(blocks, 3, 1, -5));
+        assertNull(at(blocks, 0, 5, -5));
+        assertNull(at(blocks, 0, 6, -5));
+    }
+
+    @Test
     void thePartsAreSavedAndCopiedWithTheSettings() {
         TreeSettings settings = house(11, 9, 2, 4, 6);
         HouseModule tower = module(settings, HouseModule.Type.TOWER, 3);

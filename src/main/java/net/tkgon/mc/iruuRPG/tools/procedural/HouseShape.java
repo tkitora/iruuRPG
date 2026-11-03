@@ -68,8 +68,9 @@ final class HouseShape {
         House house = new House(s);
         Blocks local = new Blocks();
         house.body(local);
+        Map<Long, Integer> ranks = new HashMap<>();
         for (HouseModule module : s.modules()) {
-            if (module.on) house.module(local, module);
+            if (module.on) house.module(local, ranks, module);
         }
         Placement placement = Placement.of(aim, s.getInt(TreeSettings.Key.HOUSE_ROTATION), house.width, house.depth);
         if (s.on(TreeSettings.Key.HOUSE_FOUNDATION) && ground != null) foundation(local, placement, ground);
@@ -186,7 +187,7 @@ final class HouseShape {
 
         /**
          * Whether the house's block {@code (a, y, b)} is in the base: inside (or on) the walls of the storey at that height, or under its roof (inside its
-         * eaves, below the top of the roof there).
+         * walls, below the top of the roof there).
          */
         boolean inside(int a, int b, int y) {
             if (y < 0) return false;
@@ -194,10 +195,11 @@ final class HouseShape {
                 int k = y / storey;
                 return a >= -outA(k) && a <= width - 1 + outA(k) && b >= -out(k) && b <= depth - 1 + out(k);
             }
+            // (within the walls only, not under the eaves out past them: a volume's wall there is put, so it has no hole under the eaves)
             Integer high = baseTops.get(column(a, b));
             int e = out(floors - 1);
             int eA = outA(floors - 1);
-            return high != null && y < high && a >= -eA - overhang && a <= width - 1 + eA + overhang && b >= -e - overhang && b <= depth - 1 + e + overhang;
+            return high != null && y < high && a >= -eA && a <= width - 1 + eA && b >= -e && b <= depth - 1 + e;
         }
 
         /**
@@ -432,9 +434,23 @@ final class HouseShape {
             return side % 2 == 0 ? (depth - 1) / 2 + out(floors - 1) : (width - 1) / 2 + outA(floors - 1);
         }
 
-        /** Builds one part on what is there ({@code out}: the base and the parts before it). */
-        void module(Blocks out, HouseModule m) {
-            prepare(out, Build.tops(out), m).apply();
+        /** Builds one part on what is there ({@code out}: the base and the parts before it; {@code ranks}: the rank of the part each of their blocks is of). */
+        void module(Blocks out, Map<Long, Integer> ranks, HouseModule m) {
+            prepare(out, Build.tops(out), m).apply(ranks, rank(m.type));
+        }
+
+        /**
+         * (t193) The rank of a kind of part: a part never takes away nor covers the blocks of a part of a higher rank (of the same rank, the later one
+         * wins), so where parts meet no holes are opened. The base is under them all (the parts open it where they join it).
+         */
+        static int rank(HouseModule.Type type) {
+            return switch (type) {
+                case TOWER -> 5;
+                case VOLUME, WING -> 4;
+                case DORMER, CHIMNEY -> 3;
+                case BAY, BALCONY, STAIR -> 2;
+                case PORCH -> 1;
+            };
         }
 
         /** The storey a part's place is taken from (the jetty of that storey moves the front and back walls). */
@@ -534,7 +550,7 @@ final class HouseShape {
 
         /**
          * A tower of {@code width} across (round, octagonal or square: {@code shape}), out from the wall (by default half in it), from storey {@code level} up
-         * to {@code height} over the house's eaves, with a floor at every storey, windows to the front and the sides and a steep cone of a roof (a pyramid on
+         * to {@code height} over the house's eaves, a plain prism (t193: no holes in its wall) with a floor at every storey and a steep cone of a roof (a pyramid on
          * a square one); from a storey over the ground it hangs on the wall on a corbel (a turret). Its top storey may jut out by {@code jetty} on brackets
          * (t190). Its inside opens into the house.
          */
@@ -566,10 +582,9 @@ final class HouseShape {
                         boolean high = y >= jut;
                         if (d > (high ? radius + flare : radius)) continue;
                         int inStorey = Math.floorMod(y, storey);
+                        // (t193: a plain prism, no holes in its wall)
                         if (high ? ringHigh : ringLow) {
-                            boolean window = facing && storey >= 4 && inStorey >= 2 && inStorey <= storey - 2;
-                            if (window) p.carve(u, v, y);
-                            else p.put(u, v, y, high && flare > 0 ? TreePart.HOUSE_WALL : wall);
+                            p.put(u, v, y, high && flare > 0 ? TreePart.HOUSE_WALL : wall);
                         } else if (inStorey == 0 || y == jut) {
                             p.put(u, v, y, TreePart.HOUSE_FLOOR);
                         } else {
@@ -852,6 +867,16 @@ final class HouseShape {
                     for (int y = 0; y <= floorY - k; y++) p.put(u, v, y, TreePart.HOUSE_STONE);
                 }
             }
+            // (t193: where the storey it goes up to juts out, the stairs are filled back to the wall of the ground storey under it, so they stand on the house)
+            int gap = Math.floorMod(m.side, 4) % 2 == 0 ? out(level) : outA(level);
+            for (int k = 0; k < floorY; k++) {
+                int top = k == 0 ? floorY : floorY - k;
+                for (int u : k == 0 ? new int[]{-1, 0, 1} : new int[]{-up * (1 + k)}) {
+                    for (int v = 1 - gap; v <= 0; v++) {
+                        for (int y = 0; y <= Math.min(top, storey - 1); y++) p.soft(u, v, y, TreePart.HOUSE_STONE);
+                    }
+                }
+            }
             for (int y = floorY + 1; y <= floorY + 2; y++) p.carveWall(0, y);
         }
     }
@@ -940,9 +965,10 @@ final class HouseShape {
             carved.add(TreeVoxelizer.pack(a(u, v), y, b(u, v)));
         }
 
-        /** Takes away the block of the house's wall line (whatever the offset) at {@code u}. */
+        /** Takes away the block of the house's wall line (whatever the offset) at {@code u}, and the one behind it (a wall set back, t193). */
         void carveWall(int u, int y) {
             carved.add(TreeVoxelizer.pack(side.a(along + u, 0), y, side.b(along + u, 0)));
+            carved.add(TreeVoxelizer.pack(side.a(along + u, -1), y, side.b(along + u, -1)));
         }
 
         /** The highest block of the house in the column at {@code (u, v)}; {@link Integer#MIN_VALUE} when there is none. */
@@ -951,10 +977,23 @@ final class HouseShape {
             return top == null ? Integer.MIN_VALUE : top;
         }
 
-        void apply() {
-            for (long key : carved) out.map.remove(key);
-            out.map.putAll(over.map);
-            for (Map.Entry<Long, TreePart> entry : under.map.entrySet()) out.map.putIfAbsent(entry.getKey(), entry.getValue());
+        /** Puts the part in: what it takes away, what it puts over, what it puts where nothing is; not over or out of a part of a higher {@code ranks}. */
+        void apply(Map<Long, Integer> ranks, int rank) {
+            for (long key : carved) {
+                Integer owner = ranks.get(key);
+                if (owner != null && owner > rank) continue;
+                out.map.remove(key);
+                ranks.remove(key);
+            }
+            for (Map.Entry<Long, TreePart> entry : over.map.entrySet()) {
+                Integer owner = ranks.get(entry.getKey());
+                if (owner != null && owner > rank) continue;
+                out.map.put(entry.getKey(), entry.getValue());
+                ranks.put(entry.getKey(), rank);
+            }
+            for (Map.Entry<Long, TreePart> entry : under.map.entrySet()) {
+                if (out.map.putIfAbsent(entry.getKey(), entry.getValue()) == null) ranks.put(entry.getKey(), rank);
+            }
         }
     }
 

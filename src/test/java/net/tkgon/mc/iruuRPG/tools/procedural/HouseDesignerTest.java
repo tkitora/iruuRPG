@@ -2,8 +2,10 @@ package net.tkgon.mc.iruuRPG.tools.procedural;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -54,6 +56,22 @@ class HouseDesignerTest {
                         int width = made.getInt(TreeSettings.Key.HOUSE_WIDTH);
                         int depth = made.getInt(TreeSettings.Key.HOUSE_DEPTH);
                         HouseShape.House house = new HouseShape.House(made);
+                        // (t193) odd both ways, and so the volumes and the towers: every roof has a ridge or a point of one block
+                        assertEquals(1, width % 2, what);
+                        assertEquals(1, depth % 2, what);
+                        for (HouseModule module : made.modules()) {
+                            if (module.type == HouseModule.Type.TOWER || module.type == HouseModule.Type.VOLUME) assertEquals(1, module.width % 2, what + " " + module.toMap());
+                            if (module.type == HouseModule.Type.VOLUME) assertEquals(1, module.depth % 2, what + " " + module.toMap());
+                            // stairs reach a doorway in a wall: the landing before it, the wall opened over it
+                            if (module.type == HouseModule.Type.STAIR) {
+                                HouseShape.Side side = house.side(module.side, module.level);
+                                int floor = module.level * house.storey;
+                                int cx = -(width - 1) / 2;
+                                int cz = -(depth - 1) / 2;
+                                assertEquals(TreePart.HOUSE_STONE, blocks.get(TreeVoxelizer.pack(side.a(module.along, 1) + cx, floor, side.b(module.along, 1) + cz)), what);
+                                assertNull(blocks.get(TreeVoxelizer.pack(side.a(module.along, 0) + cx, floor + 1, side.b(module.along, 0) + cz)), what);
+                            }
+                        }
                         int x = house.plan(0).doorAt() - (width - 1) / 2;
                         for (int z = depth - 1; z <= depth + 2; z++) {
                             for (int y = 1; y <= 2; y++) assertNull(blocks.get(TreeVoxelizer.pack(x, y, z - (depth - 1) / 2)), what + " door at " + x + "," + y + "," + z);
@@ -72,6 +90,31 @@ class HouseDesignerTest {
                 }
             }
         }
+    }
+
+    @Test
+    void theShapeIsKeptWhenItIsNotToBeChosenAndTheTowersFitWhatIsRoundThem() {
+        TreeSettings rules = rules(HouseDesigner.Pattern.HUB, 1, 2);
+        rules.set(TreeSettings.Key.HOUSE_GEN_SHAPE, 0);
+        rules.set(TreeSettings.Key.HOUSE_WIDTH, 14);
+        rules.set(TreeSettings.Key.HOUSE_DEPTH, 10);
+        rules.set(TreeSettings.Key.HOUSE_FLOORS, 3);
+        TreeSettings made = HouseDesigner.design(rules, 21L, false).settings();
+        assertEquals(14, made.getInt(TreeSettings.Key.HOUSE_WIDTH));
+        assertEquals(10, made.getInt(TreeSettings.Key.HOUSE_DEPTH));
+        assertEquals(3, made.getInt(TreeSettings.Key.HOUSE_FLOORS));
+        // the towers of the tower house: of several sizes and heights, not one
+        Set<Integer> sizes = new HashSet<>();
+        Set<Integer> heights = new HashSet<>();
+        for (long seed = 1; seed <= 12; seed++) {
+            for (HouseModule module : HouseDesigner.design(rules(HouseDesigner.Pattern.TOWER, (int) (seed % 3), 1), seed, false).settings().modules()) {
+                if (module.type != HouseModule.Type.TOWER || module.level != 0) continue;
+                sizes.add(module.width);
+                heights.add(module.height);
+            }
+        }
+        assertTrue(sizes.size() >= 2, sizes.toString());
+        assertTrue(heights.size() >= 4, heights.toString());
     }
 
     @Test

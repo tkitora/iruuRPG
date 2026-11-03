@@ -99,7 +99,7 @@ final class ProceduralMenu implements Listener {
         /** (t185) the random houses (HouseDesigner): the rules, and the buttons that make one and go back. */
         DESIGN(6, Material.NETHER_STAR, "おまかせ生成", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_GEN_PATTERN, TreeSettings.Key.HOUSE_GEN_SIZE,
                 TreeSettings.Key.HOUSE_GEN_DETAIL, TreeSettings.Key.HOUSE_GEN_SYMMETRY, TreeSettings.Key.HOUSE_GEN_TOWERS, TreeSettings.Key.HOUSE_GEN_OVERLAP,
-                TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK}),
+                TreeSettings.Key.HOUSE_GEN_SHAPE, TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK}),
         /** (t190) the walls of a house: stone, timber, the depth of the walls and the windows. */
         WALLS(7, Material.STRIPPED_SPRUCE_LOG, "壁", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_PLINTH, TreeSettings.Key.HOUSE_TIMBER,
                 TreeSettings.Key.HOUSE_RECESS, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_GLASS});
@@ -242,6 +242,7 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_GEN_SYMMETRY, Material.ARMOR_STAND);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_TOWERS, Material.CHISELED_STONE_BRICKS);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_OVERLAP, Material.SLIME_BLOCK);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_SHAPE, Material.LEAD);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_ROOF, Material.RED_WOOL);
         ICONS.put(TreeSettings.Key.HOUSE_GEN_LOOK, Material.STRIPPED_SPRUCE_LOG);
         ICONS.put(TreeSettings.Key.HEIGHT, Material.LADDER);
