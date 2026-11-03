@@ -24,6 +24,9 @@ import java.util.function.Supplier;
  * Plays a skill: the warning, the hit and what it does to whoever is caught, for every template. The caster comes in
  * through {@link SkillCaster}; damage goes back out through it ({@code caster.damage}), so the usual damage rules
  * apply and nothing here invents a new way to hurt.
+ *
+ * <p>The warning marks on the ground ({@code playSkillTelegraph*}) are the enemies' alone (t256): a skill cast by a player
+ * ({@code caster.owner() != null}) keeps its wait but shows no mark.
  */
 public final class SkillRunner {
 
@@ -247,7 +250,7 @@ public final class SkillRunner {
                     onDone.run();
                     return;
                 }
-                if (age % 4 == 0) effects.playSkillTelegraphRing(this, where.get(), spec.radius(), spec.look(), element);
+                if (age % 4 == 0 && caster.owner() == null) effects.playSkillTelegraphRing(this, where.get(), spec.radius(), spec.look(), element);
                 age++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -286,7 +289,7 @@ public final class SkillRunner {
                 if (at != null) caster.face(at);
                 if (age % 4 == 0) {
                     Location mark = fixed == null ? caster.location() : fixed.clone();
-                    effects.playSkillTelegraphArc(this, mark, caster.location().getYaw(), spec.range(), spec.angle(), spec.look(), element);
+                    if (caster.owner() == null) effects.playSkillTelegraphArc(this, mark, caster.location().getYaw(), spec.range(), spec.angle(), spec.look(), element);
                 }
                 age++;
             }
@@ -419,7 +422,7 @@ public final class SkillRunner {
                     return;
                 }
                 if (age < spec.windupTicks()) {
-                    if (age % 4 == 0) effects.playSkillTelegraphLine(this, start, end, spec.look(), element);
+                    if (age % 4 == 0 && caster.owner() == null) effects.playSkillTelegraphLine(this, start, end, spec.look(), element);
                     age++;
                     return;
                 }
@@ -469,11 +472,11 @@ public final class SkillRunner {
                     if (age % 4 == 0) {
                         if (spec.teleportMode() == SkillSpec.TeleportMode.BEHIND) {
                             LivingEntity target = behindTarget(caster, spec, at);
-                            if (target != null) effects.playSkillTelegraphRing(this, target.getLocation(), 1.6, spec.look(), element);
+                            if (target != null && caster.owner() == null) effects.playSkillTelegraphRing(this, target.getLocation(), 1.6, spec.look(), element);
                         } else {
                             Location from = caster.location().add(0.0, 0.2, 0.0);
                             Location to = forwardSpot(caster, spec, at);
-                            if (to != null) effects.playSkillTelegraphLine(this, from, to.add(0.0, 0.2, 0.0), spec.look(), element);
+                            if (to != null && caster.owner() == null) effects.playSkillTelegraphLine(this, from, to.add(0.0, 0.2, 0.0), spec.look(), element);
                         }
                     }
                     age++;
@@ -602,7 +605,7 @@ public final class SkillRunner {
                         Location from = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.location().add(0.0, 1.0, 0.0);
                         Vector ahead = caster.location().getDirection().setY(0.0);
                         if (ahead.lengthSquared() > 1.0E-6) {
-                            effects.playSkillTelegraphLine(this, from, from.clone().add(ahead.normalize().multiply(Math.min(spec.range(), 10.0))), spec.look(), element);
+                            if (caster.owner() == null) effects.playSkillTelegraphLine(this, from, from.clone().add(ahead.normalize().multiply(Math.min(spec.range(), 10.0))), spec.look(), element);
                         }
                     }
                     age++;
@@ -689,7 +692,7 @@ public final class SkillRunner {
                     expand(caster, spec, where.get());
                     return;
                 }
-                if (age % 4 == 0) effects.playSkillTelegraphRing(this, where.get(), spec.radius(), spec.look(), element);
+                if (age % 4 == 0 && caster.owner() == null) effects.playSkillTelegraphRing(this, where.get(), spec.radius(), spec.look(), element);
                 age++;
             }
         }.runTaskTimer(plugin, 0L, 1L);
@@ -755,7 +758,7 @@ public final class SkillRunner {
                         Location start = fixed != null ? fixed.clone().add(0.0, PROJECTILE_HEIGHT, 0.0) : caster.eye().add(0.0, -0.3, 0.0);
                         Vector ahead = at.toVector().subtract(start.toVector());
                         if (ahead.lengthSquared() > 1.0E-6) {
-                            effects.playSkillTelegraphLine(this, start, start.clone().add(ahead.normalize().multiply(Math.min(spec.range(), 20.0))), spec.look(), element);
+                            if (caster.owner() == null) effects.playSkillTelegraphLine(this, start, start.clone().add(ahead.normalize().multiply(Math.min(spec.range(), 20.0))), spec.look(), element);
                         }
                     }
                     age++;
