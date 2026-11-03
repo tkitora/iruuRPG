@@ -48,6 +48,8 @@ public final class ProceduralModule implements Listener {
 
     private final JavaPlugin plugin;
     private final NamespacedKey toolKey;
+    /** (t246) The mark of the part wand. */
+    private final NamespacedKey wandKey;
     private final TreeStore store;
     private final ProceduralMenu menu;
     private final TreePreview preview;
@@ -76,6 +78,7 @@ public final class ProceduralModule implements Listener {
     private ProceduralModule(JavaPlugin plugin) {
         this.plugin = plugin;
         this.toolKey = new NamespacedKey(plugin, "tree_tool");
+        this.wandKey = new NamespacedKey(plugin, "house_wand");
         this.store = new TreeStore(plugin);
         store.installSamples();
         this.menu = new ProceduralMenu(this);
@@ -198,7 +201,8 @@ public final class ProceduralModule implements Listener {
         meta.displayName(Component.text("プロシージャルツール", NamedTextColor.GREEN, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
                 text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く。クモの巣のときは、クリックした面の先に点を置く (Shift+クリックで最後の点を消す)", NamedTextColor.GRAY),
-                text("空中を右クリック: 前回の場所の設定画面を開く", NamedTextColor.GRAY),
+                text("遠くのブロックも、見てクリックすれば同じ (t246。届くのは treetool.reach ブロック、初期値 96)", NamedTextColor.GRAY),
+                text("Shift+空中を右クリック (見える所にブロックがないときは、ただの右クリック): 前回の場所の設定画面を開く", NamedTextColor.GRAY),
                 text("設定画面の「生成」で、部位ごとに選んだブロックで作る", NamedTextColor.GRAY),
                 text("設定画面の「プレビュー」で、あなたにだけ見える試し置きを確かめられる", NamedTextColor.GRAY),
                 text("作った木は //undo で戻せる", NamedTextColor.GRAY),
@@ -243,7 +247,17 @@ public final class ProceduralModule implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND || !isTool(event.getItem())) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (isWand(event.getItem())) {
+            event.setCancelled(true);
+            if (!event.getPlayer().hasPermission("iruurpg.admin")) {
+                event.getPlayer().sendMessage(PREFIX + "この杖は管理者だけが使えます。");
+                return;
+            }
+            wand(event.getPlayer(), session(event.getPlayer()), event.getAction());
+            return;
+        }
+        if (!isTool(event.getItem())) return;
         event.setCancelled(true);
         Player player = event.getPlayer();
         if (!player.hasPermission("iruurpg.admin")) {
@@ -252,15 +266,27 @@ public final class ProceduralModule implements Listener {
         }
         TreeSession session = session(player);
         Action action = event.getAction();
-        if (session.settings.kind().web() && (action == Action.RIGHT_CLICK_BLOCK || action == Action.LEFT_CLICK_BLOCK)) {
-            webPoint(player, session, event.getClickedBlock(), event.getBlockFace());
+        Block target = event.getClickedBlock();
+        BlockFace targetFace = event.getBlockFace();
+        boolean air = action == Action.RIGHT_CLICK_AIR || action == Action.LEFT_CLICK_AIR;
+        if (air && !(action == Action.RIGHT_CLICK_AIR && player.isSneaking())) {
+            // (t246: a click in the air is a click on the block in sight, however far within the reach)
+            HousePointer.Hit hit = sight(player, session, false);
+            if (hit != null) {
+                target = player.getWorld().getBlockAt(hit.x(), hit.y(), hit.z());
+                targetFace = target.getFace(player.getWorld().getBlockAt(hit.beforeX(), hit.beforeY(), hit.beforeZ()));
+                air = false;
+            }
+        }
+        if (session.settings.kind().web() && !air) {
+            webPoint(player, session, target, targetFace);
             return;
         }
-        if (action == Action.RIGHT_CLICK_BLOCK || action == Action.LEFT_CLICK_BLOCK) {
-            Block clicked = event.getClickedBlock();
+        if (!air) {
+            Block clicked = target;
             if (clicked == null) return;
             session.clicked = clicked.getLocation();
-            session.face = event.getBlockFace() == null || event.getBlockFace() == BlockFace.SELF ? BlockFace.UP : event.getBlockFace();
+            session.face = targetFace == null || targetFace == BlockFace.SELF ? BlockFace.UP : targetFace;
             syncBase(session);
             if (session.base != null) {
                 org.bukkit.util.Vector toEye = player.getEyeLocation().toVector().subtract(session.base.toVector().add(new org.bukkit.util.Vector(0.5, 0.5, 0.5)));
@@ -270,12 +296,198 @@ public final class ProceduralModule implements Listener {
             menu.open(player);
         } else if (action == Action.RIGHT_CLICK_AIR) {
             if (session.base == null && !session.settings.kind().web()) {
-                player.sendMessage(PREFIX + "置きたい場所のブロックをクリックしてください。");
+                player.sendMessage(PREFIX + "置きたい場所のブロックをクリックしてください (遠くても見えていれば届きます)。");
                 return;
             }
             menu.open(player);
         }
     }
+
+    @EventHandler
+    public void onHeld(org.bukkit.event.player.PlayerItemHeldEvent event) {
+        refreshHighlightLater(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onSwap(org.bukkit.event.player.PlayerSwapHandItemsEvent event) {
+        refreshHighlightLater(event.getPlayer());
+    }
+
+    // ---- the block in sight, and the part wand (t246) ------------------------------------------------------------------------
+
+    /** How far the tool and the wand reach: the block in sight up to this many blocks ({@code treetool.reach}). */
+    double reach() {
+        return Math.max(8.0, Math.min(256.0, plugin.getConfig().getDouble("treetool.reach", 96.0)));
+    }
+
+    /** The block the player looks at within the reach (with {@code preview}, the blocks of the preview they are shown too), or null. */
+    HousePointer.Hit sight(Player player, TreeSession session, boolean preview) {
+        Location eye = player.getEyeLocation();
+        World world = player.getWorld();
+        org.bukkit.util.Vector direction = eye.getDirection();
+        boolean shown = preview && session.preview && world.equals(session.shownWorld);
+        return HousePointer.ray(eye.getX(), eye.getY(), eye.getZ(), direction.getX(), direction.getY(), direction.getZ(), reach(),
+                shown ? (x, y, z) -> TreePreview.shows(session, x, y, z) : null,
+                (x, y, z) -> y >= world.getMinHeight() && y < world.getMaxHeight() && world.isChunkLoaded(x >> 4, z >> 4) && solid(world.getBlockAt(x, y, z)));
+    }
+
+    private static boolean solid(Block block) {
+        return block.getType().isSolid() || block.isLiquid();
+    }
+
+    ItemStack wandItem() {
+        ItemStack item = new ItemStack(Material.BLAZE_ROD);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("パーツの杖", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
+        meta.lore(List.of(
+                text("家の土台のプレビューや地面を見て (遠くても) 使う。持っている間、選んだパーツはステンドグラスで見える", NamedTextColor.GRAY),
+                text("左クリック: 指したパーツを選ぶ (土台を指すと土台)", NamedTextColor.GRAY),
+                text("右クリック: 選んだパーツを、指した所へ動かす (いちばん近い面に付く)", NamedTextColor.GRAY),
+                text("Shift+右クリック: 選んだパーツと同じものを、指した所に足す (選んでいなければ棟)", NamedTextColor.GRAY),
+                text("Shift+左クリック: 選んだパーツを、指した所まで引き伸ばす (土台なら土台の幅と奥行き)", NamedTextColor.GRAY),
+                text("/proceduraltool wand でもらえる", NamedTextColor.DARK_GRAY)));
+        meta.getPersistentDataContainer().set(wandKey, PersistentDataType.BYTE, (byte) 1);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    boolean isWand(ItemStack item) {
+        if (item == null || item.getType() != Material.BLAZE_ROD || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(wandKey, PersistentDataType.BYTE);
+    }
+
+    void giveWand(Player player) {
+        for (ItemStack item : player.getInventory().getContents()) {
+            if (isWand(item)) {
+                player.sendMessage(PREFIX + "パーツの杖はもう持っています。");
+                return;
+            }
+        }
+        player.getInventory().addItem(wandItem()).values().forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
+        player.sendMessage(PREFIX + "パーツの杖を渡しました。家のプレビューを見て、左クリックで選ぶ / 右クリックで動かす / Shift+右クリックで足す / Shift+左クリックで引き伸ばす。");
+    }
+
+    /** The part of the house shown in glass now: the one chosen, while the player holds the wand or has the parts page open; -1 none. */
+    int highlight(Player player, TreeSession session) {
+        if (session.settings.kind() != ProcKind.HOUSE) return -1;
+        int index = session.module;
+        if (index < 0 || index >= session.settings.modules().size()) return -1;
+        return isWand(player.getInventory().getItemInMainHand()) || menu.onParts(player) ? index : -1;
+    }
+
+    /** The glass follows the part chosen (next tick, once the item in hand or the page open has changed). */
+    void refreshHighlightLater(Player player) {
+        TreeSession session = sessions.get(player.getUniqueId());
+        if (session == null || !session.preview || session.settings.kind() != ProcKind.HOUSE) return;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (player.isOnline() && session.preview && highlight(player, session) != session.highlighted) preview.touch(player);
+        });
+    }
+
+    /** The point {@code (x, y, z)} of the world in the house's own coordinates ({@code a}, height over its ground floor, {@code b}). */
+    private static double[] local(TreeSession session, TreeSettings s, int x, int y, int z) {
+        HouseShape.Placement placement = HouseShape.Placement.of(session.aim, s.getInt(TreeSettings.Key.HOUSE_ROTATION), s.getInt(TreeSettings.Key.HOUSE_WIDTH),
+                s.getInt(TreeSettings.Key.HOUSE_DEPTH));
+        int[] ab = placement.local(x - session.base.getBlockX(), z - session.base.getBlockZ());
+        return new double[]{ab[0], y - session.base.getBlockY() - s.getInt(TreeSettings.Key.HOUSE_RAISE), ab[1]};
+    }
+
+    /** A click with the part wand: choose (left), move (right), add (Shift+right) or stretch (Shift+left) at the place in sight. */
+    private void wand(Player player, TreeSession session, Action action) {
+        TreeSettings s = session.settings;
+        if (s.kind() != ProcKind.HOUSE || session.base == null || session.base.getWorld() == null || !session.base.getWorld().equals(player.getWorld())) {
+            player.sendMessage(PREFIX + "パーツの杖は、家の土台を置いてから使います (ツールでブロックをクリックして、作るものを「家の土台」に)。");
+            return;
+        }
+        if (!session.preview) {
+            preview.on(player);
+            player.sendMessage(PREFIX + "家が見えるように、プレビューをオンにしました。もう一度クリックしてください。");
+            return;
+        }
+        boolean left = action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK;
+        boolean sneak = player.isSneaking();
+        HousePointer.Hit hit = sight(player, session, true);
+        if (hit == null) {
+            player.sendMessage(PREFIX + "届く所 (" + (int) reach() + " ブロック) に、家も地面も見えません。");
+            return;
+        }
+        List<HouseModule> modules = s.modules();
+        if (session.module >= modules.size()) session.module = modules.size() - 1;
+        if (left && !sneak) {
+            choose(player, session, hit);
+            return;
+        }
+        double[] at = local(session, s, hit.beforeX(), hit.beforeY(), hit.beforeZ());
+        HouseShape.House house = new HouseShape.House(s);
+        HouseModule chosen = session.module >= 0 ? modules.get(session.module) : null;
+        String done;
+        if (left) {
+            if (chosen == null) {
+                HousePointer.stretchBase(s, at[0], at[2]);
+                done = "土台を 幅 " + s.getInt(TreeSettings.Key.HOUSE_WIDTH) + " / 奥行き " + s.getInt(TreeSettings.Key.HOUSE_DEPTH) + " にしました";
+            } else {
+                HousePointer.stretch(house, chosen, at[0], at[1], at[2]);
+                done = (session.module + 1) + ". " + chosen.type.label + " を 幅 " + chosen.width + " / 奥行き " + chosen.depth + " にしました";
+            }
+        } else if (sneak) {
+            if (modules.size() >= TreeSettings.MAX_MODULES) {
+                player.sendMessage(PREFIX + "パーツは " + TreeSettings.MAX_MODULES + " 個までです。");
+                return;
+            }
+            HouseModule made;
+            if (chosen != null) {
+                made = chosen.copy();
+                made.on = true;
+            } else {
+                // (nothing chosen: a volume as high as the house, the block a plan of several blocks is made of)
+                made = new HouseModule(HouseModule.Type.VOLUME);
+                made.height = s.getInt(TreeSettings.Key.HOUSE_FLOORS);
+            }
+            HousePointer.put(house, made, at[0], at[1], at[2]);
+            modules.add(made);
+            session.module = modules.size() - 1;
+            done = "足しました: " + modules.size() + ". " + made.type.label + " (" + HouseModule.sideLabel(made.side) + " / 横 " + made.along + " / 壁から " + made.offset + ")";
+        } else {
+            if (chosen == null) {
+                player.sendMessage(PREFIX + "動かすパーツを選んでください (杖でパーツを指して左クリック、または追加パーツのページ)。");
+                return;
+            }
+            HousePointer.put(house, chosen, at[0], at[1], at[2]);
+            done = "動かしました: " + (session.module + 1) + ". " + chosen.type.label + " (" + HouseModule.sideLabel(chosen.side) + " / 横 " + chosen.along + " / 壁から "
+                    + chosen.offset + (chosen.type.usesLevel() ? " / " + chosen.level + " 階から" : "") + ")";
+        }
+        changed(player);
+        menu.refresh(player);
+        player.sendMessage(PREFIX + done + "。");
+    }
+
+    /** Chooses the part of the preview's block in sight (its base: the base). */
+    private void choose(Player player, TreeSession session, HousePointer.Hit hit) {
+        TreeSession.HouseView view = session.view;
+        if (!hit.preview() || view == null || !view.world().equals(player.getWorld())) {
+            player.sendMessage(PREFIX + "選ぶには、プレビューの家を見てクリックしてください。");
+            return;
+        }
+        int[] ab = view.placement().local(hit.x() - view.x(), hit.z() - view.z());
+        int y = hit.y() - view.y();
+        Integer owner = view.owners().get(TreeVoxelizer.pack(ab[0], y, ab[1]));
+        // (a house turned by other than a right angle: a block of the house next to the one shown)
+        for (int da = -1; da <= 1 && owner == null; da++) {
+            for (int db = -1; db <= 1 && owner == null; db++) owner = view.owners().get(TreeVoxelizer.pack(ab[0] + da, y, ab[1] + db));
+        }
+        List<HouseModule> modules = session.settings.modules();
+        if (owner == null || owner >= modules.size()) {
+            session.module = -1;
+            player.sendMessage(PREFIX + "土台を選びました (Shift+左クリックで土台の大きさ、Shift+右クリックで棟を足す)。");
+        } else {
+            session.module = owner;
+            HouseModule chosen = modules.get(owner);
+            player.sendMessage(PREFIX + "選びました: " + (owner + 1) + ". " + chosen.type.label + " (右クリックで動かす / Shift+左クリックで引き伸ばす / Shift+右クリックで同じものを足す)。");
+        }
+        menu.refresh(player);
+        refreshHighlightLater(player);
+    }
+
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
@@ -440,6 +652,7 @@ public final class ProceduralModule implements Listener {
         session.design = session.designs.size() - 1;
         session.settings = made;
         session.autoSeed = false;
+        session.module = -1;
     }
 
     /** Goes to the house before or after in the list ({@code step} -1 or 1), keeping what was changed by hand in this one; false when there is none. */
@@ -451,6 +664,7 @@ public final class ProceduralModule implements Listener {
         session.design = next;
         session.settings = session.designs.get(next).copy();
         session.autoSeed = false;
+        session.module = -1;
         changed(player);
         return true;
     }

@@ -65,14 +65,46 @@ final class HouseShape {
 
     /** Makes the house of {@code s} into {@code blocks}: the base, its parts, the foundation down to {@code ground} (when asked and known), set in the world. */
     static void build(Blocks blocks, TreeSettings s, Vector aim, TreeGround ground) {
+        build(blocks, s, aim, ground, -1, null);
+    }
+
+    /**
+     * {@link #build(Blocks, TreeSettings, Vector, TreeGround)} for the preview (t246): the blocks of part {@code highlight} (its place in the list; -1 none)
+     * become {@link TreePart#HOUSE_SELECTED}, and {@code owners} (when not null) is given the part each block of the house is of, by the house's own
+     * coordinates (as {@link TreeVoxelizer#pack}, lifted with the podium; the base's blocks are not in it).
+     */
+    static void build(Blocks blocks, TreeSettings s, Vector aim, TreeGround ground, int highlight, Map<Long, Integer> owners) {
         House house = new House(s);
         Blocks local = new Blocks();
         house.body(local);
         Map<Long, Integer> ranks = new HashMap<>();
-        for (HouseModule module : s.modules()) {
-            if (module.on) house.module(local, ranks, module);
+        Map<Long, Integer> mine = owners == null && highlight < 0 ? null : new HashMap<>();
+        for (int index = 0; index < s.modules().size(); index++) {
+            HouseModule module = s.modules().get(index);
+            if (!module.on) continue;
+            Build build = house.module(local, ranks, module);
+            if (mine == null) continue;
+            // (a block is the part's that put it last, as it stands after the ranks; what a later part took away is nobody's)
+            for (long key : build.carved) mine.remove(key);
+            for (Map.Entry<Long, TreePart> entry : build.over.map.entrySet()) {
+                if (local.map.get(entry.getKey()) == entry.getValue()) mine.put(entry.getKey(), index);
+            }
         }
+        if (mine != null && highlight >= 0) {
+            for (Map.Entry<Long, Integer> entry : mine.entrySet()) {
+                if (entry.getValue() == highlight && local.map.containsKey(entry.getKey())) local.map.put(entry.getKey(), TreePart.HOUSE_SELECTED);
+            }
+        }
+        Blocks before = local;
         local = house.podium(local);
+        if (owners != null) {
+            // (the podium lifts the whole house when it is there)
+            int lift = local == before ? 0 : house.raise;
+            for (Map.Entry<Long, Integer> entry : mine.entrySet()) {
+                long key = entry.getKey();
+                owners.put(TreeVoxelizer.pack(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key) + lift, TreeVoxelizer.unpackZ(key)), entry.getValue());
+            }
+        }
         Placement placement = Placement.of(aim, s.getInt(TreeSettings.Key.HOUSE_ROTATION), house.width, house.depth);
         if (s.on(TreeSettings.Key.HOUSE_FOUNDATION) && ground != null) foundation(local, placement, ground);
         placement.place(local, blocks, house.thick());
@@ -446,7 +478,7 @@ final class HouseShape {
         }
 
         /** Builds one part on what is there ({@code out}: the base and the parts before it; {@code ranks}: the rank of the part each of their blocks is of). */
-        void module(Blocks out, Map<Long, Integer> ranks, HouseModule m) {
+        Build module(Blocks out, Map<Long, Integer> ranks, HouseModule m) {
             Build build = prepare(out, Build.tops(out), m);
             build.apply(ranks, rank(m.type));
             // (what of it stands on the ground: its lowest layer, for the podium; a volume's terrace and door)
@@ -460,6 +492,7 @@ final class HouseShape {
                 apronFloors.add(build.floor);
             }
             doors.addAll(build.doors);
+            return build;
         }
 
         /**

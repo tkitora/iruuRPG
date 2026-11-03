@@ -39,6 +39,16 @@ final class ProceduralShapes {
     /**
      * @param aim the way a spike or a crystal points (from the block looked at toward the player's eye), null for straight up; rocks stand on the ground and ignore it
      */
+    /**
+     * (t246) A house for the preview: part {@code highlight} (its place in the list; -1 none) in the glass of a part being edited, and {@code owners} given
+     * the part each block is of (see {@link HouseShape#build(Blocks, TreeSettings, Vector, TreeGround, int, Map)}).
+     */
+    static Map<Long, TreePart> house(TreeSettings s, TreeGround ground, Vector aim, int highlight, Map<Long, Integer> owners) {
+        Blocks blocks = new Blocks();
+        HouseShape.build(blocks, s, aim, ground, highlight, owners);
+        return blocks.map;
+    }
+
     static Map<Long, TreePart> build(ProcKind kind, TreeSettings s, long seed, Random random, TreeGround ground, Vector aim) {
         Blocks blocks = new Blocks();
         Frame frame = Frame.of(aim);

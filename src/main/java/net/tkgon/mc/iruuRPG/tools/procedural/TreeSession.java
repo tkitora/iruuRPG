@@ -33,6 +33,18 @@ final class TreeSession {
     /** A random house is being worked out off the main thread. */
     boolean designing;
 
+    // ---- editing the parts of a house (t246) ------------------------------------------------------------------------------
+    /** The part of the house chosen (its place in the list; -1 none, or the base when chosen with the wand): edited on the parts page and by the wand. */
+    int module = -1;
+    /** The part shown in glass by the preview now (-1 none): another one asked for redraws it. */
+    int highlighted = -1;
+    /** What the preview of a house last showed, for the wand to tell which part a block is of; null when there is none. */
+    HouseView view;
+
+    /** A house as the preview showed it: where it stood, how it was turned, how high its podium lifted it, and the part each block is of (its own coordinates). */
+    record HouseView(World world, int x, int y, int z, HouseShape.Placement placement, int raise, Map<Long, Integer> owners) {
+    }
+
     // ---- the preview (see TreePreview) ----------------------------------------------------------------------------------
     /** The preview is on. */
     boolean preview;

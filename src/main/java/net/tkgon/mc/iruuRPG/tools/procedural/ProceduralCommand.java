@@ -15,7 +15,7 @@ import java.util.Locale;
 final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("kind", "give", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
+    private static final List<String> SUBS = List.of("kind", "give", "wand", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
             "random");
 
     private final ProceduralModule tool;
@@ -45,6 +45,8 @@ final class ProceduralCommand implements TabExecutor {
                 }
             }
             case "give", "on" -> tool.give(player);
+            // (t246) the part wand: point at the house to choose, move, add and stretch its parts
+            case "wand" -> tool.giveWand(player);
             case "off", "remove" -> tool.take(player);
             case "menu" -> {
                 if (session.base == null) player.sendMessage(PREFIX + "置きたい場所のブロックを、ツールでクリックしてください。");
@@ -103,7 +105,7 @@ final class ProceduralCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/proceduraltool [give|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]]");
         }
         return true;
     }
