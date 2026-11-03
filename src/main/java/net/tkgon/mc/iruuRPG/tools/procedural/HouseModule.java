@@ -93,8 +93,9 @@ final class HouseModule {
 
     static final int MIN_ALONG = -30;
     static final int MAX_ALONG = 30;
-    static final int MIN_OFFSET = -10;
-    static final int MAX_OFFSET = 10;
+    // (t185: ±20, so a tower can stand in the middle of a large house, or at the end of a long wing)
+    static final int MIN_OFFSET = -20;
+    static final int MAX_OFFSET = 20;
     static final int MAX_WIDTH = 25;
     static final int MAX_DEPTH = 20;
     static final int MAX_HEIGHT = 30;

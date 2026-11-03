@@ -25,6 +25,14 @@ final class TreeSession {
     /** A tree is being put in the world. */
     boolean busy;
 
+    // ---- the random houses (t185, see HouseDesigner) --------------------------------------------------------------------
+    /** The houses made at random, oldest first (the settings before the first one are the first): the ones to go back to. */
+    final java.util.List<TreeSettings> designs = new java.util.ArrayList<>();
+    /** Which of {@link #designs} the settings are (-1: none yet). */
+    int design = -1;
+    /** A random house is being worked out off the main thread. */
+    boolean designing;
+
     // ---- the preview (see TreePreview) ----------------------------------------------------------------------------------
     /** The preview is on. */
     boolean preview;

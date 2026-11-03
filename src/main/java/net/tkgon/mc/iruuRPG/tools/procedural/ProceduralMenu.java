@@ -70,6 +70,16 @@ final class ProceduralMenu implements Listener {
     private static final int M_ON = 38;
     private static final int M_COPY = 39;
     private static final int M_DELETE = 41;
+    // the roof page of a roof of steps (t185): the steps from the eaves to the ridge, the shapes to choose from, the section of this house
+    private static final int[] STEP_SLOTS = {28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41};
+    private static final int STEP_PRESET = 24;
+    private static final int STEP_VIEW = 25;
+    // the page of the random houses (t185)
+    private static final int D_BACK = 11;
+    private static final int D_NEW = 12;
+    private static final int D_PARTS = 13;
+    private static final int D_NEXT = 14;
+    private static final int D_GUIDE = 16;
 
     /** The pages: the slot of the tab, its icon and name, and the numbers it holds. */
     enum Page {
@@ -83,7 +93,11 @@ final class ProceduralMenu implements Listener {
         ROOF(4, Material.RED_WOOL, "屋根", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG,
                 TreeSettings.Key.HOUSE_RIDGE}),
         /** (t181) the parts added on a house (HouseModule): its own buttons, no numbers of the settings. */
-        MODULES(5, Material.SPRUCE_TRAPDOOR, "追加パーツ", new TreeSettings.Key[]{});
+        MODULES(5, Material.SPRUCE_TRAPDOOR, "追加パーツ", new TreeSettings.Key[]{}),
+        /** (t185) the random houses (HouseDesigner): the rules, and the buttons that make one and go back. */
+        DESIGN(6, Material.NETHER_STAR, "おまかせ生成", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_GEN_PATTERN, TreeSettings.Key.HOUSE_GEN_SIZE,
+                TreeSettings.Key.HOUSE_GEN_DETAIL, TreeSettings.Key.HOUSE_GEN_SYMMETRY, TreeSettings.Key.HOUSE_GEN_TOWERS, TreeSettings.Key.HOUSE_GEN_OVERLAP,
+                TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK});
 
         final int tab;
         final Material icon;
@@ -103,7 +117,7 @@ final class ProceduralMenu implements Listener {
             return switch (this) {
                 case BASIC -> true;
                 case SHAPE -> !kind.tree();
-                case ROOF, MODULES -> kind == ProcKind.HOUSE;
+                case ROOF, MODULES, DESIGN -> kind == ProcKind.HOUSE;
                 case BRANCH -> kind.tree() && !settings.grows("palm");
                 default -> kind.tree();
             };
@@ -115,6 +129,11 @@ final class ProceduralMenu implements Listener {
             // (a web has no height and width: the points decide how big it is; a tree is as big as its own numbers make it)
             if (this == BASIC && (kind.web() || kind.tree() || kind == ProcKind.HOUSE)) return new TreeSettings.Key[]{};
             if (kind.tree() && this != BASIC) return treeKeys(settings.algorithm(), this);
+            // (a roof of steps has one more: how its steps fit the house)
+            if (this == ROOF && stepped(settings)) {
+                return new TreeSettings.Key[]{TreeSettings.Key.HOUSE_ROOF, TreeSettings.Key.HOUSE_PITCH, TreeSettings.Key.HOUSE_OVERHANG, TreeSettings.Key.HOUSE_RIDGE,
+                        TreeSettings.Key.HOUSE_STEP_FIT};
+            }
             if (this != SHAPE) return keys;
             return switch (kind) {
                 case WEB -> new TreeSettings.Key[]{TreeSettings.Key.WEB_RINGS, TreeSettings.Key.WEB_SPOKES, TreeSettings.Key.WEB_SAG, TreeSettings.Key.WEB_IRREG, TreeSettings.Key.WEB_REACH};
@@ -124,11 +143,17 @@ final class ProceduralMenu implements Listener {
                 case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.CRYSTAL_FACETS, TreeSettings.Key.CRYSTAL_TIP, TreeSettings.Key.CRYSTAL_THICK, TreeSettings.Key.CRYSTAL_VARIANCE,
                         TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
                 case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
-                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY, TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_TIMBER,
-                        TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
+                        TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_PILLAR_MIRROR, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY, TreeSettings.Key.HOUSE_STONE,
+                        TreeSettings.Key.HOUSE_TIMBER, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION};
                 default -> new TreeSettings.Key[]{};
             };
         }
+    }
+
+    /** Whether the house's roof is one of steps (9, 10: its section from the steps). */
+    static boolean stepped(TreeSettings settings) {
+        int roof = settings.getInt(TreeSettings.Key.HOUSE_ROOF);
+        return settings.kind() == ProcKind.HOUSE && (roof == 9 || roof == 10);
     }
 
     /** The numbers of a page of a tree grown by {@code algorithm}. */
@@ -184,6 +209,16 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_JETTY, Material.DARK_OAK_SLAB);
         ICONS.put(TreeSettings.Key.HOUSE_STONE, Material.COBBLESTONE);
         ICONS.put(TreeSettings.Key.HOUSE_TIMBER, Material.STRIPPED_SPRUCE_LOG);
+        ICONS.put(TreeSettings.Key.HOUSE_PILLAR_MIRROR, Material.ARMOR_STAND);
+        ICONS.put(TreeSettings.Key.HOUSE_STEP_FIT, Material.SCAFFOLDING);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_PATTERN, Material.PAINTING);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_SIZE, Material.PISTON);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_DETAIL, Material.CHEST);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_SYMMETRY, Material.ARMOR_STAND);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_TOWERS, Material.CHISELED_STONE_BRICKS);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_OVERLAP, Material.SLIME_BLOCK);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_ROOF, Material.RED_WOOL);
+        ICONS.put(TreeSettings.Key.HOUSE_GEN_LOOK, Material.STRIPPED_SPRUCE_LOG);
         ICONS.put(TreeSettings.Key.HEIGHT, Material.LADDER);
         ICONS.put(TreeSettings.Key.WIDTH, Material.LEAD);
         ICONS.put(TreeSettings.Key.CURVE, Material.CHAIN);
@@ -321,11 +356,25 @@ final class ProceduralMenu implements Listener {
         };
     }
 
+    /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
+    private static boolean named(TreeSettings.Key key) {
+        return switch (key) {
+            case HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_OVERLAP -> true;
+            default -> false;
+        };
+    }
+
     private static String number(TreeSettings.Key key, double value) {
         if (key.toggle()) return value >= 0.5 ? "オン" : "オフ";
         if (key == TreeSettings.Key.HOUSE_ROOF) return HouseShape.roofName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_RIDGE) return HouseShape.ridgeName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_ROTATION) return (int) Math.round(value) + "°";
+        int whole = (int) Math.round(value);
+        if (key == TreeSettings.Key.HOUSE_GEN_PATTERN) return HouseDesigner.Pattern.of(whole).label;
+        if (key == TreeSettings.Key.HOUSE_GEN_SIZE) return HouseDesigner.sizeName(whole);
+        if (key == TreeSettings.Key.HOUSE_GEN_SYMMETRY) return HouseDesigner.symmetryName(whole);
+        if (key == TreeSettings.Key.HOUSE_GEN_TOWERS) return HouseDesigner.towersName(whole);
+        if (key == TreeSettings.Key.HOUSE_GEN_OVERLAP) return HouseDesigner.overlapName(whole);
         return key.whole() ? Integer.toString((int) Math.round(value)) : String.format(Locale.ROOT, "%.2f", value);
     }
 
@@ -357,11 +406,13 @@ final class ProceduralMenu implements Listener {
 
         if (page == Page.BASIC) renderBasic(player, inventory, session, settings);
         else if (page == Page.MODULES) renderModules(inventory, holder, settings);
+        else if (page == Page.DESIGN) renderDesign(inventory, session, settings);
         else inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
                 text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
                 text("プレビュー中は、変えて 0.75 秒後に木が変わる", NamedTextColor.GRAY))));
         if (page == Page.LEAF) renderShades(inventory, holder, settings);
+        if (page == Page.ROOF && stepped(settings)) renderSteps(inventory, settings);
 
         TreeSettings.Key[] shownKeys = page.keysFor(settings);
         for (int index = 0; index < shownKeys.length; index++) {
@@ -371,6 +422,10 @@ final class ProceduralMenu implements Listener {
             if (key.toggle()) {
                 lore.add(text("現在: " + number(key, settings.get(key)), NamedTextColor.WHITE));
                 lore.add(text("クリックで切り替え", NamedTextColor.YELLOW));
+            } else if (named(key)) {
+                // (a setting whose numbers are names: a click goes to the next name, not "+ a name")
+                lore.add(text("現在: " + number(key, settings.get(key)) + "  (" + number(key, key.min()) + " 〜 " + number(key, key.max()) + ")", NamedTextColor.WHITE));
+                lore.add(text("左クリック: 次 / 右クリック: 前", NamedTextColor.YELLOW));
             } else {
                 lore.add(text("現在: " + number(key, settings.get(key)) + "  (" + number(key, key.min()) + " 〜 " + number(key, key.max()) + ")", NamedTextColor.WHITE));
                 lore.add(text("左クリック +" + number(key, key.step()) + " / 右クリック -" + number(key, key.step()), NamedTextColor.YELLOW));
@@ -620,6 +675,27 @@ final class ProceduralMenu implements Listener {
                 return;
             }
         }
+        if (holder.page == Page.ROOF && stepped(settings) && stepClick(settings, slot, left, big)) {
+            tool.changed(player);
+            render(player, holder);
+            return;
+        }
+        if (holder.page == Page.DESIGN) {
+            switch (slot) {
+                case D_NEW, D_PARTS -> {
+                    // (the house comes a moment later, off the main thread: the menu is shown again then)
+                    tool.design(player, slot == D_PARTS, 0L);
+                    return;
+                }
+                case D_BACK, D_NEXT -> {
+                    if (!tool.stepDesign(player, slot == D_NEXT ? 1 : -1)) player.sendMessage(ProceduralModule.PREFIX + (slot == D_NEXT ? "次の案はありません。" : "前の案はありません。"));
+                    render(player, holder);
+                    return;
+                }
+                default -> {
+                }
+            }
+        }
         if (holder.page == Page.SHAPE && settings.kind() == ProcKind.CRYSTAL && slot == GRID[13]) {
             settings.cycleCrystalType(left);
             tool.changed(player);
@@ -656,6 +732,162 @@ final class ProceduralMenu implements Listener {
             }
         }
         render(player, holder);
+    }
+
+    /** Shows the menu again when the player has it open (a random house came in). */
+    void refresh(Player player) {
+        if (player.getOpenInventory().getTopInventory().getHolder() instanceof Holder holder) render(player, holder);
+    }
+
+    /**
+     * The page of the random houses (t185): the rules under (the pattern, the size, how many parts, the same both ways or not, the towers, how much the
+     * parts may cover each other, whether the roof and the look are chosen too), and over them the buttons: a new house, new parts on this base, and back
+     * and forth through the houses made (the one shown keeps what was changed by hand).
+     */
+    private void renderDesign(Inventory inventory, TreeSession session, TreeSettings settings) {
+        HouseDesigner.Pattern pattern = HouseDesigner.Pattern.of(settings.getInt(TreeSettings.Key.HOUSE_GEN_PATTERN));
+        boolean any = !session.designs.isEmpty() && session.design >= 0;
+        inventory.setItem(INFO, item(Material.NETHER_STAR, "おまかせ生成", NamedTextColor.GOLD, List.of(
+                text("パターンと下の決まりで、家の土台・屋根・追加パーツを組み合わせて作る", NamedTextColor.GRAY),
+                text("パーツは重なりを調べて置く。毎回 " + HouseDesigner.TRIES + " 通り作って、いちばんよいものを残す", NamedTextColor.GRAY),
+                text("できた家は、手で作った家と同じ。形・屋根・追加パーツのページで、そのまま続きを編集できる", NamedTextColor.GRAY),
+                text(any ? "いまの案: " + (session.design + 1) + " / " + session.designs.size() : "まだ案はありません", NamedTextColor.WHITE),
+                text(settings.designSeed() > 0L ? "この家の seed: " + settings.designSeed() + " (/proceduraltool random <パターン> <seed> で同じ家)" : "この家は、おまかせ生成で作ったものではありません", NamedTextColor.WHITE))));
+        boolean back = any && session.design > 0;
+        boolean next = any && session.design < session.designs.size() - 1;
+        inventory.setItem(D_BACK, item(back ? Material.SPECTRAL_ARROW : Material.GRAY_DYE, "◀ 前の案", back ? NamedTextColor.AQUA : NamedTextColor.GRAY, List.of(
+                text("ひとつ前に作った案に戻る (いまの案は、手で変えた所ごと残る)", NamedTextColor.GRAY),
+                text("最初の案の前は、おまかせ生成を使う前の設定", NamedTextColor.GRAY))));
+        inventory.setItem(D_NEW, item(Material.NETHER_STAR, "新しい案を出す", NamedTextColor.GREEN, List.of(
+                text("「" + pattern.label + "」で、土台・屋根・追加パーツを全部作る", NamedTextColor.GRAY),
+                text("屋根・外観のおまかせをオフにすると、その部分は今のまま", NamedTextColor.GRAY),
+                text("気に入らなければ何度でも。戻るのは ◀ (" + ProceduralModule.MAX_DESIGNS + " 案まで)", NamedTextColor.GRAY),
+                text("クリックで作る", NamedTextColor.YELLOW))));
+        inventory.setItem(D_PARTS, item(Material.SPRUCE_TRAPDOOR, "パーツだけ振り直す", NamedTextColor.GREEN, List.of(
+                text("土台 (形・屋根) は今のままで、追加パーツだけを「" + pattern.label + "」の決まりで作り直す", NamedTextColor.GRAY),
+                text("いまの追加パーツは、新しいものに置き換わる (◀ で戻せる)", NamedTextColor.GRAY),
+                text("クリックで作る", NamedTextColor.YELLOW))));
+        inventory.setItem(D_NEXT, item(next ? Material.SPECTRAL_ARROW : Material.GRAY_DYE, "次の案 ▶", next ? NamedTextColor.AQUA : NamedTextColor.GRAY, List.of(
+                text("◀ で戻ったあと、後の案へ進む", NamedTextColor.GRAY))));
+        List<Component> guide = new ArrayList<>();
+        for (HouseDesigner.Pattern each : HouseDesigner.Pattern.values()) {
+            guide.add(text((each == pattern ? "▶ " : "   ") + each.label, each == pattern ? NamedTextColor.GOLD : NamedTextColor.WHITE));
+            guide.add(text("      " + each.description, NamedTextColor.GRAY));
+        }
+        guide.add(text("パターンは下の段の絵で選ぶ (左クリック: 次 / 右クリック: 前)", NamedTextColor.YELLOW));
+        inventory.setItem(D_GUIDE, item(Material.BOOK, "パターン: " + pattern.label, NamedTextColor.GOLD, guide));
+    }
+
+    /**
+     * The steps of a roof of steps on the roof page (t185): one item a step from the eaves to the ridge (as many as the step is high), one to add a step, the
+     * shapes to choose from, and the section the steps give this house.
+     */
+    private void renderSteps(Inventory inventory, TreeSettings settings) {
+        List<Integer> steps = settings.roofSteps();
+        for (int index = 0; index < STEP_SLOTS.length; index++) {
+            if (index < steps.size()) {
+                int value = steps.get(index);
+                ItemStack step = item(value == 0 ? Material.GRAY_STAINED_GLASS_PANE : Material.RED_WOOL, "段 " + (index + 1) + ": " + value, NamedTextColor.GREEN, List.of(
+                        text(index == 0 ? "軒の列 (2 以上で、軒がその分だけ下へ垂れる)" : index == steps.size() - 1 ? "棟の列 (いちばん上)" : "軒から " + (index + 1) + " 列目", NamedTextColor.GRAY),
+                        text("その列で屋根が何ブロック上がるか (見える段の高さ)", NamedTextColor.GRAY),
+                        text("左クリック +1 / 右クリック -1 (0 〜 " + TreeSettings.MAX_STEP + ")", NamedTextColor.YELLOW),
+                        text("Shift+左クリック: この段を複製 / Shift+右クリック: この段を消す", NamedTextColor.YELLOW)));
+                step.setAmount(Math.max(1, value));
+                inventory.setItem(STEP_SLOTS[index], step);
+            } else if (index == steps.size()) {
+                inventory.setItem(STEP_SLOTS[index], item(Material.LIME_STAINED_GLASS_PANE, "＋ 段を足す", NamedTextColor.GREEN, List.of(
+                        text("棟の側に 1 段足す (いまの棟の段と同じ高さ)", NamedTextColor.GRAY),
+                        text("クリックで足す (最大 " + TreeSettings.MAX_STEPS + " 段)", NamedTextColor.YELLOW))));
+            }
+        }
+        List<Component> presets = new ArrayList<>();
+        presets.add(text("決まった段の形から選ぶ (選んだあと、下の段で細かく変えられる)", NamedTextColor.GRAY));
+        for (HouseShape.StepPreset preset : HouseShape.STEP_PRESETS) {
+            boolean here = preset.steps().equals(steps);
+            presets.add(text((here ? "▶ " : "   ") + preset.label() + ": " + joined(preset.steps()), here ? NamedTextColor.GOLD : NamedTextColor.WHITE));
+        }
+        presets.add(text("左クリック: 次の形 / 右クリック: 前の形", NamedTextColor.YELLOW));
+        presets.add(text("(コマンド: /proceduraltool set house-roof-steps 1 1 1 2 3 3 3 2 1 1 1 のように断面全体でも)", NamedTextColor.DARK_GRAY));
+        inventory.setItem(STEP_PRESET, item(Material.BOOK, "段の形を選ぶ", NamedTextColor.GOLD, presets));
+        inventory.setItem(STEP_VIEW, item(Material.PAINTING, "この家の屋根の断面", NamedTextColor.GOLD, section(settings)));
+    }
+
+    private static String joined(List<Integer> values) {
+        StringBuilder text = new StringBuilder();
+        for (int value : values) text.append(text.isEmpty() ? "" : " ").append(value);
+        return text.toString();
+    }
+
+    /** The section of the house's roof of steps, across its ridge: the steps of each column, the heights, and a picture of it. */
+    private static List<Component> section(TreeSettings settings) {
+        HouseShape.Steps steps = HouseShape.Steps.of(settings.roofSteps(), settings.on(TreeSettings.Key.HOUSE_STEP_FIT));
+        int width = settings.getInt(TreeSettings.Key.HOUSE_WIDTH);
+        int depth = settings.getInt(TreeSettings.Key.HOUSE_DEPTH) + 2 * Math.min(3, Math.max(0, settings.getInt(TreeSettings.Key.HOUSE_FLOORS) - 1) * settings.getInt(TreeSettings.Key.HOUSE_JETTY));
+        int overhang = settings.getInt(TreeSettings.Key.HOUSE_OVERHANG);
+        int spanA = width - 1 + 2 * overhang;
+        int spanB = depth - 1 + 2 * overhang;
+        int ridge = settings.getInt(TreeSettings.Key.HOUSE_RIDGE);
+        boolean alongA = ridge == 1 || ridge == 0 && spanA >= spanB;
+        int span = settings.getInt(TreeSettings.Key.HOUSE_ROOF) == 10 ? Math.min(spanA, spanB) : alongA ? spanB : spanA;
+        int reach = span / 2;
+        int[] heights = new int[span + 1];
+        StringBuilder shown = new StringBuilder();
+        StringBuilder high = new StringBuilder();
+        for (int column = 0; column <= span; column++) {
+            int d = Math.min(column, span - column);
+            heights[column] = steps.rise(d, reach);
+            int step = d == 0 ? steps.at(0, reach) : heights[column] - steps.rise(d - 1, reach);
+            shown.append(column == 0 ? "" : " ").append(step);
+            high.append(column == 0 ? "" : " ").append(heights[column]);
+        }
+        List<Component> lore = new ArrayList<>();
+        lore.add(text("棟と直角に切った断面 (軒の出を含めて " + (span + 1) + " 列)", NamedTextColor.GRAY));
+        lore.add(text("段: " + shown, NamedTextColor.WHITE));
+        lore.add(text("高さ: " + high, NamedTextColor.WHITE));
+        int top = 0;
+        for (int h : heights) top = Math.max(top, h);
+        int scale = Math.max(1, (int) Math.ceil(top / 12.0));
+        for (int row = top / scale; row >= 0; row--) {
+            StringBuilder line = new StringBuilder();
+            for (int h : heights) line.append(h >= row * scale ? "█" : "░");
+            lore.add(text(line.toString(), NamedTextColor.RED));
+        }
+        if (scale > 1) lore.add(text("(高いので、1 行 = " + scale + " ブロック)", NamedTextColor.DARK_GRAY));
+        return lore;
+    }
+
+    /** A click on the steps of a roof of steps (the roof page); false when it was on none of them. */
+    private static boolean stepClick(TreeSettings settings, int slot, boolean left, boolean big) {
+        List<Integer> steps = new ArrayList<>(settings.roofSteps());
+        if (slot == STEP_PRESET) {
+            List<HouseShape.StepPreset> presets = HouseShape.STEP_PRESETS;
+            int current = -1;
+            for (int index = 0; index < presets.size(); index++) if (presets.get(index).steps().equals(steps)) current = index;
+            int next = current < 0 ? (left ? 0 : presets.size() - 1) : Math.floorMod(current + (left ? 1 : -1), presets.size());
+            settings.setRoofSteps(presets.get(next).steps());
+            return true;
+        }
+        for (int index = 0; index < STEP_SLOTS.length; index++) {
+            if (STEP_SLOTS[index] != slot) continue;
+            if (index < steps.size()) {
+                if (big && left) {
+                    if (steps.size() >= TreeSettings.MAX_STEPS) return false;
+                    steps.add(index + 1, steps.get(index));
+                } else if (big) {
+                    if (steps.size() <= 1) return false;
+                    steps.remove(index);
+                } else {
+                    steps.set(index, Math.max(0, Math.min(TreeSettings.MAX_STEP, steps.get(index) + (left ? 1 : -1))));
+                }
+            } else if (index == steps.size() && steps.size() < TreeSettings.MAX_STEPS) {
+                steps.add(steps.get(steps.size() - 1));
+            } else {
+                return false;
+            }
+            settings.setRoofSteps(steps);
+            return true;
+        }
+        return false;
     }
 
     /** The item that stands for a kind of part of a house. */

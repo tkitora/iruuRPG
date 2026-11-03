@@ -291,6 +291,109 @@ class HouseShapeTest {
         assertNotEquals(base, withMore);
     }
 
+    /** How many roof blocks each column across the ridge has, at {@code x} (the front faces south: the section runs along z). */
+    private static String section(Map<Long, TreePart> blocks, int x, int fromZ, int toZ) {
+        StringBuilder text = new StringBuilder();
+        for (int z = fromZ; z <= toZ; z++) {
+            int roof = 0;
+            for (int y = -5; y < 60; y++) if (at(blocks, x, y, z) == TreePart.HOUSE_ROOF) roof++;
+            text.append(z == fromZ ? "" : " ").append(roof);
+        }
+        return text.toString();
+    }
+
+    @Test
+    void theRoofOfStepsHasTheSectionItIsGiven() {
+        // nekorozv's "1 1 1 2 3 3 3 2 1 1 1": 9 deep and out by 1 is 11 columns; its half from the eaves to the ridge is the steps
+        HouseShape.Steps steps = HouseShape.Steps.of(List.of(1, 1, 1, 2, 3, 3), true);
+        int[] heights = new int[11];
+        for (int b = 0; b <= 10; b++) heights[b] = HouseShape.roofRise(9, 1, 3, b, 0, 10, 0, 10, 1.0, steps);
+        assertEquals(List.of(0, 1, 2, 4, 7, 10, 7, 4, 2, 1, 0), java.util.Arrays.stream(heights).boxed().toList());
+        TreeSettings settings = house(9, 9, 1, 4, 9);
+        settings.set(TreeSettings.Key.HOUSE_OVERHANG, 1);
+        settings.set(TreeSettings.Key.HOUSE_RIDGE, 1);
+        assertEquals("1 1 1 2 3 3 3 2 1 1 1", section(build(settings, SOUTH), 0, -5, 5));
+        // the hip of steps rises the same way from all four sides
+        settings.set(TreeSettings.Key.HOUSE_ROOF, 10);
+        Map<Long, TreePart> hip = build(settings, SOUTH);
+        assertEquals("1 1 1 2 3 3 3 2 1 1 1", section(hip, 0, -5, 5));
+        assertEquals(highest(hip, TreePart.HOUSE_ROOF), 4 + 10);
+        // fitted to a narrower roof the steps are squeezed (the sharp top kept); not fitted they are laid from the ridge out
+        assertEquals(6, HouseShape.roofRise(9, 1, 0, 3, 0, 6, 0, 6, 1.0, steps));
+        assertEquals(8, HouseShape.roofRise(9, 1, 0, 3, 0, 6, 0, 6, 1.0, HouseShape.Steps.of(List.of(1, 1, 1, 2, 3, 3), false)));
+        // a first step over 1 hangs the eaves down
+        settings.set(TreeSettings.Key.HOUSE_ROOF, 9);
+        settings.setRoofSteps(List.of(2, 1, 1, 2, 3, 3));
+        Map<Long, TreePart> hanging = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_ROOF, at(hanging, 0, 3, 5));
+        assertEquals("2 1 1 2 3 3 3 2 1 1 2", section(hanging, 0, -5, 5));
+        // a dormer and a tower on a roof of steps take its steps (the tower's cone half as steep again)
+        TreeSettings parts = house(9, 9, 1, 4, 9);
+        parts.set(TreeSettings.Key.HOUSE_OVERHANG, 1);
+        parts.set(TreeSettings.Key.HOUSE_RIDGE, 1);
+        module(parts, HouseModule.Type.TOWER, 3);
+        assertTrue(highest(build(parts, SOUTH), TreePart.HOUSE_ROOF) > 4 + 10);
+    }
+
+    @Test
+    void theStepsAreReadAsTheyAreWrittenAndKept() {
+        assertEquals(List.of(1, 1, 1, 2, 3, 3), TreeSettings.parseSteps("1 1 1 2 3 3 3 2 1 1 1"));
+        assertEquals(List.of(1, 1, 2, 3), TreeSettings.parseSteps("1,1,2,3"));
+        assertEquals(List.of(1, 2, 2, 1), TreeSettings.parseSteps("1 2 2 1"));
+        assertNull(TreeSettings.parseSteps("1 a 2"));
+        TreeSettings settings = house(9, 9, 1, 4, 9);
+        settings.setRoofSteps(List.of(2, 1, 9, 0, -3));
+        assertEquals(List.of(2, 1, TreeSettings.MAX_STEP, 0, 0), settings.roofSteps());
+        settings.setRoofSteps(List.of());
+        assertEquals(TreeSettings.DEFAULT_STEPS, settings.roofSteps());
+        settings.setRoofSteps(List.of(1, 2, 3, 4));
+        settings.setDesignSeed(4242L);
+        TreeSettings read = TreeSettings.fromMap(settings.toMap(), "house");
+        assertEquals(List.of(1, 2, 3, 4), read.roofSteps());
+        assertEquals(4242L, read.designSeed());
+        assertEquals(List.of(1, 2, 3, 4), settings.copy().roofSteps());
+    }
+
+    @Test
+    void theTurnGoesRoundOneDegreeAtATime() {
+        TreeSettings settings = house(11, 9, 1, 4, 1);
+        settings.adjust(TreeSettings.Key.HOUSE_ROTATION, -TreeSettings.Key.HOUSE_ROTATION.step());
+        assertEquals(359, settings.getInt(TreeSettings.Key.HOUSE_ROTATION));
+        settings.adjust(TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_ROTATION.bigStep());
+        assertEquals(4, settings.getInt(TreeSettings.Key.HOUSE_ROTATION));
+        // a small turn: about as many blocks, the walls of a layer touching along a face
+        settings.set(TreeSettings.Key.HOUSE_ROTATION, 7);
+        Map<Long, TreePart> slanted = build(settings, SOUTH);
+        Map<Long, TreePart> square = build(house(11, 9, 1, 4, 1), SOUTH);
+        assertTrue(slanted.size() > square.size() * 0.8 && slanted.size() < square.size() * 1.6, slanted.size() + " vs " + square.size());
+        for (Map.Entry<Long, TreePart> entry : slanted.entrySet()) {
+            int x = TreeVoxelizer.unpackX(entry.getKey());
+            int y = TreeVoxelizer.unpackY(entry.getKey());
+            int z = TreeVoxelizer.unpackZ(entry.getKey());
+            for (int dz = -1; dz <= 1; dz += 2) {
+                if (!slanted.containsKey(TreeVoxelizer.pack(x + 1, y, z + dz))) continue;
+                assertTrue(slanted.containsKey(TreeVoxelizer.pack(x + 1, y, z)) || slanted.containsKey(TreeVoxelizer.pack(x, y, z + dz)), "edge only at " + x + "," + y + "," + z);
+            }
+        }
+    }
+
+    @Test
+    void pillarsCountedFromBothCornersAreTheSameBothWays() {
+        // 15 wide, a pillar every 4: from the left corner 0 4 8 12 14; from both corners 0 4 10 14, and the door in the middle
+        TreeSettings settings = house(15, 9, 2, 4, 1);
+        settings.set(TreeSettings.Key.HOUSE_PILLARS, 4);
+        assertEquals(TreePart.HOUSE_PILLAR, at(build(settings, SOUTH), 1, 5, 4));
+        settings.set(TreeSettings.Key.HOUSE_PILLAR_MIRROR, 1);
+        Map<Long, TreePart> blocks = build(settings, SOUTH);
+        assertEquals(TreePart.HOUSE_PILLAR, at(blocks, -3, 5, 4));
+        assertEquals(TreePart.HOUSE_PILLAR, at(blocks, 3, 5, 4));
+        assertNull(at(blocks, 0, 1, 4));
+        for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
+            int x = TreeVoxelizer.unpackX(entry.getKey());
+            assertEquals(entry.getValue(), blocks.get(TreeVoxelizer.pack(-x, TreeVoxelizer.unpackY(entry.getKey()), TreeVoxelizer.unpackZ(entry.getKey()))), "at " + x);
+        }
+    }
+
     @Test
     void thePartsAreSavedAndCopiedWithTheSettings() {
         TreeSettings settings = house(11, 9, 2, 4, 6);
