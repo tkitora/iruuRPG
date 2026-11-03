@@ -737,9 +737,16 @@ final class HouseShape {
                     if (d <= eaves) {
                         int rise;
                         int thick;
-                        // (a round cone is a witch's hat; an octagonal one less steep; a square one a pyramid about as steep as the house's roof)
+                        // (a round cone is a witch's hat; an octagonal one less steep; a square one a pyramid about as steep as the house's roof;
+                        // t239: all of them higher by the spire, up to two and a half times)
                         double sharp = shape == 2 ? 1.25 / 2.5 : shape == 1 ? 2.0 / 2.5 : 1.0;
-                        if (stepped()) {
+                        if (m.spire > 0) {
+                            // (t239: a spire, a straight cone as high as the tower is wide times 1.1 to 1.9, whatever the house's roof: steps would make a
+                            // needle of so small a cone)
+                            double high = eaves * (1.5 + 0.75 * Math.min(3, m.spire)) * (shape == 2 ? 0.8 : 1.0);
+                            rise = (int) Math.round((eaves - d) / eaves * high);
+                            thick = (int) Math.ceil(high / eaves) + 1;
+                        } else if (stepped()) {
                             rise = (int) Math.round(steps.rise((int) Math.floor(eaves - d), (int) Math.floor(eaves)) * CONE_STEEP * sharp);
                             thick = (int) Math.ceil(steps.highest() * CONE_STEEP * sharp);
                         } else {

@@ -942,6 +942,7 @@ final class ProceduralMenu implements Listener {
         RIDGE(Material.END_ROD, "棟の向き", "棟の屋根の棟が、付けた面と平行か直角か (自動は長い辺に沿う)"),
         JETTY(Material.DARK_OAK_SLAB, "張り出し", "棟の上の階の張り出し (家と同じ / 0〜3)。塔では、いちばん上の階の張り出し"),
         SHAPE(Material.CHISELED_STONE_BRICKS, "塔の形", "丸 / 八角 / 四角 (四角はピラミッドの屋根)"),
+        SPIRE(Material.POINTED_DRIPSTONE, "屋根の高さ", "塔の屋根 (家の屋根なり / まっすぐな尖り屋根: 塔の幅の約 1.1 倍・1.5 倍・1.9 倍の高さ。t239)"),
         UP(Material.STONE_BRICK_STAIRS, "上がる向き", "外から壁を見て、右へ上がるか左へ上がるか");
 
         final Material icon;
@@ -957,7 +958,7 @@ final class ProceduralMenu implements Listener {
         static List<ModuleExtra> of(HouseModule.Type type) {
             return switch (type) {
                 case VOLUME -> List.of(ROOF, RIDGE, JETTY);
-                case TOWER -> List.of(SHAPE, JETTY);
+                case TOWER -> List.of(SHAPE, JETTY, SPIRE);
                 case STAIR -> List.of(UP);
                 default -> List.of();
             };
@@ -974,6 +975,12 @@ final class ProceduralMenu implements Listener {
                     default -> "丸";
                 };
                 case UP -> module.shape == 1 ? "左へ" : "右へ";
+                case SPIRE -> switch (module.spire) {
+                    case 1 -> "尖り屋根 低 (幅の約 1.1 倍)";
+                    case 2 -> "尖り屋根 中 (幅の約 1.5 倍)";
+                    case 3 -> "尖り屋根 高 (幅の約 1.9 倍)";
+                    default -> "家の屋根なり";
+                };
             };
         }
 
@@ -984,6 +991,7 @@ final class ProceduralMenu implements Listener {
                 case JETTY -> module.jetty = module.type == HouseModule.Type.TOWER ? Math.floorMod(module.jetty + sign, 3) : Math.floorMod(module.jetty + 1 + sign, 5) - 1;
                 case SHAPE -> module.shape = Math.floorMod(module.shape + sign, 3);
                 case UP -> module.shape = 1 - Math.max(0, Math.min(1, module.shape));
+                case SPIRE -> module.spire = Math.floorMod(module.spire + sign, 4);
             }
         }
     }
