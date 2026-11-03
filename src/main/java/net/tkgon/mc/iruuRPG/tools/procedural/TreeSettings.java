@@ -15,7 +15,7 @@ import java.util.Map;
 final class TreeSettings {
 
     /** The ways a tree is grown: canopy ({@link CanopyTree}), tiered ({@link TieredTree}), palm ({@link PalmTree}). */
-    public static final List<String> ALGORITHMS = List.of("canopy", "tiered", "palm", "thin");
+    public static final List<String> ALGORITHMS = List.of("canopy", "tiered", "palm", "thin", "silhouette");
 
     /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
     public enum Key {
@@ -178,7 +178,13 @@ final class TreeSettings {
         THIN_LEAF_FLAT("thin-leaf-flat", "葉の平たさ", 0.0, 1.0, 0.35, 0.05, 0.25, "葉の塊を上下につぶす強さ (1 で薄い傘)"),
         THIN_CLEARANCE("thin-clearance", "枝のまわりのすき間", 0.0, 2.0, 1.0, 0.25, 0.5, "枝や幹からこの距離には葉を置かない (枝先の葉の付け根は除く)。枝が葉の間から見える"),
         THIN_VINES("thin-vines", "柳のつる", false, "葉の塊の下側から、葉のつるを垂らす"),
-        THIN_VINE_SCALE("thin-vine-scale", "つるの量", 0.1, 3.0, 1.0, 0.1, 0.5, "柳のつるの数と長さの倍率");
+        THIN_VINE_SCALE("thin-vine-scale", "つるの量", 0.1, 3.0, 1.0, 0.1, 0.5, "柳のつるの数と長さの倍率"),
+        // ---- the silhouette trees (SilhouetteTree: the generator the user sent, mc_tree_gen) ----
+        SIL_SHAPE("sil-shape", "樹形", 0, 4, 0, 1, 1, "0 丸い広葉樹 / 1 しだれ / 2 針葉樹 / 3 流れる幹 / 4 傘"),
+        SIL_HEIGHT("sil-height", "木の高さ", 0, 40, 0, 1, 3, "木の高さ (ブロック)。0 で樹形の標準 (丸 11・しだれ 13・針葉樹 18・流れ 10・傘 13)"),
+        SIL_LEAF("sil-leaf", "葉の量", -1.0, 1.0, 0.0, 0.1, 0.5, "葉の塊の太り具合 (マイナスで痩せ、プラスで太る)"),
+        SIL_ROUGH("sil-rough", "葉のでこぼこ", 0.0, 2.0, 1.0, 0.1, 0.5, "葉の表面を間引く・突き出す強さの倍率 (0 でなめらか)"),
+        SIL_DRIP("sil-drip", "垂れる房", 0.0, 3.0, 1.0, 0.1, 0.5, "葉の下から垂れる房の量と長さの倍率 (しだれ・傘はもともと多い)");
 
         private final String id;
         private final String label;

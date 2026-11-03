@@ -402,7 +402,8 @@ final class ThinTree {
 
     /** The parts of wood a fence or a wall joins to. */
     private static boolean joins(TreePart part) {
-        return part == TreePart.TRUNK || part == TreePart.BRANCH || part == TreePart.ROOT || part == TreePart.BRANCH_WALL || part == TreePart.BRANCH_FENCE;
+        return part == TreePart.TRUNK || part == TreePart.TRUNK_X || part == TreePart.TRUNK_Z || part == TreePart.BRANCH || part == TreePart.ROOT
+                || part == TreePart.BRANCH_WALL || part == TreePart.BRANCH_FENCE;
     }
 
     /**
@@ -417,17 +418,26 @@ final class ThinTree {
         }
         // (t258) a stair turned its way, its bottom half full
         org.bukkit.block.BlockFace stairWay = switch (part) {
-            case BRANCH_STAIR -> org.bukkit.block.BlockFace.NORTH;
-            case BRANCH_STAIR_EAST -> org.bukkit.block.BlockFace.EAST;
-            case BRANCH_STAIR_SOUTH -> org.bukkit.block.BlockFace.SOUTH;
-            case BRANCH_STAIR_WEST -> org.bukkit.block.BlockFace.WEST;
+            case BRANCH_STAIR, BRANCH_STAIR_TOP -> org.bukkit.block.BlockFace.NORTH;
+            case BRANCH_STAIR_EAST, BRANCH_STAIR_TOP_EAST -> org.bukkit.block.BlockFace.EAST;
+            case BRANCH_STAIR_SOUTH, BRANCH_STAIR_TOP_SOUTH -> org.bukkit.block.BlockFace.SOUTH;
+            case BRANCH_STAIR_WEST, BRANCH_STAIR_TOP_WEST -> org.bukkit.block.BlockFace.WEST;
             default -> null;
         };
         if (stairWay != null && look instanceof org.bukkit.block.data.type.Stairs stair) {
+            boolean top = part == TreePart.BRANCH_STAIR_TOP || part == TreePart.BRANCH_STAIR_TOP_EAST || part == TreePart.BRANCH_STAIR_TOP_SOUTH
+                    || part == TreePart.BRANCH_STAIR_TOP_WEST;
             org.bukkit.block.data.type.Stairs turned = (org.bukkit.block.data.type.Stairs) stair.clone();
             turned.setFacing(stairWay);
-            turned.setHalf(org.bukkit.block.data.Bisected.Half.BOTTOM);
+            turned.setHalf(top ? org.bukkit.block.data.Bisected.Half.TOP : org.bukkit.block.data.Bisected.Half.BOTTOM);
             return turned;
+        }
+        // (a log lying along x or z)
+        if ((part == TreePart.TRUNK_X || part == TreePart.TRUNK_Z) && look instanceof org.bukkit.block.data.Orientable log
+                && log.getAxes().contains(part == TreePart.TRUNK_X ? org.bukkit.Axis.X : org.bukkit.Axis.Z)) {
+            org.bukkit.block.data.Orientable laid = (org.bukkit.block.data.Orientable) log.clone();
+            laid.setAxis(part == TreePart.TRUNK_X ? org.bukkit.Axis.X : org.bukkit.Axis.Z);
+            return laid;
         }
         if (part != TreePart.BRANCH_FENCE && part != TreePart.BRANCH_WALL) return look;
         org.bukkit.block.BlockFace[] faces = {org.bukkit.block.BlockFace.NORTH, org.bukkit.block.BlockFace.EAST, org.bukkit.block.BlockFace.SOUTH, org.bukkit.block.BlockFace.WEST};

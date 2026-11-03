@@ -44,7 +44,8 @@ class TreeAlgorithmsTest {
             assertEquals(a, TreeGenerator.build(settings, 9L, null), algorithm);
             Map<TreePart, Integer> parts = count(a);
             // (t252: a thin tree's trunk is one block thick; t258: and short, it soon splits)
-            assertTrue(parts.getOrDefault(TreePart.TRUNK, 0) > (algorithm.equals("thin") ? 3 : 20), algorithm + " " + parts);
+            // (the silhouette trees: a small round tree of 11 by default, its logs partly lying)
+            assertTrue(parts.getOrDefault(TreePart.TRUNK, 0) > (algorithm.equals("thin") ? 3 : algorithm.equals("silhouette") ? 8 : 20), algorithm + " " + parts);
             assertTrue(parts.getOrDefault(TreePart.LEAF, 0) > 50, algorithm + " " + parts);
         }
         assertTrue(count(TreeGenerator.build(tree("canopy"), 9L, null)).containsKey(TreePart.BRANCH));

@@ -848,6 +848,7 @@ public final class ProceduralModule implements Listener {
             case "tiered" -> "段の枝 (針葉樹・雪)";
             case "palm" -> "ヤシ";
             case "thin" -> "細い木 (壁・フェンス・ハーフの枝)";
+            case "silhouette" -> "樹形 (丸・しだれ・針葉樹・流れ・傘)";
             default -> "樹冠 (フラクタル)";
         };
     }

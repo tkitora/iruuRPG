@@ -12,3 +12,8 @@ palm_twin
 palm_mangrove
 thin_birch
 thin_willow
+silhouette_round
+silhouette_weeping
+silhouette_conifer
+silhouette_swoop
+silhouette_dome

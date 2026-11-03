@@ -61,13 +61,21 @@ enum TreePart {
     BRANCH_STAIR("branch-stair", "幹・枝の階段", 1, Material.OAK_STAIRS),
     BRANCH_STAIR_EAST("branch-stair-east", "幹・枝の階段 (東)", 1, Material.OAK_STAIRS),
     BRANCH_STAIR_SOUTH("branch-stair-south", "幹・枝の階段 (南)", 1, Material.OAK_STAIRS),
-    BRANCH_STAIR_WEST("branch-stair-west", "幹・枝の階段 (西)", 1, Material.OAK_STAIRS);
+    BRANCH_STAIR_WEST("branch-stair-west", "幹・枝の階段 (西)", 1, Material.OAK_STAIRS),
+    /** (the silhouette trees) the stairs upside down (their top half full), the same four ways; and logs lying along x and z. */
+    BRANCH_STAIR_TOP("branch-stair-top", "幹・枝の階段 (上付き・北)", 1, Material.OAK_STAIRS),
+    BRANCH_STAIR_TOP_EAST("branch-stair-top-east", "幹・枝の階段 (上付き・東)", 1, Material.OAK_STAIRS),
+    BRANCH_STAIR_TOP_SOUTH("branch-stair-top-south", "幹・枝の階段 (上付き・南)", 1, Material.OAK_STAIRS),
+    BRANCH_STAIR_TOP_WEST("branch-stair-top-west", "幹・枝の階段 (上付き・西)", 1, Material.OAK_STAIRS),
+    TRUNK_X("trunk-x", "幹 (東西に寝た丸太)", 0, Material.OAK_LOG),
+    TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_LOG);
 
     /** (t258) The part whose block this one is put in (a stair's other ways and a slab's top half are their first part's block). */
     TreePart blockOf() {
         return switch (this) {
             case BRANCH_SLAB_TOP -> BRANCH_SLAB;
-            case BRANCH_STAIR_EAST, BRANCH_STAIR_SOUTH, BRANCH_STAIR_WEST -> BRANCH_STAIR;
+            case BRANCH_STAIR_EAST, BRANCH_STAIR_SOUTH, BRANCH_STAIR_WEST, BRANCH_STAIR_TOP, BRANCH_STAIR_TOP_EAST, BRANCH_STAIR_TOP_SOUTH, BRANCH_STAIR_TOP_WEST -> BRANCH_STAIR;
+            case TRUNK_X, TRUNK_Z -> TRUNK;
             default -> this;
         };
     }

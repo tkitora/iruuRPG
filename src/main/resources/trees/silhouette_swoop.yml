@@ -1,0 +1,18 @@
+# 見本の木: 樹形 流れる幹 (桜) (ユーザーの送った木の生成の作り方。パレットもその標準) (プロシージャルツールの読み込み、または /proceduraltool load silhouette_swoop)
+settings:
+  kind: tree
+  algorithm: silhouette
+  sil-shape: 3
+  sil-height: 14
+  seed: 0
+  blocks:
+    trunk: CHERRY_LOG
+    branch: CHERRY_WOOD
+    branch-stair: DARK_OAK_STAIRS
+    branch-slab: DARK_OAK_SLAB
+    branch-fence: DARK_OAK_FENCE
+  leaf-gradient:
+  - MAGENTA_STAINED_GLASS
+  - CHERRY_LEAVES
+  - CHERRY_LEAVES
+  - PINK_STAINED_GLASS

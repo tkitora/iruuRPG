@@ -125,7 +125,7 @@ final class ProceduralMenu implements Listener {
                 case BASIC -> true;
                 case SHAPE -> !kind.tree();
                 case ROOF, MODULES, DESIGN, WALLS -> kind == ProcKind.HOUSE;
-                case BRANCH -> kind.tree() && !settings.grows("palm");
+                case BRANCH -> kind.tree() && !settings.grows("palm") && !settings.grows("silhouette");
                 default -> kind.tree();
             };
         }
@@ -187,6 +187,11 @@ final class ProceduralMenu implements Listener {
                         TreeSettings.Key.THIN_RISE, TreeSettings.Key.THIN_KINK};
                 case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LEAF_SIZE, TreeSettings.Key.THIN_LEAF_DENSITY, TreeSettings.Key.THIN_LEAF_PASSES, TreeSettings.Key.THIN_LEAF_ALONG,
                         TreeSettings.Key.THIN_LEAF_FLAT, TreeSettings.Key.THIN_CLEARANCE, TreeSettings.Key.THIN_VINES, TreeSettings.Key.THIN_VINE_SCALE};
+                default -> new TreeSettings.Key[]{};
+            };
+            case "silhouette" -> switch (page) {
+                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.SIL_SHAPE, TreeSettings.Key.SIL_HEIGHT};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.SIL_LEAF, TreeSettings.Key.SIL_ROUGH, TreeSettings.Key.SIL_DRIP};
                 default -> new TreeSettings.Key[]{};
             };
             case "palm" -> switch (page) {
@@ -399,7 +404,7 @@ final class ProceduralMenu implements Listener {
     /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
     private static boolean named(TreeSettings.Key key) {
         return switch (key) {
-            case HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
+            case SIL_SHAPE, HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
             default -> false;
         };
     }
@@ -407,6 +412,7 @@ final class ProceduralMenu implements Listener {
     private static String number(TreeSettings.Key key, double value) {
         if (key.toggle()) return value >= 0.5 ? "オン" : "オフ";
         if (key == TreeSettings.Key.HOUSE_ROOF) return HouseShape.roofName((int) Math.round(value));
+        if (key == TreeSettings.Key.SIL_SHAPE) return SilhouetteTree.shapeName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_RIDGE) return HouseShape.ridgeName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_ROTATION) return (int) Math.round(value) + "°";
         int whole = (int) Math.round(value);
@@ -567,6 +573,7 @@ final class ProceduralMenu implements Listener {
                 text("段の枝: 幹に段ごとに枝が出る (針葉樹など)。ねじれ・編み込みの幹・雪・柳のつる", NamedTextColor.GRAY),
                 text("ヤシ: S字の幹、てっぺんに葉の層。二股・支柱の根", NamedTextColor.GRAY),
                 text("細い木: すぐ分かれる短い幹、根元から離れるほど 丸太 → 壁・ハーフ → フェンス と細る枝、階段の継ぎ目、重ね塗りの葉 (t252・t258)", NamedTextColor.GRAY),
+                text("樹形: 丸・しだれ・針葉樹・流れる幹・傘の形を骨組みで描き、細かく量って丸太・階段・ハーフ・壁・フェンスに。雲の葉に陰影、垂れる房", NamedTextColor.GRAY),
                 text("左クリック: 次 / 右クリック: 前 (数字は、アルゴリズムごとに別々に残る)", NamedTextColor.YELLOW))));
     }
 
@@ -622,8 +629,8 @@ final class ProceduralMenu implements Listener {
         if (settings.kind().tree()) {
             if (!settings.grows("tiered")) parts.remove(TreePart.SNOW);
             if (settings.grows("palm")) parts.remove(TreePart.BRANCH);
-            // (t252: the thin branches only on a thin tree; no roots on it)
-            if (settings.grows("thin")) parts.remove(TreePart.ROOT);
+            // (t252: the thin branches only on a thin tree or a silhouette tree; no roots on them)
+            if (settings.grows("thin") || settings.grows("silhouette")) parts.remove(TreePart.ROOT);
             else parts.removeAll(List.of(TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_STAIR));
         }
         return parts;
