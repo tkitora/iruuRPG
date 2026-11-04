@@ -353,10 +353,16 @@ class BgmTest {
                 double[] perSection = new double[bars.length + 1];   // notes a tick, section by section
                 int[] perTick = new int[song.length()];
                 int firstBass = -1;
+                int pitched = 0;
+                int low = 0;
+                int drumHits = 0;
+                long velocitySum = 0;
                 for (int i = 0; i < song.noteCount(); i++) {
                     NbsSong.Note note = song.note(i);
                     int sound = sounding(note.instrument(), note.key());
                     perTick[note.tick()]++;
+                    velocitySum += Math.round(note.volume() * 100);
+                    if (sound >= 0) { pitched++; if (sound <= 54) low++; } else if (note.instrument() == 2 || note.instrument() == 3) drumHits++;
                     for (int s = 0; s <= bars.length; s++) if (note.tick() >= edges[s + 1] && note.tick() < edges[s + 2]) perSection[s] += 1.0 / (edges[s + 2] - edges[s + 1]);
                     if (note.instrument() == 1) assertTrue(sound <= 54, id + ": the bass stays low (" + sound + ")");
                     if (note.instrument() == 6) assertTrue(sound >= 78, id + ": the flute sounds from F#5 (" + sound + ")");
@@ -370,6 +376,9 @@ class BgmTest {
                 assertTrue(perSection[3] > perSection[1] && perSection[3] > perSection[2], id + ": the peak is the busiest part (A'' " + perSection[3] + ", B " + perSection[2] + ", A' " + perSection[1] + ")");
                 assertTrue(perSection[2] < perSection[1], id + ": B takes away (" + perSection[2] + " notes against " + perSection[1] + " in A')");
                 assertTrue(perSection[4] < perSection[3] / 2, id + ": the calm is quiet (" + perSection[4] + ")");
+                assertTrue(low >= 0.4 * pitched, id + ": a boss weighs - at least 40 % of the notes sound at F#3 or lower (" + low + " of " + pitched + ")");
+                assertTrue(drumHits >= 200, id + ": the bass drum and the snare are heard (" + drumHits + " hits)");
+                assertTrue(velocitySum >= 50L * song.noteCount(), id + ": and loud (" + velocitySum / song.noteCount() + " on average)");
             }
             if (second != null) {
                 NbsSong two = bundled(second);

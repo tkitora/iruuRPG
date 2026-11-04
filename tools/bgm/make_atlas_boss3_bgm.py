@@ -61,24 +61,8 @@ SPEC = dict(
     level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[57, 60, 62, 64],
-    voices=[
-        {   # phase 1: natural sounds, half time
-            "intro": ["bass:half@2", "arp:HARP:4", "bell:head@0-1"],
-            "A": ["lead:HARP", "bass:half", "drone@8", "drums:heart@8", "arp:HARP:4@0-8"],
-            "A2": ["lead:HARP", "dbl:FLUTE:12:0.5@8", "stab:GUITAR:0,8", "bass:walk", "drone", "drums:march", "bell:head"],
-            "B": ["lead:BASS", "drone", "bell:head@8", "arp:HARP:4@8"],
-            "PEAK": ["lead:HARP", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:GUITAR:0,8", "bass:pedal", "drone", "drums:march", "fill", "bell:hit", "arp:HARP:2@8"],
-            "CALM": ["lead:HARP", "bass:half", "echo:3:CHIME@4", "bell:head"],
-        },
-        {   # phase 2: electronic, double time, a half step up
-            "intro": ["bass:half@2", "arp:PLING:4", "bell:head@0-1"],
-            "A": ["lead:PLING", "dbl:BIT:0:0.45@8", "bass:eighth", "drone@8", "drums:march@8", "arp:BIT:2@0-8"],
-            "A2": ["lead:PLING", "dbl:FLUTE:12:0.5@8", "stab:BIT:0,6,10", "bass:sixteenth", "drone", "drums:drive", "bell:head"],
-            "B": ["lead:BIT", "bass:eighth@8", "drone", "arp:PLING:2@8", "bell:head@8"],
-            "PEAK": ["lead:PLING", "dbl:BIT:0:0.6", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:PLING:0,6,8,14", "bass:sixteenth", "drone", "drums:double", "fill", "bell:hit", "arp:BIT:4"],
-            "CALM": ["lead:PLING", "bass:half", "echo:3:CHIME@4", "bell:head", "drums:heart@8"],
-        },
-    ],
+    voices=[heavy_voices(0, bass=("half", "walk", "eighth")), heavy_voices(1, bass=("half", "eighth", "sixteenth"))],
+    heavy=True,
 )
 
 TITLES = ("Shoulders of Stone (Boss003)", "Shoulders of Stone, Unbound (Boss003)")

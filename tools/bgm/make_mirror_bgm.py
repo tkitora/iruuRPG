@@ -51,24 +51,8 @@ SPEC = dict(
     level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[56, 58, 60, 62],
-    voices=[
-        {
-            "intro": ["bass:half@2", "arp:HARP:4"],
-            "A": ["lead:HARP", "mir:GUITAR@8", "bass:half", "drums:heart@8", "bell:head"],
-            "A2": ["lead:HARP", "mir:GUITAR", "dbl:FLUTE:12:0.5@8", "stab:GUITAR:0,8", "bass:walk", "drums:march", "bell:head"],
-            "B": ["lead:HARP", "bass:half", "drone", "arp:HARP:4@8", "bell:head@8"],
-            "PEAK": ["lead:HARP", "mir:GUITAR", "dbl:FLUTE:12:0.6", "stab:GUITAR:0,8", "bass:pedal", "drone", "drums:march", "fill", "bell:hit", "arp:HARP:2@8"],
-            "CALM": ["lead:HARP", "bass:half", "echo:3:CHIME@4", "bell:head"],
-        },
-        {
-            "intro": ["bass:half@2", "arp:PLING:4"],
-            "A": ["lead:PLING", "dbl:BIT:0:0.45", "mir:BIT@8", "bass:eighth", "drums:march@8", "bell:head"],
-            "A2": ["lead:PLING", "dbl:BIT:0:0.5", "mir:BIT", "dbl:FLUTE:12:0.5@8", "stab:BIT:0,6,10", "bass:sixteenth", "drums:drive", "bell:head"],
-            "B": ["lead:BIT", "bass:eighth", "drone", "arp:PLING:2@8", "bell:head@8"],
-            "PEAK": ["lead:PLING", "dbl:BIT:0:0.6", "mir:BIT", "dbl:FLUTE:12:0.6", "stab:PLING:0,6,8,14", "bass:sixteenth", "drone", "drums:double", "fill", "bell:hit", "arp:BIT:4"],
-            "CALM": ["lead:PLING", "bass:half", "echo:3:CHIME@4", "bell:head", "drums:heart@8"],
-        },
-    ],
+    voices=[heavy_voices(0, extra={"A2": ["mir:GUITAR"], "PEAK": ["mir:GUITAR"]}), heavy_voices(1, bass=("half", "eighth", "sixteenth"), extra={"A2": ["mir:BIT"], "PEAK": ["mir:BIT"]})],
+    heavy=True,
 )
 
 TITLES = ("The Cracked Mirror Laughs (Boss007)", "The Cracked Mirror Laughs, Shattered (Boss007)")
