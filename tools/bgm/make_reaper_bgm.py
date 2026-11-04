@@ -1,69 +1,47 @@
 #!/usr/bin/env python3
-"""Makes reaper_phase1.nbs and reaper_phase2.nbs: "Silence of the Scythe (Boss005)" and "Silence of the Scythe, Unleashed (Boss005)", another reaper fight in two phases, written again by the BGM制作ガイド.
+"""Makes reaper_phase1.nbs and reaper_phase2.nbs: "Silence of the Scythe (Boss005)" and "..., Unleashed (Boss005)", another reaper fight in two phases.
 
     python3 tools/bgm/make_reaper_bgm.py            writes both into src/main/resources/bgm/
     python3 tools/bgm/make_reaper_bgm.py outdir     writes them somewhere else
 
-B minor, 4/4, 150 BPM, 80 bars (2:08); intro 4 / A 16 / A' 16 / B 16 / A'' 16 (the peak, from bar 52 = 65 %) / calm 12, loop from bar 5. The theme is the world theme of the plains in B minor, rising,
-asked like a question and left unanswered (D4 F#4 B4 | B4 C#5 D5). The device is SILENCE (the guide's ghost rest): in A the melody and the bass are all there is and every other bar is empty; the rests are the music.
-Phase 1 (natural): a piano (the harp) solo with the bass and a heartbeat; the bell only on the silent bars. Phase 2 (a half step up, C minor): the same bars and chords, with the silences filled with guitar chords,
-the bass in eighths and sixteenths, the whole kit in the peak, an 8-bit solo in the bridge, the tune in unison. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
-
-FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
-with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
+Written for DRIVE (t271: the earlier versions were dark but slow, falling and not like a boss) with tools/bgm/bossdrive.py: 300 BPM (20 ticks a second, a beat of 4 ticks, a bar of 16 = the engine's bar line),
+the tune a cell of eight eighth notes repeated higher and higher, every eighth bar ending in a run that is left hanging UP, a pumping bass, a never-silent didgeridoo, a chugging guitar, drums that drive,
+an ensemble hit every eighth bar and a snare roll before each block. The device: stabs and rests - the cell is a syncopated stab with holes in it (the silence between the blows is the threat), and a half-step trill climbs over a B pedal.
+Phase 2 is the same bars and chords a half step higher with the electric piano and the 8-bit chip, the bass in sixteenths, the drums doubled, the guitar chug twice as fast in the peak.
+Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
 """
 import sys
 from pathlib import Path
 
-from bossframe import *  # noqa: F401,F403
+from bossdrive import *  # noqa: F401,F403
 
 OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
-TONIC, SCALE = 11, [0, 2, 3, 5, 7, 8, 10]
-K = key_pcs(TONIC, SCALE)
 
-T = "D4:2 F#4:2 B4:4 B4:2 C#5:2 D5:4"
-U = "D5:4 C#5:4 B4:8"
-R = "r:16"
-a1 = seq_block(T, U, K, [0, ("u", 0), R, -2, -3, R, "A#4:6 C#5:2 F#5:4 C#5:4", "F#5:8 r:8"])
-a2 = seq_block(T, U, K, [0, "F#4:2 A4:2 B4:4 D5:8", R, -2, -3, "G4:4 B4:4 E5:8", "A#4:6 C#5:2 F#5:4 C#5:4", R])
-a3 = seq_block(T, U, K, [0, "F#4:2 A4:2 D5:4 B4:8", mv(T, K, 2), -2, -3, "G4:4 B4:4 E5:8", "A#4:6 C#5:2 F#5:4 C#5:4", "F#5:8 C#5:8"])
-b1 = seq_block(T, U, K, [-2, R, -3, R, -1, R, 0, R])
-b2 = seq_block(T, U, K, [-2, ("u", -2), -3, ("u", -3), "A4:6 E4:2 C#4:4 A3:4", "C#4:4 E4:4 A4:8", "A#4:6 C#5:2 F#5:4 C#5:4", "F#5:8 r:8"])
-p1 = seq_block(T, U, K, [0, "F#4:2 A4:2 D5:4 F#5:8", 0, "F#4:2 A4:2 D5:4 B4:8", -2, "B3:2 D4:2 G4:4 B4:8", -3, "E4:2 G4:2 B4:4 E5:8"])
-p2 = seq_block(T, U, K, [0, "F#4:2 A4:2 D5:4 F#5:8", -2, "B3:2 D4:2 G4:4 B4:8", -3, "E4:2 G4:2 B4:4 E5:8", "A#4:6 C#5:2 F#5:4 C#5:4", "B4:16"])
-c1 = ["D5:6 B4:2 F#4:8", R, "B4:6 G4:2 D4:8", R, "G4:6 E4:2 B3:8", R, "A4:6 F#4:2 C#4:8", R, "B3:4 D4:4 F#4:8", R, "A#4:6 C#5:2 F#5:4 C#5:4", "F#3:4 A#3:4 C#4:4 F#4:4"]
-
-SPEC = dict(
-    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
-    sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
-    chords={
-        "intro": ["Bm", "Bm", "G", "F#"],
-        "A": "Bm Bm G G Em Em F# F# Bm Bm G G Em F# Bm Bm".split(),
-        "A2": "Bm Bm G G Em Em F# F# Bm Bm G G Em Em F# F#".split(),
-        "B": "G G Em Em A A F# F# G G Em Em D D F# F#".split(),
-        "PEAK": ["Bm|G", "Bm|G", "Em|F#", "Em|F#", "Bm|G", "Bm|G", "Em|F#", "Em|F#", "Bm|G", "Bm|G", "Em|F#", "Em|F#", "G|A", "G|A", "F#|F#", "F#"],
-        "CALM": "Em Em G G A A Em Em D D F# F#".split(),
-    },
-    melody={"intro": None, "A": a1 + a2, "A2": a1 + a3, "B": b1 + b2, "PEAK": p1 + p2, "CALM": c1},
-    pedal={"PEAK": "Bm"},
-    level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
-    arp_low=54, arp_high=72, stab_low=54, stab_high=68,
-    run=[54, 56, 58, 60],
-    voices=[heavy_voices(0, special={"A": ["lead:HARP:-12", "bass:half", "drone:loud", "drums:heart"]}), heavy_voices(1, bass=("half", "eighth", "sixteenth"), special={"A": ["lead:PLING:-12", "dbl:BIT:-12:0.6", "bass:half", "drone:loud", "drums:half", "pow:BIT:0,12"]})],
-    heavy=True,
+SPEC = drive_spec(
+    tonic=11, scale=[0, 2, 3, 5, 7, 8, 10],
+    cell="B3:2 r:2 B3:2 D4:2 r:2 F#4:2 B4:2 r:2", answer="D5:2 r:2 B4:2 D5:2 E5:2 r:2 D5:2 E5:2",
+    tail1="F#4:2 G4:2 A4:2 B4:2 C#5:2 D5:2 E5:2 E5:2", tail2="A#4:2 B4:2 A#4:2 B4:2 C#5:2 D5:2 D#5:2 E5:2",
+    high1="B4:2 B4:2 r:2 D5:2 B4:2 B4:2 r:2 E5:2", high2="D5:2 D5:2 r:2 E5:2 D5:2 B4:2 r:2 E5:2",
+    trill=" ".join(["F#4:2", "G4:2"] * 4),
+    prog_a="Bm Bm G A Bm Bm G F#".split(), prog_b="Bm C Bm C Bm C F# F#".split(), prog_p="G A Bm Bm G A F# F#".split(), prog_c="Bm Bm C C Bm Bm F# F#".split(),
+    pedal_b="Bm", run=(54, 56, 58, 60),
 )
-
 TITLES = ("Silence of the Scythe (Boss005)", "Silence of the Scythe, Unleashed (Boss005)")
 FILES = ("reaper_phase1.nbs", "reaper_phase2.nbs")
+DESCRIPTIONS = ("Reaper fight, phase 1, written for drive: 300 BPM, a syncopated stab with holes in B minor over a B pedal, ensemble hits. Same bars as phase 2.", "Reaper fight, phase 2: the same bars and chords a half step higher, electric piano and 8-bit, sixteenth bass, doubled drums.")
+SINGLE = False
 
 
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
-    out.mkdir(parents=True, exist_ok=True)
-    write_phases(SPEC, [out / f for f in FILES],
-                 ["Reaper fight, phase 1 (natural sounds): the world theme as an unanswered question in B minor, every other bar silent. 80 bars, loops from bar 5. Same bars as phase 2.",
-                  "Reaper fight, phase 2 (electronic, a half step up): the same bars and chords with the silences filled; bass in sixteenths, the whole kit, unison tune."],
-                 TITLES)
+    if SINGLE:
+        targets = [out if out.suffix == ".nbs" else (out / FILES[0])]
+    else:
+        out.mkdir(parents=True, exist_ok=True)
+        targets = [out / f for f in FILES]
+    if SINGLE and not targets[0].parent.exists():
+        targets[0].parent.mkdir(parents=True, exist_ok=True)
+    write_phases(SPEC, targets, list(DESCRIPTIONS), TITLES)
 
 
 if __name__ == "__main__":

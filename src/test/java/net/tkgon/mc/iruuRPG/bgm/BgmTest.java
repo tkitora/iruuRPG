@@ -291,7 +291,7 @@ class BgmTest {
             assertTrue(lowest >= 30, id + ": nothing below F#1 (" + lowest + ")");
         }
         assertEquals(896, bundled("atlas_dungeon_2").length());
-        assertEquals(2464, bundled("atlas_vindicator_2").length());
+        assertEquals(2496, bundled("atlas_vindicator_2").length());
         assertEquals("Below the Sleeping Giant (Dungeon002)", bundled("atlas_dungeon_2").title());
         assertEquals("Raise the Axe (Boss002)", bundled("atlas_vindicator_2").title());
     }
@@ -316,15 +316,15 @@ class BgmTest {
 
     /** The boss songs of Boss002-Boss010, written again by the BGM制作ガイド: {phase 1 id, phase 2 id (or null), title of phase 1, bar length in ticks, bars of A, A', B, peak, calm, length in ticks}. */
     private static final Object[][] GUIDE_BOSSES = {
-        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
+        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
+        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
+        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
         {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", 18, new int[]{32, 32, 24, 24, 24}, 2512},
-        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"circuit_phase1", "circuit_phase2", "Holy Circuit (Boss010)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
+        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", 12, new int[]{48, 48, 40, 40, 24}, 2464},
+        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
+        {"circuit_phase1", "circuit_phase2", "Holy Circuit (Boss010)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
     };
 
     @Test
