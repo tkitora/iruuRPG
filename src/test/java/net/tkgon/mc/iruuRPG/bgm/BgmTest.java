@@ -275,7 +275,7 @@ class BgmTest {
 
     @Test
     void theNewerSongsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
-        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2")) {
+        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "cave_depths")) {
             NbsSong song = bundled(id);
             int lowest = Integer.MAX_VALUE;
             int highest = 0;
@@ -314,219 +314,71 @@ class BgmTest {
         }
     }
 
-    @Test
-    void theNecromancerPhasesAreOnePiece() throws IOException {
-        NbsSong one = bundled("necromancer_phase1");
-        NbsSong two = bundled("necromancer_phase2");
-        assertEquals("Reaper's Arc (Boss004)", one.title());
-        assertEquals("Reaper's Arc, Sundered (Boss004)", two.title());
-        assertEquals(1280, one.length());
-        assertEquals(10.0, one.ticksPerSecond(), 1.0E-9, "fast: 150 BPM");
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        assertEquals(0, one.length() % 16, "whole bars (the change waits for a bar line)");
-    }
+    /** The boss songs of Boss002-Boss010, written again by the BGM制作ガイド: {phase 1 id, phase 2 id (or null), title of phase 1, bar length in ticks, bars of A, A', B, peak, calm, length in ticks}. */
+    private static final Object[][] GUIDE_BOSSES = {
+        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", 12, new int[]{24, 24, 16, 16, 16}, 1216},
+        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"circuit_phase1", "circuit_phase2", "Holy Circuit (Boss010)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+    };
 
     @Test
-    void theNecromancerTuneIsNarrowAndGoesByStepsAndPhaseTwoIsAHalfStepHigher() throws IOException {
-        int[] top = new int[2];
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = bundled("necromancer_phase" + phase);
-            int lowest = Integer.MAX_VALUE;
-            int highest = 0;
-            int previousTick = -100;
-            int previous = 0;
-            for (int i = 0; i < song.noteCount(); i++) {   // the tune: the loud notes of the piano
-                NbsSong.Note note = song.note(i);
-                if (note.instrument() != 0 || note.volume() < 0.8f) continue;
-                int sound = sounding(note.instrument(), note.key());
-                lowest = Math.min(lowest, sound);
-                highest = Math.max(highest, sound);
-                if (note.tick() - previousTick <= 8) assertTrue(Math.abs(sound - previous) < 6, "phase " + phase + ": a leap of " + Math.abs(sound - previous) + " semitones at tick " + note.tick());
-                previousTick = note.tick();
-                previous = sound;
+    void theBossSongsOfTheGuideHaveTheFormOfTheGuideAndPhaseTwoIsTheSamePieceAHalfStepHigher() throws IOException {
+        for (Object[] boss : GUIDE_BOSSES) {
+            String first = (String) boss[0];
+            String second = (String) boss[1];
+            int bar = (Integer) boss[3];
+            int[] bars = (int[]) boss[4];
+            int length = (Integer) boss[5];
+            NbsSong one = bundled(first);
+            assertEquals((String) boss[2], one.title(), first);
+            assertEquals(length, one.length(), first + ": the length of the piece");
+            assertTrue(one.length() / one.ticksPerSecond() >= 120.0, first + ": at least two minutes");
+            assertTrue(one.loops() && one.loopStart() == 64, first + ": loops from tick 64");
+            int[] edges = new int[bars.length + 2];       // intro, A, A', B, peak, calm
+            edges[1] = 64;
+            for (int i = 0; i < bars.length; i++) edges[i + 2] = edges[i + 1] + bars[i] * bar;
+            assertEquals(length, edges[bars.length + 1], first + ": the sections fill the song");
+            assertTrue(edges[4] >= 0.64 * length, first + ": the peak starts at 65 % or later (tick " + edges[4] + " of " + length + ")");
+            for (String id : second == null ? new String[]{first} : new String[]{first, second}) {
+                NbsSong song = bundled(id);
+                assertEquals(length, song.length(), id);
+                assertEquals(one.ticksPerSecond(), song.ticksPerSecond(), 1.0E-9, id + ": the same tempo");
+                assertTrue(song.loops() && song.loopStart() == 64, id + ": the same loop point");
+                double[] perSection = new double[bars.length + 1];   // notes a tick, section by section
+                int[] perTick = new int[song.length()];
+                int firstBass = -1;
+                for (int i = 0; i < song.noteCount(); i++) {
+                    NbsSong.Note note = song.note(i);
+                    int sound = sounding(note.instrument(), note.key());
+                    perTick[note.tick()]++;
+                    for (int s = 0; s <= bars.length; s++) if (note.tick() >= edges[s + 1] && note.tick() < edges[s + 2]) perSection[s] += 1.0 / (edges[s + 2] - edges[s + 1]);
+                    if (note.instrument() == 1) assertTrue(sound <= 54, id + ": the bass stays low (" + sound + ")");
+                    if (note.instrument() == 6) assertTrue(sound >= 78, id + ": the flute sounds from F#5 (" + sound + ")");
+                    if (note.instrument() == 7 || note.instrument() == 8) {
+                        assertTrue(sound >= 90 && sound <= 99, id + ": the bell and the chime stay between F#6 and D#7 (" + sound + ")");
+                        assertTrue(note.volume() <= 0.6f, id + ": and quiet (" + note.volume() + ")");
+                    }
+                    if (note.instrument() == 1 && firstBass < 0 && note.tick() >= 64) firstBass = sound;
+                }
+                assertTrue(java.util.Arrays.stream(perTick).max().getAsInt() <= 8, id + ": at most eight notes at once");
+                assertTrue(perSection[3] > perSection[1] && perSection[3] > perSection[2], id + ": the peak is the busiest part (A'' " + perSection[3] + ", B " + perSection[2] + ", A' " + perSection[1] + ")");
+                assertTrue(perSection[2] < perSection[1], id + ": B takes away (" + perSection[2] + " notes against " + perSection[1] + " in A')");
+                assertTrue(perSection[4] < perSection[3] / 2, id + ": the calm is quiet (" + perSection[4] + ")");
             }
-            assertTrue(highest - lowest <= 14, "phase " + phase + ": the tune is at most a ninth wide (" + (highest - lowest) + ")");
-            top[phase - 1] = highest;
-        }
-        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
-    }
-
-    @Test
-    void theSecondReaperThemeIsOnePieceAHalfStepHigherAndNarrow() throws IOException {
-        NbsSong one = bundled("reaper_phase1");
-        NbsSong two = bundled("reaper_phase2");
-        assertEquals("Silence of the Scythe (Boss005)", one.title());
-        assertEquals("Silence of the Scythe, Unleashed (Boss005)", two.title());
-        assertEquals(1280, one.length());
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        int[] top = new int[2];
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = phase == 1 ? one : two;
-            int lowest = Integer.MAX_VALUE;
-            int highest = 0;
-            for (int i = 0; i < song.noteCount(); i++) {   // the melody: the loud notes of the piano
-                NbsSong.Note note = song.note(i);
-                if (note.instrument() != 0 || note.volume() < 0.8f) continue;
-                int sound = sounding(note.instrument(), note.key());
-                lowest = Math.min(lowest, sound);
-                highest = Math.max(highest, sound);
+            if (second != null) {
+                NbsSong two = bundled(second);
+                int bassOne = -1;
+                int bassTwo = -1;
+                for (int i = 0; i < one.noteCount(); i++) if (one.note(i).instrument() == 1 && one.note(i).tick() >= 64) { bassOne = sounding(1, one.note(i).key()); break; }
+                for (int i = 0; i < two.noteCount(); i++) if (two.note(i).instrument() == 1 && two.note(i).tick() >= 64) { bassTwo = sounding(1, two.note(i).key()); break; }
+                assertEquals(bassOne + 1, bassTwo, second + ": the same bars a half step higher (the first bass note of A)");
             }
-            assertTrue(highest - lowest <= 15, "phase " + phase + ": the melody is at most an octave and a minor third wide (" + (highest - lowest) + ")");
-            top[phase - 1] = highest;
-        }
-        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
-    }
-
-    @Test
-    void theBroodmotherPhasesAreOnePieceWithOddBarsAndPhaseTwoIsAHalfStepHigher() throws IOException {
-        NbsSong one = bundled("broodmother_phase1");
-        NbsSong two = bundled("broodmother_phase2");
-        assertEquals("Mother of a Thousand Legs (Boss006)", one.title());
-        assertEquals("Mother of a Thousand Legs, Swarming (Boss006)", two.title());
-        assertEquals(1280, one.length());
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(10.0, one.ticksPerSecond(), 1.0E-9, "150 BPM");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        assertEquals(0, one.length() % 16, "whole bars of 16 ticks in all (the odd bars add up: 3 + 5 beats, eight of 3 and two of 4)");
-        int[] top = new int[2];
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = phase == 1 ? one : two;
-            int highest = 0;
-            for (int i = 0; i < song.noteCount(); i++) {   // the melody: the loud notes of the piano
-                NbsSong.Note note = song.note(i);
-                if (note.instrument() != 0 || note.volume() < 0.8f) continue;
-                highest = Math.max(highest, sounding(note.instrument(), note.key()));
-            }
-            top[phase - 1] = highest;
-        }
-        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
-    }
-
-    @Test
-    void theMirrorPhasesAreOnePieceAHalfStepHigherAndTheGlassStaysBelowTheHighestNotes() throws IOException {
-        NbsSong one = bundled("mirror_phase1");
-        NbsSong two = bundled("mirror_phase2");
-        assertEquals("The Cracked Mirror Laughs (Boss007)", one.title());
-        assertEquals("The Cracked Mirror Laughs, Shattered (Boss007)", two.title());
-        assertEquals(1216, one.length());
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        assertEquals(0, one.length() % 16, "the odd bars (seven beats, five beats) add up to whole bars of 16 ticks");
-        int[] top = new int[2];
-        boolean bell = false;
-        boolean chime = false;
-        boolean flute = false;
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = phase == 1 ? one : two;
-            int highest = 0;
-            for (int i = 0; i < song.noteCount(); i++) {
-                NbsSong.Note note = song.note(i);
-                int sound = sounding(note.instrument(), note.key());
-                if (note.instrument() == 10 && note.volume() >= 0.8f) highest = Math.max(highest, sound);   // the crack: the loud notes of the iron xylophone
-                if (note.instrument() == 7 || note.instrument() == 8 || note.instrument() == 6) assertTrue(sound <= 99, "phase " + phase + ": the glass and the laugh stay below D#7 (" + sound + ")");
-                bell |= note.instrument() == 7;
-                chime |= note.instrument() == 8;
-                flute |= note.instrument() == 6;
-            }
-            top[phase - 1] = highest;
-        }
-        assertTrue(bell && chime && flute, "the bell and the chime trill and the flute laughs");
-        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
-    }
-
-    @Test
-    void theWaltzPhasesAreOnePieceInThreeBeatsAndPhaseTwoIsAHalfStepHigher() throws IOException {
-        NbsSong one = bundled("waltz_phase1");
-        NbsSong two = bundled("waltz_phase2");
-        assertEquals("Waltz at the Edge of Dark (Boss008)", one.title());
-        assertEquals("Waltz at the Edge of Dark, Out of Step (Boss008)", two.title());
-        assertEquals(1216, one.length());
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(10.0, one.ticksPerSecond(), 1.0E-9, "150 BPM");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        assertEquals(64, one.loopStart(), "the pickup and five bars of three beats are played once, then the loop starts on a bar line of the game");
-        assertEquals(0, one.length() % 16, "bars of three beats (12 ticks) add up to whole bars of 16 ticks");
-        int[] top = new int[2];
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = phase == 1 ? one : two;
-            int highest = 0;
-            int firstBeats = 0;
-            for (int i = 0; i < song.noteCount(); i++) {
-                NbsSong.Note note = song.note(i);
-                int sound = sounding(note.instrument(), note.key());
-                if (note.instrument() == 0 && note.volume() >= 0.8f) highest = Math.max(highest, sound);   // the melody: the loud notes of the harp
-                if (note.instrument() == 6) assertTrue(sound <= 91, "phase " + phase + ": the flute only an octave over the melody (" + sound + ")");
-                if (note.instrument() == 1 && note.tick() >= 64 && (note.tick() - 64) % 12 == 0 && note.volume() >= 0.8f) firstBeats++;
-            }
-            assertTrue(firstBeats >= 60, "phase " + phase + ": the bass lands on the first beat of the bars (" + firstBeats + ")");
-            top[phase - 1] = highest;
-        }
-        assertEquals(top[0] + 1, top[1], "phase 2 is a half step higher");
-    }
-
-    @Test
-    void theUnkeyedPhasesAreOnePieceThatBuildsUpFromASilenceAndPhaseTwoHasTheBeatFromTheStart() throws IOException {
-        NbsSong one = bundled("unkeyed_phase1");
-        NbsSong two = bundled("unkeyed_phase2");
-        assertEquals("Eyes Without a Key (Boss009)", one.title());
-        assertEquals("Eyes Without a Key, Unwritten (Boss009)", two.title());
-        assertEquals(1216, one.length());
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        assertEquals(64, one.loopStart(), "the click of the intro is played once");
-        int[] drumsInObservation = new int[2];
-        int[] drumsInCollapse = new int[2];
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = phase == 1 ? one : two;
-            for (int i = 0; i < song.noteCount(); i++) {
-                NbsSong.Note note = song.note(i);
-                int sound = sounding(note.instrument(), note.key());
-                if (note.instrument() == 7 || note.instrument() == 8) assertTrue(sound <= 99, "phase " + phase + ": the bell and the glass stay below D#7 (" + sound + ")");
-                boolean drum = note.instrument() == 2 || note.instrument() == 3;
-                if (drum && note.tick() >= 64 && note.tick() < 64 + 384) drumsInObservation[phase - 1]++;
-                if (drum && note.tick() >= 64 + 768) drumsInCollapse[phase - 1]++;
-            }
-        }
-        assertEquals(0, drumsInObservation[0], "phase 1: the observation has no drums");
-        assertTrue(drumsInObservation[1] > 20, "phase 2: the beat is there from the first bar");
-        assertTrue(drumsInCollapse[0] > 100 && drumsInCollapse[1] > 100, "both: the collapse has the whole drum kit");
-    }
-
-    @Test
-    void theCircuitPhasesUseFiveInstrumentsFewRolesAndABreakWithoutBassAndDrums() throws IOException {
-        NbsSong one = bundled("circuit_phase1");
-        NbsSong two = bundled("circuit_phase2");
-        assertEquals("Holy Circuit (Boss010)", one.title());
-        assertEquals("Holy Circuit, Overclocked (Boss010)", two.title());
-        assertEquals(2464, one.length());
-        assertEquals(20.0, one.ticksPerSecond(), 1.0E-9, "200 BPM: a quarter note is 6 ticks");
-        assertEquals(one.length(), two.length(), "the same bars");
-        assertEquals(one.ticksPerSecond(), two.ticksPerSecond(), 1.0E-9, "the same tempo");
-        assertEquals(one.loopStart(), two.loopStart(), "the same loop point");
-        int breakStart = 64 + 64 * 24;   // the break: bars 64 to 71 of the loop (bars of 24 ticks)
-        int breakEnd = breakStart + 8 * 24;
-        for (int phase = 1; phase <= 2; phase++) {
-            NbsSong song = phase == 1 ? one : two;
-            java.util.Set<Integer> instruments = new java.util.TreeSet<>();
-            java.util.Map<Integer, Integer> perTick = new java.util.HashMap<>();
-            for (int i = 0; i < song.noteCount(); i++) {
-                NbsSong.Note note = song.note(i);
-                instruments.add(note.instrument());
-                perTick.merge(note.tick(), 1, Integer::sum);
-                int sound = sounding(note.instrument(), note.key());
-                if (note.instrument() == 1) assertTrue(sound < 48 + phase - 1, "phase " + phase + ": the bass stays below C3 (" + sound + ")");
-                if (note.instrument() == 5) assertTrue(sound >= 53 && sound <= 66, "phase " + phase + ": the guitar is in its own band (" + sound + ")");
-                if (note.instrument() == 15) assertTrue(sound >= 66 + phase - 1 && sound <= 78, "phase " + phase + ": the pling is in the lead band (" + sound + ")");
-                if (note.tick() >= breakStart && note.tick() < breakEnd) assertTrue(note.instrument() == 15 || note.instrument() == 5, "phase " + phase + ": the break has no bass and no drums (instrument " + note.instrument() + " at " + note.tick() + ")");
-            }
-            assertEquals(java.util.Set.of(1, 2, 3, 5, 15), instruments, "phase " + phase + ": only the bass, kick, snare, guitar and pling");
-            assertTrue(java.util.Collections.max(perTick.values()) <= 5, "phase " + phase + ": few notes at once");
         }
     }
 
