@@ -9,6 +9,9 @@ The theme is the world theme of the plains BACKWARDS (the enemy's theme is made 
 The device: every eighth bar everything falls silent but the tune (a full break, the guide's "ghost rest"), the arc of the scythe cutting the music. Phase 1 (60-70 % of the density, natural sounds): guitar tune with the
 harp, bass, bass drum and snare in the second half. Phase 2 is the same bars and chords a half step up (B-flat minor) with: the bass in sixteenths, the whole kit and the bell hits added, the tune in unison on the
 8-bit, the flute and the electric piano, and an 8-bit solo in the bridge. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -32,7 +35,7 @@ c1 = ["E5:2 D5:2 C5:12", "r:16", "D5:2 C5:2 B4:12", "r:16", "C5:2 B4:2 A4:12", "
 BREAKS = {"A": (7, 15), "A2": (7, 15), "PEAK": (7,)}
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1],
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": ["Am", "Am", "F", "E"],

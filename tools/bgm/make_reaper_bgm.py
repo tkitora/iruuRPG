@@ -8,6 +8,9 @@ B minor, 4/4, 150 BPM, 80 bars (2:08); intro 4 / A 16 / A' 16 / B 16 / A'' 16 (t
 asked like a question and left unanswered (D4 F#4 B4 | B4 C#5 D5). The device is SILENCE (the guide's ghost rest): in A the melody and the bass are all there is and every other bar is empty; the rests are the music.
 Phase 1 (natural): a piano (the harp) solo with the bass and a heartbeat; the bell only on the silent bars. Phase 2 (a half step up, C minor): the same bars and chords, with the silences filled with guitar chords,
 the bass in eighths and sixteenths, the whole kit in the peak, an 8-bit solo in the bridge, the tune in unison. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -31,7 +34,7 @@ p2 = seq_block(T, U, K, [0, "F#4:2 A4:2 D5:4 F#5:8", -2, "B3:2 D4:2 G4:4 B4:8", 
 c1 = ["D5:6 B4:2 F#4:8", R, "B4:6 G4:2 D4:8", R, "G4:6 E4:2 B3:8", R, "A4:6 F#4:2 C#4:8", R, "B3:4 D4:4 F#4:8", R, "A#4:6 C#5:2 F#5:4 C#5:4", "F#3:4 A#3:4 C#4:4 F#4:4"]
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1],
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": ["Bm", "Bm", "G", "F#"],

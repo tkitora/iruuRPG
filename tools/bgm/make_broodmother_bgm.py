@@ -9,6 +9,9 @@ in a minor third and a fourth as in the plains but is cut into groups of 3+3+3+3
 The device: a skittering staccato bass (root hit at 0, 3, 6, 9, 12, 14) and a snare that marches; in the peak one flash of C major (the queen's lit eyes), then back to the dark.
 Phase 1 (natural): harp, flute, guitar, bass, snare march. Phase 2 (a half step up, C# minor): the same bars and chords with the electric piano and the 8-bit chip as legs, sixteenth bass, the whole kit, the tune in unison.
 Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -32,7 +35,7 @@ p2 = seq_block(T, U, K, [0, "C5:3 D5:3 Eb5:3 G4:3 C5:2 D5:2", -2, "C5:3 Eb5:3 Ab
 c1 = ["G4:3 Bb4:3 C5:10", R, "Ab4:3 C5:3 Eb5:10", R, "F4:3 Ab4:3 C5:10", R, "G4:3 Bb4:3 D5:10", R, "G4:3 B4:3 D5:10", R, "D5:3 F#4:3 A4:3 C5:3 B4:2 G4:2", "G3:4 B3:4 D4:4 F4:4"]
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1],
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": ["Cm", "Cm", "Ab", "G"],

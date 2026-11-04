@@ -9,6 +9,9 @@ calm 12. The theme is the motif of Atlas (E5 B4 G4 E4: the falling tonic triad, 
 progression is i - bVI - bVII - V with the Phrygian F in B. The one device: the axe gets heavier - a bass drum heartbeat (every second beat) from the start; the peak is the one place that turns BRIGHT
 (the electric piano in thirds, the iron xylophone), and the last chord of the peak is E major (the guide's Picardy ending). The sounds: piano (harp) and bass for the base, flute an octave up, electric piano (pling), guitar.
 Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -31,7 +34,7 @@ p2 = seq_block(T, U, K, [0, "G4:2 B4:2 E5:4 G4:8", 0, "G4:2 B4:2 E5:4 B4:8", -2,
 c1 = ["E5:6 B4:2 G4:8", "r:16", "C5:6 G4:2 E4:8", "r:16", "D5:6 A4:2 F#4:8", "r:16", "A4:6 E4:2 C4:8", "r:16", "G4:6 D4:2 B3:8", "r:16", "B4:6 D#5:2 F#5:4 B4:4", "B3:4 E4:4 G4:4 B4:4"]
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0],
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0],
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": ["Em", "Em", "C", "B"],
