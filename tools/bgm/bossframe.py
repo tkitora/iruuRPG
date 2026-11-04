@@ -72,18 +72,73 @@ def fit(instrument, note):
     return note
 
 
-def bar_notes(text, bar_ticks):
-    """'E4:4 G4:4 r:8' -> [(tick, midi, ticks)]; the ticks must fill the bar."""
+def bar_notes(text, src_ticks, bar_ticks=None):
+    """'E4:4 G4:4 r:8' -> [(tick, midi, ticks)]; the ticks must fill the bar as it is written (``src_ticks``); the notes are put on the grid of the real bar
+    (``bar_ticks``: a song written in 16-tick bars played in 24-tick bars has every position times one and a half, rounded)."""
+    bar_ticks = bar_ticks or src_ticks
     tick = 0
     result = []
     for part in text.split():
         name, length = part.split(":")
         length = int(length)
         if name != "r":
-            result.append((tick, midi(name), length))
+            result.append((int(round(tick * bar_ticks / src_ticks)), midi(name), length))
         tick += length
-    assert tick == bar_ticks, f"bar '{text}' has {tick} ticks of {bar_ticks}"
+    assert tick == src_ticks, f"bar '{text}' has {tick} ticks of {src_ticks}"
     return result
+
+
+def widen(spec):
+    """A song written for 80 bars of 16 ticks at 10 ticks a second (150 BPM) played at 200 BPM: 20 ticks a second, a beat of 6 ticks (a bar of 24; the waltz 18),
+    and more bars so that it still lasts two minutes (the sections become 24 / 24 / 24 / 20 / 8 bars, the waltz 32 / 32 / 24 / 24 / 24): bars are added by repeating the first eight bars of a section.
+    The tempo of a song is a whole number of ticks to the beat (the ticks divide 20 a second): from 150 the next clean step is 200."""
+    if not spec.get("faster") or spec.get("widened"):
+        return spec
+    new = dict(spec)
+    new["widened"] = True
+    src = spec["bar"]
+    waltz = src == 12
+    new["src_bar"] = src
+    new["bar"] = 18 if waltz else 24
+    new["tps"] = 20.0
+    chords = {k: list(v) for k, v in spec["chords"].items()}
+    melody = {k: (list(v) if v is not None else None) for k, v in spec["melody"].items()}
+    voices = [{k: [t.replace("@2", "@1") if k == "intro" else t for t in v] for k, v in phase.items()} for phase in spec["voices"]]
+    chords["intro"] = chords["intro"][::2] if not waltz else [chords["intro"][0], chords["intro"][2], chords["intro"][4]]
+    breaks = {k: tuple(v) for k, v in spec.get("breaks", {}).items()}
+
+    def grow(table, name, how):
+        data = table[name]
+        if data is None:
+            return
+        if how == "a8":          # eight more bars of the first eight
+            table[name] = data + data[:8]
+        elif how == "p4":        # four more bars before the end: the first four bars once more at the start
+            table[name] = data[:4] + data
+        elif how == "p8":
+            table[name] = data[:8] + data
+        elif how == "calm":      # 12 bars -> 8: the first six, then the last two (the way back into the loop)
+            table[name] = data[:6] + data[-2:]
+
+    if waltz:
+        sections = [("A", 32), ("A2", 32), ("B", 24), ("PEAK", 24), ("CALM", 24)]
+        for table in (chords, melody):
+            grow(table, "A", "a8"); grow(table, "A2", "a8"); grow(table, "B", "a8"); grow(table, "PEAK", "p8"); grow(table, "CALM", "p8")
+    else:
+        sections = [("A", 24), ("A2", 24), ("B", 24), ("PEAK", 20), ("CALM", 8)]
+        old_a_chords, old_a_melody = chords["A"][8:16], melody["A"][8:16]
+        for table in (chords, melody):
+            grow(table, "A", "a8"); grow(table, "B", "a8"); grow(table, "PEAK", "p4"); grow(table, "CALM", "calm")
+        chords["A2"] = chords["A2"] + old_a_chords
+        melody["A2"] = melody["A2"] + old_a_melody
+        if "A" in breaks:
+            breaks["A"] = breaks["A"] + (23,)
+        if "A2" in breaks:
+            breaks["A2"] = breaks["A2"] + (23,)
+        if "PEAK" in breaks:
+            breaks["PEAK"] = tuple(b + 4 for b in breaks["PEAK"])
+    new.update(sections=sections, chords=chords, melody=melody, voices=voices, breaks=breaks)
+    return new
 
 
 def scale_down(note, pitch_classes, steps):
@@ -153,7 +208,11 @@ def parse_tag(tag):
 
 def build(spec, phase):
     """(layers, length in ticks) of the song, for phase 0 or 1."""
+    spec = widen(spec)
     bar = spec["bar"]
+    src = spec.get("src_bar", bar)
+    stretch = bar / src                       # the ticks of a song written for a shorter bar
+    slower = spec["tps"] / 10.0               # ticks of 20 a second are half as long as ticks of 10 a second
     sixteenth = bar / 16.0
     names = ["lead", "dbl", "cnt", "arp", "stabA", "stabB", "stabC", "bass", "drone", "kick", "snare", "hat", "bell", "echo"]
     pans = {"lead": 100, "dbl": 90, "cnt": 110, "arp": 135, "stabA": 80, "stabB": 120, "stabC": 100, "bass": 100, "drone": 100, "kick": 100, "snare": 105, "hat": 115, "bell": 120, "echo": 85}
@@ -168,8 +227,11 @@ def build(spec, phase):
     voices_of = spec["voices"][phase]
     fills_tick = {}
 
+    total = offset + sum(b for _, b in sections) * bar        # a note that would fall after the end is dropped
+    sections_total = total
+
     def put(name, tick, instrument, sounding, vel, pitched=True):
-        if tick in layer[name].notes or tick < 0:
+        if tick in layer[name].notes or tick < 0 or tick >= sections_total:
             return
         if pitched:
             sounding = fit(instrument, sounding)
@@ -221,7 +283,7 @@ def build(spec, phase):
                             put("drone", span_start + tick, DIDGERIDOO, root - 12 if root - 12 >= 30 else root, 44 * level)
                     elif kind == "arp":
                         instrument = INSTRUMENTS[parts[1]]
-                        step = int(parts[2])
+                        step = max(1, int(round(int(parts[2]) * stretch)))
                         low = BASE[instrument] + (4 if instrument == HARP else 0)
                         notes = tones_in(name, spec["arp_low"] + shift, spec["arp_high"] + shift)
                         order = [0, 1, 2, 3, 2, 1] if len(notes) >= 4 else [0, 1, 2, 1]
@@ -232,7 +294,7 @@ def build(spec, phase):
                         notes = tones_in(name, spec["stab_low"] + shift, spec["stab_high"] + shift)
                         offsets = [int(o) for o in parts[2].split(",")]
                         for offs in offsets:
-                            tick = int(round(offs * sixteenth))
+                            tick = int(round(offs * stretch))
                             if tick >= span:
                                 continue
                             for k, note in enumerate(notes[:3]):
@@ -259,7 +321,7 @@ def build(spec, phase):
                         put("snare", start + int(round((12 + k) * sixteenth)), SNARE, 66, (34 + 8 * k) * level, pitched=False)
             # the melody
             if melody is not None:
-                events = bar_notes(melody[index], bar)
+                events = bar_notes(melody[index], src, bar)
                 top = max((n for _, n, _ in events), default=0)
                 for tick, note, length in events:
                     vel = 88 if tick == 0 else (86 if note == top else 74)
@@ -278,18 +340,19 @@ def build(spec, phase):
                         elif parts[0] == "cnt":
                             put("cnt", start + tick, INSTRUMENTS[parts[1]], scale_down(note + shift, pcs, 2), vel * 0.62 * level)
                         elif parts[0] == "echo":
-                            put("echo", start + tick + int(parts[1]), INSTRUMENTS[parts[2]], note + shift, vel * 0.3 * level)
+                            put("echo", start + tick + int(round(int(parts[1]) * slower)), INSTRUMENTS[parts[2]], note + shift, vel * 0.3 * level)
         position += bars * bar
     # the run into the loop: the last half bar climbs to the first note of A
     if spec.get("run"):
         end = position
         for place, note in enumerate(spec["run"]):
-            put("arp", end - len(spec["run"]) * 2 + place * 2, HARP, note + shift, 36 + 4 * place)
+            put("arp", end - len(spec["run"]) * 2 * int(slower) + place * 2 * int(slower), HARP, note + shift, 36 + 4 * place)
     return [layer[n] for n in names if layer[n].notes], position
 
 
 def write_phases(spec, targets, descriptions, titles):
     """Builds both phases (or the one phase of a single song) and writes them."""
+    spec = widen(spec)
     results = []
     for phase, target in enumerate(targets):
         layers, length = build(spec, phase)
@@ -304,6 +367,7 @@ def write_phases(spec, targets, descriptions, titles):
 
 def density(spec, layers):
     """[(section, notes a second)]: how the song swells and takes away."""
+    spec = widen(spec)
     bar = spec["bar"]
     start = 0
     result = []

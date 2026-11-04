@@ -9,6 +9,9 @@ A 24 / A' 24 / B 16 / A'' 16 (the peak, from bar 69 of 101 = 68 %) / calm 16, lo
 every fourth bar. The theme is the world theme as a waltz step (A4 C5 E5 D5: a rising triad, a turn): the first beat is the heavy one (the bass and the bass drum), beats two and three are light. The device is the STUMBLE:
 every eighth bar the tune comes as two long beats (E5 C5 with three ticks of..., 6+6), the waltz losing its feet (a hemiola, the guide's "polymiddle"). Phase 1 (natural): harp, flute, bass, bass drum and snare on 2 and 3.
 Phase 2 (a half step up, B-flat minor): the same bars and chords, the bass drum on every beat, the 8-bit chip, the hat, the tune in unison. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269): written as above and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 18 - with the sections lengthened to 32 / 32 / 24 / 24 / 24 bars (136 bars, 2:06, every section a multiple of 8
+bars so that the 16-tick line of the phase switch meets a bar line every eighth bar) (bossframe.widen).
 """
 import sys
 from pathlib import Path
@@ -39,7 +42,7 @@ def chords_of(pattern, bars):
 WALTZ8 = "Am Am Dm Dm F F E E".split()
 
 SPEC = dict(
-    bar=12, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1],
+    bar=12, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
     sections=[("A", 24), ("A2", 24), ("B", 16), ("PEAK", 16), ("CALM", 16)],
     chords={
         "intro": ["Am", "Am", "Dm", "F", "E"],

@@ -20,22 +20,22 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `atlas_dungeon` | Hollow Beneath the Giant (Dungeon001) | アトラスの洞窟 (ダンジョンの内部) | 2:14 | 100 BPM (6.67 ticks/秒)、E フリジア / マイナー |
 | `atlas_vindicator` | The Axe at the Gate (Boss001) | アトラスの洞窟のボス (ヴィンディケーター) | 2:08 | 150 BPM (10 ticks/秒)、E マイナー |
 | `atlas_dungeon_2` | Below the Sleeping Giant (Dungeon002) | 洞窟の内部 (Dungeon001 の低音版: ピアノとベース、フルートなし) | 2:14 | 100 BPM、B マイナー |
-| `atlas_vindicator_2` | Raise the Axe (Boss002) | アトラスの洞窟のボス (Boss001 の低音版・1曲)。**「BGM制作ガイド」で作り直した**: アトラスのモチーフ (E5 B4 G4 E4) が主題、2拍に1回のバスドラム、頂点 (65%〜) だけが明るく、E メジャーの和音で終わる。ピアノ + ベース + エレピ・フルート・ギター | 2:08 | 150 BPM、E マイナー |
+| `atlas_vindicator_2` | Raise the Axe (Boss002) | アトラスの洞窟のボス (Boss001 の低音版・1曲)。**「BGM制作ガイド」で作り直した**: アトラスのモチーフ (E5 B4 G4 E4) が主題、2拍に1回のバスドラム、頂点 (65%〜) だけが明るく、E メジャーの和音で終わる。ピアノ + ベース + エレピ・フルート・ギター | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、E マイナー |
 | `cave_depths` | Where the Crystals Hum (Dungeon003) | クリスタルの洞窟の内部。自然な楽器 = 岩と水、電子音 = クリスタル。不協和音と唸り (hum) を少し | 2:56 | 60 BPM (4 ticks/秒)、C# ドリアン |
-| `colossus_phase1` | Shoulders of Stone (Boss003) | ボス戦フェーズ1 (作り直し): 自然な楽器・ハーフタイム・間奏はベースのソロ (主題を2オクターブ下げて) | 2:08 | 150 BPM、D マイナー |
-| `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | ボス戦フェーズ2: 電子音・ダブルタイム・8ビットのソロ。**フェーズ1と同じ小節・同じ和音で半音上 (E♭ マイナー)** | 2:08 | 150 BPM、E♭ マイナー |
-| `necromancer_phase1` | Reaper's Arc (Boss004) | 雪山のリーパー戦フェーズ1 (作り直し): 世界の主題を逆から読んだ主題 (E5 D5 C5 | C5 G4 E4)、8小節ごとに主旋律だけを残す全休止、ギターの旋律 | 2:08 | 150 BPM、A マイナー |
-| `necromancer_phase2` | Reaper's Arc, Sundered (Boss004) | フェーズ2: ピアノに電子音と8ビット。**同じ小節・同じ和音で半音上 (B♭ マイナー)** | 2:08 | 150 BPM、B♭ マイナー |
-| `reaper_phase1` | Silence of the Scythe (Boss005) | 雪山のリーパー戦 (別案) フェーズ1 (作り直し): 世界の主題を B マイナーで上げて「答えのない問い」にし、1小節おきの空白が曲 (ピアノのソロ) | 2:08 | 150 BPM、B マイナー |
-| `reaper_phase2` | Silence of the Scythe, Unleashed (Boss005) | フェーズ2: 空白をギターの和音とドラムで埋める。**同じ小節・同じ和音で半音上 (C マイナー)** | 2:08 | 150 BPM、C マイナー |
-| `broodmother_phase1` | Mother of a Thousand Legs (Boss006) | ブルードマザー戦フェーズ1 (作り直し): 世界の主題を 3+3+3+3+2+2 のグループに切った足取り、跳ねるベース、スネアの行進、頂点の一瞬だけ C メジャー | 2:08 | 150 BPM、C マイナー |
-| `broodmother_phase2` | Mother of a Thousand Legs, Swarming (Boss006) | フェーズ2: エレピと8ビットの足音。**同じ小節・同じ和音で半音上 (C# マイナー)** | 2:08 | 150 BPM、C# マイナー |
-| `mirror_phase1` | The Cracked Mirror Laughs (Boss007) | 狂気・嘲笑のボスフェーズ1 (作り直し): 世界の主題の第3音を半音上げたひび割れ版と、それを上下ひっくり返した「鏡」の声 (ギター)、ベルの半音のトリル | 2:08 | 150 BPM、F# フリジアン・ドミナント |
-| `mirror_phase2` | The Cracked Mirror Laughs, Shattered (Boss007) | フェーズ2: 鏡が8ビットに。**同じ小節・同じ和音で半音上 (G)** | 2:08 | 150 BPM、G フリジアン・ドミナント |
-| `waltz_phase1` | Waltz at the Edge of Dark (Boss008) | 3拍子のボス曲フェーズ1 (作り直し): 世界の主題を3拍子の足取りにし、1拍目が重く、8小節ごとに2拍ずつの「つまずき」(ヘミオラ)。1小節 = 12 tick、導入は4 tickの空白+5小節 | 2:01 | 150 BPM、3/4、A マイナー |
-| `waltz_phase2` | Waltz at the Edge of Dark, Out of Step (Boss008) | フェーズ2: バスドラムが毎拍、8ビット、ハット。**同じ小節・同じ和音で半音上 (B♭ マイナー)** | 2:01 | 150 BPM、3/4、B♭ マイナー |
-| `unkeyed_phase1` | Eyes Without a Key (Boss009) | 調のないボス曲フェーズ1 (作り直し): 増三和音の根音が**3小節ごとに半音ずつ落ち続け**(落ちきらない)、主題は世界の主題の音程を増音程にしたもの。語り手(楽器)が毎回変わり、頂点で前のボスの主題 (アトラス、リーパー、蜘蛛) が一度に間違って引用される | 2:08 | 150 BPM、調なし (全音音階) |
-| `unkeyed_phase2` | Eyes Without a Key, Unwritten (Boss009) | フェーズ2: 最初の小節からビート、8ビットが主題に重なる。**同じ小節・同じ和音で半音上** | 2:08 | 150 BPM、調なし |
+| `colossus_phase1` | Shoulders of Stone (Boss003) | ボス戦フェーズ1 (作り直し): 自然な楽器・ハーフタイム・間奏はベースのソロ (主題を2オクターブ下げて) | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、D マイナー |
+| `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | ボス戦フェーズ2: 電子音・ダブルタイム・8ビットのソロ。**フェーズ1と同じ小節・同じ和音で半音上 (E♭ マイナー)** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、E♭ マイナー |
+| `necromancer_phase1` | Reaper's Arc (Boss004) | 雪山のリーパー戦フェーズ1 (作り直し): 世界の主題を逆から読んだ主題 (E5 D5 C5 | C5 G4 E4)、8小節ごとに主旋律だけを残す全休止、ギターの旋律 | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、A マイナー |
+| `necromancer_phase2` | Reaper's Arc, Sundered (Boss004) | フェーズ2: ピアノに電子音と8ビット。**同じ小節・同じ和音で半音上 (B♭ マイナー)** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、B♭ マイナー |
+| `reaper_phase1` | Silence of the Scythe (Boss005) | 雪山のリーパー戦 (別案) フェーズ1 (作り直し): 世界の主題を B マイナーで上げて「答えのない問い」にし、1小節おきの空白が曲 (ピアノのソロ) | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、B マイナー |
+| `reaper_phase2` | Silence of the Scythe, Unleashed (Boss005) | フェーズ2: 空白をギターの和音とドラムで埋める。**同じ小節・同じ和音で半音上 (C マイナー)** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、C マイナー |
+| `broodmother_phase1` | Mother of a Thousand Legs (Boss006) | ブルードマザー戦フェーズ1 (作り直し): 世界の主題を 3+3+3+3+2+2 のグループに切った足取り、跳ねるベース、スネアの行進、頂点の一瞬だけ C メジャー | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、C マイナー |
+| `broodmother_phase2` | Mother of a Thousand Legs, Swarming (Boss006) | フェーズ2: エレピと8ビットの足音。**同じ小節・同じ和音で半音上 (C# マイナー)** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、C# マイナー |
+| `mirror_phase1` | The Cracked Mirror Laughs (Boss007) | 狂気・嘲笑のボスフェーズ1 (作り直し): 世界の主題の第3音を半音上げたひび割れ版と、それを上下ひっくり返した「鏡」の声 (ギター)、ベルの半音のトリル | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、F# フリジアン・ドミナント |
+| `mirror_phase2` | The Cracked Mirror Laughs, Shattered (Boss007) | フェーズ2: 鏡が8ビットに。**同じ小節・同じ和音で半音上 (G)** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、G フリジアン・ドミナント |
+| `waltz_phase1` | Waltz at the Edge of Dark (Boss008) | 3拍子のボス曲フェーズ1 (作り直し): 世界の主題を3拍子の足取りにし、1拍目が重く、8小節ごとに2拍ずつの「つまずき」(ヘミオラ)。1小節 = 18 tick、導入は10 tickの空白+3小節 | 2:06 | 200 BPM (20 ticks/秒)、3/4 (1小節 18 tick)、A マイナー |
+| `waltz_phase2` | Waltz at the Edge of Dark, Out of Step (Boss008) | フェーズ2: バスドラムが毎拍、8ビット、ハット。**同じ小節・同じ和音で半音上 (B♭ マイナー)** | 2:06 | 200 BPM (20 ticks/秒)、3/4 (1小節 18 tick)、B♭ マイナー |
+| `unkeyed_phase1` | Eyes Without a Key (Boss009) | 調のないボス曲フェーズ1 (作り直し): 増三和音の根音が**3小節ごとに半音ずつ落ち続け**(落ちきらない)、主題は世界の主題の音程を増音程にしたもの。語り手(楽器)が毎回変わり、頂点で前のボスの主題 (アトラス、リーパー、蜘蛛) が一度に間違って引用される | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、調なし (全音音階) |
+| `unkeyed_phase2` | Eyes Without a Key, Unwritten (Boss009) | フェーズ2: 最初の小節からビート、8ビットが主題に重なる。**同じ小節・同じ和音で半音上** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、調なし |
 | `circuit_phase1` | Holy Circuit (Boss010) | 5つの音 (エレピ、ギター、ベース、バスドラム、スネア) だけで作った、速すぎる賛美歌フェーズ1 (作り直し): 同時に鳴るのは最大5音、3分の1の地点にギターと主旋律だけの8小節 | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、D ドリアン |
 | `circuit_phase2` | Holy Circuit, Overclocked (Boss010) | フェーズ2: バスドラムが毎拍、ギターが早い段から3連。**同じ小節・同じ和音で半音上 (E♭ ドリアン)** | 2:03 | 200 BPM、E♭ ドリアン |
 | `cloud_light` | Light Between the Clouds (Field003) | 明るくキラキラした寂しいフィールド曲(第3版): 止まらない16分のギターのさざ波、ハープの旋律、**高いチャイムの粒が毎秒 3〜5 音で流れる(静かな部分・導入・アウトロでは鳴らない)**。ドラムなし。3分の1に G マイナーの静かな部分、3分の2で半音上がる | 2:05 | 100 BPM、B♭ メジャー → B メジャー |

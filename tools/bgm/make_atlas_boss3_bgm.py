@@ -11,6 +11,9 @@ phase 1 is in half time (the bass walks in quarters, the snare falls on the thir
 Phase 1 (60-70 % of the density, natural sounds): harp, guitar, flute an octave up, bass, didgeridoo, bass drum and snare; the bridge is a bass solo (the motif two octaves down).
 Phase 2 is the SAME bars and chords, a half step higher (E-flat minor), with four of the guide's changes: the bass in sixteenths, all the drums and the drone and the bell hits added, the theme in unison on three
 instruments (8-bit, flute, electric piano) and the bridge an 8-bit solo. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -36,7 +39,7 @@ p2 = [T, "F5:4 E5:4 D5:8", mv(T, K, 2), "F5:4 E5:4 D5:8", "G4:2 Bb4:2 D5:4 G4:8"
 c1 = ["D5:6 A4:2 F4:8", "r:16", "Bb4:6 F4:2 D4:8", "r:16", "A4:6 F4:2 C4:8", "r:16", "G4:6 D4:2 Bb3:8", "r:16", "E4:6 G4:2 C5:8", "r:16", "E5:6 C#5:2 A4:8", "E4:4 A4:4 C#5:4 E5:4"]
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1],
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": ["Dm", "Dm", "Gm", "A"],

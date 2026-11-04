@@ -215,7 +215,7 @@ class BgmTest {
         BgmChannel channel = new BgmChannel();
         Player player = player();
         channel.playScene(registry.song("colossus_phase1"), true, 0.0);
-        for (int tick = 0; tick < 25; tick++) channel.tick(player, 1.0f);  // 10 song ticks a second: the clock is at 12.5
+        for (int tick = 0; tick < 25; tick++) channel.tick(player, 1.0f);  // 20 song ticks a second (the boss songs play at 200 BPM): the clock is at 25
         channel.playSceneSynced(registry.song("colossus_phase2"), true, 1.5);
         assertTrue(channel.changePending());
         assertEquals("Shoulders of Stone (Boss003)", channel.nowPlaying(), "phase 1 goes on until the bar line");
@@ -226,7 +226,7 @@ class BgmTest {
         assertEquals("Shoulders of Stone, Unbound (Boss003)", channel.nowPlaying());
         assertEquals(2, channel.voiceCount(), "phase 1 fades out while phase 2 fades in");
         double at = channel.positionOf("colossus_phase2");
-        assertTrue(at >= 16.0 && at < 18.0, "phase 2 is at the bar after the one phase 1 was in (bar line 16): " + at);
+        assertTrue(at >= 32.0 && at < 36.0, "phase 2 is at the bar after the one phase 1 was in (bar line 32): " + at);
     }
 
     @Test
@@ -291,7 +291,7 @@ class BgmTest {
             assertTrue(lowest >= 30, id + ": nothing below F#1 (" + lowest + ")");
         }
         assertEquals(896, bundled("atlas_dungeon_2").length());
-        assertEquals(1280, bundled("atlas_vindicator_2").length());
+        assertEquals(2464, bundled("atlas_vindicator_2").length());
         assertEquals("Below the Sleeping Giant (Dungeon002)", bundled("atlas_dungeon_2").title());
         assertEquals("Raise the Axe (Boss002)", bundled("atlas_vindicator_2").title());
     }
@@ -316,14 +316,14 @@ class BgmTest {
 
     /** The boss songs of Boss002-Boss010, written again by the BGM制作ガイド: {phase 1 id, phase 2 id (or null), title of phase 1, bar length in ticks, bars of A, A', B, peak, calm, length in ticks}. */
     private static final Object[][] GUIDE_BOSSES = {
-        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
-        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
-        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
-        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
-        {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
-        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
-        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", 12, new int[]{24, 24, 16, 16, 16}, 1216},
-        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", 16, new int[]{16, 16, 16, 16, 12}, 1280},
+        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
+        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", 18, new int[]{32, 32, 24, 24, 24}, 2512},
+        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
         {"circuit_phase1", "circuit_phase2", "Holy Circuit (Boss010)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
     };
 

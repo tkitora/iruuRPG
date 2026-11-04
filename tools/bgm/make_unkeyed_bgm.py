@@ -10,6 +10,9 @@ song (the fall that never lands: C, B, B-flat, A ... all the way down), the melo
 The device: the tune changes its instrument at every statement (harp, 8-bit, iron xylophone, banjo ...) so that it is never the same speaker, and in the peak the themes of the earlier bosses (Atlas, the reaper,
 the spider) are quoted at once, wrongly. Phase 1 (natural, a half step... of nothing): quiet, the observation; Phase 2 (a half step higher): the same bars, the beat starts at once, the 8-bit goes over the tune.
 Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -43,7 +46,7 @@ p2 = [T, mv(T, K, 2), ATLAS, REAPER, SPIDER, mv(T, K, -2), mv(T, K, 3), "C5:16"]
 c1 = ["E5:4 C5:4 G#4:8", R, "Db5:4 B4:4 G4:8", R, "C5:4 A4:4 F4:8", R, "B4:4 G4:4 Eb4:8", R, "A4:4 F4:4 Db4:8", R, "G4:4 E4:4 C4:8", "E4:4 G#4:4 C5:4 E5:4"]
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1],
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": falling(0, 4),

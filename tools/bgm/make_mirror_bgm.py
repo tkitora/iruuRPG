@@ -9,6 +9,9 @@ The theme is the world theme CRACKED: the same first note and the same rise (F#4
 a second voice plays the same tune upside down about F#4 (the guitar, the inversion of the melody), so the tune meets itself; the bells trill a half step (G over F#) and the flute laughs in short notes.
 Phase 1 (natural): harp, flute, guitar mirror, bell, bass, snare march. Phase 2 (a half step up, G Phrygian dominant): the same bars and chords with the electric piano and 8-bit, the sixteenth bass, the whole kit, the
 unison tune and the mirror on the 8-bit. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
+
+FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
+with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
@@ -33,7 +36,7 @@ p2 = seq_block(T, U, K, [0, "A#4:2 D5:2 F#5:4 D5:8", -1, "B4:2 D5:2 F#5:4 D5:8",
 c1 = ["F#5:4 A#4:4 F#4:8", R, "E5:4 G4:4 E4:8", R, "D5:4 B4:4 G4:8", R, "C#5:4 G4:4 E4:8", R, "A#4:4 F#4:4 C#4:8", R, "G4:2 B4:2 D5:4 D5:2 E5:2 G4:4", "C#4:4 E4:4 G4:4 B4:4"]
 
 SPEC = dict(
-    bar=16, tps=10.0, tonic=TONIC, scale=SCALE, shift=[0, 1], axis=AXIS,
+    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1], axis=AXIS,
     sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
     chords={
         "intro": ["F#", "F#", "G", "C#"],
