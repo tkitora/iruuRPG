@@ -9,12 +9,13 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * (t252, t258 after a tree tutorial iru sent) The thin tree. Its skeleton is laid as builders lay one of single blocks: a short trunk that soon splits,
- * one of the parts about twice as long as the other, every branch at about the same angle, side branches at several heights and forks at the ends, the
- * crown some four times as tall as the clear trunk. Over it the wood is dressed thinner the further it is from the foot: logs near the foot (the main
- * trunk the heaviest), then walls where a branch runs up and slabs where it runs out (the bottom or the top half, as high as it passes), fences at the
- * thin ends; a log stepping up as it goes over is joined by a stair, and stairs round the foot give it weight. The leaves are laid as with a sphere brush
- * of a few blocks, filled only in part: over the tips and along the outer branches, in passes from the darkest leaf to the brightest (each a little
+ * (t252, t258, t265 after the birches iru sent) The thin tree. Its skeleton grows as a young tree does, a block at a time: the stems turn back up as they
+ * grow (they lean or open at first and then rise side by side) and sway slowly; the trunk runs up to the top (or splits at the height the side branches
+ * start into stems that rise together), and short side branches leave it at heights round it by the golden angle, the longest a third up the crown, so
+ * the crown is an egg; twigs off them. Over it the wood is dressed thinner the further it is from the foot: logs near the foot (the trunk the heaviest),
+ * then walls where a stem runs up and slabs where wood runs out (the bottom or the top half, as high as it passes), fences on the side branches and the
+ * thin tops; a log stepping up as it goes over is joined by a stair, and stairs round the foot give it weight. The leaves are laid as with a sphere brush
+ * of a few blocks, filled only in part: over the tips and along the side branches, in passes from the darkest leaf to the brightest (each a little
  * higher, so the crown is lit from above), kept off the wood (the branches show in it) but where they hang on the tips, and no leaf left alone; vines can
  * hang from the lowest. The connections of the fences and walls, the halves of the slabs and the ways of the stairs are given as the blocks are put
  * ({@link #shape}).
@@ -29,6 +30,8 @@ final class ThinTree {
     private final Random random;
     private final double kink;
     private final double angle;
+    private final double upturn;
+    private final double curve;
     private final int logReach;
     private final boolean stairs;
     /** The blocks of the logs (by their distance from the foot along the wood), and those of them that are the trunk. */
@@ -47,8 +50,10 @@ final class ThinTree {
         this.voxels = new TreeVoxelizer(s.leafShades());
         this.random = random;
         this.kink = s.get(TreeSettings.Key.THIN_KINK);
-        // (the angle a branch leaves its parent at, the same all through the tree: 15 to 70 degrees from upright)
+        // (the angle a side branch leaves its stem at: 15 to 70 degrees from it)
         this.angle = Math.toRadians(70.0 - 55.0 * s.get(TreeSettings.Key.THIN_RISE));
+        this.upturn = s.get(TreeSettings.Key.THIN_UPTURN);
+        this.curve = s.get(TreeSettings.Key.THIN_CURVE);
         this.logReach = s.getInt(TreeSettings.Key.THIN_LOG_REACH);
         this.stairs = s.on(TreeSettings.Key.THIN_STAIRS);
         this.alongEvery = s.get(TreeSettings.Key.THIN_LEAF_ALONG);
@@ -64,43 +69,119 @@ final class ThinTree {
 
     // ---- the skeleton ------------------------------------------------------------------------------------------------------------
 
+    /** The turn round a stem from one side branch to the next (the golden angle, as leaves and buds follow each other round a shoot). */
+    private static final double SPIRAL = Math.PI * (3.0 - Math.sqrt(5.0));
+
     private void grow(TreeSettings s) {
         int clear = s.getInt(TreeSettings.Key.THIN_HEIGHT);
         int stems = s.getInt(TreeSettings.Key.THIN_STEMS);
         double lean = s.get(TreeSettings.Key.THIN_LEAN);
-        double curve = s.get(TreeSettings.Key.THIN_CURVE);
         int split = s.getInt(TreeSettings.Key.THIN_BRANCHES);
         int side = s.getInt(TreeSettings.Key.THIN_SIDE);
         double crown = s.get(TreeSettings.Key.THIN_LENGTH);
+        double reach = s.get(TreeSettings.Key.THIN_SIDE_LENGTH);
         int depth = s.getInt(TreeSettings.Key.THIN_DEPTH);
         double turn = random.nextDouble() * Math.PI * 2.0;
         for (int stem = 0; stem < stems; stem++) {
-            // (several stems lean away from each other from the foot, the first the most upright and the tallest)
+            // (several stems lean away from each other from the foot and turn up as they rise, the first the most upright and the tallest)
             double azimuth = turn + stem * Math.PI * 2.0 / stems + (random.nextDouble() - 0.5) * 0.6;
-            double tilt = lean * 0.4 + (stems > 1 ? 0.2 + 0.1 * stem : 0.0);
-            int tall = Math.max(1, stems > 1 ? (int) Math.round(clear * (1.0 - 0.2 * stem)) : clear);
-            double phase = random.nextDouble() * Math.PI * 2.0;
-            double[] at = {0.0, 0.0, 0.0};
-            double[] last = at;
-            for (int y = 1; y <= tall; y++) {
-                double sway = curve * 0.8 * Math.sin(phase + y * 0.6);
-                at = new double[]{Math.sin(tilt) * Math.cos(azimuth) * y + sway * Math.cos(azimuth + Math.PI / 2.0), y,
-                        Math.sin(tilt) * Math.sin(azimuth) * y + sway * Math.sin(azimuth + Math.PI / 2.0)};
-                line(last, at, 0, y - 1.0, y);
-                last = at;
+            double tilt = lean * 0.5 + (stems > 1 ? 0.35 + 0.1 * stem : 0.0);
+            double share = stems > 1 ? 1.0 - 0.18 * stem : 1.0;
+            int tall = Math.max(1, (int) Math.round(clear * share));
+            double[] way = {Math.sin(tilt) * Math.cos(azimuth), Math.cos(tilt), Math.sin(tilt) * Math.sin(azimuth)};
+            double size = crown * share;
+            if (split <= 1) {
+                // one stem to the top: the trunk itself carries the side branches over its clear height
+                leader(0, new double[]{0.0, 0.0, 0.0}, way, tall + size, 0.0, tall, side, reach, depth);
+                continue;
             }
-            double[] up = normal(new double[]{Math.sin(tilt) * Math.cos(azimuth), Math.cos(tilt), Math.sin(tilt) * Math.sin(azimuth)});
-            // the first split: the parts round the stem's way, each at the tree's angle, one about twice as long as the next
+            List<double[]> trunk = walk(0, new double[]{0.0, 0.0, 0.0}, way, tall * (1.0 + 0.3 * tilt), 0.0, upturn * 0.3, curve);
+            double[] at = trunk.get(trunk.size() - 1);
+            double[] up = wayAt(trunk, 1.0);
+            // the split: stems that open a little and turn back up, so they rise side by side (the first nearly straight on and the longest)
             double first = random.nextDouble() * Math.PI * 2.0;
-            double size = crown * (stems > 1 ? 1.0 - 0.15 * stem : 1.0);
+            double length = tall * (1.0 + 0.3 * tilt);
             for (int part = 0; part < split; part++) {
                 double around = first + part * Math.PI * 2.0 / split + (random.nextDouble() - 0.5) * 0.5;
-                // (the longest stands nearly upright and carries the crown over the trunk; the others, shorter, lean out at the tree's angle)
-                double length = size * (part == 0 ? 1.0 : 0.55 + 0.2 * random.nextDouble());
-                double spread = angle * (part == 0 ? 0.3 : 1.0);
-                branch(1, at, turned(up, spread, around), length, depth, tall, side);
+                double longest = size * (part == 0 ? 1.0 : 0.7 + 0.2 * random.nextDouble());
+                double spread = angle * (part == 0 ? 0.15 : 0.5);
+                leader(1, at, turned(up, spread, around), longest, length, 0.0, Math.max(1, (int) Math.round(side * longest / Math.max(1.0, size))), reach, depth);
             }
         }
+    }
+
+    /**
+     * A stem of {@code level} ({@code length} long, {@code distance} from the foot along the wood at {@code from}) that turns back up as it grows and sways
+     * slowly; its side branches start {@code clear} up it: {@code side} of them round it by the golden angle at heights along it, the longest a third up
+     * the crown and shorter to its top and its bottom, the crown so an egg. Leaves on its top.
+     */
+    private void leader(int level, double[] from, double[] way, double length, double distance, double clear, int side, double reach, int depth) {
+        List<double[]> points = walk(level, from, way, length, distance, upturn * 0.3, curve);
+        tips.add(points.get(points.size() - 1));
+        double crown = Math.max(1.0, length - clear);
+        double around = random.nextDouble() * Math.PI * 2.0;
+        for (int n = 0; n < side; n++) {
+            double share = (n + 0.5 + (random.nextDouble() - 0.5) * 0.6) / side * 0.9;
+            double t = (clear + crown * share) / length;
+            around += SPIRAL + (random.nextDouble() - 0.5) * 0.4;
+            double shape = 0.25 + 0.75 * share;
+            double long_ = reach * 4.0 * shape * (1.0 - shape) * (0.75 + 0.5 * random.nextDouble());
+            if (long_ < 1.0) continue;
+            double[] base = pointAt(points, t);
+            branch(level + 1, base, outward(turned(wayAt(points, t), angle * (0.85 + 0.3 * random.nextDouble()), around), base), long_, distance + length * t, depth);
+        }
+    }
+
+    /**
+     * A side branch of {@code level}: it kinks a little and turns up a little at its end; {@code depth} more of twigs off it (one or two, round it away from each
+     * other); leaves on its tip and every few blocks along it.
+     */
+    private void branch(int level, double[] from, double[] way, double length, double distance, int depth) {
+        List<double[]> points = walk(level, from, way, length, distance, upturn * 0.1, 0.0);
+        if (alongEvery > 0.0) {
+            for (double t = alongEvery; t < length - 1.0; t += alongEvery) along.add(pointAt(points, t / length));
+        }
+        if (depth > 0 && length >= 2.5) {
+            int twigs = length >= 4.0 ? 2 : 1;
+            double around = random.nextDouble() * Math.PI * 2.0;
+            for (int n = 0; n < twigs; n++) {
+                double t = 0.35 + 0.45 * (n + random.nextDouble()) / twigs;
+                around += Math.PI * (0.6 + 0.8 * random.nextDouble());
+                double[] base = pointAt(points, t);
+                double next = length * (1.0 - t) * (0.6 + 0.3 * random.nextDouble());
+                if (next < 1.0) continue;
+                branch(level + 1, base, outward(turned(wayAt(points, t), angle * (0.8 + 0.4 * random.nextDouble()), around), base), next, distance + length * t, depth - 1);
+            }
+        }
+        tips.add(points.get(points.size() - 1));
+    }
+
+    /**
+     * Draws wood from {@code from} a block at a time, {@code length} in all: each block the way turns up by {@code rise} (as a shoot turns to the light), sways
+     * with a slow wander of {@code sway} (it keeps a while to one side, so a stem bends rather than shakes) and kinks a little; it never runs down. The points,
+     * from the first.
+     */
+    private List<double[]> walk(int level, double[] from, double[] way, double length, double distance, double rise, double sway) {
+        List<double[]> points = new ArrayList<>();
+        points.add(from.clone());
+        double[] at = from.clone();
+        double[] d = normal(way);
+        double wanderX = 0.0;
+        double wanderZ = 0.0;
+        int steps = Math.max(1, (int) Math.ceil(length));
+        double step = length / steps;
+        for (int n = 0; n < steps; n++) {
+            wanderX = wanderX * 0.9 + (random.nextDouble() - 0.5) * 0.25;
+            wanderZ = wanderZ * 0.9 + (random.nextDouble() - 0.5) * 0.25;
+            d = normal(new double[]{d[0] + wanderX * sway * 0.8 + (random.nextDouble() - 0.5) * kink * 0.3, d[1] + rise + (random.nextDouble() - 0.5) * kink * 0.1,
+                    d[2] + wanderZ * sway * 0.8 + (random.nextDouble() - 0.5) * kink * 0.3});
+            if (d[1] < 0.0) d = normal(new double[]{d[0], 0.0, d[2]});
+            double[] to = {at[0] + d[0] * step, at[1] + d[1] * step, at[2] + d[2] * step};
+            line(at, to, level, distance + n * step, distance + (n + 1) * step);
+            at = to;
+            points.add(at.clone());
+        }
+        return points;
     }
 
     /** {@code way} turned by {@code by} away from itself, toward {@code around} (an azimuth round it). */
@@ -124,54 +205,6 @@ final class ThinTree {
         return length < 1.0e-9 ? new double[]{0.0, 1.0, 0.0} : new double[]{v[0] / length, v[1] / length, v[2] / length};
     }
 
-    /**
-     * A branch of {@code level} from {@code from} ({@code distance} from the foot along the wood): runs that kink a little (drawn back up when one sags),
-     * {@code side} side branches at several heights along it, at the tree's angle round it, and at its end a fork of two (to {@code depth} more), else a tip.
-     */
-    private void branch(int level, double[] from, double[] way, double length, int depth, double distance, int side) {
-        int runs = Math.max(2, (int) Math.ceil(length / 3.0));
-        double[] at = from.clone();
-        double[] d = normal(way);
-        double done = 0.0;
-        List<double[]> points = new ArrayList<>();
-        points.add(at.clone());
-        for (int run = 0; run < runs; run++) {
-            double part = length / runs;
-            d = normal(new double[]{d[0] + (random.nextDouble() - 0.5) * kink * 0.6, d[1] + (random.nextDouble() - 0.5) * kink * 0.4 + 0.06,
-                    d[2] + (random.nextDouble() - 0.5) * kink * 0.6});
-            double[] to = {at[0] + d[0] * part, at[1] + d[1] * part, at[2] + d[2] * part};
-            line(at, to, level, distance + done, distance + done + part);
-            done += part;
-            at = to;
-            points.add(at.clone());
-        }
-        // leaves along the outer branches
-        if (alongEvery > 0.0 && (level >= 2 || distance > logReach * 1.5)) {
-            for (double t = alongEvery; t < length - 1.0; t += alongEvery) along.add(pointAt(points, t / length));
-        }
-        if (depth > 0 && length >= 2.0) {
-            // side branches at several heights, each round the branch away from the last, leaning out of the crown
-            double around = random.nextDouble() * Math.PI * 2.0;
-            for (int n = 0; n < side; n++) {
-                double t = 0.3 + 0.55 * (n + random.nextDouble()) / Math.max(1, side);
-                around += Math.PI * (0.6 + 0.8 * random.nextDouble());
-                double[] base = pointAt(points, t);
-                branch(level + 1, base, outward(turned(d, angle * (0.9 + 0.3 * random.nextDouble()), around), base), length * (1.0 - t) * (0.75 + 0.25 * random.nextDouble()),
-                        depth - 1, distance + length * t, Math.max(0, side - 1));
-            }
-            // the fork at its end: two parts, one twice as long as the other
-            double fork = random.nextDouble() * Math.PI * 2.0;
-            for (int part = 0; part < 2; part++) {
-                double next = length * (part == 0 ? 0.7 : 0.4) * (0.85 + 0.3 * random.nextDouble());
-                if (next < 1.5) continue;
-                branch(level + 1, at, outward(turned(d, angle * (part == 0 ? 0.5 : 1.0), fork + part * Math.PI), at), next, depth - 1, distance + length,
-                        Math.max(0, side - 1));
-            }
-        } else {
-            tips.add(at);
-        }
-    }
-
     /** {@code way} leaned a little out of the crown (away from the tree's middle, flat), so the crown spreads as a real one does. */
     private static double[] outward(double[] way, double[] at) {
         double flat = Math.hypot(at[0], at[2]);
@@ -187,6 +220,15 @@ final class ThinTree {
         double[] a = points.get(index);
         double[] b = points.get(index + 1);
         return new double[]{a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f};
+    }
+
+    /** The way a run of points goes {@code share} of the way along it. */
+    private static double[] wayAt(List<double[]> points, double share) {
+        double place = Math.max(0.0, Math.min(1.0, share)) * (points.size() - 1);
+        int index = Math.min(points.size() - 2, (int) Math.floor(place));
+        double[] a = points.get(index);
+        double[] b = points.get(index + 1);
+        return normal(new double[]{b[0] - a[0], b[1] - a[1], b[2] - a[2]});
     }
 
     /**
@@ -257,7 +299,7 @@ final class ThinTree {
             long key = entry.getKey();
             if (logs.containsKey(key)) continue;
             Pass pass = entry.getValue();
-            TreePart part = pass.halves() == 3 ? (pass.distance() < logReach * 2.2 && pass.level() <= 2 ? TreePart.BRANCH_WALL : TreePart.BRANCH_FENCE)
+            TreePart part = pass.halves() == 3 ? (pass.distance() < logReach * 2.2 && pass.level() <= 1 ? TreePart.BRANCH_WALL : TreePart.BRANCH_FENCE)
                     : pass.halves() == 1 ? TreePart.BRANCH_SLAB : TreePart.BRANCH_SLAB_TOP;
             voxels.set(TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key), TreeVoxelizer.unpackZ(key), part);
         }

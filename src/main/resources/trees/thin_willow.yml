@@ -1,21 +1,24 @@
-# 見本の木: 細い柳 (くねった幹、横へ広がる枝、平たい葉の塊から垂れるつる。t252・t258) (プロシージャルツールの読み込み、または /proceduraltool load thin_willow)
+# 見本の木: 細い柳 (くねった幹が低く分かれ、横へ長く伸びる枝、平たい葉の塊から垂れるつる。t252・t258・t265) (プロシージャルツールの読み込み、または /proceduraltool load thin_willow)
 settings:
   kind: tree
   algorithm: thin
-  thin-height: 3
+  thin-height: 4
   thin-lean: 0.5
   thin-curve: 0.7
   thin-branches: 3
-  thin-side: 2
-  thin-length: 10
-  thin-depth: 3
-  thin-rise: 0.35
+  thin-length: 9
+  thin-side: 6
+  thin-side-length: 6.0
+  thin-depth: 2
+  thin-rise: 0.1
+  thin-upturn: 0.25
   thin-kink: 0.55
-  thin-log-reach: 6
+  thin-log-reach: 7
   thin-foot: 2
-  thin-leaf-size: 2.5
+  thin-leaf-size: 2.25
   thin-leaf-density: 40
   thin-leaf-passes: 3
+  thin-leaf-along: 2.5
   thin-leaf-flat: 0.6
   thin-vines: 1
   thin-vine-scale: 1.2

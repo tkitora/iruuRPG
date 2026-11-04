@@ -1,0 +1,36 @@
+# 見本の木: 株立ちの白樺 (細い木。根元から分かれて外へ開き、上へ向き直って並ぶ幹。t265) (プロシージャルツールの読み込み、または /proceduraltool load thin_birch_clump)
+settings:
+  kind: tree
+  algorithm: thin
+  thin-height: 5
+  thin-stems: 3
+  thin-lean: 0.6
+  thin-curve: 0.25
+  thin-branches: 1
+  thin-length: 13
+  thin-side: 7
+  thin-side-length: 2.5
+  thin-depth: 1
+  thin-rise: 0.3
+  thin-upturn: 0.7
+  thin-kink: 0.3
+  thin-log-reach: 9
+  thin-foot: 1
+  thin-leaf-size: 1.5
+  thin-leaf-density: 45
+  thin-leaf-passes: 3
+  thin-leaf-along: 2.0
+  thin-leaf-flat: 0.3
+  thin-clearance: 1.0
+  seed: 0
+  blocks:
+    trunk: BIRCH_LOG
+    branch: BIRCH_LOG
+    branch-wall: DIORITE_WALL
+    branch-fence: BIRCH_FENCE
+    branch-slab: BIRCH_SLAB
+    branch-stair: BIRCH_STAIRS
+  leaf-gradient:
+  - DARK_OAK_LEAVES
+  - BIRCH_LEAVES
+  - OAK_LEAVES

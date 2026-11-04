@@ -1,19 +1,24 @@
-# 見本の木: 白樺 (細い木。すぐ分かれる白い幹、根元から離れるほど細る枝、重ね塗りの葉。t252・t258) (プロシージャルツールの読み込み、または /proceduraltool load thin_birch)
+# 見本の木: 白樺 (細い木。上まで続く白い幹、らせんに出る短い横の枝、卵形の樹冠。t252・t258・t265) (プロシージャルツールの読み込み、または /proceduraltool load thin_birch)
 settings:
   kind: tree
   algorithm: thin
-  thin-height: 5
-  thin-branches: 2
-  thin-side: 2
-  thin-length: 14
-  thin-depth: 3
-  thin-rise: 0.65
-  thin-log-reach: 8
+  thin-height: 7
+  thin-lean: 0.2
+  thin-curve: 0.35
+  thin-branches: 1
+  thin-length: 16
+  thin-side: 12
+  thin-side-length: 3.5
+  thin-depth: 1
+  thin-rise: 0.35
+  thin-upturn: 0.5
+  thin-kink: 0.3
+  thin-log-reach: 16
   thin-foot: 1
-  thin-leaf-size: 2.25
-  thin-leaf-density: 40
+  thin-leaf-size: 1.75
+  thin-leaf-density: 45
   thin-leaf-passes: 3
-  thin-leaf-along: 3
+  thin-leaf-along: 2.5
   thin-leaf-flat: 0.3
   thin-clearance: 1.0
   seed: 0
