@@ -50,24 +50,8 @@ SPEC = dict(
     level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[53, 55, 57, 59],
-    voices=[
-        {   # phase 1: natural
-            "intro": ["bass:half@2", "arp:HARP:4", "bell:head@0-1"],
-            "A": ["lead:GUITAR", "dbl:HARP:0:0.7", "bass:half", "arp:HARP:4@8", "drums:heart@8"],
-            "A2": ["lead:GUITAR", "dbl:HARP:0:0.7", "dbl:FLUTE:12:0.5@8", "stab:GUITAR:0,8", "bass:walk", "drums:march", "bell:head"],
-            "B": ["lead:HARP", "bass:half", "drone", "bell:head@8", "arp:HARP:4@8"],
-            "PEAK": ["lead:GUITAR", "dbl:HARP:0:0.7", "dbl:FLUTE:12:0.6", "cnt:HARP", "stab:GUITAR:0,8", "bass:pedal", "drums:march", "fill", "bell:hit", "arp:HARP:2@8"],
-            "CALM": ["lead:HARP", "bass:half", "echo:3:CHIME@4", "bell:head"],
-        },
-        {   # phase 2: electronic, sundered
-            "intro": ["bass:half@2", "arp:PLING:4", "bell:head@0-1"],
-            "A": ["lead:PLING", "dbl:BIT:0:0.5", "bass:eighth", "arp:BIT:4@8", "drums:march@8"],
-            "A2": ["lead:PLING", "dbl:BIT:0:0.5", "dbl:FLUTE:12:0.5@8", "stab:BIT:0,6,10", "bass:sixteenth", "drums:drive", "bell:head"],
-            "B": ["lead:BIT", "bass:eighth", "drone", "bell:head@8", "arp:PLING:2@8"],
-            "PEAK": ["lead:PLING", "dbl:BIT:0:0.6", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:PLING:0,6,8,14", "bass:sixteenth", "drone", "drums:double", "fill", "bell:hit", "arp:BIT:4"],
-            "CALM": ["lead:PLING", "bass:half", "echo:3:CHIME@4", "bell:head", "drums:heart@8"],
-        },
-    ],
+    voices=[heavy_voices(0), heavy_voices(1, bass=("half", "eighth", "sixteenth"))],
+    heavy=True,
 )
 
 TITLES = ("Reaper's Arc (Boss004)", "Reaper's Arc, Sundered (Boss004)")

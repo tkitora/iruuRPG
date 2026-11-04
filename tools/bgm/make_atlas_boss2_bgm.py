@@ -49,14 +49,8 @@ SPEC = dict(
     level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[57, 59, 61, 63],
-    voices=[{
-        "intro": ["bass:half@2", "arp:HARP:4", "drums:heart@2", "bell:head@0-1"],
-        "A": ["lead:HARP", "bass:half", "drums:heart", "arp:HARP:4@8"],
-        "A2": ["lead:HARP", "dbl:FLUTE:12:0.5@8", "stab:GUITAR:0,8", "bass:walk", "drums:march", "bell:head"],
-        "B": ["lead:IRON_XYLOPHONE", "bass:half", "drums:heart@8", "arp:HARP:4", "bell:head@8"],
-        "PEAK": ["lead:HARP", "dbl:PLING:0:0.55", "dbl:FLUTE:12:0.6", "cnt:PLING", "stab:GUITAR:0,8", "bass:pedal", "drums:march", "fill", "bell:hit", "arp:IRON_XYLOPHONE:2@8"],
-        "CALM": ["lead:HARP", "bass:half", "echo:3:CHIME@4", "bell:head", "drums:heart@8"],
-    }],
+    voices=[heavy_voices(0, bass=("half", "walk", "eighth"))],
+    heavy=True,
 )
 
 TITLE = "Raise the Axe (Boss002)"

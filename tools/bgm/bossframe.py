@@ -17,6 +17,9 @@ QUALITY = {"": [0, 4, 7], "m": [0, 3, 7], "dim": [0, 3, 6], "aug": [0, 4, 8], "5
 INSTRUMENTS = {"HARP": HARP, "BASS": BASS, "GUITAR": GUITAR, "FLUTE": FLUTE, "BELL": BELL, "CHIME": CHIME, "XYLOPHONE": XYLOPHONE, "IRON_XYLOPHONE": IRON_XYLOPHONE,
                "COW_BELL": COW_BELL, "DIDGERIDOO": DIDGERIDOO, "BIT": BIT, "BANJO": BANJO, "PLING": PLING}
 DRUMS = {  # (offset in sixteenths, drum, velocity)
+    "stomp": [(0, BASEDRUM, 100), (6, BASEDRUM, 62), (10, BASEDRUM, 66), (8, SNARE, 90)],
+    "half": [(0, BASEDRUM, 100), (6, BASEDRUM, 68), (8, SNARE, 100), (14, BASEDRUM, 60)],
+    "gallop": [(0, BASEDRUM, 100), (3, BASEDRUM, 66), (4, BASEDRUM, 72), (8, BASEDRUM, 96), (11, BASEDRUM, 66), (12, BASEDRUM, 72), (4, SNARE, 90), (12, SNARE, 96)],
     "waltz": [(0, BASEDRUM, 56), (5, SNARE, 34), (11, SNARE, 34)],
     "waltz2": [(0, BASEDRUM, 56), (5, BASEDRUM, 40), (11, BASEDRUM, 40), (3, HAT, 20), (8, HAT, 20)],
     "kicks4": [(0, BASEDRUM, 58), (4, BASEDRUM, 50), (8, BASEDRUM, 54), (12, BASEDRUM, 50), (4, SNARE, 46), (12, SNARE, 46)],
@@ -52,14 +55,75 @@ def tones_in(name, low, high):
     return sorted(n for n in range(low, high + 1) if (n - root) % 12 in intervals)
 
 
-def bass_notes(name):
+def bass_notes(name, heavy=False):
+    """Root, fifth and octave of the bass; a heavy song keeps the root between F#1 and E2 (the lowest the bass plays), so that it weighs."""
     root, _ = chord(name)
+    top, floor = (41, 30) if heavy else (46, 33)
     base = root + 12 * 3
-    while base > 46:
+    while base > top:
         base -= 12
-    while base < 33:
+    while base < floor:
         base += 12
     return base, base + 7, base + 12
+
+
+def guitar_root(name):
+    """The root of the chord in the low guitar (F#2 to F3)."""
+    root, _ = chord(name)
+    base = root + 36
+    while base > 53:
+        base -= 12
+    while base < 42:
+        base += 12
+    return base
+
+
+HEAVY_GAIN = {"bass": 1.35, "drone": 1.5, "kick": 1.6, "snare": 1.5, "hat": 1.3, "stabA": 1.6, "stabB": 1.6, "stabC": 1.6, "riff": 1.0, "arp": 0.5, "bell": 0.7, "echo": 0.5,
+              "lead": 1.15, "dbl": 1.2, "cnt": 1.2}
+
+
+def heavy_voices(phase, bass=("eighth", "walk", "eighth"), special=None, lead="HARP", extra=None, drum_map=None, bass_all=None):
+    """The voices of a boss song that weighs: a bass and a didgeridoo that never stop, a low guitar that chugs, power chords, a bass drum that is heard, the tune low and in unison
+    with the guitar and (later) the bass two octaves down, an ensemble hit every eighth bar, a roll before the peak. ``special`` replaces or adds tags per section (a song's own device).
+    Phase 0 is natural (harp, guitar, bass, didgeridoo, drums), phase 1 electronic (electric piano, 8-bit chip, the same weight, the drums twice as busy)."""
+    a, b, c = bass
+    if phase == 0:
+        tune, grit, power = lead, "GUITAR", "GUITAR"
+        sections = {
+            "intro": ["bass:half", "drone:loud", "riff:GUITAR:4@1", "drums:stomp@1", "roll@1-2"],
+            "A": ["hit:8", "lead:%s:-12" % tune, "dbl:%s:-12:0.8" % grit, "bass:%s" % a, "drone:loud", "riff:GUITAR:4", "drums:stomp", "pow:%s:0@8" % power],
+            "A2": ["hit:8", "lead:%s:-12" % tune, "dbl:%s:-12:0.9" % grit, "dbl:BASS:-24:0.8@8", "pow:%s:0,12" % power, "bass:%s" % b, "drone:loud", "riff:GUITAR:2@8", "riff:GUITAR:4@0-8", "drums:half", "fill"],
+            "B": ["lead:BASS:-12", "bass:half", "drone:loud", "drums:stomp", "pow:%s:0@12" % power, "roll@23-24"],
+            "PEAK": ["hit:4", "lead:%s:-12" % tune, "dbl:%s:-12:0.9" % grit, "dbl:BASS:-24:0.9", "pow:%s:0,6,12" % power, "bass:%s" % c, "drone:loud", "riff:GUITAR:2", "drums:gallop", "fill"],
+            "CALM": ["lead:%s:-12" % tune, "bass:half", "drone:loud", "drums:heart"],
+        }
+    else:
+        tune, grit, power = "PLING", "BIT", "BIT"
+        sections = {
+            "intro": ["bass:half", "drone:loud", "riff:GUITAR:4@1", "drums:half@1", "roll@1-2"],
+            "A": ["hit:8", "lead:PLING:-12", "dbl:BIT:-12:0.7", "bass:%s" % b, "drone:loud", "riff:GUITAR:2", "drums:half", "pow:BIT:0,12@8"],
+            "A2": ["hit:8", "lead:PLING:-12", "dbl:BIT:-12:0.8", "dbl:GUITAR:-12:0.8", "dbl:BASS:-24:0.8@8", "pow:BIT:0,6,12", "bass:sixteenth", "drone:loud", "riff:GUITAR:2", "drums:gallop", "fill"],
+            "B": ["lead:BIT:-12", "bass:%s" % a, "drone:loud", "drums:half", "pow:BIT:0@12", "roll@23-24"],
+            "PEAK": ["hit:4", "lead:PLING:-12", "dbl:BIT:-12:0.9", "dbl:GUITAR:-12:0.9", "dbl:BASS:-24:0.9", "pow:BIT:0,3,6,12", "bass:sixteenth", "drone:loud", "riff:GUITAR:1", "drums:double", "fill"],
+            "CALM": ["lead:PLING:-12", "bass:half", "drone:loud", "drums:heart"],
+        }
+    for key, value in (special or {}).items():
+        sections[key] = value
+    for key, value in (extra or {}).items():
+        sections[key] = sections[key] + value
+    if drum_map or bass_all:
+        for key, tags in sections.items():
+            fixed = []
+            for tag in tags:
+                body, _, window = tag.partition("@")
+                parts = body.split(":")
+                if parts[0] == "drums" and drum_map:
+                    parts[1] = drum_map.get(parts[1], parts[1])
+                if parts[0] == "bass" and bass_all:
+                    parts[1] = bass_all
+                fixed.append(":".join(parts) + ("@" + window if window else ""))
+            sections[key] = fixed
+    return sections
 
 
 def fit(instrument, note):
@@ -214,9 +278,9 @@ def build(spec, phase):
     stretch = bar / src                       # the ticks of a song written for a shorter bar
     slower = spec["tps"] / 10.0               # ticks of 20 a second are half as long as ticks of 10 a second
     sixteenth = bar / 16.0
-    names = ["lead", "dbl", "cnt", "arp", "stabA", "stabB", "stabC", "bass", "drone", "kick", "snare", "hat", "bell", "echo"]
-    pans = {"lead": 100, "dbl": 90, "cnt": 110, "arp": 135, "stabA": 80, "stabB": 120, "stabC": 100, "bass": 100, "drone": 100, "kick": 100, "snare": 105, "hat": 115, "bell": 120, "echo": 85}
-    volumes = {"lead": 100, "dbl": 60, "cnt": 60, "arp": 62, "stabA": 70, "stabB": 70, "stabC": 70, "bass": 85, "drone": 60, "kick": 70, "snare": 60, "hat": 40, "bell": 50, "echo": 50}
+    names = ["lead", "dbl", "cnt", "arp", "stabA", "stabB", "stabC", "bass", "drone", "kick", "snare", "hat", "bell", "echo", "riff"]
+    pans = {"lead": 100, "dbl": 90, "cnt": 110, "arp": 135, "stabA": 80, "stabB": 120, "stabC": 100, "bass": 100, "drone": 100, "kick": 100, "snare": 105, "hat": 115, "bell": 120, "echo": 85, "riff": 125}
+    volumes = {"lead": 100, "dbl": 60, "cnt": 60, "arp": 62, "stabA": 70, "stabB": 70, "stabC": 70, "bass": 85, "drone": 60, "kick": 70, "snare": 60, "hat": 40, "bell": 50, "echo": 50, "riff": 75}
     layer = {n: Layer(n, volumes[n], pans[n]) for n in names}
     shift = spec["shift"][phase]
     pcs = {(spec["tonic"] + i) % 12 for i in spec["scale"]}
@@ -233,6 +297,8 @@ def build(spec, phase):
     def put(name, tick, instrument, sounding, vel, pitched=True):
         if tick in layer[name].notes or tick < 0 or tick >= sections_total:
             return
+        if spec.get("heavy"):
+            vel = vel * HEAVY_GAIN.get(name, 1.0)
         if pitched:
             sounding = fit(instrument, sounding)
             if instrument in (BELL, CHIME):          # the bell and the chime stay between F#6 and D#7 (quiet, never shrill)
@@ -261,7 +327,7 @@ def build(spec, phase):
             for h, name in enumerate(halves):
                 span_start = start + (h * half if len(halves) == 2 else 0)
                 span = half if len(halves) == 2 else bar
-                root, fifth, octave = bass_notes(spec.get("pedal", {}).get(section, name))
+                root, fifth, octave = bass_notes(spec.get("pedal", {}).get(section, name), bool(spec.get("heavy")))
                 root += shift
                 fifth += shift
                 octave += shift
@@ -279,8 +345,31 @@ def build(spec, phase):
                             note = {"r": root, "f": fifth, "o": octave}[which]
                             put("bass", span_start + tick, BASS, note, vel * level)
                     elif kind == "drone":
-                        for tick in range(0, span, max(1, int(round(8 * sixteenth)))):
-                            put("drone", span_start + tick, DIDGERIDOO, root - 12 if root - 12 >= 30 else root, 44 * level)
+                        loud = len(parts) > 1 and parts[1] == "loud"
+                        for tick in range(0, span, max(1, int(round((4 if loud else 8) * sixteenth)))):
+                            put("drone", span_start + tick, DIDGERIDOO, root - 12 if root - 12 >= 30 else root, (62 if loud else 44) * level)
+                    elif kind == "riff":
+                        instrument = INSTRUMENTS[parts[1]]
+                        step = max(1, int(round(int(parts[2]) * stretch)))
+                        low = guitar_root(name) + shift
+                        for place, tick in enumerate(range(0, span, step)):
+                            put("riff", span_start + tick, instrument, low + (12 if place % 4 == 3 else 0), (76 if place % 2 == 0 else 54) * level)
+                    elif kind == "pow":
+                        instrument = INSTRUMENTS[parts[1]]
+                        low = guitar_root(name) + shift
+                        for offs in [int(o) for o in parts[2].split(",")]:
+                            tick = int(round(offs * stretch))
+                            if tick >= span:
+                                continue
+                            for k, note in enumerate((low, low + 7, low + 12)):
+                                put(("stabA", "stabB", "stabC")[k], span_start + tick, instrument, note, 78 * level)
+                    elif kind == "hit":
+                        if index % int(parts[1]) == 0 and h == 0:
+                            low = guitar_root(name) + shift
+                            for k, note in enumerate((low, low + 7, low + 12)):
+                                put(("stabA", "stabB", "stabC")[k], span_start, GUITAR, note, 100)
+                            put("bass", span_start, BASS, root, 100)
+                            put("drone", span_start, DIDGERIDOO, root, 90)
                     elif kind == "arp":
                         instrument = INSTRUMENTS[parts[1]]
                         step = max(1, int(round(int(parts[2]) * stretch)))
@@ -316,6 +405,13 @@ def build(spec, phase):
                 if parts[0] == "drums":
                     for offs, drum, vel in DRUMS[parts[1]]:
                         put({BASEDRUM: "kick", SNARE: "snare", HAT: "hat"}[drum], start + int(round(offs * sixteenth)), drum, 66, vel * level, pitched=False)
+                if parts[0] == "hit" and index % int(parts[1]) == 0:
+                    put("kick", start, BASEDRUM, 66, 100, pitched=False)
+                    put("snare", start, SNARE, 66, 90, pitched=False)
+                if parts[0] == "roll":
+                    put("kick", start, BASEDRUM, 66, 90, pitched=False)
+                    for k in range(8):
+                        put("snare", start + int(round(k * 2 * sixteenth)), SNARE, 66, 38 + 8 * k, pitched=False)
                 if parts[0] == "fill" and index % 8 == 7:
                     for k in range(4):
                         put("snare", start + int(round((12 + k) * sixteenth)), SNARE, 66, (34 + 8 * k) * level, pitched=False)
@@ -333,7 +429,7 @@ def build(spec, phase):
                         if index in spec.get("breaks", {}).get(section, ()) and parts[0] not in spec.get("break_keep", ("lead", "echo")):
                             continue
                         if parts[0] == "lead":
-                            put("lead", start + tick, INSTRUMENTS[parts[1]], note + shift, vel * level)
+                            put("lead", start + tick, INSTRUMENTS[parts[1]], note + shift + (int(parts[2]) if len(parts) > 2 else 0), vel * level)
                         elif parts[0] == "dbl":
                             factor = float(parts[3]) if len(parts) > 3 else 0.6
                             put("dbl", start + tick, INSTRUMENTS[parts[1]], note + shift + int(parts[2]), vel * factor * level)

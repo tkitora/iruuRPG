@@ -60,24 +60,8 @@ SPEC = dict(
     level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[54, 56, 58, 60],
-    voices=[
-        {   # phase 1: the observation - no beat until the peak, the tune changes its voice
-            "intro": ["bass:half@2", "arp:HARP:4"],
-            "A": ["lead:HARP", "bass:half", "bell:head"],
-            "A2": ["lead:BANJO", "dbl:HARP:0:0.5", "stab:GUITAR:0,8@8", "bass:walk", "drums:heart@8", "bell:head"],
-            "B": ["lead:IRON_XYLOPHONE", "bass:half@8", "drone", "arp:HARP:4@8", "bell:head@8"],
-            "PEAK": ["lead:HARP", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:GUITAR:0,8", "bass:pedal", "drone", "drums:march", "fill", "bell:hit", "arp:HARP:4@8"],
-            "CALM": ["lead:HARP", "bass:half", "echo:3:CHIME@4", "bell:head"],
-        },
-        {   # phase 2: the beat starts at once, the 8-bit over the tune
-            "intro": ["bass:half@2", "arp:PLING:4", "drums:heart"],
-            "A": ["lead:BIT", "dbl:HARP:0:0.5", "bass:eighth", "drums:march", "bell:head"],
-            "A2": ["lead:PLING", "dbl:BIT:0:0.5", "stab:BIT:0,6,10", "bass:sixteenth", "drums:drive", "bell:head"],
-            "B": ["lead:BIT", "bass:eighth", "drone", "arp:PLING:2@8", "bell:head@8"],
-            "PEAK": ["lead:PLING", "dbl:BIT:0:0.6", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:PLING:0,6,8,14", "bass:sixteenth", "drone", "drums:double", "fill", "bell:hit", "arp:BIT:4"],
-            "CALM": ["lead:PLING", "bass:half", "echo:3:CHIME@4", "bell:head", "drums:heart"],
-        },
-    ],
+    voices=[heavy_voices(0, extra={"A2": ["dbl:BANJO:-12:0.6"], "B": ["dbl:IRON_XYLOPHONE:0:0.6"]}), heavy_voices(1, bass=("half", "eighth", "sixteenth"))],
+    heavy=True,
 )
 
 TITLES = ("Eyes Without a Key (Boss009)", "Eyes Without a Key, Unwritten (Boss009)")

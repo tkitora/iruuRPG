@@ -57,24 +57,8 @@ SPEC = dict(
     level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[57, 59, 61, 63],
-    voices=[
-        {
-            "intro": ["bass:waltz@1", "arp:HARP:4"],
-            "A": ["lead:HARP", "bass:waltz", "drums:waltz@8", "arp:HARP:4@8", "bell:head"],
-            "A2": ["lead:HARP", "dbl:FLUTE:12:0.5@8", "stab:GUITAR:0@4", "bass:waltz", "drums:waltz", "bell:head"],
-            "B": ["lead:HARP", "bass:waltz@8", "drone", "arp:HARP:4@8", "bell:head@8"],
-            "PEAK": ["lead:HARP", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:GUITAR:0,6", "bass:waltz", "drone", "drums:waltz", "fill", "bell:hit", "arp:HARP:4@8"],
-            "CALM": ["lead:HARP", "bass:waltz@4", "echo:3:CHIME@4", "bell:head"],
-        },
-        {
-            "intro": ["bass:waltz@1", "arp:PLING:4"],
-            "A": ["lead:PLING", "dbl:BIT:0:0.45", "bass:waltz", "drums:waltz2@8", "arp:BIT:4@8", "bell:head"],
-            "A2": ["lead:PLING", "dbl:BIT:0:0.5", "dbl:FLUTE:12:0.5@8", "stab:BIT:0,6", "bass:waltz", "drums:waltz2", "bell:head"],
-            "B": ["lead:BIT", "bass:waltz", "drone", "arp:PLING:2@8", "bell:head@8"],
-            "PEAK": ["lead:PLING", "dbl:BIT:0:0.6", "dbl:FLUTE:12:0.6", "cnt:GUITAR", "stab:PLING:0,6", "bass:waltz", "drone", "drums:waltz2", "fill", "bell:hit", "arp:BIT:4"],
-            "CALM": ["lead:PLING", "bass:waltz@4", "echo:3:CHIME@4", "bell:head", "drums:waltz@8"],
-        },
-    ],
+    voices=[heavy_voices(0, bass_all="waltz", drum_map={"stomp": "waltz", "half": "waltz", "gallop": "waltz2", "double": "waltz2", "heart": "waltz"}), heavy_voices(1, bass_all="waltz", drum_map={"stomp": "waltz2", "half": "waltz2", "gallop": "waltz2", "double": "waltz2", "heart": "waltz"})],
+    heavy=True,
 )
 
 TITLES = ("Waltz at the Edge of Dark (Boss008)", "Waltz at the Edge of Dark, Out of Step (Boss008)")
