@@ -152,7 +152,7 @@ class BgmTest {
         }
     }
 
-    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2", "circuit_phase1", "circuit_phase2", "cloud_light", "gate_gravity");
+    private static final List<String> BUNDLED = List.of("plains_adventure", "atlas_cave", "atlas_vindicator", "atlas_dungeon", "atlas_dungeon_2", "atlas_vindicator_2", "cave_depths", "colossus_phase1", "colossus_phase2", "necromancer_phase1", "necromancer_phase2", "reaper_phase1", "reaper_phase2", "broodmother_phase1", "broodmother_phase2", "mirror_phase1", "mirror_phase2", "waltz_phase1", "waltz_phase2", "unkeyed_phase1", "unkeyed_phase2", "circuit_phase1", "circuit_phase2", "cloud_light", "gate_gravity", "first_town");
 
     @Test
     void everyBundledSongKeepsTheRules() throws IOException {
@@ -596,10 +596,44 @@ class BgmTest {
     }
 
     @Test
+    void theFirstTownSongIsPeacefulHasAnEmptyBarBeforeThePeakAndOnlyTheHatInTheDrums() throws IOException {
+        NbsSong song = bundled("first_town");
+        assertEquals("Morning in the First Town (Field005)", song.title());
+        assertEquals(1024, song.length());
+        assertEquals(20.0 / 3.0, song.ticksPerSecond(), 1.0E-9, "100 BPM");
+        int peak = 48 * 16;      // intro 4, A 16, A' 16, B 12 bars, then the peak (75 %)
+        int hats = 0;
+        int busiestQuiet = 0;
+        int[] perTick = new int[song.length()];
+        for (int i = 0; i < song.noteCount(); i++) {
+            NbsSong.Note note = song.note(i);
+            int sound = sounding(note.instrument(), note.key());
+            perTick[note.tick()]++;
+            assertTrue(note.instrument() != 2 && note.instrument() != 3, "no bass drum and no snare");
+            if (note.instrument() == 4) {
+                hats++;
+                assertTrue(note.tick() >= peak && note.tick() < peak + 12 * 16, "the hat, the last to come, is only in the peak");
+            }
+            if (note.instrument() == 1) assertTrue(sound <= 52, "the bass stays low (" + sound + ")");
+            if (note.instrument() == 6) assertTrue(sound >= 78 && sound <= 90, "the flute is the harp an octave up (" + sound + ")");
+            if (note.instrument() == 7) {
+                assertTrue(sound >= 90 && sound <= 99, "the bell stays between F#6 and D#7 (" + sound + ")");
+                assertTrue(note.volume() <= 0.6f, "and quiet (" + note.volume() + ")");
+            }
+        }
+        assertTrue(hats > 0, "the hat is there");
+        for (int tick = 47 * 16 + 8; tick < peak; tick++) assertEquals(0, perTick[tick], "a rest before the peak (tick " + tick + ")");
+        for (int tick = 0; tick < song.length(); tick++) if (tick < peak) busiestQuiet = Math.max(busiestQuiet, perTick[tick]);
+        assertTrue(busiestQuiet <= 5, "never crowded before the peak (" + busiestQuiet + ")");
+        double perSecond = song.noteCount() / song.seconds();
+        assertTrue(perSecond < 7.0, "a peaceful song, under 7 notes a second (" + perSecond + ")");
+    }
+
+    @Test
     void bundledSongsGoToAFolderOfTheirOwn(@TempDir File folder) {
         BgmRegistry registry = registryIn(folder);
         registry.reload();
-        assertEquals(25, registry.songs().size());
+        assertEquals(26, registry.songs().size());
         assertTrue(new File(folder, "bgm-bundled/atlas_cave.nbs").isFile());
         assertFalse(new File(folder, "bgm/atlas_cave.nbs").exists(), "nothing in bgm/ that the yml repository could clash with");
         assertEquals("bundled", registry.origin("atlas_cave"));
@@ -639,7 +673,7 @@ class BgmTest {
         java.nio.file.Files.write(new File(folder, "bgm/broken.nbs").toPath(), new byte[]{1, 2, 3});
         registry.refreshIfChanged();
         assertNull(registry.song("broken"));
-        assertEquals(25, registry.songs().size());
+        assertEquals(26, registry.songs().size());
         assertFalse(registry.problems().isEmpty());
     }
 
