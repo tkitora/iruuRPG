@@ -26,7 +26,7 @@ import java.util.List;
  * {@code iruurpg:marks} ({@link MarkGlyphs}), stood up across {@code heading} (so the ring faces the way the arrow goes), that opens a little and fades
  * for a few ticks and goes. Particles of a ring always crowd the view; a line a few hundredths of a block wide does not.
  * <p>
- * Config {@code combat.effects.ripple-lines}: {@code enabled} (false = the old particle rings), {@code line-width} (blocks, nearest of the font's rim
+ * Config {@code combat.effects.ripple-lines}: {@code enabled} (false, the default since the ranger's lines were put back to particles, = the old particle rings), {@code line-width} (blocks, nearest of the font's rim
  * widths is used), {@code open} (how much larger the ring is at the end, 1.25), {@code ticks} (how long it lives, 5).
  */
 public final class LineRipples {
@@ -44,7 +44,7 @@ public final class LineRipples {
     /** Whether ripples are drawn as lines (else the callers draw the old particle rings). */
     public static boolean enabled(JavaPlugin plugin) {
         ConfigurationSection section = config(plugin);
-        return section == null || section.getBoolean("enabled", true);
+        return section != null && section.getBoolean("enabled", false);
     }
 
     /**
