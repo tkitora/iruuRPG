@@ -249,7 +249,7 @@ class TreeAlgorithmsTest {
 
     @Test
     void aThinTreeSplitsSoonThinsOutAndIsDressedWithStairs() {
-        // (t258) the trunk splits at its height: more than one block of wood a layer just over it; stairs at the foot (the foot is heavy)
+        // (t258, t265) over the height the side branches start, more than one block of wood a layer (the side branches); stairs at the foot (the foot is heavy)
         TreeSettings settings = tree("thin");
         int split = settings.getInt(TreeSettings.Key.THIN_HEIGHT);
         int forked = 0;
@@ -272,6 +272,37 @@ class TreeAlgorithmsTest {
         settings.set(TreeSettings.Key.THIN_FOOT, 0);
         settings.set(TreeSettings.Key.THIN_STAIRS, 0);
         assertTrue(TreeGenerator.build(settings, 1L, null).values().stream().noneMatch(part -> part.blockOf() == TreePart.BRANCH_STAIR));
+    }
+
+    @Test
+    void aThinTreeRunsItsTrunkUpAndTurnsItsStemsBackUp() {
+        // (t265) one stem: wood up near the top of the crown, nothing but the trunk and its stairs under the height the side branches start
+        TreeSettings settings = tree("thin");
+        int clear = settings.getInt(TreeSettings.Key.THIN_HEIGHT);
+        double crown = settings.get(TreeSettings.Key.THIN_LENGTH);
+        for (long seed = 1; seed <= 5; seed++) {
+            Map<Long, TreePart> blocks = TreeGenerator.build(settings, seed, null);
+            int top = blocks.entrySet().stream().filter(entry -> entry.getValue().shade() < 0).mapToInt(entry -> TreeVoxelizer.unpackY(entry.getKey())).max().orElse(0);
+            assertTrue(top >= clear + crown * 0.8, "seed " + seed + " top " + top);
+            for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
+                if (entry.getValue().shade() >= 0 || TreeVoxelizer.unpackY(entry.getKey()) >= clear - 1) continue;
+                assertTrue(entry.getValue() == TreePart.TRUNK || entry.getValue().blockOf() == TreePart.BRANCH_STAIR, "seed " + seed + " " + entry.getValue());
+            }
+        }
+        // stems that turn back up stand closer together than stems that keep opening
+        double[] spread = new double[2];
+        for (int run = 0; run < 2; run++) {
+            TreeSettings stems = tree("thin");
+            stems.set(TreeSettings.Key.THIN_STEMS, 3);
+            stems.set(TreeSettings.Key.THIN_LEAN, 0.8);
+            stems.set(TreeSettings.Key.THIN_SIDE, 0);
+            stems.set(TreeSettings.Key.THIN_UPTURN, run == 0 ? 0.0 : 1.0);
+            for (long seed = 1; seed <= 4; seed++) {
+                spread[run] += TreeGenerator.build(stems, seed, null).entrySet().stream().filter(entry -> entry.getValue().shade() < 0)
+                        .mapToDouble(entry -> Math.hypot(TreeVoxelizer.unpackX(entry.getKey()), TreeVoxelizer.unpackZ(entry.getKey()))).max().orElse(0.0);
+            }
+        }
+        assertTrue(spread[1] < spread[0] * 0.6, java.util.Arrays.toString(spread));
     }
 
     @Test

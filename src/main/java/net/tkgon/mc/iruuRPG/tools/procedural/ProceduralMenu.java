@@ -183,8 +183,8 @@ final class ProceduralMenu implements Listener {
             case "thin" -> switch (page) {
                 case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.THIN_HEIGHT, TreeSettings.Key.THIN_STEMS, TreeSettings.Key.THIN_LEAN, TreeSettings.Key.THIN_CURVE,
                         TreeSettings.Key.THIN_FOOT, TreeSettings.Key.THIN_LOG_REACH, TreeSettings.Key.THIN_STAIRS};
-                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LENGTH, TreeSettings.Key.THIN_BRANCHES, TreeSettings.Key.THIN_SIDE, TreeSettings.Key.THIN_DEPTH,
-                        TreeSettings.Key.THIN_RISE, TreeSettings.Key.THIN_KINK};
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LENGTH, TreeSettings.Key.THIN_BRANCHES, TreeSettings.Key.THIN_SIDE, TreeSettings.Key.THIN_SIDE_LENGTH,
+                        TreeSettings.Key.THIN_DEPTH, TreeSettings.Key.THIN_RISE, TreeSettings.Key.THIN_UPTURN, TreeSettings.Key.THIN_KINK};
                 case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.THIN_LEAF_SIZE, TreeSettings.Key.THIN_LEAF_DENSITY, TreeSettings.Key.THIN_LEAF_PASSES, TreeSettings.Key.THIN_LEAF_ALONG,
                         TreeSettings.Key.THIN_LEAF_FLAT, TreeSettings.Key.THIN_CLEARANCE, TreeSettings.Key.THIN_VINES, TreeSettings.Key.THIN_VINE_SCALE};
                 default -> new TreeSettings.Key[]{};
