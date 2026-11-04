@@ -215,13 +215,13 @@ class BgmTest {
         BgmChannel channel = new BgmChannel();
         Player player = player();
         channel.playScene(registry.song("colossus_phase1"), true, 0.0);
-        for (int tick = 0; tick < 25; tick++) channel.tick(player, 1.0f);  // 20 song ticks a second (the boss songs play at 200 BPM): the clock is at 25
+        for (int tick = 0; tick < 75; tick++) channel.tick(player, 1.0f);  // 6.67 song ticks a second (the colossus plays at 100 BPM): the clock is at 25
         channel.playSceneSynced(registry.song("colossus_phase2"), true, 1.5);
         assertTrue(channel.changePending());
         assertEquals("Shoulders of Stone (Boss003)", channel.nowPlaying(), "phase 1 goes on until the bar line");
         assertEquals(1, channel.voiceCount());
 
-        for (int tick = 0; tick < 8; tick++) channel.tick(player, 1.0f);
+        for (int tick = 0; tick < 24; tick++) channel.tick(player, 1.0f);   // the clock reaches the bar line at 32
         assertFalse(channel.changePending());
         assertEquals("Shoulders of Stone, Unbound (Boss003)", channel.nowPlaying());
         assertEquals(2, channel.voiceCount(), "phase 1 fades out while phase 2 fades in");
@@ -291,7 +291,7 @@ class BgmTest {
             assertTrue(lowest >= 30, id + ": nothing below F#1 (" + lowest + ")");
         }
         assertEquals(896, bundled("atlas_dungeon_2").length());
-        assertEquals(2496, bundled("atlas_vindicator_2").length());
+        assertEquals(1344, bundled("atlas_vindicator_2").length());
         assertEquals("Below the Sleeping Giant (Dungeon002)", bundled("atlas_dungeon_2").title());
         assertEquals("Raise the Axe (Boss002)", bundled("atlas_vindicator_2").title());
     }
@@ -314,17 +314,9 @@ class BgmTest {
         }
     }
 
-    /** The boss songs of Boss002-Boss010, written again by the BGM制作ガイド: {phase 1 id, phase 2 id (or null), title of phase 1, bar length in ticks, bars of A, A', B, peak, calm, length in ticks}. */
+    /** The boss song that keeps the form of the first rebuild by the BGM制作ガイド (Boss006; the others were written again by class, see the next test): {phase 1 id, phase 2 id (or null), title of phase 1, bar length in ticks, bars of A, A', B, peak, calm, length in ticks}. */
     private static final Object[][] GUIDE_BOSSES = {
-        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
-        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
-        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
-        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
         {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
-        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", 12, new int[]{48, 48, 40, 40, 24}, 2464},
-        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
-        {"circuit_phase1", "circuit_phase2", "Holy Circuit (Boss010)", 16, new int[]{32, 32, 32, 32, 24}, 2496},
     };
 
     @Test
@@ -388,6 +380,46 @@ class BgmTest {
                 for (int i = 0; i < two.noteCount(); i++) if (two.note(i).instrument() == 1 && two.note(i).tick() >= 64) { bassTwo = sounding(1, two.note(i).key()); break; }
                 assertEquals(bassOne + 1, bassTwo, second + ": the same bars a half step higher (the first bass note of A)");
             }
+        }
+    }
+
+    /** The boss songs written by class (t272): {phase 1 id, phase 2 id or null, title of phase 1, title of phase 2 or null}. */
+    private static final String[][] CLASS_BOSSES = {
+        {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", null},
+        {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", "Shoulders of Stone, Unbound (Boss003)"},
+        {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", "Reaper's Arc, Sundered (Boss004)"},
+        {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", "Silence of the Scythe, Unleashed (Boss005)"},
+        {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", "The Cracked Mirror Laughs, Shattered (Boss007)"},
+        {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", "Waltz at the Edge of Dark, Out of Step (Boss008)"},
+        {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", "Eyes Without a Key, Unwritten (Boss009)"},
+        {"circuit_phase1", "circuit_phase2", "Holy Circuit (Boss010)", "Holy Circuit, Overclocked (Boss010)"},
+    };
+
+    @Test
+    void theBossSongsWrittenByClassKeepTheirNamesAndPhasesAreOnePiece() throws IOException {
+        for (String[] boss : CLASS_BOSSES) {
+            NbsSong one = bundled(boss[0]);
+            assertEquals(boss[2], one.title(), boss[0]);
+            for (String id : boss[1] == null ? new String[]{boss[0]} : new String[]{boss[0], boss[1]}) {
+                NbsSong song = bundled(id);
+                assertTrue(song.length() / song.ticksPerSecond() >= 120.0, id + ": at least two minutes");
+                assertTrue(song.loops() && song.loopStart() == 64, id + ": loops from tick 64");
+                assertEquals(0.0, 20.0 / song.ticksPerSecond() - Math.round(20.0 / song.ticksPerSecond()), 1.0E-9, id + ": the ticks a second divide 20");
+                assertEquals(one.length(), song.length(), id + ": phases have the same length");
+                assertEquals(one.ticksPerSecond(), song.ticksPerSecond(), 1.0E-9, id + ": and the same tempo");
+                int[] perTick = new int[song.length()];
+                for (int i = 0; i < song.noteCount(); i++) {
+                    NbsSong.Note note = song.note(i);
+                    perTick[note.tick()]++;
+                    int sound = sounding(note.instrument(), note.key());
+                    if (note.instrument() == 7 || note.instrument() == 8) {
+                        assertTrue(sound >= 90 && sound <= 99, id + ": the bell and the chime stay between F#6 and D#7 (" + sound + ")");
+                    }
+                }
+                assertTrue(java.util.Arrays.stream(perTick).max().getAsInt() <= 8, id + ": at most eight notes at once");
+                assertTrue(song.noteCount() > 600, id + ": a full song, not a sketch (" + song.noteCount() + " notes)");
+            }
+            if (boss[1] != null) assertEquals(boss[3], bundled(boss[1]).title(), boss[1]);
         }
     }
 
