@@ -202,8 +202,9 @@ public final class ProceduralModule implements Listener {
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("プロシージャルツール", NamedTextColor.GREEN, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
         meta.lore(List.of(
-                text("ブロックをクリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く。クモの巣のときは、クリックした面の先に点を置く (Shift+クリックで最後の点を消す)", NamedTextColor.GRAY),
+                text("ブロックを右クリック: そこに置くもの (木・岩・スパイク・結晶) の設定画面を開く。クモの巣のときは、クリックした面の先に点を置く (Shift+クリックで最後の点を消す)", NamedTextColor.GRAY),
                 text("遠くのブロックも、見てクリックすれば同じ (t246。届くのは treetool.reach ブロック、初期値 96)", NamedTextColor.GRAY),
+                text("左クリック: 置く場所はそのままで設定画面を開く (まだ場所がなければ、右クリックと同じ。クモの巣は左右どちらも点を置く)", NamedTextColor.GRAY),
                 text("Shift+空中を右クリック (見える所にブロックがないときは、ただの右クリック): 前回の場所の設定画面を開く", NamedTextColor.GRAY),
                 text("設定画面の「生成」で、部位ごとに選んだブロックで作る", NamedTextColor.GRAY),
                 text("設定画面の「プレビュー」で、あなたにだけ見える試し置きを確かめられる", NamedTextColor.GRAY),
@@ -226,12 +227,12 @@ public final class ProceduralModule implements Listener {
     void give(Player player) {
         for (ItemStack item : player.getInventory().getContents()) {
             if (isTool(item)) {
-                player.sendMessage(PREFIX + "もう持っています。ブロックをクリックすると設定画面が開きます。");
+                player.sendMessage(PREFIX + "もう持っています。ブロックを右クリックすると、そこに置く設定画面が開きます (左クリックは、場所はそのままで設定画面)。");
                 return;
             }
         }
         player.getInventory().addItem(toolItem()).values().forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
-        player.sendMessage(PREFIX + "プロシージャルツールを渡しました。ブロックをクリックすると、置くもの (木・岩・スパイク・結晶) の設定画面が開きます。");
+        player.sendMessage(PREFIX + "プロシージャルツールを渡しました。ブロックを右クリックすると、そこに置くもの (木・岩・スパイク・結晶) の設定画面が開きます。左クリックは、置く場所を変えずに設定画面を開きます。");
     }
 
     void take(Player player) {
@@ -268,6 +269,12 @@ public final class ProceduralModule implements Listener {
         }
         TreeSession session = session(player);
         Action action = event.getAction();
+        boolean left = action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK;
+        if (menuOnly(left, session.settings.kind().web(), session.base != null && player.getWorld().equals(session.base.getWorld()))) {
+            // (t263: a left click opens the menu of the place there is and leaves the place as it was; the right click chooses the place)
+            menu.open(player);
+            return;
+        }
         Block target = event.getClickedBlock();
         BlockFace targetFace = event.getBlockFace();
         boolean air = action == Action.RIGHT_CLICK_AIR || action == Action.LEFT_CLICK_AIR;
@@ -303,6 +310,14 @@ public final class ProceduralModule implements Listener {
             }
             menu.open(player);
         }
+    }
+
+    /**
+     * Whether a click with the tool only opens the menu, the place staying as it was: a left click once there is a place in this world (t263). A web is left out (a
+     * click there puts a point and opens no menu), and a left click before there is a place chooses it, as a right click does. Pure, for the tests.
+     */
+    static boolean menuOnly(boolean left, boolean web, boolean placed) {
+        return left && !web && placed;
     }
 
     @EventHandler
