@@ -1,70 +1,47 @@
 #!/usr/bin/env python3
-"""Makes necromancer_phase1.nbs and necromancer_phase2.nbs: "Reaper's Arc (Boss004)" and "Reaper's Arc, Sundered (Boss004)", the snow mountain reaper in two phases, written again by the BGM制作ガイド.
+"""Makes necromancer_phase1.nbs and necromancer_phase2.nbs: "Reaper's Arc (Boss004)" and "..., Sundered (Boss004)", the snow mountain reaper in two phases.
 
     python3 tools/bgm/make_necromancer_bgm.py            writes both into src/main/resources/bgm/
     python3 tools/bgm/make_necromancer_bgm.py outdir     writes them somewhere else
 
-A minor (with the G# of the harmonic minor), 4/4, 150 BPM, 80 bars (2:08), the form of the guide: intro 4 / A 16 / A' 16 / B 16 / A'' 16 (the peak, bar 52 = 65 %) / calm 12, loop from bar 5.
-The theme is the world theme of the plains BACKWARDS (the enemy's theme is made from the world's: here it is read from the end, a retrograde): E5 D5 C5 | C5 G4 E4 - it falls where the plains rise, like a scythe's arc.
-The device: every eighth bar everything falls silent but the tune (a full break, the guide's "ghost rest"), the arc of the scythe cutting the music. Phase 1 (60-70 % of the density, natural sounds): guitar tune with the
-harp, bass, bass drum and snare in the second half. Phase 2 is the same bars and chords a half step up (B-flat minor) with: the bass in sixteenths, the whole kit and the bell hits added, the tune in unison on the
-8-bit, the flute and the electric piano, and an 8-bit solo in the bridge. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
-
-FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
-with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
+Written for DRIVE (t271: the earlier versions were dark but slow, falling and not like a boss) with tools/bgm/bossdrive.py: 300 BPM (20 ticks a second, a beat of 4 ticks, a bar of 16 = the engine's bar line),
+the tune a cell of eight eighth notes repeated higher and higher, every eighth bar ending in a run that is left hanging UP, a pumping bass, a never-silent didgeridoo, a chugging guitar, drums that drive,
+an ensemble hit every eighth bar and a snare roll before each block. The device: the scythe cuts - every eighth bar everything stops but the tune (a full silence, then the hit), and the cell arcs up and over (A C E C A C B G#).
+Phase 2 is the same bars and chords a half step higher with the electric piano and the 8-bit chip, the bass in sixteenths, the drums doubled, the guitar chug twice as fast in the peak.
+Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
 """
 import sys
 from pathlib import Path
 
-from bossframe import *  # noqa: F401,F403
+from bossdrive import *  # noqa: F401,F403
 
 OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
-TONIC, SCALE = 9, [0, 2, 3, 5, 7, 8, 10]
-K = key_pcs(TONIC, SCALE)
 
-T = "E5:2 D5:2 C5:4 C5:2 G4:2 E4:4"               # the world theme read backwards, in A minor
-U = "A4:4 C5:4 E5:8"
-a1 = seq_block(T, U, K, [0, ("u", 0), -2, ("u", -2), -1, "E5:6 D5:2 B4:4 G#4:4", 0, "E5:4 G#4:4 B4:8"])
-a2 = seq_block(T, U, K, [0, "C5:2 D5:2 E5:4 A4:8", -2, "A4:4 G4:4 F4:8", -3, "E5:6 D5:2 B4:4 G#4:4", 0, "A4:8 r:8"])
-a3 = seq_block(T, U, K, [0, "E5:4 C5:4 A4:8", -2, "C5:4 A4:4 F4:8", -3, "B4:4 E5:4 G#5:8".replace("G#5", "G#4"), 0, "E5:8 A4:8"])
-b1 = seq_block(T, U, K, [-2, ("u", -2), -3, ("u", -3), -1, ("u", -1), 0, "E4:4 G#4:4 B4:8"])
-b2 = seq_block(T, U, K, [-2, ("u", -2), -3, ("u", -3), "F5:6 C5:2 A4:4 F4:4", "A4:4 C5:4 F5:8", "E5:6 D5:2 B4:4 G#4:4", "E5:8 r:8"])
-p1 = seq_block(T, U, K, [0, "C5:2 E5:2 A4:4 C5:8", 0, "C5:2 E5:2 A4:4 E5:8", -2, "A4:2 C5:2 F4:4 A4:8", -3, "G4:2 B4:2 D5:4 G4:8"])
-p2 = seq_block(T, U, K, [0, "C5:2 E5:2 A4:4 C5:8", -2, "A4:2 C5:2 F4:4 A4:8", -3, "G4:2 B4:2 D5:4 G4:8", "E5:6 D5:2 B4:4 G#4:4", "A4:16"])
-c1 = ["E5:2 D5:2 C5:12", "r:16", "D5:2 C5:2 B4:12", "r:16", "C5:2 B4:2 A4:12", "r:16", "B4:2 A4:2 G4:12", "r:16", "A4:2 G4:2 F4:12", "r:16", "E5:6 D5:2 B4:4 G#4:4", "G#3:4 B3:4 E4:4 G#4:4"]
-BREAKS = {"A": (7, 15), "A2": (7, 15), "PEAK": (7,)}
-
-SPEC = dict(
-    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
-    sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
-    chords={
-        "intro": ["Am", "Am", "F", "E"],
-        "A": "Am Am F F Dm Dm E E Am Am F F Dm E Am Am".split(),
-        "A2": "Am Am F F Dm Dm E E Am Am F F Dm Dm E E".split(),
-        "B": "F F Dm Dm G G E E F F Dm Dm Bb Bb E E".split(),
-        "PEAK": ["Am|F", "Am|F", "Dm|E", "Dm|E", "Am|F", "Am|F", "Dm|E", "Dm|E", "Am|F", "Am|F", "Dm|E", "Dm|E", "F|G", "F|G", "E|E", "E"],
-        "CALM": "Dm Dm F F G G Dm Dm Bb Bb E E".split(),
-    },
-    melody={"intro": None, "A": a1 + a2, "A2": a1 + a3, "B": b1 + b2, "PEAK": p1 + p2, "CALM": c1},
-    pedal={"PEAK": "Am"}, breaks=BREAKS, break_keep=("lead", "echo"),
-    level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
-    arp_low=54, arp_high=72, stab_low=54, stab_high=68,
-    run=[53, 55, 57, 59],
-    voices=[heavy_voices(0), heavy_voices(1, bass=("half", "eighth", "sixteenth"))],
-    heavy=True,
+SPEC = drive_spec(
+    tonic=9, scale=[0, 2, 3, 5, 7, 8, 10],
+    cell="A4:2 C5:2 E5:2 C5:2 A4:2 C5:2 B4:2 G#4:2", answer="E5:2 A4:2 B4:2 C5:2 D5:2 E5:2 C5:2 E5:2",
+    tail1="A4:2 B4:2 C5:2 D5:2 E5:2 D5:2 E5:2 E5:2", tail2="G#4:2 A4:2 G#4:2 A4:2 B4:2 C5:2 D5:2 E5:2",
+    high1="A4:2 E5:2 A4:2 C5:2 A4:2 E5:2 D5:2 C5:2", high2="C5:2 E5:2 C5:2 E5:2 D5:2 E5:2 D5:2 E5:2",
+    trill=" ".join(["E4:2", "F4:2"] * 4),
+    prog_a="Am Am F G Am Am F E".split(), prog_b="Am Bb Am Bb Am Bb E E".split(), prog_p="F G Am Am F G E E".split(), prog_c="Am Am Bb Bb Am Am E E".split(),
+    pedal_b="Am", breaks={"A": (7, 15, 23, 31), "A2": (7, 15, 23, 31), "PEAK": (15, 31)}, run=(53, 55, 57, 59),
 )
-
 TITLES = ("Reaper's Arc (Boss004)", "Reaper's Arc, Sundered (Boss004)")
 FILES = ("necromancer_phase1.nbs", "necromancer_phase2.nbs")
+DESCRIPTIONS = ("Snow mountain reaper, phase 1, written for drive: 300 BPM, an arching cell in A minor, a full silence every eighth bar. Same bars as phase 2.", "Snow mountain reaper, phase 2: the same bars and chords a half step higher, electric piano and 8-bit, sixteenth bass, doubled drums.")
+SINGLE = False
 
 
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
-    out.mkdir(parents=True, exist_ok=True)
-    write_phases(SPEC, [out / f for f in FILES],
-                 ["Snow mountain reaper, phase 1 (natural sounds): the world theme read backwards in A minor, a full silence every eighth bar. 80 bars, loops from bar 5. Same bars as phase 2.",
-                  "Snow mountain reaper, phase 2 (electronic, a half step up): the same bars and chords, bass in sixteenths, the whole kit, unison tune, 8-bit solo."],
-                 TITLES)
+    if SINGLE:
+        targets = [out if out.suffix == ".nbs" else (out / FILES[0])]
+    else:
+        out.mkdir(parents=True, exist_ok=True)
+        targets = [out / f for f in FILES]
+    if SINGLE and not targets[0].parent.exists():
+        targets[0].parent.mkdir(parents=True, exist_ok=True)
+    write_phases(SPEC, targets, list(DESCRIPTIONS), TITLES)
 
 
 if __name__ == "__main__":

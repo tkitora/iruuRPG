@@ -17,6 +17,7 @@ QUALITY = {"": [0, 4, 7], "m": [0, 3, 7], "dim": [0, 3, 6], "aug": [0, 4, 8], "5
 INSTRUMENTS = {"HARP": HARP, "BASS": BASS, "GUITAR": GUITAR, "FLUTE": FLUTE, "BELL": BELL, "CHIME": CHIME, "XYLOPHONE": XYLOPHONE, "IRON_XYLOPHONE": IRON_XYLOPHONE,
                "COW_BELL": COW_BELL, "DIDGERIDOO": DIDGERIDOO, "BIT": BIT, "BANJO": BANJO, "PLING": PLING}
 DRUMS = {  # (offset in sixteenths, drum, velocity)
+    "four": [(0, BASEDRUM, 100), (8, BASEDRUM, 90), (4, SNARE, 72), (12, SNARE, 84)],
     "stomp": [(0, BASEDRUM, 100), (6, BASEDRUM, 62), (10, BASEDRUM, 66), (8, SNARE, 90)],
     "half": [(0, BASEDRUM, 100), (6, BASEDRUM, 68), (8, SNARE, 100), (14, BASEDRUM, 60)],
     "gallop": [(0, BASEDRUM, 100), (3, BASEDRUM, 66), (4, BASEDRUM, 72), (8, BASEDRUM, 96), (11, BASEDRUM, 66), (12, BASEDRUM, 72), (4, SNARE, 90), (12, SNARE, 96)],
@@ -30,6 +31,7 @@ DRUMS = {  # (offset in sixteenths, drum, velocity)
     "double": [(0, BASEDRUM, 58), (4, BASEDRUM, 48), (8, BASEDRUM, 54), (12, BASEDRUM, 48), (4, SNARE, 50), (12, SNARE, 50)] + [(t, HAT, 22) for t in range(0, 16, 2)],
 }
 BASS_STYLES = {  # (offset in sixteenths, "r" root / "f" fifth / "o" octave, velocity)
+    "pulse": [(t, "o" if t in (6, 14) else "r", 84 if t % 8 == 0 else 58) for t in range(0, 16, 2)],
     "half": [(0, "r", 74), (8, "f", 58)],
     "eighth": [(0, "r", 74)] + [(t, "r", 56) for t in range(2, 16, 2)],
     "sixteenth": [(t, "r" if t % 4 != 2 else "o", 70 if t % 4 == 0 else 46) for t in range(16)],

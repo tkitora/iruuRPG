@@ -1,80 +1,48 @@
 #!/usr/bin/env python3
-"""Makes unkeyed_phase1.nbs and unkeyed_phase2.nbs: "Eyes Without a Key (Boss009)" and "..., Unwritten (Boss009)", a boss beyond human understanding, written again by the BGM制作ガイド.
+"""Makes unkeyed_phase1.nbs and unkeyed_phase2.nbs: "Eyes Without a Key (Boss009)" and "..., Unwritten (Boss009)", a boss beyond human understanding.
 
     python3 tools/bgm/make_unkeyed_bgm.py            writes both into src/main/resources/bgm/
     python3 tools/bgm/make_unkeyed_bgm.py outdir     writes them somewhere else
 
-The guide's recipe row "腐敗・闇の地域" (whole-tone and diminished sounds, the world theme shifted by a half step and turned back to front, the chords of the home song BROKEN): there is no key. 4/4, 150 BPM, 80 bars (2:08);
-intro 4 / A 16 / A' 16 / B 16 / A'' 16 (the peak, bar 52 = 65 %) / calm 12, loop from bar 5. The chords are augmented triads (they belong to no key) and their root FALLS A HALF STEP EVERY THREE BARS through the whole
-song (the fall that never lands: C, B, B-flat, A ... all the way down), the melody is the world theme with its intervals made augmented (four semitones, four semitones: E G# C | C Db F) and its answer read backwards.
-The device: the tune changes its instrument at every statement (harp, 8-bit, iron xylophone, banjo ...) so that it is never the same speaker, and in the peak the themes of the earlier bosses (Atlas, the reaper,
-the spider) are quoted at once, wrongly. Phase 1 (natural, a half step... of nothing): quiet, the observation; Phase 2 (a half step higher): the same bars, the beat starts at once, the 8-bit goes over the tune.
+Written for DRIVE (t271: the earlier versions were dark but slow, falling and not like a boss) with tools/bgm/bossdrive.py: 300 BPM (20 ticks a second, a beat of 4 ticks, a bar of 16 = the engine's bar line),
+the tune a cell of eight eighth notes repeated higher and higher, every eighth bar ending in a run that is left hanging UP, a pumping bass, a never-silent didgeridoo, a chugging guitar, drums that drive,
+an ensemble hit every eighth bar and a snare roll before each block. The device: no key - the whole-tone scale, augmented chords that fall a half step EVERY BAR (a fall that never lands, twice as fast as before), and a tune that changes its voice (banjo, iron xylophone) from block to block.
+Phase 2 is the same bars and chords a half step higher with the electric piano and the 8-bit chip, the bass in sixteenths, the drums doubled, the guitar chug twice as fast in the peak.
 Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
-
-FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
-with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
 """
 import sys
 from pathlib import Path
 
-from bossframe import *  # noqa: F401,F403
+from bossdrive import *  # noqa: F401,F403
 
 OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
-TONIC, SCALE = 0, [0, 2, 4, 6, 8, 10]            # the whole-tone scale on C: no key
-K = key_pcs(TONIC, SCALE)
-R = "r:16"
-ROOTS = ["C", "B", "Bb", "A", "Ab", "G", "Gb", "F", "E", "Eb", "D", "Db"]
 
-
-def falling(first_bar, bars):
-    """The chord of each bar: a root a half step lower every three bars, from the first bar of the song."""
-    return [ROOTS[((first_bar + i) // 3) % 12] + "aug" for i in range(bars)]
-
-
-T = "E4:2 G#4:2 C5:4 C5:2 Db5:2 F5:4"             # the world theme with augmented steps, then a half step
-U = "F5:4 Db5:4 B4:4 G4:4"                        # read backwards
-a1 = [T, U, mv(T, K, -2), mv(U, K, -2), T, "G#4:4 C5:4 E5:8", mv(T, K, 1), "E5:8 r:8"]
-a2 = [T, "Db5:4 C5:4 G#4:8", mv(T, K, -2), "B4:4 G#4:4 E4:8", mv(T, K, 2), R, mv(T, K, -1), "E4:8 r:8"]
-a3 = [T, "F5:4 E5:4 Db5:8", mv(T, K, -1), "C5:4 B4:4 G4:8", mv(T, K, 2), "G#4:4 C5:4 E5:8", mv(T, K, -3), R]
-b1 = [mv(T, K, -3), R, mv(T, K, -3), R, mv(T, K, -4), R, mv(T, K, -4), R]
-b2 = [mv(T, K, -3), mv(U, K, -3), mv(T, K, -4), mv(U, K, -4), "C4:2 E4:2 G#4:4 C5:8", "E5:4 G#4:4 C4:8", "Db4:2 F4:2 A4:4 Db5:8", "A4:8 r:8"]
-ATLAS = "D5:6 A4:2 F4:4 D4:4"                     # the earlier bosses, quoted wrongly
-REAPER = "E5:2 D5:2 C5:4 C5:2 G4:2 E4:4"
-SPIDER = "G4:3 Bb4:3 C5:3 Eb5:3 D5:2 C5:2"
-p1 = [T, mv(T, K, 1), ATLAS, mv(ATLAS, K, 1), T, REAPER, mv(REAPER, K, 1), SPIDER]
-p2 = [T, mv(T, K, 2), ATLAS, REAPER, SPIDER, mv(T, K, -2), mv(T, K, 3), "C5:16"]
-c1 = ["E5:4 C5:4 G#4:8", R, "Db5:4 B4:4 G4:8", R, "C5:4 A4:4 F4:8", R, "B4:4 G4:4 Eb4:8", R, "A4:4 F4:4 Db4:8", R, "G4:4 E4:4 C4:8", "E4:4 G#4:4 C5:4 E5:4"]
-
-SPEC = dict(
-    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1],
-    sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
-    chords={
-        "intro": falling(0, 4),
-        "A": falling(4, 16),
-        "A2": falling(20, 16),
-        "B": falling(36, 16),
-        "PEAK": falling(52, 16),
-        "CALM": falling(68, 12),
-    },
-    melody={"intro": None, "A": a1 + a2, "A2": a1 + a3, "B": b1 + b2, "PEAK": p1 + p2, "CALM": c1},
-    level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
-    arp_low=54, arp_high=72, stab_low=54, stab_high=68,
-    run=[54, 56, 58, 60],
-    voices=[heavy_voices(0, extra={"A2": ["dbl:BANJO:-12:0.6"], "B": ["dbl:IRON_XYLOPHONE:0:0.6"]}), heavy_voices(1, bass=("half", "eighth", "sixteenth"))],
-    heavy=True,
+SPEC = drive_spec(
+    tonic=0, scale=[0, 2, 4, 6, 8, 10],
+    cell="C4:2 D4:2 E4:2 F#4:2 G#4:2 F#4:2 E4:2 G#4:2", answer="A#4:2 G#4:2 A#4:2 C5:2 D5:2 C5:2 D5:2 E5:2",
+    tail1="E4:2 F#4:2 G#4:2 A#4:2 C5:2 D5:2 E5:2 E5:2", tail2="A#4:2 C5:2 A#4:2 C5:2 D5:2 D#5:2 E5:2 E5:2",
+    high1="C4:2 C5:2 C4:2 E4:2 C4:2 C5:2 A#4:2 G#4:2", high2="E4:2 G#4:2 C5:2 G#4:2 F#4:2 A#4:2 D5:2 A#4:2",
+    trill=" ".join(["C4:2", "C#4:2"] * 4),
+    prog_a="Caug Baug Bbaug Aaug Abaug Gaug Gbaug Faug".split(), prog_b="Eaug Ebaug Daug Dbaug Caug Baug Bbaug Aaug".split(),
+    prog_p="Caug Baug Bbaug Aaug Abaug Gaug Gbaug Faug".split(), prog_c="Faug Eaug Ebaug Daug Dbaug Caug Baug Bbaug".split(),
+    run=(54, 56, 58, 60), extra_voices={"A2": ["dbl:BANJO:0:0.6"], "B": ["dbl:IRON_XYLOPHONE:0:0.6"]},
 )
-
 TITLES = ("Eyes Without a Key (Boss009)", "Eyes Without a Key, Unwritten (Boss009)")
 FILES = ("unkeyed_phase1.nbs", "unkeyed_phase2.nbs")
+DESCRIPTIONS = ("Boss without a key, phase 1, written for drive: 300 BPM, whole-tone cell, augmented chords falling a half step every bar. Same bars as phase 2.", "Boss without a key, phase 2: the same bars a half step higher, electric piano and 8-bit, sixteenth bass, doubled drums.")
+SINGLE = False
 
 
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
-    out.mkdir(parents=True, exist_ok=True)
-    write_phases(SPEC, [out / f for f in FILES],
-                 ["Boss without a key, phase 1: augmented chords falling a half step every three bars, the world theme with augmented steps, the tune changes its voice, the earlier boss themes quoted in the peak. 80 bars, loops from bar 5. Same bars as phase 2.",
-                  "Boss without a key, phase 2 (a half step up): the same bars, the beat from the first bar, the 8-bit over the tune."],
-                 TITLES)
+    if SINGLE:
+        targets = [out if out.suffix == ".nbs" else (out / FILES[0])]
+    else:
+        out.mkdir(parents=True, exist_ok=True)
+        targets = [out / f for f in FILES]
+    if SINGLE and not targets[0].parent.exists():
+        targets[0].parent.mkdir(parents=True, exist_ok=True)
+    write_phases(SPEC, targets, list(DESCRIPTIONS), TITLES)
 
 
 if __name__ == "__main__":

@@ -1,71 +1,50 @@
 #!/usr/bin/env python3
-"""Makes mirror_phase1.nbs and mirror_phase2.nbs: "The Cracked Mirror Laughs (Boss007)" and "..., Shattered (Boss007)", a boss of madness and mockery, written again by the BGM制作ガイド.
+"""Makes mirror_phase1.nbs and mirror_phase2.nbs: "The Cracked Mirror Laughs (Boss007)" and "..., Shattered (Boss007)", a boss of madness and mockery.
 
     python3 tools/bgm/make_mirror_bgm.py            writes both into src/main/resources/bgm/
     python3 tools/bgm/make_mirror_bgm.py outdir     writes them somewhere else
 
-F-sharp Phrygian dominant (F# G A# B C# D E: the guide's "異国・妖しさ", with the flat second), 4/4, 150 BPM, 80 bars (2:08); intro 4 / A 16 / A' 16 / B 16 / A'' 16 (the peak, bar 52 = 65 %) / calm 12, loop from bar 5.
-The theme is the world theme CRACKED: the same first note and the same rise (F#4, then the third raised to A#, D5 E5 F#5) so that it is almost the song of the plains - almost. The device is the MIRROR:
-a second voice plays the same tune upside down about F#4 (the guitar, the inversion of the melody), so the tune meets itself; the bells trill a half step (G over F#) and the flute laughs in short notes.
-Phase 1 (natural): harp, flute, guitar mirror, bell, bass, snare march. Phase 2 (a half step up, G Phrygian dominant): the same bars and chords with the electric piano and 8-bit, the sixteenth bass, the whole kit, the
-unison tune and the mirror on the 8-bit. Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
-
-FASTER (t269, nekorozv: "everything is too slow, a little faster"): the song is written as above (80 bars of 16 ticks, 150 BPM) and PLAYED at 200 BPM - 20 ticks a second, a beat of 6 ticks, a bar of 24 -
-with the sections lengthened to 24 / 24 / 24 / 20 / 8 bars (100 bars, 2:03) so that it still lasts two minutes (bossframe.widen). The only clean step up from 150 is 200: the tempo is a whole number of ticks to the beat.
+Written for DRIVE (t271: the earlier versions were dark but slow, falling and not like a boss) with tools/bgm/bossdrive.py: 300 BPM (20 ticks a second, a beat of 4 ticks, a bar of 16 = the engine's bar line),
+the tune a cell of eight eighth notes repeated higher and higher, every eighth bar ending in a run that is left hanging UP, a pumping bass, a never-silent didgeridoo, a chugging guitar, drums that drive,
+an ensemble hit every eighth bar and a snare roll before each block. The device: the mirror - a second voice plays the cell upside down about F#4 (the guitar, then the 8-bit chip) so that the tune meets itself; F# Phrygian dominant with its half step (F#, G) and its major third (A#).
+Phase 2 is the same bars and chords a half step higher with the electric piano and the 8-bit chip, the bass in sixteenths, the drums doubled, the guitar chug twice as fast in the peak.
+Everything is written by what SOUNDS. Nothing is random. The design record is in docs/bgm-songs.md.
 """
 import sys
 from pathlib import Path
 
-from bossframe import *  # noqa: F401,F403
+from bossdrive import *  # noqa: F401,F403
 
 OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
-TONIC, SCALE = 6, [0, 1, 4, 5, 7, 8, 10]
-K = key_pcs(TONIC, SCALE)
-AXIS = 66
 
-T = "F#4:2 A#4:2 D5:4 D5:2 E5:2 F#5:4"            # the world theme, cracked
-U = "E5:4 D5:4 C#5:4 A#4:4"
-R = "r:16"
-a1 = seq_block(T, U, K, [0, ("u", 0), -1, ("u", -1), "G4:2 B4:2 D5:4 D5:2 E5:2 G5:4".replace("G5", "G4"), "F#5:4 E5:4 C#5:4 A#4:4", 0, "C#5:8 F#4:8"])
-a2 = seq_block(T, U, K, [0, "E5:2 D5:2 C#5:4 A#4:8", -1, "D5:4 C#5:4 A#4:8", "G4:2 B4:2 D5:4 D5:2 E5:2 G4:4", "B4:4 C#5:4 A#4:8", 0, "F#4:8 r:8"])
-a3 = seq_block(T, U, K, [0, "E5:4 F#5:4 D5:8", -1, "F#5:4 E5:4 D5:8", "G4:2 B4:2 D5:4 B4:2 D5:2 E5:4", "C#5:4 D5:4 E5:8", 0, "C#5:8 A#4:8"])
-b1 = seq_block(T, U, K, [-1, R, 0, R, -3, R, 0, R])
-b2 = seq_block(T, U, K, [-1, ("u", -1), 0, ("u", 0), "B4:6 D5:2 F#5:4 B4:4", "D5:4 F#5:4 B4:8", "C#5:6 E5:2 G4:4 C#5:4", "C#5:8 r:8"])
-p1 = seq_block(T, U, K, [0, "A#4:2 D5:2 F#5:4 D5:8", 0, "A#4:2 D5:2 F#5:4 A#4:8", -1, "B4:2 D5:2 F#5:4 D5:8", -3, "C#5:2 E5:2 G4:4 C#5:8"])
-p2 = seq_block(T, U, K, [0, "A#4:2 D5:2 F#5:4 D5:8", -1, "B4:2 D5:2 F#5:4 D5:8", -3, "C#5:2 E5:2 G4:4 C#5:8", "G4:2 B4:2 D5:4 D5:2 E5:2 G4:4", "F#5:16"])
-c1 = ["F#5:4 A#4:4 F#4:8", R, "E5:4 G4:4 E4:8", R, "D5:4 B4:4 G4:8", R, "C#5:4 G4:4 E4:8", R, "A#4:4 F#4:4 C#4:8", R, "G4:2 B4:2 D5:4 D5:2 E5:2 G4:4", "C#4:4 E4:4 G4:4 B4:4"]
-
-SPEC = dict(
-    bar=16, tps=10.0, faster=True, tonic=TONIC, scale=SCALE, shift=[0, 1], axis=AXIS,
-    sections=[("A", 16), ("A2", 16), ("B", 16), ("PEAK", 16), ("CALM", 12)],
-    chords={
-        "intro": ["F#", "F#", "G", "C#"],
-        "A": "F# F# G G Bm Bm C# C# F# F# G G Bm C# F# F#".split(),
-        "A2": "F# F# G G Bm Bm C# C# F# F# G G Bm Bm C# C#".split(),
-        "B": "G G F# F# Edim Edim C# C# G G F# F# Bm Bm C# C#".split(),
-        "PEAK": ["F#|G", "F#|G", "Bm|C#", "Bm|C#", "F#|G", "F#|G", "Bm|C#", "Bm|C#", "F#|G", "F#|G", "Bm|C#", "Bm|C#", "G|G", "G|G", "C#|C#", "C#"],
-        "CALM": "G G Bm Bm C# C# G G Bm Bm C# C#".split(),
-    },
-    melody={"intro": None, "A": a1 + a2, "A2": a1 + a3, "B": b1 + b2, "PEAK": p1 + p2, "CALM": c1},
-    pedal={"PEAK": "F#"},
-    level={"intro": 0.8, "A": 0.9, "A2": 1.0, "B": 0.85, "PEAK": 1.1, "CALM": 0.75},
-    arp_low=54, arp_high=72, stab_low=54, stab_high=68,
-    run=[56, 58, 60, 62],
-    voices=[heavy_voices(0, extra={"A2": ["mir:GUITAR"], "PEAK": ["mir:GUITAR"]}), heavy_voices(1, bass=("half", "eighth", "sixteenth"), extra={"A2": ["mir:BIT"], "PEAK": ["mir:BIT"]})],
-    heavy=True,
+SPEC = drive_spec(
+    tonic=6, scale=[0, 1, 4, 5, 7, 8, 10],
+    cell="F#4:2 G4:2 A#4:2 G4:2 F#4:2 C#5:2 B4:2 C#5:2", answer="C#5:2 D5:2 C#5:2 A#4:2 B4:2 C#5:2 D5:2 E5:2",
+    tail1="A#4:2 B4:2 C#5:2 D5:2 E5:2 D5:2 E5:2 E5:2", tail2="C#5:2 D5:2 C#5:2 D5:2 E5:2 D#5:2 E5:2 E5:2",
+    high1="F#4:2 C#5:2 F#4:2 A#4:2 F#4:2 C#5:2 D5:2 A#4:2", high2="A#4:2 C#5:2 E5:2 C#5:2 B4:2 D5:2 E5:2 D5:2",
+    trill=" ".join(["C#4:2", "D4:2"] * 4),
+    prog_a="F# G F# G Bm G F# C#".split(), prog_b="F# G F# G F# G C# C#".split(), prog_p="G Bm F# F# G Bm C# C#".split(), prog_c="F# F# G G F# F# C# C#".split(),
+    pedal_b="F#", axis=66, run=(56, 58, 60, 62),
 )
-
+for tag in ("A2", "PEAK"):
+    SPEC["voices"][0][tag].append("mir:GUITAR")
+    SPEC["voices"][1][tag].append("mir:BIT")
 TITLES = ("The Cracked Mirror Laughs (Boss007)", "The Cracked Mirror Laughs, Shattered (Boss007)")
 FILES = ("mirror_phase1.nbs", "mirror_phase2.nbs")
+DESCRIPTIONS = ("Mirror boss, phase 1, written for drive: 300 BPM, a cell and its own reflection upside down, F# Phrygian dominant over an F# pedal. Same bars as phase 2.", "Mirror boss, phase 2: the same bars and chords a half step higher, the mirror on the 8-bit chip, sixteenth bass, doubled drums.")
+SINGLE = False
 
 
 def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
-    out.mkdir(parents=True, exist_ok=True)
-    write_phases(SPEC, [out / f for f in FILES],
-                 ["Mirror boss, phase 1 (natural sounds): the cracked world theme and its own reflection (the same tune upside down), F# Phrygian dominant. 80 bars, loops from bar 5. Same bars as phase 2.",
-                  "Mirror boss, phase 2 (electronic, a half step up): the same bars and chords, the mirror on the 8-bit, sixteenth bass, the whole kit."],
-                 TITLES)
+    if SINGLE:
+        targets = [out if out.suffix == ".nbs" else (out / FILES[0])]
+    else:
+        out.mkdir(parents=True, exist_ok=True)
+        targets = [out / f for f in FILES]
+    if SINGLE and not targets[0].parent.exists():
+        targets[0].parent.mkdir(parents=True, exist_ok=True)
+    write_phases(SPEC, targets, list(DESCRIPTIONS), TITLES)
 
 
 if __name__ == "__main__":
