@@ -2,6 +2,7 @@
 """Reads .nbs files written by nbslib.write_nbs and prints what a bundled boss song must satisfy (the rules of BgmTest, without running Gradle).
 
     python3 tools/bgm/check_song.py src/main/resources/bgm/colossus_phase1.nbs [more.nbs ...]
+    python3 tools/bgm/check_song.py --retimed out.nbs      # a song whose tempo retime.py changed (loop point anywhere in the first fifth)
 
 Prints: title, length (ticks / seconds), ticks a second, loop start, notes, the most notes at one tick, notes a second by 8-bar windows (of the 16-tick engine bar), the pitch range of every instrument
 (by what SOUNDS) and every rule that is broken (exit code 1). With two files (phase 1 and phase 2) it also checks that they are one piece (same length, tempo and loop point).
@@ -63,7 +64,8 @@ def sounding(instrument, key):
     return BASE[instrument] + key - 33 if instrument in BASE else None
 
 
-def check(path, quiet=False):
+def check(path, quiet=False, retimed=False):
+    """``retimed``: a song whose tempo was changed by retime.py (20 ticks a second, any BPM): its intro is not 64 ticks long any more, so the loop point only has to be inside the first fifth."""
     song = read(path)
     problems = []
     notes = song["notes"]
@@ -74,7 +76,10 @@ def check(path, quiet=False):
     peak = max(per_tick.values())
     if seconds < 120:
         problems.append(f"shorter than 120 s ({seconds:.1f})")
-    if not song["loop"] or song["loop_start"] != 64:
+    if retimed:
+        if not song["loop"] or not 0 < song["loop_start"] < song["length"] / 5:
+            problems.append(f"must loop from the end of the intro (loop={song['loop']}, start={song['loop_start']})")
+    elif not song["loop"] or song["loop_start"] != 64:
         problems.append(f"must loop from tick 64 (loop={song['loop']}, start={song['loop_start']})")
     if abs(20.0 / song["tps"] - round(20.0 / song["tps"])) > 0.01:
         problems.append(f"ticks a second {song['tps']} does not divide 20")
@@ -109,11 +114,12 @@ def check(path, quiet=False):
 
 
 def main():
-    paths = sys.argv[1:]
+    retimed = "--retimed" in sys.argv
+    paths = [a for a in sys.argv[1:] if a != "--retimed"]
     songs = []
     bad = False
     for path in paths:
-        song, problems = check(path)
+        song, problems = check(path, retimed=retimed)
         songs.append(song)
         for problem in problems:
             print("  PROBLEM:", problem)
