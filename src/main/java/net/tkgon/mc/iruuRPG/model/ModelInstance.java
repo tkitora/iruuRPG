@@ -67,6 +67,8 @@ final class ModelInstance {
     /** How long the model takes to go up in smoke after its death animation (seconds; 0: it stays a moment and goes as before), and whether the smoke has come. */
     private double vanishSeconds;
     private boolean smoked;
+    /** The light the displays are drawn with now (null: not set yet). */
+    private Display.Brightness shownLight;
 
     ModelInstance(BbModel model, LivingEntity base, double scale, int period, Material baseItem, NamespacedKey partKey, boolean hideBase, double walkSpeed) {
         this.walkSpeed = walkSpeed > 0.0 ? walkSpeed : 1.0;
@@ -282,7 +284,11 @@ final class ModelInstance {
         stand.setYaw(0.0f);
         stand.setPitch(0.0f);
         float size = (float) scale;
+        Display.Brightness light = light(at);
+        boolean relight = light != null && (shownLight == null || light.getBlockLight() != shownLight.getBlockLight() || light.getSkyLight() != shownLight.getSkyLight());
+        if (relight) shownLight = light;
         updateNameplate(stand);
+        if (relight && nameplate != null && nameplate.isValid()) nameplate.setBrightness(light);
         // going up in smoke: every part shrinks toward the middle of the model
         float fade = fade(at, tick);
         float middle = (float) (top() * 0.5);
@@ -301,6 +307,7 @@ final class ModelInstance {
             Matrix4f world = new Matrix4f().translate(0.0f, middle * (1.0f - fade), 0.0f).scale(size * fade).rotateY(turn).mul(matrix);
             ItemDisplay display = displays.get(index);
             if (!display.isValid()) continue;
+            if (relight) display.setBrightness(light);
             if (!world.equals(last.get(index), 1.0E-4f)) {
                 last.get(index).set(world);
                 Vector3f translation = world.getTranslation(new Vector3f());
@@ -313,6 +320,45 @@ final class ModelInstance {
             Location now = display.getLocation();
             if (now.getWorld() != stand.getWorld() || now.distanceSquared(stand) > 1.0E-4 || now.getYaw() != 0.0f || now.getPitch() != 0.0f) display.teleport(stand);
         }
+    }
+
+    /**
+     * The light to draw the model with (t277). The game lights a display by the block it stands in, and every display of the model stands at the mob's feet: feet in a block
+     * that lets no light in (a mob pushed into a wall, or sunk into soul sand or mud) drew the whole model black. The light is taken from the first block that lets light in
+     * ({@link #lightFrom}) and given to the displays as it is (the game still darkens the sky's part of it at night). Null when no block near lets light in (the light the
+     * model has stays).
+     */
+    private Display.Brightness light(Location at) {
+        if (at.getWorld() == null) return null;
+        org.bukkit.block.Block feet = at.getBlock();
+        int[] offset = lightFrom((int) Math.ceil(top()), (dx, dy, dz) -> !feet.getRelative(dx, dy, dz).getType().isOccluding());
+        if (offset == null) return null;
+        org.bukkit.block.Block from = feet.getRelative(offset[0], offset[1], offset[2]);
+        return new Display.Brightness(from.getLightFromBlocks(), from.getLightFromSky());
+    }
+
+    /** Whether the block at an offset from the feet's block lets light in. */
+    interface Open {
+        boolean at(int dx, int dy, int dz);
+    }
+
+    private static final int[][] SIDES = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+
+    /**
+     * Where the model takes its light from, as an offset from the block of the feet: the feet (where the game itself takes it); else up through the model to the block over its
+     * top ({@code tall}: the blocks the model is high, 1 to 8); else beside the feet, then beside the middle. Null when none of them lets light in. Pure, for the tests.
+     */
+    static int[] lightFrom(int tall, Open open) {
+        int up = Math.max(1, Math.min(8, tall));
+        for (int dy = 0; dy <= up; dy++) {
+            if (open.at(0, dy, 0)) return new int[] {0, dy, 0};
+        }
+        for (int dy : new int[] {0, (up + 1) / 2}) {
+            for (int[] side : SIDES) {
+                if (open.at(side[0], dy, side[1])) return new int[] {side[0], dy, side[1]};
+            }
+        }
+        return null;
     }
 
     void remove() {
@@ -348,6 +394,7 @@ final class ModelInstance {
                 spawned.setPersistent(false);
                 spawned.setGravity(false);
                 spawned.setInvulnerable(true);
+                if (shownLight != null) spawned.setBrightness(shownLight);
             });
             shownName = null;
         }
