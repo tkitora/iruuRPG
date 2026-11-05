@@ -879,4 +879,28 @@ class BgmTest {
         org.mockito.Mockito.verify(player, org.mockito.Mockito.never()).playSound(org.mockito.ArgumentMatchers.any(Location.class), org.mockito.ArgumentMatchers.any(org.bukkit.Sound.class),
                 org.mockito.ArgumentMatchers.any(org.bukkit.SoundCategory.class), org.mockito.ArgumentMatchers.anyFloat(), org.mockito.ArgumentMatchers.anyFloat());
     }
+
+    @Test
+    void theNoteLimitSendsAboutThatManyNotesASecond() throws IOException {
+        BgmChannel channel = new BgmChannel();
+        channel.limitNotes(10);
+        Player player = player();
+        int[] sent = {0};
+        org.mockito.Mockito.doAnswer(inv -> { sent[0]++; return null; }).when(player).playSound(org.mockito.ArgumentMatchers.any(Location.class), org.mockito.ArgumentMatchers.any(org.bukkit.Sound.class),
+                org.mockito.ArgumentMatchers.any(org.bukkit.SoundCategory.class), org.mockito.ArgumentMatchers.anyFloat(), org.mockito.ArgumentMatchers.anyFloat());
+        channel.playManual(song(1000, true, 0), true, 0.0);     // one note at every server tick: 20 a second
+        for (int tick = 0; tick < 200; tick++) channel.tick(player, 1.0f);   // 10 seconds
+        assertTrue(sent[0] >= 90 && sent[0] <= 110, "about 10 a second were sent: " + sent[0]);
+        assertTrue(channel.stats().contains("limit 10/s"), channel.stats());
+    }
+
+    @Test
+    void theClockToldOfAStopLongerThanTheLead() {
+        BgmClock clock = new BgmClock(10);
+        clock.steps(0L);
+        clock.steps(50 * MS);
+        assertEquals(0L, clock.stalledNanos(), "kept up");
+        clock.steps(5000 * MS);
+        assertTrue(clock.stalledNanos() > 4000 * MS, "a stop of seconds is told: " + clock.stalledNanos() / MS + " ms");
+    }
 }

@@ -1,49 +1,42 @@
 #!/usr/bin/env python3
-"""Makes atlas_vindicator.nbs: "The Axe at the Gate (Boss001)", the boss theme of the Atlas cave (the vindicator, the master of the first dungeon). The second version.
+"""Makes atlas_vindicator.nbs: "The Axe at the Gate (Boss001)", the boss theme of the Atlas cave (the vindicator, the master of the first dungeon). The third version (t278).
 
     python3 tools/bgm/make_atlas_boss_bgm.py            writes src/main/resources/bgm/atlas_vindicator.nbs
     python3 tools/bgm/make_atlas_boss_bgm.py out.nbs    writes somewhere else
 
-E minor (harmonic: D# over B7), 4/4, 150 BPM (one tick = a sixteenth; 10 ticks a second, so a song tick is exactly 2 server ticks), 80 bars (2:08). Same form, tune and chords as the first
-version (intro, A, B, a bridge in half time, A, B with everything, a four-bar run-up that jumps back to A; one piece, no phases: the dungeon is short); written again by what SOUNDS and with
-the techniques of the style guides (docs/bgm-style-guide.md, docs/bgm-style-guide-01.md) and of the later requests for the boss songs:
-  - No flute, bell or chime (they sounded two or three octaves above the rest). The tune is on the piano (the harp, E4 to F#5), struck again under a long note (a note block dies away at once).
-  - Natural first, electronic as it grows: the first A is only natural (piano, guitar, bass, drums); the first chorus brings the 8-bit square wave on the tune and a counter-melody on the
-    electric piano that runs in the gaps of the long notes; the last chorus adds the iron xylophone (vibraphone) sparkle and a snare chain of sixteenths.
-  - The tonic pedal point: in the second A the bass strikes the tonic E in sixteenths with an octave jump while the chords change above it; in the last chorus the bass jumps an octave every eighth.
-  - Grace notes: a half step above the first note of every phrase, one tick before it, so that the note starts sharply.
-  - A solo: the guitar plays the bridge (E3 to F#4, a held note struck again), over a bass and a snare in half time. It ends on a tritone (F over B7) held in the 8-bit, and a half step (F over E)
-    at the end of the last chorus. These are the only places that rub, on purpose.
-  - The lowest note: the last bar of the run-up holds one low B (B1) that grows, the earth (didgeridoo) under it.
-Drums are thick: a kick that follows the bass, a snare on 2 and 4, a hat; the bass and the guitar play the 3-3-2 pattern (ticks 0, 3, 6, 8, 11, 14). The melody is the motif of Atlas, played fast.
-
-The motif of Atlas (the place): E5 B4 G4 E4 - a falling E minor triad, the plains theme turned upside down. It is the same as in the cave theme ("Where the Titan Sleeps"), here
-in eighths and driving. Nothing here is random: the same file comes out every time. The design record is in docs/bgm-songs.md.
+STYLE 1 of the style doc (royal high-speed battle) on the 16th-note ladder of the BPM guide, 150 BPM: 10 ticks a second, a tick is a sixteenth, a bar is 16 ticks (4/4); 4 intro bars + 81 bars
+= 1360 ticks = 136 s. E minor (harmonic: D# over B7), one piece, no phases (the first boss: the thinnest of the boss songs - at most about 36 notes a second at the peak).
+The MELODY keeps the base tempo; the accompaniment is subdivided (bass: none / quarters / root-fixed eighths / eighths with sixteenth doubles and triplets / full sixteenths). Time table:
+  0:00  INTRO (4 bars) + PRE (6 bars, to 0:16): a solo refrain of the piano (the harp, struck again under every long note, string-like) WITHOUT drums; in the PRE bars the snare comes
+        in and gets denser (one hit, backbeat, quarters, eighths), quarter-note bass roots under it.
+  0:16  A (20 bars): the bass is FIXED on the tonic E in eighths (the weight of each step), full drums, the tune low and ominous on the guitar (E3 - F#4); the last four bars drop into HALF TIME (kick on 1,
+        snare on 3, quarter bass) - a pseudo tempo change.
+  0:48  B (18 bars): the bass is RELEASED - it follows the chords with sixteenth double hits and triplet figures (3 + 3 + 2) - and the tune moves an octave UP onto the piano; the kick follows the bass;
+        the last eight bars the snare doubles (on every beat: DOUBLE TIME). The B ends on B7.
+  1:17  BREAK (3 bars): two bars of a snare/kick crescendo on a B pedal that gets denser, then ONE BAR with every drum and the bass muted and a single bell note.
+  1:22  CHORUS (18 bars): the PARALLEL MAJOR - E minor flips to E major (G#, C#, A# replace G, C, D: E - B - C#m - A) - the tune in long notes (whole and half notes held by re-striking, piano) with a THIRD-ABOVE
+        harmony (the pling), over a full SIXTEENTH machine-gun bass (root heavy, ghost notes, octave pops), guitar power chords and chug, the hat in sixteenths.
+  1:50  FINALE (16 bars): the same chorus a WHOLE STEP UP (F# major); the last four bars turn back: F# - C# - B - B7, a dominant that hangs on D# and leads into tick 64 (E minor).
+Nothing is random: the same file comes out every time. The tune is the motif of Atlas, E5 B4 G4 E4, a falling E minor triad (the plains theme turned upside down). The design record is in docs/bgm-songs.md.
 """
 import sys
 from pathlib import Path
 
-from nbslib import *  # noqa: F401,F403 - the shared helpers
+from cat45 import *  # noqa: F401,F403 - Builder, hit_ticks, sustain ... (helpers; this file edits nothing shared)
 
-TPS = 10.0          # ticks a second (a divisor of 20: a song tick is 2 server ticks); a tick is a sixteenth note, a quarter is 4 ticks: 150 BPM
-LOOP_START_BAR = 4  # the intro (bars 0-3) is played once
+TPS = 10.0
+BAR_T = 16
+START = 64
 TITLE = "The Axe at the Gate (Boss001)"
-POLYPHONY = 8
-E_MINOR = scale("E3 F#3 G3 A3 B3 C4 D4 E4 F#4 G4 A4 B4 C5 D5 E5 F#5")
+DESCRIPTION = ("Atlas cave boss 1, style 1 (royal high-speed battle), 150 BPM: solo piano refrain without drums, tonic-fixed eighth bass, half time, released bass and tune an octave up, double time, "
+               "a one-bar bell break, the chorus in E major with a third-above harmony over a sixteenth bass, the finale a whole step up. Loops from tick 64.")
+SECTIONS = [("PRE", 6), ("A", 20), ("B", 18), ("BREAK", 3), ("CHORUS", 18), ("FINALE", 16)]
+NBARS = sum(n for _, n in SECTIONS)            # 81
+LENGTH = START + NBARS * BAR_T                 # 1360 ticks = 136 s
 
-CHORDS = {  # the notes for the piano, low to high; the root and the fifth for the bass (it sounds F#1 to F#3); the guitar plays them an octave up. All by what SOUNDS
-    "Em": ([59, 64, 67, 71, 76], 40, 47),
-    "C": ([60, 64, 67, 72, 76], 36, 43),
-    "G": ([55, 59, 62, 67, 71], 31, 38),
-    "D": ([57, 62, 66, 69, 74], 38, 45),
-    "Am": ([57, 60, 64, 69, 72], 33, 40),
-    "B7": ([59, 63, 66, 69, 71], 35, 42),
+CHORDS = {   # root pitch class, quality; the bass root (what SOUNDS), the harp comp notes
+    "Em": (4, 40), "C": (0, 36), "G": (7, 31), "D": (2, 38), "Am": (9, 33), "B7": (11, 35),
 }
-TRESILLO = [0, 3, 6, 8, 11, 14]   # 3 + 3 + 2, twice
-TONIC = 40                         # E2: the pedal point (and E3 an octave up)
-
-INTRO_CHORDS = ["Em", "Em", "Em", "B7"]
-INTRO_MELODY = ["r:16", "r:16", "E5:4 B4:4 G4:4 E4:4", "B4:4 D#5:4 F#5:8"]
 A_CHORDS = ["Em", "Em", "C", "D", "Em", "Em", "C", "B7", "Em", "Em", "C", "D", "Am", "C", "D", "B7"]
 A_MELODY = [
     "E5:2 B4:2 G4:2 E4:2 E5:2 B4:2 G4:4",     # the motif, twice
@@ -82,203 +75,253 @@ B_MELODY = [
     "E5:2 B4:2 G4:2 E4:2 E5:2 B4:2 G4:4",
     "E4:12 r:4",
 ]
-BRIDGE_CHORDS = ["Em", "Em", "Am", "Am", "C", "D", "B7", "B7"]
-SOLO = [                      # the guitar sounds F#2 to F#4 (E3 to F#4 here)
-    "E3:4 G3:4 B3:4 E4:4",
-    "F#4:4 E4:4 B3:8",
-    "A3:4 C4:4 E4:4 C4:4",
-    "E4:6 D4:2 C4:8",
-    "C4:2 E4:2 G3:4 C4:4 E4:4",
-    "F#4:4 D4:4 A3:4 D4:4",
-    "D#4:2 F#4:2 B3:4 D#4:4 F#4:4",
-    "F#4:8 r:8",
+# the chorus in E major (what SOUNDS; the finale is the same a whole step up): chords as (semitones above the tonic, quality)
+CH_CHORDS = [(0, "M"), (7, "M"), (9, "m"), (5, "M"), (0, "M"), (7, "M"), (5, "M"), (7, "7")]
+CH_MELODY = [
+    "G#4:8 B4:8", "B4:8 D#5:8", "C#5:8 G#4:4 B4:4", "A4:8 C#5:8",
+    "B4:8 E5:8", "D#5:8 B4:8", "C#5:8 E5:8", "D#5:4 E5:4 D#5:8",
 ]
-OUTRO_CHORDS = ["Em", "C", "D", "B7"]
-OUTRO_MELODY = ["E5:4 B4:4 G4:4 E4:4", "C5:4 G4:4 E4:4 G4:4", "D5:4 A4:4 F#4:4 A4:4", "D#5:2 F#5:2 B4:4 r:8"]
+# the last four bars of the finale, in F# (sounding): F# - C# - B - B7, hanging on D#
+FIN_END_CHORDS = [(0, "M"), (7, "M"), (5, "M"), (5, "7")]
+FIN_END_MELODY = ["A#4:8 C#5:8", "C#5:8 F5:8", "D#5:8 B4:8", "F#4:4 A4:4 D#5:8"]
+MAJOR_SCALE = (0, 2, 4, 5, 7, 9, 11)
 
-# two notes held and struck again a little: (section, bar of the section, the lower note, the higher note, who plays them): a tritone and a half step
-CLASHES = [("bridge", 7, 59, 65), ("B2", 15, 64, 65)]
-
-# (name, chords, melody, drums, guitar, the extras)
-#   drums:  "kick" kick only | "full" | "half" (half time) | "climax" (the kick follows the bass, a snare chain) | "roll" (a snare roll in the last bar)
-#   guitar: None | "muted" (ticks 0 and 8) | "tresillo"
-#   extras: "grace" (a half step above the first note of a phrase) | "bit" (8-bit on the tune) | "counter" (electric piano runs in the long notes) | "harmony" (piano a third below)
-#           | "sparkle" (iron xylophone on the bar) | "pedal" (the bass strikes the tonic in sixteenths) | "octave" (the bass jumps an octave every eighth) | "hat16" (the hat in sixteenths)
-#           | "solo" (the guitar plays the bridge) | "soft-bass" | "roll-intro" (snare in the last two bars) | "low" (the last bar holds a low note)
-SECTIONS = [
-    ("intro", INTRO_CHORDS, INTRO_MELODY, "kick", None, {"roll-intro"}),
-    ("A", A_CHORDS, A_MELODY, "full", "muted", {"grace"}),
-    ("B", B_CHORDS, B_MELODY, "full", "tresillo", {"grace", "bit", "counter", "hat16"}),
-    ("bridge", BRIDGE_CHORDS, None, "half", None, {"solo", "soft-bass"}),
-    ("A2", A_CHORDS, A_MELODY, "full", "tresillo", {"grace", "harmony", "pedal"}),
-    ("B2", B_CHORDS, B_MELODY, "climax", "tresillo", {"grace", "bit", "counter", "harmony", "sparkle", "octave"}),
-    ("outro", OUTRO_CHORDS, OUTRO_MELODY, "roll", "muted", {"low"}),
-]
+ROLES = {"tune": (100, 80), "harm": (75, 120), "stab": (60, 90), "guitar": (90, 100), "guitar2": (75, 100), "bass": (100, 100), "didg": (90, 100),
+         "kick": (100, 100), "snare": (92, 105), "hat": (50, 115), "bell": (70, 100)}
 
 
-def put_over(layer, tick, instrument, sounding, vel):
-    """A drum or a fill puts its note over what is there."""
-    layer.notes.pop(tick, None)
-    layer.put(tick, instrument, sounding, vel)
+def tune(b, role, instrument, t0, text, shift=0, vel=84, grace=False):
+    """Plays a bar written as 'E5:2 B4:2 ...': a long note (6 ticks or more) is struck again every 4 ticks, the loudness rising a little."""
+    tick = 0
+    for pitch, length in parse_bar(text):
+        if pitch is not None:
+            p = pitch + shift
+            if instrument == HARP:
+                while p > 78:
+                    p -= 12
+            if length >= 6:
+                sustain(b, role, t0 + tick, instrument, p, length, vel, vel + 10, every=4)
+            else:
+                b.note(role, t0 + tick, instrument, p, vel + (6 if tick % 8 == 0 else 0))
+        tick += length
 
 
-def build():
-    lead = Layer("Piano (melody)", 100, 100)
-    hold = Layer("Piano (melody held)", 60, 100)
-    grace = Layer("Piano (grace note)", 50, 100)
-    chip = Layer("8-bit (doubles the melody)", 40, 120)
-    harmony = Layer("Piano (a third below)", 50, 80)
-    counter = Layer("Electric piano (counter-melody)", 45, 90)
-    sparkle = Layer("Iron xylophone (sparkle)", 45, 125)
-    solo = Layer("Guitar (solo)", 80, 100)
-    clash_a = Layer("Rub (lower)", 45, 90)
-    clash_b = Layer("Rub (higher)", 45, 110)
-    pad = Layer("Piano (arpeggio)", 55, 90)
-    guitar_root = Layer("Guitar (root)", 75, 60)
-    guitar_fifth = Layer("Guitar (fifth)", 70, 70)
-    bass = Layer("Bass", 90, 100)
-    earth = Layer("Didgeridoo (the earth)", 55, 100)
-    kick = Layer("Kick", 90, 100)
-    snare = Layer("Snare", 75, 105)
-    hat = Layer("Hat", 55, 115)
-    layers = [lead, hold, grace, chip, harmony, counter, sparkle, solo, clash_a, clash_b, pad, guitar_root, guitar_fifth, bass, earth, kick, snare, hat]
+def third_above(pitch, tonic_pc, fold_below=78):
+    """The note a diatonic third above in the major key (a third below when that would leave the range of the pling)."""
+    rel = (pitch - tonic_pc) % 12
+    if rel in MAJOR_SCALE:
+        i = MAJOR_SCALE.index(rel)
+        up = MAJOR_SCALE[(i + 2) % 7] + (12 if i + 2 >= 7 else 0) - rel
+        down = (rel - MAJOR_SCALE[(i - 2) % 7]) % 12
+    else:
+        up, down = 4, 4
+    if pitch + up <= fold_below:
+        return pitch + up
+    return pitch - down
 
-    bar_number = 0
-    for name, chords, tune, drums, guitar, extras in SECTIONS:
-        last = len(chords) - 1
-        for index, chord in enumerate(chords):
-            start = bar_number * BAR
-            tones, root, fifth = CHORDS[chord]
 
-            # ---- the bass
-            if name == "bridge":
-                for tick in (0, 8):
-                    bass.put_sound(start + tick, BASS, root + 12, 56)
-            elif name == "intro" and index < 2:
-                pass
-            elif "low" in extras and index == last:  # the lowest note, held and growing
-                swell(bass, BASS, 35, start, BAR, 60, 92, 4)
-                swell(earth, DIDGERIDOO, 35, start, BAR, 40, 70, 4)
-            elif "pedal" in extras:  # the tonic in sixteenths with an octave jump, whatever the chord
-                for tick in range(16):
-                    bass.put_sound(start + tick, BASS, TONIC + 12 if tick % 4 == 2 else TONIC, 72 if tick % 8 == 0 else 54 if tick % 4 == 0 else 44)
-            elif "octave" in extras:  # eighths, the root jumping an octave
-                for step in range(8):
-                    bass.put_sound(start + step * 2, BASS, root + 12 if step % 2 else root, 76 if step == 0 else 62)
-            else:  # the 3-3-2 pattern on the root, the fifth on the third hit of each half
-                for tick in TRESILLO:
-                    bass.put_sound(start + tick, BASS, fifth if tick in (6, 14) else root, 78 if tick in (0, 8) else 64)
+def roll(b, t0, start, step, v_from, v_to, last=16):
+    ticks = list(range(start, last, step))
+    for index, tick in enumerate(ticks):
+        v = int(v_from + (v_to - v_from) * index / max(1, len(ticks) - 1))
+        b.drum("snare", t0 + tick, SNARE, v, once=True)
 
-            # ---- the guitar: power chord stabs
-            if guitar is not None:
-                stabs = [0, 8] if guitar == "muted" else TRESILLO
-                for tick in stabs:
-                    guitar_root.put_sound(start + tick, GUITAR, root + 12, 56 if tick in (0, 8) else 48)
-                    if tick in (0, 8):
-                        guitar_fifth.put_sound(start + tick, GUITAR, fifth + 12, 44)
 
-            # ---- the drums
-            if drums == "kick":
-                kick.put(start, BASEDRUM, 62, 80)
-                kick.put(start + 8, BASEDRUM, 62, 70)
-            elif drums in ("full", "roll"):
-                for tick in (0, 6, 8, 14):
-                    kick.put(start + tick, BASEDRUM, 62, 84 if tick == 0 else 70)
-                for tick in (4, 12):
-                    snare.put(start + tick, SNARE, 66, 70)
-                if "hat16" in extras:
-                    for tick in range(16):
-                        hat.put(start + tick, HAT, 66, 34 if tick % 4 == 0 else 24 if tick % 2 == 0 else 14)
-                else:
-                    for tick in range(0, 16, 2):
-                        hat.put(start + tick, HAT, 66, 34 if tick in (4, 12) else 24)
-            elif drums == "half":
-                kick.put(start, BASEDRUM, 62, 80)
-                snare.put(start + 8, SNARE, 66, 66)
-                for tick in range(0, 16, 4):
-                    hat.put(start + tick, HAT, 66, 22)
-            elif drums == "climax":
-                for tick in TRESILLO:
-                    kick.put(start + tick, BASEDRUM, 62, 86 if tick == 0 else 70)
-                for tick in (4, 12):
-                    snare.put(start + tick, SNARE, 66, 74)
-                for tick in (2, 6, 10, 14, 15):  # the chain: the snare fills the sixteenths between its hits
-                    snare.put(start + tick, SNARE, 66, 22 if tick != 15 else 30)
-                for tick in range(0, 16, 2):
-                    hat.put(start + tick, HAT, 66, 38 if tick % 4 == 0 else 22)
-            # snare rolls that run up to the next section: the last bar of the outro, the last two of the intro
-            roll_bar = (drums == "roll" and index == last) or ("roll-intro" in extras and index >= last - 1)
-            if roll_bar:
-                for tick in list(snare.notes):
-                    if start <= tick < start + BAR:
-                        del snare.notes[tick]
-                for tick in range(16):
-                    if "roll-intro" in extras and index == last - 1 and tick % 2:
-                        continue
-                    progress = (tick + (16 if index == last else 0)) / 32.0
-                    snare.put(start + tick, SNARE, 66, 30 + int(48 * progress))
-                if drums == "roll":
-                    for tick in list(hat.notes):
-                        if start <= tick < start + BAR:
-                            del hat.notes[tick]
+class Song:
+    def __init__(self):
+        self.b = Builder(LENGTH, ROLES)
 
-            # ---- the pad of the second A: a soft arpeggio in eighths
-            if "pedal" in extras:
-                for step, tone_index in enumerate([0, 1, 2, 3, 4, 3, 2, 1]):
-                    pad.put_sound(start + step * 2 + 1, HARP, tones[tone_index], 24)
+    # ---- intro: a solo refrain of the piano, struck again under its long notes; no drums, no bass
+    def intro(self):
+        b = self.b
+        refrain = ["E5:16", "B4:8 G4:8", "E5:4 B4:4 G4:4 E4:4", "B4:4 D#5:4 F#5:8"]
+        for bar, text in enumerate(refrain):
+            tune(b, "tune", HARP, 16 * bar, text, vel=58 + 6 * bar)
+        b.note("stab", 48, GUITAR, 47, 40, once=True)          # a quiet low B under the dominant
+        sustain(b, "stab", 48, GUITAR, 47, 16, 34, 56, every=4)
 
-            # ---- the solo of the bridge
-            if "solo" in extras:
-                tick = 0
-                for note, length in parse_bar(SOLO[index]):
-                    if note is not None:
-                        solo.put_sound(start + tick, GUITAR, note, 88 if tick == 0 else 78)
-                        for again in range(4, length, 4):
-                            solo.put_sound(start + tick + again, GUITAR, note, 42)
-                    tick += length
-                lead.put_sound(start, HARP, tones[3], 40)
-                lead.put_sound(start + 8, HARP, tones[2], 32)
+    # ---- PRE (6 bars of the loop): the refrain goes on; the snare comes in
+    def pre(self, t0, ib):
+        b = self.b
+        order = [0, 1, 2, 3, 4, 7]
+        chords = ["Em", "Em", "C", "D", "Em", "B7"]
+        tune(b, "tune", HARP, t0, A_MELODY[order[ib]], vel=64 + 3 * ib)
+        snares = [(12,), (4, 12), (4, 12), (4, 8, 12), (0, 4, 8, 12), (0, 2, 4, 6, 8, 10, 12, 14)][ib]
+        for index, tick in enumerate(snares):
+            b.drum("snare", t0 + tick, SNARE, 36 + 8 * ib + 4 * index)
+        if ib >= 2:
+            for beat in range(4):
+                b.note("bass", t0 + 4 * beat, BASS, CHORDS[chords[ib]][1], 44 + 4 * ib + (6 if beat % 2 == 0 else 0))
+        if ib >= 3:
+            for tick in (0, 8):
+                b.drum("kick", t0 + tick, BASEDRUM, 56 + 6 * ib)
 
-            # ---- the rubs
-            for (section, bar, lower, higher) in CLASHES:
-                if section == name and bar == index:
-                    for again in range(4, 12, 4):
-                        clash_a.put_sound(start + again, BIT, lower, 46 - again * 2)
-                        clash_b.put_sound(start + again, BIT, higher, 46 - again * 2)
+    # ---- A: the tonic is fixed in eighths; the tune low on the guitar; the last 4 bars in half time
+    def a_bar(self, t0, ib):
+        b = self.b
+        half = ib >= 16
+        idx = ib if ib < 16 else ib - 16
+        chord = A_CHORDS[idx]
+        if half:
+            for tick in (0, 8):
+                b.note("bass", t0 + tick, BASS, 40, 92 if tick == 0 else 70)
+            b.drum("kick", t0, BASEDRUM, 100)
+            b.drum("snare", t0 + 8, SNARE, 96)
+            for tick in (4, 12):
+                b.drum("hat", t0 + tick, HAT, 30)
+            sustain(b, "didg", t0, DIDGERIDOO, 40, 16, 60, 80, every=4)
+        else:
+            for tick in range(0, 16, 2):
+                b.note("bass", t0 + tick, BASS, 40, 100 if tick == 0 else (88 if tick % 8 == 0 else (76 if tick % 4 == 0 else 62)))
+            for tick, vel in ((0, 100), (6, 70), (8, 92), (14, 66)):
+                b.drum("kick", t0 + tick, BASEDRUM, vel)
+            for tick in (4, 12):
+                b.drum("snare", t0 + tick, SNARE, 88)
+            for tick in range(0, 16, 2):
+                b.drum("hat", t0 + tick, HAT, 30 if tick % 4 == 0 else 20)
+            if ib % 4 == 3:
+                roll(b, t0, 12, 1, 40, 90)
+            if ib in (0,):
+                b.drum("kick", t0, BASEDRUM, 100, once=True)
+        tune(b, "tune", GUITAR, t0, A_MELODY[idx], shift=-12, vel=82)
+        root, fifth = CHORDS[chord][1], CHORDS[chord][1] + 7
+        if not half:                                           # the chord above the fixed tonic: two harp notes on the first beat of every other bar
+            if ib % 2 == 0:
+                b.note("stab", t0, HARP, near(CHORDS[chord][0], 62, HARP), 54)
+                b.note("stab", t0, HARP, near((CHORDS[chord][0] + 7) % 12, 66, HARP), 48)
 
-            # ---- the melody
-            if tune is not None:
-                tick = 0
-                for note, length in parse_bar(tune[index]):
-                    if note is not None:
-                        at = start + tick
-                        lead.put_sound(at, HARP, note, 90 if tick == 0 else 84)
-                        for again in range(4, length, 4):  # a long note is struck again, softer
-                            hold.put_sound(at + again, HARP, note, 50 - again * 2)
-                        if "grace" in extras and tick == 0 and index % 4 == 0 and at > 0 and note + 1 <= 78:
-                            grace.put_sound(at - 1, HARP, note + 1, 52)
-                        if "bit" in extras:
-                            chip.put_sound(at, BIT, note, 34)
-                        if "harmony" in extras:
-                            harmony.put_sound(at, HARP, max(54, third_below(note, E_MINOR)), 44)
-                        if "sparkle" in extras and tick == 0 and index % 4 == 0:
-                            sparkle.put_sound(at + 2, IRON_XYLOPHONE, note, 38)
-                        if "counter" in extras and length >= 8:  # the counter-melody runs where the tune holds
-                            for step, offset in enumerate(range(2, length, 2)):
-                                counter.put_sound(at + offset, PLING, tones[(1, 2, 3, 4, 3, 2, 3)[step % 7]], 42)
-                    tick += length
-            bar_number += 1
-    return layers, bar_number * BAR
+    # ---- B: the bass released (doubles and triplets), the tune an octave up on the piano; the last 8 bars double time
+    def b_bar(self, t0, ib):
+        b = self.b
+        idx = ib if ib < 16 else ib - 4                         # bars 16, 17 are the Am and B7 bars of the tune (12, 13)
+        chord = B_CHORDS[idx]
+        root = CHORDS[chord][1]
+        for tick in hit_ticks(3, "ST", ib + 5):
+            off = (0, 0, 7, 0, 12, 7, 5, 7)[tick // 2]
+            vel = bass_velocity(tick, 3)
+            b.note("bass", t0 + tick, BASS, root + off, vel)
+            if tick % 4 == 0 and tick % 8 == 0:
+                b.note("didg", t0 + tick, DIDGERIDOO, root + off, 70)
+        doubletime = ib >= 10
+        for tick in (0, 3, 6, 8, 11, 14):
+            b.drum("kick", t0 + tick, BASEDRUM, 100 if tick % 8 == 0 else 74)
+        for tick in ((0, 4, 8, 12) if doubletime else (4, 12)):
+            b.drum("snare", t0 + tick, SNARE, 86 if tick not in (0, 8) else 62)
+        for tick in range(0, 16, 2):
+            b.drum("hat", t0 + tick, HAT, 32 if tick % 4 == 0 else 22)
+        if ib % 4 == 3 or ib == 17:
+            roll(b, t0, 10, 1, 40, 96)
+        tune(b, "tune", HARP, t0, B_MELODY[idx], vel=84)
+        for tick in (0, 8):                                     # guitar power chord on the downbeats
+            b.note("guitar", t0 + tick, GUITAR, near(CHORDS[chord][0], 47, GUITAR), 70)
+            b.note("guitar2", t0 + tick, GUITAR, near((CHORDS[chord][0] + 7) % 12, 54, GUITAR), 62)
+
+    # ---- BREAK: a crescendo on a B pedal, then one bar of silence with a single bell note
+    def break_bar(self, t0, ib):
+        b = self.b
+        if ib == 2:
+            b.note("bell", t0, BELL, 96, 88)
+            return
+        step = 2 if ib == 0 else 1
+        for index, tick in enumerate(range(0, 16, step)):
+            v = int(34 + 66 * (16 * ib + tick) / 31)
+            b.drum("snare", t0 + tick, SNARE, v)
+            b.note("bass", t0 + tick, BASS, 35, v * 0.9)
+        for beat in range(4):
+            b.drum("kick", t0 + 4 * beat, BASEDRUM, int(50 + 50 * (16 * ib + 4 * beat) / 31))
+        sustain(b, "didg", t0, DIDGERIDOO, 35, 16, 60, 90, every=4)
+
+    # ---- CHORUS and FINALE: long notes with a third-above harmony over the sixteenth bass
+    def chorus_bar(self, t0, ib, finale):
+        b = self.b
+        shift = 2 if finale else 0
+        end = finale and ib >= 12
+        if end:
+            chord_def = FIN_END_CHORDS[ib - 12]
+            text = FIN_END_MELODY[ib - 12]
+            shift = 0
+        else:
+            chord_def = CH_CHORDS[ib % 8]
+            text = CH_MELODY[ib % 8]
+        tonic_pc = (4 + shift) % 12 if not end else 6
+        rel, quality = chord_def
+        pc = (tonic_pc + rel) % 12
+        low = near(pc, 36, BASS)
+        # --- the sixteenth machine gun: root heavy, ghost notes, an octave pop on the third sixteenth; the fifth on the last beat
+        for tick in range(16):
+            beat, pos = divmod(tick, 4)
+            pitch = low + (7 if beat == 3 and ib % 2 == 1 else 0)
+            vel = (100, 54, 82, 52)[pos]
+            if pos == 2:
+                pitch += 12
+            if pitch > 54:
+                pitch -= 12
+            b.note("bass", t0 + tick, BASS, pitch, vel)
+        for tick in (0, 8):
+            b.note("didg", t0 + tick, DIDGERIDOO, low, 80)
+        # --- guitar: power chord on the downbeats, chug in between
+        for tick in range(0, 16, 2):
+            b.note("guitar", t0 + tick, GUITAR, near(pc, 47, GUITAR), 80 if tick % 8 == 0 else 56)
+        for tick in (0, 8):
+            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 64)
+        # --- drums: the kick in quarters with a pickup, the backbeat, the hat in sixteenths
+        for tick, vel in ((0, 100), (4, 70), (8, 96), (12, 70), (14, 60)):
+            b.drum("kick", t0 + tick, BASEDRUM, vel)
+        for tick in (4, 12):
+            b.drum("snare", t0 + tick, SNARE, 90)
+        for tick in range(16):
+            b.drum("hat", t0 + tick, HAT, 34 if tick % 4 == 0 else (26 if tick % 2 == 0 else 16))
+        if ib % 8 == 7 and not end:
+            roll(b, t0, 10, 1, 40, 96)
+        if ib == 17 and finale:
+            roll(b, t0, 6, 1, 36, 100)
+        # --- the tune in long notes on the piano, the pling a third above
+        tick = 0
+        for pitch, length in parse_bar(text):
+            p = pitch + shift if pitch is not None else None
+            if p is not None:
+                while p > 78:
+                    p -= 12
+                sustain(b, "tune", t0 + tick, HARP, p, length, 84, 96, every=4)
+                if not (finale and ib >= 14):
+                    h = third_above(p, tonic_pc)
+                    if 54 <= h <= 78:
+                        sustain(b, "harm", t0 + tick, PLING, h, length, 60, 72, every=4)
+            tick += length
+        if ib % 8 == 0 and not end:                             # the unison hit that starts each phrase of eight bars
+            b.drum("snare", t0, SNARE, 96, once=True)
 
 
 def main():
-    layers, length = build()
-    removed = limit_polyphony(layers, POLYPHONY)
-    target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "src/main/resources/bgm/atlas_vindicator.nbs"
+    arg = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parents[2] / "src/main/resources/bgm/atlas_vindicator.nbs"
+    target = arg
     target.parent.mkdir(parents=True, exist_ok=True)
-    write_nbs(target, layers, length, TPS, TITLE, "Boss theme of the Atlas cave (the vindicator). Fast, heavy drums, 80 bars, loops from bar 5 (the intro is played once).", LOOP_START_BAR)
-    report(target, layers, length, TPS)
-    print(f"  ({removed} quiet notes taken away where more than {POLYPHONY} sounded at once)")
+    song = Song()
+    song.intro()
+    edges = [("intro", 0, START)]
+    cursor = START
+    for name, n in SECTIONS:
+        edges.append((name, cursor, cursor + n * BAR_T))
+        for ib in range(n):
+            t0 = cursor + ib * BAR_T
+            if name == "PRE":
+                song.pre(t0, ib)
+            elif name == "A":
+                song.a_bar(t0, ib)
+            elif name == "B":
+                song.b_bar(t0, ib)
+            elif name == "BREAK":
+                song.break_bar(t0, ib)
+            else:
+                song.chorus_bar(t0, ib, name == "FINALE")
+        cursor += n * BAR_T
+    assert cursor == LENGTH
+    layers = finish(target, song.b, TPS, TITLE, DESCRIPTION)
+    print("   notes a second by section: " + ", ".join(f"{n} {c:.1f}" for n, c in sections_density(layers, LENGTH, TPS, edges)))
+    bass = [layer for layer in layers if layer.name.startswith("bass")]
+    print("   bass notes per bar by section: " + ", ".join(
+        f"{n} {sum(1 for layer in bass for t in layer.notes if s <= t < e) / ((e - s) / 16):.1f}" for n, s, e in edges))
+    print("   section starts (s): " + ", ".join(f"{n} {s / TPS:.0f}" for n, s, e in edges))
 
 
 if __name__ == "__main__":
