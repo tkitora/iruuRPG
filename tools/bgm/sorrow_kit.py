@@ -23,12 +23,28 @@ def chord(name):
     return pc % 12, QUALITY[rest]
 
 
+PC_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def shift_chord(name, n):
+    """A chord name moved by n semitones ('Dm' by -5 -> 'Am'; 'Am|B7' moves both halves)."""
+    out = []
+    for part in name.split("|"):
+        pc, _ = chord(part)
+        rest = part[1:]
+        while rest and rest[0] in "#b":
+            rest = rest[1:]
+        out.append(PC_NAMES[(pc + n) % 12] + rest)
+    return "|".join(out)
+
+
 def tones_in(name, low, high):
     root, intervals = chord(name)
     return sorted(n for n in range(low, high + 1) if (n - root) % 12 in intervals)
 
-VOL = {"harm": 70, "lead": 100, "dbl": 80, "oct": 70, "low": 80, "echo": 55, "bass": 100, "drone": 70, "kick": 100, "snare": 95, "hat": 60, "tom": 90,
-       "gtr": 75, "arp": 62, "chord": 70, "pad": 55, "stab": 75, "run": 70, "bell": 45}
+# t279: louder voices (the tool bossness.py multiplies velocity by the layer volume): the tune and its doubles near the top, the bass and drone at full
+VOL = {"harm": 85, "lead": 100, "dbl": 92, "oct": 90, "low": 92, "echo": 60, "bass": 100, "drone": 100, "kick": 100, "snare": 95, "hat": 60, "tom": 90,
+       "gtr": 88, "arp": 62, "chord": 70, "pad": 55, "stab": 92, "run": 70, "bell": 55}
 PAN = {"lead": 100, "dbl": 95, "oct": 105, "echo": 125, "arp": 80, "gtr": 85, "pad": 115, "chord": 90, "hat": 115, "snare": 105}
 
 
@@ -103,7 +119,7 @@ def hold_velocities(length, every, v0, style):
             out.append(v0)
         elif style == "cry":       # struck again and again, the loudness breathing in and out and growing towards the end of a long note
             grow = i / max(1, count - 1)
-            out.append(v0 * (0.52 + 0.2 * grow + (0.10 if i % 2 == 0 else -0.04)))
+            out.append(v0 * (0.90 + 0.08 * grow + (0.04 if i % 2 == 0 else -0.02)))   # struck again LOUDLY (t279): a held note keeps its weight
         elif style == "fade":
             out.append(v0 * (0.62 ** i))
         elif style == "swell":
@@ -223,7 +239,7 @@ def bass(score, bar, spec, pat, level=1.0, role="bass", instrument=BASS, high=46
         n = bass_note(name, kind)
         while n > high:
             n -= 12
-        score.put(role, score.tick(bar, t), instrument, n, vel * level)
+        score.put(role, score.tick(bar, t), instrument, n, 25 + 0.78 * vel * level)   # t279: the quiet ghost notes of the bass still weigh
 
 
 def notes_from(spec, pat, role, instrument, low, high, score, bar, level=1.0, shift=0):

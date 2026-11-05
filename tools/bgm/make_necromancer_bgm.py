@@ -31,8 +31,22 @@ FILES = ("necromancer_phase1.nbs", "necromancer_phase2.nbs")
 DESCRIPTIONS = ("Snow mountain reaper, phase 1 (sorrow and fated battle): 150 BPM, a crying violin tune in D minor, a bass release, a bell break, then the relative major with a third above and a whole-step finale.",
                 "Snow mountain reaper, phase 2 (limit break and reversal): the same events one rung higher - major intro and A, minor lament, bell break, major chorus with harmony, a finale a whole step up.")
 TPS, BAR, INTRO, BODY = 10, 16, 4, 80
-F_MAJOR = (5, 7, 9, 10, 0, 2, 4)
-G_MAJOR = (7, 9, 11, 0, 2, 4, 6)
+# t279: the whole piece is written 5 semitones lower than in t277 (A minor / C major / D major instead of D minor / F major / G major) so that the tune lives at 60-72 and the bass roots stay low.
+# Only the lament (B) and the pre-break stay in D minor: they are the one place the song climbs a fourth (the flute needs the notes there), then it falls back for the break.
+KEY, KEY_B = -5, 0
+_kit_sing = sing
+
+
+def sing(score, bar, text, voices, transpose=0, key=None, **kw):
+    return _kit_sing(score, bar, text, voices, transpose=transpose + (KEY if key is None else key), **kw)
+
+
+def K(name):
+    return shift_chord(name, KEY)
+
+
+F_MAJOR = tuple((p + KEY) % 12 for p in (5, 7, 9, 10, 0, 2, 4))
+G_MAJOR = tuple((p + KEY) % 12 for p in (7, 9, 11, 0, 2, 4, 6))
 
 
 def maj(text):
@@ -56,9 +70,9 @@ SEQ = ["F4:4 Bb4:6 A4:2 F4:4", "G4:4 C5:6 Bb4:2 G4:4", "A4:4 D5:6 C5:2 A4:4", "D
 # the tune ENLARGED for the chorus: half and whole notes (held by re-striking)
 PK = ["A4:4 D5:12", "D5:8 F5:8", "C5:4 F5:12", "E5:8 D5:4 C5:4", "A4:4 D5:12", "F5:8 D5:8", "D5:8 Bb4:8", "C#5:8 E5:8"]
 PK2 = ["A4:4 D5:12", "D5:4 F5:12", "C5:4 F5:12", "E5:16", "A4:4 D5:12", "D5:4 F5:12", "D5:8 F5:8", "C#5:4 E5:12"]
-CH_MIN = {"A": ["Dm", "Bb", "F", "C", "Dm", "Bb", "Gm", "A7"], "B": ["Gm", "F", "Eb", "D", "Gm", "F", "Eb", "A7"], "C": ["Bb", "C", "Dm", "Dm"]}
-CH_MAJ = {"A": ["F", "C7", "Dm", "Bb", "F", "C7", "Bb", "C7"], "CH": ["F", "Bb", "F", "C", "F", "Bb", "Gm", "C7"]}
-CH_UP = {"A": ["G", "D7", "Em", "C", "G", "D7", "C", "D7"], "CH": ["G", "C", "G", "D", "G", "C", "Am", "D7"]}
+CH_MIN = {"A": [K(c) for c in ["Dm", "Bb", "F", "C", "Dm", "Bb", "Gm", "A7"]], "B": ["Gm", "F", "Eb", "D", "Gm", "F", "Eb", "A7"], "C": ["Bb", "C", "Dm", "Dm"]}
+CH_MAJ = {"A": [K(c) for c in ["F", "C7", "Dm", "Bb", "F", "C7", "Bb", "C7"]], "CH": [K(c) for c in ["F", "Bb", "F", "C", "F", "Bb", "Gm", "C7"]]}
+CH_UP = {"A": [K(c) for c in ["G", "D7", "Em", "C", "G", "D7", "C", "D7"]], "CH": [K(c) for c in ["G", "C", "G", "D", "G", "C", "Am", "D7"]]}
 
 # --- patterns of a bar of 16 ticks ---------------------------------------------------------------------------------------
 HAT16 = [(t, 46 if t % 4 == 0 else (34 if t % 2 == 0 else 24)) for t in range(16)]
@@ -137,7 +151,7 @@ def build(P):
     hand = [Voice("lead", PLING, 0, 1.0, "cry", 2, high=77), Voice("lead", FLUTE, 0, 1.0, "cry", 2, low=78)]     # the pling takes the tune as high as it sounds, the flute carries on
 
     def harmony(scale, g=0.55):
-        return [Voice("harm", BIT, 0, g, "cry", 4, scale=scale), Voice("harm", FLUTE, 12, g * 0.9, "cry", 4, offbeat=2, scale=scale)]
+        return [Voice("harm", FLUTE, 12, g, "cry", 2, scale=scale)]      # the third above rings an octave up, on the flute
 
     def fill(j, length=4, hot=False):
         t0 = s.tick(s.b(j)) + 16 - length
@@ -154,20 +168,20 @@ def build(P):
         if guitar:
             notes_from(chord, GUITAR_PAT[guitar], "gtr", GUITAR, 45, 66, s, bar, level)
         if harp:
-            notes_from(chord, harp, "arp", HARP, 62, 77, s, bar, level)
+            notes_from(chord, harp, "arp", HARP, 54, 72, s, bar, level)
         if pad:
-            stab(s, bar, 0, chord, "pad", PLING, 55, 72, 26 * level, count=2, length=16, every=4, style="flat")
+            stab(s, bar, 0, chord, "pad", PLING, 50, 68, 26 * level, count=2, length=16, every=4, style="flat")
 
     # --- intro (bars 0-3, played once): the first half of the tune as a single line, like a solo string; quarter roots from bar 2; no drums -----
-    iv = [Voice("lead", PLING, 0, 0.8, "cry", 2), harp_hit(0.4)] if P == 0 else [pling, bit(0.5, 2), harp_hit(0.5)]
+    iv = [pling, harp_hit(0.6)] if P == 0 else [pling, gtr_lo(0.6), harp_hit(0.6)]
     for k in range(4):
         c = sec_a[k]
-        sing(s, k, mel_a(A[k]), iv, vel=68 if P == 0 else 80)
+        sing(s, k, mel_a(A[k]), iv, vel=86 if P == 0 else 92)
         if k >= 2 or P:
-            bass(s, k, c, BASS_PAT["Q"], 0.7 if P == 0 else 0.9, high=54)
-        notes_from(c, HARP_Q, "arp", HARP, 62, 77, s, k, 0.8)
+            bass(s, k, c, BASS_PAT["Q"], 1.0, high=54)
+        notes_from(c, HARP_Q, "arp", HARP, 54, 72, s, k, 0.8)
     if P:
-        stab(s, 0, 0, sec_a[0], "stab", PLING, 57, 77, 70, count=3, length=6, every=2)
+        stab(s, 0, 0, sec_a[0], "stab", PLING, 52, 72, 70, count=3, length=6, every=2)
 
     # --- intro (body 0-3, the loop point): the second half of the tune; the snare gets denser bar by bar, the bass climbs quarters -> eighths ---------------
     ramp = [[(12, 44)], [(4, 46), (12, 56)], [(4, 50), (8, 54), (12, 60), (14, 64)], [(t, 50 + 3 * t // 2) for t in range(0, 12, 2)]]
@@ -175,7 +189,7 @@ def build(P):
         c = sec_a[4 + k]
         sing(s, s.b(k), mel_a(A[4 + k]), iv, vel=72 if P == 0 else 84)
         bass(s, s.b(k), c, BASS_PAT["Q" if k < 2 else "E_soft"], 0.8 if P == 0 else 1.0, high=54)
-        notes_from(c, HARP_Q, "arp", HARP, 62, 77, s, s.b(k), 0.9)
+        notes_from(c, HARP_Q, "arp", HARP, 54, 72, s, s.b(k), 0.9)
         for t, v in ramp[k]:
             s.drum("snare", s.tick(s.b(k), t), SNARE, v * (1.0 if P == 0 else 1.15))
         if k == 3:
@@ -206,7 +220,7 @@ def build(P):
         if i in (7, 11, 19):
             fill(4 + i, 4, hot=(P == 1 or i == 19))
     if P:
-        stab(s, s.b(4), 0, sec_a[0], "stab", PLING, 57, 77, 80, count=3, length=6, every=2)
+        stab(s, s.b(4), 0, sec_a[0], "stab", PLING, 52, 72, 80, count=3, length=6, every=2)
 
     # --- B (20 bars, body 24-43): BASS RELEASE - the bass runs up and down; the tune an octave up (flute) with the pling under it; bars 14-21: pseudo double time ---
     B_BASS = [[(0, "ED_b"), (1, "TRI"), (2, "WALK"), (3, "ED_b"), (4, "ED_a"), (5, "TRI"), (6, "WALK"), (7, "ED_b"), (8, "BURST"), (10, "ED_b"), (11, "BURST"), (12, "ED_b"),
@@ -216,14 +230,14 @@ def build(P):
     for i in range(20):
         if i < 8:
             text, c = LAMENT[i], CH_MIN["B"][i]
-            v = [Voice("lead", FLUTE, 12, 1.0, "cry", 2), Voice("dbl", PLING, 0, 0.7, "cry", 4, offbeat=2), Voice("echo", HARP, 0, 0.3, "none", delay=3)]
+            v = [Voice("lead", FLUTE, 12, 1.0, "cry", 2), Voice("dbl", PLING, -12, 0.95, "cry", 2), Voice("echo", HARP, -12, 0.5, "none", delay=3)]
         elif i < 16:
             text, c = LAMENT2[i - 8], CH_MIN["B"][i - 8]
-            v = [Voice("lead", FLUTE, 12, 1.0, "cry", 2), Voice("dbl", PLING, 0, 0.75, "cry", 4, offbeat=2), bit(0.45, 2), Voice("low", GUITAR, -12, 0.6, "cry", 4, offbeat=2)]
+            v = [Voice("lead", FLUTE, 12, 1.0, "cry", 2), Voice("dbl", PLING, -12, 0.95, "cry", 2), Voice("low", GUITAR, -12, 0.85, "cry", 2)]
         else:
             text, c = SEQ[i - 16], CH_MIN["C"][i - 16]
-            v = [Voice("lead", FLUTE, 12, 1.0, "cry", 2), pling, bit(0.5, 2)]
-        sing(s, s.b(24 + i), text, v, vel=90 if P == 0 else 94)
+            v = [Voice("lead", FLUTE, 12, 1.0, "cry", 2), Voice("dbl", PLING, -12, 0.95, "cry", 2), Voice("low", GUITAR, -12, 0.85, "cry", 2)]
+        sing(s, s.b(24 + i), text, v, key=KEY_B, vel=90 if P == 0 else 94)
         dbl = 10 <= i < 18
         dname = ("peak" if P and i >= 8 else "dbl") if dbl else ("dbl" if i >= 18 else ("drive16" if (P == 0 or i < 2) else "peak"))
         if i in (8, 9) and P == 0:
@@ -234,11 +248,11 @@ def build(P):
     roll(s, s.tick(s.b(24 + 19), 8), s.tick(s.b(44)), 1, 50, 100)
 
     # --- pre-break (body 44-45): the dominant, then STOP-TIME (a stab on beats 1 and 3, nothing between); break (body 46): ALL silent but one bell ---------------
-    sing(s, s.b(44), "A4:4 C#5:4 E5:8", [pling, bit(0.6, 2), flute12(0.7, 2), gtr_lo(0.7, 2)], vel=96)
+    sing(s, s.b(44), "A4:4 C#5:4 E5:8", [pling, bit(0.6, 2), flute12(0.7, 2), gtr_lo(0.7, 2)], key=KEY_B, vel=96)
     acc(44, 0, "A7", "ED_b", "drive16", None, None, drone=False, level=1.0)
     stab(s, s.b(44), 0, "A7", "stab", GUITAR, 45, 64, 80, count=3, length=4, every=2)
     fill(44, 4, hot=True)
-    sing(s, s.b(45), "E5:16", [pling, flute12(0.8, 2)], vel=92)
+    sing(s, s.b(45), "E5:16", [pling, flute12(0.8, 2)], key=KEY_B, vel=92)
     bass(s, s.b(45), "A7", BASS_PAT["STOP"], 1.0, high=54)
     drums(s, s.b(45), DRUMS["stop"], 1.0)
     for t in (0, 8):
@@ -251,17 +265,15 @@ def build(P):
         for i in range(8):
             c = CH_MAJ["CH"][i]
             text = maj((PK, PK2)[r][i])
-            v = [pling, flute12(0.75, 2)] + harmony(F_MAJOR, 0.55 + 0.1 * r)
-            if r == 1 or P == 1:
-                v.append(gtr_lo(0.7, 2))
+            v = [pling, flute12(0.95), gtr_lo(0.95)] + harmony(F_MAJOR, 0.9)
             if r == 1:
                 v.append(harp_hit(0.5))
-            sing(s, s.b(j0 + i), text, v, vel=96 if P == 0 else 98)
+            sing(s, s.b(j0 + i), text, v, vel=100)
             bass(s, s.b(j0 + i), c, BASS_PAT["S16b" if (r == 1 and i % 2) else "S16"], 1.0, high=54)
             drums(s, s.b(j0 + i), DRUMS["peak"], 1.0)
             if P == 1 and i in (0, 4):
                 stab(s, s.b(j0 + i), 0, c, "stab", GUITAR, 45, 64, 70, count=3, length=6, every=2)
-        stab(s, s.b(j0), 0, "F", "stab", PLING, 57, 77, 92, count=3, length=6, every=2)
+        stab(s, s.b(j0), 0, K("F"), "stab", PLING, 52, 72, 92, count=3, length=6, every=2)
         s.drum("tom", s.tick(s.b(j0)), BASEDRUM, 100, 54)
         fill(j0 + 3, 4, hot=True)
         fill(j0 + 7, 8 if r == 1 else 4, hot=True)
@@ -272,22 +284,22 @@ def build(P):
         for i in range(8):
             if r == 0:
                 text, c = maj(A2[i]), CH_UP["A"][i]
-                v = hand + [bit(0.6, 2), flute12(0.75, 2), gtr_lo(0.75, 2)]
+                v = hand + [flute12(0.95), gtr_lo(0.95)]
             else:
                 text, c = maj(PK2[i]), CH_UP["CH"][i]
-                v = hand + [flute12(0.75, 2), gtr_lo(0.7, 2), harp_hit(0.5)] + harmony(G_MAJOR, 0.6)
-            sing(s, s.b(j0 + i), text, v, transpose=2, vel=98)
+                v = hand + [flute12(0.95), gtr_lo(0.95), harp_hit(0.5)] + harmony(G_MAJOR, 0.9)
+            sing(s, s.b(j0 + i), text, v, transpose=2, vel=100)
             bass(s, s.b(j0 + i), c, BASS_PAT["S16b" if i % 2 else "S16"], 1.0, high=54)
             drums(s, s.b(j0 + i), DRUMS["peak"], 1.0)
             if P == 1 and i % 4 == 0:
                 stab(s, s.b(j0 + i), 0, c, "stab", GUITAR, 45, 64, 70, count=3, length=6, every=2)
-        stab(s, s.b(j0), 0, "G", "stab", PLING, 57, 77, 96, count=3, length=6, every=2)
+        stab(s, s.b(j0), 0, K("G"), "stab", PLING, 52, 72, 96, count=3, length=6, every=2)
         s.drum("tom", s.tick(s.b(j0)), BASEDRUM, 100, 54)
         fill(j0 + 3, 4, hot=True)
         fill(j0 + 7, 4, hot=True)
     # the link: A7 hangs, the beat thins out, and the loop starts again with the quiet single line
     sing(s, s.b(79), "A4:4 C#5:4 E5:8", [pling, bit(0.6, 2), flute12(0.7, 2)], vel=90)
-    bass(s, s.b(79), "A7", BASS_PAT["END"], 1.0, high=54)
+    bass(s, s.b(79), K("A7"), BASS_PAT["END"], 1.0, high=54)
     for t, v in ((0, 90), (4, 70), (8, 56)):
         s.drum("kick", s.tick(s.b(79), t), BASEDRUM, v)
     roll(s, s.tick(s.b(79), 8), s.tick(s.b(79), 16), 2, 70, 30)

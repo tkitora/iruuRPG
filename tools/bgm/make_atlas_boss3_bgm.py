@@ -31,16 +31,16 @@ DESCRIPTIONS = (
     "Stone giant, phase 1: class 1, style 2 (despair and sacred). 125 BPM, C minor: irregular rhythm and dissonance, pseudo double tempo, a melody-less part with anvil and bone staccato, a sacred C major organ chorale, a climax that fuses all of it. Same bars as phase 2.",
     "Stone giant, phase 2: the same bars a half step up, every stage earlier and thicker (doubles from the start, chip in the brass, sixteenth bass in the melody-less part, root-fifth bass and a rising wail in the climax).")
 
-VOL = {"bass": 100, "bass2": 90, "didge": 85, "gtr": 100, "g5": 90, "hit": 100, "bit_m": 85, "pl_m": 80, "fl_m": 60, "org": 70, "cb": 60, "cf": 60, "wail": 90, "ham": 80,
-       "cow": 75, "xy": 60, "bell": 60, "rim": 55}
+VOL = {"bass": 100, "bass2": 90, "didge": 90, "gtr": 100, "g5": 100, "hit": 100, "bit_m": 100, "pl_m": 100, "fl_m": 90, "org": 60, "cb": 50, "cf": 50, "wail": 90, "ham": 90,
+       "cow": 90, "xy": 100, "bell": 60, "rim": 55}
 PAN = {"org1": 90, "org2": 110, "cb1": 90, "cb2": 110, "cf1": 95, "cf2": 105, "hit1": 90, "hit2": 110, "cow": 90, "xy": 110}
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------- the material
 DISS = [{0, 1, 6, 7}, {0, 3, 6, 9}, {1, 4, 7, 10}, {0, 1, 7, 8}]           # P1: clusters with a minor second and a tritone
 P1_ROOTS = [36, 36, 32, 31] + [36, 36, 37, 36, 31, 30, 31, 36, 36, 37, 30, 31]
-P1_FIG = [None, "Q", "Q", "Q"] + ["IR1", "IR3", "IR2"] * 4
-P1_FIG2 = [None, "Q", "Q", "Q"] + ["IR1x", "IR3x", "IR2x"] * 4
-P1_MEL = [None] * 4 + ["C3:3 G3:3 r:3 Gb3:3 G3:4", "r:3 Ab3:3 G3:2 r:2 Eb4:3 Db4:3", "F3:5 r:3 C4:3 Db4:5", "r:5 D4:3 B3:3 D4:5",
+P1_FIG = ["Q", "Q", "E", "E"] + ["IR1", "IR3", "IR2"] * 4
+P1_FIG2 = ["Q", "E", "E_", "S"] + ["IR1x", "IR3x", "IR2x"] * 4
+P1_MEL = [None, None, "C3:8 G3:8", "Ab3:6 G3:2 Eb4:8"] + ["C3:3 G3:3 r:3 Gb3:3 G3:4", "r:3 Ab3:3 G3:2 r:2 Eb4:3 Db4:3", "F3:5 r:3 C4:3 Db4:5", "r:5 D4:3 B3:3 D4:5",
                       "C3:3 G3:3 r:3 Gb3:3 G3:4", "r:3 Ab3:3 G3:2 r:2 Eb4:3 Db4:3", "F4:5 r:3 Eb4:3 D4:5", "B3:3 D4:3 F4:5 Gb4:5",
                       "G3:3 C4:3 r:3 Db4:3 C4:4", "r:3 Eb4:3 C4:2 r:2 Ab3:3 G3:3", "F4:5 r:3 Eb4:3 F4:5", "B3:3 D4:3 F4:5 B3:5"]
 IRD = ["IR1", "IR3", "IR2"]
@@ -62,9 +62,9 @@ P3_FIG = {0: ["E", "E_", "E", "S", "E_", "S", "T", "S", "T", "S", "T", "F16", "T
 COW = [69, 66, 75, 72]
 XY = [91, 97, 92, 98, 90, 96]
 STAC = [   # (tick, kind, velocity, step): 5+5+6, 3+3+2+3+3+2, 3+3+3+3+4
-    [(0, "cow", 84, 0), (5, "cow", 70, 1), (10, "cow", 78, 2), (13, "xy", 46, 0), (15, "xy", 40, 1), (7, "rim", 30, 0), (3, "hat", 30, 0), (8, "hat", 26, 0)],
-    [(0, "cow", 84, 0), (6, "cow", 74, 1), (11, "cow", 78, 2), (3, "xy", 44, 2), (8, "xy", 46, 3), (14, "xy", 42, 4), (3, "rim", 28, 0), (11, "rim", 30, 0)],
-    [(0, "cow", 84, 0), (9, "cow", 76, 2), (12, "cow", 70, 1), (3, "xy", 44, 5), (6, "xy", 44, 0), (15, "xy", 40, 3), (2, "hat", 30, 0), (10, "hat", 26, 0)]]
+    [(0, "cow", 84, 0), (5, "cow", 70, 1), (10, "cow", 78, 2), (13, "xy", 90, 0), (15, "xy", 84, 1), (7, "rim", 62, 0), (3, "hat", 30, 0), (8, "hat", 26, 0)],
+    [(0, "cow", 84, 0), (6, "cow", 74, 1), (11, "cow", 78, 2), (3, "xy", 90, 2), (8, "xy", 92, 3), (14, "xy", 86, 4), (3, "rim", 60, 0), (11, "rim", 66, 0)],
+    [(0, "cow", 84, 0), (9, "cow", 76, 2), (12, "cow", 70, 1), (3, "xy", 90, 5), (6, "xy", 88, 0), (15, "xy", 84, 3), (2, "hat", 30, 0), (10, "hat", 26, 0)]]
 STAC2 = [[(2, "cow", 60, 3), (7, "cow", 56, 3), (12, "cow", 62, 3)] + [(t, "hat", 24, 0) for t in (1, 4, 6, 9, 11, 13, 14)],
          [(4, "cow", 58, 3), (9, "cow", 56, 1), (14, "cow", 60, 3)] + [(t, "hat", 24, 0) for t in (1, 2, 5, 7, 8, 10, 12, 13, 15)],
          [(6, "cow", 58, 3), (3, "cow", 56, 1), (15, "cow", 60, 3)] + [(t, "hat", 24, 0) for t in (1, 4, 5, 7, 8, 11, 13, 14)]]
@@ -95,9 +95,9 @@ def hats(step, loud, soft):
 DRUMS = {
     "i0": [(0, "bd", 62)], "i1": [(0, "bd", 66), (8, "bd", 58)], "i2": [(0, "bd", 72), (4, "bd", 44), (8, "bd", 66), (12, "bd", 44)],
     # P1: heads that wander
-    "IR1": [(0, "bd", 100), (6, "bd", 70), (12, "bd", 84), (3, "sn", 34)],
-    "IR2": [(0, "bd", 100), (5, "bd", 76), (10, "bd", 84), (13, "sn", 34)],
-    "IR3": [(0, "bd", 100), (6, "bd", 70), (8, "bd", 88), (11, "sn", 34), (14, "bd", 56)],
+    "IR1": [(0, "bd", 100), (3, "sn", 62), (6, "bd", 84), (9, "sn", 56), (12, "bd", 92), (14, "bd", 60)],
+    "IR2": [(0, "bd", 100), (5, "bd", 86), (7, "sn", 54), (10, "bd", 92), (13, "sn", 66), (15, "bd", 56)],
+    "IR3": [(0, "bd", 100), (3, "sn", 60), (6, "bd", 80), (8, "bd", 94), (11, "sn", 66), (14, "bd", 76)],
     "IR1x": [(0, "bd", 100), (3, "bd", 50), (6, "bd", 78), (9, "bd", 50), (12, "bd", 90), (3, "sn", 40), (14, "sn", 44)],
     "IR2x": [(0, "bd", 100), (5, "bd", 80), (7, "bd", 44), (10, "bd", 90), (13, "bd", 60), (13, "sn", 40), (2, "sn", 36)],
     "IR3x": [(0, "bd", 100), (3, "bd", 50), (6, "bd", 78), (8, "bd", 92), (11, "bd", 56), (14, "bd", 70), (11, "sn", 40), (6, "sn", 36)],
@@ -108,8 +108,10 @@ DRUMS = {
     "u_dbl": [(0, "bd", 100), (4, "bd", 70), (8, "bd", 96), (12, "bd", 70), (4, "sn", 94), (12, "sn", 98), (0, "sn", 62), (8, "sn", 66)] + [(t, "hat", 28) for t in (2, 6, 10, 14)],
     "u_dbl2": [(0, "bd", 100), (4, "bd", 90), (8, "bd", 100), (12, "bd", 90), (6, "bd", 50), (14, "bd", 60), (4, "sn", 100), (12, "sn", 100), (0, "sn", 70), (8, "sn", 74)] + hats(4, 38, 26),
     # P4: half time
-    "sac0": [(0, "bd", 62)], "sac1": [(0, "bd", 70), (8, "bd", 54)], "sac2": [(0, "bd", 84), (4, "bd", 50), (8, "bd", 78), (12, "bd", 50)] + [(t, "hat", 22) for t in (2, 6, 10, 14)],
-    "build": [(0, "bd", 90), (4, "bd", 70), (8, "bd", 90), (12, "bd", 70)],
+    "sac0": [(0, "bd", 84), (4, "bd", 52), (8, "bd", 76), (12, "bd", 52)],
+    "sac1": [(0, "bd", 92), (4, "bd", 60), (8, "bd", 84), (12, "bd", 60), (12, "sn", 62)],
+    "sac2": [(0, "bd", 96), (4, "bd", 70), (8, "bd", 90), (12, "bd", 70), (4, "sn", 66), (12, "sn", 76)] + [(t, "hat", 24) for t in (2, 6, 10, 14)],
+    "build": [(0, "bd", 96), (4, "bd", 80), (8, "bd", 96), (12, "bd", 80), (6, "sn", 60), (14, "sn", 70)],
     # P5: P2's rhythm with the sixteenth hats
     "fuse": [(0, "bd", 100), (4, "bd", 86), (8, "bd", 98), (12, "bd", 86), (14, "bd", 58), (4, "sn", 96), (12, "sn", 100), (0, "sn", 62), (8, "sn", 66)] + hats(4, 38, 26),
     "u_fuse": [(0, "bd", 100), (4, "bd", 92), (8, "bd", 100), (12, "bd", 92), (6, "bd", 60), (14, "bd", 66), (15, "bd", 58), (4, "sn", 100), (12, "sn", 100), (0, "sn", 72), (8, "sn", 76), (10, "sn", 56)] + hats(4, 44, 30),
@@ -145,9 +147,12 @@ def bars_of(phase):
         b = {"shift": phase}
         pcs = DISS[i % 4]
         fig = (P1_FIG2 if p2 else P1_FIG)[i]
-        gain = [0, 0.6, 0.8, 0.95][i] if i < 4 else 1.0
+        gain = [0.9, 0.85, 0.9, 1.0][i] if i < 4 else 1.0
         b["bass"] = {"segs": [(P1_ROOTS[i], 3)], "fig": fig, "gain": gain}
-        b["didge"] = (0.55 if i == 0 else 0.8) if i < 4 else 1.0
+        b["didge"] = 1.0
+        if i == 0:
+            b["first"] = [("hit1", GUITAR, 48, 0, 100), ("hit2", GUITAR, 55, 0, 100), ("bass", BASS, 36, 0, 100), ("bd", BASEDRUM, 66, 0, 100), ("sn", SNARE, 66, 0, 80)]
+            b["didge_skip0"] = True
         b["drums"] = ["i0", "i1", "i2", "i2"][i] if i < 4 else (IRD[(i - 4) % 3] + ("x" if p2 else ""))
         notes = []
         if i >= 2 or p2:
@@ -160,10 +165,16 @@ def bars_of(phase):
         if P1_MEL[i]:
             voices = {"gtr": (GUITAR, 0, 1.0)}
             if p2:
-                voices["bit_m"] = (BIT, 12, 0.7)
+                voices["bit_m"] = (BIT, 12, 1.0)
             b["holds"] = hold_events(P1_MEL[i], voices)
-        if i == 3:
+            for tick, note, length in melody_events(P1_MEL[i]):
+                if 42 <= note + 7 + phase <= 66:
+                    b["holds"].append(("g5", GUITAR, note + 7, tick, length, 80, 58, 4))
+        if i == 3 or i % 4 == 3:
             b["roll"] = (8, 8, 30, 80)
+        if i in (4, 8, 12) and "first" not in b:
+            b["first"] = [("hit1", GUITAR, 43, 0, 100), ("hit2", GUITAR, 50, 0, 100), ("bass", BASS, P1_ROOTS[i], 0, 100), ("bd", BASEDRUM, 66, 0, 100)]
+            b["didge_skip0"] = True
         bars.append(b)
     # ------------------------------------------------------------------ P2
     for i in range(24):
@@ -188,10 +199,10 @@ def bars_of(phase):
             if text and i >= 0:
                 b["_g5"] = True
             if p2 and i >= 4:
-                voices["bit_m"] = (BIT, 12, 0.8)
+                voices["bit_m"] = (BIT, 12, 1.0)
         else:
             text = (U + U[4:8])[i - 12]
-            voices = {"bit_m": (BIT, 0, 0.9), "pl_m": (PLING, 0, 0.9), "gtr": (GUITAR, -12, 0.9)}
+            voices = {"bit_m": (BIT, -12, 1.0), "pl_m": (PLING, -12, 1.0), "gtr": (GUITAR, -24, 1.0)}
             if p2:
                 voices["fl_m"] = (FLUTE, 12, 0.55)
         b["holds"] = hold_events(text, voices)
@@ -225,6 +236,14 @@ def bars_of(phase):
                 notes.append(("xy", XYLOPHONE, XY[step % 6], tick, vel))
             else:
                 b.setdefault("extra_drums", []).append((tick, kind, vel))
+        for tick, kind, vel, step in STAC[i % 3]:
+            if kind == "cow":
+                b.setdefault("extra_drums", []).append((tick, "bd", 76 if tick else 100))
+        if i % 4 == 0 and i > 0 or i == 0:
+            low = root
+            while low < 43:
+                low += 12
+            b["first"] = [("hit1", GUITAR, low, 0, 100), ("hit2", GUITAR, low + 6, 0, 100), ("bass", BASS, root, 0, 100), ("sn", SNARE, 66, 0, 90)]
         b["notes"] = notes
         if i == 0:
             b["first"] = [("hit1", GUITAR, 43, 0, 100)] if False else []
@@ -249,11 +268,17 @@ def bars_of(phase):
         notes += pad_notes(st, "scho", pcs, 79, 98 if p2 else 90, 4 if p2 else 3, range(6, BAR, 8), "cf", FLUTE, lambda t, i=i: pad_vel(22, 66, i, t), wide=p2)
         notes += pad_notes(st, "sbit", pcs, 62, 74, 2, range(6, BAR, 8), "cb", BIT, lambda t, i=i: pad_vel(18, 56, i, t))
         b["notes"] = notes
-        b["didge"] = 0.9 if i >= 8 else 0.0
+        b["didge"] = 0.9
+        if i % 4 == 0 and i < 20:
+            low = root
+            while low < 43:
+                low += 12
+            b["first"] = [("hit1", GUITAR, low, 0, 100), ("hit2", GUITAR, low + 7, 0, 100), ("bass", BASS, root, 0, 100), ("sn", SNARE, 66, 0, 90)]
+            b["didge_skip0"] = True
         if P4_MEL[i]:
-            voices = {"pl_m": (PLING, 0, 0.9), "bit_m": (BIT, 0, 0.9), "fl_m": (FLUTE, 12, 0.5)}
+            voices = {"pl_m": (PLING, -12, 1.0), "bit_m": (BIT, -12, 1.0), "fl_m": (FLUTE, 12, 0.9)}
             if i < 20:
-                b["holds"] = hold_events(P4_MEL[i], voices, swell=1.3)
+                b["holds"] = hold_events(P4_MEL[i], voices, swell=1.12)
         if i >= 20:
             b["roll"] = (4, 12, 30 + 15 * (i - 20), 70 + 15 * (i - 20))
         bars.append(b)
@@ -285,9 +310,9 @@ def bars_of(phase):
                 b["didge"] = 0.0
         b["notes"] = notes
         if True:
-            voices = {"pl_m": (PLING, 0, 0.9), "bit_m": (BIT, 0, 0.9), "gtr": (GUITAR, -12, 1.0)}
-            b["holds"] = hold_events(P5_MEL[i], voices, swell=1.25)
-        hit_every = 4 if p2 else 8
+            voices = {"pl_m": (PLING, -12, 1.0), "bit_m": (BIT, -12, 1.0), "gtr": (GUITAR, -12, 1.0)}
+            b["holds"] = hold_events(P5_MEL[i], voices, swell=1.12)
+        hit_every = 4
         if i % hit_every == 0 and i < 20:
             low = root0
             while low < 43:

@@ -223,7 +223,8 @@ def straight(events):
     return result
 
 
-TARGET_CHORUS = {HARP: 75, I_: 75, PLING: 75, BIT: 75, BANJO: 72, FLUTE: 90, GUITAR: 60, XYLOPHONE: 100}
+TARGET_CHORUS = {HARP: 70, I_: 70, PLING: 70, BIT: 70, BANJO: 68, FLUTE: 90, GUITAR: 60, XYLOPHONE: 100}
+TARGET_MIRROR = {k: v - 7 if k != FLUTE else v for k, v in TARGET_CHORUS.items()}      # the reflection sits lower, under the tune
 
 
 def place(instrument, key, semis, target=None):
@@ -287,7 +288,7 @@ def bass_note(pc, target):
 
 def reach(root, interval):
     pitch = root + interval
-    while pitch > 54:
+    while pitch > 50:
         pitch -= 12
     return pitch
 
@@ -311,7 +312,7 @@ def bass_pitch(level, tick, root, chord, approach, bar):
     if pick == "O":
         return reach(root, 12) if root + 12 <= 54 else root
     pitch = reach(root, iv[pick])
-    if level == 4 and tick % 4 == 3 and (tick // 4 + bar) % 2 == 0 and pitch + 12 <= 54:
+    if level == 4 and tick % 4 == 3 and (tick // 4 + bar) % 2 == 0 and pitch + 12 <= 46:
         pitch += 12
     return pitch
 
@@ -361,7 +362,7 @@ def play(phase):
             continue
         feel = feel_of(phase, bar)
         level = level_of(phase, bar)
-        quiet = 0.7 if "quiet" in plan["tags"] else (0.85 if sec == "A" else 1.0)
+        quiet = 0.8 if "quiet" in plan["tags"] else (0.95 if sec == "A" else 1.0)
         chords = chords_of(phase, bar)
         key = key_of(phase, bar)
         next_pc = chords_of(phase, bar + 1)[0][0]
@@ -376,14 +377,22 @@ def play(phase):
             if bar == NBARS - 1:
                 toms = 0
         bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, plan["stab"], fill, accel, quiet, sparse=sec == "A", toms=toms,
-                   toms_up=bar == NBARS - 1)
+                   toms_up=bar == NBARS - 1, chip=sec == "B")
         if ("hit" in plan["tags"] and ub == 0) or feel == "SB":
             hit(b, t0, chords[0][0], chords[0][1], 0.7 if quiet < 1 else 1.0)
+        if sec == "CHORUS" and feel != "SB":                        # power chords (root + fifth, bass and guitar) on every beat: the blaze of the major
+            for tick in (0, 4, 8, 12):
+                pc0 = chords[1][0] if len(chords) > 1 and tick >= chords[1][2] else chords[0][0]
+                b.note("power", t0 + tick, GUITAR, near(pc0, 47, GUITAR), 96, once=True)
+                b.note("power", t0 + tick, GUITAR, near(pc0 + 7, 52, GUITAR), 84, once=True)
+                b.note("didg", t0 + tick, DIDGERIDOO, near(pc0, 33, DIDGERIDOO), 92, once=True)
+                b.note("power", t0 + tick + 2, GUITAR, near(pc0 + 7, 52, GUITAR), 70, once=True)
+                b.note("didg", t0 + tick + 2, DIDGERIDOO, near(pc0, 33, DIDGERIDOO), 78, once=True)
         if feel == "SB":
             laugh(b, t0 + 6, phase, near(chords[0][0], 88, FLUTE), 5, bar)
         if feel != "SB" and level >= 1:
             lead_bar(b, t0, phase, bar, feel, level, quiet, key, sec)
-        if phase == 1 and level >= 3 and feel != "SB":
+        if phase == 1 and level >= 3 and feel != "SB" and sec == "B":
             arp_bar(b, t0, bar, chords, level)
     return b
 
@@ -413,7 +422,7 @@ def hit(b, t0, pc, chord, scale_=1.0):
     b.drum("snare", t0, SNARE, 92 * scale_, once=True)
 
 
-def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill, accel, quiet=1.0, sparse=False, toms=None, toms_up=False):
+def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill, accel, quiet=1.0, sparse=False, toms=None, toms_up=False, chip=True):
     """Bass, didgeridoo, stabs and drums of one bar in the given feel and at the given bass level."""
     second = chords[1] if len(chords) > 1 else None
 
@@ -426,7 +435,7 @@ def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill,
     shown = 0
     for tick in ticks:
         pc, chord, _ = chord_at(tick)
-        root = bass_note(pc, 38)
+        root = bass_note(pc, 33)
         approach = bass_note(appr, root)
         pitch = bass_pitch(0 if feel == "SB" else level, tick, root, chord, approach, bar)
         if phase == 1 and level <= 3 and feel in ("SW", "ST", "TR") and tick not in (0, 8) and hash_(bar, tick, 11) % 6 == 0:
@@ -444,7 +453,7 @@ def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill,
             heavy = tick % 4 == 0
         if heavy and (level >= 1 or feel == "SB"):
             b.note("didg", t0 + tick, DIDGERIDOO, near(pitch % 12, pitch, DIDGERIDOO), (96 if tick % 8 == 0 else 80) * quiet)
-        if phase == 1 and level == 4 and tick % 4 == 0 and pitch + 24 <= 78:
+        if chip and phase == 1 and level == 4 and tick % 4 == 0 and pitch + 24 <= 78:
             b.note("chip", t0 + tick, BIT, pitch + 24, 46)      # the chip doubles the heavy hits two octaves up
         shown += 1
     # --- stabs (the comping): a third and a seventh, a tritone; they leave room at the machine-gun levels
@@ -617,7 +626,7 @@ def lead_bar(b, t0, phase, bar, feel, level, quiet, key, sec):
 
     for tick, s, length in notes:
         accent = 9 if tick % 8 == 0 else 0
-        vel = (74 + accent) * quiet
+        vel = (91 + accent) * quiet
         if play_lead:
             voice("lead", inst, TONIC + key + s + n, tick, length, vel)
             if level >= 3 and plan["leads"][seg] != "G" and not (sec == "A"):
@@ -627,10 +636,10 @@ def lead_bar(b, t0, phase, bar, feel, level, quiet, key, sec):
     if play_mirror:
         m_inst = INST[mirror[0]]
         all_m = [2 * axis - fix(s) for bb in range(4) for _, s in mel[bb]]
-        mn = place(m_inst, key, all_m, TARGET_CHORUS if chorus else None)
+        mn = place(m_inst, key, all_m, TARGET_MIRROR if chorus else None)
         delay = BEAT if mode_m == "echo" else 0
         for tick, s, length in notes:
-            vel = (68 + (8 if tick % 8 == 0 else 0)) * quiet * (0.8 if mode_m == "echo" else 1.0)
+            vel = (82 + (8 if tick % 8 == 0 else 0)) * quiet * (0.85 if mode_m == "echo" else 1.0)
             t_ = tick + delay
             if t_ < 16:
                 voice("mirror", m_inst, TONIC + key + 2 * axis - s + mn, t_, length, vel)
@@ -638,7 +647,7 @@ def lead_bar(b, t0, phase, bar, feel, level, quiet, key, sec):
         base = [(t, fix(s)) for t, s in mel[ub]]
         for tick, s, length in long_melody(bar, base):
             v0 = 70 if tick % 8 == 0 else 64
-            pitch = near((TONIC + key + s) % 12, 72, HARP)
+            pitch = near((TONIC + key + s) % 12, 66, HARP)
             sustain(b, "dbl", t0 + tick, HARP, pitch, length, v0 + 10, v0 + 22, every=4)
 
 

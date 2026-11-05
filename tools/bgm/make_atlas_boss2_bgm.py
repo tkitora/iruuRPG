@@ -79,7 +79,7 @@ SAD_TUNE = [
     [(0, 19, 6), (6, 17, 2), (8, 23, 8)],
 ]
 assert min(o for bar in SAD_TUNE for _, o, _ in bar) >= 9 and max(o for bar in SAD_TUNE for _, o, _ in bar) <= 23
-ROLES = {"flute": (100, 100), "harm": (80, 90), "chant": (100, 80), "cow": (80, 120), "shout": (90, 100), "water": (92, 85), "arp": (60, 115), "guitar": (95, 100), "guitar2": (80, 100),
+ROLES = {"flute": (100, 100), "harm": (80, 90), "chant": (100, 80), "cow": (80, 120), "shout": (90, 100), "water": (100, 85), "arp": (60, 115), "guitar": (95, 100), "guitar2": (60, 100),
          "bass": (100, 100), "didg": (100, 100), "kick": (100, 100), "snare": (92, 105), "hat": (50, 115)}
 
 
@@ -213,7 +213,7 @@ class Song:
                 off = MOVE3[bc][tick // 2]
             vel = bass_velocity(tick, bl)
             if bl == 0:
-                vel = 70 if tick % 8 == 0 else 56
+                vel = 100 if tick % 8 == 0 else 88
             pitch = 30 + root + off
             b.note("bass", t0 + tick, BASS, pitch, vel)
             heavy = tick % 4 == 0 if bl >= 3 else tick % 8 == 0
@@ -222,7 +222,10 @@ class Song:
             if bl >= 2 and tick % 2 == 0:
                 b.note("guitar", t0 + tick, GUITAR, 42 + (root + off) % 12, 58 + (8 if tick % 4 == 0 else 0))
         if bl == 0:
-            b.note("didg", t0, DIDGERIDOO, 30 + root, 62)
+            b.note("didg", t0, DIDGERIDOO, 30 + root, 90)
+            b.note("didg", t0 + 8, DIDGERIDOO, 30 + root, 76)
+            if bc == 0:
+                b.note("guitar2", t0, GUITAR, 42 + root % 12, 84, once=True)
             b.note("bass", t0 + 14, BASS, 30 + root + (7 if bc % 2 else 12), 52, once=True)
 
     def slap(self, t0, bar, bc, ib):
@@ -243,12 +246,12 @@ class Song:
             else:
                 vel = 52 if pos == 1 else 58
             b.note("bass", t0 + tick, BASS, pitch, vel)
-            if pos == 0:
-                b.note("didg", t0 + tick, DIDGERIDOO, low + iv, 84)
+            if pos in (0, 2):
+                b.note("didg", t0 + tick, DIDGERIDOO, low + iv, 90 if pos == 0 else 76)
             if tick % 2 == 0:
                 b.note("guitar", t0 + tick, GUITAR, near((pc + iv) % 12, 48, GUITAR), 64 + (10 if tick % 4 == 0 else 0))
-        for tick in (0, 8):
-            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 72)
+        for tick in range(0, 16, 2):
+            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 88 if tick % 8 == 0 else (74 if tick % 4 == 0 else 58))
 
     # ---- melodies
     def water(self, t0, bar, fall=True, loud=92, bars16=True):
@@ -299,7 +302,7 @@ class Song:
         for tick, off, length in table:
             pitch = pitch_base + off
             for role, inst, vel in instrument_roles:
-                sustain(b, role, t0 + tick, inst, pitch, length, vel * quiet * 0.88, vel * quiet, every=4)
+                sustain(b, role, t0 + tick, inst, pitch, length, vel * quiet * 0.97, vel * quiet, every=4)
             if harmony:
                 sustain(b, "harm", t0 + tick, FLUTE, pitch - 7, length, 62, 74, every=4)
 
@@ -341,8 +344,8 @@ class Song:
             self.half_drums(t0, ib)
             self.bass_hits(t0, bar, 0, bc)
             self.arpeggio(t0, bar, 46)
-            self.long_tune(t0, SAD_TUNE[idx], 54, [("water", HARP, 84), ("flute", PLING, 70)], quiet=0.9 if ib < 16 else 1.0)
-            if ib == 0:
+            self.long_tune(t0, SAD_TUNE[idx], 54, [("water", HARP, 100), ("flute", PLING, 88)])
+            if ib % 4 == 0:
                 self.hit(t0, bar)
         elif name == "BUILD":
             self.build(t0, bar, ib)
@@ -397,7 +400,7 @@ class Song:
         self.slap(t0, bar, bc, ib)
         table = SAD_TUNE[idx]
         harmony = ib >= 8
-        self.long_tune(t0, table, 69, [("flute", FLUTE, 98)], harmony=harmony)
+        self.long_tune(t0, table, 69, [("flute", FLUTE, 100)], harmony=harmony)
         for tick, off, length in table:                          # the banjo plucks every onset two octaves below
             b.note("chant", t0 + tick, BANJO, 69 + off - 24, 92, once=True)
         if ib in (0, 8, 16, 24):
@@ -438,9 +441,9 @@ class Song:
                 b.note("water", t0 + tick, HARP, tones[tick % len(tones)], 100 - 3 * tick - (12 if bar == 0 else 0))
             for beat in range(4):
                 t = t0 + 4 * beat
-                b.drum("kick", t, BASEDRUM, (62 if beat % 2 == 0 else 46) + 6 * bar)
-                b.note("bass", t, BASS, 30 + root, (48 if beat % 2 == 0 else 38) + 8 * bar)
-            b.note("didg", t0, DIDGERIDOO, 30 + root, 40 + 6 * bar)
+                b.drum("kick", t, BASEDRUM, (86 if beat % 2 == 0 else 70) + 4 * bar)
+                b.note("bass", t, BASS, 30 + root, (88 if beat % 2 == 0 else 74) + 4 * bar)
+            b.note("didg", t0, DIDGERIDOO, 30 + root, 80 + 5 * bar)
         for index, tick in enumerate((56, 58, 60, 61, 62, 63)):
             b.drum("snare", tick, SNARE, 44 + 10 * index, once=True)
 
