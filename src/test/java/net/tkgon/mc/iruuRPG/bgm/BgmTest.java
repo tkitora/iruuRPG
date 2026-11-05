@@ -177,7 +177,7 @@ class BgmTest {
     @Test
     void theAtlasSongsAreTheTwoLengthsWeMade() throws IOException {
         assertEquals(768, bundled("atlas_cave").length());
-        assertEquals(1280, bundled("atlas_vindicator").length());
+        assertEquals(1360, bundled("atlas_vindicator").length());
         assertEquals("Where the Titan Sleeps (Field002)", bundled("atlas_cave").title());
         assertEquals("The Axe at the Gate (Boss001)", bundled("atlas_vindicator").title());
         assertEquals(896, bundled("atlas_dungeon").length());
@@ -274,7 +274,7 @@ class BgmTest {
 
     @Test
     void theNewerSongsHaveNoFluteBellOrChimeAndSoundInTheLowerRegister() throws IOException {
-        for (String id : List.of("atlas_dungeon", "atlas_vindicator", "atlas_dungeon_2", "cave_depths")) {
+        for (String id : List.of("atlas_dungeon", "atlas_dungeon_2", "cave_depths")) {   // (Boss001 was written again by the structure guide in t278: its break has one bell, see CLASS_BOSSES)
             NbsSong song = bundled(id);
             int lowest = Integer.MAX_VALUE;
             int highest = 0;
@@ -301,7 +301,7 @@ class BgmTest {
         assertEquals("Hollow Beneath the Giant (Dungeon001)", bundled("atlas_dungeon").title());
         assertEquals(896, bundled("atlas_dungeon").length());
         assertEquals("The Axe at the Gate (Boss001)", bundled("atlas_vindicator").title());
-        assertEquals(1280, bundled("atlas_vindicator").length());
+        assertEquals(1360, bundled("atlas_vindicator").length());
         for (String id : List.of("atlas_dungeon", "atlas_vindicator")) {
             NbsSong song = bundled(id);
             assertEquals(64, song.loopStart(), id + ": loops from bar 5");
@@ -315,6 +315,7 @@ class BgmTest {
 
     /** The boss songs written by class and by the structure guide (t272, t277): {phase 1 id, phase 2 id or null, title of phase 1, title of phase 2 or null}. */
     private static final String[][] CLASS_BOSSES = {
+        {"atlas_vindicator", null, "The Axe at the Gate (Boss001)", null},
         {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", null},
         {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", "Shoulders of Stone, Unbound (Boss003)"},
         {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", "Reaper's Arc, Sundered (Boss004)"},
