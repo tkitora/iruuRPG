@@ -110,6 +110,24 @@ FIGURES = {
 }
 
 
+def _irregular():
+    """Bass figures whose heads are hard to find (3+3+3+3+4, 5+5+6, 3+3+2+3+3+2); the 'x' versions have sixteenth doubles added."""
+    base = {
+        "IR1": [(0, 0, 94), (2, 0, 44), (3, 0, 66), (6, 6, 78), (8, 0, 46), (9, 0, 66), (12, 1, 84), (14, 0, 48)],
+        "IR2": [(0, 0, 94), (2, 0, 44), (5, 0, 82), (7, 6, 50), (10, 0, 86), (13, 1, 64), (15, 0, 44)],
+        "IR3": [(0, 0, 94), (2, 0, 40), (3, 0, 64), (6, 1, 76), (8, 0, 86), (11, 6, 64), (12, 0, 44), (14, 0, 72)],
+    }
+    out = dict(base)
+    for name, notes in base.items():
+        used = {t for t, _, _ in notes}
+        extra = [(t + 1, o, 42) for t, o, _ in notes if t + 1 not in used and t + 1 < 16 and t % 3 == 0 or (t + 1 not in used and t == 6)]
+        out[name + "x"] = notes + extra[:4]
+    return out
+
+
+FIGURES.update(_irregular())
+
+
 def figure(kind, third=3):
     return [(tick, third if offset == "t" else offset, vel) for tick, offset, vel in FIGURES[kind]]
 
@@ -182,3 +200,98 @@ def count_by_section(score, layers, names):
         notes = sum(1 for layer in layers if layer.name in names for tick in layer.notes if start <= tick < end)
         result.append((name, notes, notes / bars))
     return result
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------------------------- the renderer
+def _volume(volumes, name, default=70):
+    if name in volumes:
+        return volumes[name]
+    stem = name.rstrip("0123456789")
+    return volumes.get(stem, default)
+
+
+def render(sc, bars, drums, volumes, pans=None):
+    """Puts a list of bar descriptions into the score. A bar is a dict:
+        shift   semitones added to everything pitched in this bar (the phase + a mode flip)
+        first   [(layer, inst, sounding, tick, vel[, shift])] put before anything else (ensemble hits, the break bell)
+        bass    {"segs": [(root, third), ...] (one per half or whole bar), "fig": name, "gain": 1.0, "pop": True for the octave-above bass2}
+        didge   velocity scale (or absent): the pedal on every beat
+        holds   [(layer, inst, sounding, tick, length, v0, v1, every)]
+        notes   [(layer, inst, sounding, tick, vel[, shift])]
+        drums   name in ``drums`` ([(tick, kind, vel)])      roll  (tick, ticks, v0, v1)
+    Nothing is overwritten: what is put first stays."""
+    pans = pans or {}
+
+    def lay(name):
+        stem = name.rstrip("0123456789")
+        return sc.layer(name, _volume(volumes, name), pans.get(name, pans.get(stem, 100)))
+
+    for name in ("bass", "bass2", "didge"):
+        lay(name)
+    for g, b in enumerate(bars):
+        t0 = g * BAR
+        sc.shift = b.get("shift", 0)
+        for item in b.get("first", []):
+            name, inst, snd, tick, vel = item[:5]
+            lay(name)
+            sc.put(name, t0 + tick, inst, snd, vel, shift=item[5] if len(item) > 5 else True)
+        bass = b.get("bass")
+        if bass:
+            segs = bass["segs"]
+            seg_len = BAR // len(segs)
+            for s, (root, third) in enumerate(segs):
+                if bass.get("fig"):
+                    for tick, offset, vel in figure(bass["fig"], third):
+                        if s * seg_len <= tick < (s + 1) * seg_len:
+                            sc.put("bass", t0 + tick, BASS, root + offset, vel * bass.get("gain", 1.0))
+                            if bass.get("pop") and bass["fig"] == "M16" and tick % 8 == 3 and root + 12 + sc.shift <= 54:
+                                sc.put("bass2", t0 + tick, BASS, root + 12, vel * 0.8)
+                if b.get("didge"):
+                    for tick in range(s * seg_len, (s + 1) * seg_len, 4):
+                        if tick == 0 and b.get("didge_skip0"):
+                            continue
+                        sc.put("didge", t0 + tick, DIDGERIDOO, root, (54 + (6 if tick % 8 == 0 else 0)) * b["didge"])
+        for item in b.get("holds", []):
+            name, inst, snd, tick, length, v0, v1, every = item
+            lay(name)
+            sc.hold(name, inst, snd, t0 + tick, length, v0, v1, every=every)
+        for item in b.get("notes", []):
+            name, inst, snd, tick, vel = item[:5]
+            lay(name)
+            sc.put(name, t0 + tick, inst, snd, vel, shift=item[5] if len(item) > 5 else True)
+        if b.get("drums"):
+            for tick, kind, vel in drums[b["drums"]]:
+                sc.drum(t0 + tick, kind, vel)
+        if b.get("roll"):
+            tick, ticks, v0, v1 = b["roll"]
+            sc.roll(t0 + tick, ticks, v0, v1)
+    sc.shift = 0
+
+
+def hold_events(text, voices, every=4, swell=1.0):
+    """The held notes of a melody bar ``text`` on the voices {layer: (inst, offset, volume)}: [(layer, inst, sounding, tick, length, v0, v1, every)];
+    the loudness is the accent of the beat times the volume of the voice, ending ``swell`` times as loud as it began (a long note that grows)."""
+    out = []
+    for tick, note, length in melody_events(text):
+        accent = 96 if tick == 0 else 86
+        for layer, (inst, offset, vol) in voices.items():
+            out.append((layer, inst, note + offset, tick, length, accent * vol / max(1.0, swell) if swell > 1 else accent * vol, accent * vol, every))
+    return out
+
+
+def pad_notes(state, key, pcs, lo, hi, count, ticks, prefix, inst, vel_of, wide=False, tight=False):
+    """Chord pad: the voicing of ``pcs`` (voice-led from the last one kept in ``state[key]``) struck on ``ticks``: [(layer, inst, sounding, tick, vel)]."""
+    notes = voicing(pcs, lo, hi, count, state.get(key), wide=wide, tight=tight)
+    state[key] = notes
+    return [(f"{prefix}{k + 1}", inst, note, tick, vel_of(tick)) for tick in ticks for k, note in enumerate(notes)]
+
+
+def pcs_of(chord):
+    if isinstance(chord, (set, frozenset, list, tuple)):
+        return list(chord)
+    root, intervals = chord_of(chord)
+    return [(root + x) % 12 for x in intervals]
+
+
+def section_density(score, layers, names=None):
+    return density_by_section(score, layers)

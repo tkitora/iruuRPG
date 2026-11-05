@@ -4,20 +4,23 @@
     python3 tools/bgm/make_mirror_bgm.py            writes both into src/main/resources/bgm/
     python3 tools/bgm/make_mirror_bgm.py outdir     writes them somewhere else
 
-t276 rebuild on the "16th-note machine gun" guide. 180 BPM, the limit speed: 12 ticks a second (180 / 15), a tick is a sixteenth, a beat 4 ticks, a bar 16 (4/4) = the engine's bar line.
-SWING without a triplet grid: the off eighth is put on the third tick of the beat (long-short = 3 + 1, a triplet beat rounded to the grid); a TRIPLET FIGURE is three notes over two beats
-(ticks 0, 3, 5 = 0, 2.67, 5.33; 3 + 3 + 2); a triplet inside one beat is ticks 0, 1, 3. The FEEL changes bar by bar without changing the tempo: SW swing, ST straight polka (oom-pah), TR triplet
-figures, HT half-time (one heavy snare on beat 3), SB stop-time (one hit, a gap, a laugh), MR march roll. The key (a half step, a minor third, a tritone ... every 4 bars, abruptly) and the lead
-instrument (every 2 bars) change all the time: the player is toyed with.
-The MELODY keeps the base tempo and the ACCOMPANIMENT is subdivided, section by section (the bass strikes: intro quarters, A eighths (swung), A' eighths that walk, B eighths with sudden sixteenth
-double hits and triplet figures, PEAK full sixteenths with the hat and the drums in sixteenths) - and in the PEAK the tune becomes a HALF-TIME melody of whole, half and quarter notes (held by
-re-striking), the strongest contrast to the sixteenth-note chip bass: the tune of A, B and C is simply its own strong beats, slowed down.
-The device is the MIRROR: the tune (three 4-bar phrases in F# minor, chords i - bVII7 - iv - V7 and so on) is answered by its own upside-down reflection (every interval turned about an axis; the
-reflection of the minor tonic is a major dominant with a major 7th, and the reflection of the blue notes grinds against the chord) on a second instrument: at once, bar by bar, phrase by phrase or one beat late.
-Menace: heavy walking bass doubled by the didgeridoo, shell stabs of a third and a seventh (a tritone), guitar power hits, a cruel flute laugh doubled a tritone below.
-Phase 2 (Shattered) is the same 88 bars, chords and loop point, but the mirror is cracked: the machine gun starts earlier, the swing falls apart into chiptune - the feel changes every bar, the key every 2 bars,
-the tune is cut into shards (halves, beats, stutters) and detuned by a half step here and there, the reflection axis wobbles, a chip arpeggio flickers and the drums glitch.
-Plan (4-bar units): 4 intro bars, then A (4 units) - A' (3) - B (4) - Strip (1, stop-time laughs) - PEAK 1 (4) - Calm (2) - PEAK 2 (3) - Ramp (1: climbs into tick 64).
+t277: STYLE 3 of the style doc ("symphonic open", base 180 BPM) on the 16th-note machine-gun ladder of t276.
+180 BPM, the limit speed: 12 ticks a second (180 / 15), a tick is a sixteenth, a beat 4 ticks, a bar 16 (4/4) = the engine's bar line. 4 intro bars + 108 bars = 1792 ticks = 149.3 s.
+SWING without a triplet grid: the off eighth is put on the third tick of the beat (long-short = 3 + 1); a TRIPLET FIGURE is three notes over two beats (ticks 0, 3, 5; 3 + 3 + 2); a triplet inside one
+beat is ticks 0, 1, 3. The FEEL changes bar by bar (SW swing, ST straight polka, TR triplet figures, HT half-time, SB stop-time, MR march roll); the key (a half step, a minor third, a tritone ... every 4
+bars, abruptly) and the lead instrument (every 2 bars) change all the time: the player is toyed with.
+Time table (style doc -> this song; the bass level is the t276 ladder):
+  0:00  OPENING (the 4 intro bars): the last phrase of the chorus (IV - V7, F# MAJOR) at full power: sixteenth bass, tune in full, toms - and it hangs on the dominant.
+  0:05  A (32 bars, to 0:48): sparse - only bass (swung eighths, then a walking line) and snare/kick, hardly any stabs or hat; the tune is moved onto the OFF beats and chatters (F# minor).
+  0:48  B (24 bars, to 1:20): the tune is HALF-ED (every note twice as long, 4 bars of tune over 8) while the drums keep their speed: bass eighths with sixteenth double hits and triplet figures, the line climbing and falling.
+        A stop-time laugh inside; the last bars: a rising roll, then ONE BAR OF BREAK - all drums, bass and everything muted, a single high bell note (phase 2: the same).
+  1:20  CHORUS (36 bars, to 2:08): the SAME-TONIC MAJOR flip (F# minor -> F# major: A, D#, E# replace A, D, E; chords I - IV - V7 - vi): the catchiest form of the tune in the top of the harp range with a flute
+        descant in long notes from bar 16; the bass is a full SIXTEENTH machine gun, hat and drums in sixteenths. A half-step jolt in the middle.
+  2:08  OUTRO (16 bars): back to minor; tom-roll fill-ins (the bass drum on falling pitches) in every bar, the last bar a rising roll that leads into tick 64.
+The device is the MIRROR: the tune (three 4-bar phrases) is answered by its own upside-down reflection on a second instrument (at once, bar by bar, phrase by phrase or one beat late); in the chorus the
+reflection of the MAJOR tune grinds against the chord. Menace: heavy walking bass doubled by the didgeridoo, shell stabs of a third and a seventh (a tritone), guitar power hits, a cruel flute laugh.
+Phase 2 (Shattered) is the same 108 bars, chords, events and loop point, but the mirror is cracked: the machine gun starts earlier (A is already eighths that walk, B is sixteenths), the feel changes every bar,
+the key every 2 bars (not in the chorus), the tune is cut into shards, detuned by a half step here and there, the reflection axis wobbles, a chip arpeggio flickers and the drums glitch.
 Everything is written by what SOUNDS. Nothing is random (a hash of the bar and the tick). The design record is in docs/bgm-songs.md.
 """
 import sys
@@ -29,9 +32,9 @@ OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
 
 TPS = 180 / 15                   # 12 ticks a second
 BAR_T = 16
-START = 64                       # the loop point: a laugh bar + three bars of intro = 64 ticks
-UNITS = 22                       # of 4 bars
-NBARS = UNITS * 4                # 88 bars = 117.3 s + the 5.3 s intro
+START = 64                       # the loop point: 4 bars of opening = 64 ticks
+UNITS = 27                       # of 4 bars
+NBARS = UNITS * 4                # 108 bars = 144 s + the 5.3 s intro
 LENGTH = START + NBARS * BAR_T
 TONIC = 66                       # F#4
 
@@ -42,6 +45,15 @@ BVI = (8, (0, 4, 7, 11))
 V7 = (7, (0, 4, 7, 10))
 BVII7 = (10, (0, 4, 7, 10))
 DIM = (11, (0, 3, 6, 9))
+IM7 = (0, (0, 4, 7, 11))
+IVM = (5, (0, 4, 7, 11))
+VIM = (9, (0, 3, 7, 10))
+PROGS_M = {                      # the same-tonic major of the chorus
+    "A": [[(IM7, 0)], [(IM7, 0), (IVM, 8)], [(IVM, 0)], [(V7, 0)]],
+    "B": [[(VIM, 0)], [(IVM, 0)], [(IM7, 0)], [(V7, 0)]],
+    "C": [[(IM7, 0)], [(BVII7, 0)], [(IVM, 0)], [(V7, 0)]],
+    "D": [[(IM7, 0)], [(IM7, 0)], [(IM7, 0)], [(V7, 0)]],
+}
 PROGS = {
     "A": [[(I, 0)], [(I, 0), (BVII7, 8)], [(IV, 0)], [(V7, 0)]],
     "B": [[(BVI, 0)], [(DIM, 0)], [(I, 0)], [(V7, 0)]],
@@ -88,56 +100,59 @@ INST = {"X": I_, "P": PLING, "B": BIT, "F": FLUTE, "J": BANJO, "G": GUITAR, "H":
 TARGET = {HARP: 70, I_: 70, PLING: 70, BIT: 70, BANJO: 70, FLUTE: 88, GUITAR: 54, XYLOPHONE: 100}
 
 
-def U(prog, mel, feels, key, leads, mirror, stab, levels, tags=()):
-    return dict(prog=prog, mel=mel, feels=feels.split(), key=key, leads=leads, mirror=mirror, stab=stab, lv=levels, tags=set(tags))
+def U(prog, mel, feels, key, leads, mirror, stab, levels, tags=(), mode="m"):
+    return dict(prog=prog, mel=mel, feels=feels.split(), key=key, leads=leads, mirror=mirror, stab=stab, lv=levels, tags=set(tags), mode=mode)
 
 
-# levels (bass): 0 quarters, 1 eighths, 2 eighths that walk, 3 eighths + sixteenth doubles + triplet figures, 4 sixteenths; (phase 1, phase 2)
+# levels (bass): 0 quarters, 1 eighths, 2 eighths that walk, 3 eighths + sixteenth doubles + triplet figures, 4 sixteenths; (phase 1, phase 2). mode: m = F# minor, M = F# major (the chorus)
 PLAN = [
-    # A: swing (16 bars)
+    # A (32 bars): sparse, swing and polka, the tune on the off beats
     U("A", "A", "SW SW SW SW", 0, "XX", None, "J", (1, 2), "hit"),
     U("B", "B", "SW SW SW SW", 0, "XP", ("B", "call"), "J", (1, 2), "fill"),
     U("A", "A", "SW SW SW TR", 1, "FF", None, "P", (1, 2), "hit fill"),
-    U("C", "C", "SW SW SW SB", 1, "JP", ("B", "alt"), "G", (2, 3), "accel"),
-    # A': straight polka, the bass walks (12)
+    U("C", "C", "SW SW SW SB", 1, "JP", ("B", "alt"), "G", (1, 2), ""),
     U("A", "A", "ST ST ST ST", 4, "FF", None, "J", (2, 3), "hit"),
     U("B", "B", "ST ST ST TR", 4, "BB", ("G", "alt"), "P", (2, 3), "fill"),
-    U("A", "A", "ST ST TR TR", 10, "PX", None, "J", (3, 4), "hit"),
-    # B: escalation, doubles and triplet figures (16)
-    U("C", "C", "SW TR SW TR", 10, "XY", ("B", "echo"), "G", (3, 4), "accel"),
-    U("C", "C", "SW SW TR TR", 3, "GG", None, "G", (3, 4), "hit lead"),
-    U("D", "A", "SW TR SW TR", 3, "XX", None, "G", (3, 4), "laugh"),
-    U("C", "C", "TR TR TR TR", 0, "GB", ("B", "sim"), "G", (3, 4), "hit"),
-    # STRIP: stop-time, the laughs (4)
-    U("D", "A", "HT HT SB SB", 3, "XX", None, "G", (0, 0), "laugh quiet"),
-    # PEAK 1: sixteenth machine gun, half-time melody (16)
-    U("A", "A", "SW SW ST ST", 7, "FF", ("B", "sim"), "P", (4, 4), "hit"),
-    U("B", "B", "ST ST HT HT", 1, "XP", ("G", "sim"), "J", (4, 4), "fill"),
-    U("A", "A", "ST ST SW SW", 4, "BF", ("B", "sim"), "G", (4, 4), "hit"),
-    U("C", "C", "MR MR SW SW", 10, "YF", ("X", "sim"), "P", (4, 4), "fill"),
-    # CALM (8)
-    U("A", "A", "HT HT HT HT", 0, "PP", None, "G", (1, 2), "hit quiet"),
-    U("B", "B", "SW SW SW SW", 0, "HH", None, "J", (1, 2), "quiet"),
-    # PEAK 2 (12)
-    U("A", "A", "SW HT SW HT", 6, "FB", ("G", "sim"), "J", (4, 4), "hit"),
-    U("B", "B", "SW SW HT HT", 6, "XF", ("B", "sim"), "P", (4, 4), "fill"),
-    U("C", "C", "ST ST SW MR", 7, "YF", ("B", "sim"), "G", (4, 4), "fill"),
-    # RAMP: the ride back into the loop (4)
-    U("A", "A", "SW SW SW SW", 0, "XX", ("B", "echo"), "J", (2, 3), "hit accel"),
+    U("A", "A", "ST ST HT HT", 10, "PX", None, "J", (2, 3), "hit"),
+    U("C", "C", "SW SW TR TR", 0, "XY", ("B", "echo"), "G", (2, 3), "accel"),
+    # B (24 bars): the tune half-ed (two units per tune), the drums keep their speed; the last bar is the break
+    U("A", "A", "SW TR SW TR", 3, "XX", None, "G", (3, 4), "hit"),
+    U("A", "A", "SW TR SW SB", 3, "FB", None, "J", (3, 4), "laugh"),
+    U("B", "B", "TR SW TR SW", 6, "PX", ("B", "echo"), "P", (3, 4), "hit"),
+    U("B", "B", "SW TR SW TR", 6, "XF", ("G", "sim"), "G", (3, 4), ""),
+    U("C", "C", "TR TR SW SW", 0, "YF", ("B", "sim"), "J", (3, 4), "hit"),
+    U("C", "C", "TR SW TR SW", 0, "XX", ("X", "sim"), "G", (3, 4), ""),
+    # CHORUS (36 bars): F# major
+    U("A", "A", "ST ST SW SW", 0, "FF", ("B", "sim"), "P", (4, 4), "hit", "M"),
+    U("B", "B", "ST ST ST SW", 0, "XP", ("G", "sim"), "J", (4, 4), "fill", "M"),
+    U("A", "A", "SW SW ST ST", 0, "BF", ("B", "sim"), "G", (4, 4), "hit", "M"),
+    U("C", "C", "ST ST SW SW", 0, "YF", ("X", "sim"), "P", (4, 4), "fill", "M"),
+    U("A", "A", "ST ST SW SW", 1, "FB", ("G", "sim"), "J", (4, 4), "hit", "M"),
+    U("B", "B", "SW SW ST ST", 1, "XF", ("B", "sim"), "P", (4, 4), "fill", "M"),
+    U("A", "A", "ST SW ST SW", 0, "YF", ("B", "sim"), "G", (4, 4), "hit", "M"),
+    U("C", "C", "ST ST MR MR", 0, "FX", ("X", "sim"), "P", (4, 4), "fill", "M"),
+    U("A", "A", "ST ST ST ST", 0, "FF", ("B", "sim"), "P", (4, 4), "hit", "M"),
+    # OUTRO (16 bars): back to minor, tom-roll fill-ins
+    U("D", "A", "SW SW SW SW", 0, "XX", None, "J", (3, 4), "hit"),
+    U("C", "C", "SW TR SW TR", 0, "FB", ("B", "echo"), "G", (3, 4), ""),
+    U("A", "A", "TR SW TR SW", 0, "XF", ("B", "echo"), "P", (3, 4), ""),
+    U("D", "A", "SW SW SW SW", 0, "XX", None, "J", (3, 4), "hit"),
 ]
 assert len(PLAN) == UNITS
-SECTIONS = [("A", 4), ("Ap", 3), ("B", 4), ("STRIP", 1), ("PEAK1", 4), ("CALM", 2), ("PEAK2", 3), ("RAMP", 1)]
+SECTIONS = [("A", 8), ("B", 6), ("CHORUS", 9), ("OUTRO", 4)]
 assert sum(n for _, n in SECTIONS) == UNITS
+SEC = [name for name, n in SECTIONS for _ in range(n)]
+BREAK_BAR = 4 * 14 - 1                 # the last bar of the B section
 QUARTER_KEY = [1, 6, 3, 7, 2, 5]
 
 ROLES = {"lead": (100, 80), "mirror": (88, 120), "dbl": (70, 90), "laugh": (92, 100), "arp": (56, 110), "stab": (90, 100), "power": (85, 100),
-         "bass": (100, 100), "didg": (100, 100), "chip": (70, 100), "kick": (100, 100), "snare": (90, 105), "hat": (60, 115)}
+         "bass": (100, 100), "didg": (100, 100), "chip": (70, 100), "kick": (100, 100), "tom": (100, 100), "snare": (90, 105), "hat": (60, 115), "bell": (70, 100)}
 
 
 def key_of(phase, bar):
     unit, ub = divmod(bar, 4)
     key = PLAN[unit]["key"]
-    if phase == 1 and unit < UNITS - 1 and ub >= 2:
+    if phase == 1 and SEC[unit] != "CHORUS" and unit < UNITS - 1 and ub >= 2:
         key = (key + QUARTER_KEY[(unit * 5 + 1) % 6]) % 12     # the key changes every 2 bars: a half step, a tritone, a third ...
     return key
 
@@ -147,7 +162,37 @@ def chords_of(phase, bar):
         return [(TONIC % 12, I, 0)]
     unit, ub = divmod(bar, 4)
     key = key_of(phase, bar)
-    return [((TONIC + key + c[0]) % 12, c, offset) for c, offset in PROGS[PLAN[unit]["prog"]][ub]]
+    progs = PROGS_M if PLAN[unit]["mode"] == "M" else PROGS
+    return [((TONIC + key + c[0]) % 12, c, offset) for c, offset in progs[PLAN[unit]["prog"]][ub]]
+
+
+def major(s):
+    """The same-tonic major: the minor third, the flat sixth and the flat seventh move up a half step."""
+    return s + 1 if s % 12 in (3, 8, 10) else s
+
+
+def offbeat(events, bar, phase):
+    """Section A: the tune is moved onto the off beats (the beat's first tick moves to the third) and chatters (a sixteenth repeat)."""
+    placed = {}
+    for t, s in events:
+        t2 = t + 2 if t % 4 == 0 else t
+        placed.setdefault(t2, s)
+    result = dict(placed)
+    for t, s in placed.items():
+        if t % 4 >= 2 and t + 1 < 16 and t + 1 not in result and (phase == 1 or hash_(bar, t, 17) % 2):
+            result[t + 1] = s
+    return sorted(result.items())
+
+
+def halved(events, half):
+    """The tune half-ed: every note twice as long (the tick doubles). Returns [(tick in this bar, s, length)] for the first (half 0) or second (half 1) bar of the two."""
+    stretched = [(2 * t, s) for t, s in events]
+    result = []
+    for index, (t, s) in enumerate(stretched):
+        end = stretched[index + 1][0] if index + 1 < len(stretched) else 32
+        if 16 * half <= t < 16 * half + 16:
+            result.append((t - 16 * half, s, end - t))
+    return result
 
 
 def level_of(phase, bar):
@@ -178,14 +223,18 @@ def straight(events):
     return result
 
 
-def place(instrument, key, semis):
+TARGET_CHORUS = {HARP: 75, I_: 75, PLING: 75, BIT: 75, BANJO: 72, FLUTE: 90, GUITAR: 60, XYLOPHONE: 100}
+
+
+def place(instrument, key, semis, target=None):
     """The octave n for a whole phrase so that every note fits the instrument, nearest to its comfortable height."""
+    target = target or TARGET
     low, high = RANGE[instrument]
     best, best_cost = 0, None
     for n in range(-48, 49, 12):
         pitches = [TONIC + key + s + n for s in semis]
         over = sum(max(0, p - high) + max(0, low - p) for p in pitches)
-        cost = over * 100 + abs(sum(pitches) / len(pitches) - TARGET[instrument])
+        cost = over * 100 + abs(sum(pitches) / len(pitches) - target[instrument])
         if best_cost is None or cost < best_cost:
             best, best_cost = n, cost
     return best
@@ -267,52 +316,73 @@ def bass_pitch(level, tick, root, chord, approach, bar):
     return pitch
 
 
+def tom_roll(b, t0, start, end, ascending=False, vel_from=40, vel_to=100):
+    """A tom roll: the bass drum struck on falling (or rising) pitches, a snare accent on the beats."""
+    count = end - start
+    for index, tick in enumerate(range(start, end)):
+        frac = index / max(1, count - 1)
+        k = int(round(78 - 24 * (frac if not ascending else 1 - frac)))        # bass drum key 54..78 = pitch
+        b.drum("tom", t0 + tick, BASEDRUM, int(vel_from + (vel_to - vel_from) * frac), key=k, once=True)
+        if tick % 4 == 0:
+            b.drum("snare", t0 + tick, SNARE, int(vel_from + (vel_to - vel_from) * frac) - 10, once=True)
+
+
+def break_bar(b, t0):
+    """The break before the chorus: every drum muted - and the bass, the stabs, everything - a single high bell note."""
+    b.note("bell", t0, BELL, 96, 88)
+
+
+def opening(b, phase):
+    """The 4 intro bars: the last two bars of the chorus (IV - V7, F# major) twice, at full power, hanging on the dominant."""
+    pseudo = [4 * 22 + 2, 4 * 22 + 3, 4 * 22 + 2, 4 * 22 + 3]
+    for i, pb in enumerate(pseudo):
+        t0 = 16 * i
+        feel = ("ST", "SW", "SW", "ST")[i]
+        chords = chords_of(phase, pb)
+        key = key_of(phase, pb)
+        next_pc = chords_of(phase, pseudo[i + 1])[0][0] if i < 3 else TONIC % 12
+        bar_rhythm(b, t0, chords, feel, 4, phase, 900 + i, next_pc, "P", False, False, 1.0, toms=6 if i == 3 else None)
+        lead_bar(b, t0, phase, pb, feel, 4, 1.0, key, "CHORUS")
+        if i in (0, 2):
+            hit(b, t0, chords[0][0], chords[0][1])
+
+
 def play(phase):
     b = Builder(LENGTH, ROLES)
-    # ---- the intro (4 bars): a laugh, then quarter-note roots, soft; the last bar climbs into tick 64
-    anchor = near(TONIC % 12, 88, FLUTE)
-    laugh(b, 0, phase, anchor, 8, 0)
-    b.drum("kick", 0, BASEDRUM, 100)
-    b.note("bass", 0, BASS, bass_note(6, 36), 100)
-    b.note("didg", 0, DIDGERIDOO, near(6, 34, DIDGERIDOO), 100)
-    for k in range(4):
-        b.drum("snare", 8 + 2 * k, SNARE, 30 + 12 * k)
-    for index, (chord, pc) in enumerate(((I, 6), (V7, 1))):          # bar 1: i, bar 2: V7; quarter roots, soft, with a swung shell stab
-        t0 = 16 + index * BAR_T
-        for beat in range(4):
-            b.note("bass", t0 + 4 * beat, BASS, bass_note(pc, 38), (52 if beat % 2 == 0 else 40) + 8 * index)
-            b.drum("kick", t0 + 4 * beat, BASEDRUM, (56 if beat % 2 == 0 else 40) + 6 * index)
-        for tick in (3, 11):
-            b.note("stab", t0 + tick, PLING if phase == 0 else BIT, near(pc + chord[1][1], 62, PLING), 54 + 8 * index)
-            b.note("stab", t0 + tick, PLING if phase == 0 else BIT, near(pc + chord[1][3], 58, PLING), 54 + 8 * index)
-        b.drum("snare", t0 + 12, SNARE, 40 + 14 * index)
-    for k, s in enumerate((6, 7, 8, 9, 10, 11)):                     # bar 3: the run into the loop
-        b.note("lead", 48 + 2 * k, I_ if phase == 0 else BIT, TONIC + s, 56 + 5 * k)
-    for index, tick in enumerate((52, 56, 58, 60, 62, 63)):
-        b.drum("snare", tick, SNARE, 36 + 12 * index)
-    b.note("bass", 56, BASS, bass_note(1, 38), 70)
-    b.note("bass", 60, BASS, bass_note(1, 38), 80)
-    # ---- the 88 bars
+    opening(b, phase)
+    # ---- the 108 bars
     for bar in range(NBARS):
         t0 = START + bar * BAR_T
         unit, ub = divmod(bar, 4)
         plan = PLAN[unit]
+        sec = SEC[unit]
+        if bar == BREAK_BAR:
+            break_bar(b, t0)
+            continue
         feel = feel_of(phase, bar)
         level = level_of(phase, bar)
-        quiet = 0.7 if "quiet" in plan["tags"] else 1.0
+        quiet = 0.7 if "quiet" in plan["tags"] else (0.85 if sec == "A" else 1.0)
         chords = chords_of(phase, bar)
         key = key_of(phase, bar)
         next_pc = chords_of(phase, bar + 1)[0][0]
         last = ub == 3
-        accel = "accel" in plan["tags"] and last
-        fill = last and "accel" not in plan["tags"] and level >= 1 and feel != "SB"
-        bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, plan["stab"], fill, accel, quiet)
+        accel = "accel" in plan["tags"] and last and feel != "SB"
+        fill = last and "accel" not in plan["tags"] and level >= 1 and feel != "SB" and sec != "OUTRO"
+        toms = None
+        if bar == BREAK_BAR - 1:
+            accel = True
+        if sec == "OUTRO":
+            toms = 10 if phase == 0 else 8
+            if bar == NBARS - 1:
+                toms = 0
+        bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, plan["stab"], fill, accel, quiet, sparse=sec == "A", toms=toms,
+                   toms_up=bar == NBARS - 1)
         if ("hit" in plan["tags"] and ub == 0) or feel == "SB":
             hit(b, t0, chords[0][0], chords[0][1], 0.7 if quiet < 1 else 1.0)
         if feel == "SB":
             laugh(b, t0 + 6, phase, near(chords[0][0], 88, FLUTE), 5, bar)
         if feel != "SB" and level >= 1:
-            lead_bar(b, t0, phase, bar, feel, level, quiet, key)
+            lead_bar(b, t0, phase, bar, feel, level, quiet, key, sec)
         if phase == 1 and level >= 3 and feel != "SB":
             arp_bar(b, t0, bar, chords, level)
     return b
@@ -343,7 +413,7 @@ def hit(b, t0, pc, chord, scale_=1.0):
     b.drum("snare", t0, SNARE, 92 * scale_, once=True)
 
 
-def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill, accel, quiet=1.0):
+def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill, accel, quiet=1.0, sparse=False, toms=None, toms_up=False):
     """Bass, didgeridoo, stabs and drums of one bar in the given feel and at the given bass level."""
     second = chords[1] if len(chords) > 1 else None
 
@@ -383,6 +453,8 @@ def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill,
              "HT": [(0, 88), (12, 70)], "MR": [(0, 70), (8, 70)], "SB": []}[feel]
     if level == 4:
         comps = [(t, v) for t, v in comps if t in (0, 3, 8, 11)] if feel in ("SW", "TR") else [(t, v) for t, v in comps if t % 8 in (2, 0)]
+    if sparse:                                                    # section A: hardly any comping (one shell on the first off beat of every other bar)
+        comps = comps[:1] if bar % 2 == 0 else []
     if level >= 1:
         for tick, vel in comps:
             if level == 1 and tick % 8 not in (3, 2, 0, 5):
@@ -414,7 +486,7 @@ def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill,
             d_(BASEDRUM, 11, 62)
         if sixteenth:
             d_(BASEDRUM, 3, 70); d_(BASEDRUM, 6, 60)
-        if level >= 1:
+        if level >= 1 and not sparse:
             for tick in (3, 7, 11, 15):                               # the ride on the swung off eighths
                 d_(HAT, tick, 38)
             for tick in (0, 4, 8, 12):
@@ -427,7 +499,7 @@ def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill,
         if level >= 2:
             for tick in (4, 12):
                 d_(SNARE, tick, 84)
-        if level >= 3:
+        if level >= 3 and not sparse:
             for tick in range(0, 16, 2):
                 d_(HAT, tick, 34)
     elif feel == "TR":
@@ -479,76 +551,95 @@ def bar_rhythm(b, t0, chords, feel, level, phase, bar, next_pc, stab_code, fill,
             d_(SNARE, tick, 40 + 9 * index)
             if index % 2 == 0:
                 d_(BASEDRUM, tick, 70 + 4 * index)
+    if toms is not None:                                              # tom-roll fill-in: the drums of the last ticks are replaced by the rolling toms
+        for key_ in [k for k in ev if k[1] >= toms]:
+            del ev[key_]
     for (drum, tick), vel in ev.items():
         role = {BASEDRUM: "kick", SNARE: "snare", HAT: "hat"}[drum]
         b.drum(role, t0 + tick, drum, vel * (quiet if quiet < 1 and drum != BASEDRUM else 1.0))
+    if toms is not None:
+        tom_roll(b, t0, toms, 16, ascending=toms_up)
 
 
-def lead_bar(b, t0, phase, bar, feel, level, quiet, key):
+def lead_bar(b, t0, phase, bar, feel, level, quiet, key, sec):
+    """The tune of one bar. A: on the off beats, chattering; B: half-ed (every note twice as long, 4 bars of tune over 8); CHORUS: the catchy form in the top of the range (major),
+    from the second half with a flute descant in long notes; OUTRO: the plain tune. The mirror voice answers with the upside-down reflection."""
     unit, ub = divmod(bar, 4)
     plan = PLAN[unit]
-    if level < 2 and "lead" not in plan["tags"] and "quiet" not in plan["tags"] and plan["mel"] != "A" and unit > 3:
-        return
+    mode = plan["mode"]
+    chorus = sec == "CHORUS"
+    fix = major if mode == "M" else (lambda s: s)
     seg = ub // 2
     code = plan["leads"][seg]
     inst = INST[code]
     if phase == 1:
         inst = {FLUTE: BIT, I_: BIT, XYLOPHONE: PLING}.get(inst, inst) if hash_(bar, 1) % 3 else inst
-    peak = level >= 4
-    if peak and inst in (GUITAR, BANJO, I_, XYLOPHONE, HARP):
-        inst = FLUTE if seg == 0 else PLING                         # the long notes are held by re-striking: a flute and a pling carry them best
-    # the octave is chosen for the 2 bars together so that the line does not jump
-    semis = [s for bb in (seg * 2, seg * 2 + 1) for _, s in MEL[plan["mel"]][bb]]
-    n = place(inst, key, semis)
-    events = melody_bar(phase, bar, feel)
+    if chorus and (plan["mel"] != "A" or code in "FX"):
+        inst = FLUTE                                               # the top of the range belongs to the flute (the tunes B and C lie above the harp's F#5)
+    mel = MEL[plan["mel"]]
+    if sec == "B":
+        pos = (unit % 2) * 4 + ub
+        tune_bar, half = divmod(pos, 2)
+        semis = [fix(s) for _, s in mel[tune_bar]]
+        notes = halved(mel[tune_bar], half)
+    else:
+        events = melody_bar(phase, bar, feel)
+        events = [(t, fix(s)) for t, s in events]
+        if sec == "A":
+            events = offbeat(events, bar, phase)
+        semis = [fix(s) for bb in (seg * 2, seg * 2 + 1) for _, s in mel[bb]]
+        notes = [(t, s, 0) for t, s in events]
+    n = place(inst, key, semis, TARGET_CHORUS if chorus else None)
     mirror = plan["mirror"]
     axis = AXIS[plan["mel"]]
     if phase == 1:
         axis += (hash_(bar, 4) % 3) - 1                          # the axis of the cracked mirror wobbles
-    mode = mirror[1] if mirror else None
+    mode_m = mirror[1] if mirror else None
     play_lead = True
     play_mirror = False
     if mirror and level >= 3:
-        if mode == "sim":
+        if mode_m == "sim":
             play_mirror = True
-        elif mode == "alt":
+        elif mode_m == "alt":
             play_mirror = ub % 2 == 1
             play_lead = not play_mirror
-        elif mode == "call":
+        elif mode_m == "call":
             play_mirror = seg == 1
             play_lead = not play_mirror
-        elif mode == "echo":
+        elif mode_m == "echo":
             play_mirror = True
-    if peak:                                                      # half-time: the tune held in whole, half and quarter notes over the sixteenths
-        held = long_melody(bar, MEL[plan["mel"]][ub])
-        for tick, s, length in held:
-            v0 = (82 if tick % 8 == 0 else 74) * quiet
-            if play_lead:
-                sustain(b, "lead", t0 + tick, inst, TONIC + key + s + n, length, v0, v0 + 14, every=4)
-                if inst != FLUTE:
-                    b.note("dbl", t0 + tick, FLUTE, near((TONIC + key + s) % 12, 84, FLUTE), v0 * 0.6, once=True)
-        if play_mirror:
-            m_inst = FLUTE if inst != FLUTE else PLING
-            all_m = [2 * axis - s for bb in range(4) for _, s in MEL[plan["mel"]][bb]]
-            mn = place(m_inst, key, all_m)
-            for tick, s, length in held:
-                sustain(b, "mirror", t0 + tick, m_inst, TONIC + key + 2 * axis - s + mn, length, 62, 74, every=4)
-        return
-    for tick, s in events:
+
+    def voice(role, instrument, pitch, tick, length, vel):
+        if length >= 5:
+            sustain(b, role, t0 + tick, instrument, pitch, length, vel, vel + 10, every=4)
+        else:
+            b.note(role, t0 + tick, instrument, pitch, vel)
+
+    for tick, s, length in notes:
         accent = 9 if tick % 8 == 0 else 0
         vel = (74 + accent) * quiet
         if play_lead:
-            b.note("lead", t0 + tick, inst, TONIC + key + s + n, vel)
-            if level >= 3 and plan["leads"][seg] != "G":
+            voice("lead", inst, TONIC + key + s + n, tick, length, vel)
+            if level >= 3 and plan["leads"][seg] != "G" and not (sec == "A"):
                 high = inst in (FLUTE, XYLOPHONE)
-                b.note("dbl", t0 + tick, I_ if high else FLUTE, TONIC + key + s + n + (-12 if high else 12), vel * 0.55)
+                if length < 5 or sec != "B":
+                    b.note("dbl", t0 + tick, I_ if high else FLUTE, TONIC + key + s + n + (-12 if high else 12), vel * 0.55)
     if play_mirror:
         m_inst = INST[mirror[0]]
-        all_m = [2 * axis - s for bb in range(4) for _, s in MEL[plan["mel"]][bb]]
-        mn = place(m_inst, key, all_m)
-        delay = BEAT if mode == "echo" else 0
-        for tick, s in events:
-            b.note("mirror", t0 + tick + delay, m_inst, TONIC + key + 2 * axis - s + mn, (68 + (8 if tick % 8 == 0 else 0)) * quiet * (0.8 if mode == "echo" else 1.0))
+        all_m = [2 * axis - fix(s) for bb in range(4) for _, s in mel[bb]]
+        mn = place(m_inst, key, all_m, TARGET_CHORUS if chorus else None)
+        delay = BEAT if mode_m == "echo" else 0
+        for tick, s, length in notes:
+            vel = (68 + (8 if tick % 8 == 0 else 0)) * quiet * (0.8 if mode_m == "echo" else 1.0)
+            t_ = tick + delay
+            if t_ < 16:
+                voice("mirror", m_inst, TONIC + key + 2 * axis - s + mn, t_, length, vel)
+    if chorus and unit >= 18:                                  # the harp descant: the strong beats of the tune held, below the flute
+        base = [(t, fix(s)) for t, s in mel[ub]]
+        for tick, s, length in long_melody(bar, base):
+            v0 = 70 if tick % 8 == 0 else 64
+            pitch = near((TONIC + key + s) % 12, 72, HARP)
+            sustain(b, "dbl", t0 + tick, HARP, pitch, length, v0 + 10, v0 + 22, every=4)
 
 
 BEAT = 4
@@ -572,9 +663,9 @@ def main():
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
     out.mkdir(parents=True, exist_ok=True)
     titles = ("The Cracked Mirror Laughs (Boss007)", "The Cracked Mirror Laughs, Shattered (Boss007)")
-    descriptions = ("Mirror boss, phase 1, class 4 (carnival of madness): 180 BPM swing / polka / triplet figures / half-time, the bass subdivided from eighths to a sixteenth machine gun, a key change every 4 bars, a tune answered by its own upside-down reflection, a half-time melody in the peak. Loops from tick 64.",
-                    "Mirror boss, phase 2: the same 88 bars and chords, the mirror cracked - the machine gun starts earlier, the feel changes every bar, the key every 2 bars, the tune in shards, chiptune glitch and drums.")
-    edges = [("intro", 0, START)]
+    descriptions = ("Mirror boss, phase 1, class 4 (carnival of madness): style 3 (symphonic open), 180 BPM: opening on the chorus's last phrase, sparse off-beat A, half-ed tune in B, a one-bar bell break, the chorus in the same-tonic major on a sixteenth bass, tom-roll outro; a tune answered by its upside-down reflection. Loops from tick 64.",
+                    "Mirror boss, phase 2: the same 108 bars, events and chords, the mirror cracked - the machine gun starts earlier, the feel changes every bar, the key every 2 bars, the tune in shards, chiptune glitch and drums.")
+    edges = [("opening", 0, START)]
     cursor = START
     for name, units in SECTIONS:
         edges.append((name, cursor, cursor + units * 4 * BAR_T))

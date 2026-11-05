@@ -290,7 +290,7 @@ class BgmTest {
             assertTrue(lowest >= 30, id + ": nothing below F#1 (" + lowest + ")");
         }
         assertEquals(896, bundled("atlas_dungeon_2").length());
-        assertEquals(1344, bundled("atlas_vindicator_2").length());
+        assertEquals(1536, bundled("atlas_vindicator_2").length());
         assertEquals("Below the Sleeping Giant (Dungeon002)", bundled("atlas_dungeon_2").title());
         assertEquals("Raise the Axe (Boss002)", bundled("atlas_vindicator_2").title());
     }
@@ -313,81 +313,13 @@ class BgmTest {
         }
     }
 
-    /** The boss song that keeps the form of the first rebuild by the BGM制作ガイド (Boss006; the others were written again by class, see the next test): {phase 1 id, phase 2 id (or null), title of phase 1, bar length in ticks, bars of A, A', B, peak, calm, length in ticks}. */
-    private static final Object[][] GUIDE_BOSSES = {
-        {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", 24, new int[]{24, 24, 24, 20, 8}, 2464},
-    };
-
-    @Test
-    void theBossSongsOfTheGuideHaveTheFormOfTheGuideAndPhaseTwoIsTheSamePieceAHalfStepHigher() throws IOException {
-        for (Object[] boss : GUIDE_BOSSES) {
-            String first = (String) boss[0];
-            String second = (String) boss[1];
-            int bar = (Integer) boss[3];
-            int[] bars = (int[]) boss[4];
-            int length = (Integer) boss[5];
-            NbsSong one = bundled(first);
-            assertEquals((String) boss[2], one.title(), first);
-            assertEquals(length, one.length(), first + ": the length of the piece");
-            assertTrue(one.length() / one.ticksPerSecond() >= 120.0, first + ": at least two minutes");
-            assertTrue(one.loops() && one.loopStart() == 64, first + ": loops from tick 64");
-            int[] edges = new int[bars.length + 2];       // intro, A, A', B, peak, calm
-            edges[1] = 64;
-            for (int i = 0; i < bars.length; i++) edges[i + 2] = edges[i + 1] + bars[i] * bar;
-            assertEquals(length, edges[bars.length + 1], first + ": the sections fill the song");
-            assertTrue(edges[4] >= 0.64 * length, first + ": the peak starts at 65 % or later (tick " + edges[4] + " of " + length + ")");
-            for (String id : second == null ? new String[]{first} : new String[]{first, second}) {
-                NbsSong song = bundled(id);
-                assertEquals(length, song.length(), id);
-                assertEquals(one.ticksPerSecond(), song.ticksPerSecond(), 1.0E-9, id + ": the same tempo");
-                assertTrue(song.loops() && song.loopStart() == 64, id + ": the same loop point");
-                double[] perSection = new double[bars.length + 1];   // notes a tick, section by section
-                int[] perTick = new int[song.length()];
-                int firstBass = -1;
-                int pitched = 0;
-                int low = 0;
-                int drumHits = 0;
-                long velocitySum = 0;
-                for (int i = 0; i < song.noteCount(); i++) {
-                    NbsSong.Note note = song.note(i);
-                    int sound = sounding(note.instrument(), note.key());
-                    perTick[note.tick()]++;
-                    velocitySum += Math.round(note.volume() * 100);
-                    if (sound >= 0) { pitched++; if (sound <= 54) low++; } else if (note.instrument() == 2 || note.instrument() == 3) drumHits++;
-                    for (int s = 0; s <= bars.length; s++) if (note.tick() >= edges[s + 1] && note.tick() < edges[s + 2]) perSection[s] += 1.0 / (edges[s + 2] - edges[s + 1]);
-                    if (note.instrument() == 1) assertTrue(sound <= 54, id + ": the bass stays low (" + sound + ")");
-                    if (note.instrument() == 6) assertTrue(sound >= 78, id + ": the flute sounds from F#5 (" + sound + ")");
-                    if (note.instrument() == 7 || note.instrument() == 8) {
-                        assertTrue(sound >= 90 && sound <= 99, id + ": the bell and the chime stay between F#6 and D#7 (" + sound + ")");
-                        assertTrue(note.volume() <= 0.6f, id + ": and quiet (" + note.volume() + ")");
-                    }
-                    if (note.instrument() == 1 && firstBass < 0 && note.tick() >= 64) firstBass = sound;
-                }
-                assertTrue(java.util.Arrays.stream(perTick).max().getAsInt() <= 8, id + ": at most eight notes at once");
-                assertTrue(perSection[3] > perSection[1] && perSection[3] > perSection[2], id + ": the peak is the busiest part (A'' " + perSection[3] + ", B " + perSection[2] + ", A' " + perSection[1] + ")");
-                assertTrue(perSection[2] < perSection[1], id + ": B takes away (" + perSection[2] + " notes against " + perSection[1] + " in A')");
-                assertTrue(perSection[4] < perSection[3] / 2, id + ": the calm is quiet (" + perSection[4] + ")");
-                assertTrue(low >= 0.4 * pitched, id + ": a boss weighs - at least 40 % of the notes sound at F#3 or lower (" + low + " of " + pitched + ")");
-                assertTrue(drumHits >= 200, id + ": the bass drum and the snare are heard (" + drumHits + " hits)");
-                assertTrue(velocitySum >= 50L * song.noteCount(), id + ": and loud (" + velocitySum / song.noteCount() + " on average)");
-            }
-            if (second != null) {
-                NbsSong two = bundled(second);
-                int bassOne = -1;
-                int bassTwo = -1;
-                for (int i = 0; i < one.noteCount(); i++) if (one.note(i).instrument() == 1 && one.note(i).tick() >= 64) { bassOne = sounding(1, one.note(i).key()); break; }
-                for (int i = 0; i < two.noteCount(); i++) if (two.note(i).instrument() == 1 && two.note(i).tick() >= 64) { bassTwo = sounding(1, two.note(i).key()); break; }
-                assertEquals(bassOne + 1, bassTwo, second + ": the same bars a half step higher (the first bass note of A)");
-            }
-        }
-    }
-
-    /** The boss songs written by class (t272): {phase 1 id, phase 2 id or null, title of phase 1, title of phase 2 or null}. */
+    /** The boss songs written by class and by the structure guide (t272, t277): {phase 1 id, phase 2 id or null, title of phase 1, title of phase 2 or null}. */
     private static final String[][] CLASS_BOSSES = {
         {"atlas_vindicator_2", null, "Raise the Axe (Boss002)", null},
         {"colossus_phase1", "colossus_phase2", "Shoulders of Stone (Boss003)", "Shoulders of Stone, Unbound (Boss003)"},
         {"necromancer_phase1", "necromancer_phase2", "Reaper's Arc (Boss004)", "Reaper's Arc, Sundered (Boss004)"},
         {"reaper_phase1", "reaper_phase2", "Silence of the Scythe (Boss005)", "Silence of the Scythe, Unleashed (Boss005)"},
+        {"broodmother_phase1", "broodmother_phase2", "Mother of a Thousand Legs (Boss006)", "Mother of a Thousand Legs, Swarming (Boss006)"},
         {"mirror_phase1", "mirror_phase2", "The Cracked Mirror Laughs (Boss007)", "The Cracked Mirror Laughs, Shattered (Boss007)"},
         {"waltz_phase1", "waltz_phase2", "Waltz at the Edge of Dark (Boss008)", "Waltz at the Edge of Dark, Out of Step (Boss008)"},
         {"unkeyed_phase1", "unkeyed_phase2", "Eyes Without a Key (Boss009)", "Eyes Without a Key, Unwritten (Boss009)"},
