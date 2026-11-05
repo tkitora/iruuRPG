@@ -853,4 +853,99 @@ class BgmTest {
         assertFalse(read.loop());
         assertEquals("plains_adventure", read.song());
     }
+
+    // ---- lag: the notes are planned ahead and sent at their time ------------------------------------------------------------------------
+
+    private static final long MS = 1_000_000L;
+
+    /** A sender that keeps the notes: (time due, time of the server tick that planned it, what to do). */
+    private static final class Kept implements BgmChannel.Later {
+        final List<long[]> times = new ArrayList<>();
+        final List<Runnable> tasks = new ArrayList<>();
+        long now;
+
+        @Override
+        public void at(long dueNanos, Runnable task) {
+            times.add(new long[]{dueNanos, now});
+            tasks.add(task);
+        }
+    }
+
+    @Test
+    void theClockPlansTheTicksThatFallDueBeforeNowPlusTheLead() {
+        BgmClock clock = new BgmClock(10);
+        assertEquals(11, clock.steps(0L), "the first call fills the lead (ticks at 0, 50 ... 500 ms)");
+        assertEquals(0L, clock.firstDue());
+        assertEquals(1, clock.steps(50 * MS));
+        assertEquals(2, clock.steps(150 * MS), "a server tick that comes 100 ms later plans two");
+        assertEquals(600 * MS, clock.firstDue(), "(the times follow on without a gap)");
+    }
+
+    @Test
+    void aStopLongerThanTheLeadDoesNotCatchUpWithABurst() {
+        BgmClock clock = new BgmClock(10);
+        clock.steps(0L);
+        int steps = clock.steps(5000 * MS);   // the server was stopped for 5 s
+        assertTrue(steps <= 11, "no more than a lead of ticks: " + steps);
+        assertEquals(5000 * MS, clock.firstDue(), "the clock goes on from now");
+    }
+
+    @Test
+    void theSongKeepsItsTempoWhenTheServerTicksSlowlyAndGoesOnThroughAStop() throws IOException {
+        Kept kept = new Kept();
+        BgmChannel channel = new BgmChannel();
+        long[] clock = {0L};
+        channel.planAhead(kept, 10, () -> clock[0]);
+        channel.playManual(song(2000, true, 0), true, 0.0);
+        Player player = player();
+        // 5 server ticks a second (200 ms a tick) for 4 s, then one tick that comes 450 ms after the last (a stop), then 200 ms ticks again
+        long[] schedule = new long[40];
+        for (int i = 0; i < 20; i++) schedule[i] = i * 200L;
+        for (int i = 20; i < 40; i++) schedule[i] = 3800L + 450L + (i - 20) * 200L;
+        for (long ms : schedule) {
+            clock[0] = ms * MS;
+            kept.now = clock[0];
+            channel.tick(player, 1.0f);
+        }
+        // the notes follow on 50 ms apart from the very first one: the tempo is the song's, whatever the server's
+        for (int i = 0; i < kept.times.size(); i++) assertEquals(i * 50 * MS, kept.times.get(i)[0], "note " + i);
+        // and each was planned before it was due (the stop was inside the lead of 500 ms): the music never ran dry
+        for (long[] time : kept.times) assertTrue(time[0] >= time[1], "planned " + (time[1] / MS) + " ms, due " + (time[0] / MS) + " ms");
+    }
+
+    @Test
+    void thePlannedNotesAreSentAndAStopTakesTheWaitingOnesBack() throws IOException {
+        Kept kept = new Kept();
+        BgmChannel channel = new BgmChannel();
+        long[] clock = {0L};
+        channel.planAhead(kept, 4, () -> clock[0]);
+        channel.playManual(song(100, true, 0), true, 0.0);
+        Player player = player();
+        channel.tick(player, 1.0f);
+        assertEquals(5, kept.tasks.size());
+        clock[0] = 100 * MS;
+        kept.tasks.get(0).run();
+        org.mockito.Mockito.verify(player, org.mockito.Mockito.times(1)).playSound(org.mockito.ArgumentMatchers.any(Location.class), org.mockito.ArgumentMatchers.any(org.bukkit.Sound.class),
+                org.mockito.ArgumentMatchers.any(org.bukkit.SoundCategory.class), org.mockito.ArgumentMatchers.anyFloat(), org.mockito.ArgumentMatchers.anyFloat());
+        channel.stopAll();
+        kept.tasks.get(1).run();
+        org.mockito.Mockito.verify(player, org.mockito.Mockito.times(1)).playSound(org.mockito.ArgumentMatchers.any(Location.class), org.mockito.ArgumentMatchers.any(org.bukkit.Sound.class),
+                org.mockito.ArgumentMatchers.any(org.bukkit.SoundCategory.class), org.mockito.ArgumentMatchers.anyFloat(), org.mockito.ArgumentMatchers.anyFloat());
+    }
+
+    @Test
+    void aNoteThatIsFarTooLateWhenItIsSentIsNotPlayed() throws IOException {
+        Kept kept = new Kept();
+        BgmChannel channel = new BgmChannel();
+        long[] clock = {0L};
+        channel.planAhead(kept, 0, () -> clock[0]);
+        channel.playManual(song(100, true, 0), true, 0.0);
+        Player player = player();
+        channel.tick(player, 1.0f);
+        assertEquals(1, kept.tasks.size());
+        clock[0] = 2000 * MS;   // the sender was stuck for 2 s
+        kept.tasks.get(0).run();
+        org.mockito.Mockito.verify(player, org.mockito.Mockito.never()).playSound(org.mockito.ArgumentMatchers.any(Location.class), org.mockito.ArgumentMatchers.any(org.bukkit.Sound.class),
+                org.mockito.ArgumentMatchers.any(org.bukkit.SoundCategory.class), org.mockito.ArgumentMatchers.anyFloat(), org.mockito.ArgumentMatchers.anyFloat());
+    }
 }

@@ -31,7 +31,22 @@ final class BgmChannel implements BgmVoice.Sink {
             Sound.BLOCK_NOTE_BLOCK_DIDGERIDOO, Sound.BLOCK_NOTE_BLOCK_BIT, Sound.BLOCK_NOTE_BLOCK_BANJO, Sound.BLOCK_NOTE_BLOCK_PLING
     };
 
+    /** Where the notes go to be played at a time of the clock (a thread of its own); the tests use their own. */
+    interface Later {
+        void at(long dueNanos, Runnable task);
+    }
+
+    /** The notes are older than this when they are sent (the sender was stuck): they are not played at all rather than late. */
+    private static final long STALE_NANOS = 250_000_000L;
+
     private final List<BgmVoice> voices = new ArrayList<>();
+    private Later later;
+    private BgmClock clock;
+    private java.util.function.LongSupplier nanos = System::nanoTime;
+    /** Goes up when everything is stopped: the notes that are still waiting to be sent are then not sent. */
+    private volatile int generation;
+    /** The wall-clock time of the song tick that is being played (when there is a {@link #later}). */
+    private long dueNanos;
     private BgmVolume current;
     private NbsSong followedSong;
     private boolean manual;
@@ -47,6 +62,7 @@ final class BgmChannel implements BgmVoice.Sink {
         final NbsSong song;
         final double fade;
         final double startTick;
+        /** Song ticks of 1/20 s (one per server tick when the notes are not planned ahead) until the bar line. */
         int serverTicksLeft;
 
         Pending(NbsSong song, double fade, double startTick, int serverTicksLeft) {
@@ -66,6 +82,16 @@ final class BgmChannel implements BgmVoice.Sink {
     private boolean moving;
     /** Where the player was at the last tick, to see whether they move. */
     private Location lastBase;
+
+    /**
+     * Plans the notes {@code leadTicks} ticks (twentieths of a second) ahead and has {@code later} play them at their time of the wall clock, so the song keeps its tempo and goes on through
+     * a lag spike of up to that long. Without it (the default), a note is played in the server tick it falls due in.
+     */
+    void planAhead(Later later, int leadTicks, java.util.function.LongSupplier nanos) {
+        this.later = later;
+        this.clock = later == null ? null : new BgmClock(leadTicks);
+        if (nanos != null) this.nanos = nanos;
+    }
 
     boolean manual() {
         return manual;
@@ -227,6 +253,7 @@ final class BgmChannel implements BgmVoice.Sink {
     }
 
     void stopAll() {
+        generation++;
         pending = null;
         voices.clear();
         current = null;
@@ -237,16 +264,41 @@ final class BgmChannel implements BgmVoice.Sink {
     }
 
     void tick(Player target, float master) {
-        if (pending != null) {
-            if (voices.isEmpty() || pending.song != sceneSong) {
-                pending = null;
-            } else if (--pending.serverTicksLeft <= 0) {
-                Pending go = pending;
-                pending = null;
-                startScene(go.fade, go.startTick);
-            }
+        int steps = 1;
+        long first = 0L;
+        if (later != null) {
+            steps = clock.steps(nanos.getAsLong());
+            first = clock.firstDue();
         }
-        if (voices.isEmpty()) return;
+        boolean prepared = false;
+        try {
+            for (int step = 0; step < steps; step++) {
+                if (pending != null) {
+                    if (voices.isEmpty() || pending.song != sceneSong) {
+                        pending = null;
+                    } else if (--pending.serverTicksLeft <= 0) {
+                        Pending go = pending;
+                        pending = null;
+                        startScene(go.fade, go.startTick);
+                    }
+                }
+                if (voices.isEmpty()) continue;
+                if (!prepared) {
+                    prepared = true;
+                    prepare(target);
+                }
+                this.dueNanos = first + step * BgmClock.STEP_NANOS;
+                for (BgmVoice voice : voices) voice.tick(this, master);
+                voices.removeIf(BgmVoice::done);
+            }
+        } finally {
+            this.player = null;
+            this.base = null;
+        }
+    }
+
+    /** What the sink needs to know about the player this tick: where they are, which way they face, whether they walk. */
+    private void prepare(Player target) {
         this.player = target;
         this.base = target.getEyeLocation();
         double dx = lastBase == null ? 0.0 : base.getX() - lastBase.getX();
@@ -257,13 +309,6 @@ final class BgmChannel implements BgmVoice.Sink {
         double yaw = Math.toRadians(base.getYaw());
         this.rightX = -Math.cos(yaw);
         this.rightZ = -Math.sin(yaw);
-        try {
-            for (BgmVoice voice : voices) voice.tick(this, master);
-        } finally {
-            this.player = null;
-            this.base = null;
-        }
-        voices.removeIf(BgmVoice::done);
     }
 
     @Override
@@ -276,11 +321,30 @@ final class BgmChannel implements BgmVoice.Sink {
         if (moving) {
             // a sound played at a place stays there: a walking player leaves a note that rings for a second or two behind and it fades out (the
             // music seems to break off). Played from the player it goes with them (without the stereo spread, which is only 2 blocks anyway).
-            player.playSound(player, SOUNDS[instrument], SoundCategory.MUSIC, volume, pitch);
+            play(player, null, SOUNDS[instrument], volume, pitch);
             return;
         }
         Location at = base;
         if (pan != 0.0f) at = base.clone().add(rightX * pan * PAN_WIDTH, 0.0, rightZ * pan * PAN_WIDTH);
-        player.playSound(at, SOUNDS[instrument], SoundCategory.MUSIC, volume, pitch);
+        play(player, at, SOUNDS[instrument], volume, pitch);
+    }
+
+    /** Plays the note now, or (when planning ahead) hands it to the sender for its time. {@code at} null: from the player themself. */
+    private void play(Player target, Location at, Sound sound, float volume, float pitch) {
+        if (later == null) {
+            send(target, at, sound, volume, pitch);
+            return;
+        }
+        int planned = generation;
+        long due = dueNanos;
+        later.at(due, () -> {
+            if (planned != generation || nanos.getAsLong() - due > STALE_NANOS) return;
+            send(target, at, sound, volume, pitch);
+        });
+    }
+
+    private static void send(Player target, Location at, Sound sound, float volume, float pitch) {
+        if (at == null) target.playSound(target, sound, SoundCategory.MUSIC, volume, pitch);
+        else target.playSound(at, sound, SoundCategory.MUSIC, volume, pitch);
     }
 }

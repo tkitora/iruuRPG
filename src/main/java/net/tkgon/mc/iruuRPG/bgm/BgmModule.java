@@ -55,7 +55,11 @@ public final class BgmModule implements Listener, Bgm {
     private int counter;
     private final int checkInterval;
     private final int watchInterval;
+    /** The thread that plays the notes at their time (null: they are played in the server tick, as before), and how far ahead they are planned. */
+    private BgmSender sender;
+    private final int leadTicks;
     private boolean watchWarned;
+    private boolean senderWarned;
 
     /** The two corners a player has picked with the wand (or with /bgm pos1 and pos2). */
     static final class Selection {
@@ -103,11 +107,21 @@ public final class BgmModule implements Listener, Bgm {
         this.wandKey = new NamespacedKey(plugin, "bgm_wand");
         this.checkInterval = Math.max(2, plugin.getConfig().getInt("bgm.check-ticks", 10));
         this.watchInterval = Math.max(20, plugin.getConfig().getInt("bgm.watch-ticks", 100));
+        this.leadTicks = Math.max(0, Math.min(40, plugin.getConfig().getInt("bgm.lead-ticks", 10)));
+        if (plugin.getConfig().getBoolean("bgm.async-send", true) && leadTicks > 0) {
+            this.sender = new BgmSender(error -> {
+                if (!senderWarned) {
+                    senderWarned = true;
+                    plugin.getLogger().warning("bgm: a note could not be sent: " + error);
+                }
+            });
+        }
     }
 
     public void stop() {
         if (task != null) task.cancel();
         if (watchTask != null) watchTask.cancel();
+        if (sender != null) sender.stop();
         settings.bgm(Bgm.NONE);
         channels.clear();
         selections.clear();
@@ -126,7 +140,11 @@ public final class BgmModule implements Listener, Bgm {
     }
 
     BgmChannel channel(Player player) {
-        return channels.computeIfAbsent(player.getUniqueId(), id -> new BgmChannel());
+        return channels.computeIfAbsent(player.getUniqueId(), id -> {
+            BgmChannel channel = new BgmChannel();
+            if (sender != null) channel.planAhead(sender, leadTicks, null);
+            return channel;
+        });
     }
 
     Selection selection(Player player) {
