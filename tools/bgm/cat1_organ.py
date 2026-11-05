@@ -93,12 +93,12 @@ class Score:
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------- bass figures
 # (tick, semitones over the root of the chord ("t": its third, 3 or 4), velocity)
-def _eighths(accents=(92, 50, 72, 50, 86, 50, 72, 56)):
+def _eighths(accents=(94, 62, 80, 62, 90, 62, 80, 66)):
     return [(2 * i, 0, v) for i, v in enumerate(accents)]
 
 
 FIGURES = {
-    "Q": [(0, 0, 70), (4, 0, 44), (8, 0, 60), (12, 0, 44)],
+    "Q": [(0, 0, 94), (4, 0, 62), (8, 0, 80), (12, 0, 62)],
     "E": _eighths(),
     "E_": _eighths() + [(15, 0, 48)],
     "S": [(0, 0, 92), (2, 0, 50), (4, 0, 76), (6, 0, 52), (7, 0, 42), (8, 0, 88), (10, 0, 50), (12, 0, 76), (14, 0, 56), (15, 0, 46)],
@@ -273,7 +273,7 @@ def hold_events(text, voices, every=4, swell=1.0):
     the loudness is the accent of the beat times the volume of the voice, ending ``swell`` times as loud as it began (a long note that grows)."""
     out = []
     for tick, note, length in melody_events(text):
-        accent = 96 if tick == 0 else 86
+        accent = 100 if tick == 0 else 92
         for layer, (inst, offset, vol) in voices.items():
             out.append((layer, inst, note + offset, tick, length, accent * vol / max(1.0, swell) if swell > 1 else accent * vol, accent * vol, every))
     return out

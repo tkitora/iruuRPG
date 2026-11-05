@@ -86,7 +86,7 @@ FIN_END_CHORDS = [(0, "M"), (7, "M"), (5, "M"), (5, "7")]
 FIN_END_MELODY = ["A#4:8 C#5:8", "C#5:8 F5:8", "D#5:8 B4:8", "F#4:4 A4:4 D#5:8"]
 MAJOR_SCALE = (0, 2, 4, 5, 7, 9, 11)
 
-ROLES = {"tune": (100, 80), "harm": (75, 120), "stab": (60, 90), "guitar": (90, 100), "guitar2": (75, 100), "bass": (100, 100), "didg": (90, 100),
+ROLES = {"tune": (100, 80), "harm": (75, 120), "stab": (90, 90), "guitar": (90, 100), "guitar2": (75, 100), "bass": (100, 100), "didg": (90, 100),
          "kick": (100, 100), "snare": (92, 105), "hat": (50, 115), "bell": (70, 100)}
 
 
@@ -131,21 +131,37 @@ class Song:
     def __init__(self):
         self.b = Builder(LENGTH, ROLES)
 
+    def hit(self, t0, pc, low, scale_=1.0, drums=True):
+        """An ensemble hit (6 or more notes at one tick): the bass and the didgeridoo low, a power chord of the guitar, two harp stab notes, the kick and the snare."""
+        b = self.b
+        b.note("bass", t0, BASS, low, 100 * scale_, once=True)
+        b.note("didg", t0, DIDGERIDOO, low, 96 * scale_, once=True)
+        b.note("guitar", t0, GUITAR, near(pc, 47, GUITAR), 100 * scale_, once=True)
+        b.note("guitar2", t0, GUITAR, near((pc + 7) % 12, 54, GUITAR), 90 * scale_, once=True)
+        b.note("stab", t0, HARP, near(pc, 58, HARP), 96 * scale_, once=True)
+        b.note("stab", t0, HARP, near((pc + 7) % 12, 66, HARP), 90 * scale_, once=True)
+        if drums:
+            b.drum("kick", t0, BASEDRUM, 100 * scale_, once=True)
+            b.drum("snare", t0, SNARE, 92 * scale_, once=True)
+
     # ---- intro: a solo refrain of the piano, struck again under its long notes; no drums, no bass
     def intro(self):
         b = self.b
         refrain = ["E5:16", "B4:8 G4:8", "E5:4 B4:4 G4:4 E4:4", "B4:4 D#5:4 F#5:8"]
         for bar, text in enumerate(refrain):
-            tune(b, "tune", HARP, 16 * bar, text, vel=58 + 6 * bar)
-        b.note("stab", 48, GUITAR, 47, 40, once=True)          # a quiet low B under the dominant
-        sustain(b, "stab", 48, GUITAR, 47, 16, 34, 56, every=4)
+            tune(b, "tune", HARP, 16 * bar, text, vel=84 + 4 * bar)
+        self.hit(0, 4, 40, drums=False)                          # the first tick already weighs: E in the bass, the didgeridoo and the guitar under the refrain
+        sustain(b, "stab", 48, GUITAR, 47, 16, 60, 90, every=4)    # a low B under the dominant
+        sustain(b, "didg", 48, DIDGERIDOO, 35, 16, 60, 90, every=4)
 
     # ---- PRE (6 bars of the loop): the refrain goes on; the snare comes in
     def pre(self, t0, ib):
         b = self.b
         order = [0, 1, 2, 3, 4, 7]
         chords = ["Em", "Em", "C", "D", "Em", "B7"]
-        tune(b, "tune", HARP, t0, A_MELODY[order[ib]], vel=64 + 3 * ib)
+        tune(b, "tune", HARP, t0, A_MELODY[order[ib]], vel=86 + 2 * ib)
+        if ib in (0, 3):
+            self.hit(t0, CHORDS[chords[ib]][0], CHORDS[chords[ib]][1], 0.8, drums=ib > 0)
         snares = [(12,), (4, 12), (4, 12), (4, 8, 12), (0, 4, 8, 12), (0, 2, 4, 6, 8, 10, 12, 14)][ib]
         for index, tick in enumerate(snares):
             b.drum("snare", t0 + tick, SNARE, 36 + 8 * ib + 4 * index)
@@ -172,7 +188,9 @@ class Song:
             sustain(b, "didg", t0, DIDGERIDOO, 40, 16, 60, 80, every=4)
         else:
             for tick in range(0, 16, 2):
-                b.note("bass", t0 + tick, BASS, 40, 100 if tick == 0 else (88 if tick % 8 == 0 else (76 if tick % 4 == 0 else 62)))
+                b.note("bass", t0 + tick, BASS, 40, 100 if tick == 0 else (92 if tick % 8 == 0 else (84 if tick % 4 == 0 else 70)))
+            for tick in range(0, 16, 4):
+                b.note("didg", t0 + tick, DIDGERIDOO, 40, 92 if tick % 8 == 0 else 78)
             for tick, vel in ((0, 100), (6, 70), (8, 92), (14, 66)):
                 b.drum("kick", t0 + tick, BASEDRUM, vel)
             for tick in (4, 12):
@@ -183,12 +201,11 @@ class Song:
                 roll(b, t0, 12, 1, 40, 90)
             if ib in (0,):
                 b.drum("kick", t0, BASEDRUM, 100, once=True)
-        tune(b, "tune", GUITAR, t0, A_MELODY[idx], shift=-12, vel=82)
-        root, fifth = CHORDS[chord][1], CHORDS[chord][1] + 7
-        if not half:                                           # the chord above the fixed tonic: two harp notes on the first beat of every other bar
-            if ib % 2 == 0:
-                b.note("stab", t0, HARP, near(CHORDS[chord][0], 62, HARP), 54)
-                b.note("stab", t0, HARP, near((CHORDS[chord][0] + 7) % 12, 66, HARP), 48)
+        tune(b, "tune", GUITAR, t0, A_MELODY[idx], shift=-12, vel=96)
+        if not half:                                           # the ensemble hit on the downbeat of every bar (the chord above the fixed tonic), a roll before the next block
+            self.hit(t0, CHORDS[chord][0], 40, 0.9)
+            if ib in (0, 8, 16):
+                b.drum("snare", t0, SNARE, 100, once=True)
 
     # ---- B: the bass released (doubles and triplets), the tune an octave up on the piano; the last 8 bars double time
     def b_bar(self, t0, ib):
@@ -200,8 +217,8 @@ class Song:
             off = (0, 0, 7, 0, 12, 7, 5, 7)[tick // 2]
             vel = bass_velocity(tick, 3)
             b.note("bass", t0 + tick, BASS, root + off, vel)
-            if tick % 4 == 0 and tick % 8 == 0:
-                b.note("didg", t0 + tick, DIDGERIDOO, root + off, 70)
+            if tick % 4 == 0:
+                b.note("didg", t0 + tick, DIDGERIDOO, root + off, 84 if tick % 8 == 0 else 70)
         doubletime = ib >= 10
         for tick in (0, 3, 6, 8, 11, 14):
             b.drum("kick", t0 + tick, BASEDRUM, 100 if tick % 8 == 0 else 74)
@@ -211,10 +228,12 @@ class Song:
             b.drum("hat", t0 + tick, HAT, 32 if tick % 4 == 0 else 22)
         if ib % 4 == 3 or ib == 17:
             roll(b, t0, 10, 1, 40, 96)
-        tune(b, "tune", HARP, t0, B_MELODY[idx], vel=84)
-        for tick in (0, 8):                                     # guitar power chord on the downbeats
-            b.note("guitar", t0 + tick, GUITAR, near(CHORDS[chord][0], 47, GUITAR), 70)
-            b.note("guitar2", t0 + tick, GUITAR, near((CHORDS[chord][0] + 7) % 12, 54, GUITAR), 62)
+        tune(b, "tune", HARP, t0, B_MELODY[idx], vel=96)
+        self.hit(t0, CHORDS[chord][0], root, 0.9)
+        b.note("stab", t0 + 8, HARP, near(CHORDS[chord][0], 58, HARP), 90, once=True)
+        for tick in (8,):                                       # guitar power chord on the third beat
+            b.note("guitar", t0 + tick, GUITAR, near(CHORDS[chord][0], 47, GUITAR), 92, once=True)
+            b.note("guitar2", t0 + tick, GUITAR, near((CHORDS[chord][0] + 7) % 12, 54, GUITAR), 84, once=True)
 
     # ---- BREAK: a crescendo on a B pedal, then one bar of silence with a single bell note
     def break_bar(self, t0, ib):
@@ -257,13 +276,14 @@ class Song:
             if pitch > 54:
                 pitch -= 12
             b.note("bass", t0 + tick, BASS, pitch, vel)
-        for tick in (0, 8):
-            b.note("didg", t0 + tick, DIDGERIDOO, low, 80)
+        for tick in range(0, 16, 4):
+            b.note("didg", t0 + tick, DIDGERIDOO, low, 92 if tick % 8 == 0 else 80)
         # --- guitar: power chord on the downbeats, chug in between
         for tick in range(0, 16, 2):
-            b.note("guitar", t0 + tick, GUITAR, near(pc, 47, GUITAR), 80 if tick % 8 == 0 else 56)
-        for tick in (0, 8):
-            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 64)
+            b.note("guitar", t0 + tick, GUITAR, near(pc, 47, GUITAR), 100 if tick % 8 == 0 else 52)
+        for tick in (0, 4, 8, 12):
+            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 92 if tick % 8 == 0 else 76)
+            b.note("stab", t0 + tick, HARP, near(pc, 58, HARP), 70, once=True)
         # --- drums: the kick in quarters with a pickup, the backbeat, the hat in sixteenths
         for tick, vel in ((0, 100), (4, 70), (8, 96), (12, 70), (14, 60)):
             b.drum("kick", t0 + tick, BASEDRUM, vel)
@@ -273,20 +293,20 @@ class Song:
             b.drum("hat", t0 + tick, HAT, 34 if tick % 4 == 0 else (26 if tick % 2 == 0 else 16))
         if ib % 8 == 7 and not end:
             roll(b, t0, 10, 1, 40, 96)
-        if ib == 17 and finale:
+        if ib == 17 or (finale and ib == 15):
             roll(b, t0, 6, 1, 36, 100)
         # --- the tune in long notes on the piano, the pling a third above
         tick = 0
         for pitch, length in parse_bar(text):
-            p = pitch + shift if pitch is not None else None
+            p = pitch + shift - 12 if pitch is not None else None      # an octave lower than written: the chorus lives at F#3 - E4 (a boss does not sing high)
             if p is not None:
-                while p > 78:
-                    p -= 12
-                sustain(b, "tune", t0 + tick, HARP, p, length, 84, 96, every=4)
+                while p < 54:
+                    p += 12
+                sustain(b, "tune", t0 + tick, HARP, p, length, 98, 100, every=4)
                 if not (finale and ib >= 14):
                     h = third_above(p, tonic_pc)
                     if 54 <= h <= 78:
-                        sustain(b, "harm", t0 + tick, PLING, h, length, 60, 72, every=4)
+                        sustain(b, "harm", t0 + tick, PLING, h, length, 70, 84, every=4)
             tick += length
         if ib % 8 == 0 and not end:                             # the unison hit that starts each phrase of eight bars
             b.drum("snare", t0, SNARE, 96, once=True)

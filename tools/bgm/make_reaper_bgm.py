@@ -45,12 +45,12 @@ CELL = [(0, 59, 7), (2, 60, 3), (6, 65, 5), (8, 64, 1), (12, 59, 6), (14, 60, 2)
 GAIN = [(4, 58), (15, 66), (10, 56), (19, 72)]          # notes the loop gains in other places (cluster against the cell)
 CELL_MAJOR = [(0, 59), (2, 63), (6, 66), (8, 63), (12, 59), (14, 63), (16, 66), (18, 68)]     # the same rhythm in B major (B D# F# G#)
 # per phase: notes of the dark cell removed per bar (9 = none left) in P1 and P2, notes gained per bar in P2
-ERODE_P1 = {0: [9, 9, 6, 5, 5, 4, 3, 3], 1: [6, 5, 4, 4, 3, 3, 2, 2]}
+ERODE_P1 = {0: [7, 6, 5, 5, 4, 4, 3, 3], 1: [6, 5, 4, 4, 3, 3, 2, 2]}
 ERODE_P2 = {0: [3, 2, 2, 3, 2, 1, 1, 2, 1, 2, 1, 3, 4, 5, 6, 7], 1: [2, 1, 1, 2, 0, 1, 0, 1, 0, 1, 1, 2, 3, 4, 5, 6]}
 GAIN_P2 = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 1, 1]
 HEART_PERIOD = {0: {"P1": 8, "P2": 8, "P3": 10, "P4": 16, "CL": 6}, 1: {"P1": 4, "P2": 4, "P3": 5, "P4": 8, "CL": 3}}
-HEART_VEL = {"P1": (80, 52), "P2": (92, 62), "P3": (70, 46), "P4": (66, 40), "CL": (100, 72)}
-DRONE_VEL = {"P1": 54, "P2": 62, "P4": 58, "CL": 80}
+HEART_VEL = {"P1": (96, 74), "P2": (100, 82), "P3": (98, 76), "P4": (98, 74), "CL": (100, 88)}
+DRONE_VEL = {"P1": 74, "P2": 80, "P4": 78, "CL": 92}
 # the silences of the scythe: (bar, from tick, to the end of the bar)
 SILENCES = {0: [(3, 12), (6, 6), (11, 12), (14, 8), (19, 10), (27, 12), (31, 6), (35, 14), (39, 6)], 1: [(5, 12), (11, 14), (19, 12), (31, 8), (39, 6)]}
 IRREGULAR = [3, 3, 2, 3, 2, 2, 2]        # the cycle of 17 ticks of P1 / P3 (the bar has 20)
@@ -58,17 +58,17 @@ HAT_CYCLE = [2, 3, 2, 2, 3, 3, 2]
 CYCLE_PITCH = [0, 1, 0, 6, 0, 1, 7]
 # the chords of the sacred part (bass root, four voices), B major and its neighbours
 CH = {"B": (35, [59, 63, 66, 71]), "G#m": (32, [56, 59, 63, 68]), "E": (40, [59, 64, 68, 71]), "F#": (42, [58, 61, 66, 70])}
-TOP = {"B": 78, "G#m": 75, "E": 76, "F#": 78}
+TOP = {"B": 71, "G#m": 68, "E": 71, "F#": 70}
 CELL_OFFSET = {"B": 0, "G#m": 0, "E": 5, "F#": 7}
 PROGS = [["B", "G#m", "E", "F#"], ["B", "E", "F#", "B"], ["G#m", "E", "B", "F#"], ["E", "G#m", "F#", "F#"]]
 CL_REPS = [0, 1, 2, 3, 0]
 SMALL = [0, 0, 1, 0, 6]
 WALK = [0, 1, 0, 6, 7, 6, 1, 0, 3, 1, 6, 7]
-BASS_VEL = {"P2": 68, "P3": 66, "P1": 58}
+BASS_VEL = {"P2": 80, "P3": 86, "P1": 74}
 # the held dissonance: a line of long notes (the cell B C F E slowed down), (pitches, ticks) per 4 bars
 LINES = [
-    ([71, 72, 77, 76, 70, 71], [12, 8, 20, 12, 8, 20]),
-    ([71, 77, 72, 76, 70, 65], [8, 12, 20, 8, 12, 20]),
+    ([59, 60, 65, 64, 58, 59], [12, 8, 20, 12, 8, 20]),
+    ([71, 77, 72, 76, 70, 77], [8, 12, 20, 8, 12, 20]),          # the line ends climbing and hanging
 ]
 
 
@@ -106,7 +106,7 @@ def bass_plan(phase, name, i):
 
 
 def bass_velocity(name, phase, i, t, acc, mode):
-    v = BASS_VEL.get(name, 80) + 4 * phase
+    v = BASS_VEL.get(name, 90) + 4 * phase
     if name == "P2":
         v += int(i * 0.8)
     elif name == "P3":
@@ -149,6 +149,17 @@ def onsets(start, end, spacings, first_skip=0):
     return result
 
 
+def hit(g, tick, note, ins_note, clank, big=False):
+    """An ensemble hit (6-7 notes at one tick): the heart, the bass, the pedal, a snare, the anvil (cow bell), a low iron-xylophone clank, the hat."""
+    g.drum("pound", tick, BASEDRUM, 100, over=True)
+    g.put("bass", tick, BASS, note, 98, over=True)
+    g.put("drone", tick, DIDGERIDOO, note, 92, over=True)
+    g.drum("snare", tick, SNARE, 90 if big else 78, over=True)
+    g.put("tock", tick, COW_BELL, ins_note, 80, over=True)
+    g.put("clank", tick, IRON_XYLOPHONE, clank, 96, over=True)
+    g.drum("clock", tick, HAT, 60, over=True)
+
+
 def pads(g, s, chord, sh, v0, v1, harp, choir):
     """Organ-like long chord for one bar: the four voices are struck one after the other (an arpeggio that never stops: every voice every 4 ticks), so the layer holds a single note a tick."""
     root, tones = CH[chord]
@@ -158,7 +169,7 @@ def pads(g, s, chord, sh, v0, v1, harp, choir):
         if harp:
             g.put("harp", s + t, HARP, tones[(t + 2) % 4] + sh, v * 0.8)
         if choir and t % 4 == 0:
-            g.put("choir", s + t, FLUTE, tones[2] + 24 + sh, 50 + (v - v0) * 0.4)
+            g.put("choir", s + t, FLUTE, tones[2] + 24 + sh, 66 + (v - v0) * 0.4)
 
 
 def compose(phase):
@@ -173,20 +184,21 @@ def compose(phase):
     for t in range(0, BAR, 4):
         g.drum("clock", g.start(-2) + t, HAT, 18 + 2 * t // 4)
     for t in (2, 12):
-        g.drum("heart", g.start(-2) + t, BASEDRUM, 56)
-        g.drum("heart", g.start(-2) + t + 4, BASEDRUM, 36)
+        g.drum("heart", g.start(-2) + t, BASEDRUM, 88)
+        g.drum("heart", g.start(-2) + t + 4, BASEDRUM, 66)
     for t in range(0, BAR, 4):
         g.drum("clock", g.start(-1) + t, HAT, 24 + t // 2)
     for t in (0, 8, 16):
-        g.drum("heart", g.start(-1) + t, BASEDRUM, 64 + t)
-        g.drum("heart", g.start(-1) + t + 3, BASEDRUM, 44 + t // 2)
-    g.restrike("drone", DIDGERIDOO, root, g.start(-1), BAR, 4, 10, 46)
-    for bar, base in ((-2, 26), (-1, 36)):
+        g.drum("heart", g.start(-1) + t, BASEDRUM, 82 + t // 2)
+        g.drum("heart", g.start(-1) + t + 3, BASEDRUM, 64 + t // 2)
+    g.restrike("drone", DIDGERIDOO, root, g.start(-1), BAR, 4, 50, 86)
+    for bar, base in ((-2, 74), (-1, 80)):
         for t in range(0, BAR, 4):
-            g.put("bass", g.start(bar) + t, BASS, root, base + 2 * t // 4)
+            g.put("bass", g.start(bar) + t, BASS, root, base + 2 * t // 4 + (10 if t == 0 else 0))
     for t, p in ((8, 59), (12, 59), (14, 60)):
-        g.put("ost", g.start(-1) + t, IRON_XYLOPHONE, p + sh, 34 + t)
+        g.put("ost", g.start(-1) + t, IRON_XYLOPHONE, p + sh, 74 + t)
     g.clicks("noise", HAT, 66, 63, [1, 1, 1, 2, 3, 4], 16, 60)
+    g.clicks("roll", SNARE, 66, 63, [1, 1, 1, 1, 2, 2, 2, 3, 3, 4], 40, 96)
     # ---- the heart: the bass drum on a cycle of its own
     for name, first, count in SECTIONS:
         period = HEART_PERIOD[phase][name]
@@ -216,17 +228,17 @@ def compose(phase):
     p3_start, p3_end = g.start(24), g.start(40)
     for t, n in onsets(p3_start, p3_end, IRREGULAR):
         i = (t - p3_start) // BAR
-        g.put("tock", t, COW_BELL, (84, 78, 84, 81, 78, 84, 76)[n] + sh, 38 + (10 if n == 0 else 0) + i + 4 * phase)
+        g.put("tock", t, COW_BELL, (84, 78, 84, 81, 78, 84, 76)[n] + sh, 72 + (14 if n == 0 else 0) + i + 4 * phase)
         if n == 0:
-            g.put("clank", t, IRON_XYLOPHONE, 54 + sh, 70)
-            g.put("clank", t + 6, IRON_XYLOPHONE, 55 + sh, 44)
+            g.put("clank", t, IRON_XYLOPHONE, 54 + sh, 96)
+            g.put("clank", t + 6, IRON_XYLOPHONE, 55 + sh, 78)
         if n in (2, 5) and i >= 2:
-            g.drum("bone", t, HAT, 26 + 2 * i)
-            g.drum("bone", t + 1, HAT, 18 + 2 * i, over=True) if True else None
+            g.drum("bone", t, HAT, 50 + 2 * i)
+            g.drum("bone", t + 1, HAT, 40 + 2 * i, over=True)
     for t, n in onsets(p3_start + 2, p3_end, [4, 3, 3, 2, 5]):
         i = (t - p3_start) // BAR
         if i >= 4:
-            g.drum("snare", t, SNARE, 24 + i + 6 * phase)
+            g.drum("snare", t, SNARE, 58 + i + 6 * phase)
     noise_rng = Rng(5 + phase)
     for k in range(BARS):
         name, i, count = section_of(SECTIONS, k)
@@ -247,11 +259,11 @@ def compose(phase):
         if name in ("P2", "CL"):
             for b, t in enumerate((0, 4, 8, 12, 16)):
                 high = (k * 5 + b) % 2 == 0
-                g.put("tock", s + t, COW_BELL, (84 if high else 78) + sh, 32 + 6 * (name == "CL") + 4 * phase + (8 if t in acc else 0))
+                g.put("tock", s + t, COW_BELL, (84 if high else 78) + sh, 58 + 6 * (name == "CL") + 4 * phase + (12 if t in acc else 0))
         if name == "P4":                                          # the toll of the sacred part
-            g.put("tock", s, COW_BELL, 78 + sh, 34 + 4 * phase)
+            g.put("tock", s, COW_BELL, 78 + sh, 64 + 4 * phase)
             if i % 2 == 1:
-                g.put("tock", s + 12, COW_BELL, 84 + sh, 26 + 4 * phase)
+                g.put("tock", s + 12, COW_BELL, 84 + sh, 56 + 4 * phase)
         # the pedal: re-struck didgeridoo; in P4 and the climax it follows the root of the chord
         if name in ("P1", "P2", "P4", "CL"):
             chord_root = root
@@ -282,20 +294,27 @@ def compose(phase):
         # the pound and the snare: P2 - the snare on EVERY beat (the pseudo double tempo), the pound on the group starts; the climax doubles them
         if name in ("P2", "CL"):
             for t in acc:
-                g.drum("pound", s + t, BASEDRUM, 72 + 14 * phase + (10 if t == 0 else 0))
+                g.drum("pound", s + t, BASEDRUM, 90 + 6 * phase + (4 if t == 0 else 0))
             if name == "CL":
                 for t in acc:
-                    g.drum("pound", s + t + 2, BASEDRUM, 56 + 8 * phase)
+                    g.drum("pound", s + t + 2, BASEDRUM, 78 + 8 * phase)
             if name == "CL" or i >= 2:
                 for b, t in enumerate((0, 4, 8, 12, 16)):
                     if t == 0 and name == "P2":
                         continue
-                    g.drum("snare", s + t, SNARE, (40 if name == "P2" else 56) + 6 * phase + (14 if t in (acc[0] + 4, acc[1] + 4) else 0))
+                    g.drum("snare", s + t, SNARE, (66 if name == "P2" else 82) + 6 * phase + (14 if t in (acc[0] + 4, acc[1] + 4) else 0))
+        # an ensemble hit on every group start (6-7 notes at one tick) from the second bar of P1; the sacred part has it on the bar line only
+        if name == "P4":
+            hit(g, s, CH[chord_of(name, i)][0] + sh, 78 + sh, 54 + sh, i % 4 == 0)
+            g.drum("pound", s + acc[1], BASEDRUM, 88)                       # half-time: the kick on 1 and on the second group
+        elif name != "P1" or i >= 1:
+            for t in acc:
+                hit(g, s + t, root + (0 if name != "CL" else CH[chord_of(name, i)][0] - 35), 84 + sh, 54 + sh, t == 0 and i % 4 == 0)
         # the cell: dark and eroding in P1 / P2, major in the climax
         if name in ("P1", "P2"):
             r = ERODE_P1[phase][i] if name == "P1" else ERODE_P2[phase][i]
             if r < 8:
-                vel = (46 if name == "P1" else 56) + 4 * phase
+                vel = (84 if name == "P1" else 86) + 4 * phase
                 for t, p, rank in CELL:
                     if rank < r:
                         continue
@@ -306,7 +325,7 @@ def compose(phase):
             if name == "P2":
                 for index in range(min(GAIN_P2[i], 4)):
                     t, p = GAIN[index]
-                    g.put("ost", s + t, IRON_XYLOPHONE, p + sh, 40 + 4 * phase)
+                    g.put("ost", s + t, IRON_XYLOPHONE, p + sh, 78 + 4 * phase)
             # hat noise between the ticks
             if name == "P2" and phase == 1 and not (i >= 8):
                 odd = list(range(1, BAR, 2))
@@ -317,19 +336,19 @@ def compose(phase):
             chord = chord_of(name, i)
             off = CELL_OFFSET[chord]
             for t, p in CELL_MAJOR:
-                g.put("ost", s + t, IRON_XYLOPHONE, p + off + sh, 36 + 2 * phase + (8 if t in acc else 0))
+                g.put("ost", s + t, IRON_XYLOPHONE, p + off + sh, 82 + 2 * phase + (10 if t in acc else 0))
         # the sacred chords (P4) and their fusion with the machine (climax); the mode has flipped: B major
         if name == "P4":
-            pads(g, s, chord_of(name, i), sh, 44 + 2 * (i % 4), 58 + 2 * (i % 4) + 4 * phase, True, True)
+            pads(g, s, chord_of(name, i), sh, 76 + 2 * (i % 4), 86 + 2 * (i % 4) + 4 * phase, True, True)
         elif name == "CL":
-            pads(g, s, chord_of(name, i), sh, 52 + 4 * phase, 66 + 4 * phase, False, True)
-            top = min(78, TOP[chord_of(name, i)] + sh)
+            pads(g, s, chord_of(name, i), sh, 84 + 3 * phase, 94 + 3 * phase, False, True)
+            top = TOP[chord_of(name, i)] + sh + (7 if (i >= 8 and i % 4 == 3) else 0)      # the last bar of each late line climbs a fifth and hangs
             for t in range(0, BAR, 2):
                 n = t // 2
                 p = top if n % 5 != 4 else top - 12
-                g.put("ham", s + t, BIT, p, 54 + (14 if t in acc else 0) + 4 * phase + (6 if i >= 12 else 0))
+                g.put("ham", s + t, BIT, p, 88 + (10 if t in acc else 0) + 2 * phase)
                 if phase == 1 and i >= 8 and t % 4 == 2:
-                    g.put("ham", s + t + 1, BIT, top - 3, 40)
+                    g.put("ham", s + t + 1, BIT, min(78, top) - 3, 74)
     for tick in list(g.layers["bass"].notes):                     # where the bass strikes in the gun, the pedal leaves it the low note (it stays on the group starts)
         if tick < 64:
             continue
@@ -338,15 +357,15 @@ def compose(phase):
         if name in ("P1", "P3") or (name in ("P2", "CL") and (tick - g.start(k)) not in accents(k, ph)):
             g.layers["drone"].notes.pop(tick, None)
     # ---- the held dissonance (P2: the cell slowed down to long notes; before the stop a swelling cluster)
-    for bar, v_from, v_to, index in ((12, 40, 30, 0), (16, 48, 38, 1)):
+    for bar, v_from, v_to, index in ((12, 86, 74, 0), (16, 92, 80, 1)):
         voices = [("hold1", BIT, 0, 0, 1.0), ("hold2", PLING, 1, 2, 0.85)]
         held_line(g, voices, [(p + sh, t) for p, t in zip(*[LINES[index][0], LINES[index][1]])], g.start(bar), v_from + 4 * phase, v_to + 4 * phase)
     for layer, p, begin in (("cl1", 71, 21), ("cl2", 72, 22), ("cl3", 77, 23)):
         length = (24 - begin) * BAR - 8
-        g.restrike(layer, BIT, p + sh, g.start(begin), length, 2, 8, 62 + 4 * (begin - 21))
+        g.restrike(layer, BIT, p + sh, g.start(begin), length, 2, 40, 80 + 6 * (begin - 21))
     # ---- rolls before a block
     for bar in (7, 23, 39):
-        g.clicks("roll", SNARE, 66, g.start(bar) + 19, [1, 1, 1, 2, 2], 22, 66)
+        g.clicks("roll", SNARE, 66, g.start(bar) + 19, [1, 1, 1, 1, 1, 2, 2, 2, 3, 3], 40, 100)
     # ---- the silences of the scythe
     for bar, from_tick in SILENCES[phase]:
         g.mute(g.start(bar) + from_tick, g.start(bar + 1))
@@ -355,7 +374,7 @@ def compose(phase):
     for first, big in ((0, False), (8, False), (24, False), (40, True)):
         strike(g, g.start(first), root, big)
     for layer, p in (("cl1", 59), ("cl2", 60), ("cl3", 65)):
-        g.put(layer, g.start(8), BIT, p + sh, 80, over=True)
+        g.put(layer, g.start(8), BIT, p + sh, 96, over=True)
     # ---- the break before the climax: one bar, every layer muted, one high bell
     g.mute(g.start(BREAK_BAR), g.start(BREAK_BAR + 1))
     g.put("bell", g.start(BREAK_BAR) + 2, BELL, 96, 44)

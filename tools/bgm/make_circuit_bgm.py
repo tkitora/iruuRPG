@@ -49,23 +49,23 @@ ARP = [62, 65, 69, 68, 69, 65, 64]                       # D F A G# A F E, seven
 ARP_MAJOR = [62, 66, 69, 71, 69, 66, 64]                 # D F# A B A F# E (the flip)
 # the dark chants (D Eb G A Bb) and the chants of the sacred D major (D E F# A B), four bars of long notes: (pitch, ticks)
 CHANTS = [
-    [(74, 16), (75, 8), (74, 8), (70, 16), (69, 16), (67, 8), (69, 8), (74, 16), (75, 8), (74, 8)],
-    [(74, 16), (75, 8), (77, 8), (75, 16), (74, 16), (70, 8), (69, 8), (74, 16), (77, 8), (75, 8)],
+    [(62, 16), (63, 8), (62, 8), (58, 16), (57, 16), (55, 8), (57, 8), (62, 16), (63, 8), (62, 8)],
+    [(62, 16), (63, 8), (65, 8), (63, 16), (62, 16), (58, 8), (57, 8), (62, 16), (65, 8), (63, 8)],
 ]
 MAJOR_CHANTS = [
-    [(74, 16), (76, 8), (74, 8), (71, 16), (69, 16), (66, 8), (69, 8), (74, 16), (76, 8), (74, 8)],
-    [(74, 16), (76, 8), (78, 8), (76, 16), (74, 16), (71, 8), (69, 8), (74, 16), (78, 8), (76, 8)],
+    [(62, 16), (64, 8), (62, 8), (59, 16), (57, 16), (54, 8), (57, 8), (62, 16), (64, 8), (62, 8)],
+    [(62, 16), (64, 8), (66, 8), (64, 16), (62, 16), (59, 8), (57, 8), (62, 16), (66, 8), (69, 8)],
     [(62, 16), (64, 8), (62, 8), (59, 16), (57, 16), (54, 8), (57, 8), (62, 16), (64, 8), (62, 8)],
     [(74, 16), (76, 8), (74, 8), (71, 16), (69, 16), (66, 8), (69, 8), (76, 16), (78, 16)],
 ]
 # (first bar of the 4-bar chant, kind, which line, loudness, how it is broken / hammered)
 CHANT_PLAN = {
-    0: [(8, "dark", 0, 30, dict(cut=3)), (12, "dark", 1, 36, dict(cut=7)),
-        (28, "major", 0, 60, dict()), (32, "major", 1, 62, dict()), (36, "major", 2, 58, dict()),
-        (40, "major", 1, 66, dict()), (44, "major", 3, 66, dict(hammer=True)), (48, "major", 0, 66, dict(cut=8))],
-    1: [(8, "dark", 0, 34, dict(cut=3)), (12, "dark", 1, 40, dict(cut=6)),
-        (28, "major", 0, 62, dict()), (32, "major", 1, 64, dict()), (36, "major", 2, 60, dict()),
-        (40, "major", 1, 66, dict(hammer=True)), (44, "major", 3, 66, dict(hammer=True)), (48, "major", 0, 66, dict(cut=7))],
+    0: [(8, "dark", 0, 78, dict(cut=3)), (12, "dark", 1, 84, dict(cut=7)),
+        (28, "major", 0, 86, dict()), (32, "major", 1, 88, dict()), (36, "major", 2, 86, dict()),
+        (40, "major", 1, 90, dict()), (44, "major", 3, 92, dict(hammer=True)), (48, "major", 0, 90, dict(cut=8))],
+    1: [(8, "dark", 0, 80, dict(cut=3)), (12, "dark", 1, 86, dict(cut=6)),
+        (28, "major", 0, 88, dict()), (32, "major", 1, 90, dict()), (36, "major", 2, 88, dict()),
+        (40, "major", 1, 92, dict(hammer=True)), (44, "major", 3, 92, dict(hammer=True)), (48, "major", 0, 92, dict(cut=7))],
 }
 # (bar, tick of the bar, ticks of nothing): every layer is cut, in the dark parts
 DROPS = {
@@ -77,14 +77,14 @@ FAILS = {0: {"P1": ["n", "miss", "n", "late"], "P2": ["n", "n", "late", "n", "mi
          1: {"P1": ["n", "late", "miss", "n"], "P2": ["n", "late", "n", "miss", "flutter", "n", "half", "flutter", "n", "late", "flutter", "miss"],
              "P3": ["half", "flutter", "miss", "half", "flutter", "half", "flutter", "flat", "half", "flutter", "miss", "flutter"], "P4": ["n"] * 12, "CL": ["n"] * 12}}
 # the chords of the sacred part (bass root, four voices): D major and its neighbours
-CHORDS = {"D": (38, [62, 66, 69, 74]), "Bm": (35, [59, 62, 66, 71]), "G": (43, [59, 62, 67, 71]), "A": (45, [57, 61, 64, 69])}
+CHORDS = {"D": (38, [62, 66, 69, 74]), "Bm": (35, [59, 62, 66, 71]), "G": (31, [59, 62, 67, 71]), "A": (33, [57, 61, 64, 69])}
 P4_PROG = [["D", "Bm", "G", "A"], ["D", "G", "A", "D"], ["Bm", "G", "A", "A"]]
 CL_PROG = [["D", "Bm", "G", "A"], ["G", "D", "A", "Bm"], ["D", "G", "A", "A"]]
 SLOW = [0, 0, 0, 1]
 A2_PATTERN = [0, 0, 1, 0, 5, 1, 0]
 SWAY = [0, 0, 1, 0, 5, 1, 0, 7, 5, 1, 0, 0, 1, 5, 8, 5]
 SWAY_CHORD = [0, 0, 7, 4, 0, 2, 0, 7, 12, 7, 4, 2]
-BASS_VEL = {"P1": 56, "P2": 66, "P3": 66, "CL": 82}
+BASS_VEL = {"P1": 76, "P2": 80, "P3": 86, "CL": 90}
 MUTED = ("P4",)
 
 
@@ -166,7 +166,7 @@ def heart_bar(g, s, starts, phase, fail):
     dub_off = 3 if phase == 0 else 2
     for index, t in enumerate(beats):
         first = t == 0
-        lub = 100 if first else 78
+        lub = 100 if first else 88
         if fail == "flat" or (fail == "half" and index >= 1):
             continue
         if fail == "flutter" and index >= 1 and (phase == 1 or index == len(beats) - 1):
@@ -175,7 +175,7 @@ def heart_bar(g, s, starts, phase, fail):
         shift = 2 if (fail == "late" and index >= 1) else 0
         g.drum("kick", s + t + shift, BASEDRUM, lub)
         if fail != "miss":
-            g.drum("kick", s + t + shift + dub_off, BASEDRUM, lub * 0.62)
+            g.drum("kick", s + t + shift + dub_off, BASEDRUM, lub * 0.8)
         if first:
             g.put("bass", s + t, BASS, 38 + PHASES[phase]["shift"], 94)
 
@@ -196,17 +196,17 @@ def chant(g, bar, kind, line, phase, vel, cut=99, hammer=False):
     for index, (pitch, length) in enumerate(line):
         if index >= cut:
             break
-        note = min(78, pitch + sh) if kind == "major" else pitch + sh
+        note = min(78, pitch + sh)
         level = vel + 8
         if index == cut - 1:                                      # the stuck note: struck again and again on consecutive ticks, then nothing
-            end = g.stutter("hymn", BIT, note, s + t, 7, level, decay=0.8)
-            g.stutter("hym2", IRON_XYLOPHONE, note, s + t, 7, level * 0.7, decay=0.8)
+            end = g.stutter("hymn", BIT, note, s + t, 7, level, decay=0.85)
+            g.stutter("hym2", IRON_XYLOPHONE, note, s + t, 7, level * 0.85, decay=0.85)
         else:
             for o in range(0, length, step):
-                v = vel + (8 if o == 0 else 0) - 10 * o / max(1, length - 1)
+                v = vel + (6 if o == 0 else 0) - 6 * o / max(1, length - 1)
                 g.put("hymn", s + t + o, BIT, note, v)
                 if bar >= 28 and o + step // 2 < length:
-                    g.put("hym2", s + t + o + step // 2, IRON_XYLOPHONE, note, v * 0.7)
+                    g.put("hym2", s + t + o + step // 2, IRON_XYLOPHONE, note, v * 0.88)
         t += length
     return end
 
@@ -219,9 +219,9 @@ def organ(g, s, chord, sh, v0, v1, rolled):
         v = v0 + (v1 - v0) * t / (BAR - 1)
         for j, (layer, ins) in enumerate((("padA", PLING), ("padB", HARP), ("padC", PLING))):
             if t % 4 == offsets[j]:
-                g.put(layer, s + t, ins, tones[j] + sh, v * (0.85 if j else 1.0))
+                g.put(layer, s + t, ins, tones[j] + sh, v * (0.92 if j else 1.0))
         if t % 4 == 0 and (t < 4 or not rolled):
-            g.put("choir", s + t, FLUTE, tones[3] + 12 + sh, 50 + (v - v0) * 0.4)
+            g.put("choir", s + t, FLUTE, tones[3] + 12 + sh, 68 + (v - v0) * 0.4)
 
 
 def strike(g, tick, sh, big):
@@ -233,6 +233,18 @@ def strike(g, tick, sh, big):
     g.put("gun", tick, DIDGERIDOO, 38 + sh, 90, over=True)
 
 
+def hit(g, tick, note, sh, clank=True):
+    """An ensemble hit (6-8 notes at one tick): the heart, the sub bass, the gun, a snare, the alarm bell, an iron-xylophone clank, the hat."""
+    g.drum("kick", tick, BASEDRUM, 100, over=True)
+    g.put("bass", tick, BASS, note, 98, over=True)
+    g.put("gun", tick, DIDGERIDOO, note, 94, over=True)
+    g.drum("snare", tick, SNARE, 84, over=True)
+    g.put("bell", tick, COW_BELL, 80 + sh, 78, over=True)
+    if clank:
+        g.put("clank", tick, IRON_XYLOPHONE, 54 + sh, 96, over=True)
+    g.drum("hat", tick, HAT, 64, over=True)
+
+
 def compose(phase):
     sh = PHASES[phase]["shift"]
     g = Grid(TPS, BAR, BARS, SPECS)
@@ -240,32 +252,33 @@ def compose(phase):
     gun_rng = Rng(91 + phase)
     root = 38 + sh
     # ---- the intro: the tail of a bar (8 ticks), then two whole bars: a boot that stumbles, the gun only as soft quarter roots
-    g.stutter("glitch", BIT, 77 + sh - 1, 3, 2, 30)
-    g.stutter("glitch", BIT, 72 + sh, 26, 3, 26)
-    g.drum("kick", g.start(-2), BASEDRUM, 64)
-    g.drum("kick", g.start(-2) + 3, BASEDRUM, 40)
-    g.drum("kick", g.start(-2) + 16, BASEDRUM, 72)
-    g.drum("kick", g.start(-2) + 19, BASEDRUM, 46)
-    for bar, base in ((-2, 24), (-1, 36)):
+    g.stutter("glitch", BIT, 77 + sh - 1, 3, 2, 84)
+    g.stutter("glitch", BIT, 72 + sh, 26, 3, 84)
+    g.drum("kick", g.start(-2), BASEDRUM, 92)
+    g.drum("kick", g.start(-2) + 3, BASEDRUM, 70)
+    g.drum("kick", g.start(-2) + 16, BASEDRUM, 94)
+    g.drum("kick", g.start(-2) + 19, BASEDRUM, 72)
+    for bar, base in ((-2, 74), (-1, 82)):
         for t in range(0, BAR, 4):
-            g.put("gun", g.start(bar) + t, DIDGERIDOO, root, base + t // 2)
+            g.put("gun", g.start(bar) + t, DIDGERIDOO, root, base + t // 2 + (10 if t == 0 else 0))
     for t in range(0, BAR, 4):
         g.drum("hat", g.start(-1) + t, HAT, 14 + t // 2)
-    g.drum("kick", g.start(-1), BASEDRUM, 70)
-    g.drum("kick", g.start(-1) + 3, BASEDRUM, 44)
-    g.drum("kick", g.start(-1) + 12, BASEDRUM, 76)
-    g.drum("kick", g.start(-1) + 15, BASEDRUM, 48)
-    g.put("hymn", g.start(-1) + 8, BIT, 62 + sh, 34)
-    g.put("hymn", g.start(-1) + 12, BIT, 62 + sh, 20)
-    g.stutter("hymn", BIT, 65 + sh, g.start(-1) + 16, 6, 36, decay=0.8)
+    g.drum("kick", g.start(-1), BASEDRUM, 96)
+    g.drum("kick", g.start(-1) + 3, BASEDRUM, 74)
+    g.drum("kick", g.start(-1) + 12, BASEDRUM, 96)
+    g.drum("kick", g.start(-1) + 15, BASEDRUM, 76)
+    g.put("hymn", g.start(-1) + 8, BIT, 62 + sh, 84)
+    g.put("hymn", g.start(-1) + 12, BIT, 62 + sh, 76)
+    g.stutter("hymn", BIT, 65 + sh, g.start(-1) + 16, 6, 86, decay=0.85)
     for index, t in enumerate(ARP):
         if index % 2 == 0 and index >= 3:
-            g.put("arp", g.start(-1) + 12 + 2 * index, IRON_XYLOPHONE, t + sh, 26 + 4 * index)
+            g.put("arp", g.start(-1) + 12 + 2 * index, IRON_XYLOPHONE, t + sh, 76 + 3 * index)
     g.clicks("roll", HAT, 66, 63, [1, 1, 1, 1, 2, 2, 3, 4, 5], 14, 62)
+    g.clicks("roll", SNARE, 66, 63, [1, 1, 1, 1, 2, 2, 2, 3, 3, 4], 40, 96)
     # ---- P1: the machine loop that does not fit the bar: the gun every 3 ticks, the hat every 7
     for t in range(g.start(0), g.start(4), 3):
         n = (t - 64) // 3
-        g.put("gun", t, DIDGERIDOO, root + (0, 0, 1, 0, 0, 5)[n % 6], 54 + (12 if n % 7 == 0 else 0) + 3 * ((t - 64) // BAR) + 4 * phase)
+        g.put("gun", t, DIDGERIDOO, root + (0, 0, 1, 0, 0, 5)[n % 6], 78 + (12 if n % 7 == 0 else 0) + 2 * ((t - 64) // BAR) + 4 * phase)
     for t in range(g.start(0) + 1, g.start(4), 7):
         g.drum("hat", t, HAT, 22 + 3 * ((t - 64) // BAR) + 4 * phase)
     # ---- P3: staccato factory metal on a steady 7-step pattern: cow bell, clank, ghost snare rim, 2-tick hat bursts
@@ -273,17 +286,17 @@ def compose(phase):
         i = k - 16
         s = g.start(k)
         for b in range(7):
-            g.put("bell", s + 4 * b, COW_BELL, (84, 78, 84, 81, 78, 84, 76)[b] + sh, 38 + i + 4 * phase + (8 if b in (0, 3, 5) else 0))
+            g.put("bell", s + 4 * b, COW_BELL, (84, 78, 84, 81, 78, 84, 76)[b] + sh, 74 + i + 4 * phase + (10 if b in (0, 3, 5) else 0))
         for t in (0, 12, 20) if k % 2 == 0 else (0, 8, 16):
-            g.put("clank", s + t, IRON_XYLOPHONE, 54 + sh, 70)
-            g.put("clank", s + t + 6, IRON_XYLOPHONE, 55 + sh, 44)
+            g.put("clank", s + t, IRON_XYLOPHONE, 54 + sh, 96)
+            g.put("clank", s + t + 6, IRON_XYLOPHONE, 55 + sh, 78)
         if i >= 3:
             for b in range(7):
-                g.drum("snare", s + 4 * b + 2, SNARE, 18 + i + 5 * phase)
+                g.drum("snare", s + 4 * b + 2, SNARE, 56 + i + 5 * phase)
         if i >= 2:
             for b in (2, 6):
-                g.drum("bone", s + 4 * b, HAT, 26 + 2 * i)
-                g.drum("bone", s + 4 * b + 1, HAT, 18 + 2 * i)
+                g.drum("bone", s + 4 * b, HAT, 50 + 2 * i)
+                g.drum("bone", s + 4 * b + 1, HAT, 40 + 2 * i)
     # ---- the bars
     for k in range(BARS):
         name, i, count = section_of(SECTIONS, k)
@@ -296,34 +309,38 @@ def compose(phase):
         chord = chord_of(name, i) if name in ("P4", "CL") else None
         chord_root = CHORDS[chord][0] + sh if chord else root
         # the kick: footstep on the groups with a zu-ku pair (P2); on every beat in the climax; a slow heart in the sacred part
+        if name in ("P1", "P3") and (name == "P3" or i >= 1):                  # the footstep kick on the groups, with a zu-ku pair
+            for t in starts:
+                g.drum("kick", s + t, BASEDRUM, 92)
+                g.drum("kick", s + t + 1, BASEDRUM, 74)
         if name == "P2" and i >= 2:
             for t in (starts[1], starts[2]):
                 if fail != "flat" and not (phase == 1 and fail != "n"):
-                    g.drum("kick", s + t, BASEDRUM, 56)
+                    g.drum("kick", s + t, BASEDRUM, 92)
                     if i >= 6:
-                        g.drum("kick", s + t + 1, BASEDRUM, 40)
+                        g.drum("kick", s + t + 1, BASEDRUM, 76)
         if name == "CL":
             for b in range(7):
                 t = 4 * b
-                g.drum("kick", s + t, BASEDRUM, 100 if t in starts else 72)
+                g.drum("kick", s + t, BASEDRUM, 100 if t in starts else 88)
                 if t in starts:
-                    g.drum("kick", s + t + 2, BASEDRUM, 52 + 8 * phase)
+                    g.drum("kick", s + t + 2, BASEDRUM, 76 + 8 * phase)
         if name == "P4":
-            g.drum("kick", s, BASEDRUM, 70 + 6 * phase)
-            g.drum("kick", s + 3, BASEDRUM, 44)
+            g.drum("kick", s, BASEDRUM, 94 + 4 * phase)
+            g.drum("kick", s + 3, BASEDRUM, 76)
             if phase == 1:
-                g.drum("kick", s + starts[2], BASEDRUM, 56)
-                g.drum("kick", s + starts[2] + 2, BASEDRUM, 36)
+                g.drum("kick", s + starts[2], BASEDRUM, 90)
+                g.drum("kick", s + starts[2] + 2, BASEDRUM, 70)
             g.put("bell", s, COW_BELL, 78 + sh, 34 + 4 * phase)
             if i % 2 == 1:
                 g.put("bell", s + starts[2], COW_BELL, 84 + sh, 26 + 4 * phase)
         # the gun: the didgeridoo strikes quarters / eighths / eighths with doubles / the sixteenth machine gun, swaying; half-time in the sacred part; the sub bass on the group starts
         if name == "P4":
             for t in (0, starts[2]):
-                g.put("gun", s + t, DIDGERIDOO, chord_root, 62 + 4 * phase)
-                g.put("bass", s + t, BASS, chord_root, 80 + 4 * phase + (8 if t == 0 else 0))
+                g.put("gun", s + t, DIDGERIDOO, chord_root, 84 + 4 * phase)
+                g.put("bass", s + t, BASS, chord_root, 92 + 4 * phase + (4 if t == 0 else 0))
             for t in range(4, BAR, 4):
-                g.put("gun", s + t, DIDGERIDOO, chord_root, 46 + 4 * phase)
+                g.put("gun", s + t, DIDGERIDOO, chord_root, 72 + 4 * phase)
         elif name in ("P2", "P3", "CL"):
             for t in gun_ticks(mode, BAR, k, restless, gun_rng):
                 b = t // 4
@@ -337,13 +354,24 @@ def compose(phase):
             if name in ("P2", "CL") or mode in ("m", "s"):
                 for t in starts:
                     note = chord_root if name == "CL" else root + bass_offset(name, mode, k, t // 4, i, chord_root, root)
-                    g.put("bass", s + t, BASS, note, 86)
+                    g.put("bass", s + t, BASS, note, 96)
+        # an ensemble hit on every group start (the sacred part: on the bar line), from the second bar of P1
+        if name == "P4":
+            hit(g, s, chord_root, sh)
+            hit(g, s + starts[2], chord_root, sh, False)
+        elif name != "P1" or i >= 1:
+            for t in starts:
+                hit(g, s + t, chord_root if name == "CL" else root, sh, name != "CL" or t == 0)
+            if name in ("P2", "P3") and i >= 4:                              # the second half of a block: a hit on every beat
+                for t in range(4, BAR, 4):
+                    if t not in starts:
+                        hit(g, s + t, root, sh, False)
         # the snare: P2 - on EVERY beat (the pseudo double tempo); the climax louder
         if name in ("P2", "CL"):
             if name == "CL" or i >= 1:
                 for b in range(7):
                     t = 4 * b
-                    g.drum("snare", s + t, SNARE, (38 if name == "P2" else 56) + 6 * phase + (14 if t in starts and t else 0) + (i if name == "P2" else 0))
+                    g.drum("snare", s + t, SNARE, (66 if name == "P2" else 84) + 6 * phase + (14 if t in starts and t else 0) + (i if name == "P2" else 0))
         # hats: P2 eighths, the climax sixteenths (phase 2: P2 sixteenths from the gun on)
         sixteenth = name == "CL" or (phase == 1 and name == "P2" and i >= 6)
         if name in ("P2", "CL"):
@@ -357,7 +385,7 @@ def compose(phase):
                 g.put("bell", s + t, COW_BELL, (74 if t == 0 else 80) + sh, 34 + (10 if name == "CL" else 0) + 4 * phase)
         if name == "CL":
             for t in (starts[0], starts[1]):
-                g.put("clank", s + t, IRON_XYLOPHONE, 54 + sh, 70)
+                g.put("clank", s + t, IRON_XYLOPHONE, 54 + sh, 96)
         # the sequencer: seven steps of iron xylophone (a step a beat in P1; eighths in P2; a beat in the major climax), dropped and stuttered
         step = {"P1": 4, "P2": 2, "CL": 4}.get(name)
         glitch_chance = {"P1": 6, "P2": 12, "P3": 10, "CL": 6}.get(name, 0) + 6 * phase
@@ -368,7 +396,7 @@ def compose(phase):
                 if name != "CL" and rng.chance({"P1": 12, "P2": 10}[name]):
                     continue
                 pitch = table[(n + (3 if k % 2 else 0)) % 7]
-                vel = {"P1": 36, "P2": 44, "CL": 36}[name] + (10 if n % 7 in (0, 3, 5) else 0)
+                vel = {"P1": 80, "P2": 84, "CL": 82}[name] + (10 if n % 7 in (0, 3, 5) else 0)
                 if rng.chance(glitch_chance) and step > 1 and name != "CL":
                     g.stutter("arp", IRON_XYLOPHONE, pitch + sh, t, 3, vel, decay=0.7)
                 else:
@@ -377,15 +405,15 @@ def compose(phase):
                     g.put("arp", t + 1, IRON_XYLOPHONE, pitch + sh + 6 if pitch + sh + 6 <= 78 else pitch + sh - 6, vel * 0.55)
         # the sacred chords (the mode has flipped to D major)
         if name == "P4":
-            organ(g, s, chord, sh, 46 + 2 * (i % 4), 58 + 2 * (i % 4) + 4 * phase, False)
+            organ(g, s, chord, sh, 78 + 2 * (i % 4), 88 + 2 * (i % 4) + 4 * phase, False)
         elif name == "CL":
-            organ(g, s, chord, sh, 52 + 4 * phase, 64 + 4 * phase, True)
+            organ(g, s, chord, sh, 86 + 2 * phase, 94 + 2 * phase, True)
         # glitch pings of the 8-bit chip: 1-tick notes struck again and again
         ping_count = {0: {"P1": 1, "P2": 2, "P3": 2 + (i >= 6), "P4": 0, "CL": 1 if i % 2 else 0},
                       1: {"P1": 2, "P2": 3, "P3": 4, "P4": 0, "CL": 2 if i % 2 else 1}}[phase][name]
         for _ in range(ping_count):
             t = s + rng.below(BAR)
-            g.stutter("glitch", BIT, rng.pick([70, 72, 74, 75, 77]), t, 1 + rng.below(4), 34 + rng.below(16), decay=0.75)
+            g.stutter("glitch", BIT, rng.pick([70, 72, 74, 75, 77]), t, 1 + rng.below(4), 78 + rng.below(16), decay=0.85)
     # ---- the chants
     cuts = []
     for bar, kind, line, vel, params in CHANT_PLAN[phase]:
@@ -394,7 +422,7 @@ def compose(phase):
             cuts.append((end + 1, 5 if bar >= 28 else 6))
     # ---- rolls before a block, the stop before P3, the stop before the sacred part
     for bar in (3, 15, 27):
-        g.clicks("roll", SNARE, 66, g.start(bar) + BAR - 1, [1, 1, 1, 2, 2, 3, 3], 22, 70)
+        g.clicks("roll", SNARE, 66, g.start(bar) + BAR - 1, [1, 1, 1, 1, 1, 2, 2, 2, 3, 3], 40, 100)
     # ---- the dropouts: every layer is cut, then the blow
     for bar, tick, length in DROPS[phase]:
         a = g.start(bar) + tick
@@ -413,7 +441,7 @@ def compose(phase):
     g.mute(g.start(BREAK_BAR), g.start(BREAK_BAR + 1))
     g.put("chime", g.start(BREAK_BAR) + 2, BELL, 96, 44)
     strike(g, g.start(40), sh, True)
-    g.clicks("roll", HAT, 66, g.length - 1, [1, 1, 1, 1, 2, 2, 3, 4, 5], 14, 70, over=True)
+    g.clicks("roll", HAT, 66, g.length - 1, [1, 1, 1, 1, 2, 2, 3, 4, 5], 40, 100, over=True)
     return g
 
 

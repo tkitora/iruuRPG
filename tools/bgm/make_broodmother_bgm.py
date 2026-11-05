@@ -80,7 +80,7 @@ SPEC = dict(
     },
     melody={"intro": OPEN, "A": a1 + a2 + a1 + a3, "B": BL, "PEAK": PX + PY + PX + PY + PEND, "OUT": OUTM},
     breaks={"B": (20,)}, break_keep=("bell",),
-    level={"intro": 1.05, "A": 0.9, "B": 0.95, "PEAK": 1.1, "OUT": 0.85},
+    level={"intro": 1.1, "A": 1.0, "B": 1.05, "PEAK": 1.25, "OUT": 0.95},
     arp_low=54, arp_high=72, stab_low=54, stab_high=68,
     run=[55, 57, 59, 60],
     voices=[heavy_voices(0, special=VOICES0), heavy_voices(1, special=VOICES1)],
