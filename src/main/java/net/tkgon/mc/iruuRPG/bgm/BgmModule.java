@@ -58,6 +58,8 @@ public final class BgmModule implements Listener, Bgm {
     /** The thread that plays the notes at their time (null: they are played in the server tick, as before), and how far ahead they are planned. */
     private BgmSender sender;
     private final int leadTicks;
+    private final int noteCap;
+    private long lastStallLog;
     private boolean watchWarned;
     private boolean senderWarned;
 
@@ -108,6 +110,7 @@ public final class BgmModule implements Listener, Bgm {
         this.checkInterval = Math.max(2, plugin.getConfig().getInt("bgm.check-ticks", 10));
         this.watchInterval = Math.max(20, plugin.getConfig().getInt("bgm.watch-ticks", 100));
         this.leadTicks = Math.max(0, Math.min(40, plugin.getConfig().getInt("bgm.lead-ticks", 10)));
+        this.noteCap = Math.max(0, plugin.getConfig().getInt("bgm.max-notes-per-second", 45));
         if (plugin.getConfig().getBoolean("bgm.async-send", true) && leadTicks > 0) {
             this.sender = new BgmSender(error -> {
                 if (!senderWarned) {
@@ -139,10 +142,17 @@ public final class BgmModule implements Listener, Bgm {
         return plugin;
     }
 
+    /** For /bgm stats: what the channel of this player has done, or null. */
+    String statsOf(Player player) {
+        BgmChannel channel = channels.get(player.getUniqueId());
+        return channel == null ? null : channel.stats();
+    }
+
     BgmChannel channel(Player player) {
         return channels.computeIfAbsent(player.getUniqueId(), id -> {
             BgmChannel channel = new BgmChannel();
             if (sender != null) channel.planAhead(sender, leadTicks, null);
+            channel.limitNotes(noteCap);
             return channel;
         });
     }
@@ -241,6 +251,11 @@ public final class BgmModule implements Listener, Bgm {
                     channel.follow(here, registry);
                 }
                 channel.tick(player, settings.percent(player) / 100.0f);
+                long stalled = channel.takeStall();
+                if (stalled > 0L && System.currentTimeMillis() - lastStallLog > 60_000L) {
+                    lastStallLog = System.currentTimeMillis();
+                    plugin.getLogger().warning("bgm: the server stood still for about " + stalled + " ms (more than the " + leadTicks * 50 + " ms the music is planned ahead): the music paused that long");
+                }
             } catch (RuntimeException exception) {
                 if (warned.add(player.getUniqueId())) plugin.getLogger().warning("bgm: " + player.getName() + ": " + exception);
             }

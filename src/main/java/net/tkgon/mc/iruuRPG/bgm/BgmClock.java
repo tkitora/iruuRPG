@@ -16,6 +16,7 @@ final class BgmClock {
     private long nextDue;
     private boolean started;
     private long firstDue;
+    private long stalledNanos;
 
     BgmClock(int leadTicks) {
         this.leadNanos = Math.max(0, leadTicks) * STEP_NANOS;
@@ -23,6 +24,8 @@ final class BgmClock {
 
     /** How many song ticks to play now (those due before {@code now + lead}); their times are {@link #firstDue} + n * {@link #STEP_NANOS}. */
     int steps(long now) {
+        stalledNanos = 0L;
+        if (started && now - nextDue > MAX_LATE_NANOS) stalledNanos = now - nextDue + leadNanos;
         if (!started || now - nextDue > MAX_LATE_NANOS) {
             nextDue = now;
             started = true;
@@ -35,6 +38,11 @@ final class BgmClock {
             nextDue += STEP_NANOS;
         }
         return steps;
+    }
+
+    /** How long (ns) the last {@link #steps} call found the clock stopped, beyond what the lead covers (the music paused that long); 0 when it kept up. */
+    long stalledNanos() {
+        return stalledNanos;
     }
 
     long firstDue() {

@@ -45,6 +45,22 @@ final class BgmChannel implements BgmVoice.Sink {
     private java.util.function.LongSupplier nanos = System::nanoTime;
     /** Goes up when everything is stopped: the notes that are still waiting to be sent are then not sent. */
     private volatile int generation;
+    /** At most this many notes a second reach the player (0: no limit); the quietest are left out first (see {@link #flush}). */
+    private int noteCap;
+    private final int[] recent = new int[20];       // the notes sent in each of the last 20 steps (a second)
+    private int recentPos;
+    private int recentSum;
+    private final List<Planned> batch = new ArrayList<>();
+    private long sentNotes;
+    private long thinnedNotes;
+    private int stalls;
+    private long longestStallMs;
+    private long stalledMs;
+    private int peakNotesInSecond;
+
+    /** A note that has been worked out and waits for the end of the step, to be counted against the limit. */
+    private record Planned(Sound sound, float volume, float pitch, Location at) {
+    }
     /** The wall-clock time of the song tick that is being played (when there is a {@link #later}). */
     private long dueNanos;
     private BgmVolume current;
@@ -91,6 +107,24 @@ final class BgmChannel implements BgmVoice.Sink {
         this.later = later;
         this.clock = later == null ? null : new BgmClock(leadTicks);
         if (nanos != null) this.nanos = nanos;
+    }
+
+    /** At most {@code perSecond} notes a second are sent (0: no limit): the client mixes only so many sounds at once, and a song that is too dense makes it drop notes at random. */
+    void limitNotes(int perSecond) {
+        this.noteCap = Math.max(0, perSecond);
+    }
+
+    /** What happened since the channel was made: notes sent, notes left out for the limit, stops of the server longer than the lead, the longest of them (ms), the most notes in one second. */
+    String stats() {
+        return "sent " + sentNotes + ", left out " + thinnedNotes + " (limit " + (noteCap == 0 ? "none" : noteCap + "/s") + "), busiest second " + peakNotesInSecond
+                + " notes, server stops over the lead " + stalls + " (longest " + longestStallMs + " ms)";
+    }
+
+    /** The length (ms) of a stop of the server found since the last call, or 0 (to be told to the log once). */
+    long takeStall() {
+        long value = stalledMs;
+        stalledMs = 0L;
+        return value;
     }
 
     boolean manual() {
@@ -269,6 +303,12 @@ final class BgmChannel implements BgmVoice.Sink {
         if (later != null) {
             steps = clock.steps(nanos.getAsLong());
             first = clock.firstDue();
+            long stalled = clock.stalledNanos() / 1_000_000L;
+            if (stalled > 0L) {
+                stalls++;
+                stalledMs = stalled;
+                longestStallMs = Math.max(longestStallMs, stalled);
+            }
         }
         boolean prepared = false;
         try {
@@ -282,7 +322,10 @@ final class BgmChannel implements BgmVoice.Sink {
                         startScene(go.fade, go.startTick);
                     }
                 }
-                if (voices.isEmpty()) continue;
+                if (voices.isEmpty()) {
+                    advance(0);
+                    continue;
+                }
                 if (!prepared) {
                     prepared = true;
                     prepare(target);
@@ -290,8 +333,10 @@ final class BgmChannel implements BgmVoice.Sink {
                 this.dueNanos = first + step * BgmClock.STEP_NANOS;
                 for (BgmVoice voice : voices) voice.tick(this, master);
                 voices.removeIf(BgmVoice::done);
+                flush();
             }
         } finally {
+            batch.clear();
             this.player = null;
             this.base = null;
         }
@@ -318,15 +363,40 @@ final class BgmChannel implements BgmVoice.Sink {
         while (folded < 33) folded += 12;
         while (folded > 57) folded -= 12;
         float pitch = (float) Math.pow(2.0, (folded - 45) / 12.0);
-        if (moving) {
-            // a sound played at a place stays there: a walking player leaves a note that rings for a second or two behind and it fades out (the
-            // music seems to break off). Played from the player it goes with them (without the stereo spread, which is only 2 blocks anyway).
-            play(player, null, SOUNDS[instrument], volume, pitch);
+        Location at = null;                    // null: from the player themself (a walking player takes the notes with them: a sound played at a place stays there and rings out behind them)
+        if (!moving) {
+            at = base;
+            if (pan != 0.0f) at = base.clone().add(rightX * pan * PAN_WIDTH, 0.0, rightZ * pan * PAN_WIDTH);
+        }
+        batch.add(new Planned(SOUNDS[instrument], volume, pitch, at));
+    }
+
+    /**
+     * The end of a step: sends the notes of the step, but no more than the limit allows in the last second; where there are too many the quietest are left out (the hats, the echoes,
+     * the doubles), the tune and the bass stay.
+     */
+    private void flush() {
+        if (batch.isEmpty()) {
+            advance(0);
             return;
         }
-        Location at = base;
-        if (pan != 0.0f) at = base.clone().add(rightX * pan * PAN_WIDTH, 0.0, rightZ * pan * PAN_WIDTH);
-        play(player, at, SOUNDS[instrument], volume, pitch);
+        int allowed = noteCap == 0 ? batch.size() : Math.max(0, noteCap - recentSum);
+        if (batch.size() > allowed) {
+            batch.sort((a, b) -> Float.compare(b.volume, a.volume));
+            thinnedNotes += batch.size() - allowed;
+            while (batch.size() > allowed) batch.remove(batch.size() - 1);
+        }
+        for (Planned note : batch) play(player, note.at, note.sound, note.volume, note.pitch);
+        sentNotes += batch.size();
+        advance(batch.size());
+        batch.clear();
+    }
+
+    private void advance(int sent) {
+        recentPos = (recentPos + 1) % recent.length;
+        recentSum += sent - recent[recentPos];
+        recent[recentPos] = sent;
+        peakNotesInSecond = Math.max(peakNotesInSecond, recentSum);
     }
 
     /** Plays the note now, or (when planning ahead) hands it to the sender for its time. {@code at} null: from the player themself. */

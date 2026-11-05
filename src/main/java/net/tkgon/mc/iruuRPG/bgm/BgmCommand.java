@@ -19,7 +19,7 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
 
     private static final String PERMISSION = "iruurpg.admin";
     private static final List<String> PLAYER_SUBS = List.of("volume", "now");
-    private static final List<String> ADMIN_SUBS = List.of("wand", "pos1", "pos2", "create", "redefine", "set", "remove", "list", "info", "tp", "show", "play", "stop", "songs", "reload");
+    private static final List<String> ADMIN_SUBS = List.of("wand", "pos1", "pos2", "create", "redefine", "set", "remove", "list", "info", "tp", "show", "play", "stop", "songs", "reload", "stats");
     private static final List<String> FIELDS = List.of("song", "priority", "volume", "fade", "loop", "world");
 
     private final BgmModule module;
@@ -75,6 +75,10 @@ final class BgmCommand implements CommandExecutor, TabCompleter {
             }
             case "songs" -> songs(player);
             case "reload" -> reload(player);
+            case "stats" -> {
+                String stats = module.statsOf(player);
+                message(player, stats == null ? "まだ、BGMが流れていません" : "BGMの記録: " + stats, NamedTextColor.AQUA);
+            }
             default -> help(player);
         }
         return true;
