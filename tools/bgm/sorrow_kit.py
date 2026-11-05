@@ -27,7 +27,7 @@ def tones_in(name, low, high):
     root, intervals = chord(name)
     return sorted(n for n in range(low, high + 1) if (n - root) % 12 in intervals)
 
-VOL = {"lead": 100, "dbl": 80, "oct": 70, "low": 80, "echo": 55, "bass": 100, "drone": 70, "kick": 100, "snare": 95, "hat": 60, "tom": 90,
+VOL = {"harm": 70, "lead": 100, "dbl": 80, "oct": 70, "low": 80, "echo": 55, "bass": 100, "drone": 70, "kick": 100, "snare": 95, "hat": 60, "tom": 90,
        "gtr": 75, "arp": 62, "chord": 70, "pad": 55, "stab": 75, "run": 70, "bell": 45}
 PAN = {"lead": 100, "dbl": 95, "oct": 105, "echo": 125, "arp": 80, "gtr": 85, "pad": 115, "chord": 90, "hat": 115, "snare": 105}
 
@@ -125,12 +125,23 @@ class Voice:
     octave_fit: bool = False   # True: a note that the instrument cannot sound is moved by octaves; False: it is left out
     low: int = 0           # the voice plays only notes (as written) from this one ...
     high: int = 200        # ... up to this one
+    scale: tuple = ()      # pitch classes of a key: the voice plays the diatonic THIRD ABOVE every note (a harmony line) instead of the note itself
     offbeat: int = 0       # a held note: the strikes after the first come this many ticks later (two voices a half step apart make an even, living sustain)
+
+
+def third_above(pitch, pcs):
+    """The note a diatonic third above ``pitch`` in the key whose pitch classes are ``pcs`` (a minor or major third, whichever the key has)."""
+    for n in (pitch + 3, pitch + 4):
+        if n % 12 in pcs:
+            return n
+    return pitch + 4
 
 
 def play_voice(score, voice, tick, pitch, length, vel):
     if not voice.low <= pitch <= voice.high:
         return
+    if voice.scale:
+        pitch = third_above(pitch, voice.scale)
     sounding = pitch + voice.off
     if voice.octave_fit:
         sounding = fit(voice.instrument, sounding)
@@ -232,6 +243,11 @@ def stab(score, bar, t, spec, role, instrument, low, high, vel, count=3, length=
         tones = tones[start:start + count]
     for n in tones:
         play_voice(score, Voice(role, instrument, 0, 1.0, style if length else "none", every), score.tick(bar, t), n + shift, length, vel)
+
+
+def bell(score, tick, sounding, vel):
+    """One high bell note (the bell stays between F#6 and D#7)."""
+    return score.put("bell", tick, BELL, sounding, vel)
 
 
 def drums(score, bar, pat, level=1.0):
