@@ -20,24 +20,24 @@ Note Block Studio の曲 (`.nbs`) を、ワールドの「範囲 (ボリュー�
 | `atlas_dungeon` | Hollow Beneath the Giant (Dungeon001) | アトラスの洞窟 (ダンジョンの内部) | 2:14 | 100 BPM (6.67 ticks/秒)、E フリジア / マイナー |
 | `atlas_vindicator` | The Axe at the Gate (Boss001) | アトラスの洞窟のボス (ヴィンディケーター) | 2:08 | 150 BPM (10 ticks/秒)、E マイナー |
 | `atlas_dungeon_2` | Below the Sleeping Giant (Dungeon002) | 洞窟の内部 (Dungeon001 の低音版: ピアノとベース、フルートなし) | 2:14 | 100 BPM、B マイナー |
-| `atlas_vindicator_2` | Raise the Axe (Boss002) | 5「乾いた死闘と野生」: 和太鼓(バスドラム)とジャンベ(スネア)の乱打、太いベースとディジュリドゥの16分リフ、低いギター、バンジョーの掛け声。8小節ごとに乱打が荒くなり、頂点の前に止めて一撃 | 2:14 | 150 BPM (10 ticks/秒)、F# 系 |
+| `atlas_vindicator_2` | Raise the Axe (Boss002) | 5「乾いた死闘と野生」: 和太鼓(バスドラム)とジャンベ(スネア)の乱打、太いベースとディジュリドゥの16分リフ、低いギター、バンジョーの掛け声。8小節ごとに乱打が荒くなり、頂点の前に止めて一撃 | 2:02 | 165 BPM (11 ticks/秒、1小節 16 tick) |
 | `cave_depths` | Where the Crystals Hum (Dungeon003) | クリスタルの洞窟の内部。自然な楽器 = 岩と水、電子音 = クリスタル。不協和音と唸り (hum) を少し | 2:56 | 60 BPM (4 ticks/秒)、C# ドリアン |
-| `colossus_phase1` | Shoulders of Stone (Boss003) | 1「圧倒的な威厳と絶望」: 石の巨人の一歩ごとの重み。ペダルの C の上に、プリングのオルガン、フルートとビットのクワイア、ギター+ベース+ディジュリドゥの低音ブラス、1・3拍の巨大なバスドラム | 2:43 | 100 BPM (6.67 ticks/秒)、C マイナー |
-| `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | 同(フェーズ2「解き放たれた」): 同じ小節で半音上、ドラムは最初から倍、クワイアが大きく開き、頂点の終わりで絶望が上がっていく | 2:43 | 100 BPM、C# マイナー |
-| `necromancer_phase1` | Reaper's Arc (Boss004) | 2「悲哀と宿命の決戦」: 死神との宿命の決闘。ピアノ・フルート・ビットが歌う「泣きメロ」(D マイナー、倚音、息づかいのように鳴らし直す長い音)の下で激しいビート | 2:11 | 150 BPM (20 ticks/秒、1拍 8 tick)、D マイナー |
-| `necromancer_phase2` | Reaper's Arc, Sundered (Boss004) | 6「リミットブレイクと逆転」: 同じ旋律を平行する長調 (F) にして、特撮の決め技の曲のように壮大に。ブラス風のユニゾン、ドラム倍、頂点の最後で全音上げる | 2:11 | 150 BPM、F メジャー → G |
-| `reaper_phase1` | Silence of the Scythe (Boss005) | 3「無機質な恐怖と侵食」: 時計仕掛けの死。カチカチ(ハット・カウベル・鉄琴)、心臓のキック、旋律のない8音のループが決まった順に侵食される。5/4拍子(3+2)。「鎌の沈黙」(全休止+一撃)が脅し | 2:06 | 150 BPM (10 ticks/秒)、5/4 (1小節 20 tick)、B 系 |
-| `reaper_phase2` | Silence of the Scythe, Unleashed (Boss005) | 同(フェーズ2「解き放たれた」): 心臓が倍速、5 が 3+2 と 2+3 で入れ替わる、ループが早く埋まる。半音上 | 2:06 | 150 BPM、5/4、C 系 |
-| `broodmother_phase1` | Mother of a Thousand Legs (Boss006) | ブルードマザー戦フェーズ1 (作り直し): 世界の主題を 3+3+3+3+2+2 のグループに切った足取り、跳ねるベース、スネアの行進、頂点の一瞬だけ C メジャー | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、C マイナー |
-| `broodmother_phase2` | Mother of a Thousand Legs, Swarming (Boss006) | フェーズ2: エレピと8ビットの足音。**同じ小節・同じ和音で半音上 (C# マイナー)** | 2:03 | 200 BPM (20 ticks/秒、1小節 24 tick)、C# マイナー |
-| `mirror_phase1` | The Cracked Mirror Laughs (Boss007) | 4「狂気と混沌のカーニバル」: 笑う鏡のスウィング・ジャズ・サーカス。2連・3連の切り替えで「テンポが変わる」、4小節ごとの転調(半音・短3度・トライトーン)、2小節ごとに入れ替わる主役の楽器、旋律と上下ひっくり返った鏡像 | 2:08 | 200 BPM (20 ticks/秒、1拍 6 tick)、F# マイナー |
-| `mirror_phase2` | The Cracked Mirror Laughs, Shattered (Boss007) | 同(フェーズ2「粉々に」): 毎小節の切り替え、旋律が破片に切られる、チップチューンのグリッチ | 2:08 | 200 BPM、F# マイナー系 |
-| `waltz_phase1` | Waltz at the Edge of Dark (Boss008) | 2「悲哀と宿命の決戦」(悲劇のワルツ): 3/4、E マイナー。ピアノとバイオリン風の泣きメロ、1拍目が重い(ベースとバスドラム) | 2:06 | 200 BPM (20 ticks/秒)、3/4 (1小節 18 tick)、E マイナー |
-| `waltz_phase2` | Waltz at the Edge of Dark, Out of Step (Boss008) | 同(フェーズ2「足並みが乱れる」): ヘミオラ、遅れて入る主題。悲劇のまま | 2:06 | 200 BPM、3/4、E マイナー |
-| `unkeyed_phase1` | Eyes Without a Key (Boss009) | 1「圧倒的な威厳と絶望」(宇宙的な神): 調がない(全音音階)。4小節ごとに全音ずつ落ちるペダル、ビットとフルートの密集和音、三全音離れた2つの目の瞬き、とても遅い脈 (75 BPM) | 2:46 | 75 BPM (5 ticks/秒)、調なし (全音音階) |
-| `unkeyed_phase2` | Eyes Without a Key, Unwritten (Boss009) | 同(フェーズ2「書かれていない」): 脈が現れる(バスドラムが毎拍)、ペダルが上がる、三全音下の第2の声 | 2:46 | 75 BPM、調なし |
-| `circuit_phase1` | Holy Circuit (Boss010) | 3「無機質な恐怖と侵食」(暴走する聖なる機械): 7/4 (3+2+2)、壊れた心臓のキック、金属音とグリッチ、壊され続ける賛美歌の断片 | 2:17 | 200 BPM (20 ticks/秒)、7/4 (1小節 42 tick)、D 系 |
-| `circuit_phase2` | Holy Circuit, Overclocked (Boss010) | 同(フェーズ2「オーバークロック」): 心臓が頻脈、グリッチが2〜3倍、賛美歌が早く断ち切られる。半音上 | 2:17 | 200 BPM、7/4、E♭ 系 |
+| `colossus_phase1` | Shoulders of Stone (Boss003) | 1「圧倒的な威厳と絶望」: 石の巨人の一歩ごとの重み。ペダルの C の上に、プリングのオルガン、フルートとビットのクワイア、ギター+ベース+ディジュリドゥの低音ブラス、1・3拍の巨大なバスドラム | 2:10 | 125 BPM (8.33 ticks/秒、16 tick) |
+| `colossus_phase2` | Shoulders of Stone, Unbound (Boss003) | 同(フェーズ2「解き放たれた」): 同じ小節で半音上、ドラムは最初から倍、クワイアが大きく開き、頂点の終わりで絶望が上がっていく | 2:10 | 125 BPM (8.33 ticks/秒、16 tick) |
+| `necromancer_phase1` | Reaper's Arc (Boss004) | 2「悲哀と宿命の決戦」: 死神との宿命の決闘。ピアノ・フルート・ビットが歌う「泣きメロ」(D マイナー、倚音、息づかいのように鳴らし直す長い音)の下で激しいビート | 2:14 | 150 BPM (10 ticks/秒、16 tick) |
+| `necromancer_phase2` | Reaper's Arc, Sundered (Boss004) | 6「リミットブレイクと逆転」: 同じ旋律を平行する長調 (F) にして、特撮の決め技の曲のように壮大に。ブラス風のユニゾン、ドラム倍、頂点の最後で全音上げる | 2:14 | 150 BPM (10 ticks/秒、16 tick) |
+| `reaper_phase1` | Silence of the Scythe (Boss005) | 3「無機質な恐怖と侵食」: 時計仕掛けの死。カチカチ(ハット・カウベル・鉄琴)、心臓のキック、旋律のない8音のループが決まった順に侵食される。5/4拍子(3+2)。「鎌の沈黙」(全休止+一撃)が脅し | 2:06 | 150 BPM (10 ticks/秒)、5/4 (1小節 20 tick) |
+| `reaper_phase2` | Silence of the Scythe, Unleashed (Boss005) | 同(フェーズ2「解き放たれた」): 心臓が倍速、5 が 3+2 と 2+3 で入れ替わる、ループが早く埋まる。半音上 | 2:06 | 150 BPM (10 ticks/秒)、5/4 (1小節 20 tick) |
+| `broodmother_phase1` | Mother of a Thousand Legs (Boss006) | ブルードマザー戦フェーズ1 (作り直し): 世界の主題を 3+3+3+3+2+2 のグループに切った足取り、跳ねるベース、スネアの行進、頂点の一瞬だけ C メジャー | 2:16 | 180 BPM (18 ticks/秒、1小節 24 tick) |
+| `broodmother_phase2` | Mother of a Thousand Legs, Swarming (Boss006) | フェーズ2: エレピと8ビットの足音。**同じ小節・同じ和音で半音上 (C# マイナー)** | 2:16 | 180 BPM (18 ticks/秒、1小節 24 tick) |
+| `mirror_phase1` | The Cracked Mirror Laughs (Boss007) | 4「狂気と混沌のカーニバル」: 笑う鏡のスウィング・ジャズ・サーカス。2連・3連の切り替えで「テンポが変わる」、4小節ごとの転調(半音・短3度・トライトーン)、2小節ごとに入れ替わる主役の楽器、旋律と上下ひっくり返った鏡像 | 2:02 | 180 BPM (12 ticks/秒、16 tick) |
+| `mirror_phase2` | The Cracked Mirror Laughs, Shattered (Boss007) | 同(フェーズ2「粉々に」): 毎小節の切り替え、旋律が破片に切られる、チップチューンのグリッチ | 2:02 | 180 BPM (12 ticks/秒、16 tick) |
+| `waltz_phase1` | Waltz at the Edge of Dark (Boss008) | 2「悲哀と宿命の決戦」(悲劇のワルツ): 3/4、E マイナー。ピアノとバイオリン風の泣きメロ、1拍目が重い(ベースとバスドラム) | 2:08 | 125 BPM (8.33 ticks/秒)、3/4 (1小節 12 tick) |
+| `waltz_phase2` | Waltz at the Edge of Dark, Out of Step (Boss008) | 同(フェーズ2「足並みが乱れる」): ヘミオラ、遅れて入る主題。悲劇のまま | 2:08 | 125 BPM (8.33 ticks/秒)、3/4 (1小節 12 tick) |
+| `unkeyed_phase1` | Eyes Without a Key (Boss009) | 1「圧倒的な威厳と絶望」(宇宙的な神): 調がない(全音音階)。4小節ごとに全音ずつ落ちるペダル、ビットとフルートの密集和音、三全音離れた2つの目の瞬き、とても遅い脈 (75 BPM) | 2:10 | 125 BPM (8.33 ticks/秒、16 tick) |
+| `unkeyed_phase2` | Eyes Without a Key, Unwritten (Boss009) | 同(フェーズ2「書かれていない」): 脈が現れる(バスドラムが毎拍)、ペダルが上がる、三全音下の第2の声 | 2:10 | 125 BPM (8.33 ticks/秒、16 tick) |
+| `circuit_phase1` | Holy Circuit (Boss010) | 3「無機質な恐怖と侵食」(暴走する聖なる機械): 7/4 (3+2+2)、壊れた心臓のキック、金属音とグリッチ、壊され続ける賛美歌の断片 | 2:08 | 165 BPM (11 ticks/秒)、7/4 (1小節 28 tick) |
+| `circuit_phase2` | Holy Circuit, Overclocked (Boss010) | 同(フェーズ2「オーバークロック」): 心臓が頻脈、グリッチが2〜3倍、賛美歌が早く断ち切られる。半音上 | 2:08 | 165 BPM (11 ticks/秒)、7/4 (1小節 28 tick) |
 | `cloud_light` | Light Between the Clouds (Field003) | 明るくキラキラした寂しいフィールド曲(第3版): 止まらない16分のギターのさざ波、ハープの旋律、**高いチャイムの粒が毎秒 3〜5 音で流れる(静かな部分・導入・アウトロでは鳴らない)**。ドラムなし。3分の1に G マイナーの静かな部分、3分の2で半音上がる | 2:05 | 100 BPM、B♭ メジャー → B メジャー |
 | `gate_gravity` | The Gate Where Gravity Turns (Dungeon004) | 深く重いが、キラキラした寂しいダンジョン曲: ベースとディジュリドゥが土台、ハープの旋律、**高いチャイムの静かな粒が流れる**(第2版。静かな部分・導入・アウトロでは鳴らない)、3分の1にベースの消える静かな部分、D の低い持続音の上のクライマックス | 2:05 | 100 BPM、G マイナー |
 | `first_town` | Morning in the First Town (Field005) | 最初の街。穏やかで、和音は2小節に1回。「BGM制作ガイド」(nekorozv、2026-11-04)だけを参考に作った。世界の主題(Field001 の上行 F# A D / D E F#)を最もはっきり提示。B はアイアンザイロフォン、借用 iv (Gm)、最後の小節は空白(頂点の前の溜め)。ハットは頂点だけ | 2:34 | 100 BPM (6.67 ticks/秒)、D メジャー、I–vi–IV–♭VII |

@@ -6,8 +6,26 @@ A melody is a string of tokens ``Name:ticks`` ('r' is a rest) that must fill a b
 """
 from dataclasses import dataclass
 
-from bossframe import chord, tones_in
 from nbslib import *  # noqa: F401,F403
+
+NOTE_PC = {"C": 0, "D": 2, "E": 4, "F": 5, "G": 7, "A": 9, "B": 11}
+QUALITY = {"": [0, 4, 7], "m": [0, 3, 7], "dim": [0, 3, 6], "aug": [0, 4, 8], "5": [0, 7], "sus2": [0, 2, 7], "sus4": [0, 5, 7],
+           "7": [0, 4, 7, 10], "m7": [0, 3, 7, 10], "maj7": [0, 4, 7, 11], "dim7": [0, 3, 6, 9], "m7b5": [0, 3, 6, 10]}
+
+
+def chord(name):
+    """'Em' -> (root pitch class, intervals); 'Bb7', 'F#dim' (a copy of bossframe.chord, so that this kit stands alone)."""
+    pc = NOTE_PC[name[0]]
+    rest = name[1:]
+    while rest and rest[0] in "#b":
+        pc += 1 if rest[0] == "#" else -1
+        rest = rest[1:]
+    return pc % 12, QUALITY[rest]
+
+
+def tones_in(name, low, high):
+    root, intervals = chord(name)
+    return sorted(n for n in range(low, high + 1) if (n - root) % 12 in intervals)
 
 VOL = {"lead": 100, "dbl": 80, "oct": 70, "low": 80, "echo": 55, "bass": 100, "drone": 70, "kick": 100, "snare": 95, "hat": 60, "tom": 90,
        "gtr": 75, "arp": 62, "chord": 70, "pad": 55, "stab": 75, "run": 70, "bell": 45}
@@ -107,6 +125,7 @@ class Voice:
     octave_fit: bool = False   # True: a note that the instrument cannot sound is moved by octaves; False: it is left out
     low: int = 0           # the voice plays only notes (as written) from this one ...
     high: int = 200        # ... up to this one
+    offbeat: int = 0       # a held note: the strikes after the first come this many ticks later (two voices a half step apart make an even, living sustain)
 
 
 def play_voice(score, voice, tick, pitch, length, vel):
@@ -120,7 +139,10 @@ def play_voice(score, voice, tick, pitch, length, vel):
         score.put(voice.role, tick, voice.instrument, sounding, vel * voice.gain)
         return
     for index, velocity in enumerate(hold_velocities(length, voice.every, vel * voice.gain, voice.style)):
-        score.put(voice.role, tick + index * voice.every, voice.instrument, sounding, velocity)
+        shift = voice.offbeat if index else 0
+        if index * voice.every + shift >= length:
+            break
+        score.put(voice.role, tick + index * voice.every + shift, voice.instrument, sounding, velocity)
 
 
 def parse(text, bar):
@@ -172,13 +194,22 @@ def chord_at(spec, t, bar):
     return parts[min(len(parts) - 1, t * len(parts) // bar)]
 
 
-BASS_KIND = {"r": 0, "f": 7, "o": 12, "a": 2, "u": -5, "t": 3, "s": 5, "b": 10}
+BASS_KIND = {"r": 0, "f": 7, "o": 12, "a": 2, "u": -5, "s": 5, "b": 10}
+
+
+def bass_note(name, kind):
+    """r root, f fifth, o octave, t the third of the chord (minor or major), b the seventh, s the fourth, a the second; an integer is a MIDI note."""
+    if isinstance(kind, int):
+        return kind
+    if kind == "t":
+        return root_of(name) + [i for i in chord(name)[1] if i in (3, 4)][0]
+    return root_of(name) + BASS_KIND[kind]
 
 
 def bass(score, bar, spec, pat, level=1.0, role="bass", instrument=BASS, high=46):
     for t, kind, vel in pat:
         name = chord_at(spec, t, score.bar)
-        n = kind if isinstance(kind, int) else root_of(name) + BASS_KIND[kind]
+        n = bass_note(name, kind)
         while n > high:
             n -= 12
         score.put(role, score.tick(bar, t), instrument, n, vel * level)
@@ -250,9 +281,28 @@ def density(score, sections):
     return result
 
 
+def count_in(score, sections, prefix):
+    """[(name, notes of the layers whose name starts with prefix)] per section (name, first body bar, bars)."""
+    out = []
+    for name, j, bars in sections:
+        start, end = score.tick(score.b(j)), score.tick(score.b(j + bars))
+        out.append((name, sum(1 for layer in score.layers if layer.name.startswith(prefix) for tick in layer.notes if start <= tick < end)))
+    return out
+
+
 def finish(score, path, title, description, sections):
+    before = {id(layer): len(layer.notes) for layer in score.layers}
     removed = limit_polyphony(score.layers, 8)
-    write_nbs(path, score.layers, score.length, score.tps, title, description, 4 if score.bar == 16 else 4)
+    write_nbs(path, score.layers, score.length, score.tps, title, description, 4)
     print(f"-- {title}: {removed} notes thinned out to keep 8 at most")
+    lost = {}
+    for layer in score.layers:
+        gone = before[id(layer)] - len(layer.notes)
+        if gone:
+            lost[layer.name] = gone
+    print("   thinned by layer: " + (", ".join(f"{name} {n}" for name, n in lost.items()) or "none"))
     report(path, score.layers, score.length, score.tps)
     print("   notes a second by section: " + ", ".join(f"{name} {count:.1f}" for name, count in density(score, sections)))
+    print("   bass notes per bar by section: " + ", ".join(f"{name} {n / bars:.1f}" for (name, n), (_, _, bars) in zip(count_in(score, sections, "bass"), sections)))
+    print("   drum layers (kick/snare/hat/tom) notes per bar: " + ", ".join(f"{name} {n / bars:.1f}" for (name, n), (_, _, bars) in zip(
+        count_in(score, sections, "kick"), sections)) + " | hat " + ", ".join(f"{n / bars:.1f}" for (_, n), (_, _, bars) in zip(count_in(score, sections, "hat"), sections)))

@@ -3,7 +3,7 @@
 A boss song is written as a SPEC (a dict, see make_boss_demo below for every key) and built twice, once for each phase. The structure is the guide's:
 intro / A / A' / B (takes away) / A'' (the peak, from 65 % on) / calm, then back to the start of A. Every section has its own chords (one chord a bar, or two with 'Em|C'), its own melody
 (blocks of bars written in the notes of the key) and a list of voices; a voice is a tag: ``lead:HARP``, ``dbl:FLUTE:12:0.6`` (the melody an octave up on the flute at 60 %), ``cnt:GUITAR`` (the melody
-a third below), ``arp:HARP:2`` (broken chord, a note every 2 ticks), ``stab:PLING:0,8`` (chord hits), ``bass:half|eighth|sixteenth|walk|pedal|stagger``, ``drone``, ``drums:heart|march|drive|double``, ``fill``,
+a third below), ``arp:HARP:2`` (broken chord, a note every 2 ticks), ``stab:PLING:0,8`` (chord hits), ``bass:half|quarter|eighth|mix|sixteenth|walk|pedal|stagger``, ``sus:INSTR:offset:step`` (long melody notes struck again every ``step`` ticks), ``drone``, ``drums:heart|march|drive|double``, ``fill``,
 ``bell:head|hit``, ``echo:3:CHIME``. ``tag@8`` starts it at bar 8 of the section (layers are added by 4 or 8 bars), ``tag@8-12`` stops it at bar 12. The drums are the last to come in and the first to go.
 
 The second phase is the first one with the changes the guide lists (always: a half step up; then two or three of: bass 8th -> 16th, the drums and the drone and the bell hits added, the melody in unison with
@@ -27,6 +27,7 @@ DRUMS = {  # (offset in sixteenths, drum, velocity)
     "kicks": [(0, BASEDRUM, 56), (8, BASEDRUM, 46), (4, SNARE, 44), (12, SNARE, 44)],
     "heart": [(0, BASEDRUM, 46), (8, BASEDRUM, 36)],
     "march": [(0, BASEDRUM, 52), (8, BASEDRUM, 44), (4, SNARE, 40), (12, SNARE, 40)],
+    "gun": [(0, BASEDRUM, 100), (4, BASEDRUM, 70), (8, BASEDRUM, 96), (12, BASEDRUM, 70), (4, SNARE, 84), (12, SNARE, 90)] + [(t, HAT, 26 if t % 2 == 0 else 18) for t in range(16)],
     "drive": [(0, BASEDRUM, 56), (6, BASEDRUM, 40), (8, BASEDRUM, 50), (14, BASEDRUM, 36), (4, SNARE, 46), (12, SNARE, 46), (2, HAT, 22), (6, HAT, 22), (10, HAT, 22), (14, HAT, 22)],
     "double": [(0, BASEDRUM, 58), (4, BASEDRUM, 48), (8, BASEDRUM, 54), (12, BASEDRUM, 48), (4, SNARE, 50), (12, SNARE, 50)] + [(t, HAT, 22) for t in range(0, 16, 2)],
 }
@@ -34,6 +35,8 @@ BASS_STYLES = {  # (offset in sixteenths, "r" root / "f" fifth / "o" octave, vel
     "pulse": [(t, "o" if t in (6, 14) else "r", 84 if t % 8 == 0 else 58) for t in range(0, 16, 2)],
     "half": [(0, "r", 74), (8, "f", 58)],
     "eighth": [(0, "r", 74)] + [(t, "r", 56) for t in range(2, 16, 2)],
+    "quarter": [(0, "r", 62), (4, "r", 40), (8, "r", 50), (12, "r", 40)],
+    "mix": [(0, "r", 74), (2, "r", 56), (4, "r", 60), (5, "r", 44), (6, "o", 58), (8, "r", 70), (10, "r", 56), (11, "r", 42), (12, "f", 58), (13, "r", 44), (14, "o", 56)],
     "sixteenth": [(t, "r" if t % 4 != 2 else "o", 70 if t % 4 == 0 else 46) for t in range(16)],
     "walk": [(0, "r", 74), (4, "f", 54), (8, "o", 62), (12, "f", 54)],
     "pedal": [(t, "r", 66 if t % 8 == 0 else 46) for t in range(0, 16, 4)],
@@ -166,7 +169,7 @@ def widen(spec):
     waltz = src == 12
     new["src_bar"] = src
     new["bar"] = 18 if waltz else 24
-    new["tps"] = 20.0
+    new["tps"] = spec.get("fast_tps", 20.0)       # (200 BPM: 20 ticks a second; "fast_tps": 18.0 makes the same bar of 24 ticks 180 BPM)
     chords = {k: list(v) for k, v in spec["chords"].items()}
     melody = {k: (list(v) if v is not None else None) for k, v in spec["melody"].items()}
     voices = [{k: [t.replace("@2", "@1") if k == "intro" else t for t in v] for k, v in phase.items()} for phase in spec["voices"]]
@@ -435,6 +438,12 @@ def build(spec, phase):
                         elif parts[0] == "dbl":
                             factor = float(parts[3]) if len(parts) > 3 else 0.6
                             put("dbl", start + tick, INSTRUMENTS[parts[1]], note + shift + int(parts[2]), vel * factor * level)
+                        elif parts[0] == "sus":
+                            # a long note kept alive by striking it again every ``step`` ticks, quieter each time (a note block dies away at once)
+                            step = int(parts[3]) if len(parts) > 3 else 3
+                            reach = int(round(length * stretch))
+                            for again, at in enumerate(range(step, reach - 1, step), start=1):
+                                put("echo", start + tick + at, INSTRUMENTS[parts[1]], note + shift + int(parts[2]), vel * 1.5 * (0.85 ** again) * level)
                         elif parts[0] == "cnt":
                             put("cnt", start + tick, INSTRUMENTS[parts[1]], scale_down(note + shift, pcs, 2), vel * 0.62 * level)
                         elif parts[0] == "echo":
@@ -444,7 +453,7 @@ def build(spec, phase):
     if spec.get("run"):
         end = position
         for place, note in enumerate(spec["run"]):
-            put("arp", end - len(spec["run"]) * 2 * int(slower) + place * 2 * int(slower), HARP, note + shift, 36 + 4 * place)
+            put("arp", end - len(spec["run"]) * 2 * max(1, int(round(slower))) + place * 2 * max(1, int(round(slower))), HARP, note + shift, 36 + 4 * place)
     return [layer[n] for n in names if layer[n].notes], position
 
 

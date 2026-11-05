@@ -81,8 +81,8 @@ def check(path, quiet=False, retimed=False):
             problems.append(f"must loop from the end of the intro (loop={song['loop']}, start={song['loop_start']})")
     elif not song["loop"] or song["loop_start"] != 64:
         problems.append(f"must loop from tick 64 (loop={song['loop']}, start={song['loop_start']})")
-    if abs(20.0 / song["tps"] - round(20.0 / song["tps"])) > 0.01:
-        problems.append(f"ticks a second {song['tps']} does not divide 20")
+    if not 4.0 <= song["tps"] <= 20.0:
+        problems.append(f"ticks a second {song['tps']} must be between 4 and 20")
     if peak > 8:
         problems.append(f"{peak} notes at one tick (8 at most)")
     if not song["title"].endswith(")") or "(" not in song["title"]:

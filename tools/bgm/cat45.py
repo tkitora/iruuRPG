@@ -108,3 +108,63 @@ def finish(path, builder, tps, title, description, polyphony=8):
     print(f"-- {removed} notes thinned out to keep {polyphony} at most")
     report(path, layers, builder.length, tps)
     return layers
+
+
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+# t276: the "16th-note machine gun" rhythm structure shared by the class 4 and class 5 songs.
+# The melody keeps the base tempo; the bass is subdivided: level 0 quarters (intro), 1 eighths (A), 2 eighths that sway (A'), 3 eighths with sudden sixteenth
+# double hits and triplet figures (B), 4 full sixteenths (PEAK). A bar is 16 ticks (a sixteenth each, 4 ticks a beat).
+# ---------------------------------------------------------------------------------------------------------------------------------------------
+GRIDS = {"SW": (0, 3, 4, 7, 8, 11, 12, 15),         # swung eighths: long-short = 3 + 1 ticks (a triplet beat rounded to the grid)
+         "ST": (0, 2, 4, 6, 8, 10, 12, 14),         # straight eighths
+         "TR": (0, 3, 5, 8, 11, 13, 15)}            # a triplet figure over two beats: 8 ticks in three (0, 2.67, 5.33) twice
+
+
+def hit_ticks(level, feel, seed):
+    """The ticks (0..15) of a bar where the bass strikes. ``seed`` makes level 3 irregular but deterministic."""
+    if level <= 0:
+        return [0, 4, 8, 12]
+    grid = GRIDS["ST" if feel in ("HT", "SB", "MR", "DB") else feel]
+    if level in (1, 2):
+        return list(grid)
+    if level >= 4:
+        return list(range(16))
+    result = set()
+    for half in (0, 8):
+        choice = hash_(seed, half, 41) % 5
+        part = [t - half for t in grid if half <= t < half + 8]
+        if choice in (0, 1):                                # sixteenth double hits after two of the eighths
+            for index in (hash_(seed, half, 7) % len(part), (hash_(seed, half, 9) % len(part))):
+                if part[index] + 1 not in part and part[index] + 1 < 8:
+                    part.append(part[index] + 1)
+            if len(part) < 6:
+                part.append(part[-1] + 1 if part[-1] + 1 < 8 else part[-1] - 1)
+        elif choice == 2:                                   # a double after every other eighth
+            part = part + [t + 1 for t in part[::2] if t + 1 < 8 and t + 1 not in part]
+        elif choice == 3:                                   # the last eighth becomes a pair of sixteenths
+            last = part[-1]
+            part = part[:-1] + [last, last + 1] if last + 1 < 8 else part + [last - 1]
+        else:                                               # the triplet figure (3 + 3 + 2) with a run of sixteenths at the end
+            part = [0, 3, 5, 7] + ([6] if hash_(seed, half, 3) % 2 else [])
+        result.update(half + t for t in set(part))
+    return sorted(result)
+
+
+def bass_velocity(tick, level):
+    """Accents of the machine gun: the first sixteenth of a beat is heavy, the third medium, the in-betweens ghost notes ('zuku-zuku')."""
+    if level >= 4:
+        return (100, 58, 86, 54)[tick % 4] if tick % 8 else 100
+    if tick % 8 == 0:
+        return 100
+    if tick % 4 == 0:
+        return 88 if level >= 2 else 80
+    if tick % 2 == 0:
+        return 76 if level >= 2 else 66
+    return 56
+
+
+def sustain(b, role, tick, instrument, pitch, length, v_from, v_to, every=4, once=True):
+    """A held note made of re-strikes (a note block dies away at once): from ``tick`` for ``length`` ticks, struck every ``every`` ticks, the loudness moving from v_from to v_to."""
+    steps = max(1, (length - 1) // every)
+    for index, t in enumerate(range(0, length, every)):
+        b.note(role, tick + t, instrument, pitch, v_from + (v_to - v_from) * index / steps, once=once)
