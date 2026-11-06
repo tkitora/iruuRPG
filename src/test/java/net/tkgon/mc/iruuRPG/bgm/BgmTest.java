@@ -41,6 +41,11 @@ class BgmTest {
 
     /** Notes at ticks 0..length-1, the key of the note at tick t is 33 + t. */
     private static NbsSong song(int length, boolean loop, int loopStart) throws IOException {
+        return song(length, loop, loopStart, 2000);
+    }
+
+    /** {@code tempo} is in hundredths of a tick a second (2000 = 20). */
+    private static NbsSong song(int length, boolean loop, int loopStart, int tempo) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         le(out, 0, 2);
         out.write(5);
@@ -51,7 +56,7 @@ class BgmTest {
         text(out, "");
         text(out, "");
         text(out, "");
-        le(out, 2000, 2);
+        le(out, tempo, 2);
         out.write(0);
         out.write(10);
         out.write(4);
@@ -863,6 +868,29 @@ class BgmTest {
         kept.tasks.get(1).run();
         org.mockito.Mockito.verify(player, org.mockito.Mockito.times(1)).playSound(org.mockito.ArgumentMatchers.any(Location.class), org.mockito.ArgumentMatchers.any(org.bukkit.Sound.class),
                 org.mockito.ArgumentMatchers.any(org.bukkit.SoundCategory.class), org.mockito.ArgumentMatchers.anyFloat(), org.mockito.ArgumentMatchers.anyFloat());
+    }
+
+    @Test
+    void aSongWhoseTempoIsNotAWholeNumberOfServerTicksKeepsAnEvenBeat() throws IOException {
+        Kept kept = new Kept();
+        BgmChannel channel = new BgmChannel();
+        long[] clock = {0L};
+        channel.planAhead(kept, 10, () -> clock[0]);
+        channel.playManual(song(2000, true, 0, 833), true, 0.0);     // 8.33 song ticks a second: one every 120 ms, which is 2.4 server ticks
+        Player player = player();
+        for (int i = 0; i < 40; i++) {      // a steady server: 50 ms ticks for 2 s
+            clock[0] = i * 50L * MS;
+            kept.now = clock[0];
+            channel.tick(player, 1.0f);
+        }
+        assertTrue(kept.times.size() > 20, "notes: " + kept.times.size());
+        List<Long> due = new ArrayList<>();
+        for (long[] time : kept.times) due.add(time[0]);
+        java.util.Collections.sort(due);
+        for (int i = 2; i < 18; i++) {
+            long gap = due.get(i + 1) - due.get(i);
+            assertTrue(Math.abs(gap - 120 * MS) <= 2 * MS, "the gap between notes " + i + " and " + (i + 1) + " is " + (gap / (double) MS) + " ms, not 120");
+        }
     }
 
     @Test

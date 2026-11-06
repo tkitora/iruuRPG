@@ -59,7 +59,7 @@ final class BgmChannel implements BgmVoice.Sink {
     private int peakNotesInSecond;
 
     /** A note that has been worked out and waits for the end of the step, to be counted against the limit. */
-    private record Planned(Sound sound, float volume, float pitch, Location at) {
+    private record Planned(Sound sound, float volume, float pitch, Location at, double late) {
     }
     /** The wall-clock time of the song tick that is being played (when there is a {@link #later}). */
     private long dueNanos;
@@ -358,6 +358,11 @@ final class BgmChannel implements BgmVoice.Sink {
 
     @Override
     public void note(int instrument, int key, float volume, float pan) {
+        noteAt(instrument, key, volume, pan, 0.0);
+    }
+
+    @Override
+    public void noteAt(int instrument, int key, float volume, float pan, double late) {
         if (instrument < 0 || instrument >= SOUNDS.length) return;
         int folded = key;
         while (folded < 33) folded += 12;
@@ -368,7 +373,7 @@ final class BgmChannel implements BgmVoice.Sink {
             at = base;
             if (pan != 0.0f) at = base.clone().add(rightX * pan * PAN_WIDTH, 0.0, rightZ * pan * PAN_WIDTH);
         }
-        batch.add(new Planned(SOUNDS[instrument], volume, pitch, at));
+        batch.add(new Planned(SOUNDS[instrument], volume, pitch, at, late));
     }
 
     /**
@@ -386,7 +391,7 @@ final class BgmChannel implements BgmVoice.Sink {
             thinnedNotes += batch.size() - allowed;
             while (batch.size() > allowed) batch.remove(batch.size() - 1);
         }
-        for (Planned note : batch) play(player, note.at, note.sound, note.volume, note.pitch);
+        for (Planned note : batch) play(player, note.at, note.sound, note.volume, note.pitch, note.late);
         sentNotes += batch.size();
         advance(batch.size());
         batch.clear();
@@ -400,13 +405,14 @@ final class BgmChannel implements BgmVoice.Sink {
     }
 
     /** Plays the note now, or (when planning ahead) hands it to the sender for its time. {@code at} null: from the player themself. */
-    private void play(Player target, Location at, Sound sound, float volume, float pitch) {
+    private void play(Player target, Location at, Sound sound, float volume, float pitch, double late) {
         if (later == null) {
             send(target, at, sound, volume, pitch);
             return;
         }
         int planned = generation;
-        long due = dueNanos;
+        // (a note that fell due between two ticks is sent at its own time: the beat does not move to the 50 ms grid of the server)
+        long due = dueNanos - (long) (late * BgmClock.STEP_NANOS);
         later.at(due, () -> {
             if (planned != generation || nanos.getAsLong() - due > STALE_NANOS) return;
             send(target, at, sound, volume, pitch);
