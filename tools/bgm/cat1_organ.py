@@ -218,6 +218,7 @@ def render(sc, bars, drums, volumes, pans=None):
         didge   velocity scale (or absent): the pedal on every beat
         holds   [(layer, inst, sounding, tick, length, v0, v1, every)]
         notes   [(layer, inst, sounding, tick, vel[, shift])]
+        pedal   (root, velocity): the bass struck on every beat (0, 4, 8, 12) - the break keeps it, so the song never goes silent
         drums   name in ``drums`` ([(tick, kind, vel)])      roll  (tick, ticks, v0, v1)
     Nothing is overwritten: what is put first stays."""
     pans = pans or {}
@@ -251,6 +252,16 @@ def render(sc, bars, drums, volumes, pans=None):
                         if tick == 0 and b.get("didge_skip0"):
                             continue
                         sc.put("didge", t0 + tick, DIDGERIDOO, root, (54 + (6 if tick % 8 == 0 else 0)) * b["didge"])
+        if b.get("didge_fill"):                                  # a quiet didgeridoo between the beats where nothing else sounds (the longest stretch without a note is 3 ticks)
+            root = b["bass"]["segs"][0][0]
+            for tick in (2, 6, 10, 14):
+                sc.put("didge", t0 + tick, DIDGERIDOO, root, 56)
+        if b.get("pedal"):
+            root, vel = b["pedal"]
+            for tick in (0, 4, 8, 12):
+                sc.put("bass", t0 + tick, BASS, root, vel if tick else vel + 8)
+            for tick in (2, 6, 10, 14):                         # the low didgeridoo between the bass notes: no stretch of silence longer than 2 ticks
+                sc.put("didge", t0 + tick, DIDGERIDOO, root, vel - 6)
         for item in b.get("holds", []):
             name, inst, snd, tick, length, v0, v1, every = item
             lay(name)
@@ -268,7 +279,7 @@ def render(sc, bars, drums, volumes, pans=None):
     sc.shift = 0
 
 
-def hold_events(text, voices, every=4, swell=1.0):
+def hold_events(text, voices, every=3, swell=1.0):
     """The held notes of a melody bar ``text`` on the voices {layer: (inst, offset, volume)}: [(layer, inst, sounding, tick, length, v0, v1, every)];
     the loudness is the accent of the beat times the volume of the voice, ending ``swell`` times as loud as it began (a long note that grows)."""
     out = []
@@ -295,3 +306,9 @@ def pcs_of(chord):
 
 def section_density(score, layers, names=None):
     return density_by_section(score, layers)
+
+
+def ticks6(bar, phase, period=6):
+    """The ticks of bar number ``bar`` (counted from the start of the song) that fall on ``phase`` modulo ``period`` of the song clock: a pad struck on these ticks (and another on phase + 3)
+    is re-struck every 3 ticks (0.36 s at 8.33 ticks a second) although 6 does not divide a bar of 16."""
+    return [t for t in range(BAR) if (bar * BAR + t) % period == phase]

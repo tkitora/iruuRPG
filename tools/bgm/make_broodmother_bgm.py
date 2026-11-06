@@ -108,7 +108,7 @@ def tune(sp):
     if sp["mode"] == "M":
         notes = [(t, maj(s)) for t, s in notes]
     if sp["phase"] == 1 and sp["level"] >= 3:                       # the swarm: now and then a leg stutters (the note again one tick later)
-        notes = notes + [(t + 1, s) for t, s in notes if t + 1 < 16 and t + 1 not in GAIT and hash_(sp["bar"], t, 5) % 3 == 0]
+        notes = notes + [(t + 1, s) for t, s in notes if t + 1 < 16 and t + 1 not in GAIT and hash_(sp["bar"], t, 5) % 5 == 0]
         notes.sort()
     return notes
 
@@ -156,18 +156,17 @@ def play_bar(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=Fal
         b.note("bass", t0 + tick, BASS, p, vel)
         if tick in (0, 6, 12) or (level >= 4 and tick in (3, 9)):
             b.note("didg", t0 + tick, DIDGERIDOO, near(p % 12, p, DIDGERIDOO), 96 if tick == 0 else 82)
-        if level >= 3 and tick in (3, 9, 14) and sec != "A":
+        if level == 3 and tick in (3, 9, 14) and sec != "A":
             b.note("chug", t0 + tick, GUITAR, near(p % 12, 47, GUITAR), 70)
     # the comp: a third and a seventh on the odd legs
-    if level >= 1 and sec != "A" or (sec == "A" and bar % 2 == 0 and level >= 1):
+    if level in (1, 2, 3) and (sec != "A" or bar % 2 == 0):
         inst = PLING if phase == 1 else GUITAR
         for tick in ((3, 9) if level < 4 else (3,)):
             b.note("stab", t0 + tick, inst, near(pc + iv[1], 60 if inst == PLING else 55, inst), 66)
             b.note("stab", t0 + tick, inst, near(pc + iv[3], 56 if inst == PLING else 52, inst), 66)
-    if sp["sec"] == "CHORUS":
+    if sp["sec"] in ("CHORUS", "OUTRO") or (sp["sec"] == "B" and level >= 4):
         for tick in (0, 6, 12):
             b.note("power", t0 + tick, GUITAR, near(pc, 47, GUITAR), 98, once=True)
-            b.note("power2", t0 + tick, GUITAR, near(pc + 7, 52, GUITAR), 86, once=True)
     # drums: the kick on the gait's even steps, the snare marching on its odd steps
     ev = {}
 
@@ -182,26 +181,24 @@ def play_bar(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=Fal
         d_(BASEDRUM, 8, 66); d_(SNARE, 14, 70)
     if level >= 3:
         d_(SNARE, 15, 44); d_(BASEDRUM, 4, 60)
-    if level >= 4:
-        d_(BASEDRUM, 3, 80); d_(BASEDRUM, 9, 78); d_(SNARE, 6, 50); d_(SNARE, 12, 50)
-    hat_ticks = {1: (), 2: GAIT, 3: GAIT, 4: tuple(range(0, 16, 2))}.get(level, ())
+    hat_ticks = {1: (), 2: GAIT, 3: GAIT, 4: (3, 9, 14)}.get(level, ())
     if sec == "A":
         hat_ticks = ()
     for tick in hat_ticks:
         d_(HAT, tick, 38)
-    if phase == 1 and hash_(bar, 9) % 3 == 0:
+    if phase == 1 and level < 4 and hash_(bar, 9) % 3 == 0:
         for tick in (13, 14, 15):
             d_(SNARE, tick, 54 + 6 * (tick - 13))
     if fill:
-        for k in [k for k in ev if k[1] >= 8 and k[0] in (SNARE, HAT)]:
+        for k in [k for k in ev if k[1] >= 10]:
             del ev[k]
-        for count, tick in enumerate(range(8, 16)):
-            d_(SNARE, tick, 38 + 7 * count)
+        for count, tick in enumerate(range(10, 16)):
+            d_(SNARE, tick, 44 + 9 * count)
     if accel:
         for k in [k for k in ev if k[1] >= 4 and k[0] in (SNARE, HAT)]:
             del ev[k]
-        for index, tick in enumerate((4, 8, 10, 12, 13, 14, 15)):
-            d_(SNARE, tick, 40 + 9 * index)
+        for index, tick in enumerate((8, 10, 12, 13, 14, 15)):
+            d_(SNARE, tick, 44 + 9 * index)
     if toms is not None:
         for k in [k for k in ev if k[1] >= toms]:
             del ev[k]
@@ -258,7 +255,7 @@ def lead(b, t0, sp):
         vel = 100 if tick in GAIT or length else 92
         pitch = TONIC + shift + s + n
         hold(b, "lead", inst, t0 + tick, pitch, length if length else 1, vel, rise=6)
-        if sec in ("B", "CHORUS"):
+        if sec in ("B", "CHORUS", "OUTRO") and tick in (0, 6, 12):
             dbl_inst = GUITAR if phase == 0 else BIT
             dp = pitch - 12 if not chorus else pitch - 24
             b.note("dbl", t0 + tick, dbl_inst, dp, 80, once=True)
@@ -285,7 +282,7 @@ def render(b, t0, sp, next_pc, special=None):
     if special == "final":
         toms = 0
     play_bar(b, t0, sp, next_pc, fill, accel, toms, special == "final")
-    if (ub == 0 and sec != "OUTRO" and (sp["unit"] % 2 == 0)) or special == "open_first":
+    if (ub in (0, 2) and sec in ("B", "CHORUS", "OUTRO")) or (ub == 0 and sec == "A") or special == "open_first":
         hit(b, t0, sp)
     if sp["level"] >= 1:
         lead(b, t0, sp)
@@ -305,8 +302,12 @@ def play(phase):
     for bar in range(NBARS):
         t0 = START + bar * BAR_T
         sp = spec(phase, bar)
-        if bar == BREAK_BAR:
+        if bar == BREAK_BAR:                                  # the break: drums and tune stop, ONE bell - and the bass stays (a total silence sounds as if the server stopped)
             b.note("bell", t0, BELL, 96, 90)
+            root = bass_note((TONIC_PC + phase + sp["chord"][0]) % 12)
+            for tick in (0, 4, 8, 12):
+                b.note("bass", t0 + tick, BASS, root, 78)
+                b.note("didg", t0 + tick, DIDGERIDOO, near(root % 12, root, DIDGERIDOO), 74)
             continue
         nxt = (TONIC_PC + phase + spec(phase, bar + 1)["chord"][0]) % 12 if bar + 1 < NBARS else (TONIC_PC + phase) % 12
         special = "build" if bar == BREAK_BAR - 1 else ("final" if bar == NBARS - 1 else None)

@@ -273,7 +273,7 @@ def rhythm(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=False
         return second if second and tick >= second[2] else chords[0]
 
     appr = (next_pc + (1 if bar % 2 == 0 else -1)) % 12
-    ticks = [0] if feel == "SB" else hit_ticks(level, feel, bar)
+    ticks = [0, 4, 8, 12] if feel == "SB" else hit_ticks(level, feel, bar)
     for tick in ticks:
         pc, chord, _ = chord_at(tick)
         root = bass_note(pc)
@@ -283,17 +283,19 @@ def rhythm(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=False
         vel = bass_velocity(tick, level)
         if level in (1, 2, 3) and tick % 4 in (2, 3) and tick % 2:
             vel = 70
-        vel = 100 if feel == "SB" else (66 if level == 0 else vel)
+        vel = (100 if tick == 0 else 72) if feel == "SB" else (66 if level == 0 else vel)
         b.note("bass", t0 + tick, BASS, pitch, vel * quiet)
         heavy = (tick % 4 == 0) if level >= 3 or feel == "HT" else (tick % 8 == 0)
         if heavy:
             b.note("didg", t0 + tick, DIDGERIDOO, near(pitch % 12, pitch, DIDGERIDOO), (96 if tick % 8 == 0 else 82) * quiet)
-        if chip and phase == 1 and level == 4 and tick % 4 == 0 and pitch + 24 <= 78:
+        if chip and phase == 1 and level == 4 and tick % 8 == 0 and pitch + 24 <= 78:
             b.note("chip", t0 + tick, BIT, pitch + 24, 46)
     comps = {"SW": [(3, 62), (7, 62), (11, 56), (15, 50)], "ST": [(2, 66), (6, 66), (10, 66), (14, 66)], "TR": [(0, 70), (3, 64), (5, 60), (8, 70), (11, 64), (13, 60)],
              "HT": [(0, 90), (12, 72)], "MR": [(0, 72), (8, 72)], "SB": []}[feel]
+    if level >= 3:
+        comps = comps[::2]
     if level == 4:
-        comps = [(t, v) for t, v in comps if t in (0, 3, 8, 11)] if feel in ("SW", "TR") else [(t, v) for t, v in comps if t % 8 in (0, 2)]
+        comps = []                                               # the machine gun leaves no room for the comp (and a second stab voice is not heard)
     if sparse:
         comps = comps[:1] if bar % 2 == 0 else []
     inst = INST[sp["plan"]["stab"]]
@@ -308,7 +310,6 @@ def rhythm(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=False
         for tick in (0, 4, 8, 12):
             pc0 = chord_at(tick)[0]
             b.note("power", t0 + tick, GUITAR, near(pc0, 47, GUITAR), 98, once=True)
-            b.note("power2", t0 + tick, GUITAR, near(pc0 + 7, 52, GUITAR), 86, once=True)
             b.note("didg", t0 + tick, DIDGERIDOO, near(pc0, 33, DIDGERIDOO), 92, once=True)
     ev = {}
 
@@ -319,20 +320,19 @@ def rhythm(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=False
     if feel == "SW":
         d_(BASEDRUM, 0, 88); d_(BASEDRUM, 8, 80)
         d_(SNARE, 4, 90); d_(SNARE, 12, 92)
-        if level >= 2:
+        if level >= 2 and not sixteenth:
             d_(BASEDRUM, 11, 64)
-        if level >= 3:
+        if 3 <= level < 4:
             d_(SNARE, 7, 34); d_(SNARE, 15, 34)
-        if sixteenth:
-            d_(BASEDRUM, 3, 72); d_(BASEDRUM, 6, 62)
-        if level >= 2 and not sparse:
+        if 2 <= level < 4 and not sparse:
             for tick in (3, 7, 11, 15):
                 d_(HAT, tick, 38)
     elif feel == "ST":
         for tick, vel in ((0, 98), (4, 74), (8, 94), (12, 74)):
             d_(BASEDRUM, tick, vel)
-        for tick in (2, 6, 10, 14):
-            d_(SNARE, tick, 62)
+        if not sixteenth:
+            for tick in (2, 6, 10, 14):
+                d_(SNARE, tick, 62)
         if level >= 2:
             d_(SNARE, 4, 88); d_(SNARE, 12, 88)
         if level >= 3 and not sparse:
@@ -359,8 +359,8 @@ def rhythm(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=False
             d_(SNARE, tick, 34 + 3 * tick + (10 if tick % 4 == 0 else 0))
         d_(BASEDRUM, 0, 98); d_(BASEDRUM, 8, 94)
     if sixteenth and feel not in ("SB", "MR"):
-        for tick in range(0, 16, 2):
-            d_(HAT, tick, 38 if tick % 4 == 0 else 28)
+        for tick in range(0, 16, 4):                             # hats on the beats only (under a sixteenth bass and a kick they are not heard)
+            d_(HAT, tick, 38)
     if phase == 1 and feel != "SB":
         burst = hash_(bar, 9) % 3
         if burst == 0:
@@ -370,10 +370,10 @@ def rhythm(b, t0, sp, next_pc, fill=False, accel=False, toms=None, toms_up=False
             for tick in (12, 13, 14, 15):
                 d_(SNARE, tick, 50 + 8 * (tick - 12))
     if fill:
-        for k in [k for k in ev if k[1] >= 8 and k[0] in (SNARE, HAT)]:
+        for k in [k for k in ev if k[1] >= 10]:
             del ev[k]
-        for count, tick in enumerate(range(8, 16)):
-            d_(SNARE, tick, 38 + 7 * count)
+        for count, tick in enumerate(range(10, 16)):
+            d_(SNARE, tick, 44 + 9 * count)
     if accel:
         for k in [k for k in ev if k[1] >= 4 and k[0] in (SNARE, HAT)]:
             del ev[k]
@@ -420,7 +420,9 @@ def lead(b, t0, sp):
     play_lead, play_mirror = True, False
     if mirror and level >= 3:
         mode_m = mirror[1]
-        if mode_m in ("sim", "echo"):
+        if mode_m == "sim":
+            play_mirror = ub == 3 if chorus else True
+        elif mode_m == "echo":
             play_mirror = True
         elif mode_m == "alt":
             play_mirror = ub % 2 == 1
@@ -438,15 +440,15 @@ def lead(b, t0, sp):
         vel = min(100, (92 + (8 if tick % 8 == 0 else 0)) * quiet)
         if play_lead:
             voice("lead", inst, TONIC + key + s + n, tick, length, vel)
-            if level >= 3 and sec != "A" and plan["leads"][seg] != "G" and (length < 5 or sec != "B"):
+            if level >= 3 and sec != "A" and plan["leads"][seg] != "G" and (length < 5 or sec != "B") and tick % 8 == 0:
                 high = inst in (FLUTE, XYLOPHONE)
-                b.note("dbl", t0 + tick, I_ if high else FLUTE, TONIC + key + s + n + (-12 if high else 12), vel * 0.55)
+                b.note("dbl", t0 + tick, I_ if high else FLUTE, TONIC + key + s + n + (-24 if inst == FLUTE else (-12 if high else 12)), vel * 0.55)
     if play_mirror:
         m_inst = INST[mirror[0]]
         if chorus and m_inst in (GUITAR, I_, XYLOPHONE, HARP):
             m_inst = PLING
         refl = [2 * axis - fix(s) for _, s in tune_events(dict(sp, phase=0, feel="SW"))]
-        mn = place(m_inst, key, refl, {k: v - 6 for k, v in target.items()})
+        mn = place(m_inst, key, refl, {k: v - (12 if chorus else 6) for k, v in target.items()})
         delay = 4 if mode_m == "echo" else 0
         for tick, s, length in notes:
             if tick + delay < 16:
@@ -461,7 +463,7 @@ def lead(b, t0, sp):
             inside = [s for t, s in full if tk <= t < min(tk + 4, end)]
             pick = inside[0] if inside else last
             last = pick
-            hold(b, "dbl", HARP, t0 + tk, near((TONIC + key + pick) % 12, 62, HARP), end - tk, 92, rise=8)
+            hold(b, "dbl", HARP, t0 + tk, near((TONIC + key + pick) % 12, 56, HARP), end - tk, 92, rise=8)
 
 
 def render(b, phase, t0, sp, next_pc, special=None):
@@ -485,7 +487,7 @@ def render(b, phase, t0, sp, next_pc, special=None):
     if sp["feel"] != "SB" and sp["level"] >= 1:
         lead(b, t0, sp)
     if phase == 1 and sp["level"] >= 3 and sec == "B" and sp["feel"] != "SB":
-        for tick in range(0, 16, 2):
+        for tick in (3, 7, 11, 15):
             pc, chord, off = sp["chords"][1] if len(sp["chords"]) > 1 and tick >= sp["chords"][1][2] else sp["chords"][0]
             tones = [pc + i for i in chord[1]]
             if hash_(sp["bar"], tick, 6) % 2:
@@ -508,8 +510,12 @@ def play(phase):
     for bar in range(NBARS):
         t0 = START + bar * BAR_T
         sp = spec(phase, bar)
-        if bar == BREAK_BAR:
+        if bar == BREAK_BAR:                                  # the break: drums and tune stop, ONE bell - and the bass stays (a total silence sounds as if the server stopped)
             b.note("bell", t0, BELL, 96, 90)
+            root = bass_note(sp["chords"][0][0])
+            for tick in (0, 4, 8, 12):
+                b.note("bass", t0 + tick, BASS, root, 78)
+                b.note("didg", t0 + tick, DIDGERIDOO, near(root % 12, root, DIDGERIDOO), 74)
             continue
         nxt = spec(phase, bar + 1)["chords"][0][0] if bar + 1 < NBARS else TONIC % 12
         special = "build" if bar == BREAK_BAR - 1 else ("final" if bar == NBARS - 1 else None)
