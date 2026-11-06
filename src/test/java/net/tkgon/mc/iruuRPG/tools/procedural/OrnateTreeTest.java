@@ -34,18 +34,26 @@ class OrnateTreeTest {
         assertTrue(ProceduralMenu.treeKeys("ornate", ProceduralMenu.Page.TRUNK).length <= 14);
         assertTrue(ProceduralMenu.treeKeys("ornate", ProceduralMenu.Page.BRANCH).length <= 14);
         assertTrue(ProceduralMenu.treeKeys("ornate", ProceduralMenu.Page.LEAF).length <= 7);
-        for (int style = 0; style <= 3; style++) assertTrue(!OrnateTree.styleName(style).isEmpty());
+        for (int style = 0; style < 7; style++) assertTrue(!OrnateTree.styleName(style).isEmpty());
+        assertEquals(6, (int) TreeSettings.Key.ORN_STYLE.max());
+        // the shading page of an ornate tree
+        assertTrue(ProceduralMenu.treeKeys("ornate", ProceduralMenu.Page.SHADE).length > 0);
     }
 
     @Test
     void everyBlockOfWoodHasItsLookAndItsPartMatchesItsShape() {
-        for (int style = 0; style <= 3; style++) {
-            OrnateTree.Blocks blocks = OrnateTree.build(ornate(style), new Random(2));
+        for (int style = 0; style < 7; style++) {
+            TreeSettings settings = ornate(style);
+            OrnateTree.applyStyle(settings, style);
+            settings.setHangBlocks(List.of("OAK_LEAVES", "POPPY"));
+            settings.set(TreeSettings.Key.ORN_HANG, 0.6);
+            OrnateTree.Blocks blocks = OrnateTree.build(settings, new Random(2));
             for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
                 TreePart part = entry.getValue();
                 OrnateTree.Look look = blocks.looks.get(entry.getKey());
                 if (part.shade() >= 0) {
-                    assertTrue(look == null, "a leaf has no look");
+                    // (a leaf has no look; a block of a hanging strand has the place of its block in the list)
+                    assertTrue(look == null || (look.form() == null && look.level() >= 0 && look.level() < 2));
                     continue;
                 }
                 assertNotNull(look, part.toString());
@@ -91,6 +99,32 @@ class OrnateTreeTest {
         // a wall has no wood, a fence of wood is wood
         assertTrue(WoodPalette.of(WoodPalette.Form.WALL).stream().noneMatch(WoodPalette.Entry::wood));
         assertTrue(WoodPalette.entry(Material.OAK_FENCE).wood());
+    }
+
+    @Test
+    void aStyleStartsFromItsOwnNumbersAndKeepsTheBlocks() {
+        TreeSettings settings = ornate(0);
+        settings.setBlock(TreePart.TRUNK, "BIRCH_LOG");
+        OrnateTree.applyStyle(settings, 2);
+        assertEquals(20.0, settings.get(TreeSettings.Key.ORN_HEIGHT), 1.0e-9);
+        assertEquals("BIRCH_LOG", settings.block(TreePart.TRUNK));
+        // the hanging blocks are saved and read back
+        settings.setHangBlocks(List.of("OAK_LEAVES", "dandelion"));
+        assertEquals(List.of("OAK_LEAVES", "DANDELION"), TreeSettings.fromMap(settings.toMap(), "x").hangBlocks());
+    }
+
+    @Test
+    void thePlacingToolPicksByWeight() {
+        Map<String, Integer> chosen = new java.util.LinkedHashMap<>();
+        chosen.put("oak", 3);
+        chosen.put("rock_small", 1);
+        assertEquals(chosen, ProceduralModule.decode(ProceduralModule.encode(chosen)));
+        assertTrue(ProceduralModule.decode("broken;=3;x=0;y=2").equals(Map.of("y", 2)));
+        int oaks = 0;
+        Random random = new Random(1);
+        for (int n = 0; n < 4000; n++) if ("oak".equals(ProceduralModule.pick(chosen, random))) oaks++;
+        assertTrue(oaks > 2800 && oaks < 3200, String.valueOf(oaks));
+        assertEquals(null, ProceduralModule.pick(Map.of(), random));
     }
 
     @Test

@@ -12,7 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** t282: the bones by the pipe model, the shape field, and the blocks of the ornate tree (no gaps, no thickening, the decoration's limits, the shading). */
+/**
+ * t282, t286: the bones by the pipe model, the shape field, and the blocks of the ornate tree (no gaps, no thickening, the decoration's limits, the shading), the roots on
+ * the ground, the runs of stairs broken, the hanging strands.
+ */
 class OrnateBuilderTest {
 
     static SkeletonGenerator.Params bones(int style) {
@@ -25,7 +28,7 @@ class OrnateBuilderTest {
 
     @Test
     void theRadiiFollowThePipeModel() {
-        for (int style = 0; style < 4; style++) {
+        for (int style = 0; style < SkeletonGenerator.STYLES; style++) {
             Skeleton s = SkeletonGenerator.grow(bones(style), new Random(7));
             assertEquals(2.0, s.radius(0), 1.0e-9, "the base is as thick as the setting");
             double n = 2.3;
@@ -50,7 +53,8 @@ class OrnateBuilderTest {
 
     @Test
     void branchesOfDifferentLimbsKeepTwoBlocksApartAwayFromTheirFork() {
-        for (int style : new int[]{0, 3}) {
+        // (the spruce's whorls keep a block and a bit, the willow's hanging twigs a block and a half)
+        for (int style : new int[]{SkeletonGenerator.OAK, SkeletonGenerator.BIRCH, SkeletonGenerator.CHERRY}) {
             for (long seed = 1; seed <= 4; seed++) {
                 Skeleton s = SkeletonGenerator.grow(bones(style), new Random(seed));
                 for (int a = 1; a < s.size(); a++) {
@@ -103,7 +107,7 @@ class OrnateBuilderTest {
 
     @Test
     void everyStyleGrowsAJoinedTreeWithoutGapsOrThickening() {
-        for (int style = 0; style < 4; style++) {
+        for (int style = 0; style < SkeletonGenerator.STYLES; style++) {
             for (long seed = 1; seed <= 3; seed++) {
                 OrnateBuilder.Result result = OrnateBuilder.build(params(style), new Random(seed));
                 Map<Long, OrnateBuilder.Wood> wood = result.wood();
@@ -124,8 +128,7 @@ class OrnateBuilderTest {
                 }
                 assertTrue(unjoined <= Math.max(1, result.links().size() / 100), name + ": " + unjoined + " gaps");
                 for (OrnateBuilder.Wood block : wood.values()) assertTrue(block.level() >= -2 && block.level() <= 2);
-                if (style == 3) assertTrue(result.leaves().isEmpty(), name);
-                else assertFalse(result.leaves().isEmpty(), name);
+                assertFalse(result.leaves().isEmpty(), name);
             }
         }
     }
@@ -183,6 +186,72 @@ class OrnateBuilderTest {
         assertTrue(levels.size() >= 3, levels.toString());
         OrnateBuilder.Params flat = new OrnateBuilder.Params(bones(0), 1.5, 0.5, 0.0, 0.0, 0.0, 135.0, 2.5, 0.3, 85.0);
         assertTrue(OrnateBuilder.build(flat, new Random(5)).wood().values().stream().allMatch(block -> block.level() == 0));
+    }
+
+    @Test
+    void noLeavesMakeABareTree() {
+        // (t286: the dead tree is the oak without leaves)
+        OrnateBuilder.Params bare = new OrnateBuilder.Params(bones(0), 1.5, 0.5, 0.6, 0.3, 0.6, 135.0, 0.0, 0.3, 85.0);
+        assertTrue(OrnateBuilder.build(bare, new Random(4)).leaves().isEmpty());
+    }
+
+    @Test
+    void theRootsLieOnTheGround() {
+        // a slope: the top of the ground is a block higher every two blocks east
+        Ground slope = (x, z) -> Math.floorDiv(x, 2) - 1;
+        Skeleton flat = SkeletonGenerator.grow(bones(0), new Random(9));
+        Skeleton laid = SkeletonGenerator.grow(bones(0), new Random(9), slope);
+        int far = 0;
+        for (int node = 1; node < laid.size(); node++) {
+            if (laid.kind(node) != Skeleton.ROOT) continue;
+            assertEquals(flat.x(node), laid.x(node), 1.0e-9);
+            double out = Math.hypot(laid.x(node) - 0.5, laid.z(node) - 0.5);
+            if (out < laid.radius(0) * 0.8 + 2.0) continue;
+            far++;
+            double surface = slope.top((int) Math.floor(laid.x(node)), (int) Math.floor(laid.z(node))) + 1.0;
+            assertEquals(surface + laid.radius(node) * 0.35, laid.y(node), 1.0e-9, "node " + node);
+        }
+        assertTrue(far > 0);
+        // (the trunk and the branches do not move)
+        for (int node = 0; node < laid.size(); node++) if (laid.kind(node) != Skeleton.ROOT) assertEquals(flat.y(node), laid.y(node), 1.0e-9);
+    }
+
+    @Test
+    void runsOfAlikeStairsAreBroken() {
+        int[] alike = new int[2];
+        double[] mixes = {0.0, 1.0};
+        for (int index = 0; index < 2; index++) {
+            OrnateBuilder.Params params = new OrnateBuilder.Params(bones(0), 1.5, 0.0, 0.6, 0.3, 0.6, 135.0, 0.0, 0.3, 85.0, mixes[index], 0.0, 0.0, null, false);
+            for (long seed = 1; seed <= 3; seed++) {
+                Map<Long, OrnateBuilder.Wood> wood = OrnateBuilder.build(params, new Random(seed)).wood();
+                for (Map.Entry<Long, OrnateBuilder.Wood> entry : wood.entrySet()) {
+                    long key = entry.getKey();
+                    OrnateBuilder.Wood above = wood.get(OrnateBuilder.pack(OrnateBuilder.unpackX(key), OrnateBuilder.unpackY(key) + 1, OrnateBuilder.unpackZ(key)));
+                    if (above != null && OrnateBuilder.alike(entry.getValue().shape(), above.shape())) alike[index]++;
+                }
+            }
+        }
+        assertTrue(alike[1] < alike[0] * 0.6, alike[0] + " -> " + alike[1]);
+    }
+
+    @Test
+    void strandsHangStraightDownFromTheLeavesAndStopAtTheGround() {
+        Ground ground = (x, z) -> 1;
+        OrnateBuilder.Params params = new OrnateBuilder.Params(bones(SkeletonGenerator.WILLOW), 1.5, 0.0, 0.6, 0.3, 0.6, 135.0, 1.5, 0.3, 85.0, 0.8, 1.0, 8.0, ground, false);
+        OrnateBuilder.Result result = OrnateBuilder.build(params, new Random(6));
+        assertFalse(result.hang().isEmpty());
+        for (long key : result.hang().keySet()) {
+            int x = OrnateBuilder.unpackX(key);
+            int y = OrnateBuilder.unpackY(key);
+            int z = OrnateBuilder.unpackZ(key);
+            assertTrue(y >= 2, "a strand above the ground (its top is at 1)");
+            assertFalse(result.wood().containsKey(key) || result.leaves().containsKey(key));
+            // under a leaf or another block of the strand, or a willow's tip
+            long above = OrnateBuilder.pack(x, y + 1, z);
+            assertTrue(result.hang().containsKey(above) || result.leaves().containsKey(above) || result.wood().containsKey(above), x + " " + y + " " + z);
+        }
+        // and none without the setting
+        assertTrue(OrnateBuilder.build(params(SkeletonGenerator.WILLOW), new Random(6)).hang().isEmpty());
     }
 
     @Test

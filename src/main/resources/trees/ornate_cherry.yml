@@ -1,0 +1,47 @@
+# 見本の木: 桜 (装飾の木。低く分かれて横へ広がる枝、先が上がる傘の樹冠、少し垂れる花。t286) (プロシージャルツールの読み込み、または /proceduraltool load ornate_cherry)
+settings:
+  kind: tree
+  algorithm: ornate
+  orn-style: 5
+  orn-height: 6
+  orn-trunk: 1.5
+  orn-curl: 0.6
+  orn-roots: 5
+  orn-root-reach: 5
+  orn-branches: 3
+  orn-depth: 4
+  orn-length: 8
+  orn-spread: 60
+  orn-droop: 0.1
+  orn-tip-curl: 0.4
+  orn-leaf: 2.25
+  orn-leaf-flat: 0.55
+  orn-hang: 0.15
+  orn-hang-length: 3
+  orn-flare: 1.5
+  orn-decor: 0.5
+  orn-match: 1
+  orn-shade-step: 7
+  orn-ao: 0.6
+  orn-curvature: 0.3
+  orn-light: 0.6
+  orn-light-dir: 135
+  orn-pipe: 2.3
+  orn-leaf-density: 85
+  orn-root-snap: 1
+  orn-stair-mix: 0.8
+  seed: 0
+  blocks:
+    trunk: CHERRY_LOG
+    root: CHERRY_LOG
+    branch: CHERRY_LOG
+    branch-wall: MUD_BRICK_WALL
+    branch-fence: CHERRY_FENCE
+    branch-slab: CHERRY_SLAB
+    branch-stair: CHERRY_STAIRS
+    branch-trapdoor: CHERRY_TRAPDOOR
+    branch-gate: CHERRY_FENCE_GATE
+  leaf-gradient:
+  - CHERRY_LEAVES
+  hang-blocks:
+  - CHERRY_LEAVES

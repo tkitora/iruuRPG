@@ -25,7 +25,7 @@ import java.util.Set;
  *     <li>the decoration, only on the trunk and the roots (radius 1.5 or more, 3 blocks or more from a tip, not in the inner angle of a fork): open trapdoors as
  *     streaks of bark, stairs in the hollows, fences under the roots near the foot. It may not change a block by more than half a block of volume, and a limb whose
  *     outline (seen from the side, the front and above) or whose way (its main axis) changes too much gets none;</li>
- *     <li>the leaves (clumps at the tips, flat pads on a spreading tree, none on a dead one);</li>
+ *     <li>the leaves by the style (clumps at the tips, flat pads, a spruce's layers along its branches, a willow's twigs), and strands hanging from them (t286);</li>
  *     <li>the shading: a light value from the ambient occlusion, the curvature and a point light (with shadows), turned into 5 levels (-2 dark .. 2 light):
  *     dithered on the thick wood, smoothed along the branches with a hysteresis on the thin wood. The blocks of each level are chosen when the tree is put, by the
  *     lightness of the blocks.</li>
@@ -34,9 +34,19 @@ import java.util.Set;
  */
 public final class OrnateBuilder {
 
-    /** The numbers of the tree: the bones, the smoothing at the foot, the decoration, the weights of the shading, the light's way, the leaves. */
+    /**
+     * The numbers of the tree: the bones, the smoothing at the foot, the decoration, the weights of the shading, the light's way, the leaves, how often a stair
+     * like the one next to it is made another block ({@code stairMix}, t286), the hanging strands under the leaves (how many, how long), the ground (null: not
+     * known; the strands stop at it) and whether the roots are laid on it ({@code snap}).
+     */
     public record Params(SkeletonGenerator.Params bones, double flare, double decor, double ao, double curvature, double light, double lightDir,
-                         double leaf, double leafFlat, double leafDensity) {
+                         double leaf, double leafFlat, double leafDensity, double stairMix, double hang, double hangLength, Ground ground, boolean snap) {
+
+        /** The same without stair mixing, strands or ground (t282's numbers). */
+        public Params(SkeletonGenerator.Params bones, double flare, double decor, double ao, double curvature, double light, double lightDir, double leaf,
+                      double leafFlat, double leafDensity) {
+            this(bones, flare, decor, ao, curvature, light, lightDir, leaf, leafFlat, leafDensity, 0.0, 0.0, 0.0, null, false);
+        }
     }
 
     /**
@@ -51,10 +61,10 @@ public final class OrnateBuilder {
     }
 
     /**
-     * The tree: the wood by {@link #pack}ed block, the leaves by block with their height in their clump (0 the bottom .. 1 the top), the bones, and the block each thin
-     * block grows from (for the checks).
+     * The tree: the wood by {@link #pack}ed block, the leaves by block with their height in their clump (0 the bottom .. 1 the top), the hanging strands by block
+     * with how far down the strand each is (0 its top .. 1 its end), the bones, and the block each thin block grows from (for the checks).
      */
-    public record Result(Map<Long, Wood> wood, Map<Long, Double> leaves, Stats stats, Skeleton bones, Map<Long, Long> links) {
+    public record Result(Map<Long, Wood> wood, Map<Long, Double> leaves, Map<Long, Double> hang, Stats stats, Skeleton bones, Map<Long, Long> links) {
     }
 
     /** More blocks than this and the tree is given up. */
@@ -78,8 +88,8 @@ public final class OrnateBuilder {
     private Skeleton bones;
     private Field field;
 
-    /** A thick block: its shape and the node of the nearest cone. */
-    private record Thick(BlockShapes.Shape shape, int node) {
+    /** A thick block: its shape, the node of the nearest cone, and the octants the wood fills in it. */
+    private record Thick(BlockShapes.Shape shape, int node, int mask) {
     }
 
     private record Option(BlockShapes.Shape shape, double cost) {
@@ -115,6 +125,7 @@ public final class OrnateBuilder {
     private final Map<Long, BlockShapes.Shape> decorations = new HashMap<>();
     private final Map<Long, Long> decorationBase = new HashMap<>();
     private final Map<Long, Double> leaves = new HashMap<>();
+    private final Map<Long, Double> hang = new HashMap<>();
     private int knots;
     private int gaps;
     private int reverted;
@@ -129,18 +140,20 @@ public final class OrnateBuilder {
     }
 
     private Result run() {
-        bones = SkeletonGenerator.grow(p.bones(), random);
+        bones = SkeletonGenerator.grow(p.bones(), random, p.snap() ? p.ground() : null);
         field = new Field(bones, THICK, p.flare());
         thick();
+        if (p.stairMix() > 0.0) breakRuns();
         thin();
         choose();
         cleanup();
         if (p.decor() > 0.0) decorate();
-        if (p.bones().style() != 3 && p.leaf() > 0.0) leaves();
+        if (p.leaf() > 0.0) leaves();
+        if (p.hang() > 0.0 && p.hangLength() > 0.0) hang();
         Map<Long, Wood> wood = shade();
         Map<Long, Long> links = new HashMap<>();
         for (Thin v : thin.values()) if (v.parent != NONE) links.put(v.key, v.parent);
-        return new Result(wood, leaves, new Stats(thick.size(), thin.size(), knots, gaps, decorations.size(), reverted, leaves.size()), bones, links);
+        return new Result(wood, leaves, hang, new Stats(thick.size(), thin.size(), knots, gaps, decorations.size(), reverted, leaves.size()), bones, links);
     }
 
     // ---- the blocks ----------------------------------------------------------------------------------------------------------------------
@@ -181,7 +194,7 @@ public final class OrnateBuilder {
     }
 
     private void limit() {
-        if (thick.size() + thin.size() + leaves.size() > LIMIT) throw new TooBig();
+        if (thick.size() + thin.size() + leaves.size() + hang.size() > LIMIT) throw new TooBig();
     }
 
     // ---- 1. the thick wood ---------------------------------------------------------------------------------------------------------------
@@ -195,9 +208,9 @@ public final class OrnateBuilder {
                     Field.Hit centre = field.hit(x + 0.5, y + 0.5, z + 0.5);
                     // (an octant's middle is 0.44 from the block's: farther out than that, none is inside)
                     if (centre.distance() > 0.45) continue;
-                    BlockShapes.Shape shape = BlockShapes.nearest(mask(x, y, z, 0.0));
-                    if (shape.kind == BlockShapes.Kind.EMPTY) continue;
-                    thick.put(pack(x, y, z), new Thick(shape, centre.node()));
+                    if (BlockShapes.nearest(mask(x, y, z, 0.0)).kind == BlockShapes.Kind.EMPTY) continue;
+                    int mask = mask(x, y, z, 0.0);
+                    thick.put(pack(x, y, z), new Thick(BlockShapes.nearest(mask), centre.node(), mask));
                 }
             }
             limit();
@@ -214,6 +227,87 @@ public final class OrnateBuilder {
             if (field.distance(ox, oy, oz) < grow) mask |= 1 << octant;
         }
         return mask;
+    }
+
+    /** The neighbours a run of the same stairs goes through that come before a block in the order of {@link #breakRuns}: below, west, north, and down aslant. */
+    private static final int[][] RUN = {{0, -1, 0}, {-1, 0, 0}, {0, 0, -1}, {-1, -1, 0}, {1, -1, 0}, {0, -1, -1}, {0, -1, 1}};
+
+    /**
+     * (t286) Breaks the runs of the same stair in the thick wood (stairs stacked up a trunk, or along a limb at 45 degrees, all alike): going up through the blocks,
+     * a stair {@link #alike} one kept before it next to it (below, beside or down aslant) is, with the chance {@code stairMix}, made another block whose octants are
+     * near the wood's ({@link #alternative}: a log or a slab).
+     */
+    private void breakRuns() {
+        List<Long> keys = new ArrayList<>(thick.keySet());
+        keys.sort((a, b) -> {
+            int y = Integer.compare(unpackY(a), unpackY(b));
+            if (y != 0) return y;
+            int x = Integer.compare(unpackX(a), unpackX(b));
+            return x != 0 ? x : Integer.compare(unpackZ(a), unpackZ(b));
+        });
+        Set<Long> kept = new HashSet<>();
+        for (long key : keys) {
+            Thick block = thick.get(key);
+            if (block.shape().kind != BlockShapes.Kind.STAIRS) continue;
+            int x = unpackX(key);
+            int y = unpackY(key);
+            int z = unpackZ(key);
+            boolean repeated = false;
+            for (int[] d : RUN) {
+                long other = pack(x + d[0], y + d[1], z + d[2]);
+                Thick next = thick.get(other);
+                if (next != null && alike(next.shape(), block.shape()) && kept.contains(other)) repeated = true;
+            }
+            if (!repeated || hash(x, y, z, 31) >= p.stairMix()) {
+                kept.add(key);
+                continue;
+            }
+            BlockShapes.Shape other = alternative(block, x, y, z);
+            if (other == null) {
+                kept.add(key);
+                continue;
+            }
+            thick.put(key, new Thick(other, block.node(), block.mask()));
+            if (other.kind == BlockShapes.Kind.STAIRS) kept.add(key);
+        }
+    }
+
+    /** Whether two stairs look alike in a run: the same way and the same half (a corner of the same stair looks the same from most sides). */
+    static boolean alike(BlockShapes.Shape a, BlockShapes.Shape b) {
+        if (a.kind != BlockShapes.Kind.STAIRS || b.kind != BlockShapes.Kind.STAIRS) return false;
+        return a.props.substring(0, a.props.indexOf(",shape=")).equals(b.props.substring(0, b.props.indexOf(",shape=")));
+    }
+
+    /**
+     * Another block for a stair in a run: a full block or a slab whose octants are within two of the wood's (a full block twice as likely), chosen by chance; only when
+     * there is none, a stair of another shape within one octant (a corner).
+     */
+    private BlockShapes.Shape alternative(Thick block, int x, int y, int z) {
+        List<BlockShapes.Shape> choices = new ArrayList<>();
+        List<Double> weights = new ArrayList<>();
+        double total = 0.0;
+        for (BlockShapes.Shape shape : List.of(BlockShapes.FULL, BlockShapes.SLAB_BOTTOM, BlockShapes.SLAB_TOP)) {
+            if (Integer.bitCount(shape.octants ^ block.mask()) > 2) continue;
+            double weight = shape.kind == BlockShapes.Kind.FULL ? 2.0 : 1.0;
+            choices.add(shape);
+            weights.add(weight);
+            total += weight;
+        }
+        if (choices.isEmpty()) {
+            for (BlockShapes.Shape shape : BlockShapes.solids()) {
+                if (shape.kind != BlockShapes.Kind.STAIRS || shape.octants == block.shape().octants || Integer.bitCount(shape.octants ^ block.mask()) > 1) continue;
+                choices.add(shape);
+                weights.add(1.0);
+                total += 1.0;
+            }
+        }
+        if (choices.isEmpty()) return null;
+        double roll = hash(x, y, z, 37) * total;
+        for (int index = 0; index < choices.size(); index++) {
+            roll -= weights.get(index);
+            if (roll <= 0.0) return choices.get(index);
+        }
+        return choices.get(choices.size() - 1);
     }
 
     // ---- 2. the thin wood ----------------------------------------------------------------------------------------------------------------
@@ -399,6 +493,13 @@ public final class OrnateBuilder {
         return cost;
     }
 
+    /** {@link #pair}, and (t286) a stair the same as the one it grows from costs more by the stair mixing: a row of the same stairs looks poor. */
+    private double cost(BlockShapes.Shape parent, int face, BlockShapes.Shape child) {
+        double cost = pair(parent, face, child);
+        if (alike(child, parent)) cost += 8.0 * p.stairMix();
+        return cost;
+    }
+
     /** The dynamic program over the tree of thin blocks: the cheapest choice of every block given its parent's, from the tips back; then chosen from the trunk out. */
     private void choose() {
         List<Thin> order = new ArrayList<>(thin.values());
@@ -413,7 +514,7 @@ public final class OrnateBuilder {
                     int face = faceBetween(v.key, child.key);
                     double best = Double.MAX_VALUE;
                     for (int b = 0; b < child.options.size(); b++) {
-                        best = Math.min(best, pair(v.options.get(a).shape(), face, child.options.get(b).shape()) + child.cost[b]);
+                        best = Math.min(best, cost(v.options.get(a).shape(), face, child.options.get(b).shape()) + child.cost[b]);
                     }
                     total += best;
                 }
@@ -426,7 +527,7 @@ public final class OrnateBuilder {
             int best = 0;
             double bestCost = Double.MAX_VALUE;
             for (int b = 0; b < v.options.size(); b++) {
-                double cost = v.cost[b] + (from == null ? 0.0 : pair(from, face, v.options.get(b).shape()));
+                double cost = v.cost[b] + (from == null ? 0.0 : cost(from, face, v.options.get(b).shape()));
                 if (cost < bestCost) {
                     bestCost = cost;
                     best = b;
@@ -453,7 +554,7 @@ public final class OrnateBuilder {
                 if (reached.contains(key) || entry.getValue().shape().kind == BlockShapes.Kind.FULL) continue;
                 for (int face = 0; face < 6; face++) {
                     if (reached.contains(step(key, face))) {
-                        thick.put(key, new Thick(BlockShapes.FULL, entry.getValue().node()));
+                        thick.put(key, new Thick(BlockShapes.FULL, entry.getValue().node(), entry.getValue().mask()));
                         changed = true;
                         break;
                     }
@@ -712,37 +813,112 @@ public final class OrnateBuilder {
 
     // ---- 6. the leaves -------------------------------------------------------------------------------------------------------------------
 
+    /**
+     * The leaves by the style: clumps at the tips (the oak, the birch, the cherry wider and flatter); flat pads over the tips of a bonsai and an acacia; a spruce's
+     * small clumps all along its branches (a cone of layers); a willow's small clumps along its hanging twigs.
+     */
     private void leaves() {
-        boolean pads = p.bones().style() == 1;
-        double flat = pads ? Math.max(0.7, p.leafFlat()) : p.leafFlat();
-        double squash = 1.0 - 0.65 * flat;
-        double density = p.leafDensity() / 100.0;
+        int style = p.bones().style();
+        double flat = p.leafFlat();
+        boolean[] hanging = style == SkeletonGenerator.WILLOW ? hangingTwigs() : null;
         for (int node = 1; node < bones.size(); node++) {
-            if (!bones.tip(node) || bones.kind(node) == Skeleton.ROOT) continue;
-            double size = p.leaf() * (0.85 + 0.3 * random.nextDouble()) * (pads ? 1.35 : 1.0);
-            double cx = bones.x(node);
-            double cy = bones.y(node) + (pads ? 0.6 : 0.2);
-            double cz = bones.z(node);
-            double tall = size * squash;
-            int reach = (int) Math.ceil(size + 1);
-            int up = (int) Math.ceil(tall + 1);
-            for (int x = (int) Math.floor(cx) - reach; x <= (int) Math.floor(cx) + reach; x++) {
-                for (int y = (int) Math.floor(cy) - up; y <= (int) Math.floor(cy) + up; y++) {
-                    for (int z = (int) Math.floor(cz) - reach; z <= (int) Math.floor(cz) + reach; z++) {
-                        double dx = x + 0.5 - cx;
-                        double dy = (y + 0.5 - cy) / Math.max(0.2, squash);
-                        double dz = z + 0.5 - cz;
-                        double d = Math.sqrt(dx * dx + dy * dy + dz * dz) + (hash(x, y, z, 23) - 0.5) * 0.9;
-                        if (d > size || y < 0) continue;
-                        long key = pack(x, y, z);
-                        if (shapeAt(key) != null || hash(x, y, z, 29) >= density) continue;
-                        double height = Math.max(0.0, Math.min(1.0, (y + 0.5 - (cy - tall)) / Math.max(0.5, 2.0 * tall)));
-                        leaves.merge(key, height, Math::max);
-                    }
+            if (bones.kind(node) == Skeleton.ROOT) continue;
+            boolean tip = bones.tip(node);
+            double size = p.leaf() * (0.85 + 0.3 * random.nextDouble());
+            switch (style) {
+                case SkeletonGenerator.BONSAI -> {
+                    if (tip) clump(node, size * 1.35, Math.max(0.7, flat), 0.6);
+                }
+                case SkeletonGenerator.ACACIA -> {
+                    if (tip) clump(node, size * 1.3, Math.max(0.85, flat), 0.5);
+                }
+                case SkeletonGenerator.SPRUCE -> {
+                    if (bones.kind(node) == Skeleton.BRANCH) clump(node, size * (tip ? 0.9 : 0.8), Math.max(0.6, flat), 0.2);
+                    else if (tip) clump(node, size * 0.8, 0.2, 0.3);
+                }
+                case SkeletonGenerator.WILLOW -> {
+                    if (tip) clump(node, size * 0.65, flat, 0.1);
+                    else if (hanging[node]) clump(node, size * 0.5, flat, 0.0);
+                    else if (bones.kind(node) == Skeleton.BRANCH && node % 2 == 0) clump(node, size * 0.6, flat, 0.3);
+                }
+                case SkeletonGenerator.BIRCH -> {
+                    if (tip) clump(node, size * 0.8, flat, 0.2);
+                }
+                case SkeletonGenerator.CHERRY -> {
+                    if (tip) clump(node, size * 1.1, Math.max(0.45, flat), 0.3);
+                }
+                default -> {
+                    if (tip) clump(node, size, flat, 0.2);
                 }
             }
             limit();
         }
+    }
+
+    /** The nodes of a willow's hanging twigs: branches going down, past half the height of the tree's crown. */
+    private boolean[] hangingTwigs() {
+        boolean[] out = new boolean[bones.size()];
+        for (int node = 1; node < bones.size(); node++) {
+            int from = bones.parent(node);
+            out[node] = bones.kind(node) == Skeleton.BRANCH && bones.y(node) < bones.y(from) - 0.3;
+        }
+        return out;
+    }
+
+    /** A clump of leaves round {@code node}: {@code size} round, flattened by {@code flat}, lifted {@code lift} over the node, a rough edge, not every block filled. */
+    private void clump(int node, double size, double flat, double lift) {
+        double squash = 1.0 - 0.65 * flat;
+        double density = p.leafDensity() / 100.0;
+        double cx = bones.x(node);
+        double cy = bones.y(node) + lift;
+        double cz = bones.z(node);
+        double tall = size * squash;
+        int reach = (int) Math.ceil(size + 1);
+        int up = (int) Math.ceil(tall + 1);
+        for (int x = (int) Math.floor(cx) - reach; x <= (int) Math.floor(cx) + reach; x++) {
+            for (int y = (int) Math.floor(cy) - up; y <= (int) Math.floor(cy) + up; y++) {
+                for (int z = (int) Math.floor(cz) - reach; z <= (int) Math.floor(cz) + reach; z++) {
+                    double dx = x + 0.5 - cx;
+                    double dy = (y + 0.5 - cy) / Math.max(0.2, squash);
+                    double dz = z + 0.5 - cz;
+                    double d = Math.sqrt(dx * dx + dy * dy + dz * dz) + (hash(x, y, z, 23) - 0.5) * 0.9;
+                    if (d > size || y < 0) continue;
+                    long key = pack(x, y, z);
+                    if (shapeAt(key) != null || hash(x, y, z, 29) >= density) continue;
+                    double height = Math.max(0.0, Math.min(1.0, (y + 0.5 - (cy - tall)) / Math.max(0.5, 2.0 * tall)));
+                    leaves.merge(key, height, Math::max);
+                }
+            }
+        }
+    }
+
+    /**
+     * (t286) The hanging strands: from leaves with air under them (and a willow's hanging tips), a share of them by {@code hang}, straight down {@code hangLength}
+     * blocks give or take, through the air only, never into the ground.
+     */
+    private void hang() {
+        List<Long> starts = new ArrayList<>();
+        for (long key : leaves.keySet()) if (!leaves.containsKey(step(key, 2)) && shapeAt(step(key, 2)) == null) starts.add(key);
+        if (p.bones().style() == SkeletonGenerator.WILLOW) {
+            for (int node = 1; node < bones.size(); node++) {
+                if (bones.tip(node) && bones.kind(node) == Skeleton.BRANCH) starts.add(pack((int) Math.floor(bones.x(node)), (int) Math.floor(bones.y(node)), (int) Math.floor(bones.z(node))));
+            }
+        }
+        starts.sort(Long::compare);
+        for (long start : starts) {
+            int x = unpackX(start);
+            int z = unpackZ(start);
+            if (hash(x, unpackY(start), z, 41) >= p.hang() * 0.45) continue;
+            int length = Math.max(1, (int) Math.round(p.hangLength() * (0.4 + 0.6 * hash(x, unpackY(start), z, 43))));
+            int floor = p.ground() == null ? 0 : p.ground().top(x, z) == Ground.NONE ? 0 : p.ground().top(x, z) + 1;
+            for (int down = 1; down <= length; down++) {
+                int y = unpackY(start) - down;
+                long key = pack(x, y, z);
+                if (y < Math.max(0, floor) || shapeAt(key) != null || leaves.containsKey(key) || hang.containsKey(key)) break;
+                hang.put(key, down / (double) length);
+            }
+        }
+        limit();
     }
 
     // ---- 7. the shading ------------------------------------------------------------------------------------------------------------------

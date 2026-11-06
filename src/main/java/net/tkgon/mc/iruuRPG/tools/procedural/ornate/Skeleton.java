@@ -83,6 +83,13 @@ public final class Skeleton {
         return z[node];
     }
 
+    /** Moves a node up or down (the roots laid on the ground, after the bones and their radii are made). */
+    public void moveY(int node, double py) {
+        y[node] = py;
+        path[node] = parent[node] < 0 ? 0.0 : path[parent[node]] + length(node);
+        toTip = null;
+    }
+
     public double radius(int node) {
         return r[node];
     }

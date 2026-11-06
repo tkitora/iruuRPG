@@ -15,7 +15,7 @@ import java.util.Locale;
 final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
-    private static final List<String> SUBS = List.of("kind", "give", "wand", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
+    private static final List<String> SUBS = List.of("kind", "give", "wand", "presets", "scatter", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
             "random");
 
     private final ProceduralModule tool;
@@ -47,6 +47,9 @@ final class ProceduralCommand implements TabExecutor {
             case "give", "on" -> tool.give(player);
             // (t246) the part wand: point at the house to choose, move, add and stretch its parts
             case "wand" -> tool.giveWand(player);
+            // (t286) the presets, by kind; the placing tool (and the choosing of its presets)
+            case "presets" -> tool.presets().open(player, PresetMenu.Mode.LOAD);
+            case "scatter" -> tool.presets().open(player, PresetMenu.Mode.SCATTER);
             case "off", "remove" -> tool.take(player);
             case "menu" -> {
                 if (session.base == null) player.sendMessage(PREFIX + "置きたい場所のブロックを、ツールでクリックしてください。");
@@ -105,7 +108,7 @@ final class ProceduralCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|presets|scatter|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]]");
         }
         return true;
     }
@@ -141,11 +144,29 @@ final class ProceduralCommand implements TabExecutor {
      */
     private void block(Player player, TreeSettings settings, String[] args) {
         if (args.length < 3) {
-            StringBuilder text = new StringBuilder(PREFIX + "/proceduraltool block <部位> <ブロック名|hand|reset>  (leaf はカンマ区切りで、葉のグラデーション: 下,…,上)  部位: ");
+            StringBuilder text = new StringBuilder(PREFIX + "/proceduraltool block <部位> <ブロック名|hand|reset>  (leaf はカンマ区切りで、葉のグラデーション: 下,…,上。hang は装飾の木の垂れる房: カンマ区切りで混ぜる)  部位: ");
             for (TreePart part : settings.kind().parts()) {
                 text.append(part.key()).append('=').append(tool.material(part, settings).getKey().getKey()).append(' ');
             }
             player.sendMessage(text.toString().trim());
+            return;
+        }
+        if (args[1].equalsIgnoreCase("hang")) {
+            // (t286: the blocks of an ornate tree's hanging strands, any blocks, mixed)
+            List<String> names = new ArrayList<>();
+            if (!args[2].equalsIgnoreCase("reset")) {
+                for (String name : args[2].split(",")) {
+                    String block = name.equalsIgnoreCase("hand") ? player.getInventory().getItemInMainHand().getType().name() : name;
+                    if (TreeSettings.blockName(block) == null) {
+                        player.sendMessage(PREFIX + "置けるブロックではありません: " + name);
+                        return;
+                    }
+                    names.add(block);
+                }
+            }
+            settings.setHangBlocks(names);
+            tool.changed(player);
+            player.sendMessage(PREFIX + "垂れる房: " + (settings.hangBlocks().isEmpty() ? "葉のいちばん下の段" : String.join(", ", settings.hangBlocks()).toLowerCase(Locale.ROOT)));
             return;
         }
         TreePart part = null;

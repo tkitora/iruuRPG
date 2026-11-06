@@ -1,4 +1,4 @@
-# 見本の木: 装飾の木 (ファンタジー。渦を巻く太い枝、巻き上がる枝先、張り出した根、樹皮の筋と陰影。t282) (プロシージャルツールの読み込み、または /proceduraltool load ornate_fantasy)
+# 見本の木: 装飾の木・オーク (ファンタジー。渦を巻く太い枝、巻き上がる枝先、張り出した根、樹皮の筋と陰影。t282) (プロシージャルツールの読み込み、または /proceduraltool load ornate_fantasy)
 settings:
   kind: tree
   algorithm: ornate
@@ -26,6 +26,10 @@ settings:
   orn-leaf: 2.5
   orn-leaf-flat: 0.35
   orn-leaf-density: 85
+  orn-root-snap: 1
+  orn-stair-mix: 0.8
+  orn-hang: 0.0
+  orn-hang-length: 5
   seed: 0
   blocks:
     trunk: DARK_OAK_LOG

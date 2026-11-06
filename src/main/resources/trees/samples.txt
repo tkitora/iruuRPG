@@ -21,5 +21,8 @@ silhouette_swoop
 silhouette_dome
 ornate_fantasy
 ornate_bonsai
-ornate_natural
-ornate_dead
+ornate_spruce
+ornate_birch
+ornate_willow
+ornate_cherry
+ornate_acacia

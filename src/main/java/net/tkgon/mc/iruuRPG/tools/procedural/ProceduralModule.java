@@ -52,6 +52,11 @@ public final class ProceduralModule implements Listener {
     private final NamespacedKey wandKey;
     private final TreeStore store;
     private final ProceduralMenu menu;
+    /** (t286) The list of presets (loading, and choosing the placing tool's). */
+    private final PresetMenu presets;
+    /** (t286) The mark of the placing tool, and the presets it puts with their weights ("name=weight;..."). */
+    private final NamespacedKey scatterKey;
+    private final NamespacedKey scatterListKey;
     private final TreePreview preview;
     private final boolean worldEdit;
     private final Map<UUID, TreeSession> sessions = new HashMap<>();
@@ -62,6 +67,7 @@ public final class ProceduralModule implements Listener {
             ProceduralModule module = new ProceduralModule(plugin);
             plugin.getServer().getPluginManager().registerEvents(module, plugin);
             plugin.getServer().getPluginManager().registerEvents(module.menu, plugin);
+            plugin.getServer().getPluginManager().registerEvents(module.presets, plugin);
             org.bukkit.command.PluginCommand command = plugin.getCommand("proceduraltool");
             if (command != null) {
                 ProceduralCommand handler = new ProceduralCommand(module);
@@ -82,6 +88,9 @@ public final class ProceduralModule implements Listener {
         this.store = new TreeStore(plugin);
         store.installSamples();
         this.menu = new ProceduralMenu(this);
+        this.presets = new PresetMenu(this);
+        this.scatterKey = new NamespacedKey(plugin, "scatter_tool");
+        this.scatterListKey = new NamespacedKey(plugin, "scatter_list");
         this.preview = new TreePreview(this);
         this.worldEdit = plugin.getServer().getPluginManager().isPluginEnabled("FastAsyncWorldEdit")
                 || plugin.getServer().getPluginManager().isPluginEnabled("WorldEdit");
@@ -109,6 +118,10 @@ public final class ProceduralModule implements Listener {
 
     TreePreview preview() {
         return preview;
+    }
+
+    PresetMenu presets() {
+        return presets;
     }
 
     TreeSession session(Player player) {
@@ -251,6 +264,15 @@ public final class ProceduralModule implements Listener {
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
+        if (isScatter(event.getItem())) {
+            event.setCancelled(true);
+            if (!event.getPlayer().hasPermission("iruurpg.admin")) {
+                event.getPlayer().sendMessage(PREFIX + "この配置ツールは管理者だけが使えます。");
+                return;
+            }
+            scatter(event.getPlayer(), event.getItem(), event.getAction(), event.getClickedBlock(), event.getBlockFace());
+            return;
+        }
         if (isWand(event.getItem())) {
             event.setCancelled(true);
             if (!event.getPlayer().hasPermission("iruurpg.admin")) {
@@ -328,6 +350,149 @@ public final class ProceduralModule implements Listener {
     @EventHandler
     public void onSwap(org.bukkit.event.player.PlayerSwapHandItemsEvent event) {
         refreshHighlightLater(event.getPlayer());
+    }
+
+    // ---- the placing tool (t286) ------------------------------------------------------------------------------------------------
+
+    ItemStack scatterItem(Map<String, Integer> chosen) {
+        ItemStack item = new ItemStack(Material.BIRCH_SAPLING);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("配置ツール", NamedTextColor.AQUA, TextDecoration.BOLD).decoration(TextDecoration.ITALIC, false));
+        meta.getPersistentDataContainer().set(scatterKey, PersistentDataType.BYTE, (byte) 1);
+        meta.getPersistentDataContainer().set(scatterListKey, PersistentDataType.STRING, encode(chosen));
+        item.setItemMeta(meta);
+        describeScatter(item, chosen);
+        return item;
+    }
+
+    private void describeScatter(ItemStack item, Map<String, Integer> chosen) {
+        ItemMeta meta = item.getItemMeta();
+        List<Component> lore = new ArrayList<>();
+        lore.add(text("右クリック: 下のプリセットのどれかを、重みの割合で、クリックしたブロックの上にランダムなシードで置く (//undo で戻せる)", NamedTextColor.GRAY));
+        lore.add(text("遠くのブロックも、見てクリックすれば同じ", NamedTextColor.GRAY));
+        lore.add(text("左クリック: プリセットと重みを選ぶ画面", NamedTextColor.GRAY));
+        int total = 0;
+        for (int weight : chosen.values()) total += weight;
+        for (Map.Entry<String, Integer> entry : chosen.entrySet()) {
+            lore.add(text("・" + entry.getKey() + " × " + entry.getValue() + String.format(java.util.Locale.ROOT, " (%.0f%%)", 100.0 * entry.getValue() / Math.max(1, total)), NamedTextColor.WHITE));
+        }
+        if (chosen.isEmpty()) lore.add(text("(まだプリセットを選んでいない)", NamedTextColor.DARK_GRAY));
+        meta.lore(lore);
+        item.setItemMeta(meta);
+    }
+
+    boolean isScatter(ItemStack item) {
+        if (item == null || item.getType() != Material.BIRCH_SAPLING || !item.hasItemMeta()) return false;
+        return item.getItemMeta().getPersistentDataContainer().has(scatterKey, PersistentDataType.BYTE);
+    }
+
+    /** The presets a placing tool puts, with their weights. */
+    Map<String, Integer> scatterList(ItemStack item) {
+        String text = item.getItemMeta().getPersistentDataContainer().get(scatterListKey, PersistentDataType.STRING);
+        return decode(text);
+    }
+
+    static String encode(Map<String, Integer> chosen) {
+        StringBuilder out = new StringBuilder();
+        for (Map.Entry<String, Integer> entry : chosen.entrySet()) {
+            if (!out.isEmpty()) out.append(';');
+            out.append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        return out.toString();
+    }
+
+    static Map<String, Integer> decode(String text) {
+        Map<String, Integer> out = new java.util.LinkedHashMap<>();
+        if (text == null || text.isEmpty()) return out;
+        for (String pair : text.split(";")) {
+            int equals = pair.lastIndexOf('=');
+            if (equals <= 0) continue;
+            try {
+                int weight = Integer.parseInt(pair.substring(equals + 1));
+                if (weight > 0) out.put(pair.substring(0, equals), weight);
+            } catch (NumberFormatException ignored) {
+                // (a broken entry is left out)
+            }
+        }
+        return out;
+    }
+
+    /** Gives a placing tool of these presets, or writes them into the one in hand. */
+    void giveScatter(Player player, Map<String, Integer> chosen) {
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        if (isScatter(hand)) {
+            ItemMeta meta = hand.getItemMeta();
+            meta.getPersistentDataContainer().set(scatterListKey, PersistentDataType.STRING, encode(chosen));
+            hand.setItemMeta(meta);
+            describeScatter(hand, chosen);
+            player.sendMessage(PREFIX + "手に持っている配置ツールの、プリセットを変えました (" + chosen.size() + " 種類)。");
+            return;
+        }
+        player.getInventory().addItem(scatterItem(chosen)).values().forEach(left -> player.getWorld().dropItem(player.getLocation(), left));
+        player.sendMessage(PREFIX + "配置ツールを渡しました (" + chosen.size() + " 種類)。右クリックで置く / 左クリックでプリセットを選ぶ。");
+    }
+
+    /** One of a placing tool's presets, by weight (null when there is none). Pure, for the tests. */
+    static String pick(Map<String, Integer> chosen, Random random) {
+        int total = 0;
+        for (int weight : chosen.values()) total += Math.max(0, weight);
+        if (total <= 0) return null;
+        int roll = random.nextInt(total);
+        for (Map.Entry<String, Integer> entry : chosen.entrySet()) {
+            roll -= Math.max(0, entry.getValue());
+            if (roll < 0) return entry.getKey();
+        }
+        return null;
+    }
+
+    /** A click with the placing tool: the left one opens the choosing of its presets, the right one puts one of them where it is clicked (or the block in sight). */
+    private void scatter(Player player, ItemStack item, Action action, Block clicked, BlockFace face) {
+        TreeSession session = session(player);
+        if (action == Action.LEFT_CLICK_AIR || action == Action.LEFT_CLICK_BLOCK) {
+            session.scatter.clear();
+            session.scatter.putAll(scatterList(item));
+            presets.open(player, PresetMenu.Mode.SCATTER);
+            return;
+        }
+        Block target = clicked;
+        BlockFace targetFace = face;
+        if (target == null) {
+            HousePointer.Hit hit = sight(player, session, false);
+            if (hit == null) {
+                player.sendMessage(PREFIX + "置く場所のブロックを見て、右クリックしてください。");
+                return;
+            }
+            target = player.getWorld().getBlockAt(hit.x(), hit.y(), hit.z());
+            targetFace = target.getFace(player.getWorld().getBlockAt(hit.beforeX(), hit.beforeY(), hit.beforeZ()));
+        }
+        if (session.busy) {
+            player.sendMessage(PREFIX + "前のものをまだ作っています。終わるまで待ってください。");
+            return;
+        }
+        Random random = new Random();
+        String name = pick(scatterList(item), random);
+        if (name == null) {
+            player.sendMessage(PREFIX + "配置ツールにプリセットがありません。左クリックで選んでください。");
+            return;
+        }
+        TreeSettings settings = store.load(name);
+        if (settings == null) {
+            player.sendMessage(PREFIX + "プリセットが読めません (消された?): " + name);
+            return;
+        }
+        if (settings.kind().web()) {
+            player.sendMessage(PREFIX + "クモの巣は配置ツールでは置けません: " + name);
+            return;
+        }
+        limit(settings);
+        boolean pointing = settings.kind() == ProcKind.SPIKE || settings.kind() == ProcKind.CRYSTAL;
+        BlockFace grow = pointing && targetFace != null && targetFace != BlockFace.SELF ? targetFace : BlockFace.UP;
+        Location base = target.getLocation().add(grow.getModX(), grow.getModY(), grow.getModZ());
+        org.bukkit.util.Vector toEye = player.getEyeLocation().toVector().subtract(base.toVector().add(new org.bukkit.util.Vector(0.5, 0.5, 0.5)));
+        org.bukkit.util.Vector aim = toEye.lengthSquared() < 1.0E-6 ? null : toEye.normalize();
+        long seed = random.nextLong() & Long.MAX_VALUE;
+        player.sendMessage(PREFIX + "配置: " + name + " (" + settings.kind().label() + (settings.kind().tree() ? ", " + algorithmLabel(settings.algorithm()) : "") + ")");
+        build(player, session, settings, base, aim, seed, null);
     }
 
     // ---- the block in sight, and the part wand (t246) ------------------------------------------------------------------------
@@ -712,16 +877,23 @@ public final class ProceduralModule implements Listener {
         Location base = session.base.clone();
         boolean wasPreview = session.preview;
         if (wasPreview) preview.off(player, false);
-        session.busy = true;
         player.sendMessage(PREFIX + "作っています… (" + session.settings.kind().label() + ", " + algorithmLabel(settings.algorithm()) + ", 高さ " + settings.height() + " 幅 " + settings.width() + ")");
+        build(player, session, settings, base, session.aim == null ? null : session.aim.clone(), seed, web);
+    }
+
+    /**
+     * Grows {@code settings} at {@code base} off the main thread (the terrain read first, where it is needed) and puts it in the world as one edit; the player's session is
+     * busy until it is in. The settings' own button and the placing tool (t286) both come here.
+     */
+    void build(Player player, TreeSession session, TreeSettings settings, Location base, org.bukkit.util.Vector aim, long seed, WebInput web) {
+        session.busy = true;
         TreeGround ground;
         try {
-            ground = settings.kind().web() || settings.kind().tree() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+            ground = (settings.kind().web() || settings.kind().tree()) && !OrnateTree.readsGround(settings) ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
         } catch (RuntimeException exception) {
             ground = null;
         }
         TreeGround terrain = ground;
-        org.bukkit.util.Vector aim = session.aim == null ? null : session.aim.clone();
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks;
             try {
@@ -865,7 +1037,7 @@ public final class ProceduralModule implements Listener {
             case "palm" -> "ヤシ";
             case "thin" -> "細い木 (壁・フェンス・ハーフの枝)";
             case "silhouette" -> "樹形 (丸・しだれ・針葉樹・流れ・傘)";
-            case "ornate" -> "装飾の木 (ファンタジー・盆栽・自然木・枯れ木)";
+            case "ornate" -> "装飾の木 (オーク・盆栽・トウヒ・白樺・柳・桜・アカシア)";
             default -> "樹冠 (フラクタル)";
         };
     }

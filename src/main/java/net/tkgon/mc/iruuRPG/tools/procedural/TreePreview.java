@@ -160,7 +160,7 @@ final class TreePreview {
         WebInput webInput = web;
         TreeGround ground;
         try {
-            ground = settings.kind().web() || settings.kind().tree() ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
+            ground = (settings.kind().web() || settings.kind().tree()) && !OrnateTree.readsGround(settings) ? null : TreeGround.sample(base, TreeGenerator.groundRadius(settings));
         } catch (RuntimeException exception) {
             ground = null;
         }

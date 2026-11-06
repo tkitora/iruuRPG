@@ -93,6 +93,27 @@ final class TreeStore {
         }
     }
 
+    /** (t286) What a saved preset is, for the list of presets: its kind, its algorithm (a tree), its style (an ornate tree) and the block of its trunk (a tree), if any. */
+    record Info(ProcKind kind, String algorithm, int style, String trunk) {
+    }
+
+    private final Map<String, Info> infos = new java.util.HashMap<>();
+    private final Map<String, Long> infoTimes = new java.util.HashMap<>();
+
+    /** The info of preset {@code name} (read again only when its file changed); null when it cannot be read. */
+    public Info info(String name) {
+        File file = file(name);
+        if (!file.isFile()) return null;
+        Long time = infoTimes.get(name);
+        if (time != null && time == file.lastModified() && infos.containsKey(name)) return infos.get(name);
+        TreeSettings settings = load(name);
+        if (settings == null) return null;
+        Info info = new Info(settings.kind(), settings.algorithm(), settings.getInt(TreeSettings.Key.ORN_STYLE), settings.block(TreePart.TRUNK));
+        infos.put(name, info);
+        infoTimes.put(name, file.lastModified());
+        return info;
+    }
+
     /** The names saved, in alphabetical order. */
     public List<String> list() {
         File[] files = folder().listFiles((dir, fileName) -> fileName.endsWith(".yml"));
