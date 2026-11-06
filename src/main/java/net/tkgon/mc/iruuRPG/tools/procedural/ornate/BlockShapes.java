@@ -130,6 +130,8 @@ public final class BlockShapes {
     /** An open fence gate: [north, east, south, west]. */
     private static final Shape[] GATE_OPEN = new Shape[4];
     private static final Shape[] LUT = new Shape[256];
+    /** The shapes that fill octants: the empty block, the full block, the slabs, the stairs. */
+    private static final List<Shape> SOLIDS = new ArrayList<>();
     private static boolean[][][] joined;
 
     /** The upper octets of a stair by the octet bits the game gives each facing and shape (1 = -x -z, 2 = +x -z, 4 = -x +z, 8 = +x +z). */
@@ -183,7 +185,7 @@ public final class BlockShapes {
             GATE_OPEN[facing] = add(Kind.GATE, "facing=" + FACINGS[facing] + ",open=true,in_wall=false", boxes);
         }
         // the 256 masks of octants to the nearest shape that fills octants (the empty block first: a tie keeps the wood out)
-        List<Shape> solids = new ArrayList<>();
+        List<Shape> solids = SOLIDS;
         solids.add(EMPTY);
         solids.add(FULL);
         solids.add(SLAB_BOTTOM);
@@ -234,6 +236,11 @@ public final class BlockShapes {
             turned[index] = new int[]{16 - b[5], b[1], b[0], 16 - b[2], b[4], b[3]};
         }
         return turned;
+    }
+
+    /** The shapes that fill octants (the empty block, the full block, the slabs, the stairs). */
+    public static List<Shape> solids() {
+        return Collections.unmodifiableList(SOLIDS);
     }
 
     public static List<Shape> all() {

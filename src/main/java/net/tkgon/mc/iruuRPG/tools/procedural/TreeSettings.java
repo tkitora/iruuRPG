@@ -188,7 +188,7 @@ final class TreeSettings {
         SIL_ROUGH("sil-rough", "葉のでこぼこ", 0.0, 2.0, 1.0, 0.1, 0.5, "葉の表面を間引く・突き出す強さの倍率 (0 でなめらか)"),
         SIL_DRIP("sil-drip", "垂れる房", 0.0, 3.0, 1.0, 0.1, 0.5, "葉の下から垂れる房の量と長さの倍率 (しだれ・傘はもともと多い)"),
         // ---- (t282) the ornate tree (OrnateTree): bones by the pipe model, octants for the thick wood, thin wood without gaps, bark decoration, shading ----
-        ORN_STYLE("orn-style", "様式", 0, 3, 0, 1, 1, "0 装飾 (渦を巻く枝・巻き上がる枝先) / 1 横に広がる (盆栽・松) / 2 自然木 (空間植民) / 3 枯れ木"),
+        ORN_STYLE("orn-style", "様式", 0, 6, 0, 1, 1, "0 オーク (装飾・ファンタジー) / 1 盆栽・松 / 2 トウヒ / 3 白樺 / 4 柳 / 5 桜 / 6 アカシア。画面で変えると、形の数字はその様式の初期値になる (ブロックはそのまま)"),
         ORN_HEIGHT("orn-height", "幹の高さ", 2.0, 40.0, 9.0, 0.5, 3, "根元から、幹が枝に分かれるまでの長さ (ブロック)"),
         ORN_TRUNK("orn-trunk", "幹の太さ", 0.5, 5.0, 2.0, 0.25, 1, "根元の幹の半径 (ブロック)。枝の太さは、パイプモデルでここから決まる (半径 0.5 より細い所は、塀・フェンス・ハーフなど)"),
         ORN_CURL("orn-curl", "うねり", 0.0, 1.0, 0.5, 0.05, 0.25, "幹と枝が、ゆっくり渦を巻くように曲がる強さ"),
@@ -211,7 +211,12 @@ final class TreeSettings {
         ORN_PIPE("orn-pipe", "太さの指数", 1.5, 3.0, 2.3, 0.1, 0.5, "パイプモデルの指数 n (親の半径^n = 子の半径^n の和)。小さいほど、枝が先へ向かって早く細くなる"),
         ORN_LEAF("orn-leaf", "葉の塊の大きさ", 0.0, 6.0, 2.5, 0.25, 1, "枝先の葉の塊の半径 (0 で葉なし。枯れ木は葉なし)"),
         ORN_LEAF_FLAT("orn-leaf-flat", "葉の平たさ", 0.0, 1.0, 0.3, 0.05, 0.25, "葉の塊を上下につぶす強さ (横に広がる型は 0.7 以上)"),
-        ORN_LEAF_DENSITY("orn-leaf-density", "葉の密度 (%)", 10, 100, 85, 5, 15, "葉の塊の中を葉で埋める割合");
+        ORN_LEAF_DENSITY("orn-leaf-density", "葉の密度 (%)", 10, 100, 85, 5, 15, "葉の塊の中を葉で埋める割合"),
+        // ---- (t286) the roots on the ground, the runs of stairs, the hanging strands ----
+        ORN_ROOT_SNAP("orn-root-snap", "根を地面に沿わせる", true, "オン: 根を、まわりの地面の高さに沿わせる (坂や段差でも浮かない・埋まらない) / オフ: 平らな地面と見て伸ばす"),
+        ORN_STAIR_MIX("orn-stair-mix", "階段の並びを崩す", 0.0, 1.0, 0.8, 0.05, 0.25, "同じ向き・形の階段が積み重なったり 45 度に並んだりする所を、丸太・ハーフ・角の階段などに置き換える割合 (0 で置き換えない)"),
+        ORN_HANG("orn-hang", "垂れる房", 0.0, 1.0, 0.0, 0.05, 0.25, "葉の塊の下 (柳は垂れた枝先) から垂れる房の多さ。ブロックは「葉」のページの下の段 (草・花なども選べる)"),
+        ORN_HANG_LENGTH("orn-hang-length", "房の長さ", 1, 16, 5, 1, 3, "垂れる房のいちばん長いもの (ブロック。短いものも混ざる)");
 
         private final String id;
         private final String label;
@@ -308,6 +313,8 @@ final class TreeSettings {
     private final Map<TreePart, String> blocks = new EnumMap<>(TreePart.class);
     /** The leaf gradient, from the bottom of a clump to its top (the names of the materials); empty: the leaves are the one block of the config. */
     private final List<String> leafGradient = new ArrayList<>();
+    /** (t286) The blocks of the hanging strands of an ornate tree, mixed at random (a name twice is twice as likely); empty: the lowest leaf. */
+    private final List<String> hangBlocks = new ArrayList<>();
     /** The parts added on the house base (t181), in the order they are built (a later one goes over an earlier one). */
     private final List<HouseModule> modules = new ArrayList<>();
 
@@ -334,6 +341,7 @@ final class TreeSettings {
         copy.name = name;
         copy.blocks.putAll(blocks);
         copy.leafGradient.addAll(leafGradient);
+        copy.hangBlocks.addAll(hangBlocks);
         // (the generation reads the copy off the main thread while the menu may change the parts: each is copied)
         for (HouseModule module : modules) copy.modules.add(module.copy());
         copy.roofSteps.clear();
@@ -419,6 +427,30 @@ final class TreeSettings {
 
     void removeLeafShade(int index) {
         if (index >= 0 && index < leafGradient.size()) leafGradient.remove(index);
+    }
+
+    List<String> hangBlocks() {
+        return List.copyOf(hangBlocks);
+    }
+
+    /** Sets block {@code index} of the hanging strands (one past the end adds one); a name that is not a block is ignored. At most {@link TreePart#SHADES}. */
+    void setHangBlock(int index, String material) {
+        String name = blockName(material);
+        if (name == null || index < 0 || index > hangBlocks.size() || index >= TreePart.SHADES) return;
+        if (index == hangBlocks.size()) hangBlocks.add(name);
+        else hangBlocks.set(index, name);
+    }
+
+    void removeHangBlock(int index) {
+        if (index >= 0 && index < hangBlocks.size()) hangBlocks.remove(index);
+    }
+
+    void setHangBlocks(List<String> materials) {
+        hangBlocks.clear();
+        for (String material : materials) {
+            String name = blockName(material);
+            if (name != null && hangBlocks.size() < TreePart.SHADES) hangBlocks.add(name);
+        }
     }
 
     /** Replaces the whole gradient (the names that are not blocks are left out; at most {@link TreePart#SHADES}). */
@@ -585,6 +617,7 @@ final class TreeSettings {
         for (Map.Entry<TreePart, String> entry : blocks.entrySet()) chosen.put(entry.getKey().key(), entry.getValue());
         map.put("blocks", chosen);
         map.put("leaf-gradient", new ArrayList<>(leafGradient));
+        if (!hangBlocks.isEmpty()) map.put("hang-blocks", new ArrayList<>(hangBlocks));
         List<Map<String, Object>> parts = new ArrayList<>();
         for (HouseModule module : modules) parts.add(module.toMap());
         map.put("house-modules", parts);
@@ -618,6 +651,11 @@ final class TreeSettings {
             List<String> names = new ArrayList<>();
             for (Object entry : list) names.add(String.valueOf(entry));
             settings.setLeafGradient(names);
+        }
+        if (map.get("hang-blocks") instanceof List<?> list) {
+            List<String> names = new ArrayList<>();
+            for (Object entry : list) names.add(String.valueOf(entry));
+            settings.setHangBlocks(names);
         }
         if (map.get("house-modules") instanceof List<?> list) {
             for (Object entry : list) {

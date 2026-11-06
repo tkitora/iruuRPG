@@ -26,6 +26,10 @@ settings:
   orn-leaf: 1.75
   orn-leaf-flat: 0.8
   orn-leaf-density: 90
+  orn-root-snap: 1
+  orn-stair-mix: 0.8
+  orn-hang: 0.0
+  orn-hang-length: 5
   seed: 0
   blocks:
     trunk: SPRUCE_LOG

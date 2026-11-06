@@ -25,6 +25,12 @@ final class TreeSession {
     /** A tree is being put in the world. */
     boolean busy;
 
+    // ---- the presets and the placing tool (t286, see PresetMenu) ------------------------------------------------------------
+    /** The kind of presets shown last in the list of presets (null: the kind being made). */
+    ProcKind presetKind;
+    /** The presets chosen for the placing tool, with their weights (in the order chosen). */
+    final Map<String, Integer> scatter = new java.util.LinkedHashMap<>();
+
     // ---- the random houses (t185, see HouseDesigner) --------------------------------------------------------------------
     /** The houses made at random, oldest first (the settings before the first one are the first): the ones to go back to. */
     final java.util.List<TreeSettings> designs = new java.util.ArrayList<>();

@@ -57,6 +57,9 @@ final class ProceduralMenu implements Listener {
     // the leaf page: the leaf gradient from the bottom of a clump to its top, and its help
     private static final int[] SHADE_SLOTS = {28, 29, 30, 31, 32, 33};
     private static final int SHADE_HELP = 34;
+    /** (t286) The blocks of an ornate tree's hanging strands, on the leaf page under the gradient. */
+    private static final int[] HANG_SLOTS = {37, 38, 39, 40, 41, 42};
+    private static final int HANG_HELP = 43;
     // the page of the parts added on a house (t181): the list (and the button that adds one), then the numbers of the one chosen
     private static final int[] MODULE_SLOTS = {11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
     private static final int M_TYPE = 28;
@@ -91,6 +94,8 @@ final class ProceduralMenu implements Listener {
         TRUNK(3, Material.OAK_LOG, "幹・根", new TreeSettings.Key[]{}),
         BRANCH(4, Material.STICK, "枝", new TreeSettings.Key[]{}),
         LEAF(5, Material.OAK_LEAVES, "葉", new TreeSettings.Key[]{}),
+        /** (t286) the shading of an ornate tree: the colours matched to the trunk, the light levels and what makes them. */
+        SHADE(6, Material.GLOWSTONE_DUST, "陰影", new TreeSettings.Key[]{}),
         /** The settings of everything that is not a tree (which of them depends on the kind). */
         SHAPE(3, Material.COBBLESTONE, "形", new TreeSettings.Key[]{}),
         /** (t181) the roof of a house. */
@@ -126,6 +131,7 @@ final class ProceduralMenu implements Listener {
                 case SHAPE -> !kind.tree();
                 case ROOF, MODULES, DESIGN, WALLS -> kind == ProcKind.HOUSE;
                 case BRANCH -> kind.tree() && !settings.grows("palm") && !settings.grows("silhouette");
+                case SHADE -> kind.tree() && settings.grows("ornate");
                 default -> kind.tree();
             };
         }
@@ -191,11 +197,14 @@ final class ProceduralMenu implements Listener {
             };
             case "ornate" -> switch (page) {
                 case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.ORN_STYLE, TreeSettings.Key.ORN_HEIGHT, TreeSettings.Key.ORN_TRUNK, TreeSettings.Key.ORN_CURL,
-                        TreeSettings.Key.ORN_ROOTS, TreeSettings.Key.ORN_ROOT_REACH, TreeSettings.Key.ORN_FLARE, TreeSettings.Key.ORN_DECOR, TreeSettings.Key.ORN_MATCH,
-                        TreeSettings.Key.ORN_SHADE_STEP, TreeSettings.Key.ORN_AO, TreeSettings.Key.ORN_CURVATURE, TreeSettings.Key.ORN_LIGHT, TreeSettings.Key.ORN_LIGHT_DIR};
+                        TreeSettings.Key.ORN_ROOTS, TreeSettings.Key.ORN_ROOT_REACH, TreeSettings.Key.ORN_ROOT_SNAP, TreeSettings.Key.ORN_FLARE, TreeSettings.Key.ORN_DECOR,
+                        TreeSettings.Key.ORN_STAIR_MIX};
                 case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.ORN_BRANCHES, TreeSettings.Key.ORN_DEPTH, TreeSettings.Key.ORN_LENGTH, TreeSettings.Key.ORN_SPREAD,
                         TreeSettings.Key.ORN_DROOP, TreeSettings.Key.ORN_TIP_CURL, TreeSettings.Key.ORN_PIPE};
-                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.ORN_LEAF, TreeSettings.Key.ORN_LEAF_FLAT, TreeSettings.Key.ORN_LEAF_DENSITY};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.ORN_LEAF, TreeSettings.Key.ORN_LEAF_FLAT, TreeSettings.Key.ORN_LEAF_DENSITY, TreeSettings.Key.ORN_HANG,
+                        TreeSettings.Key.ORN_HANG_LENGTH};
+                case SHADE -> new TreeSettings.Key[]{TreeSettings.Key.ORN_MATCH, TreeSettings.Key.ORN_SHADE_STEP, TreeSettings.Key.ORN_AO, TreeSettings.Key.ORN_CURVATURE,
+                        TreeSettings.Key.ORN_LIGHT, TreeSettings.Key.ORN_LIGHT_DIR};
                 default -> new TreeSettings.Key[]{};
             };
             case "silhouette" -> switch (page) {
@@ -473,6 +482,7 @@ final class ProceduralMenu implements Listener {
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
                 text("プレビュー中は、変えて 0.75 秒後に木が変わる", NamedTextColor.GRAY))));
         if (page == Page.LEAF) renderShades(inventory, holder, settings);
+        if (page == Page.LEAF && settings.grows("ornate")) renderStrands(inventory, holder, settings);
         if (page == Page.ROOF && stepped(settings)) renderSteps(inventory, settings);
 
         TreeSettings.Key[] shownKeys = page.keysFor(settings);
@@ -584,7 +594,7 @@ final class ProceduralMenu implements Listener {
                 text("ヤシ: S字の幹、てっぺんに葉の層。二股・支柱の根", NamedTextColor.GRAY),
                 text("細い木: すぐ分かれる短い幹、根元から離れるほど 丸太 → 壁・ハーフ → フェンス と細る枝、階段の継ぎ目、重ね塗りの葉 (t252・t258)", NamedTextColor.GRAY),
                 text("樹形: 丸・しだれ・針葉樹・流れる幹・傘の形を骨組みで描き、細かく量って丸太・階段・ハーフ・壁・フェンスに。雲の葉に陰影、垂れる房", NamedTextColor.GRAY),
-                text("装飾の木: フラクタルの骨組み (装飾・盆栽・自然木・枯れ木)、パイプモデルの太さ、隙間のない細い枝 (塀・フェンス・ハーフ・トラップドア・ゲート)、樹皮の装飾、陰影 (t282)", NamedTextColor.GRAY),
+                text("装飾の木: フラクタルの骨組み (オーク・盆栽・トウヒ・白樺・柳・桜・アカシア)、パイプモデルの太さ、隙間のない細い枝、樹皮の装飾、陰影、垂れる房 (t282・t286)", NamedTextColor.GRAY),
                 text("左クリック: 次 / 右クリック: 前 (数字は、アルゴリズムごとに別々に残る)", NamedTextColor.YELLOW))));
     }
 
@@ -599,11 +609,9 @@ final class ProceduralMenu implements Listener {
                 text("右クリック: 毎回ランダムに戻す (プレビュー中は、新しい番号で固定)", NamedTextColor.YELLOW))));
         List<String> saved = tool.store().list();
         List<Component> loadLore = new ArrayList<>();
-        loadLore.add(text("保存した木の設定を読み込む (" + saved.size() + "件)", NamedTextColor.GRAY));
-        for (int index = 0; index < Math.min(8, saved.size()); index++) {
-            loadLore.add(text((saved.get(index).equals(settings.name()) ? "▶ " : "  ") + saved.get(index), NamedTextColor.WHITE));
-        }
-        loadLore.add(text("左クリック: 次へ / 右クリック: 前へ (その場で読み込む)", NamedTextColor.YELLOW));
+        loadLore.add(text("保存したプリセットを読み込む (" + saved.size() + "件)。木・岩・家などの種類ごとに並ぶ", NamedTextColor.GRAY));
+        loadLore.add(text("いま: " + settings.name(), NamedTextColor.WHITE));
+        loadLore.add(text("クリック: プリセットの一覧 (配置ツールのプリセットも、そこから選べる)", NamedTextColor.YELLOW));
         inventory.setItem(LOAD, item(Material.BOOKSHELF, "読み込み", NamedTextColor.AQUA, loadLore));
         inventory.setItem(RESET, item(Material.TNT, "設定を初期値に戻す", NamedTextColor.RED, List.of(
                 text("数字・シード・選んだブロックを初期値にする (アルゴリズムはそのまま)", NamedTextColor.GRAY),
@@ -678,6 +686,34 @@ final class ProceduralMenu implements Listener {
                 text("左の段の並びが、下 → 上", NamedTextColor.GRAY))));
     }
 
+    /** (t286) The blocks of an ornate tree's hanging strands on the leaf page, under the gradient: a slot a block (mixed at random), one more to add one, and a help item. */
+    private void renderStrands(Inventory inventory, Holder holder, TreeSettings settings) {
+        List<String> blocks = settings.hangBlocks();
+        for (int index = 0; index < HANG_SLOTS.length; index++) {
+            boolean waiting = ("hang:" + index).equals(holder.picking);
+            if (index < blocks.size()) {
+                Material block = TreeSettings.materialOf(blocks.get(index));
+                if (block == null) block = Material.BARRIER;
+                List<Component> lore = new ArrayList<>();
+                if (waiting) lore.add(text("▶ インベントリのブロックをクリックしてください", NamedTextColor.GOLD));
+                lore.add(text("垂れる房に混ぜるブロック (同じものを 2 つ入れると 2 倍出る)", NamedTextColor.GRAY));
+                lore.add(text("左クリックのあと、インベントリのブロックをクリック: 選び直す", NamedTextColor.YELLOW));
+                lore.add(text("右クリック: 外す", NamedTextColor.YELLOW));
+                inventory.setItem(HANG_SLOTS[index], glint(item(icon(block), "房 " + (index + 1) + ": " + block.getKey().getKey(), waiting ? NamedTextColor.GOLD : NamedTextColor.GREEN, lore), waiting));
+            } else if (index == blocks.size()) {
+                List<Component> lore = new ArrayList<>();
+                if (waiting) lore.add(text("▶ インベントリのブロックをクリックしてください", NamedTextColor.GOLD));
+                lore.add(text("左クリックのあと、インベントリのブロックをクリックで足す (葉・草・花・つるなど、どのブロックでも)", NamedTextColor.YELLOW));
+                lore.add(text("(手に持てないブロックは /proceduraltool block hang <ブロック名,...>)", NamedTextColor.DARK_GRAY));
+                inventory.setItem(HANG_SLOTS[index], glint(item(Material.LIME_STAINED_GLASS_PANE, "＋ 房のブロックを足す", waiting ? NamedTextColor.GOLD : NamedTextColor.GREEN, lore), waiting));
+            }
+        }
+        inventory.setItem(HANG_HELP, item(Material.VINE, "垂れる房のブロック", NamedTextColor.GOLD, List.of(
+                text("葉の塊の下 (柳は垂れた枝先) から垂れる房に、左のブロックを混ぜる", NamedTextColor.GRAY),
+                text("量と長さは、このページの「垂れる房」「房の長さ」", NamedTextColor.GRAY),
+                text(blocks.isEmpty() ? "いまは、葉のいちばん下の段" : "いま " + blocks.size() + " 種類", NamedTextColor.WHITE))));
+    }
+
     /** The item that shows a block in the menu: the block itself, or something near it for a block that is no item (a potted plant shows the pot). */
     private static Material icon(Material block) {
         if (block.isItem() && !block.isAir()) return block;
@@ -731,6 +767,8 @@ final class ProceduralMenu implements Listener {
             TreeSettings.Key key = pageKeys[index];
             if (key.toggle()) settings.set(key, settings.on(key) ? 0 : 1);
             else settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
+            // (t286: another style of the ornate tree starts from its own shape numbers)
+            if (key == TreeSettings.Key.ORN_STYLE) OrnateTree.applyStyle(settings, settings.getInt(key));
             tool.limit(settings);
             tool.changed(player);
             render(player, holder);
@@ -1257,6 +1295,15 @@ final class ProceduralMenu implements Listener {
                     tool.changed(player);
                 }
             }
+            int strands = settings.hangBlocks().size();
+            for (int index = 0; index < HANG_SLOTS.length && settings.grows("ornate"); index++) {
+                if (HANG_SLOTS[index] != slot || index > strands) continue;
+                target = "hang:" + index;
+                if (!left && index < strands) {
+                    settings.removeHangBlock(index);
+                    tool.changed(player);
+                }
+            }
         }
         if (target == null) return false;
         if (left && !target.equals(waited)) {
@@ -1282,6 +1329,8 @@ final class ProceduralMenu implements Listener {
             settings.setBlock(TreePart.valueOf(target.substring(5)), type.name());
         } else if (target.startsWith("shade:")) {
             settings.setLeafShade(Integer.parseInt(target.substring(6)), type.name());
+        } else if (target.startsWith("hang:")) {
+            settings.setHangBlock(Integer.parseInt(target.substring(5)), type.name());
         }
         player.sendMessage(ProceduralModule.PREFIX + "ブロックを選びました: " + type.getKey().getKey());
         tool.changed(player);
@@ -1327,21 +1376,11 @@ final class ProceduralMenu implements Listener {
                 }
             }
             case LOAD -> {
-                List<String> saved = tool.store().list();
-                if (saved.isEmpty()) {
-                    player.sendMessage("[木] 保存した設定がありません。/treetool save <名前> で保存できます。");
-                    return false;
-                }
-                int current = saved.indexOf(settings.name());
-                int next = Math.floorMod(current + (left ? 1 : -1), saved.size());
-                TreeSettings loaded = tool.store().load(saved.get(next));
-                if (loaded == null) {
-                    player.sendMessage("[木] 読み込めませんでした: " + saved.get(next));
-                    return false;
-                }
-                tool.limit(loaded);
-                session.settings = loaded;
-                session.autoSeed = false;
+                // (t286: the list of presets, by kind)
+                session.presetKind = null;
+                // (another screen: opened on the next tick, not inside the click)
+                Bukkit.getScheduler().runTask(tool.plugin(), () -> tool.presets().open(player, PresetMenu.Mode.LOAD));
+                return false;
             }
             case RESET -> {
                 TreeSettings fresh = new TreeSettings();

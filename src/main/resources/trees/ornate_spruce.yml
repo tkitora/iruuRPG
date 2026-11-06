@@ -1,0 +1,46 @@
+# 見本の木: トウヒ (装飾の木。まっすぐな幹、段ごとの輪生の枝が下ほど長い円錐、枝に沿った層の葉。t286) (プロシージャルツールの読み込み、または /proceduraltool load ornate_spruce)
+settings:
+  kind: tree
+  algorithm: ornate
+  orn-style: 2
+  orn-height: 20
+  orn-trunk: 1.25
+  orn-curl: 0.15
+  orn-roots: 5
+  orn-root-reach: 4
+  orn-branches: 4
+  orn-depth: 2
+  orn-length: 6
+  orn-spread: 50
+  orn-droop: 0.2
+  orn-tip-curl: 0.3
+  orn-leaf: 1.5
+  orn-leaf-flat: 0.5
+  orn-hang: 0.0
+  orn-hang-length: 5
+  orn-flare: 1.5
+  orn-decor: 0.5
+  orn-match: 1
+  orn-shade-step: 7
+  orn-ao: 0.6
+  orn-curvature: 0.3
+  orn-light: 0.6
+  orn-light-dir: 135
+  orn-pipe: 2.3
+  orn-leaf-density: 85
+  orn-root-snap: 1
+  orn-stair-mix: 0.8
+  seed: 0
+  blocks:
+    trunk: SPRUCE_LOG
+    root: SPRUCE_LOG
+    branch: SPRUCE_LOG
+    branch-wall: MUD_BRICK_WALL
+    branch-fence: SPRUCE_FENCE
+    branch-slab: SPRUCE_SLAB
+    branch-stair: SPRUCE_STAIRS
+    branch-trapdoor: SPRUCE_TRAPDOOR
+    branch-gate: SPRUCE_FENCE_GATE
+  leaf-gradient:
+  - DARK_OAK_LEAVES
+  - SPRUCE_LEAVES

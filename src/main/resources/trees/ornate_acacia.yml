@@ -1,0 +1,45 @@
+# 見本の木: アカシア (装飾の木。傾いた幹、途中で上へ折れる斜めの枝、平らな葉の天蓋。t286) (プロシージャルツールの読み込み、または /proceduraltool load ornate_acacia)
+settings:
+  kind: tree
+  algorithm: ornate
+  orn-style: 6
+  orn-height: 8
+  orn-trunk: 1.25
+  orn-curl: 0.5
+  orn-roots: 4
+  orn-root-reach: 4
+  orn-branches: 3
+  orn-depth: 2
+  orn-length: 7
+  orn-spread: 40
+  orn-droop: 0.0
+  orn-tip-curl: 0.0
+  orn-leaf: 3.0
+  orn-leaf-flat: 0.85
+  orn-hang: 0.0
+  orn-hang-length: 5
+  orn-flare: 1.5
+  orn-decor: 0.5
+  orn-match: 1
+  orn-shade-step: 7
+  orn-ao: 0.6
+  orn-curvature: 0.3
+  orn-light: 0.6
+  orn-light-dir: 135
+  orn-pipe: 2.3
+  orn-leaf-density: 85
+  orn-root-snap: 1
+  orn-stair-mix: 0.8
+  seed: 0
+  blocks:
+    trunk: ACACIA_LOG
+    root: ACACIA_LOG
+    branch: ACACIA_LOG
+    branch-wall: GRANITE_WALL
+    branch-fence: ACACIA_FENCE
+    branch-slab: ACACIA_SLAB
+    branch-stair: ACACIA_STAIRS
+    branch-trapdoor: ACACIA_TRAPDOOR
+    branch-gate: ACACIA_FENCE_GATE
+  leaf-gradient:
+  - ACACIA_LEAVES
