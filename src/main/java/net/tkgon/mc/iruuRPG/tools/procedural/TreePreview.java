@@ -212,6 +212,7 @@ final class TreePreview {
         }
         Map<TreePart, BlockData> looks = new HashMap<>();
         for (TreePart part : TreePart.values()) looks.put(part, module.blockData(part, settings));
+        if (blocks instanceof OrnateTree.Blocks ornate) ornate.useParts(looks);
         Map<Long, BlockData> target = new HashMap<>();
         List<Long> adds = new ArrayList<>();
         for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {

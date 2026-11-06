@@ -14,8 +14,8 @@ import java.util.Map;
  */
 final class TreeSettings {
 
-    /** The ways a tree is grown: canopy ({@link CanopyTree}), tiered ({@link TieredTree}), palm ({@link PalmTree}). */
-    public static final List<String> ALGORITHMS = List.of("canopy", "tiered", "palm", "thin", "silhouette");
+    /** The ways a tree is grown: canopy ({@link CanopyTree}), tiered ({@link TieredTree}), palm ({@link PalmTree}), thin ({@link ThinTree}), silhouette ({@link SilhouetteTree}), ornate ({@link OrnateTree}). */
+    public static final List<String> ALGORITHMS = List.of("canopy", "tiered", "palm", "thin", "silhouette", "ornate");
 
     /** A number setting: its name in the yaml and the command, the label of the menu, its range and the steps of a click and of a shift click. */
     public enum Key {
@@ -186,7 +186,32 @@ final class TreeSettings {
         SIL_HEIGHT("sil-height", "木の高さ", 0, 40, 0, 1, 3, "木の高さ (ブロック)。0 で樹形の標準 (丸 11・しだれ 13・針葉樹 18・流れ 10・傘 13)"),
         SIL_LEAF("sil-leaf", "葉の量", -1.0, 1.0, 0.0, 0.1, 0.5, "葉の塊の太り具合 (マイナスで痩せ、プラスで太る)"),
         SIL_ROUGH("sil-rough", "葉のでこぼこ", 0.0, 2.0, 1.0, 0.1, 0.5, "葉の表面を間引く・突き出す強さの倍率 (0 でなめらか)"),
-        SIL_DRIP("sil-drip", "垂れる房", 0.0, 3.0, 1.0, 0.1, 0.5, "葉の下から垂れる房の量と長さの倍率 (しだれ・傘はもともと多い)");
+        SIL_DRIP("sil-drip", "垂れる房", 0.0, 3.0, 1.0, 0.1, 0.5, "葉の下から垂れる房の量と長さの倍率 (しだれ・傘はもともと多い)"),
+        // ---- (t282) the ornate tree (OrnateTree): bones by the pipe model, octants for the thick wood, thin wood without gaps, bark decoration, shading ----
+        ORN_STYLE("orn-style", "様式", 0, 3, 0, 1, 1, "0 装飾 (渦を巻く枝・巻き上がる枝先) / 1 横に広がる (盆栽・松) / 2 自然木 (空間植民) / 3 枯れ木"),
+        ORN_HEIGHT("orn-height", "幹の高さ", 2.0, 40.0, 9.0, 0.5, 3, "根元から、幹が枝に分かれるまでの長さ (ブロック)"),
+        ORN_TRUNK("orn-trunk", "幹の太さ", 0.5, 5.0, 2.0, 0.25, 1, "根元の幹の半径 (ブロック)。枝の太さは、パイプモデルでここから決まる (半径 0.5 より細い所は、塀・フェンス・ハーフなど)"),
+        ORN_CURL("orn-curl", "うねり", 0.0, 1.0, 0.5, 0.05, 0.25, "幹と枝が、ゆっくり渦を巻くように曲がる強さ"),
+        ORN_ROOTS("orn-roots", "根の数", 0, 10, 5, 1, 2, "根元から外へ広がる根の数 (それぞれ途中で 2 本に分かれる)"),
+        ORN_ROOT_REACH("orn-root-reach", "根の長さ", 1.0, 20.0, 6.0, 0.5, 2, "根の長さ (ブロック)"),
+        ORN_FLARE("orn-flare", "根元のなめらかさ", 0.0, 3.0, 1.5, 0.25, 0.5, "幹と根の付け根を、なめらかにつなぐ幅 (ブロック)。枝分かれはなめらかにしない (鋭いまま)"),
+        ORN_DECOR("orn-decor", "樹皮の装飾", 0.0, 1.0, 0.5, 0.05, 0.25, "太い幹と根の表面に付ける量: トラップドアの樹皮の筋・くぼみの階段・根の下のフェンス (0 でなし)"),
+        ORN_MATCH("orn-match", "色を幹に合わせる", true, "オン: 階段・ハーフ・フェンスなども、幹のブロックに近い色を選ぶ (塀は色の近い石材) / オフ: 部位ごとに選んだブロックのまま (明暗だけ変える)"),
+        ORN_SHADE_STEP("orn-shade-step", "明暗の幅", 0.0, 20.0, 7.0, 1.0, 3, "陰影の 1 段ごとに、ブロックの明るさ (L*) をどれだけ変えるか。暗い 2 段・明るい 2 段 (0 で陰影なし)"),
+        ORN_AO("orn-ao", "陰影: 環境光", 0.0, 1.0, 0.6, 0.05, 0.25, "まわりを木に囲まれた所 (股・内側・下側) を暗くする強さ"),
+        ORN_CURVATURE("orn-curvature", "陰影: 曲率", 0.0, 1.0, 0.3, 0.05, 0.25, "出っぱり (尾根) を明るく、くぼみを暗くする強さ"),
+        ORN_LIGHT("orn-light", "陰影: 光源", 0.0, 1.0, 0.6, 0.05, 0.25, "斜め上の点光源に向いた面を明るくし、影を落とす強さ"),
+        ORN_LIGHT_DIR("orn-light-dir", "光の向き", 0, 345, 135, 15, 45, "光源のある方角 (度。0 で東、90 で南、180 で西、270 で北)"),
+        ORN_BRANCHES("orn-branches", "枝分かれの数", 2, 5, 3, 1, 1, "1 回の枝分かれで分かれる枝の数 (横に広がる型は、その 2 倍が段の数。自然木は枝の多さ)"),
+        ORN_DEPTH("orn-depth", "枝分かれの深さ", 1, 6, 4, 1, 1, "枝が分かれる回数"),
+        ORN_LENGTH("orn-length", "枝の長さ", 2.0, 24.0, 8.0, 0.5, 2, "最初の枝の長さ (ブロック。先へ行くほど短い)。自然木では樹冠の半径"),
+        ORN_SPREAD("orn-spread", "枝の開き", 10, 90, 40, 5, 15, "分かれた枝が、元の向きから開く角度 (度)"),
+        ORN_DROOP("orn-droop", "枝の垂れ", -1.0, 1.0, 0.0, 0.1, 0.5, "枝が重みで垂れる強さ (マイナスで上へ立つ)"),
+        ORN_TIP_CURL("orn-tip-curl", "枝先の巻き", 0.0, 1.0, 0.5, 0.05, 0.25, "枝先が上へ巻き上がる強さ (枯れ木は巻かず鋭いまま)"),
+        ORN_PIPE("orn-pipe", "太さの指数", 1.5, 3.0, 2.3, 0.1, 0.5, "パイプモデルの指数 n (親の半径^n = 子の半径^n の和)。小さいほど、枝が先へ向かって早く細くなる"),
+        ORN_LEAF("orn-leaf", "葉の塊の大きさ", 0.0, 6.0, 2.5, 0.25, 1, "枝先の葉の塊の半径 (0 で葉なし。枯れ木は葉なし)"),
+        ORN_LEAF_FLAT("orn-leaf-flat", "葉の平たさ", 0.0, 1.0, 0.3, 0.05, 0.25, "葉の塊を上下につぶす強さ (横に広がる型は 0.7 以上)"),
+        ORN_LEAF_DENSITY("orn-leaf-density", "葉の密度 (%)", 10, 100, 85, 5, 15, "葉の塊の中を葉で埋める割合");
 
         private final String id;
         private final String label;

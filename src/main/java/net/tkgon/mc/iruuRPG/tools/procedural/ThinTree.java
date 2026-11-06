@@ -453,6 +453,11 @@ final class ThinTree {
      * straight through with nothing over it), a top slab in the upper half; the rest as {@code look} is. Not shared: a new block data when it is shaped.
      */
     static org.bukkit.block.data.BlockData shape(org.bukkit.block.data.BlockData look, TreePart part, Map<Long, TreePart> blocks, int x, int y, int z) {
+        // (t282: the blocks of an ornate tree carry their own states and light levels)
+        if (blocks instanceof OrnateTree.Blocks ornate) {
+            org.bukkit.block.data.BlockData own = ornate.data(look, part, x, y, z);
+            if (own != null) return own;
+        }
         if (part == TreePart.BRANCH_SLAB_TOP && look instanceof org.bukkit.block.data.type.Slab slab) {
             org.bukkit.block.data.type.Slab top = (org.bukkit.block.data.type.Slab) slab.clone();
             top.setType(org.bukkit.block.data.type.Slab.Type.TOP);

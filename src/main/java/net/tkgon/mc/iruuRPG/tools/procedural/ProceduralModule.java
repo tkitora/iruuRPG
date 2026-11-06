@@ -761,6 +761,7 @@ public final class ProceduralModule implements Listener {
         });
         Map<TreePart, BlockData> materials = new EnumMap<>(TreePart.class);
         for (TreePart part : TreePart.values()) materials.put(part, blockData(part, settings));
+        if (blocks instanceof OrnateTree.Blocks ornate) ornate.useParts(materials);
         boolean replaceSolid = plugin.getConfig().getBoolean("treetool.replace-solid", false);
         int perTick = Math.max(200, plugin.getConfig().getInt("treetool.blocks-per-tick", 4000));
         List<TreeWorldEdit.Change> changes = new ArrayList<>();
@@ -864,6 +865,7 @@ public final class ProceduralModule implements Listener {
             case "palm" -> "ヤシ";
             case "thin" -> "細い木 (壁・フェンス・ハーフの枝)";
             case "silhouette" -> "樹形 (丸・しだれ・針葉樹・流れ・傘)";
+            case "ornate" -> "装飾の木 (ファンタジー・盆栽・自然木・枯れ木)";
             default -> "樹冠 (フラクタル)";
         };
     }

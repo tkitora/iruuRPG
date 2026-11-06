@@ -189,6 +189,15 @@ final class ProceduralMenu implements Listener {
                         TreeSettings.Key.THIN_LEAF_FLAT, TreeSettings.Key.THIN_CLEARANCE, TreeSettings.Key.THIN_VINES, TreeSettings.Key.THIN_VINE_SCALE};
                 default -> new TreeSettings.Key[]{};
             };
+            case "ornate" -> switch (page) {
+                case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.ORN_STYLE, TreeSettings.Key.ORN_HEIGHT, TreeSettings.Key.ORN_TRUNK, TreeSettings.Key.ORN_CURL,
+                        TreeSettings.Key.ORN_ROOTS, TreeSettings.Key.ORN_ROOT_REACH, TreeSettings.Key.ORN_FLARE, TreeSettings.Key.ORN_DECOR, TreeSettings.Key.ORN_MATCH,
+                        TreeSettings.Key.ORN_SHADE_STEP, TreeSettings.Key.ORN_AO, TreeSettings.Key.ORN_CURVATURE, TreeSettings.Key.ORN_LIGHT, TreeSettings.Key.ORN_LIGHT_DIR};
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.ORN_BRANCHES, TreeSettings.Key.ORN_DEPTH, TreeSettings.Key.ORN_LENGTH, TreeSettings.Key.ORN_SPREAD,
+                        TreeSettings.Key.ORN_DROOP, TreeSettings.Key.ORN_TIP_CURL, TreeSettings.Key.ORN_PIPE};
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.ORN_LEAF, TreeSettings.Key.ORN_LEAF_FLAT, TreeSettings.Key.ORN_LEAF_DENSITY};
+                default -> new TreeSettings.Key[]{};
+            };
             case "silhouette" -> switch (page) {
                 case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.SIL_SHAPE, TreeSettings.Key.SIL_HEIGHT};
                 case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.SIL_LEAF, TreeSettings.Key.SIL_ROUGH, TreeSettings.Key.SIL_DRIP};
@@ -404,7 +413,7 @@ final class ProceduralMenu implements Listener {
     /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
     private static boolean named(TreeSettings.Key key) {
         return switch (key) {
-            case SIL_SHAPE, HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
+            case SIL_SHAPE, ORN_STYLE, HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
             default -> false;
         };
     }
@@ -413,6 +422,7 @@ final class ProceduralMenu implements Listener {
         if (key.toggle()) return value >= 0.5 ? "オン" : "オフ";
         if (key == TreeSettings.Key.HOUSE_ROOF) return HouseShape.roofName((int) Math.round(value));
         if (key == TreeSettings.Key.SIL_SHAPE) return SilhouetteTree.shapeName((int) Math.round(value));
+        if (key == TreeSettings.Key.ORN_STYLE) return OrnateTree.styleName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_RIDGE) return HouseShape.ridgeName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_ROTATION) return (int) Math.round(value) + "°";
         int whole = (int) Math.round(value);
@@ -574,6 +584,7 @@ final class ProceduralMenu implements Listener {
                 text("ヤシ: S字の幹、てっぺんに葉の層。二股・支柱の根", NamedTextColor.GRAY),
                 text("細い木: すぐ分かれる短い幹、根元から離れるほど 丸太 → 壁・ハーフ → フェンス と細る枝、階段の継ぎ目、重ね塗りの葉 (t252・t258)", NamedTextColor.GRAY),
                 text("樹形: 丸・しだれ・針葉樹・流れる幹・傘の形を骨組みで描き、細かく量って丸太・階段・ハーフ・壁・フェンスに。雲の葉に陰影、垂れる房", NamedTextColor.GRAY),
+                text("装飾の木: フラクタルの骨組み (装飾・盆栽・自然木・枯れ木)、パイプモデルの太さ、隙間のない細い枝 (塀・フェンス・ハーフ・トラップドア・ゲート)、樹皮の装飾、陰影 (t282)", NamedTextColor.GRAY),
                 text("左クリック: 次 / 右クリック: 前 (数字は、アルゴリズムごとに別々に残る)", NamedTextColor.YELLOW))));
     }
 
@@ -629,9 +640,10 @@ final class ProceduralMenu implements Listener {
         if (settings.kind().tree()) {
             if (!settings.grows("tiered")) parts.remove(TreePart.SNOW);
             if (settings.grows("palm")) parts.remove(TreePart.BRANCH);
-            // (t252: the thin branches only on a thin tree or a silhouette tree; no roots on them)
+            // (t252: the thin branches only on a thin tree, a silhouette tree or an ornate tree; no roots on the first two. t282: trapdoors and gates only on an ornate tree)
             if (settings.grows("thin") || settings.grows("silhouette")) parts.remove(TreePart.ROOT);
-            else parts.removeAll(List.of(TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_STAIR));
+            else if (!settings.grows("ornate")) parts.removeAll(List.of(TreePart.BRANCH_WALL, TreePart.BRANCH_FENCE, TreePart.BRANCH_SLAB, TreePart.BRANCH_STAIR));
+            if (!settings.grows("ornate")) parts.removeAll(List.of(TreePart.BRANCH_TRAPDOOR, TreePart.BRANCH_GATE));
         }
         return parts;
     }

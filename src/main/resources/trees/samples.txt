@@ -19,3 +19,7 @@ silhouette_weeping
 silhouette_conifer
 silhouette_swoop
 silhouette_dome
+ornate_fantasy
+ornate_bonsai
+ornate_natural
+ornate_dead
