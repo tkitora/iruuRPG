@@ -9,6 +9,14 @@ final class BgmVoice {
     /** Where the notes go; {@code volume} is 0 to 1 (everything already multiplied), {@code pan} is -1 (left) to 1 (right). */
     interface Sink {
         void note(int instrument, int key, float volume, float pan);
+
+        /**
+         * The same, with the part of a server tick ({@code late}, 0 to 1) by which the note was already due when this tick began: a song tick falls between two server ticks unless
+         * the tempo is a whole number of server ticks, and a sink that can play at an exact time plays the note that much before the tick (the beat then stays even at any tempo).
+         */
+        default void noteAt(int instrument, int key, float volume, float pan, double late) {
+            note(instrument, key, volume, pan);
+        }
     }
 
     private final NbsSong song;
@@ -101,6 +109,7 @@ final class BgmVoice {
 
         // (the notes of the ticks that have been reached; then the clock moves on, so the first server tick plays the first tick of the song)
         int limit = (int) Math.floor(position);
+        double perStep = Math.max(1.0e-6, song.ticksPerSecond() / 20.0);
         float loudness = gain * regionVolume * master;
         while (next <= limit) {
             if (next >= song.length()) {
@@ -120,7 +129,7 @@ final class BgmVoice {
                 while (index < song.noteCount() && song.note(index).tick() == next) {
                     NbsSong.Note note = song.note(index);
                     float volume = note.volume() * loudness;
-                    if (volume > 0.01f) sink.note(note.instrument(), note.key(), Math.min(1.0f, volume), note.pan());
+                    if (volume > 0.01f) sink.noteAt(note.instrument(), note.key(), Math.min(1.0f, volume), note.pan(), Math.max(0.0, Math.min(1.0, (position - next) / perStep)));
                     index++;
                 }
             }
