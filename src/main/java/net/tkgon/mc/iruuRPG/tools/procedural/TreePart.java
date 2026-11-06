@@ -68,7 +68,10 @@ enum TreePart {
     BRANCH_STAIR_TOP_SOUTH("branch-stair-top-south", "幹・枝の階段 (上付き・南)", 1, Material.OAK_STAIRS),
     BRANCH_STAIR_TOP_WEST("branch-stair-top-west", "幹・枝の階段 (上付き・西)", 1, Material.OAK_STAIRS),
     TRUNK_X("trunk-x", "幹 (東西に寝た丸太)", 0, Material.OAK_LOG),
-    TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_LOG);
+    TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_LOG),
+    /** (t282) the ornate tree: trapdoors (the level tips of thin branches, the streaks of bark) and open fence gates (level tips). */
+    BRANCH_TRAPDOOR("branch-trapdoor", "枝先・樹皮 (トラップドア)", 3, Material.OAK_TRAPDOOR),
+    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE);
 
     /** (t258) The part whose block this one is put in (a stair's other ways and a slab's top half are their first part's block). */
     TreePart blockOf() {

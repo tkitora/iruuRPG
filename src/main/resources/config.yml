@@ -1117,6 +1117,9 @@ treetool:
     branch-slab: OAK_SLAB
     # (t258) 細い木の階段 (丸太が上がりながらずれる継ぎ目と、根元の張り。向きは形から決まる)
     branch-stair: OAK_STAIRS
+    # (t282) 装飾の木: 横向きの枝先と樹皮の筋のトラップドア / 横向きの枝先の開いたフェンスゲート (向き・開き・上付き下付きは形から決まる)
+    branch-trapdoor: OAK_TRAPDOOR
+    branch-gate: OAK_FENCE_GATE
     # 岩・スパイク・結晶の部位
     stone: GRAY_WOOL
     stone-light: LIGHT_GRAY_WOOL

@@ -1,0 +1,39 @@
+# 見本の木: 枯れ木 (装飾の木。ねじれて折れ曲がる枝、折れた枝、鋭い枝先、葉なし。t282) (プロシージャルツールの読み込み、または /proceduraltool load ornate_dead)
+settings:
+  kind: tree
+  algorithm: ornate
+  orn-style: 3
+  orn-height: 9
+  orn-trunk: 2.0
+  orn-curl: 0.4
+  orn-roots: 6
+  orn-root-reach: 7
+  orn-flare: 1.5
+  orn-decor: 0.6
+  orn-match: 1
+  orn-shade-step: 8
+  orn-ao: 0.6
+  orn-curvature: 0.3
+  orn-light: 0.6
+  orn-light-dir: 135
+  orn-branches: 3
+  orn-depth: 4
+  orn-length: 8
+  orn-spread: 45
+  orn-droop: 0.2
+  orn-tip-curl: 0.0
+  orn-pipe: 2.3
+  orn-leaf: 0
+  orn-leaf-flat: 0.3
+  orn-leaf-density: 85
+  seed: 0
+  blocks:
+    trunk: SPRUCE_LOG
+    root: SPRUCE_LOG
+    branch: SPRUCE_LOG
+    branch-wall: MUD_BRICK_WALL
+    branch-fence: SPRUCE_FENCE
+    branch-slab: SPRUCE_SLAB
+    branch-stair: SPRUCE_STAIRS
+    branch-trapdoor: SPRUCE_TRAPDOOR
+    branch-gate: SPRUCE_FENCE_GATE

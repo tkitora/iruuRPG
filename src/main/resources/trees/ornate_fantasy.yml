@@ -1,0 +1,43 @@
+# 見本の木: 装飾の木 (ファンタジー。渦を巻く太い枝、巻き上がる枝先、張り出した根、樹皮の筋と陰影。t282) (プロシージャルツールの読み込み、または /proceduraltool load ornate_fantasy)
+settings:
+  kind: tree
+  algorithm: ornate
+  orn-style: 0
+  orn-height: 10
+  orn-trunk: 2.25
+  orn-curl: 0.6
+  orn-roots: 6
+  orn-root-reach: 7
+  orn-flare: 1.75
+  orn-decor: 0.6
+  orn-match: 1
+  orn-shade-step: 7
+  orn-ao: 0.6
+  orn-curvature: 0.3
+  orn-light: 0.6
+  orn-light-dir: 135
+  orn-branches: 3
+  orn-depth: 4
+  orn-length: 9
+  orn-spread: 42
+  orn-droop: 0.0
+  orn-tip-curl: 0.7
+  orn-pipe: 2.3
+  orn-leaf: 2.5
+  orn-leaf-flat: 0.35
+  orn-leaf-density: 85
+  seed: 0
+  blocks:
+    trunk: DARK_OAK_LOG
+    root: DARK_OAK_LOG
+    branch: DARK_OAK_LOG
+    branch-wall: MUD_BRICK_WALL
+    branch-fence: DARK_OAK_FENCE
+    branch-slab: DARK_OAK_SLAB
+    branch-stair: DARK_OAK_STAIRS
+    branch-trapdoor: DARK_OAK_TRAPDOOR
+    branch-gate: DARK_OAK_FENCE_GATE
+  leaf-gradient:
+  - DARK_OAK_LEAVES
+  - OAK_LEAVES
+  - AZALEA_LEAVES
