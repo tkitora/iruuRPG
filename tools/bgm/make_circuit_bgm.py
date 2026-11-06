@@ -33,7 +33,7 @@ BREAK_BAR = 35
 SPECS = {  # layer: (volume, pan)
     "kick": (100, 100), "pound": (100, 100), "snare": (100, 105), "hat": (100, 120), "noise": (100, 130), "roll": (100, 105), "bell": (100, 70),
     "gun": (100, 100), "bass": (100, 100), "gtr": (100, 90), "cell": (100, 95), "cell2": (100, 110), "ham": (100, 105), "clank": (100, 85), "stamp": (100, 125),
-    "pad1": (100, 90), "pad2": (100, 105), "pad3": (100, 115), "choir": (100, 100), "chime": (100, 100), "glitch": (100, 130),
+    "pad1": (100, 90), "pad2": (100, 105), "pad3": (100, 115), "chime": (100, 100), "glitch": (100, 130),
 }
 PHASES = [dict(shift=0), dict(shift=1)]
 X = [0, 12, 20]     # 3+2+2 beats
@@ -66,31 +66,29 @@ def ring_pitch(index, light, sh):
     return ring[index % 5] + LAP[(index // 5) % 4] + sh
 
 
-def hit(g, tick, note, clank, big=False):
+def hit(g, tick, note, clank, big=False, full=True):
     """An ensemble hit (7 notes at one tick): kick, sub bass, gun, snare, alarm bell, clank, hat."""
     g.drum("pound", tick, BASEDRUM, 100, over=True)
     g.put("bass", tick, BASS, note, 98, over=True)
     g.put("gun", tick, DIDGERIDOO, note, 94, over=True)
     g.drum("snare", tick, SNARE, 92 if big else 80, over=True)
     g.put("bell", tick, COW_BELL, 80, 78, over=True)
-    if clank:
+    if clank and full:
         g.put("clank", tick, IRON_XYLOPHONE, 54, 96, over=True)
     g.drum("hat", tick, HAT, 62, over=True)
 
 
 def pads(g, s, chord, sh, v0, v1, rolled, third):
     root, tones = CH[chord]
-    offs = (0, 1, 2) if rolled else (0, 0, 2)
+    offs = (0, 1, 2) if rolled else (0, 0, 1)          # every voice is struck again every 3 ticks (0.35 s): a held chord, not a chopped one
     for t in range(BAR):
-        v = v0 + (v1 - v0) * t / (BAR - 1)
-        if t % 4 == offs[0]:
+        v = v0 + (v1 - v0) * (t % 14) / 13
+        if (s + t - 64) % 3 == offs[0]:
             g.put("pad1", s + t, PLING, tones[0] + sh, v)
-        if t % 4 == offs[1]:
+        if (s + t - 64) % 3 == offs[1]:
             g.put("pad2", s + t, HARP, tones[2] + sh, v * 0.95)
-        if third and t % 4 == offs[2]:
+        if third and (s + t - 64) % 3 == offs[2]:
             g.put("pad3", s + t, PLING, tones[1] + sh, v * 0.95)
-        if t % 8 == 0:
-            g.put("choir", s + t, FLUTE, tones[3] + 12 + sh, 74)
 
 
 def ring(g, start, end, step, light, sh, vel, layer="cell", inst=PLING, every=None, v2=None):
@@ -115,9 +113,9 @@ def compose(phase):
     rng = Rng(61 + phase)
     gun_rng = Rng(73 + phase)
     # ---- the intro: loud, a machine that boots badly: the ring once, a stuttering note, quarter roots, a snare roll
+    g.restrike("gun", DIDGERIDOO, A, 0, 64, 3, 76, 96)                       # t283: a note at tick 0 and a pedal that never leaves the bass
     for bar, base in ((-2, 80), (-1, 90)):
         for t in range(0, BAR, 4):
-            g.put("gun", g.start(bar) + t, DIDGERIDOO, A, base + (8 if t == 0 else 0))
             g.put("bass", g.start(bar) + t, BASS, A, base - 4)
         for t in (0, 12, 20):
             g.drum("kick", g.start(bar) + t, BASEDRUM, 96)
@@ -149,6 +147,10 @@ def compose(phase):
             for t in starts:
                 if i >= 1:
                     hit(g, s + t, A, 54 + sh * 1, False)
+            if i >= 2:
+                for t in range(4, BAR, 4):
+                    if t not in starts:
+                        hit(g, s + t, A, 54 + sh, False, full=False)
         # ---------------- P2: pseudo double tempo
         elif name == "P2":
             mode, p = (("e", 0) if i < 3 else ("m", 0.5 + 0.08 * i)) if phase == 0 else (("m", 0.7) if i < 2 else (("s", 1) if i % 4 != 3 else ("m", 1.0)))
@@ -165,10 +167,10 @@ def compose(phase):
                 g.drum("hat", s + t, HAT, 46 if t in starts else 34)
             for t in starts:
                 hit(g, s + t, A, 54 + sh, t == 0 and i % 4 == 0)
-            if i >= 5:
+            if i >= 2:
                 for t in range(4, BAR, 4):
                     if t not in starts:
-                        hit(g, s + t, A, 54 + sh, False)
+                        hit(g, s + t, A, 54 + sh, False, full=False)
         # ---------------- P3: the melody is gone: bass + factory metal
         elif name == "P3":
             if phase == 0:
@@ -186,10 +188,10 @@ def compose(phase):
                 g.drum("snare", s + 4 * b + 1, SNARE, 60 + i)
             for t in starts:
                 hit(g, s + t, A, 54 + sh, False)
-            if i >= 5:
+            if i >= 2:
                 for t in range(4, BAR, 4):
                     if t not in starts:
-                        hit(g, s + t, A, 54 + sh, False)
+                        hit(g, s + t, A, 54 + sh, False, full=False)
             for t in range(0, BAR, 4):
                 g.drum("kick", s + t, BASEDRUM, 92)
         # ---------------- P4: sacred
@@ -199,9 +201,8 @@ def compose(phase):
             g.drum("pound", s + starts[2], BASEDRUM, 92)
             g.put("bass", s + starts[2], BASS, note, 94)
             g.put("gun", s + starts[2], DIDGERIDOO, note, 84)
-            for t in range(4, BAR, 4):
-                if t != starts[2]:
-                    g.put("gun", s + t, DIDGERIDOO, note, 72)
+            for t in range(3, BAR, 3):                                  # the organ pedal is struck again every 3 ticks
+                g.put("gun", s + t, DIDGERIDOO, note, 78)
             for t in ((8, 16, 24) if i % 2 else (6, 14, 22)):
                 g.drum("pound", s + t, BASEDRUM, 82)
             g.put("bell", s + starts[2] + 4, COW_BELL, 78, 70)
@@ -219,43 +220,46 @@ def compose(phase):
             for b in range(7):
                 g.drum("kick", s + 4 * b, BASEDRUM, 98 if 4 * b in starts else 88)
                 g.drum("snare", s + 4 * b + 2, SNARE, 84 + 4 * phase + (8 if 4 * b in starts else 0))
-            for t in range(0, BAR, 2):
-                g.drum("hat", s + t, HAT, 54 if t in starts else 38)
-            pads(g, s, chord, sh, 84 + 3 * phase, 94 + 3 * phase, True, phase == 1)
+            for t in range(2, BAR, 4):                                      # the hat only on the offbeats: the kick on every beat and the sixteenth gun carry the speed
+                g.drum("hat", s + t, HAT, 54)
+            pads(g, s, chord, sh, 84 + 3 * phase, 94 + 3 * phase, True, False)
             if i >= 12:                                     # the ring runs away in eighths, with a chug
-                for t in range(0, BAR, 2):
-                    g.put("gtr", s + t, GUITAR, 45 + sh + (note - 33 - sh) % 12, 86)
+                for t in range(0, BAR, 4):
+                    g.put("gtr", s + t, GUITAR, 45 + sh + (note - 33 - sh) % 12, 90)
             for t in starts:
                 hit(g, s + t, note, 54 + sh, t == 0 and i % 4 == 0)
             if i >= 4:
                 for t in range(4, BAR, 4):
                     if t not in starts:
-                        hit(g, s + t, note, 54 + sh, False)
+                        hit(g, s + t, note, 54 + sh, False, full=False)
     # the ring of the climax: chorale of long notes (bars 0-7, the half-time dip is the release 8-11) and the runaway (12-15)
     cl = g.start(36)
-    ring(g, cl, g.start(44), 8, True, sh, 92, every=4)
-    ring(g, g.start(44), g.start(48), 8, True, sh, 94, every=4)
+    ring(g, cl, g.start(44), 8, True, sh, 92, every=3)
+    ring(g, g.start(44), g.start(48), 8, True, sh, 94, every=3)
     ring(g, g.start(48), g.start(52), 2, True, sh, 94)
     # the ring of the sacred part: the chorale in long notes
-    ring(g, g.start(24), g.start(35), 8, True, sh, 90, every=4)
+    ring(g, g.start(24), g.start(35), 8, True, sh, 90, every=3)
     if phase == 1:
-        ring(g, g.start(24), g.start(35), 8, True, sh, 80, layer="cell2", inst=IRON_XYLOPHONE, every=4)
+        ring(g, g.start(24), g.start(35), 8, True, sh, 80, layer="cell2", inst=IRON_XYLOPHONE, every=3)
         ring(g, g.start(48), g.start(52), 2, True, sh, 84, layer="cell2", inst=IRON_XYLOPHONE) if False else None
     # ---- rolls before a block, the dropouts, the break
     for bar in (3, 11, 23):
         g.clicks("roll", SNARE, 66, g.start(bar) + BAR - 1, [1, 1, 1, 1, 1, 2, 2, 2, 3, 3], 40, 100)
     for bar, tick, length in DROPS[phase]:
         a = g.start(bar) + tick
-        g.mute(a, a + length)
-        hit(g, a + length, A, 54 + sh, False)
+        g.mute(a, a + length, keep=("gun", "bass"))                      # t283: a dropout cuts the tune and the drums, never the bass
+        hit(g, a + length, A, 54 + sh, False, full=False)
     for bar in (11,):
-        g.mute(g.start(bar) + 14, g.start(bar + 1))
+        g.mute(g.start(bar) + 14, g.start(bar + 1), keep=("gun", "bass"))
+        g.restrike("gun", DIDGERIDOO, A, g.start(bar) + 14, BAR - 14, 3, 76, 84, over=True)
     for first, root_note in ((4, A), (12, A), (24, CH["A"][0] + sh), (36, CH["A"][0] + sh)):
         hit(g, g.start(first), root_note, 54 + sh, True)
     g.mute(g.start(BREAK_BAR), g.start(BREAK_BAR + 1))
+    broot = CH[chord_of("P4", 11)][0] + sh
+    g.restrike("gun", DIDGERIDOO, broot, g.start(BREAK_BAR), BAR, 3, 62, 72)          # the break keeps the bass: a low pedal (medium) under the one bell
+    g.put("bass", g.start(BREAK_BAR), BASS, broot, 66)
     g.put("chime", g.start(BREAK_BAR) + 2, BELL, 96, 44)
     hit(g, g.start(36), CH["A"][0] + sh, 54 + sh, True)
-    g.clicks("noise", HAT, 66, g.length - 1, [1, 1, 1, 2, 2, 3, 4], 40, 100, over=True)
     return g
 
 

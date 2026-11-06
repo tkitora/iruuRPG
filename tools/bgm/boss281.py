@@ -6,28 +6,33 @@ and the drums last.
 """
 from cat45 import *  # noqa: F401,F403
 
-CAP = 42
+CAP = 40
 DECOR = ("hat", "chug", "power2", "stab", "chip", "arp", "harm", "cow", "dbl", "guitar2")
 
 
 def thin_per_second(layers, tps, cap=CAP, decor=DECOR):
-    per = {}
+    """A SAFETY, not a design tool (t283): the busiest second counted the way bossness.py counts it (a sliding window of round(tps) ticks) is brought down to ``cap`` by taking away the quietest
+    notes of the decoration layers first, the others last."""
+    window = max(1, int(round(tps)))
+    by_tick = {}
     for layer in layers:
         for tick, (_, _, vel) in layer.notes.items():
-            per.setdefault(int(tick / tps), []).append((layer, tick, vel * layer.volume))
+            by_tick.setdefault(tick, []).append((layer, vel * layer.volume))
     removed = 0
-    for second, notes in per.items():
-        excess = len(notes) - cap
+    ticks = sorted(by_tick)
+    for end in ticks:
+        window_notes = [(layer, t, loud) for t in range(end - window + 1, end + 1) for layer, loud in by_tick.get(t, []) if t in layer.notes]
+        excess = len(window_notes) - cap
         if excess <= 0:
             continue
         for rank in (decor, None):
-            pool = [n for n in notes if rank is None or n[0].name in rank or n[0].name.rstrip("0123456789") in rank]
+            pool = [n for n in window_notes if rank is None or n[0].name in rank or n[0].name.rstrip("0123456789") in rank]
             pool.sort(key=lambda n: n[2])
-            for layer, tick, _ in pool:
+            for layer, t, _ in pool:
                 if excess <= 0:
                     break
-                if tick in layer.notes:
-                    del layer.notes[tick]
+                if t in layer.notes:
+                    del layer.notes[t]
                     removed += 1
                     excess -= 1
             if excess <= 0:
@@ -65,6 +70,7 @@ def tom_roll(b, t0, start, end, ascending=False, vel_from=40, vel_to=100):
 
 
 def hold(b, role, instrument, tick, pitch, length, vel, rise=8, every=4):
+    """``every``: the re-strike distance in ticks - at most 0.35 s (4 ticks at 12 ticks a second, 3 at 11); the strikes never get quieter than the first one (t283)."""
     """A note held by re-striking: a short note is struck once."""
     if length >= every + 1:
         sustain(b, role, tick, instrument, pitch, length, vel, min(100, vel + rise), every=every)

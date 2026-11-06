@@ -35,7 +35,7 @@ DESCRIPTIONS = (
 
 VOL = {"bass": 100, "bass2": 90, "didge": 90, "gtr": 100, "g5": 100, "hit": 100, "bit_m": 100, "pl_m": 100, "fl_m": 90, "org": 60, "cb": 50, "cf": 50, "wail": 90, "ham": 90,
        "cow": 90, "xy": 100, "bell": 60}
-PAN = {"org1": 90, "org2": 110, "cb1": 90, "cb2": 110, "cf1": 95, "cf2": 105, "hit1": 90, "hit2": 110, "cow": 90, "xy": 110}
+PAN = {"hit3": 100, "org1": 90, "org2": 110, "cb1": 90, "cb2": 110, "cf1": 95, "cf2": 105, "hit1": 90, "hit2": 110, "cow": 90, "xy": 110}
 
 # ---------------------------------------------------------------------------------------------------------------------------------------------------------------- bass cells
 def _extra(cell, ticks):
@@ -175,6 +175,7 @@ def bars_of(phase):
     st = {}
     p2 = phase == 1
     # ------------------------------------------------------------------ P1
+    G0 = 0
     for i in range(16):
         b = {"shift": phase}
         pcs = DISS[i % 4]
@@ -183,6 +184,7 @@ def bars_of(phase):
             cell = "Q"
         b["bass"] = {"segs": [(P1_ROOTS[i], 3)], "fig": seg(cell) if cell != "Q" else seg("QQ"), "gain": [0.9, 0.85, 0.9, 1.0][i] if i < 4 else 1.0}
         b["didge"] = 1.0
+        b["didge_fill"] = i < 4
         b["drums"] = ["i0", "i1", "i2", "i2"][i] if i < 4 else cell
         if i == 0:
             b["first"] = hit_notes(33)
@@ -190,9 +192,9 @@ def bars_of(phase):
         notes = []
         if i >= 2:
             g = [0, 0, 0.6, 0.85][i] if i < 4 else 0.9
-            notes += pad_notes(st, "org", pcs, 55, 68, 3, range(2, BAR, 8), "org", PLING, lambda t, g=g, i=i: pad_vel(40, 62, i, t) * g)
+            notes += pad_notes(st, "org", pcs, 55, 68, 3, ticks6(G0 + i, 2), "org", PLING, lambda t, g=g, i=i: pad_vel(40, 62, i, t) * g)
         if i >= 3:
-            notes += pad_notes(st, "cho", pcs, 79, 90, 2, range(6, BAR, 8), "cf", FLUTE, lambda t, i=i: pad_vel(22, 60, i, t) * (0.7 if i < 4 else 0.9))
+            notes += pad_notes(st, "cho", pcs, 79, 90, 2, ticks6(G0 + i, 5), "cf", FLUTE, lambda t, i=i: pad_vel(22, 60, i, t) * (0.7 if i < 4 else 0.9))
         b["notes"] = notes
         if P1_MEL[i]:
             voices = {"gtr": (GUITAR, 0, 1.0)}
@@ -209,11 +211,12 @@ def bars_of(phase):
             b["notes"] = notes
         if i == 3 or i % 4 == 3:
             b["roll"] = (8, 8, 30, 80)
-        if i in (4, 8, 12):
+        if i >= 4 and i % 2 == 0:
             b["first"] = hit_notes(P1_ROOTS[i], False) + [("bd", BASEDRUM, 66, 0, 100)]
             b["didge_skip0"] = True
         bars.append(b)
     # ------------------------------------------------------------------ P2: pseudo double tempo
+    G0 = 16
     plan = {0: ["E2"] * 4 + ["DG", "DG", "E2", "DGS", "DG", "DGS", "TR", "DG", "WK", "TR", "DGS", "F16", "TR", "DGS", "WK", "TR", "TR", "WK", "DGS", "F16"],
             1: ["DGS", "E2", "DGS", "DG", "DG", "DGS", "E2", "DGS", "DGS", "TR", "TR", "DGS", "WK", "TR", "TR", "F16", "TR", "TR", "WK", "TR", "TR", "WK", "TR", "F16"]}[phase]
     for i in range(24):
@@ -226,8 +229,8 @@ def bars_of(phase):
         pcs = pcs_of(name)
         notes = []
         if i >= 4:
-            notes += pad_notes(st, "org", pcs, 55, 68, 3, range(2, BAR, 8), "org", PLING, lambda t, i=i: pad_vel(40, 60, i, t))
-            notes += pad_notes(st, "cho", pcs, 79, 90, 3 if p2 else 2, range(6, BAR, 8), "cf", FLUTE, lambda t, i=i: pad_vel(22, 62, i, t))
+            notes += pad_notes(st, "org", pcs, 55, 68, 2, ticks6(G0 + i, 2), "org", PLING, lambda t, i=i: pad_vel(40, 60, i, t))
+            notes += pad_notes(st, "cho", pcs, 79, 90, 2, ticks6(G0 + i, 5), "cf", FLUTE, lambda t, i=i: pad_vel(22, 62, i, t))
         b["notes"] = notes
         text = P2_MEL[i]
         voices = {"gtr": (GUITAR, 0, 1.0)}
@@ -237,19 +240,22 @@ def bars_of(phase):
         for tick, note, length in melody_events(text):
             if 42 <= note + 7 + phase <= 66:
                 b["holds"].append(("g5", GUITAR, note + 7, tick, length, 80, 58, 4))
-        if i % 4 == 0:
+        if i % 2 == 0:
             b["first"] = hit_notes(root)
             b["didge_skip0"] = True
         if i >= 4:
             low = low_brass(root)
-            b["notes"] += [("hit1", GUITAR, low, 8, 96), ("hit2", GUITAR, low + 7, 8, 96)]
+            for t in ((4, 12) if i >= 8 else (8,)):
+                b["notes"] += [("hit1", GUITAR, low, t, 94), ("hit2", GUITAR, low + 7, t, 94)]
         if i % 4 == 3:
             b["roll"] = (8, 8, 34, 92)
         bars.append(b)
     # ------------------------------------------------------------------ P3: the melody is lost
+    G0 = 40
     for i in range(24):
         b = {"shift": phase}
         if i == 23:
+            b["pedal"] = (33, 66)
             b["first"] = [("bell", BELL, 93, 0, 55, False)]
             bars.append(b)
             continue
@@ -265,18 +271,20 @@ def bars_of(phase):
                 notes.append(("xy", XYLOPHONE, XY[step % 6], tick, vel))
             else:
                 extra.append((tick, kind, vel))
-        if i % 4 == 0:
+        if i % 2 == 0:
             b["first"] = hit_notes(root)
         if i % 2 == 1:
             low = low_brass(root)
-            notes += [("hit1", GUITAR, low, 7, 92), ("hit2", GUITAR, low + 6, 7, 92), ("bd", BASEDRUM, 66, 7, 90), ("sn", SNARE, 66, 7, 84), ("didge", DIDGERIDOO, root, 7, 90)]
+            notes += [("hit1", GUITAR, low, 7, 92), ("hit2", GUITAR, low + 6, 7, 92), ("hit3", GUITAR, low + 12, 7, 88), ("bd", BASEDRUM, 66, 7, 90), ("sn", SNARE, 66, 7, 84), ("didge", DIDGERIDOO, root, 7, 90)]
         b["notes"] = notes
         b["extra_drums"] = extra
         bars.append(b)
     # ------------------------------------------------------------------ P4: sacred, A major
+    G0 = 64
     for i in range(22):
         b = {"shift": phase}
         if i == 21:
+            b["pedal"] = (40, 66)
             b["first"] = [("bell", BELL, 93, 0, 55, False)]
             bars.append(b)
             continue
@@ -286,16 +294,16 @@ def bars_of(phase):
         b["bass"] = {"segs": [(root, 3)], "fig": seg(P4_CELL[phase][i]), "gain": gain}
         b["didge"] = 0.9
         b["drums"] = ("sac0" if i < 6 else "sac1" if i < 12 else "sac2" if i < 16 else "build") if not p2 else ("sac1" if i < 8 else "sac2" if i < 16 else "build")
-        if i % 4 == 0 and i < 16:
+        if i % 2 == 0 and i < 16:
             b["first"] = hit_notes(root)
             b["didge_skip0"] = True
         pcs = pcs_of(name)
-        notes = pad_notes(st, "sorg", pcs, 55, 68, 3, range(2, BAR, 8), "org", PLING, lambda t, i=i: pad_vel(40, 68, i, t))
-        notes += pad_notes(st, "scho", pcs, 79, 98 if p2 else 90, 4 if p2 else 3, range(6, BAR, 8), "cf", FLUTE, lambda t, i=i: pad_vel(22, 66, i, t), wide=p2)
-        notes += pad_notes(st, "sbit", pcs, 62, 74, 2, range(6, BAR, 8), "cb", BIT, lambda t, i=i: pad_vel(18, 56, i, t))
+        notes = pad_notes(st, "sorg", pcs, 55, 68, 3, ticks6(G0 + i, 2), "org", PLING, lambda t, i=i: pad_vel(40, 68, i, t))
+        notes += pad_notes(st, "scho", pcs, 79, 98 if p2 else 90, 3 if p2 else 2, ticks6(G0 + i, 5), "cf", FLUTE, lambda t, i=i: pad_vel(22, 66, i, t), wide=p2)
+        notes += pad_notes(st, "sbit", pcs, 62, 74, 1, ticks6(G0 + i, 5), "cb", BIT, lambda t, i=i: pad_vel(18, 56, i, t))
         if 4 <= i < 16 and i % 2 == 0:
             low = low_brass(root)
-            notes += [("hit1", GUITAR, low, 8, 94), ("hit2", GUITAR, low + 7, 8, 94), ("sn", SNARE, 66, 8, 80)]
+            notes += [("hit1", GUITAR, low, 8, 94), ("hit2", GUITAR, low + 7, 8, 94), ("hit3", GUITAR, low + 12, 8, 90), ("sn", SNARE, 66, 8, 80)]
         b["notes"] = notes
         if i < 16:
             voices = {"pl_m": (PLING, -12, 1.0), "bit_m": (BIT, -12, 1.0), "fl_m": (FLUTE, 12, 0.9)}
@@ -304,6 +312,7 @@ def bars_of(phase):
             b["roll"] = (4, 12, 30 + 12 * (i - 16), 66 + 8 * (i - 16))
         bars.append(b)
     # ------------------------------------------------------------------ P5: the fusion
+    G0 = 86
     for i in range(24):
         b = {"shift": phase}
         name = P5_CH[i]
@@ -318,15 +327,17 @@ def bars_of(phase):
         pcs = pcs_of(name)
         notes = []
         if i < 23:
-            notes += pad_notes(st, "org", pcs, 55, 68, 3, range(2, BAR, 8), "org", PLING, lambda t, i=i: pad_vel(40, 62, i, t) * 1.1)
-            notes += pad_notes(st, "cho", pcs, 79, 98 if p2 else 90, 4 if p2 else 3, range(6, BAR, 8), "cf", FLUTE, lambda t, i=i: pad_vel(22, 72, i, t), wide=p2)
-        h0 = 8 if p2 else 10
+            notes += pad_notes(st, "org", pcs, 55, 68, 2, ticks6(G0 + i, 2), "org", PLING, lambda t, i=i: pad_vel(40, 62, i, t) * 1.1)
+            notes += pad_notes(st, "cho", pcs, 79, 98 if p2 else 90, 3 if p2 else 2, ticks6(G0 + i, 5), "cf", FLUTE, lambda t, i=i: pad_vel(22, 72, i, t), wide=p2)
+        h0 = 8 if p2 else 6
         if h0 <= i < 22:
             hi = voicing(pcs, 90, 99, 1)[0]
             for tick in range(0, BAR, 4 if (i % 4 == 3 or i >= 22 or (p2 and i < 16)) else 2):
                 notes.append(("ham", FLUTE, hi, tick, lerp(54, 100, ((i - h0) * BAR + tick) / ((22 - h0) * BAR))))
         b["notes"] = notes
-        voices = {"pl_m": (PLING, -12, 1.0), "bit_m": (BIT, -12, 1.0), "gtr": (GUITAR, -12, 1.0)}
+        voices = {"pl_m": (PLING, -12, 1.0), "gtr": (GUITAR, -12, 1.0)}
+        if not p2:
+            voices["bit_m"] = (BIT, -12, 1.0)
         b["holds"] = hold_events(P5_MEL[i], voices, swell=1.12)
         if i % 4 == 0 and i < 22:
             b["first"] = hit_notes(root)

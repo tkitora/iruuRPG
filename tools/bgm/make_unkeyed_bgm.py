@@ -211,29 +211,29 @@ def bars_of(phase):
     def stabs(base, ticks, vel=84):
         return [(f"hb{k + 1}", BIT, n, t, vel) for t in ticks for k, n in enumerate(ladder_notes(base, 3))]
 
-    def hit(root, base=55, stab=3):
+    def hit(root, base=55, stab=2):
         return [("bass", BASS, root, 0, 100), ("bd", BASEDRUM, 66, 0, 100), ("sn", SNARE, 66, 0, 90)] + [(f"hb{k + 1}", BIT, n, 0, 92) for k, n in enumerate(ladder_notes(base, stab))]
 
     # ------------------------------------------------------------------ P1
+    G0 = 0
     for i in range(14):
         b = {"shift": phase}
         root = pedal["P1"][i]
         gain = [0.9, 0.85, 0.9, 1.0][i] if i < 4 else 1.0
         b["bass"] = {"segs": [(root, 3)], "fig": fig(plan["P1"][i]), "gain": gain}
         b["didge"] = 1.0
+        b["didge_fill"] = i < 4
         b["drums"] = ["i0", "i1", "i2", "i2"][i] if i < 4 else ("cx" if i >= 10 or p2 else "c")
         base = 55 + 2 * min(i // 2, 5)
         if i == 0 or i in (4, 8, 12):
-            b["first"] = hit(root, base, 3)
+            b["first"] = hit(root, base, 2)
             b["didge_skip0"] = True
         notes = []
         if i >= 2:
             g = {2: 0.6, 3: 0.85}.get(i, 1.0)
-            notes += cluster("o", BIT, ladder_notes(base, 4 if i >= 3 else 3), range(3, BAR, 8), lambda t, i=i, g=g: ramp(40, 62, i, t) * g * 1.1)
+            notes += cluster("o", BIT, ladder_notes(base, 3 if i >= 3 else 2), ticks6(G0 + i, 2), lambda t, i=i, g=g: ramp(40, 62, i, t) * g * 1.1)
         if i >= 3:
-            notes += cluster("c", FLUTE, ladder_notes(85 - 2 * min(i // 2, 3), 3), range(7, BAR, 8), lambda t, i=i: ramp(26, 62, i, t) * (0.6 if i < 5 else 1.0))
-        if p2 and i >= 2:
-            notes += cluster("p", BIT, ladder_notes(base, 3), range(5, BAR, 8), lambda t, i=i: ramp(26, 50, i, t) * 0.8)
+            notes += cluster("c", FLUTE, ladder_notes(85 - 2 * min(i // 2, 3), 2), ticks6(G0 + i, 5), lambda t, i=i: ramp(26, 62, i, t) * (0.6 if i < 5 else 1.0))
         if i >= 1:
             notes += eyes((1, 9), 0.5 + min(i, 8) * 0.07)
         if i >= 8:
@@ -244,6 +244,7 @@ def bars_of(phase):
             b["roll"] = (8, 8, 34, 92)
         bars.append(b)
     # ------------------------------------------------------------------ P2: the counting doubles
+    G0 = 14
     for i in range(20):
         b = {"shift": phase}
         root = pedal["P2"][i]
@@ -251,14 +252,14 @@ def bars_of(phase):
         b["didge"] = 1.0
         b["drums"] = ("c" if i < 4 else "d3") if not p2 else ("c" if i < 2 else "d3x")
         base = 55 + 2 * ((i // 4) % 5)
-        notes = cluster("o", BIT, ladder_notes(base, 3), range(3, BAR, 8), lambda t, i=i: ramp(40, 62, i, t) * 1.1)
-        notes += cluster("c", FLUTE, ladder_notes(79 + 2 * (i // 4), 3), range(7, BAR, 8), lambda t, i=i: ramp(26, 62, i, t))
+        notes = cluster("o", BIT, ladder_notes(base, 2), ticks6(G0 + i, 2), lambda t, i=i: ramp(40, 62, i, t) * 1.1)
+        notes += cluster("c", FLUTE, ladder_notes(79 + 2 * (i // 4), 2), ticks6(G0 + i, 5), lambda t, i=i: ramp(26, 62, i, t))
         if p2 and i >= 8:
-            notes += cluster("r", FLUTE, ladder(W0, 85 + 3 * (i // 4) % 6, 2), range(5, BAR, 8), lambda t, i=i: ramp(28, 60, i, t))
+            notes += cluster("r", FLUTE, ladder(W0, 85 + 3 * (i // 4) % 6, 1), ticks6(G0 + i, 0), lambda t, i=i: ramp(28, 60, i, t))
         notes += eyes((1, 9), 1.0)
-        notes += stabs(base, (12,)) if i % 2 == 1 else []
+        notes += stabs(base, (12,)) if (i % 2 == 1 and not p2) else []
         b["notes"] = notes
-        b["holds"] = tune(P2_LOW[i], P2_HIGH[i], flute=i >= 8)
+        b["holds"] = tune(P2_LOW[i], P2_HIGH[i], flute=False)
         if i % 4 == 0:
             b["first"] = hit(root, base)
             b["didge_skip0"] = True
@@ -266,9 +267,11 @@ def bars_of(phase):
             b["roll"] = (8, 8, 34, 92)
         bars.append(b)
     # ------------------------------------------------------------------ P3: the melody is lost
+    G0 = 34
     for i in range(20):
         b = {"shift": phase}
         if i == 19:
+            b["pedal"] = (33, 66)
             b["first"] = [("bell", BELL, 93, 0, 55, False)]
             bars.append(b)
             continue
@@ -291,9 +294,11 @@ def bars_of(phase):
         b["extra_drums"] = extra
         bars.append(b)
     # ------------------------------------------------------------------ P4: sacred, the other whole-tone scale
+    G0 = 54
     for i in range(20):
         b = {"shift": phase + 1}
         if i == 19:
+            b["pedal"] = (31, 66)
             b["first"] = [("bell", BELL, 93, 0, 55, False)]
             bars.append(b)
             continue
@@ -303,17 +308,17 @@ def bars_of(phase):
         b["didge"] = 0.9
         b["drums"] = ("sac0" if i < 6 else "sac1" if i < 12 else "sac2" if i < 15 else "build") if not p2 else ("sac1" if i < 8 else "sac2" if i < 15 else "build")
         if i % 4 == 0 and i < 15:
-            b["first"] = hit(root, 55 + 2 * (i // 4), 3)
+            b["first"] = hit(root, 55 + 2 * (i // 4), 2)
             b["didge_skip0"] = True
         base = [55, 57, 59, 61, 63, 61, 59, 57][(i // 2) % 8]
-        stack = [base + 4 * k for k in range(4)]
-        notes = cluster("sb", BIT, stack, range(2, BAR, 8), lambda t, i=i: ramp(40, 68, i, t))
-        notes += cluster("sf", FLUTE, [n + 28 for n in stack[:3]], range(6, BAR, 8), lambda t, i=i: ramp(24, 62, i, t) * 0.9)
+        stack = [base + 4 * k for k in range(3)]
+        notes = cluster("sb", BIT, stack, ticks6(G0 + i, 2), lambda t, i=i: ramp(40, 68, i, t))
+        notes += cluster("sf", FLUTE, [n + 28 for n in stack[:2]], ticks6(G0 + i, 5), lambda t, i=i: ramp(24, 62, i, t) * 0.9)
         if 4 <= i < 15:
             notes += stabs(base, (6, 12) if i % 4 == 0 else (0, 12), 78)
         if i < 15:
             low_d, high_d = DYADS[i // 2]
-            b["holds"] = [("eye1", FLUTE, low_d, 1, 15, 40, 70, 2 if p2 else 4), ("eye2", FLUTE, high_d, 1, 15, 36, 64, 2 if p2 else 4)]
+            b["holds"] = [("eye1", FLUTE, low_d, 1, 15, 40, 70, 3), ("eye2", FLUTE, high_d, 1, 15, 36, 64, 3)]
             if i < 16:
                 b["holds"] += tune(P4_LOW[i], P4_HIGH[i], flute=True, long_tune=True)
         if i >= 15:
@@ -321,6 +326,7 @@ def bars_of(phase):
         b["notes"] = notes
         bars.append(b)
     # ------------------------------------------------------------------ P5: the fusion, back in the first scale
+    G0 = 74
     for i in range(20):
         b = {"shift": phase}
         root = pedal["P5"][i]
@@ -330,9 +336,9 @@ def bars_of(phase):
         base = 55 + 2 * ((i // 2) % 6)
         notes = []
         if i < 19:
-            notes += cluster("o", BIT, ladder_notes(base, 3), range(3, BAR, 8), lambda t, i=i: ramp(40, 62, i, t) * 1.1)
-            notes += cluster("c", FLUTE, ladder_notes(83, 3), range(7, BAR, 8), lambda t, i=i: ramp(26, 62, i, t))
-            notes += [(f"hb{k + 1}", BIT, n, t, 88) for t in (0, 3, 6, 9, 12) for k, n in enumerate(ladder_notes(base, 3 if p2 else 2))]
+            notes += cluster("o", BIT, ladder_notes(base, 2), ticks6(G0 + i, 2), lambda t, i=i: ramp(40, 62, i, t) * 1.1)
+            notes += cluster("c", FLUTE, ladder_notes(83, 2), ticks6(G0 + i, 5), lambda t, i=i: ramp(26, 62, i, t))
+            notes += [(f"hb{k + 1}", BIT, n, t, 88) for t in (0, 3, 6, 9, 12) for k, n in enumerate(ladder_notes(base, 2))]
         h0 = 4 if p2 else 7
         if h0 <= i < 19:
             top = ladder(W1, 94 + 2 * ((i // 2) % 3), 1)[0]
@@ -360,6 +366,13 @@ def build(phase):
         if b.get("extra_drums"):
             drums[f"x{g}"] = b["extra_drums"]
             b["drums"] = f"x{g}"
+    # a pad note is not struck on a tick where a hit or a stab sounds (nothing is lost to the 8-note limit that way; the pad is only moved out of the way)
+    pads = ("o", "p", "c", "r", "sb", "sf", "eye")
+    for b in bars:
+        busy = {n[3] for n in b.get("notes", []) if n[0].startswith("hb")}
+        if b.get("first"):
+            busy.add(0)
+        b["notes"] = [n for n in b.get("notes", []) if not (n[0].rstrip("0123456789") in pads and n[3] in busy)]
     render(sc, bars, drums, VOL, PAN)
     return sc
 

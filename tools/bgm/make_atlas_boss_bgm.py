@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from cat45 import *  # noqa: F401,F403 - Builder, hit_ticks, sustain ... (helpers; this file edits nothing shared)
+from boss281 import finish281  # noqa: E402 - the per-second limiter, only a SAFETY (the design keeps the song under 40 notes a second itself)
 
 TPS = 10.0
 BAR_T = 16
@@ -100,7 +101,7 @@ def tune(b, role, instrument, t0, text, shift=0, vel=84, grace=False):
                 while p > 78:
                     p -= 12
             if length >= 6:
-                sustain(b, role, t0 + tick, instrument, p, length, vel, vel + 10, every=4)
+                sustain(b, role, t0 + tick, instrument, p, length, vel, vel + 10, every=3)
             else:
                 b.note(role, t0 + tick, instrument, p, vel + (6 if tick % 8 == 0 else 0))
         tick += length
@@ -151,8 +152,9 @@ class Song:
         for bar, text in enumerate(refrain):
             tune(b, "tune", HARP, 16 * bar, text, vel=84 + 4 * bar)
         self.hit(0, 4, 40, drums=False)                          # the first tick already weighs: E in the bass, the didgeridoo and the guitar under the refrain
-        sustain(b, "stab", 48, GUITAR, 47, 16, 60, 90, every=4)    # a low B under the dominant
-        sustain(b, "didg", 48, DIDGERIDOO, 35, 16, 60, 90, every=4)
+        sustain(b, "stab", 48, GUITAR, 47, 16, 70, 92, every=3)    # a low B under the dominant
+        sustain(b, "didg", 0, DIDGERIDOO, 40, 48, 72, 92, every=3)  # t283: the bass never leaves: a low E pedal under the whole refrain (no total silence, a menacing opening)
+        sustain(b, "didg", 48, DIDGERIDOO, 35, 16, 72, 92, every=3)
 
     # ---- PRE (6 bars of the loop): the refrain goes on; the snare comes in
     def pre(self, t0, ib):
@@ -160,6 +162,7 @@ class Song:
         order = [0, 1, 2, 3, 4, 7]
         chords = ["Em", "Em", "C", "D", "Em", "B7"]
         tune(b, "tune", HARP, t0, A_MELODY[order[ib]], vel=86 + 2 * ib)
+        sustain(b, "didg", t0, DIDGERIDOO, CHORDS[chords[ib]][1], 16, 74, 90, every=3)     # t283: the pedal goes on under the refrain (the seam and the PRE keep a bass)
         if ib in (0, 3):
             self.hit(t0, CHORDS[chords[ib]][0], CHORDS[chords[ib]][1], 0.8, drums=ib > 0)
         snares = [(12,), (4, 12), (4, 12), (4, 8, 12), (0, 4, 8, 12), (0, 2, 4, 6, 8, 10, 12, 14)][ib]
@@ -185,7 +188,7 @@ class Song:
             b.drum("snare", t0 + 8, SNARE, 96)
             for tick in (4, 12):
                 b.drum("hat", t0 + tick, HAT, 30)
-            sustain(b, "didg", t0, DIDGERIDOO, 40, 16, 60, 80, every=4)
+            sustain(b, "didg", t0, DIDGERIDOO, 40, 16, 60, 80, every=3)
         else:
             for tick in range(0, 16, 2):
                 b.note("bass", t0 + tick, BASS, 40, 100 if tick == 0 else (92 if tick % 8 == 0 else (84 if tick % 4 == 0 else 70)))
@@ -239,7 +242,8 @@ class Song:
     def break_bar(self, t0, ib):
         b = self.b
         if ib == 2:
-            b.note("bell", t0, BELL, 96, 88)
+            b.note("bell", t0, BELL, 96, 70)
+            sustain(b, "didg", t0, DIDGERIDOO, 35, 16, 62, 72, every=3)             # t283: the break keeps the bass: drums and tune stop, a low B pedal stays under the one bell
             return
         step = 2 if ib == 0 else 1
         for index, tick in enumerate(range(0, 16, step)):
@@ -248,7 +252,7 @@ class Song:
             b.note("bass", t0 + tick, BASS, 35, v * 0.9)
         for beat in range(4):
             b.drum("kick", t0 + 4 * beat, BASEDRUM, int(50 + 50 * (16 * ib + 4 * beat) / 31))
-        sustain(b, "didg", t0, DIDGERIDOO, 35, 16, 60, 90, every=4)
+        sustain(b, "didg", t0, DIDGERIDOO, 35, 16, 60, 90, every=3)
 
     # ---- CHORUS and FINALE: long notes with a third-above harmony over the sixteenth bass
     def chorus_bar(self, t0, ib, finale):
@@ -279,18 +283,17 @@ class Song:
         for tick in range(0, 16, 4):
             b.note("didg", t0 + tick, DIDGERIDOO, low, 92 if tick % 8 == 0 else 80)
         # --- guitar: power chord on the downbeats, chug in between
-        for tick in range(0, 16, 2):
-            b.note("guitar", t0 + tick, GUITAR, near(pc, 47, GUITAR), 100 if tick % 8 == 0 else 52)
-        for tick in (0, 4, 8, 12):
-            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 92 if tick % 8 == 0 else 76)
-            b.note("stab", t0 + tick, HARP, near(pc, 58, HARP), 70, once=True)
+        for tick in range(0, 16, 4):                            # t283: the chug only on the beats (the offbeat chug and the extra harp stab were inaudible under the sixteenth bass and fed the 45-notes cap)
+            b.note("guitar", t0 + tick, GUITAR, near(pc, 47, GUITAR), 100 if tick % 8 == 0 else 76)
+        for tick in (0, 8):
+            b.note("guitar2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 92)
         # --- drums: the kick in quarters with a pickup, the backbeat, the hat in sixteenths
         for tick, vel in ((0, 100), (4, 70), (8, 96), (12, 70), (14, 60)):
             b.drum("kick", t0 + tick, BASEDRUM, vel)
         for tick in (4, 12):
             b.drum("snare", t0 + tick, SNARE, 90)
-        for tick in range(16):
-            b.drum("hat", t0 + tick, HAT, 34 if tick % 4 == 0 else (26 if tick % 2 == 0 else 16))
+        for tick in range(0, 16, 2):                            # hat on the eighths (the sixteenth kick/bass already is the machine gun)
+            b.drum("hat", t0 + tick, HAT, 36 if tick % 4 == 0 else 26)
         if ib % 8 == 7 and not end:
             roll(b, t0, 10, 1, 40, 96)
         if ib == 17 or (finale and ib == 15):
@@ -302,11 +305,11 @@ class Song:
             if p is not None:
                 while p < 54:
                     p += 12
-                sustain(b, "tune", t0 + tick, HARP, p, length, 98, 100, every=4)
+                sustain(b, "tune", t0 + tick, HARP, p, length, 98, 100, every=3)
                 if not (finale and ib >= 14):
                     h = third_above(p, tonic_pc)
                     if 54 <= h <= 78:
-                        sustain(b, "harm", t0 + tick, PLING, h, length, 70, 84, every=4)
+                        sustain(b, "harm", t0 + tick, PLING, h, length, 70, 84, every=3)
             tick += length
         if ib % 8 == 0 and not end:                             # the unison hit that starts each phrase of eight bars
             b.drum("snare", t0, SNARE, 96, once=True)
@@ -336,7 +339,7 @@ def main():
                 song.chorus_bar(t0, ib, name == "FINALE")
         cursor += n * BAR_T
     assert cursor == LENGTH
-    layers = finish(target, song.b, TPS, TITLE, DESCRIPTION)
+    layers = finish281(target, song.b, TPS, TITLE, DESCRIPTION, cap=40)
     print("   notes a second by section: " + ", ".join(f"{n} {c:.1f}" for n, c in sections_density(layers, LENGTH, TPS, edges)))
     bass = [layer for layer in layers if layer.name.startswith("bass")]
     print("   bass notes per bar by section: " + ", ".join(

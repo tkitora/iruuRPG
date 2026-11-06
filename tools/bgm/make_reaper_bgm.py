@@ -61,39 +61,38 @@ def chord_of(name, i):
     return CL_PROG[i // 4][i % 4]
 
 
-def hit(g, tick, note, clank, big=False, cow=84):
+def hit(g, tick, note, clank, big=False, cow=84, full=True):
     """An ensemble hit (7 notes at one tick): kick, bass, pedal, snare, cow bell, low clank, hat."""
     g.drum("pound", tick, BASEDRUM, 100, over=True)
     g.put("bass", tick, BASS, note, 98, over=True)
     g.put("drone", tick, DIDGERIDOO, note, 92, over=True)
     g.drum("snare", tick, SNARE, 92 if big else 80, over=True)
     g.put("tock", tick, COW_BELL, cow, 80, over=True)
-    g.put("clank", tick, IRON_XYLOPHONE, clank, 96, over=True)
+    if full:
+        g.put("clank", tick, IRON_XYLOPHONE, clank, 96, over=True)
     g.drum("clock", tick, HAT, 62, over=True)
 
 
-def blade(g, s, base, vel, count=4, intervals=(0, 3, 6, 9), top=12, layer="tune", inst=BIT, held=(12, 16)):
+def blade(g, s, base, vel, count=4, intervals=(0, 3, 6, 9), top=12, layer="tune", inst=BIT, held=(12, 15, 18)):
     """The motif: ``count`` rungs of the ladder three ticks apart, then one long note on the next rung (struck at ``held``, hanging up)."""
     for j in range(count):
         g.put(layer, s + 3 * j, inst, base + intervals[j], vel + (6 if j == 0 else 0))
     if count >= 4:
         for n, t in enumerate(held):
-            g.put(layer, s + t, inst, base + top, vel * (0.92 ** n) + 4)
+            g.put(layer, s + t, inst, base + top, vel * (0.94 ** n) + 4)
 
 
 def pads(g, s, chord, sh, v0, v1, rolled, third):
     root, tones = CH[chord]
-    offs = (0, 1, 2) if rolled else (0, 0, 2)
+    offs = (0, 1, 2) if rolled else (0, 0, 1)          # every voice is struck again every 3 ticks (0.35 s): a held chord, not a chopped one
     for t in range(BAR):
         v = v0 + (v1 - v0) * t / (BAR - 1)
-        if t % 4 == offs[0]:
+        if t % 3 == offs[0]:
             g.put("pad1", s + t, PLING, tones[0] + sh, v)
-        if t % 4 == offs[1]:
+        if t % 3 == offs[1]:
             g.put("pad2", s + t, HARP, tones[2] + sh, v * 0.95)
-        if third and t % 4 == offs[2]:
+        if third and t % 3 == offs[2]:
             g.put("pad3", s + t, PLING, tones[1] + sh, v * 0.95)
-        if t % 4 == 0 and t % 8 == 0:
-            g.put("choir", s + t, FLUTE, tones[3] + 12 + sh, 74)
 
 
 def compose(phase):
@@ -112,7 +111,7 @@ def compose(phase):
             g.drum("heart", g.start(bar) + t, BASEDRUM, 96)
             g.drum("heart", g.start(bar) + t + 3, BASEDRUM, 78)
     g.drum("heart", g.start(-3), BASEDRUM, 100)
-    g.restrike("drone", DIDGERIDOO, R, g.start(-2), 2 * BAR, 4, 70, 92)
+    g.restrike("drone", DIDGERIDOO, R, 0, 64, 3, 72, 94)                    # t283: a note at tick 0 and the pedal never leaves the bass
     blade(g, g.start(-1), BLADE - 1 + sh, 82, 4)
     g.clicks("roll", SNARE, 66, 63, [1, 1, 1, 1, 2, 2, 2, 3, 3, 4], 40, 98)
     g.clicks("noise", HAT, 66, 63, [1, 1, 1, 2, 3, 4], 20, 70)
@@ -151,7 +150,11 @@ def compose(phase):
                 blade(g, s, BLADE + sh + i % 4, 88, min(4, 2 + (i - 2) // 2) if i < 6 else 4)
             if i >= 1:
                 for t in acc:
-                    hit(g, s + t, R, 54 + sh, False)
+                    hit(g, s + t, R, 54 + sh, False, full=(t == 0))
+            if i >= 4:
+                for t in (4, 8, 16):
+                    if t not in acc:
+                        hit(g, s + t, R, 54 + sh, False, full=False)
         # ---------------- P2: pseudo double tempo
         elif name == "P2":
             mode, p = (("e", 0) if i < 3 else (("m", 0.4 + 0.07 * i) if i < 9 else ("m", 1.0))) if phase == 0 else (("m", 0.6) if i < 2 else (("m", 1.0) if i % 4 == 3 else ("s", 1)))
@@ -164,28 +167,30 @@ def compose(phase):
                 g.drum("clock", s + t, HAT, 46 if t in acc else 34)
             blade(g, s, BLADE + sh + i % 4, 90, 4)
             for t in acc:
-                hit(g, s + t, R, 54 + sh, t == 0 and i % 4 == 0)
-            if i >= 5:
+                hit(g, s + t, R, 54 + sh, t == 0 and i % 4 == 0, full=(t == 0))
+            if i >= 2:
                 for t in (4, 8, 16):
                     if t not in acc:
-                        hit(g, s + t, R, 54 + sh, False)
+                        hit(g, s + t, R, 54 + sh, False, full=(t == 0))
         # ---------------- P3: the melody is gone: bass + anvil and bone
         elif name == "P3":
             if phase == 0:
                 mode, p = ("q", 0) if i < 2 else (("e", 0) if i < 5 else (("m", 0.4 + 0.07 * (i - 5)) if i < 14 else ("s", 1)))
             else:
                 mode, p = ("e", 0) if i < 2 else (("m", 1.0) if i < 8 else ("s", 1))
+            for t in range(0, BAR, 3):
+                g.put("drone", s + t, DIDGERIDOO, R, 76)                    # t283: the pedal under the lost-melody part
             for t in gun_ticks(mode, BAR, k, p, gun_rng):
                 g.put("bass", s + t, BASS, R + WALK[(k * 5 + t // 4) % 12] + min(4, i // 3), 88 + (12 if t in acc else 0) + 4 * phase)
             for j, t in enumerate(TRESILLO):
                 if i >= 1:
                     g.put("bone", s + t, BANJO, 61 + sh + BONE_PITCH[(j + k) % 8], 88 + (8 if j % 3 == 0 else 0))
             for t in acc:
-                hit(g, s + t, R, 54 + sh, False)
-            if i >= 8:
+                hit(g, s + t, R, 54 + sh, False, full=(t == 0))
+            if i >= 4:
                 for t in (4, 8, 16):
                     if t not in acc:
-                        hit(g, s + t, R, 54 + sh, False)
+                        hit(g, s + t, R, 54 + sh, False, full=False)
             for t in (2, 8, 14):
                 g.drum("snare", s + t, SNARE, 62 + i)
             if i >= 4:
@@ -194,18 +199,17 @@ def compose(phase):
         elif name == "P4":
             pads(g, s, chord, sh, 78 + 2 * (i % 4), 88 + 2 * (i % 4), False, True)
             base, iv = LADDER_BASE[chord]
-            blade(g, s, base + sh, 90, 4, (iv[0], iv[1], iv[2], iv[2]), 12, "tune", BIT, held=(12, 16))
+            blade(g, s, base + sh, 90, 4, (iv[0], iv[1], iv[2], iv[2]), 12, "tune", BIT, held=(12, 15, 18))
             if phase == 1:
-                blade(g, s, base + sh - 12 if base - 12 >= 54 else base + sh, 80, 4, (iv[0], iv[1], iv[2], iv[2]), 12, "tune2", PLING, held=(12, 16))
+                blade(g, s, base + sh - 12 if base - 12 >= 54 else base + sh, 80, 4, (iv[0], iv[1], iv[2], iv[2]), 12, "tune2", PLING, held=(12, 15, 18))
             hit(g, s, root_note, 54 + sh, i % 4 == 0)
             g.drum("pound", s + acc[1], BASEDRUM, 90)
             for t in (4, 8, 16) if i % 2 else (6, 14):
                 g.drum("pound", s + t, BASEDRUM, 84)
             g.put("bass", s + acc[1], BASS, root_note, 92)
             g.put("drone", s + acc[1], DIDGERIDOO, root_note, 80)
-            for t in range(4, BAR, 4):
-                if t != acc[1]:
-                    g.put("drone", s + t, DIDGERIDOO, root_note, 70)
+            for t in range(3, BAR, 3):                                  # the organ pedal is struck again every 3 ticks
+                g.put("drone", s + t, DIDGERIDOO, root_note, 78)
             g.put("tock", s + acc[1] + 4, COW_BELL, 78 + sh, 70)
         # ---------------- CL: the climax: the machine fused with the chords
         else:
@@ -220,38 +224,38 @@ def compose(phase):
             for b in range(5):
                 g.drum("snare", s + 4 * b, SNARE, 84 + 4 * phase + (10 if 4 * b in (acc[0] + 4, acc[1] + 4) else 0))
                 g.drum("pound", s + 4 * b, BASEDRUM, 96 if 4 * b in acc else 86)
-                g.drum("pound", s + 4 * b + 2, BASEDRUM, 72 + 6 * phase)
-            for t in range(0, BAR, 2):
-                g.drum("clock", s + t, HAT, 56 if t in acc else 40)
+            for t in range(2, BAR, 4):                                      # t283: the hat only on the offbeats (the kick on every beat and the sixteenth bass carry the speed)
+                g.drum("clock", s + t, HAT, 56)
             rolled = True
-            pads(g, s, chord, sh + shift, 84 + 3 * phase, 94 + 3 * phase, rolled, phase == 1)
+            pads(g, s, chord, sh + shift, 84 + 3 * phase, 94 + 3 * phase, rolled, False)
             if 12 <= i < 16:                                # half-time dip: the blade in whole-bar notes, the drums keep their speed
                 tone = (base + iv[(i - 12) % 3] + sh)
-                g.restrike("tune", BIT, tone, s, BAR, 4, 94, 84)
+                g.restrike("tune", BIT, tone, s, BAR, 3, 94, 86)
             else:
-                blade(g, s, base + sh + shift, 94, 4, (iv[0], iv[1], iv[2], iv[2]), 12, "tune", BIT, held=(12, 16))
+                blade(g, s, base + sh + shift, 94, 4, (iv[0], iv[1], iv[2], iv[2]), 12, "tune", BIT, held=(12, 15, 18))
             if i >= 16:                                     # the spurt: hammered top note and a guitar power chord
                 top = base + sh + shift + 12
-                for t in range(0, BAR, 2):
-                    g.put("ham", s + t + 1, BIT, min(78, top) - (12 if (t // 2) % 5 == 4 else 0), 90 + (8 if t in acc else 0))
+                for t in range(1, BAR, 3):                                  # hammered: struck again every 3 ticks
+                    g.put("ham", s + t, BIT, min(78, top) - (12 if (t // 3) % 5 == 4 else 0), 90 + (8 if t - 1 in acc else 0))
                 for t in acc:
                     g.put("gtr", s + t, GUITAR, 42 + (root_note - 30) % 12 + 12, 94)
-                    g.put("gtr", s + t + 2, GUITAR, 42 + (root_note - 30) % 12 + 19 - 12 * ((root_note - 30) % 12 > 5), 80)
             for t in acc:
-                hit(g, s + t, root_note, 54 + sh, t == 0 and i % 4 == 0, 84 + shift)
-            if (i >= 12 and i % 4 == 3) or (phase == 1 and i >= 8 and i % 2 == 1):
+                hit(g, s + t, root_note, 54 + sh, t == 0 and i % 4 == 0, 84 + shift, full=(t == 0))
+            if i >= 4:
                 for t in (4, 8, 16):
                     if t not in acc:
-                        hit(g, s + t, root_note, 54 + sh, False, 84 + shift)
+                        hit(g, s + t, root_note, 54 + sh, False, 84 + shift, full=False)
         # the pedal in the dark parts follows the root
         if name in ("P1", "P2"):
-            for t in range(0, BAR, 4):
-                g.put("drone", s + t, DIDGERIDOO, R, 74 + (8 if t in acc else 0))
+            for t in range(0, BAR, 3):
+                g.put("drone", s + t, DIDGERIDOO, R, 76 + (8 if t in acc else 0))
     # ---- rolls before a block, the silences of the scythe
     for bar in (7, 19, 35):
-        g.clicks("roll", SNARE, 66, g.start(bar) + 19, [1, 1, 1, 1, 1, 2, 2, 2, 3, 3], 40, 100)
+        g.clicks("roll", SNARE, 66, g.start(bar) + 19, [1, 1, 1, 1, 2, 2, 3], 40, 100)
     for bar, from_tick in SILENCES[phase]:
-        g.mute(g.start(bar) + from_tick, g.start(bar + 1))
+        g.mute(g.start(bar) + from_tick, g.start(bar + 1), keep=("bass", "drone"))
+        for t in range(g.start(bar) + from_tick, g.start(bar + 1), 3):                 # the silence of the scythe keeps the pedal (a total blank sounds like a stopped server)
+            g.put("drone", t, DIDGERIDOO, R, 74)
         g.drum("pound", g.start(bar + 1), BASEDRUM, 100, over=True)
         g.put("bass", g.start(bar + 1), BASS, R, 100, over=True)
         g.drum("snare", g.start(bar + 1), SNARE, 84, over=True)
@@ -259,6 +263,9 @@ def compose(phase):
     for first in (8, 20, 36, 52):
         hit(g, g.start(first), R if first < 36 else CH[chord_of("P4" if first == 36 else "CL", 0)][0] + sh, 54 + sh, True)
     g.mute(g.start(BREAK_BAR), g.start(BREAK_BAR + 1))
+    broot = CH[chord_of("P4", 15)][0] + sh
+    g.restrike("drone", DIDGERIDOO, broot, g.start(BREAK_BAR), BAR, 3, 62, 70)          # the break keeps the bass: a low pedal (medium) under the one bell
+    g.put("bass", g.start(BREAK_BAR), BASS, broot, 66)
     g.put("bell", g.start(BREAK_BAR) + 2, BELL, 96, 44)
     hit(g, g.start(52), CH["C#"][0] + sh, 54 + sh, True)
     g.clicks("noise", HAT, 66, g.length - 1, [1, 1, 1, 2, 2, 3, 4], 40, 100, over=True)
