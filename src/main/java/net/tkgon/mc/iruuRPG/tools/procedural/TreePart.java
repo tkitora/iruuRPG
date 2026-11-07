@@ -71,30 +71,7 @@ enum TreePart {
     TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_WOOD),
     /** (t282) the ornate tree: trapdoors (the level tips of thin branches, the streaks of bark) and open fence gates (level tips). */
     BRANCH_TRAPDOOR("branch-trapdoor", "枝先・樹皮 (トラップドア)", 3, Material.OAK_TRAPDOOR),
-    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE),
-    /**
-     * (t295) The roles of a building (one block each: its stairs, slabs, walls, fences and logs are the same block's, see {@code BuildingShape}): the podium, the
-     * frame's posts and beams, the wall, the glass, the corbels, the floors, the roof and its stripes, the eaves' edge, the verges, the ridge, the hips, the chimney,
-     * the rails, the finial. (t302) Each in a wool of its own colour, as the house base's parts are (no building blocks; the shapes, where they are wanted, from the
-     * blocks nearest the wool's colour).
-     */
-    BLD_PLINTH("bld-plinth", "基壇・石 (plinth)", 0, Material.GRAY_WOOL),
-    BLD_POST("bld-post", "柱 (frame_post)", 0, Material.BROWN_WOOL),
-    BLD_BEAM("bld-beam", "梁・幕板・まぐさ (frame_beam)", 0, Material.ORANGE_WOOL),
-    BLD_INFILL("bld-infill", "壁 (infill)", 0, Material.WHITE_WOOL),
-    BLD_WINDOW("bld-window", "窓 (window)", 0, Material.LIGHT_BLUE_WOOL),
-    BLD_CORBEL("bld-corbel", "持ち送り (corbel)", 0, Material.YELLOW_WOOL),
-    BLD_FLOOR("bld-floor", "床 (floor)", 0, Material.LIGHT_GRAY_WOOL),
-    BLD_ROOF("bld-roof", "屋根 (roof_band_0)", 0, Material.RED_WOOL),
-    BLD_ROOF_2("bld-roof-2", "屋根の縞 2 (roof_band_1)", 0, Material.PINK_WOOL),
-    BLD_ROOF_3("bld-roof-3", "屋根の縞 3 (roof_band_2)", 0, Material.MAGENTA_WOOL),
-    BLD_EAVE("bld-eave", "軒先 (eave)", 0, Material.BLACK_WOOL),
-    BLD_VERGE("bld-verge", "破風 (verge)", 0, Material.CYAN_WOOL),
-    BLD_RIDGE("bld-ridge", "棟 (ridge)", 0, Material.PURPLE_WOOL),
-    BLD_HIP("bld-hip", "隅棟 (hip)", 0, Material.GREEN_WOOL),
-    BLD_CHIMNEY("bld-chimney", "煙突 (chimney)", 0, Material.BLUE_WOOL),
-    BLD_RAIL("bld-rail", "手すり (rail)", 0, Material.LIME_WOOL),
-    BLD_FINIAL("bld-finial", "頂華 (finial)", 0, Material.YELLOW_WOOL);
+    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE);
 
     /** (t258) The part whose block this one is put in (a stair's other ways and a slab's top half are their first part's block). */
     TreePart blockOf() {

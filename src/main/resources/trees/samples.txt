@@ -26,10 +26,3 @@ ornate_birch
 ornate_willow
 ornate_cherry
 ornate_acacia
-building_townhouse
-building_jettied
-building_crossed
-building_square
-building_castle
-building_windmill
-building_manual
