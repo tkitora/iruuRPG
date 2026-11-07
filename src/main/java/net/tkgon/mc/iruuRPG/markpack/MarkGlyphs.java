@@ -238,7 +238,7 @@ public final class MarkGlyphs {
     }
 
     /** pack.mcmeta of a pack of this server (1.20.4). */
-    static byte[] meta(String description) {
+    public static byte[] meta(String description) {
         JsonObject meta = new JsonObject();
         JsonObject pack = new JsonObject();
         pack.addProperty("pack_format", 22);
@@ -248,7 +248,7 @@ public final class MarkGlyphs {
     }
 
     /** The files as a zip (the same bytes every time for the same files: the times are 0). */
-    static byte[] zip(Map<String, byte[]> files) throws IOException {
+    public static byte[] zip(Map<String, byte[]> files) throws IOException {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (ZipOutputStream out = new ZipOutputStream(bytes)) {
             for (Map.Entry<String, byte[]> file : files.entrySet()) {

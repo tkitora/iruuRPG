@@ -67,6 +67,12 @@ public final class MainMenu implements Listener {
     private TravelMenu travelMenu;
     private SettingsMenu settingsMenu;
     private QuestLogMenu questLogMenu;
+    /** (t291, trial) The menus' own looks ({@code ui/main.yml}); null: as before. */
+    private net.tkgon.mc.iruuRPG.gui.skin.MenuSkins skins;
+
+    public void setSkins(net.tkgon.mc.iruuRPG.gui.skin.MenuSkins skins) {
+        this.skins = skins;
+    }
 
     public void setQuestLogMenu(QuestLogMenu questLogMenu) {
         this.questLogMenu = questLogMenu;
@@ -103,7 +109,7 @@ public final class MainMenu implements Listener {
     public void open(Player player) {
         PlayerProfile profile = equipmentService.recalculate(player);
         Holder holder = new Holder(player.getUniqueId());
-        Inventory inventory = Bukkit.createInventory(holder, SIZE, TITLE);
+        Inventory inventory = Bukkit.createInventory(holder, SIZE, skins == null ? TITLE : skins.title("main", player, TITLE));
         holder.setInventory(inventory);
 
         fill(inventory);
@@ -154,6 +160,7 @@ public final class MainMenu implements Listener {
                 Component.text("攻撃の音の大きさ・他人の音・メニューアイテムの表示", NamedTextColor.GRAY)
         )));
 
+        if (skins != null) skins.dress("main", player, inventory);
         player.openInventory(inventory);
     }
 
@@ -165,7 +172,10 @@ public final class MainMenu implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (!isOwner(event.getView(), player)) return;
 
-        switch (event.getRawSlot()) {
+        // (a click on any slot of a part of the menu's own look is a click on its button)
+        int slot = event.getRawSlot();
+        if (skins != null && slot >= 0 && slot < SIZE) slot = skins.button("main", player, slot);
+        switch (slot) {
             case 13 -> {
                 if (questLogMenu != null) questLogMenu.open(player);
             }

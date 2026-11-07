@@ -99,6 +99,8 @@ public final class ResourcePackService implements Listener {
         BUILT_IN.put("models", "iruumodel.zip");
         BUILT_IN.put("items", "iruuitem.zip");
         BUILT_IN.put("marks", "iruumark.zip");
+        // (t291, trial) the menus' own looks: there only while some menu has one (ui/*.yml)
+        BUILT_IN.put("ui", "iruuui.zip");
     }
 
     private List<Pack> packs() {
