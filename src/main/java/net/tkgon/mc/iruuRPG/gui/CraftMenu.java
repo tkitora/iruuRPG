@@ -83,19 +83,27 @@ public final class CraftMenu implements Listener {
         }
     }
 
-    private static final int PREVIOUS_SLOT = 45;
-    private static final int NEXT_SLOT = 53;
+    /** (t293) The way back to the main menu, at the bottom left as in the other menus; the pages' arrows are beside the tabs. */
+    private static final int BACK_SLOT = 45;
+    private static final int PREVIOUS_SLOT = 46;
+    private static final int NEXT_SLOT = 52;
 
     private final JavaPlugin plugin;
     private final CraftService service;
     private final RpgItemRegistry itemRegistry;
     private final RpgItemFactory itemFactory;
 
+    private MainMenu mainMenu;
+
     public CraftMenu(JavaPlugin plugin, CraftService service, RpgItemRegistry itemRegistry, RpgItemFactory itemFactory) {
         this.plugin = plugin;
         this.service = service;
         this.itemRegistry = itemRegistry;
         this.itemFactory = itemFactory;
+    }
+
+    public void setMainMenu(MainMenu mainMenu) {
+        this.mainMenu = mainMenu;
     }
 
     // ---- entry ---------------------------------------------------------------------------------------------
@@ -161,6 +169,10 @@ public final class CraftMenu implements Listener {
         if (holder.page < pages - 1) {
             inventory.setItem(NEXT_SLOT, item(Material.ARROW, "次のページ", NamedTextColor.YELLOW, List.of(text((holder.page + 1) + " / " + pages, NamedTextColor.GRAY)), false));
             holder.slots.put(NEXT_SLOT, "page:1");
+        }
+        if (mainMenu != null) {
+            inventory.setItem(BACK_SLOT, MenuButtons.back());
+            holder.slots.put(BACK_SLOT, "main");
         }
     }
 
@@ -350,6 +362,10 @@ public final class CraftMenu implements Listener {
 
         switch (holder.screen) {
             case LIST -> {
+                if (action.equals("main")) {
+                    if (mainMenu != null) mainMenu.open(player);
+                    return;
+                }
                 if (action.startsWith("kind:")) {
                     holder.kind = Kind.valueOf(action.substring(5));
                     holder.page = 0;

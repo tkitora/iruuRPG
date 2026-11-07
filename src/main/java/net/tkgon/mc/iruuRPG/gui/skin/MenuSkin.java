@@ -17,13 +17,14 @@ import java.util.Set;
  * @param originX     (t292) where in the picture the window's top left is: the picture reaches this far out of the window on the left
  * @param originY     (t292) and this far over its top (a tab standing out of the window)
  * @param title       the text of the title (null: the menu's own)
+ * @param titleX      (t293) how far from the window's left the title's text starts (the game's: 8)
  * @param titleColor  its colour
  * @param hideFrame   whether the menu's glass panes outside the parts are taken away (the background shows there)
  * @param testersOnly whether only the testers (operators, and players with {@code iruurpg.uitest}) see it; the others see the menu as before
  * @param parts       the pictures over the slots
  */
-public record MenuSkin(String id, BufferedImage background, int originX, int originY, String title, TextColor titleColor, boolean hideFrame, boolean testersOnly,
-                       List<Part> parts) {
+public record MenuSkin(String id, BufferedImage background, int originX, int originY, String title, int titleX, TextColor titleColor, boolean hideFrame,
+                       boolean testersOnly, List<Part> parts) {
 
     /** A slot is 18 pixels on a side in the window (a 16 pixel item and its rim). */
     public static final int SLOT = 18;
@@ -34,7 +35,8 @@ public record MenuSkin(String id, BufferedImage background, int originX, int ori
 
     /**
      * A picture over some slots: {@code tiles} has the piece of each of {@code slots} (null for a slot with nothing over it), and a click on any of them is a click
-     * on {@code button}, whose item's name and lore every piece shows.
+     * on {@code button}, whose item's name and lore every piece shows. (t293) The button may be a slot outside the part: the part is the button moved there (its
+     * own slot is emptied, and a click on it does nothing), so a look can lay the menu's buttons out anew.
      */
     public record Part(String name, List<Integer> slots, int button, List<Piece> tiles) {
     }

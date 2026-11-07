@@ -356,6 +356,9 @@ public final class IruuRPG extends JavaPlugin {
         this.mainMenu.setSkins(menuSkins());
         this.mainMenu.setCraftMenu(craftMenu);
         this.mainMenu.setQuestBoardMenu(questBoardMenu);
+        // (t293) the two menus that had no way back to the main menu
+        this.craftMenu.setMainMenu(mainMenu);
+        this.questBoardMenu.setMainMenu(mainMenu);
         var questLogMenu = new net.tkgon.mc.iruuRPG.gui.QuestLogMenu(questlineService);
         questLogMenu.setMainMenu(mainMenu);
         this.mainMenu.setQuestLogMenu(questLogMenu);

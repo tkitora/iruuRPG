@@ -40,11 +40,18 @@ public final class QuestBoardMenu implements Listener {
     private static final int SUB_LABEL_SLOT = 36;
     private static final int[] MAIN_SLOTS = {10, 11, 12, 13, 14, 15, 16, 19, 20, 21, 22, 23, 24, 25};
     private static final int[] SUB_SLOTS = {37, 38, 39, 40, 41, 42, 43};
+    /** (t293) The way back to the main menu, at the bottom left as in the other menus. */
+    private static final int BACK_SLOT = 45;
 
     private final QuestService questService;
+    private MainMenu mainMenu;
 
     public QuestBoardMenu(QuestService questService) {
         this.questService = questService;
+    }
+
+    public void setMainMenu(MainMenu mainMenu) {
+        this.mainMenu = mainMenu;
     }
 
     public void open(Player player, String town) {
@@ -64,6 +71,7 @@ public final class QuestBoardMenu implements Listener {
         inventory.setItem(SUB_LABEL_SLOT, item(Material.CLOCK, "サブ依頼", NamedTextColor.AQUA,
                 List.of(text("短い依頼。24時間で入れ替わる", NamedTextColor.GRAY)), false));
 
+        if (mainMenu != null) inventory.setItem(BACK_SLOT, MenuButtons.back());
         place(inventory, holder, player, questService.mainEntries(player, key), MAIN_SLOTS);
         place(inventory, holder, player, questService.subEntries(player, key), SUB_SLOTS);
         player.openInventory(inventory);
@@ -84,6 +92,10 @@ public final class QuestBoardMenu implements Listener {
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player) || !holder.ownerId.equals(player.getUniqueId())) return;
 
+        if (event.getRawSlot() == BACK_SLOT && mainMenu != null) {
+            mainMenu.open(player);
+            return;
+        }
         String questId = holder.quests.get(event.getRawSlot());
         if (questId == null) return;
 
