@@ -95,23 +95,20 @@ class BuildingGeneratorTest {
         // so a gable at 1:1 is stairs facing up the slope, and at 2:1 a stair on a full block
         for (int pitch : new int[]{1, 2}) {
             BuildParams p = new BuildParams();
-            p.baysWide = 3;
-            p.baysDeep = 2;
-            p.pitch = pitch;
-            p.ridge = 1;
-            p.overhang = 1;
-            p.chimney = p.dormer = p.bayWindow = p.balcony = p.turret = p.porch = 0;
-            p.plinth = 0;
+            p.house.width = 13;
+            p.house.depth = 9;
+            p.house.pitch = pitch;
+            p.house.ridge = 1;
+            p.house.overhang = 1;
             BuildingGenerator.Result result = BuildingGenerator.generate(p, 1L, Ground.FLAT);
             SemanticVoxelGrid g = result.grid();
-            // the front slope's top blocks, from the eaves (z = -6) in
+            // the back slope's top blocks, from the wall line (z = 0; the eaves at -1) in
             List<Cell> tops = new ArrayList<>();
-            for (int z = -5; z <= -2; z++) {
-                int[] column = g.column(-1, z, 0, 80);
-                Cell top = g.get(-1, column[1], z);
+            for (int z = 0; z <= 3; z++) {
+                int[] column = g.column(5, z, 0, 80);
+                Cell top = g.get(5, column[1], z);
                 tops.add(top);
-                // (the outer row is the eaves' edge: an upside-down stair and a log under its top)
-                if (pitch == 2 && z > -5) assertTrue(g.get(-1, column[1] - 1, z).form() == Cell.Form.FULL || g.get(-1, column[1] - 1, z).form() == Cell.Form.LOG, "z " + z);
+                if (pitch == 2) assertTrue(g.get(5, column[1] - 1, z).form() == Cell.Form.FULL || g.get(5, column[1] - 1, z).form() == Cell.Form.LOG, "z " + z);
             }
             for (Cell top : tops) {
                 assertEquals(Cell.Form.STAIRS, top.form(), tops.toString());
@@ -153,18 +150,38 @@ class BuildingGeneratorTest {
     @Test
     void thePodiumGoesDownToTheGroundAndItsLedgeIsStairsFacingIn() {
         BuildParams p = new BuildParams();
-        p.porch = 0;
-        p.turret = 0;
+        p.house.raise = 3;
         Ground slope = (x, z) -> x < 0 ? -4 : -1;
         SemanticVoxelGrid g = BuildingGenerator.generate(p, 3L, slope).grid();
         // (the podium's ledge west of the walls, over the low ground: stone down to it)
-        int[] column = g.column(-5, -1, -10, 10);
+        int[] column = g.column(-1, 3, -10, 10);
         assertNotNull(column);
         assertEquals(-3, column[0]);
-        Cell top = g.get(-5, column[1], -1);
+        Cell top = g.get(-1, column[1], 3);
         assertEquals(Role.PLINTH, top.role());
         assertEquals(Cell.Form.STAIRS, top.form());
         assertEquals(1, top.facing());
+    }
+
+    @Test
+    void theHouseBasesPartsAreMadeAndMarked() {
+        BuildParams p = new BuildParams();
+        p.house.floors = 2;
+        p.house.modules.add(new HouseSpec.Module("tower", 0, -3, -2, 5, 5, 4, 0, true, -1, 0, 0, 0, 0, 1));
+        p.house.modules.add(new HouseSpec.Module("volume", 1, 0, 0, 7, 5, 1, 0, true, -1, 0, 0, -1, 0, 0));
+        p.house.modules.add(new HouseSpec.Module("dormer", 2, 0, 0, 3, 3, 3, 0, true, -1, 0, 0, 0, 0, 0));
+        p.house.modules.add(new HouseSpec.Module("chimney", 3, 0, 0, 2, 2, 2, 0, true, -1, 0, 0, 0, 0, 0));
+        p.house.modules.add(new HouseSpec.Module("balcony", 2, 2, 0, 3, 2, 1, 1, true, -1, 0, 0, 0, 0, 0));
+        p.house.modules.add(new HouseSpec.Module("wing", 3, 0, 0, 5, 4, 1, 0, false, -1, 0, 0, 0, 0, 0));
+        BuildingGenerator.Result result = BuildingGenerator.generate(p, 5L, Ground.FLAT);
+        SemanticVoxelGrid g = result.grid();
+        java.util.Set<Integer> owners = new java.util.HashSet<>();
+        for (long key : g.cells().keySet()) owners.add(g.ownerOf(key));
+        // the base (-1), the tower (0), the volume (1), the chimney (3), the balcony (4); the wing is off
+        for (int owner : new int[]{-1, 0, 1, 3, 4}) assertTrue(owners.contains(owner), owners.toString());
+        assertFalse(owners.contains(5), owners.toString());
+        assertTrue(g.cells().values().stream().anyMatch(cell -> cell.role() == Role.CHIMNEY));
+        assertTrue(g.cells().values().stream().anyMatch(cell -> cell.role() == Role.RAIL));
     }
 
     @Test

@@ -278,7 +278,7 @@ final class ProceduralCommand implements TabExecutor {
             player.sendMessage("  " + key.id() + " = " + (key.toggle() ? (settings.on(key) ? "1 (オン)" : "0 (オフ)") : key.whole() ? Integer.toString(settings.getInt(key)) : Double.toString(settings.get(key)))
                     + (key.toggle() ? "" : "  (" + key.min() + " 〜 " + key.max() + ")") + " " + key.label());
         }
-        if (settings.kind() == ProcKind.HOUSE) {
+        if (BuildingShape.houseLike(settings)) {
             player.sendMessage("  house-roof-steps = " + String.join(" ", settings.roofSteps().stream().map(String::valueOf).toList()) + " 屋根の段 (軒 → 棟)");
             player.sendMessage("  追加パーツ " + settings.modules().size() + " 個" + (settings.designSeed() > 0L ? " / おまかせ生成の seed " + settings.designSeed() : ""));
         }

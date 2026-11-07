@@ -106,14 +106,14 @@ final class Parts {
             }
             boolean placed = false;
             for (int in = target; in >= 1 && !placed; in--) {
-                placed = dormer(building, g, roofs, rings, parent, main, line, step, in, ground);
+                placed = dormer(building, g, roofs, rings, parent, main, line, step, in, 4, -1, ground);
             }
         }
     }
 
     /** One dormer {@code in} blocks in from the wall line (its front there, as deep as to the ridge); false when it would be too high (left out). */
     private static boolean dormer(Building building, SemanticVoxelGrid g, Roofs roofs, List<List<Ring>> rings, Mass parent, Roofs.Piece main, List<int[]> line,
-                                  int[] step, int in, Ground ground) {
+                                  int[] step, int in, int tallest, int owner, Ground ground) {
         int[] first = line.get(0);
         int[] last = line.get(line.size() - 1);
         int[] middle = line.get(line.size() / 2);
@@ -139,8 +139,9 @@ final class Parts {
             if (step[1] > 0) z0 -= length - 1;
             else z1 += length - 1;
         }
-        for (int height = 4; height >= 3; height--) {
+        for (int height = Math.max(3, tallest); height >= 3; height--) {
             Mass dormer = new Mass(building.masses.size());
+            dormer.owner = owner;
             dormer.plan = Footprint.rect(x0, z0, x1 - x0 + 1, z1 - z0 + 1);
             dormer.y0 = (int) Math.floor(floor);
             dormer.floors = 1;
@@ -171,6 +172,7 @@ final class Parts {
             }
             building.masses.add(dormer);
             rings.add(Walls.mass(g, dormer, ground));
+            g.owner = owner;
             // the walls down to the roof's underside under them
             for (int[] cell : dormer.plan.cells()) {
                 if (dormer.plan.depth(cell[0], cell[1]) > 2) continue;
@@ -409,25 +411,209 @@ final class Parts {
         porch.roof.finial = false;
         porch.roof.gableOut = false;
         porch.parent = m.id;
+        porch.doorWay = way;
         return porch;
     }
 
-    /** The posts of a porch: at the outer corners of its deck, from the deck up to under its roof. */
+    /**
+     * The posts of a porch: along the outer edge of its deck, at its corners and every 4 from both of them (none in the middle, where the way in is), from the
+     * deck up to under its roof; its deck under them.
+     */
     static void porchPosts(SemanticVoxelGrid g, Roofs roofs, Mass porch, int way) {
+        g.owner = porch.owner;
         int[] box = porch.plan.box();
         int[] step = Cell.STEP[way];
+        for (int x = box[0]; x <= box[2]; x++) for (int z = box[1]; z <= box[3]; z++) g.fill(x, porch.y0 - 1, z, Cell.full(Role.FLOOR));
         List<int[]> corners = new ArrayList<>();
-        int[][] all = {{box[0], box[1]}, {box[2], box[1]}, {box[0], box[3]}, {box[2], box[3]}};
-        for (int[] corner : all) {
-            // (the outer corners: those far from the wall)
-            boolean outer = step[0] > 0 ? corner[0] == box[2] : step[0] < 0 ? corner[0] == box[0] : step[1] > 0 ? corner[1] == box[3] : corner[1] == box[1];
-            if (outer) corners.add(corner);
+        boolean alongX = step[0] == 0;
+        int from = alongX ? box[0] : box[1];
+        int to = alongX ? box[2] : box[3];
+        int edge = step[0] > 0 ? box[2] : step[0] < 0 ? box[0] : step[1] > 0 ? box[3] : box[1];
+        int last = to - from;
+        for (int k = 0; k <= last; k++) {
+            boolean post = k == 0 || k == last || Math.min(k, last - k) % 4 == 0 && 2 * k != last;
+            if (post) corners.add(alongX ? new int[]{from + k, edge} : new int[]{edge, from + k});
         }
         for (int[] corner : corners) {
             int roof = roofs.roofOver(corner[0], corner[1], porch.y0 - 1);
             if (roof == Integer.MIN_VALUE) continue;
             for (int y = porch.y0; y < roof; y++) g.put(corner[0], y, corner[1], Cell.log(Role.POST, 1));
         }
+    }
+
+    // ---- the parts of the house base's list (t302) ------------------------------------------------------------------------------
+
+    /** A dormer of the list: its width along the top storey's wall line, set back into the roof by its offset, its wall {@code height} high, under the roof's ridge. */
+    static void dormerJob(Building building, SemanticVoxelGrid g, Roofs roofs, List<List<Ring>> rings, Building.Job job, Ground ground) {
+        HouseSpec.Module m = job.module();
+        Mass parent = job.base();
+        HouseSpec.Frame frame = job.frame();
+        HouseSpec.Frame wall = new HouseSpec.Frame(frame.index(), frame.wall(), frame.middle(), frame.along(), 0);
+        int w = Math.max(3, m.width());
+        int lo = -(w - 1) / 2;
+        List<int[]> line = new ArrayList<>();
+        for (int u = lo; u <= lo + w - 1; u++) line.add(new int[]{wall.a(u, 0), wall.b(u, 0)});
+        Roofs.Piece main = null;
+        for (Roofs.Piece piece : roofs.pieces) if (piece.mass == parent && (main == null || piece.plan.area() > main.plan.area())) main = piece;
+        if (main == null) return;
+        int[] step = Cell.STEP[frame.way()];
+        int in = Math.max(1, -m.offset());
+        for (int at = in; at >= 1; at--) if (dormer(building, g, roofs, rings, parent, main, line, step, at, Math.max(2, m.height()) + 1, job.owner(), ground)) return;
+    }
+
+    /** A chimney of the list: its columns out from the wall (in it with a negative offset), from the ground to {@code height} over the highest of the house by it. */
+    static void chimneyJob(SemanticVoxelGrid g, Building.Job job, Ground ground) {
+        HouseSpec.Module m = job.module();
+        HouseSpec.Frame frame = job.frame();
+        g.owner = job.owner();
+        int w = Math.max(1, m.width());
+        int lo = -(w - 1) / 2;
+        int high = job.base().wallTop();
+        for (int u = lo; u <= lo + w - 1; u++) {
+            for (int v = -2; v <= m.depth(); v++) {
+                int[] column = g.column(frame.a(u, v), frame.b(u, v), -8, 160);
+                if (column != null) high = Math.max(high, column[1]);
+            }
+        }
+        int tip = high + Math.max(1, m.height());
+        for (int u = lo; u <= lo + w - 1; u++) {
+            for (int v = 1; v <= Math.max(1, m.depth()); v++) {
+                int x = frame.a(u, v);
+                int z = frame.b(u, v);
+                for (int y = 0; y <= tip; y++) g.set(x, y, z, Cell.full(Role.CHIMNEY));
+                Walls.down(g, x, 0, z, ground, Role.CHIMNEY);
+            }
+        }
+    }
+
+    /**
+     * A balcony of the list: its floor on the fascia under storey {@code level}, out from the wall {@code depth}, a rail {@code height} high round it, braces
+     * under its two sides, a doorway in the wall to it.
+     */
+    static void balconyJob(SemanticVoxelGrid g, Building.Job job) {
+        HouseSpec.Module m = job.module();
+        Mass base = job.base();
+        HouseSpec.Frame frame = job.frame();
+        g.owner = job.owner();
+        int level = Math.max(1, Math.min(base.floors, m.level()));
+        int floor = base.y0 + level * base.storey - 1;
+        int w = Math.max(1, m.width());
+        int lo = -(w - 1) / 2;
+        int hi = lo + w - 1;
+        int d = Math.max(1, m.depth());
+        int rail = Math.max(1, m.height());
+        for (int u = lo; u <= hi; u++) {
+            for (int v = 1; v <= d; v++) {
+                int x = frame.a(u, v);
+                int z = frame.b(u, v);
+                g.set(x, floor, z, Cell.full(Role.FLOOR));
+                if (u == lo || u == hi || v == d) for (int y = floor + 1; y <= floor + rail; y++) g.fill(x, y, z, Cell.fence(Role.RAIL));
+            }
+        }
+        for (int u : new int[]{lo, hi}) {
+            for (int v = 1; v <= d; v++) {
+                int y = floor - 1 - (d - v);
+                if (y >= 0) g.fill(frame.a(u, v), y, frame.b(u, v), Cell.log(Role.BEAM, -1));
+            }
+        }
+        if (level < base.floors) doorway(g, frame, floor + 1, Math.min(3, base.storey - 2));
+    }
+
+    /** A doorway in the wall at the frame's place: through the three layers of the wall, {@code high} blocks from {@code y}. */
+    private static void doorway(SemanticVoxelGrid g, HouseSpec.Frame frame, int y, int high) {
+        for (int v = 0; v >= -2; v--) {
+            for (int at = y; at < y + Math.max(2, high); at++) {
+                Cell cell = g.get(frame.a(0, v), at, frame.b(0, v));
+                if (cell != null && cell.role() != Role.POST) g.clear(frame.a(0, v), at, frame.b(0, v));
+            }
+        }
+    }
+
+    /** A bay window of the list: a box out from the wall of storey {@code level}, its floor, posts at its outer corners, glass between them, a roof of stairs over it. */
+    static void bayJob(SemanticVoxelGrid g, Building.Job job) {
+        HouseSpec.Module m = job.module();
+        Mass base = job.base();
+        HouseSpec.Frame frame = job.frame();
+        g.owner = job.owner();
+        int level = Math.max(0, Math.min(base.floors - 1, m.level()));
+        int foot = base.y0 + level * base.storey;
+        int w = Math.max(2, m.width());
+        int lo = -(w - 1) / 2;
+        int hi = lo + w - 1;
+        int d = Math.max(1, m.depth());
+        int h = Math.max(2, m.height());
+        int inward = (frame.way() + 2) % 4;
+        for (int u = lo; u <= hi; u++) {
+            for (int v = 1; v <= d; v++) {
+                int x = frame.a(u, v);
+                int z = frame.b(u, v);
+                g.set(x, foot, z, Cell.full(Role.FLOOR));
+                g.set(x, foot + h, z, Cell.stairs(Role.ROOF, inward, false));
+                boolean corner = (u == lo || u == hi) && v == d;
+                boolean face = u == lo || u == hi || v == d;
+                for (int y = foot + 1; y < foot + h; y++) {
+                    if (corner) g.set(x, y, z, Cell.log(Role.POST, 1));
+                    else if (face) g.set(x, y, z, Cell.full(Role.WINDOW));
+                    else g.clear(x, y, z);
+                }
+            }
+            if ((u == lo || u == hi) && foot - 1 > 0) g.fill(frame.a(u, 1), foot - 1, frame.b(u, 1), Walls.corbel(base.corbel, Cell.STEP[frame.way()][0], Cell.STEP[frame.way()][1]));
+        }
+        int from = w >= 3 ? lo + 1 : lo;
+        int to = w >= 3 ? hi - 1 : hi;
+        for (int u = from; u <= to; u++) {
+            for (int v = 0; v >= -2; v--) {
+                for (int y = foot + 1; y < foot + h; y++) {
+                    Cell cell = g.get(frame.a(u, v), y, frame.b(u, v));
+                    if (cell != null && cell.role() != Role.POST) g.clear(frame.a(u, v), y, frame.b(u, v));
+                }
+            }
+        }
+    }
+
+    /**
+     * Stairs of the list: a landing in front of a doorway of storey {@code level}, the flight going down along the wall from it ({@code shape} 0 up to the
+     * right, 1 to the left), {@code width} wide, its steps stairs on stone down to the ground; filled back to the ground storey's wall under a jetty.
+     */
+    static void stairJob(SemanticVoxelGrid g, Building.Job job, Ground ground) {
+        HouseSpec.Module m = job.module();
+        Mass base = job.base();
+        HouseSpec.Frame frame = job.frame();
+        g.owner = job.owner();
+        int level = Math.max(1, Math.min(Math.max(1, base.floors - 1), m.level()));
+        int floor = base.y0 + level * base.storey - 1;
+        int foot = base.y0;
+        int w = Math.max(1, Math.min(3, m.width()));
+        int up = m.shape() == 1 ? -1 : 1;
+        for (int u = -1; u <= 1; u++) {
+            for (int v = 1; v <= w; v++) {
+                for (int y = foot; y <= floor; y++) g.set(frame.a(u, v), y, frame.b(u, v), Cell.full(Role.PLINTH));
+                Walls.down(g, frame.a(u, v), foot, frame.b(u, v), ground, Role.PLINTH);
+            }
+        }
+        // (the way the stairs face: their high side toward the landing)
+        int dx = frame.a(1, 1) - frame.a(0, 1);
+        int dz = frame.b(1, 1) - frame.b(0, 1);
+        int facing = Walls.way(dx * up, dz * up);
+        for (int k = 1; floor - k >= foot - 1 && k <= 24; k++) {
+            int u = -up * (1 + k);
+            int top = floor - k;
+            for (int v = 1; v <= w; v++) {
+                int x = frame.a(u, v);
+                int z = frame.b(u, v);
+                for (int y = foot; y < top; y++) g.set(x, y, z, Cell.full(Role.PLINTH));
+                if (top >= foot) g.set(x, top, z, Cell.stairs(Role.PLINTH, facing, false));
+                Walls.down(g, x, foot, z, ground, Role.PLINTH);
+            }
+        }
+        // (under a storey that juts out, back to the ground storey's wall)
+        int gap = frame.index() % 2 == 0 ? base.out(level) : base.outSides(level);
+        for (int u = -1; u <= 1; u++) {
+            for (int v = 1 - gap; v <= 0; v++) {
+                for (int y = foot; y <= Math.min(floor, base.y0 + base.storey - 1); y++) g.fill(frame.a(u, v), y, frame.b(u, v), Cell.full(Role.PLINTH));
+            }
+        }
+        doorway(g, frame, floor + 1, Math.min(3, base.storey - 2));
     }
 
     // ---- sails -------------------------------------------------------------------------------------------------------------------------

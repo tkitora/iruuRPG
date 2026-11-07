@@ -31,7 +31,11 @@ final class Walls {
             int x = cell[0];
             int z = cell[1];
             int d = plan.depth(x, z);
-            if (d == 1) {
+            if (d == 1 && podium.terrace()) {
+                // (t302: a terrace: flat to its edge, a low rail round it when it is high)
+                for (int y = 0; y < h; y++) g.put(x, y, z, Cell.full(Role.PLINTH));
+                if (h >= 2) g.put(x, h, z, Cell.fence(Role.RAIL));
+            } else if (d == 1) {
                 for (int y = 0; y < h - 1; y++) g.put(x, y, z, Cell.full(Role.PLINTH));
                 g.put(x, h - 1, z, Cell.stairs(Role.PLINTH, inward(plan, x, z), false));
             } else if (d <= 3) {
@@ -76,38 +80,35 @@ final class Walls {
 
     /** The walls of a mass, storey by storey; the rings of its storeys (for the parts) are returned. */
     static List<Ring> mass(SemanticVoxelGrid g, Mass m, Ground ground) {
+        g.owner = m.owner;
         List<Ring> rings = new ArrayList<>();
         Ring below = null;
         for (int s = 0; s < m.floors; s++) {
             Footprint plan = m.plan(s);
-            Ring ring = below == null ? Ring.ground(plan, m.module, m.circlePosts) : Ring.above(below, plan, m.circlePosts);
+            Ring ring = below == null ? Ring.ground(plan, m.posts(), m.mirror, m.circlePosts) : Ring.above(below, plan, m.circlePosts);
             if (!m.postsOnly) storey(g, m, plan, ring, s);
             rings.add(ring);
             below = ring;
         }
         if (m.postsOnly) return rings;
         // the corbels under every jetty: under its posts (not its corners), where nothing holds the storey up
-        for (int s = 1; s < m.floors; s++) {
-            if (s >= m.jetty.length || !m.jetty[s]) continue;
-            Footprint plan = m.plan(s);
-            Ring ring = rings.get(s);
-            int yb = m.y0 + s * m.storey;
-            for (int[] cell : plan.cells()) {
-                if (plan.depth(cell[0], cell[1]) != 1) continue;
-                Ring.Spot spot = ring.spot(cell[0], cell[1]);
-                if (spot == null || !spot.post() || spot.corner()) continue;
-                int y = !g.has(cell[0], yb - 1, cell[1]) ? yb - 1 : !g.has(cell[0], yb - 2, cell[1]) ? yb - 2 : Integer.MIN_VALUE;
-                if (y != Integer.MIN_VALUE) g.put(cell[0], y, cell[1], corbel(m.corbel, spot.nx(), spot.nz()));
-            }
+        for (int s = 1; s < m.floors && m.brackets; s++) {
+            if (s >= m.jetty.length || m.jetty[s] <= 0) continue;
+            corbels(g, m, m.plan(s), rings.get(s), m.y0 + s * m.storey);
         }
         Footprint plan = m.plan;
-        if (m.y0 == 0) {
-            // (no podium: the wall line stands on the ground, where it is lower)
-            for (int[] cell : plan.cells()) if (plan.depth(cell[0], cell[1]) == 1) down(g, cell[0], 0, cell[1], ground, Role.PLINTH);
+        if (m.foundation) {
+            // (the wall line stands on what is under it, down to the ground where it is lower)
+            for (int[] cell : plan.cells()) if (plan.depth(cell[0], cell[1]) == 1) down(g, cell[0], m.y0, cell[1], ground, Role.PLINTH);
+        } else if (m.brackets && m.y0 > 0 && !m.corbelBase) {
+            // (a mass out over the air: a corbel under each post of its walls)
+            corbels(g, m, plan, rings.get(0), m.y0);
         }
         for (int[] cell : plan.cells()) {
             if (plan.depth(cell[0], cell[1]) >= 2) g.fill(cell[0], m.y0 - 1, cell[1], Cell.full(Role.FLOOR));
         }
+        plinthBand(g, m, ground);
+        skirts(g, m, rings);
         if (m.corbelBase) {
             // (a turret: rings of upside-down stairs, each a block in, under it)
             for (int j = 1; j <= 8; j++) {
@@ -123,12 +124,70 @@ final class Walls {
         return rings;
     }
 
+    /** A corbel under each post (not a corner) of a storey's wall line at {@code yb}, where nothing holds it up (a block lower when its fascia is there). */
+    private static void corbels(SemanticVoxelGrid g, Mass m, Footprint plan, Ring ring, int yb) {
+        for (int[] cell : plan.cells()) {
+            if (plan.depth(cell[0], cell[1]) != 1) continue;
+            Ring.Spot spot = ring.spot(cell[0], cell[1]);
+            if (spot == null || !spot.post() || spot.corner()) continue;
+            int y = !g.has(cell[0], yb - 1, cell[1]) ? yb - 1 : !g.has(cell[0], yb - 2, cell[1]) ? yb - 2 : Integer.MIN_VALUE;
+            if (y != Integer.MIN_VALUE) g.put(cell[0], y, cell[1], corbel(m.corbel, spot.nx(), spot.nz()));
+        }
+    }
+
+    /** (t302) The stone band a block out round the ground storey, {@link Mass#plinthBand} high, its top stairs facing out; down to the ground under it. */
+    private static void plinthBand(SemanticVoxelGrid g, Mass m, Ground ground) {
+        if (m.plinthBand <= 0) return;
+        Footprint out = m.plan.expand(1);
+        for (int[] cell : out.cells()) {
+            if (out.depth(cell[0], cell[1]) != 1) continue;
+            int top = m.y0 + m.plinthBand - 1;
+            for (int y = m.y0; y < top; y++) g.put(cell[0], y, cell[1], Cell.full(Role.PLINTH));
+            g.put(cell[0], top, cell[1], Cell.stairs(Role.PLINTH, inward(out, cell[0], cell[1]), false));
+            if (m.foundation) down(g, cell[0], m.y0, cell[1], ground, Role.PLINTH);
+        }
+    }
+
+    /**
+     * (t302) The skirts: a little roof of stairs out of the wall between the storeys, {@link Mass#skirt} blocks out, sloping down from the fascia; not on a face
+     * the storey over it is jettied out on.
+     */
+    private static void skirts(SemanticVoxelGrid g, Mass m, List<Ring> rings) {
+        if (m.skirt <= 0) return;
+        for (int s = 0; s < m.floors - 1; s++) {
+            Footprint plan = m.plan(s);
+            Ring ring = rings.get(s);
+            boolean frontOut = m.out(s + 1) > m.out(s);
+            boolean sideOut = m.outSides(s + 1) > m.outSides(s);
+            int top = m.y0 + (s + 1) * m.storey - 1;
+            for (int[] cell : plan.cells()) {
+                if (plan.depth(cell[0], cell[1]) != 1) continue;
+                Ring.Spot spot = ring.spot(cell[0], cell[1]);
+                if (spot == null) continue;
+                int nx = spot.nx();
+                int nz = spot.nz();
+                if (nz != 0 && frontOut || nx != 0 && sideOut) continue;
+                for (int k = 1; k <= m.skirt; k++) {
+                    int x = cell[0] + nx * k;
+                    int z = cell[1] + nz * k;
+                    if (plan.depth(x, z) > 0) continue;
+                    g.fill(x, top - (k - 1), z, Cell.stairs(Role.ROOF, way(-nx, -nz), false));
+                }
+            }
+        }
+    }
+
     /** A corbel under a post facing out ({@code nx}, {@code nz}): an upside-down stair whose high side is the wall's, or a log lying out of the wall. */
     static Cell corbel(int style, int nx, int nz) {
         if (style == 1) return Cell.log(Role.CORBEL, nx != 0 ? 0 : 2);
         return Cell.stairs(Role.CORBEL, way(-nx, -nz), true);
     }
 
+    /**
+     * A storey's walls. With the walls set back (the default) the frame is on the wall line, the wall a block behind it and the glass a block behind that;
+     * otherwise the wall is on the wall line between the posts and the glass a block behind it. A stone ground storey is stone through, its windows deep in it.
+     * The timber frame's braces rise from the foot of the posts toward the middle of each bay, in front of the wall (and of the glass behind it).
+     */
     private static void storey(SemanticVoxelGrid g, Mass m, Footprint plan, Ring ring, int s) {
         int h = m.storey;
         int yb = m.y0 + s * h;
@@ -139,26 +198,39 @@ final class Walls {
         if (sill + window > h - 1) sill = Math.max(0, h - 1 - window);
         // (the lintel over the windows; when the storey has no room for it, the fascia is the lintel)
         int lintel = sill + window <= h - 2 ? sill + window : -1;
+        boolean stone = s == 0 && m.stoneGround;
+        // the depth of the wall and of the glass
+        int wall = stone || !m.recess ? 1 : 2;
+        int pane = wall + 1;
         for (int[] cell : plan.cells()) {
             int x = cell[0];
             int z = cell[1];
             int d = plan.depth(x, z);
-            if (d <= 3) {
+            if (d <= pane) {
                 Ring.Spot spot = ring.spot(x, z);
-                int width = spot == null ? 0 : fit(spot, m.windowWidth);
+                int width = spot == null || !m.windows ? 0 : fit(spot, m.windowWidth);
                 for (int r = 0; r < h - 1; r++) {
                     int y = yb + r;
-                    boolean glass = spot != null && r >= sill && r < sill + window && spot.within(width) && spot.span() >= 2.0;
-                    if (d == 1) {
-                        if (spot != null && spot.post()) g.put(x, y, z, Cell.log(Role.POST, 1));
-                        else if (r == lintel) g.put(x, y, z, Cell.log(Role.BEAM, -1));
-                    } else if (d == 2) {
-                        if (!glass) g.put(x, y, z, Cell.full(Role.INFILL));
-                    } else if (glass) {
-                        g.put(x, y, z, Cell.full(Role.WINDOW));
-                    } else if (spot != null && width > 0 && spot.span() >= 2.0 && spot.within(width + 2) && r >= sill - 1 && r <= sill + window) {
+                    boolean opening = spot != null && width > 0 && r >= sill && r < sill + window && spot.within(width) && spot.span() >= 2.0;
+                    boolean reveal = spot != null && width > 0 && spot.span() >= 2.0 && spot.within(width + 2) && r >= sill - 1 && r <= sill + window;
+                    if (stone) {
+                        if (d < pane && !opening) g.put(x, y, z, Cell.full(Role.PLINTH));
+                        else if (d == pane && opening && m.glass) g.put(x, y, z, Cell.full(Role.WINDOW));
+                        else if (d == pane && reveal) g.put(x, y, z, Cell.full(Role.PLINTH));
+                        continue;
+                    }
+                    if (d == 1 && spot != null && spot.post()) {
+                        g.put(x, y, z, Cell.log(Role.POST, 1));
+                    } else if (d == 1 && r == lintel) {
+                        g.put(x, y, z, Cell.log(Role.BEAM, -1));
+                    } else if (d == 1 && m.timber && spot != null && brace(spot, r)) {
+                        g.put(x, y, z, Cell.log(Role.BEAM, -1));
+                    } else if (d == wall) {
+                        if (!opening) g.put(x, y, z, Cell.full(Role.INFILL));
+                    } else if (d == pane) {
+                        if (opening && m.glass) g.put(x, y, z, Cell.full(Role.WINDOW));
                         // (the reveal round the glass, a block behind the wall: the glass is held in it)
-                        g.put(x, y, z, Cell.full(Role.INFILL));
+                        else if (!opening && reveal) g.put(x, y, z, Cell.full(Role.INFILL));
                     }
                 }
             }
@@ -170,6 +242,15 @@ final class Walls {
             Footprint out = plan.expand(1);
             for (int[] cell : out.cells()) if (out.depth(cell[0], cell[1]) == 1) g.put(cell[0], top, cell[1], Cell.log(Role.BEAM, -1));
         }
+    }
+
+    /** (t302) Whether the wall-line cell of a bay at row {@code r} is on a brace: two diagonals rising from the foot of the posts either side toward the middle. */
+    static boolean brace(Ring.Spot spot, int r) {
+        if (spot.post()) return false;
+        int inside = (int) Math.round(spot.to() - spot.from()) - 1;
+        if (inside < 2) return false;
+        int place = (int) Math.round(spot.t() - spot.from());
+        return place <= (inside + 1) / 2 ? place == r + 1 : inside + 1 - place == r + 1;
     }
 
     /**
@@ -251,10 +332,10 @@ final class Walls {
                 g.set(x, y, z, Cell.stairs(Role.PLINTH, (way + 2) % 4, false));
                 for (int under = y - 1; under >= 0; under--) g.set(x, under, z, Cell.full(Role.PLINTH));
                 down(g, x, 0, z, ground, Role.PLINTH);
-                // (nothing over the stairs)
+                // (nothing over the stairs: the podium's stone, a terrace's rail)
                 for (int over = y + 1; over < height + 3; over++) {
                     Cell above = g.get(x, over, z);
-                    if (above != null && above.role() == Role.PLINTH) g.clear(x, over, z);
+                    if (above != null && (above.role() == Role.PLINTH || above.role() == Role.RAIL)) g.clear(x, over, z);
                 }
             }
         }
