@@ -39,13 +39,15 @@ import java.util.function.Consumer;
  * background: main/back.png   # behind the window, from its top left (176 wide; 222 high for a menu of 6 rows)
  * background-origin: [6, 20]   # (t292) where in the picture the window's top left is: the picture reaches that far out on the left and over the top
  * title: ""                   # the title over it ("" none; left out: the menu's own)
+ * title-x: 22                 # (t293) where its text starts from the window's left (8 as the game puts it)
  * title-color: "#404040"
  * hide-frame: true            # the menu's glass panes outside the parts are taken away
  * parts:
  *   travel:
  *     slots: 23-24            # numbers and ranges (a list too)
  *     picture: main/travel.png  # 18 pixels a slot over the rectangle of the slots
- *     button: 24              # the menu's button they all are (its name and lore on each; left out: the first slot)
+ *     button: 24              # the menu's button they all are (its name and lore on each; left out: the first slot); (t293) a slot outside the part moves
+ *                             # that button here (its own slot is emptied and does nothing)
  *     overflow: [0, 4, 0, 0]  # (t292) how far the picture reaches out of the slots on the left, the top, the right, the bottom (one number: all four; 15 at most)
  * </pre>
  * Every problem is a warning, and the part (or the file) is left out. The pictures' names are kept to {@code a-z 0-9 _ - . /}.
@@ -162,8 +164,8 @@ public final class MenuSkins {
                     continue;
                 }
                 int button = part.getInt("button", slots.get(0));
-                if (!slots.contains(button)) {
-                    warn.accept(at + ": button " + button + " is not one of its slots; the first slot is the button");
+                if (button < 0 || button >= SIZE) {
+                    warn.accept(at + ": button " + button + " is not a slot of the menu; the first slot is the button");
                     button = slots.get(0);
                 }
                 taken.addAll(slots);
@@ -171,7 +173,12 @@ public final class MenuSkins {
             }
         }
         String title = yaml.isString("title") ? yaml.getString("title") : null;
-        return new MenuSkin(id, background, origin[0], origin[1], title, color, yaml.getBoolean("hide-frame", true), yaml.getBoolean("testers-only", false), parts);
+        int titleX = yaml.getInt("title-x", UiPackBuilder.TITLE_X);
+        if (titleX < -64 || titleX > 240) {
+            warn.accept(where + ": title-x " + titleX + " is not -64 - 240; 8 is used");
+            titleX = UiPackBuilder.TITLE_X;
+        }
+        return new MenuSkin(id, background, origin[0], origin[1], title, titleX, color, yaml.getBoolean("hide-frame", true), yaml.getBoolean("testers-only", false), parts);
     }
 
     /** {@code count} whole numbers of a list, or null. */
@@ -235,11 +242,16 @@ public final class MenuSkins {
         UiPackBuilder.Built made = built;
         Component text = skin.title() == null ? own.colorIfAbsent(skin.titleColor()) : Component.text(skin.title(), skin.titleColor());
         Character glyph = made.backgrounds().get(menu);
-        if (glyph == null) return text;
+        // (the title's text starts at title-x: the game draws it at 8)
+        int shift = skin.titleX() - UiPackBuilder.TITLE_X;
+        if (glyph == null) {
+            if (shift == 0) return text;
+            return Component.empty().append(Component.text(UiPackBuilder.move(shift)).font(UiPackBuilder.FONT)).append(text);
+        }
         int width = made.widths().get(menu);
         int left = made.lefts().getOrDefault(menu, 0);
         return Component.empty()
-                .append(Component.text(UiPackBuilder.move(-UiPackBuilder.TITLE_X - left) + glyph + UiPackBuilder.move(UiPackBuilder.TITLE_X + left - (width + 1)))
+                .append(Component.text(UiPackBuilder.move(-UiPackBuilder.TITLE_X - left) + glyph + UiPackBuilder.move(skin.titleX() + left - (width + 1)))
                         .font(UiPackBuilder.FONT).color(NamedTextColor.WHITE))
                 .append(text);
     }
@@ -253,14 +265,19 @@ public final class MenuSkins {
         if (skin == null) return;
         Map<Integer, Integer> numbers = built.numbers().getOrDefault(menu, Map.of());
         Set<Integer> covered = new HashSet<>();
+        for (MenuSkin.Part part : skin.parts()) covered.addAll(part.slots());
+        // (the buttons' items first: a part may be a button moved from a slot another part covers)
+        Map<Integer, ItemStack> buttons = new HashMap<>();
+        for (MenuSkin.Part part : skin.parts()) if (part.button() < inventory.getSize()) buttons.put(part.button(), inventory.getItem(part.button()));
         for (MenuSkin.Part part : skin.parts()) {
-            ItemStack button = inventory.getItem(part.button());
+            ItemStack button = buttons.get(part.button());
             for (int slot : part.slots()) {
-                covered.add(slot);
                 Integer number = numbers.get(slot);
                 if (number != null && slot < inventory.getSize()) inventory.setItem(slot, piece(button, number));
             }
         }
+        // a button moved into a part elsewhere leaves its own slot
+        for (int slot : moved(skin)) if (slot < inventory.getSize()) inventory.setItem(slot, null);
         if (!skin.hideFrame()) return;
         for (int slot = 0; slot < inventory.getSize(); slot++) {
             ItemStack item = inventory.getItem(slot);
@@ -270,12 +287,25 @@ public final class MenuSkins {
         }
     }
 
-    /** The slot of the button that {@code slot} is part of ({@code slot} itself when it is in no part, or the menu has no look for {@code viewer}). */
+    /**
+     * The slot of the button that {@code slot} is part of ({@code slot} itself when it is in no part, or the menu has no look for {@code viewer}); -1 for the slot a
+     * button was moved away from (it is empty: nothing).
+     */
     public int button(String menu, Player viewer, int slot) {
         MenuSkin skin = of(menu, viewer);
         if (skin == null) return slot;
         for (MenuSkin.Part part : skin.parts()) if (part.slots().contains(slot)) return part.button();
+        if (moved(skin).contains(slot)) return -1;
         return slot;
+    }
+
+    /** (t293) The slots whose buttons the look moved into parts elsewhere (a button's slot that no part covers). */
+    static Set<Integer> moved(MenuSkin skin) {
+        Set<Integer> covered = new HashSet<>();
+        for (MenuSkin.Part part : skin.parts()) covered.addAll(part.slots());
+        Set<Integer> out = new HashSet<>();
+        for (MenuSkin.Part part : skin.parts()) if (!covered.contains(part.button())) out.add(part.button());
+        return out;
     }
 
     /** A piece: the item of the pieces with its number, the name and the lore of {@code button} (a blank name without one). */

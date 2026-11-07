@@ -68,7 +68,7 @@ class MenuSkinsTest {
 
     static MenuSkin skin(String id, BufferedImage background) {
         List<Integer> slots = List.of(23, 24);
-        return new MenuSkin(id, background, 0, 0, null, TextColor.color(0x404040), true, false,
+        return new MenuSkin(id, background, 0, 0, null, 8, TextColor.color(0x404040), true, false,
                 List.of(new MenuSkin.Part("travel", slots, 24, MenuSkin.cut(grid(36, 18), slots))));
     }
 
@@ -133,7 +133,7 @@ class MenuSkinsTest {
         // the picture must be that big
         assertNull(MenuSkin.cut(grid(36, 18), slots, new int[]{3, 5, 0, 2}));
         // the model reaches as far: the left piece's square from -4 (left) and -3 (bottom: model y goes up) to 17 and 22 (top)
-        UiPackBuilder.Built built = UiPackBuilder.build(List.of(new MenuSkin("main", null, 0, 0, null, TextColor.color(0x404040), true, false,
+        UiPackBuilder.Built built = UiPackBuilder.build(List.of(new MenuSkin("main", null, 0, 0, null, 8, TextColor.color(0x404040), true, false,
                 List.of(new MenuSkin.Part("tab", slots, 19, pieces)))));
         JsonObject model = JsonParser.parseString(new String(built.files().get("assets/iruurpg/models/item/ui/main/tab_0.json"), StandardCharsets.UTF_8)).getAsJsonObject();
         JsonObject element = model.getAsJsonArray("elements").get(0).getAsJsonObject();
@@ -170,6 +170,34 @@ class MenuSkinsTest {
         Files.writeString(new File(ui, "main.yml").toPath(), "background: back.png\nbackground-origin: [6, 140]\n");
         skins.reload();
         assertEquals(1, warnings.size(), warnings.toString());
+    }
+
+    @Test
+    void aLookCanMoveAButtonAndItsTitle() throws IOException {
+        File ui = new File(folder, "ui");
+        assertTrue(ui.mkdirs());
+        ImageIO.write(grid(18, 18), "png", new File(ui, "one.png"));
+        ImageIO.write(grid(176, 125), "png", new File(ui, "back.png"));
+        // the button of slot 24 drawn at slot 16; the one of slot 20 stays where it is
+        Files.writeString(new File(ui, "main.yml").toPath(), """
+                background: back.png
+                title-x: 22
+                parts:
+                  travel: {slots: 16, picture: one.png, button: 24}
+                  status: {slots: 20, picture: one.png, button: 20}
+                """);
+        List<String> warnings = new ArrayList<>();
+        MenuSkins skins = new MenuSkins(folder, warnings::add);
+        skins.reload();
+        assertEquals(List.of(), warnings);
+        assertEquals(24, skins.button("main", null, 16), "the moved button");
+        assertEquals(-1, skins.button("main", null, 24), "where it was: nothing");
+        assertEquals(20, skins.button("main", null, 20));
+        assertEquals(31, skins.button("main", null, 31));
+        // the title's text starts 22 from the window's left: back from the background's end to 22, not 8
+        String text = ((TextComponent) skins.title("main", null, Component.text("t")).children().get(0)).content();
+        int glyph = text.indexOf('\uE000');
+        assertEquals(22, UiPackBuilder.advance(text.substring(0, glyph)) + 176 + 1 + UiPackBuilder.advance(text.substring(glyph + 1)) + UiPackBuilder.TITLE_X);
     }
 
     @Test
