@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Makes atlas_vindicator_2.nbs: "Raise the Axe (Boss002)", the axe guardian of the Atlas cave (ONE song, no second phase) - class 5, the dry death match and wildness. Written from zero (t281).
+"""Makes atlas_vindicator_2.nbs: "Raise the Axe (Boss002)", the axe guardian of the Atlas cave (ONE song, no second phase) - class 5, the dry death match and wildness. Built again from zero (t290).
 
     python3 tools/bgm/make_atlas_boss2_bgm.py            writes atlas_vindicator_2.nbs into src/main/resources/bgm/
     python3 tools/bgm/make_atlas_boss2_bgm.py outfile    writes it somewhere else (a file, or a folder)
 
-STYLE 4 of the style doc (Japanese melodic dash, 165 BPM) on the ladder of the BPM guide. 11 ticks a second, a tick is a sixteenth, a bar is 16 ticks; 4 intro bars + 92 = 1536 ticks = 139.6 s. Key G.
-THE AXE: the motif is a chopping cell, G G C D C D in the rhythm 2+2+4+2+2+4 (two dull knocks, then the blade rises C - D and falls back); every bar it is raised one step of the in scale
-(G Ab C D Eb), three times, and the fourth bar climbs and hangs. Wild colour: a koto-like waterfall of harp and banjo, a flute (shakuhachi) and a banjo (shamisen) on the tune, wadaiko
-and djembe, a didgeridoo in unison with the bass, a rough guitar.
-Time table (the boss bar is 1.45 s):
-  0:00  WATERFALL (4 intro bars + 10 bars, to 0:20): the harp and banjo fall down the in scale in sixteenths over loud quarter-note bass roots (the intro), then eighth roots, the cell on the banjo.
-  0:20  MAIN (26 bars, to 0:58): the bass runs ROOT - FIFTH - ROOT in eighths under the flute (bars 0-9); bar 10 the root is RELEASED (the line climbs and falls, sixteenth doubles, triplet figures).
-  0:58  HALF-TIME (20 bars, to 1:27): the MODE FLIPS - the flat second is gone, G natural minor (Gm - Eb - Bb - F - Cm - Gm - D - D); the drums are halved; a long-note harp tune, sad and leaning up.
-  1:27  BUILD-UP (6 bars, to 1:36): the melody is gone, a snare / kick crescendo from quarters to sixteenths on a D pedal that climbs to F (the dominant of the new key); the last beat is empty.
-  1:36  CHORUS (30 bars, to 2:19): a MINOR THIRD (G -> Bb) AND an octave up: the sad tune explodes on the flute in long notes over a full sixteenth slap bass; harmony a fifth below from bar 8;
-        the last bar climbs back (D major, the dominant of G minor) into tick 64.
+STYLE 4 of the style doc (Japanese melodic dash, 165 BPM) built so that tools/bgm/guidecheck.py finds the guide in the notes. 11 ticks a second (a tick is a sixteenth), 16-tick bars, 4 intro bars + 92 =
+1536 ticks = 139.6 s. Key A.
+THE AXE: the motif is a chopping cell, A A E | D D F (the rhythm 3+1+4 | 3+1+4: two knocks, the blade rises to the fifth, falls, lifts to the flat sixth), raised one step of the in scale
+(A Bb D E F) every bar. Wild colour: a koto waterfall of the harp, a flute (shakuhachi) and a banjo (shamisen) on the tune, wadaiko and djembe, a didgeridoo in unison with the bass, a rough guitar.
+Time table (the guide's style 4 table, in seconds of the song):
+  0:00  WATERFALL (4 intro bars + 3 bars, to 0:10): the harp falls down the in scale in sixteenths (11 notes a second) over QUARTER-note bass roots and the wadaiko; then the cell on the banjo (to 0:20), eighth roots.
+  0:20  MAIN (26 bars, to 0:58): the flute carries the cell (an OCTAVE and more above the banjo before it: the tune jumps up); the bass runs ROOT - FIFTH - ROOT (A and E only, eighths; sixteenth double hits
+        mixed in from bar 12), full drums.
+  0:58  HALF-TIME (20 bars, to 1:27): the drums are halved (kick on 1, snare on 3), the bass walks the chords in quarters, the MODE FLIPS to A natural minor (Am F C G Dm Am E E): a sad harp tune in long notes.
+  1:27  BUILD-UP (6 bars, to 1:36): the melody is gone; a snare / kick crescendo from quarters to sixteenths on a pedal bass that climbs E - F - G - Bb; the last beat keeps the bass.
+  1:36  CHORUS (30 bars, to 2:19): a MINOR THIRD up (A -> C) AND the tune high above the harp: the sad tune on the flute in long notes (struck again every 3 ticks) over a full SIXTEENTH slap bass; guitar hits and
+        a harmony a fifth below only where the flute strikes (so the tune stays one voice); the last bar climbs back (E major, the dominant of A) into tick 64.
 Nothing is random. The design record is in docs/bgm-songs.md.
 """
 import sys
@@ -29,9 +30,11 @@ START = 64
 SECTIONS = [("WATER", 10), ("MAIN", 26), ("HALF", 20), ("BUILD", 6), ("CHORUS", 30)]
 NBARS = sum(n for _, n in SECTIONS)
 LENGTH = START + NBARS * BAR_T
-LOWG = 31                                                    # G1
-IN = [0, 1, 5, 7, 8]                                         # the in scale on G: G Ab C D Eb
-VEL = {"X": 100, "x": 76, "o": 46, "g": 26}
+LOWA = 33                                                    # A1
+FIFTH = 40                                                   # E2
+IN = [0, 1, 5, 7, 8]                                         # the in scale on A: A Bb D E F
+VEL = {"X": 100, "x": 76, "o": 46}
+G3 = 3                                                       # the strike grid of long notes (ticks): 3 ticks = 0.27 s at 11 ticks a second
 
 
 def deg(i):
@@ -39,50 +42,20 @@ def deg(i):
     return IN[r] + 12 * q
 
 
-CELL = [(0, 2, 0), (2, 2, 0), (4, 4, 2), (8, 2, 3), (10, 2, 2), (12, 4, 3)]
-CLIMB_A = [(0, 4, 3), (4, 4, 4), (8, 8, 6)]
-CLIMB_B = [(0, 4, 5), (4, 4, 7), (8, 8, 9)]
+CELL = [(0, 3, 0), (3, 1, 0), (4, 4, 3), (8, 3, 2), (11, 1, 2), (12, 4, 4)]
+CLIMB_A = [(0, 4, 4), (4, 4, 5), (8, 8, 7)]
+CLIMB_B = [(0, 4, 6), (4, 4, 8), (8, 8, 10)]
 MAIN_BARS = [(CELL, 0), (CELL, 1), (CELL, 2), (CLIMB_A, 0), (CELL, 2), (CELL, 3), (CELL, 4), (CLIMB_B, 0)]
-MAIN_ROOTS = [0, 0, 8, 7, 0, 8, 5, 7]
-MAIN_MIN = [True, True, False, False, True, False, True, False]
-SAD_TUNE = [[(0, 0, 8), (8, 7, 8)], [(0, 8, 8), (8, 12, 8)], [(0, 7, 8), (8, 10, 8)], [(0, 5, 8), (8, 10, 8)],
-            [(0, 8, 8), (8, 12, 8)], [(0, 3, 4), (4, 7, 4), (8, 12, 8)], [(0, 11, 4), (4, 14, 4), (8, 19, 8)], [(0, 14, 8), (8, 19, 8)]]
-SAD_ROOTS = [0, 8, 3, 10, 5, 0, 7, 7]
+# the sad tune: A natural minor, harp at 57 + offset, two notes a bar (ticks 0-5 and 6-15), chords Am F C G Dm Am E E
+SAD = [(7, 12), (8, 15), (10, 15), (14, 17), (12, 17), (12, 15), (11, 14), (14, 18)]
+SAD_ROOTS = [0, 8, 3, 10, 5, 0, 7, 7]                        # semitones above A
 SAD_Q = [(0, 3, 7), (0, 4, 7), (0, 4, 7), (0, 4, 7), (0, 3, 7), (0, 3, 7), (0, 4, 7), (0, 4, 7)]
-UD = [[0, 7, 12, 7, 0, 7, 5, 7], [0, 5, 7, 12, 8, 7, 5, 1], [0, 0, 7, 5, 8, 7, 12, 13], [0, 7, 8, 12, 13, 12, 8, 7]]
 SLAP = [[0, 0, 7, 0], [0, 5, 7, 5], [0, 0, 7, 10], [0, 5, 7, 7]]
-KICK = {1: "X...x...X...x...", 2: "X...x..oX...x.o.", 3: "X.x.X..xX.x.X..x", 5: "X.x.X.x.X.x.X.x."}
-SNARE_S = {1: "........x.......", 2: "....X.......X.o.", 3: "....X..o....X..o", 5: "....X.......X.o."}
+KICK = {1: "X..x....X..x....", 2: "X..xX..oX..xX..o", 3: "X.xoX..xX.xoX..x", 5: "X...X.x.X...X.x."}
+SNARE_S = {1: "....x.......x...", 2: "....X.......X.o.", 3: "....X..o....X..o", 5: "....X.......X.o."}
 ROLES = {"flute": (100, 100), "harp": (100, 90), "banjo": (100, 80), "harm": (80, 90), "shout": (90, 100), "water": (100, 85), "guitar": (95, 100), "chug": (70, 100), "power2": (80, 100),
-         "stab": (90, 90), "bass": (100, 100), "didg": (100, 100), "kick": (100, 100), "snare": (95, 105), "hat": (50, 115), "tom": (100, 100)}
+         "bass": (100, 100), "didg": (100, 100), "kick": (100, 100), "snare": (95, 105), "hat": (50, 115), "tom": (100, 100)}
 MAP = [(name, ib) for name, n in SECTIONS for ib in range(n)]
-
-
-def root_of(bar):
-    name, ib = MAP[bar]
-    if name in ("WATER", "MAIN"):
-        return MAIN_ROOTS[ib % 8]
-    if name == "HALF":
-        return SAD_ROOTS[ib % 8]
-    if name == "BUILD":
-        return (7, 7, 7, 7, 8, 10)[ib]
-    return 7 if ib == 29 else SAD_ROOTS[(ib if ib < 24 else 4 + ib - 24) % 8] + 3
-
-
-def chord_pcs(bar):
-    name, ib = MAP[bar]
-    r = root_of(bar)
-    if name in ("WATER", "MAIN"):
-        q = (0, 3, 7) if MAIN_MIN[ib % 8] else (0, 4, 7)
-        if q == (0, 4, 7) and MAIN_ROOTS[ib % 8] != 7:
-            q = (0, 3, 7) if MAIN_ROOTS[ib % 8] == 5 else (0, 4, 7)
-    elif name == "HALF":
-        q = SAD_Q[ib % 8]
-    elif name == "BUILD" or (name == "CHORUS" and ib == 29):
-        q = (0, 4, 7)
-    else:
-        q = SAD_Q[(ib if ib < 24 else 4 + ib - 24) % 8]
-    return [(7 + r + i) % 12 for i in q]
 
 
 def hold3(*args, **kwargs):
@@ -90,25 +63,38 @@ def hold3(*args, **kwargs):
     return hold(*args, **kwargs)
 
 
+def root_of(bar):
+    """Semitones above A of the root of the bar."""
+    name, ib = MAP[bar]
+    if name in ("WATER", "MAIN"):
+        return 0
+    if name == "HALF":
+        return SAD_ROOTS[ib % 8]
+    if name == "BUILD":
+        return (7, 7, 7, 7, 8, 10)[ib]
+    return 7 if ib == 29 else SAD_ROOTS[(ib if ib < 24 else 4 + ib - 24) % 8] + 3
+
+
 class Song:
     def __init__(self):
         self.b = Builder(LENGTH, ROLES)
 
     # ---- drums
-    def drums(self, t0, dl, bc, fill=False):
+    def drums(self, t0, dl, bc, roll=False):
         b = self.b
-        kick = KICK[dl][:]
-        snare = SNARE_S[dl]
-        for tick, ch in enumerate(kick):
-            if ch != "." and not ((fill or bc == 3) and tick >= 10):
+        for tick, ch in enumerate(KICK[dl]):
+            if ch != "." and not (roll and tick >= 10):
                 b.drum("kick", t0 + tick, BASEDRUM, VEL[ch])
-        for tick, ch in enumerate(snare):
-            if ch != "." and not ((fill or bc == 3) and tick >= 12):
+        for tick, ch in enumerate(SNARE_S[dl]):
+            if ch != "." and not (roll and tick >= 12):
                 b.drum("snare", t0 + tick, SNARE, VEL[ch])
-        if dl in (3, 5):
-            for tick in (range(2, 16, 4) if dl == 3 else range(0, 16, 4)):
-                b.drum("hat", t0 + tick, HAT, 34 if tick % 4 == 0 else 22)
-        if fill or bc == 3:
+        if dl == 3:
+            for tick in (2, 6, 10, 14):
+                b.drum("hat", t0 + tick, HAT, 30)
+        if dl == 5:
+            for tick in (0, 4, 8, 12):
+                b.drum("hat", t0 + tick, HAT, 34)
+        if roll:
             snare_roll(b, t0, 12, 1, 50, 100)
 
     def half_drums(self, t0, ib):
@@ -117,51 +103,47 @@ class Song:
         b.drum("snare", t0 + 8, SNARE, 100)
         if ib % 2:
             b.drum("kick", t0 + 10, BASEDRUM, 62)
-        for tick in (4, 12):
-            b.drum("hat", t0 + tick, HAT, 32)
         if ib % 4 == 3:
             snare_roll(b, t0, 12, 1, 50, 100)
 
-    def hit(self, t0, bar, scale_=1.0):
+    def hit(self, t0, bar, tune=True):
+        """An ensemble hit: bass, didgeridoo, kick, snare - and the guitar chord only where the tune also sounds (a second tune-instrument voice would count as new notes)."""
         b = self.b
         r = root_of(bar)
-        low = near((7 + r) % 12, 34, BASS)
-        b.drum("kick", t0, BASEDRUM, 100 * scale_, once=True)
-        b.drum("snare", t0, SNARE, 96 * scale_, once=True)
-        b.note("bass", t0, BASS, low, 100 * scale_, once=True)
-        b.note("didg", t0, DIDGERIDOO, low, 100 * scale_, once=True)
-        b.note("guitar", t0, GUITAR, near((7 + r) % 12, 47, GUITAR), 100 * scale_, once=True)
-        b.note("power2", t0, GUITAR, near((7 + r + 7) % 12, 54, GUITAR), 90 * scale_, once=True)
-        b.note("stab", t0, HARP, near((7 + r) % 12, 58, HARP), 96 * scale_, once=True)
+        low = near((9 + r) % 12, 34, BASS)
+        b.drum("kick", t0, BASEDRUM, 100, once=True)
+        b.drum("snare", t0, SNARE, 96, once=True)
+        b.note("bass", t0, BASS, low, 100, once=True)
+        b.note("didg", t0, DIDGERIDOO, low, 100, once=True)
+        if tune:
+            b.note("guitar", t0, GUITAR, near((9 + r) % 12, 47, GUITAR), 100, once=True)
+            b.note("power2", t0, GUITAR, near((9 + r + 7) % 12, 54, GUITAR), 90, once=True)
 
     # ---- bass
-    def bass_bar(self, t0, bar, level, bc, ib):
+    def rfr(self, t0, level, ib):
+        """Root - fifth - root: A and E only. level 1: eighths; level 2: eighths with sixteenth double hits."""
         b = self.b
-        r = root_of(bar)
-        ticks = [0, 4, 8, 12] if level == 0 else (list(range(0, 16, 2)) if level in (1, 2) else hit_ticks(3, "ST", ib % 5 + 2 * bc))
-        for tick in ticks:
-            if level == 0:
-                off, vel = 0, 100 if tick % 8 == 0 else 86
-            elif level == 1:
-                off, vel = 0, bass_velocity(tick, 2)
-            elif level == 2:
-                off = ([0, 7, 0, 7, 0, 7, 0, 7] if bc != 3 else [0, 7, 0, 7, 8, 7, 5, 7])[tick // 2]
-                vel = bass_velocity(tick, 2)
-            else:
-                off, vel = UD[bc][tick // 2], bass_velocity(tick, 3)
-            pitch = LOWG + r + off
-            if pitch > 54:
-                pitch -= 12
-            b.note("bass", t0 + tick, BASS, pitch, vel)
-            if tick % 4 == 0 and level >= 0:
+        ticks = list(range(0, 16, 2))
+        if level == 2:
+            ticks = sorted(set(ticks) | {t + 1 for t in (2, 10) if (ib + t) % 3})
+        for index, tick in enumerate(ticks):
+            fifth = (tick // 2) % 2 == 1
+            pitch = FIFTH if fifth else LOWA
+            b.note("bass", t0 + tick, BASS, pitch, 100 if tick % 8 == 0 else (88 if tick % 4 == 0 else 74))
+            if tick % 4 == 0:
                 b.note("didg", t0 + tick, DIDGERIDOO, pitch, 92 if tick % 8 == 0 else 80)
-            if level >= 3 and tick % 4 == 2:
-                b.note("chug", t0 + tick, GUITAR, 43 + (r + off) % 12, 62 + (8 if tick % 4 == 0 else 0))
+
+    def quarters(self, t0, r, vel=100):
+        b = self.b
+        for beat in range(4):
+            b.note("bass", t0 + 4 * beat, BASS, LOWA + r, vel if beat % 2 == 0 else vel - 12)
+        b.note("didg", t0, DIDGERIDOO, LOWA + r, 90)
+        b.note("didg", t0 + 8, DIDGERIDOO, LOWA + r, 78)
 
     def slap(self, t0, bar, bc):
         b = self.b
         r = root_of(bar)
-        low = near((7 + r) % 12, 34, BASS)
+        low = near((9 + r) % 12, 34, BASS)
         for tick in range(16):
             beat, pos = divmod(tick, 4)
             iv = SLAP[bc][beat]
@@ -171,24 +153,13 @@ class Song:
             b.note("bass", t0 + tick, BASS, pitch, (100, 54, 84, 52)[pos])
             if pos == 0:
                 b.note("didg", t0 + tick, DIDGERIDOO, low + iv, 94)
-                b.note("chug", t0 + tick, GUITAR, near((7 + r + iv) % 12, 48, GUITAR), 100 if tick % 8 == 0 else 80)
-        for tick in range(0, 16, 8):
-            b.note("power2", t0 + tick, GUITAR, near((7 + r + 7) % 12, 54, GUITAR), 90)
 
-    # ---- waterfall
-    def water(self, t0, bar, loud=96, rising=False):
+    # ---- melodies
+    def waterfall(self, t0, loud=100):
         b = self.b
-        pcs = chord_pcs(bar)
-        notes = sorted((55 + deg(i) for i in range(11)), reverse=not rising)
+        notes = sorted((57 + deg(i) for i in range(11)), reverse=True)
         for tick in range(16):
-            p = notes[tick % len(notes)]
-            b.note("water", t0 + tick, HARP if tick % 4 else BANJO, p, max(40, loud - 2 * tick) if not rising else 50 + 3 * tick)
-
-    def shout(self, t0):
-        b = self.b
-        b.note("shout", t0 + 8, FLUTE, 91, 84, once=True)
-        b.note("shout", t0 + 12, FLUTE, 94, 95, once=True)
-        b.note("shout", t0 + 14, FLUTE, 98, 100, once=True)
+            b.note("water", t0 + tick, HARP, notes[tick % len(notes)], max(60, loud - 2 * tick))
 
     def cell_bar(self, t0, ib, flute, vel):
         b = self.b
@@ -196,51 +167,70 @@ class Song:
         for tick, length, d in cell:
             off = deg(d + shift)
             if flute:
-                hold3(b, "flute", FLUTE, t0 + tick, 79 + off, length, vel)
-            b.note("banjo", t0 + tick, BANJO, 55 + off, vel, once=True)
+                hold3(b, "flute", FLUTE, t0 + tick, 81 + off, length, vel)
+            b.note("banjo", t0 + tick, BANJO, 57 + off, vel, once=True)
+
+    def grid_note(self, t0, role, instrument, tick, pitch, length, vel):
+        """A note held by strikes on the bar's 3-tick grid (0 3 6 9 12 15): the strikes of every voice (and the guitar hits) fall on the same ticks."""
+        for t in range(tick, tick + length):
+            if t % G3 == 0 or t == tick:
+                self.b.note(role, t0 + t, instrument, pitch, vel, once=True)
+
+    def shout(self, t0):
+        b = self.b
+        b.note("shout", t0 + 8, FLUTE, 93, 84, once=True)
+        b.note("shout", t0 + 12, FLUTE, 96, 95, once=True)
+        b.note("shout", t0 + 14, FLUTE, 100, 100, once=True)
 
     # ---- the bar by section
     def bar(self, bar):
         t0 = START + bar * BAR_T
         name, ib = MAP[bar]
         bc = bar % 4
+        r = root_of(bar)
         if name == "WATER":
-            if ib < 4:
-                self.water(t0, bar, 100 - 2 * ib)
-                self.bass_bar(t0, bar, 1, bc, ib)
+            if ib < 3:
+                self.waterfall(t0, 100 - 3 * ib)
+                self.quarters(t0, 0, 96 if ib == 0 else 92)
                 self.drums(t0, 1, bc)
-                if ib == 0:
-                    self.hit(t0, bar)
             else:
                 self.cell_bar(t0, ib, False, 92)
-                self.bass_bar(t0, bar, 1 if ib < 8 else 2, bc, ib)
-                self.drums(t0, 2, bc, fill=ib == 9)
-                if ib in (4, 8):
-                    self.hit(t0, bar)
+                self.rfr(t0, 1, ib)
+                self.drums(t0, 2, bc, roll=ib == 9)
+            if ib in (0, 3, 6, 9):
+                self.hit(t0, bar, tune=ib >= 3)
         elif name == "MAIN":
-            released = ib >= 10
             self.cell_bar(t0, ib, True, 98)
-            self.bass_bar(t0, bar, 3 if released else 2, bc, ib)
-            self.drums(t0, 3 if released else 2, bc, fill=ib in (9, 17, 25))
-            if ib % 8 == 0 or ib == 10:
-                self.hit(t0, bar)
-            if released and ib >= 18 and ib % 2 == 0:
-                for tick, length, d in MAIN_BARS[ib % 8][0]:
-                    self.b.note("guitar", t0 + tick, GUITAR, 43 + deg(d + MAIN_BARS[ib % 8][1]) % 24, 86, once=True)
-            if ib == 9 or ib == 25:
+            self.rfr(t0, 2 if ib >= 12 else 1, ib)
+            self.drums(t0, 3 if ib >= 12 else 2, bc, roll=ib in (11, 25) or bc == 3 and ib >= 12)
+            self.hit(t0, bar)
+            if ib % 4 == 0 and ib >= 12:
+                self.hit(t0 + 8, bar)
+            if ib in (11, 25):
                 self.shout(t0)
         elif name == "HALF":
             self.half_drums(t0, ib)
-            self.bass_bar(t0, bar, 0, bc, ib)
-            for tick, off, length in SAD_TUNE[ib % 8]:
-                hold3(self.b, "harp", HARP, t0 + tick, 55 + off, length, 100, rise=0)
-                self.b.note("banjo", t0 + tick, BANJO, 55 + off, 92, once=True)
-            if ib % 4 == 0:
-                self.hit(t0, bar)
+            self.quarters(t0, r, 100)
+            lo, hi = SAD[ib % 8]
+            self.grid_note(t0, "harp", HARP, 0, 57 + lo, 6, 100)
+            self.grid_note(t0, "harp", HARP, 6, 57 + hi, 10, 100)
+            b = self.b
+            b.note("banjo", t0, BANJO, 57 + lo, 92, once=True)
+            b.note("banjo", t0 + 6, BANJO, 57 + hi, 92, once=True)
+            self.hit(t0, bar, tune=True)
+            if ib % 2:
+                self.hit(t0 + 8, bar, tune=True)
         elif name == "BUILD":
             self.build(t0, bar, ib)
         else:
             self.chorus(t0, bar, ib, bc)
+
+    def eighth_roots(self, t0, ib):
+        b = self.b
+        for tick in range(0, 16, 2):
+            b.note("bass", t0 + tick, BASS, LOWA, 100 if tick % 8 == 0 else (86 if tick % 4 == 0 else 72))
+            if tick % 4 == 0:
+                b.note("didg", t0 + tick, DIDGERIDOO, LOWA, 90 if tick % 8 == 0 else 78)
 
     def build(self, t0, bar, ib):
         b = self.b
@@ -255,52 +245,57 @@ class Song:
                 continue
             b.drum("kick", t0 + 4 * beat, BASEDRUM, int(60 + 40 * (ib * 16 + 4 * beat) / total))
         if ib >= 2:
-            for tick in range(0, 16, 2):
+            for tick in range(0, 16, 4):
                 if not (ib == 5 and tick > 13):
-                    b.drum("hat", t0 + tick, HAT, int(24 + 22 * (ib * 16 + tick) / total), once=True)
+                    b.drum("hat", t0 + tick, HAT, int(26 + 22 * (ib * 16 + tick) / total), once=True)
         r = root_of(bar)
         for tick in (list(range(0, 16, 2)) if ib < 2 else (hit_ticks(3, "ST", ib) if ib < 4 else range(16))):
-            pitch = LOWG + r + (12 if ib >= 4 and tick % 4 == 2 else 0)
+            pitch = LOWA + r + (12 if ib >= 4 and tick % 4 == 2 else 0)
             vel = int(70 + 30 * (ib * 16 + tick) / total)
             b.note("bass", t0 + tick, BASS, pitch, vel)
             if tick % 4 == 0:
-                b.note("didg", t0 + tick, DIDGERIDOO, LOWG + r, vel)
-            if ib >= 2 and tick % 2 == 0:
-                b.note("chug", t0 + tick, GUITAR, 43 + r % 12, 56 + 4 * ib)
+                b.note("didg", t0 + tick, DIDGERIDOO, LOWA + r, vel)
 
     def chorus(self, t0, bar, ib, bc):
         b = self.b
-        last = ib == 29
-        idx = ib if ib < 24 else 4 + ib - 24
-        self.drums(t0, 5, bc, fill=ib % 8 == 7 or ib in (23, 29))
-        if last:
+        if ib == 29:
+            self.drums(t0, 5, bc, roll=True)
             for tick in range(16):
-                r = root_of(bar)
-                b.note("bass", t0 + tick, BASS, LOWG + r + (12 if tick % 4 == 2 else 0), 100 if tick % 4 == 0 else 60)
-            self.water(t0, bar, rising=True)
+                b.note("bass", t0 + tick, BASS, LOWA + 7 + (12 if tick % 4 == 2 else 0), 100 if tick % 4 == 0 else 60)
+            notes = sorted(57 + deg(i) for i in range(11))
+            for tick in range(16):
+                b.note("water", t0 + tick, HARP, notes[min(tick, len(notes) - 1)], 50 + 3 * tick)
             self.shout(t0)
             return
+        idx = ib if ib < 24 else 4 + ib - 24
+        self.drums(t0, 5, bc, roll=ib % 8 == 7 or ib in (23, 28))
         self.slap(t0, bar, bc)
-        for tick, off, length in SAD_TUNE[idx % 8]:
-            hold3(b, "flute", FLUTE, t0 + tick, 82 + off, length, 100, rise=0)
-            b.note("harp", t0 + tick, HARP, 58 + off, 100, once=True)
+        lo, hi = SAD[idx % 8]
+        for start, off, length in ((0, lo, 6), (6, hi, 10)):
+            self.grid_note(t0, "flute", FLUTE, start, 72 + off, length, 100)
             if ib >= 8:
-                b.note("harm", t0 + tick, FLUTE, 82 + off - 7, 80, once=True)
+                self.grid_note(t0, "harm", FLUTE, start, 65 + off, length, 80)
+            b.note("banjo", t0 + start, BANJO, 48 + off, 90, once=True)
+        r = root_of(bar)
+        pc = (9 + r) % 12
+        for tick in (0, 6, 12):
+            b.note("guitar", t0 + tick, GUITAR, near(pc, 47, GUITAR), 100 if tick == 0 else 84, once=True)
+            b.note("power2", t0 + tick, GUITAR, near((pc + 7) % 12, 54, GUITAR), 80, once=True)
         if ib % 4 == 0:
             self.hit(t0, bar)
 
     def intro(self):
         b = self.b
-        for bar, (r, q) in enumerate([(0, (0, 3, 7)), (0, (0, 3, 7)), (8, (0, 4, 7)), (7, (0, 4, 7))]):
+        for bar in range(4):
             t0 = 16 * bar
-            notes = sorted((55 + deg(i) for i in range(11)), reverse=True)
+            notes = sorted((57 + deg(i) for i in range(11)), reverse=True)
             for tick in range(16):
-                b.note("water", t0 + tick, HARP if tick % 4 else BANJO, notes[tick % len(notes)], 100 - 2 * tick)
+                b.note("water", t0 + tick, HARP, notes[tick % len(notes)], 100 - 2 * tick)
             for beat in range(4):
                 b.drum("kick", t0 + 4 * beat, BASEDRUM, 96 if beat % 2 == 0 else 80)
-                b.note("bass", t0 + 4 * beat, BASS, LOWG + r, 100 if beat % 2 == 0 else 88)
-            b.note("didg", t0, DIDGERIDOO, LOWG + r, 96)
-            b.note("didg", t0 + 8, DIDGERIDOO, LOWG + r, 84)
+                b.note("bass", t0 + 4 * beat, BASS, LOWA, 100 if beat % 2 == 0 else 88)
+            b.note("didg", t0, DIDGERIDOO, LOWA, 96)
+            b.note("didg", t0 + 8, DIDGERIDOO, LOWA, 84)
         b.drum("snare", 0, SNARE, 96)
         for index, tick in enumerate((56, 58, 60, 61, 62, 63)):
             b.drum("snare", tick, SNARE, 50 + 10 * index, once=True)
@@ -320,10 +315,8 @@ def main():
         edges.append((name, cursor, cursor + n * BAR_T))
         cursor += n * BAR_T
     layers = finish281(target, song.b, TPS, "Raise the Axe (Boss002)",
-                       description="Atlas cave boss, class 5, style 4 (Japanese melodic dash), 165 BPM: koto waterfall, the chopping axe cell raised a step each bar over a root-fifth-root bass, a half-time sad part in G natural minor, a drum build-up, the chorus a minor third and an octave up on a sixteenth slap bass. Loops from tick 64.")
+                       "Atlas cave boss, class 5, style 4 (Japanese melodic dash), 165 BPM: koto waterfall, the chopping axe cell raised a step each bar over a root-fifth bass, a half-time sad part in A natural minor, a drum build-up, the chorus a minor third up with the tune in long notes on a sixteenth slap bass. Loops from tick 64.")
     print("   notes a second by section: " + ", ".join(f"{n} {c:.1f}" for n, c in sections_density(layers, LENGTH, TPS, edges)))
-    bass = [layer for layer in layers if layer.name.startswith("bass")]
-    print("   bass notes per bar by section: " + ", ".join(f"{n} {sum(1 for layer in bass for t in layer.notes if s <= t < e) / ((e - s) / 16):.1f}" for n, s, e in edges))
     print("   section starts (s): " + ", ".join(f"{n} {s / TPS:.0f}" for n, s, e in edges))
 
 

@@ -5,11 +5,11 @@
     python3 tools/bgm/make_necromancer_bgm.py outdir     writes them somewhere else
 
 Class 2 "sorrow and fated battle" in STYLE 1 ("royal high-speed battle"), 150 BPM, a song tick is a sixteenth (10 ticks a second), a 4/4 bar is 16 ticks, 80 bars of body and a 4-bar intro, 1344 ticks (134.4 s).
-THE MOTIF is the scythe's ARC: a cell of four notes (root, the fifth above it, the third, the second: G D Bb A in G minor) with the long-short rhythm 6-2-4-4, repeated a diatonic STEP HIGHER each
-bar over a falling bass (Gm F Eb), then the phrase leaves its last note HANGING UP on the leading tone of D7 (F#5). The second phrase starts a fifth lower and climbs the same way.
-Keys: G minor (intro, A, B) -> the relative major B flat (CHORUS: Bb F Gm Eb, the tune in long notes with a third above) -> C major (FINALE, a whole step up). B (the bass release) runs the cell as arpeggios over a
-rising bass (Gm Bb Cm Dm), 5-3-5-3. Phase 2 turns the intro and A into G MAJOR (G Am C D7: the old reversal idea) and drops back to the minor for B; the machine gun comes earlier.
-Time table (bars from the song start; 1 bar = 1.6 s): intro 0-7 (a bare refrain, no drums; from the loop point the snare gets denser) | A 8-27 (full drums, root nailed; bars 20-23 pseudo half time) | B 28-43
+THE MOTIF (t290, new) is the CRESCENT, the blade of the scythe seen from the side: from a high note down in two steps and up again past where it began (B4 G4 E4 A4 ... degrees 4, 2, 0, 3), long - short - short - long
+(6-2-2-6), the last note always rising; phrase 1 plays it a scale step higher each bar over an E pedal (the bass stays on E), phrase 2 brings it down the steps over Am C D and hangs on F#5 over B7.
+Keys: E minor (intro, A, B) -> the relative major G (CHORUS: G D Em C, the tune in long notes with a third above) -> A major (FINALE, a whole step up from G). B (the bass release) turns the crescent into
+arpeggios (fifth, third, root, fifth) over a rising bass (Em G A B). Phase 2 turns the intro and A into E MAJOR (A B C#m B7) and drops back to the minor for B; the machine gun comes earlier.
+Time table (bars from the song start; 1 bar = 1.6 s): intro 0-7 (a bare refrain, no drums; from the loop point the snare gets denser) | A 8-27 (full drums, root nailed; bars 22-27 (30-40 s) pseudo half time) | B 28-43
 (bass released, flute an octave up; bars 34-41 pseudo double time) | pre-break and stop-time 44-46, BREAK 47 (one bell) | CHORUS 48-67 (relative major, third above, 16th machine gun, long notes) | FINALE 68-83
 (a whole step up: the cell in C major, then the chorus tune lifted; the last bar is D7 into the loop).
 Everything is written by what SOUNDS. Nothing is random.
@@ -23,13 +23,13 @@ from style1 import build
 OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
 TITLES = ("Reaper's Arc (Boss004)", "Reaper's Arc, Sundered (Boss004)")
 FILES = ("necromancer_phase1.nbs", "necromancer_phase2.nbs")
-DESCRIPTIONS = ("Snow mountain reaper, phase 1 (sorrow and fated battle): 150 BPM, a rising scythe-arc cell in G minor, a bass release, a bell break, the relative major with a third above, a whole-step finale.",
-                "Snow mountain reaper, phase 2 (limit break and reversal): the same events one rung higher - G major intro and A, the minor B, the bell break, a blazing Bb major chorus, a finale in C.")
+DESCRIPTIONS = ("Snow mountain reaper, phase 1 (sorrow and fated battle): 150 BPM, a crescent motif in E minor, a bass release, a bell break, the relative major with a third above, a whole-step finale.",
+                "Snow mountain reaper, phase 2 (limit break and reversal): the same events one rung higher - E major intro and A, the minor B, the bell break, a blazing G major chorus, a finale in A.")
 MINOR = [0, 2, 3, 5, 7, 8, 10]
 MAJOR = [0, 2, 4, 5, 7, 9, 11]
 
 
-def pitch(deg, scale, root=55):
+def pitch(deg, scale, root=52):
     octave, d = divmod(deg, 7)
     return root + 12 * octave + scale[d]
 
@@ -46,57 +46,54 @@ def shifted(txt, n):
     return " ".join(out)
 
 
-def arc_bar(first_deg, scale, rhythm=(6, 2, 4, 4)):
-    """the cell [0, 4, 2, 1] from the degree ``first_deg``"""
-    return text([pitch(first_deg + d, scale) for d in (0, 4, 2, 1)], rhythm)
+def crescent(d, scale, root=52, rhythm=(6, 2, 2, 6)):
+    """THE MOTIF: the blade of the scythe seen from the side, a crescent: from a high note down in two steps and up again past where it began (degrees d+4, d+2, d, d+3),
+    long - short - short - long, the last note rising. Played again a step higher each bar."""
+    return text([pitch(d + k, scale, root) for k in (4, 2, 0, 3)], rhythm)
 
 
-def tune(scale, minor):
-    """8 bars: phrase 1 (the cell a step higher each bar, then a hang on the leading tone), phrase 2 (a fifth lower, the same climb, a hang)."""
-    p1 = [arc_bar(7 + s, scale) for s in range(3)] + [text([69, 72, 78], (4, 4, 8))]
-    p2 = [text([pitch(3 + s + d, scale, 55) + 0 for d in (0, 4, 2, 1)], (6, 2, 4, 4)) for s in range(3)] + [text([72, 75 if minor else 76, 78], (4, 4, 8))]
+def tune(scale):
+    """8 bars in E (E4 = 64): phrase 1 = the crescent four steps higher, one per bar, over an E pedal; phrase 2 = the crescent coming down the steps over Am C D, then B7 with the last note hanging on F#5."""
+    p1 = [crescent(d, scale, 57) for d in (1, 2, 3, 4)]
+    p2 = [crescent(3, scale, 57), crescent(2, scale, 57), text([74, 69, 66, 69], (6, 2, 2, 6)), text([71, 75, 78], (4, 4, 8))]
     return p1, p2
 
 
-CH_MINOR_KEY = ["Gm", "F", "Eb", "D7", "Cm", "Eb", "F", "D7"]
-# phase 1: G minor; phase 2: G major
-P1_P1, P1_P2 = tune(MINOR, True)
-P2_P1, P2_P2 = tune(MAJOR, False)
-CH1_A = (["Gm", "F", "Eb", "D7"], ["Cm", "Eb", "F", "D7"])
-CH2_A = (["G", "Am", "C", "D7"], ["C", "D", "Em", "D7"])
+P1_P1, P1_P2 = tune(MINOR)
+P2_P1, P2_P2 = tune(MAJOR)
+CH1_A = (["Em", "Em", "Em", "Em"], ["Am", "C", "D", "B7"])
+CH2_A = (["E", "E", "E", "E"], ["A", "B", "C#m", "B7"])
 
-# --- B: arpeggio cells over a rising bass (minor in both phases) -----------------------------------------------------------------------------------------------
-def b_bar(root, third, rhythm):
-    return text([root, root + 7, root + third, root + 2], rhythm)
+# --- B: the crescent turned into arpeggios (fifth, third, root, fifth) over a rising bass; minor in both phases --------------------------------------------------------
+def b_bar(root, third, rhythm=(5, 3, 5, 3)):
+    return text([root + 7, root + third, root, root + 7], rhythm)
 
 
-B_ROOTS = [(67, 3, "Gm"), (70, 4, "Bb"), (72, 3, "Cm"), (74, 3, "Dm"), (70, 4, "Bb"), (72, 3, "Cm"), (74, 3, "Dm")]
-B1 = [(b_bar(r, th, (5, 3, 5, 3)), c) for r, th, c in B_ROOTS] + [(text([72, 75, 78], (4, 4, 8)), "D7")]
-B2 = [(b_bar(r, th, (4, 4, 4, 4)), c) for r, th, c in [(67, 3, "Gm"), (70, 4, "Bb"), (72, 3, "Cm"), (74, 3, "Dm"), (75, 4, "Eb"), (72, 3, "Cm"), (74, 3, "Dm")]]
-B2[4] = (B2[4][0], "Eb")
-B2 = [(a, c) for a, c in B2] + [(text([72, 75, 78], (4, 4, 8)), "D7")]
+B_ROOTS = [(64, 3, "Em"), (67, 4, "G"), (69, 4, "A"), (71, 4, "B"), (67, 4, "G"), (69, 4, "A"), (71, 4, "B")]
+B1 = [(b_bar(r, th), c) for r, th, c in B_ROOTS] + [(text([71, 75, 78], (4, 4, 8)), "B7")]
+B2 = [(b_bar(r, th, (4, 4, 4, 4)), c) for r, th, c in [(64, 3, "Em"), (67, 4, "G"), (69, 3, "Am"), (71, 4, "B"), (72, 4, "C"), (69, 3, "Am"), (71, 4, "B")]] + [(text([71, 75, 78], (4, 4, 8)), "B7")]
 B = B1 + B2
 
-# --- CHORUS (Bb major, long notes) and its lift to C ---------------------------------------------------------------------------------------------------------------
-CH_CHORDS = ["Bb", "F", "Gm", "Eb", "Bb", "F", "Eb", "F"]
-CH1 = ["F4:4 Bb4:12", "A4:4 C5:12", "Bb4:8 D5:8", "G4:4 Bb4:4 Eb5:8", "D5:4 F5:12", "C5:4 F5:12", "Bb4:8 Eb5:8", "A4:4 C5:4 F5:8"]
-CH2 = ["Bb4:4 D5:12", "C5:4 F5:12", "Bb4:4 D5:12", "G4:4 Bb4:4 Eb5:8", "F5:16", "A4:4 F5:12", "G4:4 Bb4:4 Eb5:8", "A4:4 C5:4 F5:8"]
-CHTAG = ["G4:8 Bb4:8", "A4:8 C5:8", "Bb4:8 D5:8", "F5:16"]
-CHTAG_CH = ["Eb", "F", "Gm", "F"]
+# --- CHORUS (G major, the relative major, long notes) and its lift to A -------------------------------------------------------------------------------------------------
+CH_CHORDS = ["G", "D", "Em", "C", "G", "D", "C", "D"]
+CH1 = ["D4:4 G4:12", "F#4:4 A4:12", "G4:8 B4:8", "E4:4 G4:4 C5:8", "B4:4 D5:12", "A4:4 D5:12", "G4:8 C5:8", "F#4:4 A4:4 D5:8"]
+CH2 = ["G4:4 B4:12", "A4:4 D5:12", "B4:8 E5:8", "C5:8 E5:8", "B4:4 D5:12", "D5:4 F#5:12", "C5:4 E5:12", "A4:4 D5:4 F#5:8"]
+CHTAG = ["E4:8 G4:8", "F#4:8 A4:8", "G4:8 B4:8", "D5:16"]
+CHTAG_CH = ["C", "D", "Em", "D"]
 CH = [(t, c) for t, c in zip(CH1, CH_CHORDS)] + [(t, c) for t, c in zip(CH2, CH_CHORDS)] + [(t, c) for t, c in zip(CHTAG, CHTAG_CH)]
 
-# --- FINALE (C major): the cell in C major, then the chorus tune a whole step up -------------------------------------------------------------------------------
-C_MAJOR_CELL = [text([pitch(7 + s + d, MAJOR, 48) for d in (0, 4, 2, 1)], (6, 2, 4, 4)) for s in range(3)] + [text([71, 74, 77], (4, 4, 8))]
-C_PH2 = [text([pitch(10 + s + d, MAJOR, 48) for d in (0, 4, 2, 1)], (6, 2, 4, 4)) for s in range(3)] + [text([74, 77, 83], (4, 4, 8))]
-FIN1 = list(zip(C_MAJOR_CELL, ["C", "Dm", "Em", "G7"])) + list(zip(C_PH2, ["F", "G", "Am", "G7"]))
-FIN2 = [(shifted(t, 2), shift_chord(c, 2)) for t, c in zip(CH2, CH_CHORDS)][:7] + [("A4:4 C5:4 F#5:8", "D7")]
+# --- FINALE (A major): the crescent in the major, then the chorus tune a whole step up ---------------------------------------------------------------------------
+FIN_P1 = [crescent(d, MAJOR, 57 + 2) for d in (1, 2, 3, 4)]
+FIN_P2 = [crescent(3, MAJOR, 57 + 2), crescent(2, MAJOR, 57 + 2), text([76, 71, 68, 71], (6, 2, 2, 6)), text([73, 77, 80], (4, 4, 8))]
+FIN1 = list(zip(FIN_P1, ["A", "A", "A", "A"])) + list(zip(FIN_P2, ["D", "E", "F#m", "E7"]))
+FIN2 = [(shifted(t, 2), shift_chord(c, 2)) for t, c in zip(CH2, CH_CHORDS)][:7] + [("B4:4 D#5:4 F#5:8", "B7")]
 FIN = FIN1 + FIN2
 
 
 # --- patterns of a bar of 16 ticks ------------------------------------------------------------------------------------------------------------------------------------
 HAT16 = [(t, 46 if t % 4 == 0 else 34) for t in range(0, 16, 2)]
 DRUMS = {
-    "rock": {"kick": [(0, 100), (5, 64), (8, 92), (13, 64)], "snare": [(4, 92), (12, 100)], "hat": [(t, 44 if t % 4 == 0 else 30) for t in range(0, 16, 2)]},
+    "rock": {"kick": [(0, 100), (3, 60), (8, 92), (11, 60)], "snare": [(4, 92), (12, 100)], "hat": [(t, 44 if t % 4 == 0 else 30) for t in range(0, 16, 2)]},
     "drive": {"kick": [(0, 100), (3, 62), (6, 76), (8, 98), (11, 62), (14, 76)], "snare": [(4, 96), (12, 100), (15, 46)], "hat": [(t, 46 if t % 4 == 0 else 32) for t in range(0, 16, 2)]},
     "drive16": {"kick": [(0, 100), (3, 62), (6, 76), (8, 98), (11, 62), (14, 76)], "snare": [(4, 96), (12, 100), (15, 46)], "hat": HAT16},
     "half": {"kick": [(0, 96), (10, 58)], "snare": [(8, 92)], "hat": [(t, 30 if t % 4 == 0 else 22) for t in range(0, 16, 2)]},
@@ -135,17 +132,17 @@ D = dict(
     ramp=[[(12, 44)], [(4, 46), (12, 56)], [(4, 50), (8, 54), (12, 60), (14, 64)], [(t, 50 + 3 * t // 2) for t in range(0, 12, 2)]],
     A=[list(zip(P1_P1 + P1_P2 + P1_P1 + P1_P2 + P1_P1, CH1_A[0] + CH1_A[1] + CH1_A[0] + CH1_A[1] + CH1_A[0]))[:20],
        list(zip(P2_P1 + P2_P2 + P2_P1 + P2_P2 + P2_P1, CH2_A[0] + CH2_A[1] + CH2_A[0] + CH2_A[1] + CH2_A[0]))[:20]],
-    A_bass=[[(0, "E"), (8, "E_mv"), (10, "ED_a"), (12, "halfb"), (16, "ED_a"), (18, "ED_b")], [(0, "E"), (4, "ED_a"), (8, "E_mv"), (12, "halfb"), (16, "ED_a"), (18, "ED_b")]],
-    A_drum=[[(0, "rock"), (10, "drive"), (12, "half"), (16, "drive")], [(0, "drive"), (12, "half"), (16, "drive16")]],
-    A_half=(12, 16),
+    A_bass=[[(0, "E"), (11, "halfb"), (17, "ED_a")], [(0, "E"), (6, "ED_a"), (11, "halfb"), (17, "ED_a")]],
+    A_drum=[[(0, "rock"), (8, "drive"), (11, "half"), (17, "drive")], [(0, "drive"), (11, "half"), (17, "drive16")]],
+    A_half=(11, 17),
     B=[B, B], B_dbl=(6, 14),
     B_bass=[[(0, "ED_b"), (1, "TRI"), (2, "WALK"), (3, "ED_b"), (4, "ED_a"), (5, "TRI"), (6, "BURST"), (7, "ED_b"), (8, "WALK"), (9, "TRI"), (10, "BURST"), (11, "ED_b"), (12, "BURST"), (13, "ED_b"), (14, "BURST"), (15, "S16")],
             [(0, "ED_b"), (1, "TRI"), (2, "WALK"), (3, "BURST"), (4, "ED_b"), (5, "TRI"), (6, "BURST"), (7, "ED_b"), (8, "BURST"), (9, "ED_b"), (10, "BURST"), (11, "ED_b"), (12, "BURST"), (13, "S16"), (14, "BURST"), (15, "S16b")]],
     B_drum=[[(0, "drive16"), (6, "dbl"), (14, "dbl")], [(0, "peak"), (6, "dbl"), (14, "peak")]],
-    pre=[("A4:4 C5:4 F#5:8", "D7"), ("D5:16", "D7")], stop=("F#5:16", "D7"), stop_at=(0, 8), bell=93,
+    pre=[("B4:4 D#5:4 F#5:8", "B7"), ("F#5:16", "B7")], stop=("F#5:16", "B7"), stop_at=(0, 8), bell=95,
     CH=[CH, CH], CH_bass=[[(0, "S16"), (7, "S16b"), (8, "S16"), (15, "S16b"), (16, "S16")], [(0, "S16"), (1, "S16b"), (8, "S16b"), (9, "S16"), (16, "S16b")]],
-    scale_ch=tuple(p % 12 for p in (10, 0, 2, 3, 5, 7, 9)),
-    FIN=[FIN, FIN], fin_split=8, scale_fin=tuple(p % 12 for p in (0, 2, 4, 5, 7, 9, 11)),
+    scale_ch=tuple(p % 12 for p in (7, 9, 11, 0, 2, 4, 6)),
+    FIN=[FIN, FIN], fin_split=8, scale_fin=tuple(p % 12 for p in (9, 11, 1, 2, 4, 6, 8)),
     FIN_bass=[[(0, "S16"), (4, "S16b"), (8, "S16"), (12, "S16b")], [(0, "S16b"), (4, "S16"), (8, "S16b"), (12, "S16")]],
 )
 assert len(D["A"][0]) == 20 and len(B) == 16 and len(CH) == 20 and len(FIN) == 16, (len(D["A"][0]), len(B), len(CH), len(FIN))

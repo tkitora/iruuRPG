@@ -312,3 +312,33 @@ def ticks6(bar, phase, period=6):
     """The ticks of bar number ``bar`` (counted from the start of the song) that fall on ``phase`` modulo ``period`` of the song clock: a pad struck on these ticks (and another on phase + 3)
     is re-struck every 3 ticks (0.36 s at 8.33 ticks a second) although 6 does not divide a bar of 16."""
     return [t for t in range(BAR) if (bar * BAR + t) % period == phase]
+
+
+def add_caps(bars, spans, phase, name="cap"):
+    """The "cap": one held flute note struck on every tick that already has a tune-instrument note (pling, flute, 8-bit, guitar, harp), at a pitch above all of them, one pitch for a whole bar.
+    The top voice of a long-note part is then one slowly changing line (the guide check reads the top tune voice), and in a climax it is the highest note struck without end.
+    spans: [(first bar, last bar + 1, [top pitch of each bar], velocity, bar offset where the hammering of every 4th tick starts or None)]. The pads are not touched."""
+    for a, z, tops, vel, hammer_from in spans:
+        for g in range(a, z):
+            b = bars[g]
+            ticks = set()
+            for n in b.get("notes", []):
+                if n[1] in (PLING, FLUTE, BIT, GUITAR, HARP) and n[0] != name:
+                    ticks.add(n[3])
+            for h in b.get("holds", []):
+                for t in range(h[3], min(BAR, h[3] + h[4]), h[7]):
+                    ticks.add(t)
+            for n in b.get("first", []):
+                if n[1] in (PLING, FLUTE, BIT, GUITAR, HARP):
+                    ticks.add(n[3])
+            if hammer_from is not None and g - a >= hammer_from:
+                ticks |= set(range(0, BAR, 4))
+            top = tops[(g - a) % len(tops)]
+            b["notes"] = b.get("notes", []) + [(name, FLUTE, top, t, vel) for t in sorted(ticks) if 0 <= t < BAR]
+
+
+def clear_for_hits(bars, prefixes):
+    """A pad note is not struck on tick 0 of a bar that opens with a hit (nothing is lost to the 8-note limit; the pad is only moved out of the way)."""
+    for b in bars:
+        busy = {0} if b.get("first") else set()
+        b["notes"] = [n for n in b.get("notes", []) if not (n[0].startswith(prefixes) and n[3] in busy)]

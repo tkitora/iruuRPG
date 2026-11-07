@@ -52,11 +52,11 @@ def build(P, D):
         start, cut = displaced(sec, i)
         sing(s, bar, text, voices, transpose=key_t, vel=vel, start=start, cut=cut)
 
-    def acc(bar, chord, bass_name, drum_name=None, guitar=None, harp=None, drone=False, pad=False, level=1.0, drum_level=1.0):
+    def acc(bar, chord, bass_name, drum_name=None, guitar=None, harp=None, drone=False, pad=False, level=1.0, drum_level=1.0, bchord=None):
         if bass_name:
-            bass(s, bar, chord, BP[bass_name], level, high=54)
+            bass(s, bar, bchord or chord, BP[bass_name], level, high=54)
         if drone:
-            bass(s, bar, chord, D["drone"], level, role="drone", instrument=DIDGERIDOO)
+            bass(s, bar, bchord or chord, D["drone"], level, role="drone", instrument=DIDGERIDOO)
         if drum_name:
             drums(s, bar, DR[drum_name], drum_level)
         if guitar == "pah":
@@ -113,7 +113,7 @@ def build(P, D):
         bn, dn = hemi("A", i, pick(D["A_bass"][P], i), pick(D["A_drum"][P], i))
         half = D["A_half"][0] <= i < D["A_half"][1]
         acc(s.b(j + i), chord, bn, dn, "pah" if D["pah_guitar"] and not half else ("arp" if not half else None),
-            D["harp_arp"] if (r >= 1 and not half) else None, drone=(r >= 1 and not half), level=0.9 if r == 0 else 0.95)
+            D["harp_arp"] if (r >= 1 and not half) else None, drone=(r >= 1 and not half), level=0.9 if r == 0 else 0.95, bchord=D.get("A_pedal"))
         if i % 4 == 3:
             fill(s.b(j + i), 4, hot=(r >= 1))
     if P:
