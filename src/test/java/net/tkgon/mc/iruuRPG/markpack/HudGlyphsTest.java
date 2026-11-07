@@ -160,8 +160,8 @@ class HudGlyphsTest {
                 new HudGlyphs.Icon(HudGlyphs.icon("mage", 3), 0.0, 0, HudGlyphs.keyLabel("qq"), 0xFFFFFF, false, false, true, 1, 1, -1.0));
         assertEquals(0, advance(spaces, HudGlyphs.row(charged, extras)));
         // 48 icons (6 classes x melee and ranged x 小・中・大・util), 6 ULTs, the weapon's skill and its locked icon, the lock, the rim, 16 shades, 10 digits, 7 key labels;
-        // t157: the rim of a re-activation, 10 charges, 17 gauges of a refill; t162: 5 key labels with Q and F swapped
-        assertEquals(124, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
+        // t157: the rim of a re-activation, 10 charges, 17 gauges of a refill; t162: 5 key labels with Q and F swapped; t291: the veil
+        assertEquals(125, files.keySet().stream().filter(name -> name.endsWith(".png")).count());
         // (F → left has the arrow after F as Q → left has after Q: the two differ only in their first letter, x 1 - 5)
         java.awt.image.BufferedImage fl = HudGlyphs.keyImage("fl");
         java.awt.image.BufferedImage ql = HudGlyphs.keyImage("ql");
@@ -173,6 +173,32 @@ class HudGlyphsTest {
             }
         }
         assertTrue(differs, "F, not Q");
+    }
+
+    @Test
+    void theVeilCoversTheScreenInATitle() throws IOException {
+        assertEquals('\uE2E0', HudGlyphs.veil());
+        // three veils overlapping by a pixel: no seam
+        String veils = HudGlyphs.veils();
+        assertEquals(3, veils.chars().filter(ch -> ch == HudGlyphs.veil()).count());
+        assertEquals(HudGlyphs.move(-2), veils.substring(1, veils.indexOf(HudGlyphs.veil(), 1)));
+        Map<String, byte[]> files = new HashMap<>();
+        HudGlyphs.addTo(files);
+        assertTrue(files.containsKey("assets/iruurpg/textures/font/hud/veil.png"));
+        JsonObject font = JsonParser.parseString(new String(files.get("assets/iruurpg/font/hud.json"), StandardCharsets.UTF_8)).getAsJsonObject();
+        boolean found = false;
+        for (var element : font.getAsJsonArray("providers")) {
+            JsonObject provider = element.getAsJsonObject();
+            if (!provider.has("chars") || !provider.getAsJsonArray("chars").get(0).getAsString().equals(String.valueOf(HudGlyphs.veil()))) continue;
+            found = true;
+            assertEquals(HudGlyphs.VEIL, provider.get("height").getAsInt());
+            // (a title is 4 times as big and its line 10 font pixels over the middle: the veil's top 7 - ascent over the line, ±512 of the screen round the middle)
+            int top = -10 + 7 - provider.get("ascent").getAsInt();
+            assertEquals(-512, top * 4, 16);
+            assertEquals(512, (top + HudGlyphs.VEIL) * 4, 16);
+            assertTrue(provider.get("ascent").getAsInt() <= HudGlyphs.VEIL);
+        }
+        assertTrue(found);
     }
 
     @Test

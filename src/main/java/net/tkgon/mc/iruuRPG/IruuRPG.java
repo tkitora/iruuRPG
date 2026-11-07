@@ -802,6 +802,8 @@ public final class IruuRPG extends JavaPlugin {
                 new PlayerLifecycleListener(this, profileManager, equipmentService, playerBars, levelService, classService, classSelectMenu),
                 this
         );
+        // (t291) a death's look and sound, the player coming back at once
+        getServer().getPluginManager().registerEvents(new net.tkgon.mc.iruuRPG.player.DeathEffects(this), this);
         getServer().getPluginManager().registerEvents(
                 new EquipmentChangeListener(this, equipmentService, playerBars),
                 this

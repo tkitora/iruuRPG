@@ -268,7 +268,16 @@ public enum Sfx {
     VEIL_THORNS(new Layer(Sound.BLOCK_SWEET_BERRY_BUSH_PLACE, 0.8f, 0.7f), new Layer(Sound.BLOCK_GRASS_BREAK, 0.5f, 0.6f)),
     /** Nightfall: the warden's dig, the illusioner's mirror and a low wind. */
     VEIL_NIGHTFALL(new Layer(Sound.ENTITY_WARDEN_DIG, 0.5f, 1.2f), new Layer(Sound.ENTITY_ILLUSIONER_MIRROR_MOVE, 0.7f, 0.7f),
-            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.4f, 0.6f));
+            new Layer(Sound.ENTITY_PHANTOM_SWOOP, 0.4f, 0.6f)),
+    // a player's death and coming back (t291)
+    /** A soul leaving where a player fell: the soul's escape, a low bell and a last heartbeat. */
+    DEATH(new Layer(Sound.PARTICLE_SOUL_ESCAPE, 1.0f, 0.7f), new Layer(Sound.BLOCK_BELL_RESONATE, 0.35f, 0.5f),
+            new Layer(Sound.ENTITY_WARDEN_HEARTBEAT, 0.7f, 0.6f)),
+    /** What the one who fell hears as the world goes black: a beacon going out and a deep drum. */
+    DEATH_SELF(new Layer(Sound.BLOCK_BEACON_DEACTIVATE, 0.7f, 0.6f), new Layer(Sound.BLOCK_NOTE_BLOCK_BASEDRUM, 0.6f, 0.5f)),
+    /** Coming back: a respawn anchor setting the spawn, chimes and a beacon's light. */
+    REVIVE(new Layer(Sound.BLOCK_RESPAWN_ANCHOR_SET_SPAWN, 0.6f, 1.2f), new Layer(Sound.BLOCK_AMETHYST_BLOCK_CHIME, 0.7f, 1.4f),
+            new Layer(Sound.BLOCK_BEACON_POWER_SELECT, 0.3f, 1.6f));
 
     /** One vanilla sound of a role: its own volume and pitch, scaled by what the caller asks for. */
     public record Layer(Sound sound, float volume, float pitch) {
@@ -325,6 +334,13 @@ public enum Sfx {
             return new Layer(sound, Float.parseFloat(parts[1]), Float.parseFloat(parts[2]));
         } catch (IllegalArgumentException exception) {
             return null;
+        }
+    }
+
+    /** (t291) Plays the role where {@code player} is, for them alone. */
+    public void playTo(org.bukkit.entity.Player player, float volume, float pitch) {
+        for (Layer layer : layers()) {
+            player.playSound(player.getLocation(), layer.sound(), SoundCategory.PLAYERS, layer.volume() * volume, Math.max(0.5f, Math.min(2.0f, layer.pitch() * pitch)));
         }
     }
 

@@ -26,6 +26,11 @@
   - ワイヤーを投げる音 (`WIRE_THROW`)、張る・巻き取る音 (`WIRE_PULL`)、外れる音 (`WIRE_SNAP`)、ワイヤーで飛ぶ音 (`WIRE_ZIP`)。
   - 弓を引き絞る音 (`BOW_DRAW`)、放つ音 (`BOW_LOOSE`)。精霊弓を立てる音 (`SPIRIT_SET`)、全力射撃 (`SPIRIT_OVERDRIVE`)。
 - **アサシンの影の短剣と闇の帳 (t198)**: 短剣を飛ばす鋭い音 (`KNIFE_THROW`)、刺さる音 (`KNIFE_HIT`)、短剣を呼ぶ音 (`KNIFE_SUMMON`)、一斉に突き刺さる音 (`KNIFE_STORM`)、闇の中の刺し傷 (`SHADE_HIT`)、闇がふくらむ音 (`VEIL_SWELL`)、茨 (`VEIL_THORNS`)、宵闇 (`VEIL_NIGHTFALL`)、残像が攻撃を受けた音 (`VEIL_DODGE`)。影の弓の音 (`SHADE_LOOSE`・`SHADE_DRAW`・`SHADE_EXECUTE`) は消した。
+- **死んだときと復活 (t291)**: すぐに復活する (死亡画面はない) ので、`player/DeathEffects` が演出を足す。`death-effects` の `enabled` で止められる。
+  - 倒れた所 (まわりの人にも見える): 煙、上りながら細る魂の炎、地面の青い輪。音は `DEATH` (魂が抜ける音・低い鐘・最後の心音)。
+  - 自分の画面: すぐ真っ暗になり、`dark-ticks` (初期値 8) のあと `fade-ticks` (初期値 30) かけて明ける。HUD フォント `iruurpg:hud` の黒い幕 (U+E2E0) を 3 枚並べたタイトルで、下に `title` (初期値「力尽きた…」)。音は `DEATH_SELF` (ビーコンが消える音・低い太鼓。自分にだけ)。
+  - 明けてくるころ、戻った所 (まわりの人にも): 足元の金の輪、上る金のらせん、トーテムの粒。音は `REVIVE` (リスポーンアンカー・アメジスト・ビーコン)。
+  - ダンジョンで倒れて観戦になったとき (ダンジョンが自分のタイトルを出す) と、エンドから戻ったときは、倒れた所の演出だけ。
 - **config で差し替えられる** (`sound-design`、読み直しで反映): 役割ごとに、`"音の名前 音量 ピッチ"` の行を並べる。書いた役割だけが変わる。読めない行や、無い役割は、ログに警告を出して飛ばす。
   ```yaml
   sound-design:
