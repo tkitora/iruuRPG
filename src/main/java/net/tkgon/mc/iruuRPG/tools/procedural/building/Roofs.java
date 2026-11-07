@@ -26,13 +26,23 @@ import java.util.Set;
 final class Roofs {
 
     enum Kind {
-        VERTICAL, SLOPE, HALF, BROKEN
+        VERTICAL, SLOPE, HALF, BROKEN,
+        /** (t302) flat: no rise. */
+        FLAT,
+        /** (t302) a hip-and-gable's end: sloping up to {@code at} blocks in, upright from there (the gable over the hip). */
+        UNTIL,
+        /** (t302) a roof of steps: each block in rises by its step ({@link Profile#steps}, stretched over {@code at} blocks when {@code fit}). */
+        STEPS
     }
 
     /** How a side rises inward: {@code k} (and {@code k2} past {@code at} blocks in; a half-hip rises upright to {@code at} first). */
-    record Profile(Kind kind, double k, double k2, double at) {
+    record Profile(Kind kind, double k, double k2, double at, int[] steps, boolean fit) {
 
         static final Profile UPRIGHT = new Profile(Kind.VERTICAL, 0, 0, 0);
+
+        Profile(Kind kind, double k, double k2, double at) {
+            this(kind, k, k2, at, null, false);
+        }
 
         static Profile slope(double k) {
             return new Profile(Kind.SLOPE, k, 0, 0);
@@ -46,13 +56,36 @@ final class Roofs {
         double height(double d) {
             return switch (kind) {
                 case VERTICAL -> Double.POSITIVE_INFINITY;
+                case FLAT -> 0.0;
                 case SLOPE -> step(d, k);
                 case HALF -> at + step(d, k);
+                case UNTIL -> d < at ? step(d, k) : Double.POSITIVE_INFINITY;
                 case BROKEN -> {
                     if (d < at) yield step(d, k);
                     yield step(at - 0.25, k) + step(d - at, k2);
                 }
+                case STEPS -> stepped(d);
             };
+        }
+
+        /** A roof of steps at {@code d} in: the steps of the blocks before it added up, and its own (a stair on the steps under it, as a k:1 slope is laid). */
+        private double stepped(double d) {
+            if (d < 0) d = 0;
+            int i = (int) Math.floor(d);
+            boolean inner = d - i >= 0.5;
+            double sum = 0.0;
+            for (int j = 0; j < i; j++) sum += stepAt(j);
+            int own = stepAt(i);
+            if (own <= 0) return sum;
+            return sum + (inner ? own : own - 0.5);
+        }
+
+        /** The step of the block {@code i} in (the steps stretched over {@code at} blocks when fitted; else the last one goes on). */
+        private int stepAt(int i) {
+            int n = steps.length;
+            // (fitted: stretched over the blocks to the ridge; else laid from the ridge out, the first step going on toward the eaves)
+            int index = fit && at > 1 ? (int) Math.round(i * (n - 1) / Math.max(1.0, at - 1)) : n - (int) Math.round(at) + i;
+            return Math.max(0, steps[Math.max(0, Math.min(n - 1, index))]);
         }
     }
 
@@ -64,12 +97,14 @@ final class Roofs {
         if (d < 0) d = 0;
         int i = (int) Math.floor(d);
         boolean inner = d - i >= 0.5;
-        if (k < 0.75) {
+        if (Math.abs(k - 0.5) < 0.01) {
             if (i % 2 == 0) return i / 2 + 0.5;
             return inner ? (i + 1) / 2 : (i - 1) / 2 + 0.5;
         }
-        double whole = Math.max(1.0, Math.round(k));
-        return whole * i + (inner ? whole : whole - 0.5);
+        double whole = Math.round(k);
+        if (whole >= 1.0 && Math.abs(k - whole) < 0.01) return whole * i + (inner ? whole : whole - 0.5);
+        // (t302: any other slope, as the house base's: its height at the half block's far edge, up to a half block)
+        return Math.ceil(k * (i + (inner ? 1.0 : 0.5)) * 2.0 - 1.0E-9) / 2.0;
     }
 
     /** A side of a piece: its outward normal, a point on its line (a block's middle), how far the outer face is past the line, its profile. */
@@ -141,7 +176,7 @@ final class Roofs {
     /** Cuts the roof of {@code m} into pieces and works out their heights. */
     void add(Mass m) {
         Mass.Roof r = m.roof;
-        Footprint top = m.top();
+        Footprint top = m.roofPlan != null ? m.roofPlan : m.top();
         int o = Math.max(0, r.overhang);
         List<Piece> made = new ArrayList<>();
         if (top.circle()) {
@@ -158,6 +193,8 @@ final class Roofs {
                 int w = rect[2] - rect[0] + 1;
                 int d = rect[3] - rect[1] + 1;
                 boolean alongX = r.ridge >= 0 && top.kind() == Footprint.Kind.RECT ? r.ridge == 0 : w >= d;
+                double half = (alongX ? d : w) / 2.0 + o;
+                double shortHalf = Math.min(w, d) / 2.0 + o;
                 Piece piece = new Piece();
                 piece.plan = Footprint.rect(rect[0] - o, rect[1] - o, w + 2 * o, d + 2 * o);
                 int x0 = rect[0] - o;
@@ -168,7 +205,7 @@ final class Roofs {
                 double[][] points = {{x0, z0}, {x1, z0}, {x1, z1}, {x0, z1}};
                 for (int way = 0; way < 4; way++) {
                     boolean end = alongX ? way % 2 == 1 : way % 2 == 0;
-                    piece.sides.add(new Side(normals[way][0], normals[way][1], points[way][0], points[way][1], 0.5, profile(r, end, way)));
+                    piece.sides.add(new Side(normals[way][0], normals[way][1], points[way][0], points[way][1], 0.5, profile(r, end, way, half, shortHalf)));
                 }
                 made.add(piece);
             }
@@ -176,6 +213,8 @@ final class Roofs {
             Footprint plan = top.expand(o);
             int[] box = top.box();
             boolean alongX = r.ridge >= 0 ? r.ridge == 0 : box[2] - box[0] >= box[3] - box[1];
+            double half = ((alongX ? box[3] - box[1] : box[2] - box[0]) + 1) / 2.0 + o;
+            double shortHalf = (Math.min(box[3] - box[1], box[2] - box[0]) + 1) / 2.0 + o;
             Piece piece = new Piece();
             piece.plan = plan;
             for (Footprint.Edge edge : plan.edges()) {
@@ -186,20 +225,22 @@ final class Roofs {
                 nz /= length;
                 boolean end = alongX ? Math.abs(nx) > 0.9 : Math.abs(nz) > 0.9;
                 int way = Math.abs(nx) >= Math.abs(nz) ? (nx > 0 ? 1 : 3) : (nz > 0 ? 2 : 0);
-                piece.sides.add(new Side(nx, nz, edge.x(), edge.z(), 0.5 * (Math.abs(nx) + Math.abs(nz)), profile(r, end, way)));
+                piece.sides.add(new Side(nx, nz, edge.x(), edge.z(), 0.5 * (Math.abs(nx) + Math.abs(nz)), profile(r, end, way, half, shortHalf)));
             }
             made.add(piece);
         }
         double steepest = r.pitch;
+        for (Piece piece : made) for (Side side : piece.sides) steepest = Math.max(steepest, steepness(side.profile()));
         double thickness = Math.max(1, r.thickness);
         if (steepest >= 2.5) thickness = Math.max(thickness, Math.round(steepest) + 0.5);
         for (Piece piece : made) {
             piece.id = pieces.size();
             piece.mass = m;
-            piece.field = m.dormer && m.parent >= 0 ? m.parent : m.id;
+            piece.field = (m.dormer || m.joined) && m.parent >= 0 ? m.parent : m.id;
             piece.thickness = thickness;
             if (m.dormer) piece.walls = m.top();
             Map<Long, Col> cols = heights(piece);
+            outline(piece, cols, r);
             double eaveAt = 0.0;
             for (Side side : piece.sides) {
                 if (side.profile().sloped()) {
@@ -218,7 +259,7 @@ final class Roofs {
                 limit = Math.min(limit, m.wallTop() + 1 + thickness - col.top);
             }
             if (Double.isInfinite(limit)) limit = m.wallTop() + 1 + thickness - eaveAt;
-            piece.base = r.topAt >= 0 ? (int) Math.floor(r.topAt - piece.rise) : (int) Math.floor(limit);
+            piece.base = r.topAt >= 0 ? (int) Math.floor(r.topAt - piece.rise) : (int) Math.floor(limit) + r.eaveDrop;
             for (Col col : cols.values()) {
                 col.top += piece.base;
                 col.low = col.top - thickness;
@@ -228,20 +269,63 @@ final class Roofs {
         }
     }
 
-    /** The profile of a side by the roof's kind: {@code end} is a side across the ridge (a gable's), {@code way} the way it faces. */
-    private static Profile profile(Mass.Roof r, boolean end, int way) {
-        double k = r.pitch;
+    /**
+     * The profile of a side by the roof's kind: {@code end} is a side across the ridge (a gable's), {@code way} the way it faces; {@code half} is half the
+     * roof across the ridge, {@code shortHalf} half its shorter side (the breaks of a gambrel, a mansard, a hip-and-gable and a half-hip are measured from
+     * them, as the house base's are, unless {@link Mass.Roof#rise} gives one). The back (facing north) takes {@link Mass.Roof#backPitch}, the ends of a hip
+     * {@link Mass.Roof#endPitch}, when they are set.
+     */
+    private static Profile profile(Mass.Roof r, boolean end, int way, double half, double shortHalf) {
+        double k = !end && way == 0 && r.backPitch > 0 ? r.backPitch : r.pitch;
+        double side = end && r.endPitch > 0 ? r.endPitch : k;
         return switch (r.type) {
             case GABLE -> end ? Profile.UPRIGHT : Profile.slope(k);
-            case HIP, CONE -> Profile.slope(k);
-            case HALF_HIP -> end ? new Profile(Kind.HALF, k, 0, Math.max(1, r.rise)) : Profile.slope(k);
-            case GAMBREL -> {
-                double gentle = Math.min(k, 1.0);
-                yield end ? Profile.UPRIGHT : new Profile(Kind.BROKEN, gentle * 2.0, gentle, Math.max(1, r.rise));
-            }
-            case BELL -> new Profile(Kind.BROKEN, 0.5, Math.max(1.0, k), Math.max(1, r.rise));
+            case HIP, CONE -> Profile.slope(side);
+            case HALF_HIP -> end ? new Profile(Kind.HALF, side, 0, r.rise > 0 ? r.rise : Math.max(1, Math.round(half * k * 0.55))) : Profile.slope(k);
+            case GAMBREL -> end ? Profile.UPRIGHT : new Profile(Kind.BROKEN, k * 2.0, k * 0.5, r.rise > 0 ? r.rise : Math.max(1, Math.round(half * 0.45)));
+            case MANSARD -> new Profile(Kind.BROKEN, side * 2.5, side * 0.35, r.rise > 0 ? r.rise : Math.max(1, Math.round(shortHalf * 0.4)));
+            case IRIMOYA -> end ? new Profile(Kind.UNTIL, side, 0, r.rise > 0 ? r.rise : Math.max(1, Math.round(half * 0.5))) : Profile.slope(k);
+            case CURVED -> Profile.slope(side * 1.25);
+            case BELL -> new Profile(Kind.BROKEN, 0.5, Math.max(1.0, side), r.rise > 0 ? r.rise : 2);
             case SHED -> way == r.way ? Profile.slope(k) : Profile.UPRIGHT;
+            case FLAT -> new Profile(Kind.FLAT, 0, 0, 0);
+            case STEPPED -> end ? Profile.UPRIGHT : new Profile(Kind.STEPS, k, 0, Math.max(1, Math.round(half)), r.steps, r.stepFit);
+            case STEPPED_HIP -> new Profile(Kind.STEPS, k, 0, Math.max(1, Math.round(shortHalf)), r.steps, r.stepFit);
         };
+    }
+
+    /** The steepest rise a block of a profile has (how thick its roof must be not to have holes). */
+    private static double steepness(Profile profile) {
+        return switch (profile.kind()) {
+            case SLOPE, HALF, UNTIL -> profile.k();
+            case BROKEN -> Math.max(profile.k(), profile.k2());
+            case STEPS -> {
+                int high = 1;
+                for (int step : profile.steps()) high = Math.max(high, step);
+                yield high;
+            }
+            default -> 0.0;
+        };
+    }
+
+    /**
+     * (t302) The outline of a roof: its slope curved ({@link Mass.Roof#curve}: the height at each place made {@code rise * (h / rise)^g}, {@code g = e^curve}, to
+     * the half block: above 0 concave, a curved roof's 1.8 when none is set), then cut flat at {@link Mass.Roof#crest} over its eaves.
+     */
+    private static void outline(Piece piece, Map<Long, Col> cols, Mass.Roof r) {
+        double curve = r.curve != 0.0 ? r.curve : r.type == Mass.RoofType.CURVED ? 0.6 : 0.0;
+        if (curve == 0.0 && r.crest <= 0) return;
+        double rise = piece.rise;
+        double power = Math.exp(curve);
+        double highest = 0.0;
+        for (Col col : cols.values()) {
+            double h = col.top;
+            if (curve != 0.0 && rise > 0.0) h = Math.ceil(rise * Math.pow(Math.max(0.0, h) / rise, power) * 2.0 - 1.0E-9) / 2.0;
+            if (r.crest > 0) h = Math.min(h, r.crest);
+            col.top = h;
+            highest = Math.max(highest, h);
+        }
+        piece.rise = highest;
     }
 
     /** The heights (from the eaves, before the base is added) of every half-column of a piece: the lowest of its sides' (a cone's: by the distance from its middle). */
@@ -417,6 +501,7 @@ final class Roofs {
                 }
                 Cell cell = Cell.of(Role.ROOF, BlockShapes.nearest(mask));
                 if (cell == null) continue;
+                grid.owner = owner.piece.mass.owner;
                 grid.put(x, y, z, cell);
                 owners.put(SemanticVoxelGrid.pack(x, y, z), owner);
             }
@@ -471,6 +556,7 @@ final class Roofs {
      */
     void underRoof(Mass m, Ring ring) {
         if (m.postsOnly || m.roof.open) return;
+        grid.owner = m.owner;
         Footprint top = m.top();
         int wallTop = m.wallTop();
         boolean out = m.roof.gableOut;
@@ -510,7 +596,8 @@ final class Roofs {
 
     /** The corbels under the eaves (after the trim): at the posts of the top storey, under the lowest block of the eaves a block out of the wall. */
     void eaveCorbels(Mass m, Ring ring) {
-        if (m.postsOnly || m.dormer) return;
+        if (m.postsOnly || m.dormer || !m.brackets) return;
+        grid.owner = m.owner;
         Footprint top = m.top();
         int wallTop = m.wallTop();
         for (int[] cell : top.cells()) {
@@ -558,6 +645,7 @@ final class Roofs {
     void trim() {
         for (Piece piece : pieces) {
             Mass.Roof r = piece.mass.roof;
+            grid.owner = piece.mass.owner;
             Set<Long> ridges = new HashSet<>();
             List<int[]> eaves = new ArrayList<>();
             for (int[] cell : piece.plan.cells()) {
@@ -595,6 +683,7 @@ final class Roofs {
             }
             for (int[] eave : eaves) eave(piece, eave[0], eave[1], eave[2]);
             if (!piece.cone) verges(piece);
+            if (r.type == Mass.RoofType.IRIMOYA) irimoya(piece);
             ridge(piece, ridges, r);
             if (r.finial && (piece.cone || r.type == Mass.RoofType.CONE)) finial(piece);
         }
@@ -604,6 +693,33 @@ final class Roofs {
     private void recolor(int x, int y, int z, Role role) {
         Cell cell = grid.get(x, y, z);
         if (cell != null && (cell.role().roof() || cell.role() == Role.HIP)) grid.set(x, y, z, cell.withRole(role));
+    }
+
+    /**
+     * (t302) The gable of a hip-and-gable: where the hip of an end stops and the gable rises over it, the triangle between the hip's top and the gable's roof is
+     * filled with the wall (the block outward of it is the hip's).
+     */
+    private void irimoya(Piece piece) {
+        for (Side side : piece.sides) {
+            if (side.profile().kind() != Kind.UNTIL) continue;
+            int sx = (int) Math.round(side.nx());
+            int sz = (int) Math.round(side.nz());
+            double at = side.profile().at();
+            for (int[] cell : piece.plan.cells()) {
+                double d = side.distance(cell[0], cell[1]);
+                if (d < at || d >= at + 1.0) continue;
+                int outer = voxel(piece, cell[0] + sx, cell[1] + sz, true);
+                int low = voxel(piece, cell[0], cell[1], false);
+                if (outer == Integer.MIN_VALUE || low == Integer.MIN_VALUE) continue;
+                // (the lowest block of the gable's roof over the hip's top in this column)
+                int under = Integer.MIN_VALUE;
+                for (int y = outer + 1; y <= piece.ridge() + 2 && under == Integer.MIN_VALUE; y++) {
+                    if (owners.containsKey(SemanticVoxelGrid.pack(cell[0], y, cell[1]))) under = y;
+                }
+                if (under == Integer.MIN_VALUE) continue;
+                for (int y = outer + 1; y < under; y++) grid.fill(cell[0], y, cell[1], Cell.full(Role.INFILL));
+            }
+        }
     }
 
     /** The eaves' edge at a cell of the outer row: its lowest block an upside-down stair hanging out, a log along the edge under it. */
@@ -686,6 +802,10 @@ final class Roofs {
 
     /** The ridge: slabs (or walls) along it on its top blocks, and a post of walls at each of its ends. */
     private void ridge(Piece piece, Set<Long> ridges, Mass.Roof r) {
+        if (r.beam && !piece.mass.dormer) {
+            beam(piece, ridges);
+            return;
+        }
         for (long key : ridges) {
             int x = SemanticVoxelGrid.x(key);
             int z = SemanticVoxelGrid.z(key);
@@ -709,6 +829,39 @@ final class Roofs {
             } else {
                 grid.set(x, top, z, cell.form() == Cell.Form.FULL ? Cell.full(Role.RIDGE) : cell.withRole(Role.RIDGE));
                 grid.fill(x, top + 1, z, Cell.slab(Role.RIDGE, false));
+            }
+        }
+    }
+
+    /**
+     * (t302) A ridge beam: a log along the ridge on its top blocks, run out past each end of the ridge as far as the roof's overhang and one more, its tip a
+     * block higher (the house base's 棟木).
+     */
+    private void beam(Piece piece, Set<Long> ridges) {
+        for (long key : ridges) {
+            int x = SemanticVoxelGrid.x(key);
+            int z = SemanticVoxelGrid.z(key);
+            int top = voxel(piece, x, z, true);
+            if (top == Integer.MIN_VALUE) continue;
+            grid.set(x, top + 1, z, Cell.log(Role.BEAM, -1));
+            int nx = 0;
+            int nz = 0;
+            int neighbours = 0;
+            for (int[] step : Cell.STEP) {
+                if (ridges.contains(SemanticVoxelGrid.pack(x + step[0], 0, z + step[1]))) {
+                    nx = step[0];
+                    nz = step[1];
+                    neighbours++;
+                }
+            }
+            if (neighbours != 1) continue;
+            // (an end: out the other way)
+            int reach = piece.mass.roof.overhang + 2;
+            for (int k = 1; k <= reach; k++) {
+                int bx = x - nx * k;
+                int bz = z - nz * k;
+                grid.fill(bx, top + 1, bz, Cell.log(Role.BEAM, nx != 0 ? 0 : 2));
+                if (k == reach) grid.fill(bx, top + 2, bz, Cell.log(Role.BEAM, 1));
             }
         }
     }

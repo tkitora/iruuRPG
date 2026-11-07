@@ -24,6 +24,10 @@ public final class SemanticVoxelGrid {
     }
 
     private final Map<Long, Cell> cells = new HashMap<>();
+    /** (t302) The part of the house base each block was put for (its place in the list of parts; the base's blocks are not here), for the part wand. */
+    private final Map<Long, Integer> owners = new HashMap<>();
+    /** The part the blocks put now are for (-1: the base). */
+    public int owner = -1;
 
     public static long pack(int x, int y, int z) {
         return ((long) (x + 2048) & 0xFFFFL) | (((long) (y + 2048) & 0xFFFFL) << 16) | (((long) (z + 2048) & 0xFFFFL) << 32);
@@ -82,12 +86,21 @@ public final class SemanticVoxelGrid {
     }
 
     public void clear(int x, int y, int z) {
-        cells.remove(pack(x, y, z));
+        long key = pack(x, y, z);
+        cells.remove(key);
+        owners.remove(key);
     }
 
     private void store(long key, Cell cell) {
         cells.put(key, cell);
+        if (owner >= 0) owners.put(key, owner);
+        else owners.remove(key);
         if (cells.size() > LIMIT) throw new TooBig();
+    }
+
+    /** The part a block was put for (-1: the base). */
+    public int ownerOf(long key) {
+        return owners.getOrDefault(key, -1);
     }
 
     /** The lowest and highest y with a block in the column, or null. */

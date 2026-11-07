@@ -1,13 +1,50 @@
-# 見本の建物: 手動 (1棟)。長方形 2×2 柱間、2階、石の基壇、2:1 の切妻、ドーマー・煙突・ポーチは確率で。t295 (プロシージャルツールの読み込み、または /proceduraltool load building_manual)
+# 見本の建物: 手動 (家の土台と同じ数字で 1 つ)。幅 13・奥行き 9、2 階、柱 4 ごと、上の階のせり出し、1:1 の切妻、塔とドーマーの追加パーツ。役割ごとの羊毛。t295・t302 (プロシージャルツールの読み込み、または /proceduraltool load building_manual)
 settings:
   kind: building
   bld-pattern: 0
-  bld-footprint: 0
-  bld-bays-wide: 3
-  bld-bays-deep: 2
-  bld-floors: 2
-  bld-storey: 6
-  bld-jetty: 1
-  bld-roof: 0
-  bld-pitch: 2
+  house-width: 13
+  house-depth: 9
+  house-floors: 2
+  house-storey: 6
+  house-pillar-spacing: 4
+  house-jetty: 1
+  house-brackets: 1
+  house-raise: 2
+  house-recess: 1
+  house-glass: 1
+  house-roof: 1
+  house-pitch: 1.0
+  house-overhang: 1
+  house-ridge: 1
+  house-modules:
+    - type: tower
+      side: left
+      along: 2
+      offset: -2
+      width: 5
+      depth: 5
+      height: 5
+      level: 1
+      on: true
+      roof: -1
+      ridge: 0
+      shape: 1
+      jetty: 0
+      raise: 0
+      spire: 1
+    - type: dormer
+      side: front
+      along: 0
+      offset: -1
+      width: 3
+      depth: 3
+      height: 3
+      level: 0
+      on: true
+      roof: -1
+      ridge: 0
+      shape: 0
+      jetty: 0
+      raise: 0
+      spire: 0
   seed: 0

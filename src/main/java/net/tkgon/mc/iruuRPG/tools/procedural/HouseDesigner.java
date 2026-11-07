@@ -190,7 +190,8 @@ final class HouseDesigner {
 
         Maker(TreeSettings from, Pattern pattern, Random r, boolean partsOnly) {
             this.s = from.copy();
-            if (s.kind() != ProcKind.HOUSE) s.setKind(ProcKind.HOUSE);
+            // (t302: the building of the house base's numbers stays a building)
+            if (s.kind() != ProcKind.HOUSE && s.kind() != ProcKind.BUILDING) s.setKind(ProcKind.HOUSE);
             s.modules().clear();
             this.pattern = pattern;
             this.r = r;

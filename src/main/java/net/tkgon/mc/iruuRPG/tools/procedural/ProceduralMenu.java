@@ -87,8 +87,10 @@ final class ProceduralMenu implements Listener {
     private static final int D_PARTS = 13;
     private static final int D_NEXT = 14;
     private static final int D_GUIDE = 16;
-    /** (t295) The blocks of the building's roles, on their own page (there are more of them than the basic page holds). */
-    private static final int[] BLOCK_SLOTS = {19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43};
+    /** (t295, t302) The blocks of the building's roles, on the basic page (there are more of them than its usual rows hold). */
+    private static final int[] BLOCK_SLOTS = {19, 20, 21, 22, 23, 24, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43};
+    /** (t302) The wide grid of a page with more numbers than the usual one holds. */
+    private static final int[] WIDE_GRID = {19, 20, 21, 22, 23, 24, 25, 28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43};
 
     /** The pages: the slot of the tab, its icon and name, and the numbers it holds. */
     enum Page {
@@ -112,26 +114,21 @@ final class ProceduralMenu implements Listener {
         /** (t190) the walls of a house: stone, timber, the depth of the walls and the windows. */
         WALLS(7, Material.STRIPPED_SPRUCE_LOG, "壁", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_PLINTH, TreeSettings.Key.HOUSE_TIMBER,
                 TreeSettings.Key.HOUSE_RECESS, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_GLASS}),
-        /** (t295) the building: its plan and storeys. */
-        B_SHAPE(3, Material.STONE_BRICKS, "土台・階", new TreeSettings.Key[]{TreeSettings.Key.BLD_FOOTPRINT, TreeSettings.Key.BLD_MODULE, TreeSettings.Key.BLD_BAYS_WIDE,
-                TreeSettings.Key.BLD_BAYS_DEEP, TreeSettings.Key.BLD_WING, TreeSettings.Key.BLD_CHAMFER, TreeSettings.Key.BLD_SLANT, TreeSettings.Key.BLD_RADIUS,
-                TreeSettings.Key.BLD_FLOORS, TreeSettings.Key.BLD_STOREY, TreeSettings.Key.BLD_PLINTH, TreeSettings.Key.BLD_ROTATION}),
-        /** (t295) its walls: the jetties, the fascias, the bays' windows, the corbels. */
-        B_WALLS(4, Material.STRIPPED_SPRUCE_LOG, "壁面", new TreeSettings.Key[]{TreeSettings.Key.BLD_JETTY, TreeSettings.Key.BLD_FASCIA_OUT, TreeSettings.Key.BLD_SILL,
-                TreeSettings.Key.BLD_WINDOW_HEIGHT, TreeSettings.Key.BLD_WINDOW_WIDTH, TreeSettings.Key.BLD_CORBEL}),
-        /** (t295) its roof. */
-        B_ROOF(5, Material.DEEPSLATE_TILE_STAIRS, "屋根", new TreeSettings.Key[]{TreeSettings.Key.BLD_ROOF, TreeSettings.Key.BLD_PITCH, TreeSettings.Key.BLD_OVERHANG,
-                TreeSettings.Key.BLD_ROOF_THICKNESS, TreeSettings.Key.BLD_RIDGE, TreeSettings.Key.BLD_ROOF_BREAK, TreeSettings.Key.BLD_RIDGE_STYLE, TreeSettings.Key.BLD_GABLE_OUT,
-                TreeSettings.Key.BLD_BANDS, TreeSettings.Key.BLD_BAND_STEP}),
-        /** (t295) the chances of its parts. */
-        B_PARTS(6, Material.LANTERN, "装飾パーツ", new TreeSettings.Key[]{TreeSettings.Key.BLD_CHIMNEY, TreeSettings.Key.BLD_DORMER, TreeSettings.Key.BLD_BAY_WINDOW,
-                TreeSettings.Key.BLD_BALCONY, TreeSettings.Key.BLD_TURRET, TreeSettings.Key.BLD_PORCH, TreeSettings.Key.BLD_FINIAL}),
-        /** (t295) the patterns and their ranges. */
-        B_AUTO(7, Material.NETHER_STAR, "自動生成", new TreeSettings.Key[]{TreeSettings.Key.BLD_PATTERN, TreeSettings.Key.BLD_GEN_FLOORS_MIN, TreeSettings.Key.BLD_GEN_FLOORS_MAX,
-                TreeSettings.Key.BLD_GEN_MODULE, TreeSettings.Key.BLD_GEN_PITCH, TreeSettings.Key.BLD_GEN_OVERHANG_MIN, TreeSettings.Key.BLD_GEN_OVERHANG_MAX,
-                TreeSettings.Key.BLD_GEN_JETTY, TreeSettings.Key.BLD_GEN_CANDIDATES, TreeSettings.Key.BLD_GEN_RETRIES}),
-        /** (t295) the blocks of its roles. */
-        B_BLOCKS(8, Material.PAINTING, "ブロック", new TreeSettings.Key[]{});
+        /** (t295, t302) the building's patterns A to F: their ranges and the chances of their parts (more numbers than a page holds: the wide grid). */
+        B_AUTO(0, Material.NETHER_STAR, "自動生成 (A〜F)", new TreeSettings.Key[]{TreeSettings.Key.BLD_PATTERN, TreeSettings.Key.BLD_GEN_FLOORS_MIN,
+                TreeSettings.Key.BLD_GEN_FLOORS_MAX, TreeSettings.Key.BLD_GEN_MODULE, TreeSettings.Key.BLD_GEN_PITCH, TreeSettings.Key.BLD_GEN_OVERHANG_MIN,
+                TreeSettings.Key.BLD_GEN_OVERHANG_MAX, TreeSettings.Key.BLD_GEN_JETTY, TreeSettings.Key.BLD_PLINTH, TreeSettings.Key.BLD_GEN_CANDIDATES,
+                TreeSettings.Key.BLD_GEN_RETRIES, TreeSettings.Key.BLD_CHIMNEY, TreeSettings.Key.BLD_DORMER, TreeSettings.Key.BLD_BAY_WINDOW, TreeSettings.Key.BLD_BALCONY,
+                TreeSettings.Key.BLD_TURRET, TreeSettings.Key.BLD_PORCH}),
+        /** (t302) the building's plan (cut from the house's width and depth) and its windows. */
+        B_FORM(1, Material.MAP, "形・窓 (建物)", new TreeSettings.Key[]{TreeSettings.Key.BLD_FOOTPRINT, TreeSettings.Key.BLD_WING, TreeSettings.Key.BLD_WING_WIDTH,
+                TreeSettings.Key.BLD_CHAMFER, TreeSettings.Key.BLD_SLANT, TreeSettings.Key.BLD_SILL, TreeSettings.Key.BLD_WINDOW_HEIGHT, TreeSettings.Key.BLD_WINDOW_WIDTH,
+                TreeSettings.Key.BLD_CORBEL, TreeSettings.Key.BLD_FASCIA_OUT}),
+        /** (t302) the building's roof: its look (stairs or full blocks), its trim and its outline. */
+        B_ROOF(8, Material.DEEPSLATE_TILE_STAIRS, "屋根の見た目・輪郭", new TreeSettings.Key[]{TreeSettings.Key.BLD_ROOF_LOOK, TreeSettings.Key.BLD_SHAPES,
+                TreeSettings.Key.BLD_ROOF_THICKNESS, TreeSettings.Key.BLD_ROOF_BREAK, TreeSettings.Key.BLD_RIDGE_STYLE, TreeSettings.Key.BLD_GABLE_OUT,
+                TreeSettings.Key.BLD_BANDS, TreeSettings.Key.BLD_BAND_STEP, TreeSettings.Key.BLD_END_PITCH, TreeSettings.Key.BLD_BACK_PITCH, TreeSettings.Key.BLD_CURVE,
+                TreeSettings.Key.BLD_CREST, TreeSettings.Key.BLD_EAVE_DROP, TreeSettings.Key.BLD_FINIAL});
 
         final int tab;
         final Material icon;
@@ -150,9 +147,10 @@ final class ProceduralMenu implements Listener {
             ProcKind kind = settings.kind();
             return switch (this) {
                 case BASIC -> true;
-                case SHAPE -> !kind.tree();
-                case ROOF, MODULES, DESIGN, WALLS -> kind == ProcKind.HOUSE;
-                case B_SHAPE, B_WALLS, B_ROOF, B_PARTS, B_AUTO, B_BLOCKS -> kind == ProcKind.BUILDING;
+                // (t302: the building of the house base's numbers has the house base's pages)
+                case ROOF, MODULES, DESIGN, WALLS -> kind == ProcKind.HOUSE || kind == ProcKind.BUILDING && BuildingShape.houseLike(settings);
+                case B_AUTO, B_FORM, B_ROOF -> kind == ProcKind.BUILDING;
+                case SHAPE -> !kind.tree() && !(kind == ProcKind.BUILDING && !BuildingShape.houseLike(settings));
                 case BRANCH -> kind.tree() && !settings.grows("palm") && !settings.grows("silhouette");
                 case SHADE -> kind.tree() && settings.grows("ornate");
                 default -> kind.tree();
@@ -178,7 +176,7 @@ final class ProceduralMenu implements Listener {
                         TreeSettings.Key.ROUGHNESS, TreeSettings.Key.LAYERS};
                 case CRYSTAL -> new TreeSettings.Key[]{TreeSettings.Key.COUNT, TreeSettings.Key.CRYSTAL_FACETS, TreeSettings.Key.CRYSTAL_TIP, TreeSettings.Key.CRYSTAL_THICK, TreeSettings.Key.CRYSTAL_VARIANCE,
                         TreeSettings.Key.SPREAD, TreeSettings.Key.ROUGHNESS};
-                case HOUSE -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
+                case HOUSE, BUILDING -> new TreeSettings.Key[]{TreeSettings.Key.HOUSE_WIDTH, TreeSettings.Key.HOUSE_DEPTH, TreeSettings.Key.HOUSE_FLOORS, TreeSettings.Key.HOUSE_STOREY,
                         TreeSettings.Key.HOUSE_PILLARS, TreeSettings.Key.HOUSE_PILLAR_MIRROR, TreeSettings.Key.HOUSE_ROTATION, TreeSettings.Key.HOUSE_JETTY,
                         TreeSettings.Key.HOUSE_JETTY_SIDES, TreeSettings.Key.HOUSE_BRACKETS, TreeSettings.Key.HOUSE_DOOR, TreeSettings.Key.HOUSE_FOUNDATION,
                         TreeSettings.Key.HOUSE_RAISE, TreeSettings.Key.HOUSE_TERRACE};
@@ -190,10 +188,15 @@ final class ProceduralMenu implements Listener {
         }
     }
 
+    /** (t302) The slots of a page's numbers: the wide grid for the building's patterns. */
+    private static int[] gridFor(Page page) {
+        return page == Page.B_AUTO ? WIDE_GRID : GRID;
+    }
+
     /** Whether the house's roof is one of steps (9, 10: its section from the steps). */
     static boolean stepped(TreeSettings settings) {
         int roof = settings.getInt(TreeSettings.Key.HOUSE_ROOF);
-        return settings.kind() == ProcKind.HOUSE && (roof == 9 || roof == 10);
+        return (settings.kind() == ProcKind.HOUSE || settings.kind() == ProcKind.BUILDING && BuildingShape.houseLike(settings)) && (roof == 9 || roof == 10);
     }
 
     /** The numbers of a page of a tree grown by {@code algorithm}. */
@@ -282,28 +285,24 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.HOUSE_JETTY_SIDES, Material.SPRUCE_SLAB);
         ICONS.put(TreeSettings.Key.HOUSE_BRACKETS, Material.SPRUCE_FENCE);
         ICONS.put(TreeSettings.Key.BLD_FOOTPRINT, Material.MAP);
-        ICONS.put(TreeSettings.Key.BLD_MODULE, Material.SPRUCE_FENCE);
-        ICONS.put(TreeSettings.Key.BLD_BAYS_WIDE, Material.LEAD);
-        ICONS.put(TreeSettings.Key.BLD_BAYS_DEEP, Material.LEAD);
         ICONS.put(TreeSettings.Key.BLD_WING, Material.STONE_BRICK_WALL);
+        ICONS.put(TreeSettings.Key.BLD_WING_WIDTH, Material.STONE_BRICK_WALL);
+        ICONS.put(TreeSettings.Key.BLD_ROOF_LOOK, Material.RED_WOOL);
+        ICONS.put(TreeSettings.Key.BLD_SHAPES, Material.YELLOW_WOOL);
+        ICONS.put(TreeSettings.Key.BLD_END_PITCH, Material.STONE_STAIRS);
+        ICONS.put(TreeSettings.Key.BLD_BACK_PITCH, Material.STONE_STAIRS);
+        ICONS.put(TreeSettings.Key.BLD_CURVE, Material.BOW);
+        ICONS.put(TreeSettings.Key.BLD_CREST, Material.STONE_SLAB);
+        ICONS.put(TreeSettings.Key.BLD_EAVE_DROP, Material.PISTON);
         ICONS.put(TreeSettings.Key.BLD_CHAMFER, Material.SHEARS);
         ICONS.put(TreeSettings.Key.BLD_SLANT, Material.SHEARS);
-        ICONS.put(TreeSettings.Key.BLD_RADIUS, Material.CLAY_BALL);
-        ICONS.put(TreeSettings.Key.BLD_FLOORS, Material.LADDER);
-        ICONS.put(TreeSettings.Key.BLD_STOREY, Material.SCAFFOLDING);
         ICONS.put(TreeSettings.Key.BLD_PLINTH, Material.STONE_BRICK_STAIRS);
-        ICONS.put(TreeSettings.Key.BLD_ROTATION, Material.COMPASS);
-        ICONS.put(TreeSettings.Key.BLD_JETTY, Material.DARK_OAK_SLAB);
         ICONS.put(TreeSettings.Key.BLD_FASCIA_OUT, Material.DARK_OAK_LOG);
         ICONS.put(TreeSettings.Key.BLD_SILL, Material.SMOOTH_SANDSTONE);
         ICONS.put(TreeSettings.Key.BLD_WINDOW_HEIGHT, Material.GLASS_PANE);
         ICONS.put(TreeSettings.Key.BLD_WINDOW_WIDTH, Material.GLASS_PANE);
         ICONS.put(TreeSettings.Key.BLD_CORBEL, Material.SPRUCE_STAIRS);
-        ICONS.put(TreeSettings.Key.BLD_ROOF, Material.DEEPSLATE_TILES);
-        ICONS.put(TreeSettings.Key.BLD_PITCH, Material.DEEPSLATE_TILE_STAIRS);
-        ICONS.put(TreeSettings.Key.BLD_OVERHANG, Material.DEEPSLATE_TILE_SLAB);
         ICONS.put(TreeSettings.Key.BLD_ROOF_THICKNESS, Material.POLISHED_DEEPSLATE);
-        ICONS.put(TreeSettings.Key.BLD_RIDGE, Material.END_ROD);
         ICONS.put(TreeSettings.Key.BLD_ROOF_BREAK, Material.STONE_STAIRS);
         ICONS.put(TreeSettings.Key.BLD_RIDGE_STYLE, Material.POLISHED_BLACKSTONE_BRICK_WALL);
         ICONS.put(TreeSettings.Key.BLD_GABLE_OUT, Material.SPRUCE_STAIRS);
@@ -551,21 +550,15 @@ final class ProceduralMenu implements Listener {
         if (page == Page.BASIC) renderBasic(player, inventory, session, settings);
         else if (page == Page.MODULES) renderModules(inventory, session, settings);
         else if (page == Page.DESIGN) renderDesign(inventory, session, settings);
-        else if (page == Page.B_BLOCKS) {
-            inventory.setItem(INFO, item(page.icon, "役割ごとのブロック", NamedTextColor.GOLD, List.of(
-                    text("建物は役割 (柱・壁・屋根…) ごとに 1 つのブロックで作る。グラデーションと細かい装飾は手作業で", NamedTextColor.GRAY),
-                    text("階段・ハーフ・塀・フェンス・トラップドア・原木の形は、選んだブロックの仲間を使う (なければ初期値のブロックの仲間)", NamedTextColor.GRAY),
-                    text("左クリックのあと、自分のインベントリのブロックをクリックで選ぶ / 右クリックで初期値", NamedTextColor.YELLOW))));
-            renderLegend(inventory, holder, settings, settings.kind().parts(), BLOCK_SLOTS);
-        } else if (page == Page.B_AUTO) {
+        else if (page == Page.B_AUTO) {
             List<Component> lore = new ArrayList<>();
             lore.add(text("生成パターンを選ぶと、範囲から数字を乱数で決め (シードで同じものを再現)、マスを本棟 → 付属棟 → 塔の順に並べて作る", NamedTextColor.GRAY));
             lore.add(text("検証に失敗したら数字を 1 つ変えて作り直し (k 回まで)、N 個の候補を採点していちばん良いものを使う", NamedTextColor.GRAY));
-            lore.add(text("0 (手動) のときは、ほかのページの数字で 1 棟", NamedTextColor.GRAY));
+            lore.add(text("0 (手動) のときは、家の土台と同じ「形」「壁」「屋根」「追加パーツ」(パーツの杖・おまかせ生成も) の数字で 1 つ", NamedTextColor.GRAY));
             lore.add(text("前回: " + (session.buildingReport == null ? "まだ作っていません" : session.buildingReport), NamedTextColor.WHITE));
             inventory.setItem(INFO, item(page.icon, "自動生成", NamedTextColor.GOLD, lore));
         }
-        if (page != Page.BASIC && page != Page.MODULES && page != Page.DESIGN && page != Page.B_BLOCKS && page != Page.B_AUTO) inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
+        if (page != Page.BASIC && page != Page.MODULES && page != Page.DESIGN && page != Page.B_AUTO) inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
                 text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
                 text("プレビュー中は、変えて 0.75 秒後に木が変わる", NamedTextColor.GRAY))));
@@ -574,7 +567,8 @@ final class ProceduralMenu implements Listener {
         if (page == Page.ROOF && stepped(settings)) renderSteps(inventory, settings);
 
         TreeSettings.Key[] shownKeys = page.keysFor(settings);
-        for (int index = 0; index < shownKeys.length; index++) {
+        int[] grid = gridFor(page);
+        for (int index = 0; index < shownKeys.length && index < grid.length; index++) {
             TreeSettings.Key key = shownKeys[index];
             List<Component> lore = new ArrayList<>();
             lore.add(text(key.description(), NamedTextColor.GRAY));
@@ -590,7 +584,7 @@ final class ProceduralMenu implements Listener {
                 lore.add(text("左クリック +" + number(key, key.step()) + " / 右クリック -" + number(key, key.step()), NamedTextColor.YELLOW));
                 lore.add(text("Shift で " + number(key, key.bigStep()) + " ずつ", NamedTextColor.YELLOW));
             }
-            inventory.setItem(GRID[index], item(ICONS.getOrDefault(key, Material.PAPER), key.label() + ": " + number(key, settings.get(key)), NamedTextColor.GREEN, lore));
+            inventory.setItem(grid[index], item(ICONS.getOrDefault(key, Material.PAPER), key.label() + ": " + number(key, settings.get(key)), NamedTextColor.GREEN, lore));
         }
 
         if (page == Page.SHAPE && settings.kind() == ProcKind.CRYSTAL) {
@@ -704,7 +698,8 @@ final class ProceduralMenu implements Listener {
         inventory.setItem(RESET, item(Material.TNT, "設定を初期値に戻す", NamedTextColor.RED, List.of(
                 text("数字・シード・選んだブロックを初期値にする (アルゴリズムはそのまま)", NamedTextColor.GRAY),
                 text("(保存は、誤クリックを防ぐため画面からはできません: /treetool save <名前>)", NamedTextColor.DARK_GRAY))));
-        renderLegend(inventory, holder, settings, legendParts(settings), LEGEND_SLOTS);
+        if (settings.kind() == ProcKind.BUILDING) renderLegend(inventory, holder, settings, settings.kind().parts(), BLOCK_SLOTS);
+        else renderLegend(inventory, holder, settings, legendParts(settings), LEGEND_SLOTS);
     }
 
     /** The parts with their blocks, in {@code slots}: a click chooses a part's block from the inventory, a right click takes it back to the default. */
@@ -856,8 +851,9 @@ final class ProceduralMenu implements Listener {
             }
         }
         TreeSettings.Key[] pageKeys = holder.page.keysFor(settings);
-        for (int index = 0; index < pageKeys.length; index++) {
-            if (GRID[index] != slot) continue;
+        int[] grid = gridFor(holder.page);
+        for (int index = 0; index < pageKeys.length && index < grid.length; index++) {
+            if (grid[index] != slot) continue;
             TreeSettings.Key key = pageKeys[index];
             if (key.toggle()) settings.set(key, settings.on(key) ? 0 : 1);
             else settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
@@ -1359,8 +1355,8 @@ final class ProceduralMenu implements Listener {
      */
     private boolean blockClick(Player player, Holder holder, TreeSettings settings, int slot, boolean left, String waited) {
         String target = null;
-        if (holder.page == Page.BASIC || holder.page == Page.B_BLOCKS) {
-            boolean blocksPage = holder.page == Page.B_BLOCKS;
+        if (holder.page == Page.BASIC) {
+            boolean blocksPage = settings.kind() == ProcKind.BUILDING;
             List<TreePart> parts = blocksPage ? settings.kind().parts() : legendParts(settings);
             int[] slots = blocksPage ? BLOCK_SLOTS : LEGEND_SLOTS;
             for (int index = 0; index < parts.size() && index < slots.length; index++) {

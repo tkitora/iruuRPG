@@ -61,17 +61,40 @@ public final class Ring {
      * module), of a slanting side as evenly near a module as can be; a circle's posts at {@code circlePosts} angles evenly round, half a bay off the front.
      */
     public static Ring ground(Footprint plan, int module, int circlePosts) {
+        return ground(plan, module, false, circlePosts);
+    }
+
+    /**
+     * (t302) The ring of a ground storey whose posts stand every {@code spacing} steps along each straight side from its start (0: at the corners only); with
+     * {@code mirror}, from both its ends toward its middle, the same both ways. A slanting side has its posts as evenly as can be about a spacing apart.
+     */
+    public static Ring ground(Footprint plan, int spacing, boolean mirror, int circlePosts) {
         Ring ring = new Ring(plan);
         if (plan.circle()) {
             ring.circle(circlePosts);
             return ring;
         }
         for (Footprint.Edge edge : plan.edges()) {
-            double step = edge.diagonal() ? module / Math.sqrt(2.0) : module;
-            int bays = Math.max(1, (int) Math.round(edge.length() / step));
-            double[] at = new double[bays + 1];
-            for (int i = 0; i <= bays; i++) at[i] = Math.round((double) i * edge.length() / bays);
-            ring.posts.add(at);
+            int length = edge.length();
+            List<Double> at = new ArrayList<>();
+            if (spacing <= 0) {
+                at.add(0.0);
+                at.add((double) length);
+            } else if (edge.diagonal()) {
+                double step = spacing / Math.sqrt(2.0);
+                int bays = Math.max(1, (int) Math.round(length / step));
+                for (int i = 0; i <= bays; i++) at.add((double) Math.round((double) i * length / bays));
+            } else if (mirror) {
+                for (int t = 0; 2 * t <= length; t += spacing) at.add((double) t);
+                for (int t = length; 2 * t > length; t -= spacing) at.add((double) t);
+                at.sort(Double::compare);
+            } else {
+                for (int t = 0; t < length; t += spacing) at.add((double) t);
+                at.add((double) length);
+            }
+            double[] array = new double[at.size()];
+            for (int i = 0; i < array.length; i++) array[i] = at.get(i);
+            ring.posts.add(array);
         }
         ring.fill();
         return ring;

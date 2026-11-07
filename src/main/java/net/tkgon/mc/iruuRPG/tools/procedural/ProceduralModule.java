@@ -551,7 +551,7 @@ public final class ProceduralModule implements Listener {
 
     /** The part of the house shown in glass now: the one chosen, while the player holds the wand or has the parts page open; -1 none. */
     int highlight(Player player, TreeSession session) {
-        if (session.settings.kind() != ProcKind.HOUSE) return -1;
+        if (!BuildingShape.houseLike(session.settings)) return -1;
         int index = session.module;
         if (index < 0 || index >= session.settings.modules().size()) return -1;
         return isWand(player.getInventory().getItemInMainHand()) || menu.onParts(player) ? index : -1;
@@ -560,7 +560,7 @@ public final class ProceduralModule implements Listener {
     /** The glass follows the part chosen (next tick, once the item in hand or the page open has changed). */
     void refreshHighlightLater(Player player) {
         TreeSession session = sessions.get(player.getUniqueId());
-        if (session == null || !session.preview || session.settings.kind() != ProcKind.HOUSE) return;
+        if (session == null || !session.preview || !BuildingShape.houseLike(session.settings)) return;
         Bukkit.getScheduler().runTask(plugin, () -> {
             if (player.isOnline() && session.preview && highlight(player, session) != session.highlighted) preview.touch(player);
         });
@@ -577,8 +577,8 @@ public final class ProceduralModule implements Listener {
     /** A click with the part wand: choose (left), move (right), add (Shift+right) or stretch (Shift+left) at the place in sight. */
     private void wand(Player player, TreeSession session, Action action) {
         TreeSettings s = session.settings;
-        if (s.kind() != ProcKind.HOUSE || session.base == null || session.base.getWorld() == null || !session.base.getWorld().equals(player.getWorld())) {
-            player.sendMessage(PREFIX + "パーツの杖は、家の土台を置いてから使います (ツールでブロックをクリックして、作るものを「家の土台」に)。");
+        if (!BuildingShape.houseLike(s) || session.base == null || session.base.getWorld() == null || !session.base.getWorld().equals(player.getWorld())) {
+            player.sendMessage(PREFIX + "パーツの杖は、家の土台 (か、手動の建物) を置いてから使います (ツールでブロックをクリックして、作るものを「家の土台」か「建物 (外形)」に)。");
             return;
         }
         if (!session.preview) {
@@ -789,8 +789,8 @@ public final class ProceduralModule implements Listener {
      */
     void design(Player player, boolean partsOnly, long seed) {
         TreeSession session = session(player);
-        if (session.settings.kind() != ProcKind.HOUSE) {
-            player.sendMessage(PREFIX + "おまかせ生成は、作るものが「家の土台」のときに使えます。");
+        if (!BuildingShape.houseLike(session.settings)) {
+            player.sendMessage(PREFIX + "おまかせ生成は、作るものが「家の土台」か、手動の「建物 (外形)」のときに使えます。");
             return;
         }
         if (session.designing) {

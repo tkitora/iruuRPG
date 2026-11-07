@@ -264,6 +264,18 @@ public final class Footprint {
         };
     }
 
+    /**
+     * (t302) A rectangle's or a union's plan grown out by {@code front} blocks at the front (+z) and the back (-z) and by {@code sides} at the left and the right
+     * (a jetty at the front and the back only); any other plan grows by {@code front} all round.
+     */
+    public Footprint expand(int front, int sides) {
+        if (front == sides) return expand(front);
+        if (kind != Kind.RECT && kind != Kind.UNION) return expand(Math.max(front, sides));
+        List<int[]> grown = new ArrayList<>();
+        for (int[] r : rects) grown.add(new int[]{r[0] - sides, r[1] - front, r[2] + sides, r[3] + front});
+        return union(grown);
+    }
+
     /** The polygon with every side moved out by {@code k} steps (out = (dz, -dx) for a side going (dx, dz)): its new corners where the moved sides meet. */
     private static List<int[]> offset(List<int[]> vertices, int k) {
         int n = vertices.size();

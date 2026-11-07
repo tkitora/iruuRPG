@@ -31,8 +31,8 @@ public final class BuildingGenerator {
 
     public static Result generate(BuildParams p, long seed, Ground ground) {
         if (p.pattern == 0) {
+            // (t302: in the house's own coordinates, as the part wand reads them: not moved to the middle)
             Building building = Archetypes.manual(p, new Random(seed));
-            building.center();
             Made made = make(building, ground, new Random(seed ^ 0x5DEECE66DL));
             List<String> problems = check(made);
             return new Result(made.grid(), building, problems, score(made), roofShare(made), 1);
@@ -88,16 +88,31 @@ public final class BuildingGenerator {
             else if (m.y0 > 0) Walls.stairsDown(g, door, m.doorWay, m.y0, ground);
         }
         for (Mass m : b.masses) Walls.arch(g, m);
+        // (t302: the parts of the house base's list on the walls: balconies, bay windows, stairs)
+        for (Building.Job job : b.jobs) {
+            switch (job.module().type()) {
+                case "balcony" -> Parts.balconyJob(g, job);
+                case "bay" -> Parts.bayJob(g, job);
+                case "stair" -> Parts.stairJob(g, job, ground);
+                default -> {
+                }
+            }
+        }
+        g.owner = -1;
         Roofs roofs = new Roofs(g, b.masses);
         for (Mass m : new ArrayList<>(b.masses)) roofs.add(m);
         for (Building.Part part : b.parts) {
             if (part.type() == Building.PartType.DORMER) Parts.dormers(b, g, roofs, rings, b.mass(part.mass()), part.side(), part.at(), ground);
         }
+        for (Building.Job job : b.jobs) if (job.module().type().equals("dormer")) Parts.dormerJob(b, g, roofs, rings, job, ground);
+        g.owner = -1;
         roofs.build();
         for (Mass m : b.masses) roofs.underRoof(m, top(rings, m));
         roofs.trim();
         for (Mass m : b.masses) roofs.eaveCorbels(m, top(rings, m));
-        for (Mass m : b.masses) if (m.postsOnly) Parts.porchPosts(g, roofs, m, b.mass(m.parent).doorWay);
+        for (Mass m : b.masses) if (m.postsOnly) Parts.porchPosts(g, roofs, m, m.doorWay);
+        for (Building.Job job : b.jobs) if (job.module().type().equals("chimney")) Parts.chimneyJob(g, job, ground);
+        g.owner = -1;
         for (Building.Part part : b.parts) {
             Mass m = b.mass(part.mass());
             switch (part.type()) {
@@ -110,6 +125,7 @@ public final class BuildingGenerator {
             }
         }
         sweep(g);
+        g.owner = -1;
         g.finish();
         return new Made(g, b, roofs, rings);
     }
@@ -274,7 +290,8 @@ public final class BuildingGenerator {
     static int offGrid(Made made) {
         int count = 0;
         for (Mass m : made.building().masses) {
-            if (!counts(m) || m.tower) continue;
+            // (t302: the house base's numbers put the posts on their own spacing: only a pattern's sides must be whole bays)
+            if (!counts(m) || m.tower || m.spacing >= 0) continue;
             Footprint.Kind kind = m.plan.kind();
             if (kind != Footprint.Kind.RECT && kind != Footprint.Kind.UNION) continue;
             for (Footprint.Edge edge : m.plan.edges()) if (!edge.diagonal() && edge.length() % m.module != 0) count++;

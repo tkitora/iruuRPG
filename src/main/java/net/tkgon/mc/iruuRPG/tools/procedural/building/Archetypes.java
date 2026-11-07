@@ -135,7 +135,18 @@ public final class Archetypes {
         m.roof.gableOut = p.gableOut;
         m.roof.bands = p.bands;
         m.roof.bandStep = p.bandStep;
+        outline(m.roof, p);
         return m;
+    }
+
+    /** (t302) The outline numbers of the settings on a roof: the ends' and the back's slopes, the curve, the crest, the eaves moved, the break. */
+    static void outline(Mass.Roof roof, BuildParams p) {
+        roof.endPitch = p.endPitch;
+        roof.backPitch = p.backPitch;
+        roof.curve = p.curve;
+        roof.crest = p.crest;
+        roof.eaveDrop = p.eaveDrop;
+        if (p.rise > 0) roof.rise = p.rise;
     }
 
     private static int podium(BuildParams p, int storey, double ratio) {
@@ -155,7 +166,7 @@ public final class Archetypes {
         t.roof.finial = random.nextDouble() < p.finial;
         t.windowWidth = 1;
         t.circlePosts = plan.circle() ? (plan.radius() <= 3 ? 4 : 6) : 8;
-        t.jetty = new boolean[8];
+        t.jetty = new int[8];
         return t;
     }
 
@@ -193,68 +204,215 @@ public final class Archetypes {
         return t;
     }
 
-    // ---- one mass by the numbers -------------------------------------------------------------------------------------------------
+    // ---- the house base's numbers (t302) -------------------------------------------------------------------------------------------
 
-    /** One mass by the settings' numbers, its parts by their chances. */
+    /**
+     * The building of the house base's numbers ({@link BuildParams#house}): the base in the plan of {@link BuildParams#footprint} as wide and deep as the
+     * house, its storeys, posts, jetty, podium and terrace, walls and roof; then each part of its list (in its frame on its side): a volume, a wing (its roof
+     * running back into the house's to its ridge), a tower (round, octagonal or square; a turret from a storey up), a porch as masses; a dormer, a chimney, a
+     * balcony, a bay window and stairs as jobs on the building. Every block of a part is marked with its place in the list (the part wand chooses it).
+     */
     public static Building manual(BuildParams p, Random random) {
+        HouseSpec h = p.house == null ? new HouseSpec() : p.house;
         Building b = new Building();
         b.pattern = name(0);
-        int module = Math.max(4, Math.min(5, p.module));
-        int w = span(Math.max(1, p.baysWide), module);
-        int d = span(Math.max(1, p.baysDeep), module);
-        int wingWidth = span(Math.max(1, Math.min(2, p.baysWide - 1)), module);
-        int ext = Math.max(1, p.wingBays) * module;
-        int zc = (d - 1) / 2 - Math.floorMod((d - 1) / 2, module);
+        int w = Math.max(3, h.width);
+        int d = Math.max(3, h.depth);
+        int wingWidth = Math.max(3, Math.min(w, p.wingWidth));
+        int wingLength = Math.max(1, p.wingLength);
+        int zc = (d - 1) / 2;
         Footprint plan = switch (p.footprint) {
-            case 1 -> Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{0, zc, wingWidth - 1, d - 1 + ext}));
+            case 1 -> Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{0, zc, wingWidth - 1, d - 1 + wingLength}));
             case 2 -> {
-                int x0 = module * ((w - wingWidth) / 2 / module);
-                yield Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{x0, zc, x0 + wingWidth - 1, d - 1 + ext}));
+                int x0 = (w - wingWidth) / 2;
+                yield Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{x0, zc, x0 + wingWidth - 1, d - 1 + wingLength}));
             }
-            case 3 -> Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{0, zc, wingWidth - 1, d - 1 + ext},
-                    new int[]{w - wingWidth, zc, w - 1, d - 1 + ext}));
+            case 3 -> Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{0, zc, wingWidth - 1, d - 1 + wingLength},
+                    new int[]{w - wingWidth, zc, w - 1, d - 1 + wingLength}));
             case 4 -> {
-                int x0 = module * ((w - wingWidth) / 2 / module);
-                yield Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{x0, -ext, x0 + wingWidth - 1, d - 1 + ext}));
+                int x0 = (w - wingWidth) / 2;
+                yield Footprint.union(List.of(new int[]{0, 0, w - 1, d - 1}, new int[]{x0, -wingLength, x0 + wingWidth - 1, d - 1 + wingLength}));
             }
             case 5 -> Footprint.chamfer(0, 0, w, d, Math.max(2, Math.min(3, p.chamfer)));
-            case 6 -> Footprint.octagon(0, 0, w, Math.max(1, p.slant));
-            case 7 -> Footprint.circle(0, 0, Math.max(3, Math.min(7, p.radius)));
+            case 6 -> {
+                int slant = Math.max(1, Math.min((w - 1) / 2, p.slant));
+                yield Footprint.octagon(0, 0, Math.max(1, w - 2 * slant), slant);
+            }
+            case 7 -> Footprint.circle((w - 1) / 2, (d - 1) / 2, Math.max(2, Math.min(Footprint.MAX_RADIUS - 3, (Math.min(w, d) - 1) / 2)));
             default -> Footprint.rect(0, 0, w, d);
         };
-        int storey = Math.max(5, Math.min(7, p.storey));
-        Mass m = mass(b, plan, Math.max(1, Math.min(5, p.floors)), storey, module, BuildParams.pitchOf(p.pitch), Math.max(1, Math.min(3, p.overhang)), p);
-        for (int s = 1; s < m.jetty.length; s++) m.jetty[s] = s <= 3 && (p.jetty >> (s - 1) & 1) != 0 && m.out(s - 1) < 3;
-        m.roof.type = BuildParams.roofOf(p.roofType);
+        Mass base = houseMass(b, plan, h, p, h.floors, h.roof, h.ridge, h.jetty);
+        base.y0 = Math.max(0, h.raise);
+        base.door = h.door;
+        base.foundation = h.foundation && h.raise == 0;
+        base.stoneGround = h.stone;
+        base.plinthBand = h.plinth;
+        base.roof.finial = random.nextDouble() < p.finial;
         if (plan.circle() || p.footprint == 6) {
-            if (m.roof.type == Mass.RoofType.GABLE) m.roof.type = Mass.RoofType.CONE;
-            m.circlePosts = Math.max(6, (int) Math.round(2 * Math.PI * p.radius / module / 2.0) * 2);
-            m.tower = true;
+            if (base.roof.type == Mass.RoofType.GABLE) base.roof.type = Mass.RoofType.CONE;
+            base.circlePosts = Math.max(4, h.spacing <= 0 ? 4 : (int) Math.round(2 * Math.PI * plan.radius() / h.spacing / 2.0) * 2);
+            base.tower = true;
         }
-        m.roof.ridge = p.ridge == 1 ? 0 : p.ridge == 2 ? 1 : -1;
-        m.roof.way = 2;
-        m.roof.finial = random.nextDouble() < p.finial;
-        m.door = true;
-        int hp = podium(p, storey, p.plinth);
-        m.y0 = hp;
-        if (hp > 0) b.podiums.add(new Building.Podium(plan.expand(1), hp));
-        parts(b, m, p, random, true);
+        if (h.raise > 0) b.podiums.add(new Building.Podium(plan.expand(Math.max(1, h.terrace)), h.raise, h.terrace > 0));
+        for (int index = 0; index < h.modules.size(); index++) {
+            HouseSpec.Module m = h.modules.get(index);
+            if (!m.on()) continue;
+            module(b, h, p, base, m, index, random);
+        }
         return b;
     }
 
-    /** The parts of a mass by their chances: a chimney, dormers on the front and back, a bay window and a balcony, a turret, a porch. */
-    private static void parts(Building b, Mass m, BuildParams p, Random random, boolean turrets) {
-        if (random.nextDouble() < p.chimney) b.parts.add(new Building.Part(Building.PartType.CHIMNEY, m.id, 0, 0, 0));
-        if (random.nextDouble() < p.dormer) {
-            b.parts.add(new Building.Part(Building.PartType.DORMER, m.id, 2, -1, 0));
-            b.parts.add(new Building.Part(Building.PartType.DORMER, m.id, 0, -1, 0));
+    /** A mass of the house's numbers: its walls, posts, jetty and roof ({@code roof} the house base's roof number, {@code ridge} its way). */
+    private static Mass houseMass(Building b, Footprint plan, HouseSpec h, BuildParams p, int floors, int roof, int ridge, int jetty) {
+        Mass m = mass(b, plan, Math.max(1, Math.min(8, floors)), 5, Math.max(3, h.spacing), Math.max(0.25, h.pitch), Math.max(0, h.overhang), p);
+        m.storey = Math.max(3, Math.min(8, h.storey));
+        m.spacing = Math.max(0, h.spacing);
+        m.mirror = h.mirror;
+        for (int s = 1; s < m.jetty.length; s++) m.jetty[s] = Math.max(0, jetty);
+        m.jettySides = h.jettySides;
+        m.brackets = h.brackets;
+        m.timber = h.timber;
+        m.recess = h.recess;
+        m.windows = h.windows;
+        m.glass = h.glass;
+        m.skirt = h.skirt;
+        m.roof.type = HouseSpec.roofType(roof);
+        // (the house's overhang as it is: 0 to 3, whatever the slope)
+        m.roof.overhang = Math.max(0, h.overhang);
+        m.roof.ridge = ridge == 1 ? 0 : ridge == 2 ? 1 : -1;
+        m.roof.beam = h.ridgeBeam || p.ridgeStyle == 2;
+        m.roof.steps = h.steps.clone();
+        m.roof.stepFit = h.stepFit;
+        if (m.roof.type == Mass.RoofType.SHED) {
+            // (a shed slopes down to the front at half the pitch; across, down to the right)
+            m.roof.way = ridge == 2 ? 1 : 2;
+            m.roof.pitch = Math.max(0.25, h.pitch * 0.5);
         }
-        boolean bay = random.nextDouble() < p.bayWindow;
-        if (bay) b.parts.add(new Building.Part(Building.PartType.BAY_WINDOW, m.id, 1, -1, 1));
-        if (random.nextDouble() < p.balcony) b.parts.add(new Building.Part(Building.PartType.BALCONY, m.id, bay ? 3 : 1, -1, 1));
-        if (random.nextDouble() < p.porch) b.parts.add(new Building.Part(Building.PartType.PORCH, m.id, 2, -1, 0));
-        if (turrets && !m.plan.circle() && m.plan.kind() != Footprint.Kind.OCTAGON && random.nextDouble() < p.turret) {
-            turret(b, m, -1, -1, m.floors >= 2 ? 1 : 0, random.nextBoolean(), p, random);
+        return m;
+    }
+
+    /** A part of the house's list, made in its frame. */
+    private static void module(Building b, HouseSpec h, BuildParams p, Mass base, HouseSpec.Module m, int owner, Random random) {
+        int storey = base.storey;
+        int raise = base.y0;
+        int top = h.floors * storey;
+        switch (m.type()) {
+            case "volume" -> {
+                int w = Math.max(3, m.width());
+                int dd = Math.max(3, m.depth());
+                int lo = -(w - 1) / 2;
+                int level = Math.max(0, m.level());
+                HouseSpec.Frame frame = h.frame(m, Math.min(level, h.floors - 1), base);
+                int[] box = frame.box(lo, 0, lo + w - 1, dd - 1);
+                int roof = m.roof() < 0 ? h.roof : m.roof();
+                // (its ridge along the side it stands on, or across it)
+                int ridge = m.ridge() == 0 ? 0 : (m.ridge() == 1) == (frame.index() % 2 == 0) ? 1 : 2;
+                Mass v = houseMass(b, Footprint.rect(box[0], box[1], box[2] - box[0] + 1, box[3] - box[1] + 1), h, p, Math.max(1, Math.min(6, m.height())), roof, ridge,
+                        m.jetty() < 0 ? h.jetty : m.jetty());
+                v.y0 = Math.max(0, raise + level * storey + m.raise());
+                v.foundation = level == 0;
+                v.stoneGround = h.stone && level == 0;
+                v.door = h.door && level == 0 && frame.index() == 0;
+                v.owner = owner;
+                v.parent = base.id;
+            }
+            case "wing" -> {
+                int w = Math.max(3, m.width());
+                int lo = -(w - 1) / 2;
+                int length = Math.max(1, m.depth()) + 1;
+                HouseSpec.Frame frame = h.frame(m, 0, base);
+                int[] box = frame.box(lo, 0, lo + w - 1, length - 1);
+                // (its ridge out from the house; its roof back into the house's to the ridge)
+                int ridge = frame.index() % 2 == 0 ? 2 : 1;
+                Mass wing = houseMass(b, Footprint.rect(box[0], box[1], box[2] - box[0] + 1, box[3] - box[1] + 1), h, p, Math.max(1, Math.min(6, m.height())), h.roof,
+                        ridge, 0);
+                int back = frame.index() % 2 == 0 ? (h.depth - 1) / 2 + base.out(h.floors - 1) : (h.width - 1) / 2 + base.outSides(h.floors - 1);
+                int[] roofBox = frame.box(lo, -back, lo + w - 1, length - 1);
+                wing.roofPlan = Footprint.rect(roofBox[0], roofBox[1], roofBox[2] - roofBox[0] + 1, roofBox[3] - roofBox[1] + 1);
+                wing.y0 = raise;
+                wing.foundation = h.raise == 0;
+                wing.stoneGround = h.stone;
+                wing.owner = owner;
+                wing.parent = base.id;
+                wing.joined = true;
+                wing.door = false;
+            }
+            case "tower" -> {
+                int size = Math.max(3, m.width());
+                int lo = -(size - 1) / 2;
+                int level = Math.max(0, Math.min(h.floors - 1, m.level()));
+                HouseSpec.Frame frame = h.frame(m, level, base);
+                int ca = frame.a(lo + (size - 1) / 2, (1 + size) / 2);
+                int cb = frame.b(lo + (size - 1) / 2, (1 + size) / 2);
+                Footprint plan = switch (m.shape()) {
+                    case 1 -> {
+                        int slant = Math.max(1, (int) Math.round(size * 0.29));
+                        int side = Math.max(1, size - 2 * slant);
+                        int total = side - 1 + 2 * slant;
+                        yield Footprint.octagon(ca - total / 2, cb - total / 2, side, slant);
+                    }
+                    case 2 -> Footprint.rect(ca - (size - 1) / 2, cb - (size - 1) / 2, size, size);
+                    default -> Footprint.circle(ca, cb, Math.max(1, (size - 1) / 2));
+                };
+                int foot = level * storey;
+                int head = Math.max(foot + storey, top + Math.max(0, m.height()));
+                int floors = Math.max(1, (int) Math.ceil((head - foot) / (double) storey));
+                double sharp = m.shape() == 2 ? 0.5 : m.shape() == 1 ? 0.8 : 1.0;
+                double steep = m.spire() > 0 ? 1.5 + 0.75 * Math.min(3, m.spire()) : Math.max(m.shape() == 2 ? 1.0 : 1.5, h.pitch * 2.5 * sharp);
+                Mass t = mass(b, plan, floors, storey, 3, steep, 1, p);
+                t.storey = Math.max(3, Math.min(8, storey));
+                t.spacing = 3;
+                t.y0 = raise + foot;
+                t.tower = true;
+                t.corbelBase = level > 0;
+                t.foundation = level == 0;
+                t.stoneGround = level == 0;
+                t.brackets = true;
+                t.roof.type = m.shape() == 2 ? Mass.RoofType.HIP : Mass.RoofType.CONE;
+                t.roof.finial = random.nextDouble() < p.finial;
+                t.windowWidth = 1;
+                t.circlePosts = plan.circle() && plan.radius() <= 3 ? 4 : 6;
+                t.jetty = new int[8];
+                if (m.jetty() > 0 && floors >= 2) t.jetty[floors - 1] = Math.min(2, m.jetty());
+                t.owner = owner;
+                t.parent = base.id;
+            }
+            case "porch" -> {
+                int w = Math.max(1, m.width());
+                int lo = -(w - 1) / 2;
+                int dd = Math.max(1, m.depth());
+                HouseSpec.Frame frame = h.frame(m, 0, base);
+                int[] box = frame.box(lo, 1, lo + w - 1, dd);
+                Mass porch = b.add();
+                porch.plan = Footprint.rect(box[0], box[1], box[2] - box[0] + 1, box[3] - box[1] + 1);
+                porch.y0 = raise;
+                porch.floors = 1;
+                porch.storey = Math.max(2, m.height());
+                porch.postsOnly = true;
+                porch.minor = true;
+                porch.roof = base.roof.copy();
+                porch.roof.type = Mass.RoofType.SHED;
+                porch.roof.way = frame.way();
+                porch.roof.pitch = Math.max(0.5, h.pitch * 0.5);
+                porch.roof.overhang = 1;
+                porch.roof.ridge = -1;
+                porch.roof.open = true;
+                porch.roof.finial = false;
+                porch.roof.beam = false;
+                porch.parent = base.id;
+                porch.owner = owner;
+                porch.doorWay = frame.way();
+            }
+            case "dormer", "chimney", "balcony", "bay", "stair" -> {
+                int level = switch (m.type()) {
+                    case "dormer" -> h.floors - 1;
+                    case "chimney" -> 0;
+                    default -> Math.max(0, Math.min(h.floors - 1, m.level()));
+                };
+                b.jobs.add(new Building.Job(m, owner, h.frame(m, level, base), base));
+            }
+            default -> {
+            }
         }
     }
 
@@ -329,7 +487,7 @@ public final class Archetypes {
         int total = 0;
         for (int s = 1; s < floors && s < main.jetty.length; s++) {
             boolean out = (bits >> (s - 1) & 1) != 0 && total < 3;
-            main.jetty[s] = out;
+            main.jetty[s] = out ? 1 : 0;
             if (out) total++;
         }
         if (hp > 0) b.podiums.add(new Building.Podium(main.plan.expand(1), hp));

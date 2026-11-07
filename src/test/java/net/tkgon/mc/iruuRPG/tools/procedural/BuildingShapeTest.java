@@ -34,10 +34,16 @@ class BuildingShapeTest {
         assertEquals(Material.QUARTZ_BLOCK, BuildingShape.form(Material.QUARTZ_STAIRS, Cell.Form.FULL, null));
         assertEquals(Material.SPRUCE_LOG, BuildingShape.form(Material.SPRUCE_LOG, Cell.Form.LOG, null));
         // (a block with no stairs: the default's stairs keep the shape; no default either: the block itself)
-        assertEquals(Material.DEEPSLATE_TILE_STAIRS, BuildingShape.form(Material.WHITE_WOOL, Cell.Form.STAIRS, Material.DEEPSLATE_TILES));
-        assertEquals(Material.WHITE_WOOL, BuildingShape.form(Material.WHITE_WOOL, Cell.Form.STAIRS, null));
+        assertEquals(Material.DEEPSLATE_TILE_STAIRS, BuildingShape.form(Material.WHITE_CONCRETE, Cell.Form.STAIRS, Material.DEEPSLATE_TILES));
+        assertEquals(Material.WHITE_CONCRETE, BuildingShape.form(Material.WHITE_CONCRETE, Cell.Form.STAIRS, null));
         assertEquals(Material.WHITE_WOOL, BuildingShape.form(Material.WHITE_WOOL, Cell.Form.LOG, null));
         assertEquals(Material.LIGHTNING_ROD, BuildingShape.form(Material.STONE, Cell.Form.ROD, null));
+        // (t302: a wool's stairs are those of the colour nearest it: red wool, a reddish stair; white, a light one)
+        Material red = BuildingShape.form(Material.RED_WOOL, Cell.Form.STAIRS, null);
+        assertTrue(red.name().endsWith("_STAIRS"), red.name());
+        assertTrue(red.name().contains("BRICK") || red.name().contains("GRANITE") || red.name().contains("MANGROVE") || red.name().contains("ACACIA") || red.name().contains("RED"), red.name());
+        assertTrue(BuildingShape.form(Material.WHITE_WOOL, Cell.Form.SLAB, null).name().endsWith("_SLAB"));
+        assertEquals(Material.WHITE_WOOL, BuildingShape.form(Material.WHITE_WOOL, Cell.Form.FULL, null));
     }
 
     @Test
@@ -55,14 +61,17 @@ class BuildingShapeTest {
     void theBuildingHasItsOwnPagesAndItsBlocksCarryTheirStates() {
         TreeSettings settings = new TreeSettings();
         settings.setKind(ProcKind.BUILDING);
-        assertTrue(ProceduralMenu.Page.B_SHAPE.shownFor(settings));
-        assertTrue(ProceduralMenu.Page.B_BLOCKS.shownFor(settings));
-        assertFalse(ProceduralMenu.Page.ROOF.shownFor(settings));
+        // (t302: the building of the house base's numbers has the house base's pages and its own)
+        assertTrue(ProceduralMenu.Page.B_FORM.shownFor(settings));
+        assertTrue(ProceduralMenu.Page.B_AUTO.shownFor(settings));
+        assertTrue(ProceduralMenu.Page.ROOF.shownFor(settings));
+        assertTrue(ProceduralMenu.Page.MODULES.shownFor(settings));
         assertFalse(ProceduralMenu.Page.TRUNK.shownFor(settings));
-        // every page fits its numbers
-        for (ProceduralMenu.Page page : ProceduralMenu.Page.values()) assertTrue(page.keysFor(settings).length <= 14, page.name());
+        // every page fits its numbers (the patterns' on the wide grid)
+        for (ProceduralMenu.Page page : ProceduralMenu.Page.values()) assertTrue(page.keysFor(settings).length <= (page == ProceduralMenu.Page.B_AUTO ? 21 : 14), page.name());
         // the settings survive the yaml
         settings.set(TreeSettings.Key.BLD_PATTERN, 3);
+        assertFalse(ProceduralMenu.Page.MODULES.shownFor(settings));
         BuildingShape.applyPattern(settings, 3);
         TreeSettings back = TreeSettings.fromMap(settings.toMap(), "b");
         assertEquals(ProcKind.BUILDING, back.kind());

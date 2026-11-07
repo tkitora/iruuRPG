@@ -9,8 +9,15 @@ import java.util.List;
  */
 public final class Building {
 
-    /** A podium (基壇): a plan and its height; its ledge a block out of the walls, topped with stairs facing out. */
-    public record Podium(Footprint plan, int height) {
+    /**
+     * A podium (基壇): a plan and its height; its ledge a block out of the walls, topped with stairs facing out. (t302) With a {@code terrace} its top is flat
+     * out to its edge, a rail round it when it is 2 or more high.
+     */
+    public record Podium(Footprint plan, int height, boolean terrace) {
+
+        public Podium(Footprint plan, int height) {
+            this(plan, height, false);
+        }
     }
 
     /** The parts that can be put on a building, each where its anchor allows. */
@@ -22,7 +29,12 @@ public final class Building {
     public record Part(PartType type, int mass, int side, int at, int storey) {
     }
 
+    /** (t302) A part of the house base made on the building (a dormer, a chimney, a balcony, a bay window, stairs): the part, its place in the list, its frame. */
+    public record Job(HouseSpec.Module module, int owner, HouseSpec.Frame frame, Mass base) {
+    }
+
     public final List<Mass> masses = new ArrayList<>();
+    public final List<Job> jobs = new ArrayList<>();
     public final List<Podium> podiums = new ArrayList<>();
     public final List<Part> parts = new ArrayList<>();
     /** What it was made as (the pattern's name), for the messages. */
@@ -45,6 +57,6 @@ public final class Building {
         int dx = -(box[0] + box[2]) / 2;
         int dz = -(box[1] + box[3]) / 2;
         for (Mass m : masses) m.plan = m.plan.moved(dx, dz);
-        podiums.replaceAll(podium -> new Podium(podium.plan().moved(dx, dz), podium.height()));
+        podiums.replaceAll(podium -> new Podium(podium.plan().moved(dx, dz), podium.height(), podium.terrace()));
     }
 }

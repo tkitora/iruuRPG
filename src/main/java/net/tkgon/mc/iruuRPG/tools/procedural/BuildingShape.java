@@ -4,6 +4,7 @@ import net.tkgon.mc.iruuRPG.tools.procedural.building.BuildParams;
 import net.tkgon.mc.iruuRPG.tools.procedural.building.BuildingGenerator;
 import net.tkgon.mc.iruuRPG.tools.procedural.building.Cell;
 import net.tkgon.mc.iruuRPG.tools.procedural.building.Ground;
+import net.tkgon.mc.iruuRPG.tools.procedural.building.HouseSpec;
 import net.tkgon.mc.iruuRPG.tools.procedural.building.Role;
 import net.tkgon.mc.iruuRPG.tools.procedural.building.SemanticVoxelGrid;
 import org.bukkit.Bukkit;
@@ -31,8 +32,7 @@ final class BuildingShape {
 
     static boolean named(TreeSettings.Key key) {
         return switch (key) {
-            case BLD_FOOTPRINT, BLD_CORBEL, BLD_ROOF, BLD_PITCH, BLD_RIDGE, BLD_RIDGE_STYLE, BLD_BANDS, BLD_PATTERN, BLD_GEN_MODULE, BLD_GEN_PITCH, BLD_JETTY,
-                 BLD_GEN_JETTY, BLD_ROTATION -> true;
+            case BLD_FOOTPRINT, BLD_CORBEL, BLD_RIDGE_STYLE, BLD_BANDS, BLD_PATTERN, BLD_GEN_MODULE, BLD_GEN_PITCH, BLD_GEN_JETTY, BLD_ROOF_LOOK, BLD_SHAPES -> true;
             default -> false;
         };
     }
@@ -43,22 +43,20 @@ final class BuildingShape {
         return switch (key) {
             case BLD_FOOTPRINT -> pick(v, "長方形", "L字", "T字", "U字", "十字", "面取り", "八角形", "円");
             case BLD_CORBEL -> pick(v, "逆さ階段", "横向きの原木");
-            case BLD_ROOF -> pick(v, "切妻", "寄棟", "半切妻", "腰折れ", "片流れ", "円錐・尖塔", "裾の反り");
-            case BLD_PITCH -> pick(v, "1:2", "1:1", "2:1", "3:1");
-            case BLD_RIDGE -> pick(v, "長い辺に沿う", "正面と平行", "正面と直角");
-            case BLD_RIDGE_STYLE -> pick(v, "ハーフ", "塀");
+            case BLD_RIDGE_STYLE -> pick(v, "ハーフ", "塀", "棟木");
             case BLD_BANDS -> pick(v, "なし", "高さごと", "屋根面ごと");
             case BLD_PATTERN -> net.tkgon.mc.iruuRPG.tools.procedural.building.Archetypes.name(v);
             case BLD_GEN_MODULE -> pick(v, "4 か 5", "4", "5");
-            case BLD_ROTATION -> v * 90 + "°";
+            case BLD_ROOF_LOOK -> pick(v, "階段・ハーフ", "フルブロック");
+            case BLD_SHAPES -> pick(v, "フルブロック (羊毛だけ)", "階段・ハーフ・フェンスも");
             case BLD_GEN_PITCH -> {
                 StringBuilder text = new StringBuilder();
                 String[] names = {"1:2", "1:1", "2:1"};
                 for (int bit = 0; bit < 3; bit++) if ((v >> bit & 1) != 0) text.append(text.isEmpty() ? "" : ", ").append(names[bit]);
                 yield text.isEmpty() ? "1:1" : text.toString();
             }
-            case BLD_JETTY, BLD_GEN_JETTY -> {
-                if (v == 0) yield key == TreeSettings.Key.BLD_GEN_JETTY ? "全部の階" : "なし";
+            case BLD_GEN_JETTY -> {
+                if (v == 0) yield "全部の階";
                 StringBuilder text = new StringBuilder();
                 for (int bit = 0; bit < 3; bit++) if ((v >> bit & 1) != 0) text.append(text.isEmpty() ? "" : "・").append(bit + 2).append("階");
                 yield text.toString();
@@ -69,6 +67,11 @@ final class BuildingShape {
 
     private static String pick(int index, String... names) {
         return names[Math.max(0, Math.min(names.length - 1, index))];
+    }
+
+    /** Whether the settings make the building of the house base's numbers (not a pattern): its parts list and the part wand work on it. */
+    static boolean houseLike(TreeSettings s) {
+        return s.kind() == ProcKind.HOUSE || s.kind() == ProcKind.BUILDING && s.getInt(TreeSettings.Key.BLD_PATTERN) == 0;
     }
 
     // ---- the patterns' starting numbers ------------------------------------------------------------------------------------------
@@ -94,37 +97,65 @@ final class BuildingShape {
         for (int index = 0; index < keys.length; index++) s.set(keys[index], numbers[index]);
     }
 
-    /** The numbers of the generator from the settings. */
+    /** The numbers of the generator from the settings: (t302) the house base's numbers and its list of parts, and the building's own. */
     static BuildParams params(TreeSettings s) {
         BuildParams p = new BuildParams();
+        HouseSpec h = p.house;
+        h.width = s.getInt(TreeSettings.Key.HOUSE_WIDTH);
+        h.depth = s.getInt(TreeSettings.Key.HOUSE_DEPTH);
+        h.floors = s.getInt(TreeSettings.Key.HOUSE_FLOORS);
+        h.storey = s.getInt(TreeSettings.Key.HOUSE_STOREY);
+        h.spacing = s.getInt(TreeSettings.Key.HOUSE_PILLARS);
+        h.mirror = s.on(TreeSettings.Key.HOUSE_PILLAR_MIRROR);
+        h.jetty = s.getInt(TreeSettings.Key.HOUSE_JETTY);
+        h.jettySides = s.on(TreeSettings.Key.HOUSE_JETTY_SIDES);
+        h.brackets = s.on(TreeSettings.Key.HOUSE_BRACKETS);
+        h.door = s.on(TreeSettings.Key.HOUSE_DOOR);
+        h.foundation = s.on(TreeSettings.Key.HOUSE_FOUNDATION);
+        h.raise = s.getInt(TreeSettings.Key.HOUSE_RAISE);
+        h.terrace = s.getInt(TreeSettings.Key.HOUSE_TERRACE);
+        h.stone = s.on(TreeSettings.Key.HOUSE_STONE);
+        h.plinth = s.getInt(TreeSettings.Key.HOUSE_PLINTH);
+        h.timber = s.on(TreeSettings.Key.HOUSE_TIMBER);
+        h.recess = s.on(TreeSettings.Key.HOUSE_RECESS);
+        h.windows = s.on(TreeSettings.Key.HOUSE_WINDOWS);
+        h.glass = s.on(TreeSettings.Key.HOUSE_GLASS);
+        h.skirt = s.getInt(TreeSettings.Key.HOUSE_SKIRT);
+        h.roof = s.getInt(TreeSettings.Key.HOUSE_ROOF);
+        h.pitch = s.get(TreeSettings.Key.HOUSE_PITCH);
+        h.overhang = s.getInt(TreeSettings.Key.HOUSE_OVERHANG);
+        h.ridge = s.getInt(TreeSettings.Key.HOUSE_RIDGE);
+        h.ridgeBeam = s.on(TreeSettings.Key.HOUSE_RIDGE_BEAM);
+        List<Integer> steps = s.roofSteps();
+        h.steps = new int[Math.max(1, steps.size())];
+        for (int index = 0; index < steps.size(); index++) h.steps[index] = steps.get(index);
+        h.stepFit = s.on(TreeSettings.Key.HOUSE_STEP_FIT);
+        for (HouseModule m : s.modules()) {
+            h.modules.add(new HouseSpec.Module(m.type.id, m.side, m.along, m.offset, m.width, m.depth, m.height, m.level, m.on, m.roof, m.ridge, m.shape, m.jetty, m.raise,
+                    m.spire));
+        }
         p.footprint = s.getInt(TreeSettings.Key.BLD_FOOTPRINT);
-        p.module = s.getInt(TreeSettings.Key.BLD_MODULE);
-        p.baysWide = s.getInt(TreeSettings.Key.BLD_BAYS_WIDE);
-        p.baysDeep = s.getInt(TreeSettings.Key.BLD_BAYS_DEEP);
-        p.wingBays = s.getInt(TreeSettings.Key.BLD_WING);
+        p.wingLength = s.getInt(TreeSettings.Key.BLD_WING);
+        p.wingWidth = s.getInt(TreeSettings.Key.BLD_WING_WIDTH);
         p.chamfer = s.getInt(TreeSettings.Key.BLD_CHAMFER);
         p.slant = s.getInt(TreeSettings.Key.BLD_SLANT);
-        p.radius = s.getInt(TreeSettings.Key.BLD_RADIUS);
-        p.floors = s.getInt(TreeSettings.Key.BLD_FLOORS);
-        p.storey = s.getInt(TreeSettings.Key.BLD_STOREY);
         p.plinth = s.get(TreeSettings.Key.BLD_PLINTH);
-        p.jetty = s.getInt(TreeSettings.Key.BLD_JETTY);
         p.fasciaOut = s.on(TreeSettings.Key.BLD_FASCIA_OUT);
         p.sill = s.getInt(TreeSettings.Key.BLD_SILL);
         p.windowHeight = s.getInt(TreeSettings.Key.BLD_WINDOW_HEIGHT);
         p.windowWidth = s.getInt(TreeSettings.Key.BLD_WINDOW_WIDTH);
         p.corbel = s.getInt(TreeSettings.Key.BLD_CORBEL);
-        p.roofType = s.getInt(TreeSettings.Key.BLD_ROOF);
-        p.pitch = s.getInt(TreeSettings.Key.BLD_PITCH);
-        p.overhang = s.getInt(TreeSettings.Key.BLD_OVERHANG);
         p.thickness = s.getInt(TreeSettings.Key.BLD_ROOF_THICKNESS);
-        p.ridge = s.getInt(TreeSettings.Key.BLD_RIDGE);
         p.rise = s.getInt(TreeSettings.Key.BLD_ROOF_BREAK);
         p.ridgeStyle = s.getInt(TreeSettings.Key.BLD_RIDGE_STYLE);
         p.gableOut = s.on(TreeSettings.Key.BLD_GABLE_OUT);
         p.bands = s.getInt(TreeSettings.Key.BLD_BANDS);
         p.bandStep = s.getInt(TreeSettings.Key.BLD_BAND_STEP);
-        p.rotation = s.getInt(TreeSettings.Key.BLD_ROTATION);
+        p.endPitch = s.get(TreeSettings.Key.BLD_END_PITCH);
+        p.backPitch = s.get(TreeSettings.Key.BLD_BACK_PITCH);
+        p.curve = s.get(TreeSettings.Key.BLD_CURVE);
+        p.crest = s.getInt(TreeSettings.Key.BLD_CREST);
+        p.eaveDrop = s.getInt(TreeSettings.Key.BLD_EAVE_DROP);
         p.chimney = s.get(TreeSettings.Key.BLD_CHIMNEY);
         p.dormer = s.get(TreeSettings.Key.BLD_DORMER);
         p.bayWindow = s.get(TreeSettings.Key.BLD_BAY_WINDOW);
@@ -145,13 +176,11 @@ final class BuildingShape {
         return p;
     }
 
-    /** How far round the click the terrain is read: as far as the biggest building of the settings reaches (24 at least, 48 at most). */
+    /** How far round the click the terrain is read: as far as the building of the settings reaches (24 at least, 48 at most). */
     static int reach(TreeSettings s) {
         if (s.getInt(TreeSettings.Key.BLD_PATTERN) > 0) return 32;
-        int module = s.getInt(TreeSettings.Key.BLD_MODULE);
-        int wing = s.getInt(TreeSettings.Key.BLD_FOOTPRINT) >= 1 && s.getInt(TreeSettings.Key.BLD_FOOTPRINT) <= 4 ? s.getInt(TreeSettings.Key.BLD_WING) * module : 0;
-        int size = Math.max(s.getInt(TreeSettings.Key.BLD_BAYS_WIDE), s.getInt(TreeSettings.Key.BLD_BAYS_DEEP)) * module + wing;
-        return Math.max(24, Math.min(48, size / 2 + 3 + 3 + s.getInt(TreeSettings.Key.BLD_OVERHANG) + 4));
+        int wings = s.getInt(TreeSettings.Key.BLD_FOOTPRINT) >= 1 && s.getInt(TreeSettings.Key.BLD_FOOTPRINT) <= 4 ? s.getInt(TreeSettings.Key.BLD_WING) : 0;
+        return Math.max(24, Math.min(48, HouseShape.reach(s) + wings + 4));
     }
 
     /** The quarter turns from the building's own way (its front +z) to the world's: its front toward {@code aim} (null: south), then the turn of the settings. */
@@ -176,14 +205,32 @@ final class BuildingShape {
         return new int[]{tx, tz};
     }
 
+    /**
+     * Where the building stands (t302: as the house base does): the building of the house's numbers in the house's own coordinates, its front toward
+     * {@code aim}, turned by the house's rotation (any degree); a pattern's building about its middle the same way.
+     */
+    static HouseShape.Placement placement(TreeSettings s, Vector aim) {
+        int rotation = s.getInt(TreeSettings.Key.HOUSE_ROTATION);
+        if (s.getInt(TreeSettings.Key.BLD_PATTERN) > 0) return HouseShape.Placement.of(aim, rotation, 1, 1);
+        return HouseShape.Placement.of(aim, rotation, s.getInt(TreeSettings.Key.HOUSE_WIDTH), s.getInt(TreeSettings.Key.HOUSE_DEPTH));
+    }
+
     // ---- the building ----------------------------------------------------------------------------------------------------------
 
-    /** Makes the building of the settings at the click (the terrain {@code ground} round it; null: flat), its front toward {@code aim}. */
     static Blocks build(TreeSettings s, long seed, TreeGround ground, Vector aim) {
+        return build(s, seed, ground, aim, -1, null);
+    }
+
+    /**
+     * Makes the building of the settings at the click (the terrain {@code ground} round it; null: flat), its front toward {@code aim}. The blocks of part
+     * {@code highlight} of the house's list are the glass of a part being edited; {@code owners}, when given, gets the part each block is of (in the house's own
+     * coordinates, as the part wand reads them).
+     */
+    static Blocks build(TreeSettings s, long seed, TreeGround ground, Vector aim, int highlight, Map<Long, Integer> owners) {
         BuildParams p = params(s);
-        int turns = turns(aim, p.rotation);
+        HouseShape.Placement placement = placement(s, aim);
         Ground terrain = ground == null ? Ground.FLAT : (x, z) -> {
-            int[] at = turn(x, z, turns);
+            int[] at = placement.block(x, z);
             int top = ground.top(at[0], at[1]);
             return top == TreeGround.NONE ? Ground.NONE : top;
         };
@@ -194,13 +241,38 @@ final class BuildingShape {
             throw new TreeVoxelizer.TooBig();
         }
         Blocks blocks = new Blocks();
-        for (Map.Entry<Long, Cell> entry : result.grid().cells().entrySet()) {
-            long key = entry.getKey();
-            int[] at = turn(SemanticVoxelGrid.x(key), SemanticVoxelGrid.z(key), turns);
-            long world = TreeVoxelizer.pack(at[0], SemanticVoxelGrid.y(key), at[1]);
-            Cell cell = entry.getValue().turned(turns);
-            blocks.put(world, part(cell.role()));
-            blocks.cells.put(world, cell);
+        blocks.roofFull = s.getInt(TreeSettings.Key.BLD_ROOF_LOOK) == 1;
+        blocks.shapesFull = s.getInt(TreeSettings.Key.BLD_SHAPES) == 0;
+        int turns = Math.floorMod((int) Math.round(placement.degrees() / 90.0), 4);
+        SemanticVoxelGrid grid = result.grid();
+        if (placement.square()) {
+            for (Map.Entry<Long, Cell> entry : grid.cells().entrySet()) {
+                long key = entry.getKey();
+                int[] at = placement.block(SemanticVoxelGrid.x(key), SemanticVoxelGrid.z(key));
+                put(blocks, grid, key, TreeVoxelizer.pack(at[0], SemanticVoxelGrid.y(key), at[1]), entry.getValue().turned(turns), highlight, owners);
+            }
+        } else {
+            // (t302: turned by other than a right angle: every block of the world over it takes the column of the building nearest it, so no holes open)
+            Map<Long, List<Long>> columns = new HashMap<>();
+            int[] box = {Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MIN_VALUE, Integer.MIN_VALUE};
+            for (long key : grid.cells().keySet()) {
+                int x = SemanticVoxelGrid.x(key);
+                int z = SemanticVoxelGrid.z(key);
+                columns.computeIfAbsent(TreeVoxelizer.pack(x, 0, z), unused -> new java.util.ArrayList<>()).add(key);
+                int[] at = placement.block(x, z);
+                box[0] = Math.min(box[0], at[0] - 1);
+                box[1] = Math.min(box[1], at[1] - 1);
+                box[2] = Math.max(box[2], at[0] + 1);
+                box[3] = Math.max(box[3], at[1] + 1);
+            }
+            for (int wx = box[0]; wx <= box[2]; wx++) {
+                for (int wz = box[1]; wz <= box[3]; wz++) {
+                    int[] local = placement.local(wx, wz);
+                    List<Long> column = columns.get(TreeVoxelizer.pack(local[0], 0, local[1]));
+                    if (column == null) continue;
+                    for (long key : column) put(blocks, grid, key, TreeVoxelizer.pack(wx, SemanticVoxelGrid.y(key), wz), grid.cells().get(key).turned(turns), highlight, owners);
+                }
+            }
         }
         blocks.pattern = result.building().pattern;
         blocks.problems = result.problems();
@@ -208,6 +280,15 @@ final class BuildingShape {
         blocks.share = result.roofShare();
         blocks.tries = result.tries();
         return blocks;
+    }
+
+    /** One block of the building into the world's ({@code world}): its part (the glass of the part being edited), its look, its owner for the wand. */
+    private static void put(Blocks blocks, SemanticVoxelGrid grid, long key, long world, Cell cell, int highlight, Map<Long, Integer> owners) {
+        int owner = grid.ownerOf(key);
+        boolean chosen = highlight >= 0 && owner == highlight;
+        blocks.put(world, chosen ? TreePart.HOUSE_SELECTED : part(cell.role()));
+        blocks.cells.put(world, cell);
+        if (owners != null && owner >= 0) owners.put(key, owner);
     }
 
     /** The part a role's blocks are. */
@@ -256,12 +337,22 @@ final class BuildingShape {
         int tries;
         private final Map<String, BlockData> made = new HashMap<>();
 
+        /** (t302) The roof's blocks all full (its steps of wool); the other shapes all full (wool only, no stairs, slabs, fences). */
+        boolean roofFull;
+        boolean shapesFull;
+
         /** The block at (x, y, z) made of {@code chosen} (the part's block), or null when there is none. */
         BlockData data(BlockData chosen, TreePart part, int x, int y, int z) {
             Cell cell = cells.get(TreeVoxelizer.pack(x, y, z));
             if (cell == null || chosen == null) return null;
-            Material material = form(chosen.getMaterial(), cell.form(), part.defaultMaterial());
-            String props = cell.props();
+            // (the part being edited: its glass, whole)
+            if (part == TreePart.HOUSE_SELECTED) return chosen;
+            Cell.Form shape = cell.form();
+            boolean roof = part == TreePart.BLD_ROOF || part == TreePart.BLD_ROOF_2 || part == TreePart.BLD_ROOF_3 || part == TreePart.BLD_EAVE
+                    || part == TreePart.BLD_VERGE || part == TreePart.BLD_RIDGE || part == TreePart.BLD_HIP;
+            boolean full = shape != Cell.Form.FULL && shape != Cell.Form.LOG && (roof ? roofFull : shapesFull);
+            Material material = full ? form(chosen.getMaterial(), Cell.Form.FULL, part.defaultMaterial()) : form(chosen.getMaterial(), shape, part.defaultMaterial());
+            String props = full ? "" : cell.props();
             String key = material.name() + "[" + props + "]";
             BlockData data = made.get(key);
             if (data == null) {
@@ -309,8 +400,52 @@ final class BuildingShape {
         if (form == Cell.Form.ROD) return Material.LIGHTNING_ROD;
         Material own = family(chosen, form);
         if (own != null) return own;
+        // (t302: a wool has no stairs: those of the colour nearest it)
+        Material near = nearest(chosen, form);
+        if (near != null) return near;
         Material other = fallback == null ? null : family(fallback, form);
-        return other != null ? other : chosen;
+        if (other != null) return other;
+        Material otherNear = fallback == null ? null : nearest(fallback, form);
+        return otherNear != null ? otherNear : chosen;
+    }
+
+    /** The colours of the wools (their textures' average), for the shapes nearest them. */
+    private static final Map<Material, Integer> WOOL = new EnumMap<>(Material.class);
+
+    static {
+        int[] rgb = {0xE9ECEC, 0xF07613, 0xBD44B3, 0x3AAFD9, 0xF8C627, 0x70B919, 0xED8DAC, 0x3E4447, 0x8E8E86, 0x158991, 0x792AAC, 0x35399D, 0x724728, 0x546D1B,
+                0xA12722, 0x141519};
+        String[] names = {"WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY", "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"};
+        for (int index = 0; index < names.length; index++) {
+            Material material = Material.getMaterial(names[index] + "_WOOL");
+            if (material != null) WOOL.put(material, rgb[index]);
+        }
+    }
+
+    /** (t302) The block of shape {@code form} whose colour is nearest a wool's (null: not a wool, or a full block or a log, which a wool is already). */
+    static Material nearest(Material wool, Cell.Form form) {
+        Integer rgb = WOOL.get(wool);
+        if (rgb == null) return null;
+        WoodPalette.Form shape = switch (form) {
+            case STAIRS -> WoodPalette.Form.STAIRS;
+            case SLAB -> WoodPalette.Form.SLAB;
+            case WALL -> WoodPalette.Form.WALL;
+            case FENCE -> WoodPalette.Form.FENCE;
+            case TRAPDOOR -> WoodPalette.Form.TRAPDOOR;
+            default -> null;
+        };
+        if (shape == null) return null;
+        double[] lab = WoodPalette.lab(rgb);
+        WoodPalette.Entry best = null;
+        double bestScore = Double.MAX_VALUE;
+        for (WoodPalette.Entry entry : WoodPalette.of(shape)) {
+            double score = Math.pow(entry.l() - lab[0], 2) + 2.0 * (Math.pow(entry.a() - lab[1], 2) + Math.pow(entry.b() - lab[2], 2));
+            if (score < bestScore) {
+                bestScore = score;
+                best = entry;
+            }
+        }
+        return best == null ? null : best.material();
     }
 
     private static Material family(Material material, Cell.Form form) {
