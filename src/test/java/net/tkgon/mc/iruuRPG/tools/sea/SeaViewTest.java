@@ -2,23 +2,32 @@ package net.tkgon.mc.iruuRPG.tools.sea;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import java.util.HashSet;
+import java.util.List;
 
-/** t302: the sea's columns: a round reach, and a column's key both ways (negative places too). */
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+/** t302, t304: the sea's chunks: a square round the player's, the nearest first, each once; a chunk's key both ways (negative places too). */
 class SeaViewTest {
 
     @Test
-    void theSeaIsRoundAndItsColumnsAreKeptByPlace() {
-        assertTrue(SeaView.within(48, 0, 48));
-        assertTrue(SeaView.within(0, -48, 48));
-        assertFalse(SeaView.within(40, 40, 48));
-        assertFalse(SeaView.within(49, 0, 48));
-        for (int[] at : new int[][]{{0, 0}, {-5, 7}, {30000000, -30000000}, {-1, -1}}) {
-            long key = SeaView.key(at[0], at[1]);
-            assertEquals(at[0], SeaView.x(key));
-            assertEquals(at[1], SeaView.z(key));
+    void theSeaIsASquareOfChunksTheNearestFirst() {
+        List<Long> square = SeaView.square(-3, 5, 6);
+        assertEquals(13 * 13, square.size());
+        assertEquals(13 * 13, new HashSet<>(square).size());
+        assertEquals(SeaView.chunk(-3, 5), square.get(0));
+        // (the ring of 1 before the ring of 2)
+        for (int index = 1; index < 9; index++) {
+            long chunk = square.get(index);
+            assertEquals(1, Math.max(Math.abs(SeaView.chunkX(chunk) + 3), Math.abs(SeaView.chunkZ(chunk) - 5)));
         }
+        long last = square.get(square.size() - 1);
+        assertEquals(6, Math.max(Math.abs(SeaView.chunkX(last) + 3), Math.abs(SeaView.chunkZ(last) - 5)));
+        for (int[] at : new int[][]{{0, 0}, {-5, 7}, {1875000, -1875000}, {-1, -1}}) {
+            long key = SeaView.chunk(at[0], at[1]);
+            assertEquals(at[0], SeaView.chunkX(key));
+            assertEquals(at[1], SeaView.chunkZ(key));
+        }
+        assertEquals(81, SeaView.DEFAULT_HEIGHT);
     }
 }
