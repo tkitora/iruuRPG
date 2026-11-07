@@ -7,11 +7,11 @@
 Class 2 "sorrow and fated battle" in STYLE 1 adapted to 3/4: 150 BPM, a song tick is a sixteenth (10 ticks a second), a beat is 4 ticks, a bar is 12 ticks (1.2 s; eighth 2, sixteenth 1). A 12-tick bar meets the
 engine's 16-tick line every 4 bars, so every section is a multiple of 4 bars. Intro: 4 silent ticks + 5 bars (the loop starts at tick 64); body 108 bars; 1360 ticks (136 s). The lead is the piano (harp), the
 violin (pling) and the flute joining; a guitar plays the pah-pah.
-THE MOTIF is the LILT: a rising arpeggio of three notes in the rhythm dotted-quarter, eighth, quarter (6-2-4) on the first beat's weight (A4 D5 F5 over D minor), bar after bar, every bar ending UP (F5, E5, D5, F5 ...)
-and the 8th bar hanging on E5 over A7. Keys: D minor (intro, A, B) -> the RELATIVE MAJOR F (CHORUS: F C Dm Bb, a third above, the tune in long notes: half and dotted-half) -> G major (FINALE, a whole step up).
-B (the bass release) runs the lilt as arpeggios of four notes (4-2-2-4) over a RISING bass (Gm Bb C Dm). Phase 2 "Out of Step" has the same events with the footing lost: hemiola (two bars of 3/4 felt as three of
+THE MOTIF (t290, new) is the BOW: a quarter, a leap up a sixth to a dotted quarter, a step on (F#4 D5 E5 in B minor, 4-6-2), played a scale step higher each bar over a B pedal, every bar ending UP, the 8th
+bar hanging on E5 over F#7. Keys: B minor (intro, A, B) -> the RELATIVE MAJOR D (CHORUS: D A Bm G, a third above, the tune in long notes: half and dotted-half) -> E major (FINALE, a whole step up).
+B (the bass release) turns the bow into arpeggios of four notes (fifth, third, root, fifth) over a RISING bass (Bm D Em ...). Phase 2 "Out of Step" has the same events with the footing lost: hemiola (two bars of 3/4 felt as three of
 3/2: accents at 0, 8, 16 of 24 ticks) in the bass and drums at the ends of statements, the tune a beat late and cut off to catch up, a half-step sting in the bass; the machine gun comes earlier.
-Time table (bars from the song start; 1 bar = 1.2 s): intro 0-12 (a bare refrain, no drums; from the loop point the snare gets denser) | A 13-36 (full drums, root nailed; bars 25-28 pseudo half time) |
+Time table (bars from the song start; 1 bar = 1.2 s): intro 0-12 (a bare refrain, no drums; from the loop point the snare gets denser) | A 13-36 (full drums, root nailed; bars 25-32 (30-40 s) pseudo half time) |
 B 37-60 (bass released, flute an octave up; bars 47-56 pseudo double time) | pre-break and stop-time 61-63, BREAK 64 (one bell) | CHORUS 65-88 (relative major, third above, 16th machine gun, long notes) |
 FINALE 89-112 (a whole step up; the last bar is A7 back into the loop).
 Everything is written by what SOUNDS. Nothing is random.
@@ -25,7 +25,7 @@ from style1 import build
 OUT = Path(__file__).resolve().parents[2] / "src/main/resources/bgm"
 TITLES = ("Waltz at the Edge of Dark (Boss008)", "Waltz at the Edge of Dark, Out of Step (Boss008)")
 FILES = ("waltz_phase1.nbs", "waltz_phase2.nbs")
-DESCRIPTIONS = ("Waltz boss, phase 1 (sorrow and fated battle): a tragic 3/4 waltz at 150 BPM in D minor, a rising lilt, a bass release, a bell break, the relative major with a third above, and a whole-step finale.",
+DESCRIPTIONS = ("Waltz boss, phase 1 (sorrow and fated battle): a tragic 3/4 waltz at 150 BPM in B minor, a rising bow, a bass release, a bell break, the relative major with a third above, and a whole-step finale.",
                 "Waltz boss, phase 2: the same dance out of step - hemiola in the bass and drums, the tune a beat late, a half-step sting in the bass, an earlier machine gun.")
 
 
@@ -41,35 +41,43 @@ def shifted(txt, n):
     return " ".join(out)
 
 
-# --- the lilt (D minor) ---------------------------------------------------------------------------------------------------------------------------------
-W1 = ["A4:6 D5:2 F5:4", "A4:6 C#5:2 E5:4", "F4:6 A4:2 D5:4", "Bb4:6 D5:2 F5:4", "F4:6 Bb4:2 D5:4", "G4:6 A4:2 C#5:4", "G4:6 Bb4:2 D5:4", "A4:4 C#5:4 E5:4"]
-W1_CH = ["Dm", "A7", "Dm", "Gm", "Bb", "A7", "Gm", "A7"]
+# --- THE BOW (B minor): a quarter, a leap up a sixth to a dotted quarter, a step on: low - high - higher (4-6-2), played a scale step higher each bar over a B pedal --------------------
+MINOR = [0, 2, 3, 5, 7, 8, 10]
+MAJOR = [0, 2, 4, 5, 7, 9, 11]
 
 
-def lilt(chord, k):
-    tones = tones_in(chord, 60, 79)
-    return text(tones[k:k + 3], (6, 2, 4))
+def pitch(deg, scale, root):
+    octave, d = divmod(deg, 7)
+    return root + 12 * octave + scale[d]
 
 
-# --- B: four-note arpeggios (4-2-2-4) over a rising bass; minor in both phases --------------------------------------------------------------------------
+def bow(d, scale, root):
+    return text([pitch(d + k, scale, root) for k in (0, 5, 6)], (4, 6, 2))
+
+
+W1 = [bow(d, MINOR, 59) for d in (2, 3, 4, 5)] + [bow(5, MINOR, 59), "D4:4 B4:6 D5:2", "A#4:4 C#5:6 E5:2", "A#4:4 C#5:4 E5:4"]
+W1_CH = ["Bm", "Bm", "Bm", "Bm", "Em", "G", "F#7", "F#7"]
+
+
+# --- B: the bow turned into arpeggios (fifth, third, root, fifth) over a rising bass; minor in both phases --------------------------------------------------------------------------
 def b_bar(root, third, rhythm=(4, 2, 2, 4)):
-    return text([root, root + 7, root + third, root + 2], rhythm)
+    return text([root + 7, root + third, root, root + 7], rhythm)
 
 
-B_A = [(b_bar(r, th), c) for r, th, c in [(67, 3, "Gm"), (70, 4, "Bb"), (72, 4, "C"), (74, 3, "Dm"), (70, 4, "Bb"), (72, 4, "C"), (74, 3, "Dm")]] + [("C#5:4 E5:4 G5:4", "A7")]
-B_B = [(b_bar(r, th), c) for r, th, c in [(67, 3, "Gm"), (70, 4, "Bb"), (72, 3, "Cm"), (74, 3, "Dm"), (75, 4, "Eb"), (72, 3, "Cm"), (74, 3, "Dm")]] + [("C#5:4 E5:4 G5:4", "A7")]
+B_A = [(b_bar(r, th), c) for r, th, c in [(71, 3, "Bm"), (74, 4, "D"), (76, 3, "Em"), (66, 3, "F#m"), (67, 4, "G"), (69, 4, "A"), (71, 3, "Bm")]] + [("A#4:4 C#5:4 E5:4", "F#7")]
+B_B = [(b_bar(r, th), c) for r, th, c in [(71, 3, "Bm"), (74, 4, "D"), (76, 3, "Em"), (66, 3, "F#m"), (67, 4, "G"), (66, 3, "F#m"), (69, 4, "A")]] + [("A#4:4 C#5:4 E5:4", "F#7")]
 B = B_A + B_B + B_A
 
-# --- CHORUS (F major, long notes) and the finale (G major, a whole step up) -----------------------------------------------------------------------------
-CH_CHORDS = ["F", "C", "Dm", "Bb", "F", "C", "Bb", "C"]
-CH1 = ["F4:4 A4:8", "G4:4 C5:8", "A4:4 D5:8", "Bb4:4 D5:8", "A4:4 C5:8", "G4:4 C5:8", "Bb4:4 D5:8", "C5:4 E5:8"]
-CH2 = ["A4:4 C5:8", "C5:4 E5:8", "D5:4 F5:8", "D5:4 F5:8", "C5:4 F5:8", "C5:4 E5:8", "D5:4 F5:8", "C5:4 E5:4 F5:4"]
-CH3 = ["C5:4 F5:8", "C5:4 E5:8", "D5:4 F5:8", "Bb4:4 F5:8", "C5:4 F5:8", "E5:4 F5:8", "D5:4 F5:8", "C5:4 E5:8"]
+# --- CHORUS (D major, the relative major, long notes) and the finale (E major, a whole step up) ------------------------------------------------------------------------------------
+CH_CHORDS = ["D", "A", "Bm", "G", "D", "A", "G", "A"]
+CH1 = ["F#4:4 A4:8", "E4:4 A4:8", "D4:4 B4:8", "B4:4 D5:8", "A4:4 F#5:8", "A4:4 C#5:8", "B4:4 D5:8", "C#5:4 E5:8"]
+CH2 = ["A4:4 D5:8", "A4:4 C#5:8", "B4:4 D5:8", "B4:4 D5:8", "A4:4 F#5:8", "C#5:4 E5:8", "B4:4 D5:8", "A4:4 C#5:4 E5:4"]
+CH3 = ["D5:4 F#5:8", "C#5:4 E5:8", "D5:4 F#5:8", "B4:4 D5:8", "A4:4 F#5:8", "E5:4 C#5:8", "B4:4 D5:8", "C#5:4 E5:8"]
 CH = [(t, c) for tune in (CH1, CH2, CH3) for t, c in zip(tune, CH_CHORDS)]
-FIN_CHORDS1 = [("G", 1), ("D", 1), ("G", 2), ("Am", 1), ("C", 2), ("D", 2), ("Am", 1)]
-FIN1 = [(lilt(c, k), c) for c, k in FIN_CHORDS1] + [("A4:4 C5:4 F#5:4", "D7")]
+FIN_P1 = [bow(d, MAJOR, 52) for d in (6, 7, 8, 9)] + ["A4:4 E5:6 F#5:2", "F#4:4 D#5:6 F#5:2", "F4:4 G#4:6 B4:2", "G#4:4 B4:4 F5:4"]
+FIN1 = list(zip(FIN_P1, ["E", "E", "E", "E", "A", "B", "C#7", "C#7"]))
 FIN = FIN1 + [(shifted(t, 2), shift_chord(c, 2)) for t, c in zip(CH1, CH_CHORDS)] + [(shifted(t, 2), shift_chord(c, 2)) for t, c in zip(CH2, CH_CHORDS)]
-FIN[-1] = ("A4:4 C#5:4 E5:4", "A7")
+FIN[-1] = ("A#4:4 C#5:4 E5:4", "F#7")
 
 # --- patterns of a bar of 12 ticks --------------------------------------------------------------------------------------------------------------------------
 HAT = [(t, 46 if t % 4 == 0 else 34) for t in range(0, 12, 2)]
@@ -149,19 +157,19 @@ D = dict(
     rest=[list(zip(W1, W1_CH))] * 2,
     ramp=[[], [], [], [(8, 40)], [(8, 46)], [(4, 50), (8, 56)], [(4, 56), (6, 60), (8, 64), (10, 66)], [(t, 52 + 4 * t // 2) for t in range(0, 8, 2)]],
     A=[list(zip(W1 * 3, W1_CH * 3))] * 2,
-    A_bass=[[(0, "E"), (10, "E_mv"), (12, "halfb"), (16, "ED_a"), (20, "ED_b")], [(0, "E"), (6, "ED_a"), (10, "E_mv"), (12, "halfb"), (16, "BURST"), (20, "ED_b")]],
-    A_drum=[[(0, "waltz"), (4, "drive16"), (12, "half"), (16, "drive16")], [(0, "waltz"), (4, "drive16"), (12, "half"), (16, "peak")]],
-    A_half=(12, 16),
+    A_bass=[[(0, "E"), (12, "halfb"), (20, "ED_a")], [(0, "E"), (6, "ED_a"), (12, "halfb"), (20, "ED_a")]],
+    A_drum=[[(0, "waltz"), (4, "drive16"), (12, "half"), (20, "drive16")], [(0, "waltz"), (4, "drive16"), (12, "half"), (20, "peak")]],
+    A_half=(12, 20), A_pedal="Bm",
     B=[B, B], B_dbl=(10, 20),
     B_bass=[[(0, "ED_b"), (1, "TRI"), (2, "WALK"), (3, "ED_b"), (4, "ED_a"), (5, "TRI"), (6, "WALK"), (7, "BURST"), (8, "ED_b"), (9, "TRI"), (10, "BURST"), (11, "ED_b"), (12, "BURST"), (13, "ED_b"),
              (14, "BURST"), (15, "ED_b"), (16, "WALK"), (17, "TRI"), (18, "BURST"), (19, "ED_b"), (20, "BURST"), (22, "S16")],
-            [(0, "ED_b"), (1, "TRI"), (2, "WALK"), (3, "BURST"), (4, "ED_b"), (5, "TRI"), (6, "BURST"), (7, "ED_b"), (8, "BURST"), (9, "ED_b"), (10, "BURST"), (11, "ED_b"), (12, "BURST"), (13, "ED_b"),
+            [(0, "ED_a"), (1, "ED_a"), (2, "WALK"), (3, "BURST"), (4, "ED_b"), (5, "TRI"), (6, "BURST"), (7, "ED_b"), (8, "BURST"), (9, "ED_b"), (10, "BURST"), (11, "ED_b"), (12, "BURST"), (13, "ED_b"),
              (14, "BURST"), (15, "ED_b"), (16, "BURST"), (17, "S16"), (18, "BURST"), (19, "S16"), (20, "BURST"), (22, "S16b")]],
     B_drum=[[(0, "drive16"), (10, "dbl"), (20, "dbl")], [(0, "drive16"), (8, "peak"), (10, "dbl"), (20, "dbl")]],
-    pre=[("C#5:4 E5:4 A5:4", "A7"), ("E5:12", "A7")], stop=("E5:12", "A7"), stop_at=(0, 8), bell=93,
+    pre=[("A#4:4 C#5:4 E5:4", "F#7"), ("E5:12", "F#7")], stop=("E5:12", "F#7"), stop_at=(0, 8), bell=93,
     CH=[CH, CH], CH_bass=[[(0, "S16"), (7, "S16b"), (8, "S16"), (15, "S16b"), (16, "S16b")], [(0, "S16"), (1, "S16b"), (8, "S16b"), (16, "S16")]],
-    scale_ch=tuple(p % 12 for p in (5, 7, 9, 10, 0, 2, 4)),
-    FIN=[FIN, FIN], fin_split=8, scale_fin=tuple(p % 12 for p in (7, 9, 11, 0, 2, 4, 6)),
+    scale_ch=tuple(p % 12 for p in (2, 4, 6, 7, 9, 11, 1)),
+    FIN=[FIN, FIN], fin_split=8, scale_fin=tuple(p % 12 for p in (4, 6, 8, 9, 11, 1, 3)),
     FIN_bass=[[(0, "S16"), (4, "S16b"), (8, "S16"), (12, "S16b"), (16, "S16b")], [(0, "S16b"), (4, "S16"), (8, "S16b"), (12, "S16"), (16, "S16b")]],
     late=late, hemi=hemi,
 )

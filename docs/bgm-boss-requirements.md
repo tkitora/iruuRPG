@@ -39,3 +39,15 @@ python3 tools/bgm/bossness.py --table src/main/resources/bgm/<曲>.nbs    # 基�
 python3 tools/bgm/check_song.py src/main/resources/bgm/<曲>.nbs          # 同梱曲の規則
 ```
 `bossness.py` の基準: lead ≥ 78、bass ≥ 55、drums ≥ 55、pitch ≤ 68、low ≤ 42、hits ≥ 80/分、kick ≥ 3.0/秒、**gap ≤ 0.40 秒、nobass ≤ 1.2 秒、peak ≤ 40 音/秒** (最後の 3 つは t283 で追加)。数値は「弱くない」ことしか言えない。聴いての確認はまだ。
+
+## t290: ガイドの中身を測る (`guidecheck.py`)
+
+| 依頼 | ユーザーの言葉の要点 | そのとき分かったこと |
+|---|---|---|
+| t290 | 今のボス BGM が最新のガイドを含められていない。boss2〜10 の構想・コードをリセットして 1 から作り直し | `bossness.py` は「押し・途切れ」だけを測っていた。設計書 (型の時間表、30〜45 秒に 1 回、ベースのルート固定は 20 秒まで) と BPM ガイド (4 分 → 8 分 → 16 分、サビは長音の旋律) の中身は未計測で、t283 の曲の多くが不合格だった |
+
+```
+python3 tools/bgm/guidecheck.py [--events] src/main/resources/bgm/<曲>.nbs    # ガイドの項目ごとに ok / !! 、--events で検出した時間線
+```
+ボス曲を作る・直すときは、`bossness.py` と `guidecheck.py` と `check_song.py` の **3 つとも** 通す。型はファイル名で決まる (`guidecheck.py` の `TYPES`)。項目の読み方は同ファイルの説明と `docs/bgm-songs.md` の t290 の節。
+
