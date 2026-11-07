@@ -22,15 +22,7 @@ enum ProcKind {
     /** (t190) a plaza with houses round it, as the lobbies (central spawns) of servers are built. */
     LOBBY("ロビー (街並み)", Material.BELL, "中央の広場 (床の模様・噴水か台座・花壇) のまわりに、おまかせ生成の家を、広場を向けて高さ・大きさ・角度を少しずつ変えて並べる。家への道、すきまの木、地形へのなじませも", List.of(
             TreePart.LOBBY_PAVE, TreePart.LOBBY_PATH, TreePart.LOBBY_BED, TreePart.LOBBY_SOIL, TreePart.LOBBY_WATER, TreePart.HOUSE_PILLAR, TreePart.HOUSE_WALL,
-            TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW, TreePart.TRUNK, TreePart.LEAF)),
-    /**
-     * (t295) A building's outer shape for fantasy builds (hub build): plan, storeys, walls of three depths, roofs by the straight skeleton, the parts, and the
-     * patterns that put them together and check them; in one block per role, the gradients and the fine decoration left to the hand.
-     */
-    BUILDING("建物 (外形)", Material.STONE_BRICKS, "土台の多角形・階の積み重ね・柱間に分けた壁面 (柱と梁が前、壁 -1、窓 -2)・屋根 (直線骨格、切妻〜尖塔、軒・破風・棟・隅棟の縁取り)・装飾パーツを、役割ごとの単色で。パターン A〜F で、検証して採点した建物を自動生成",
-            List.of(TreePart.BLD_PLINTH, TreePart.BLD_POST, TreePart.BLD_BEAM, TreePart.BLD_INFILL, TreePart.BLD_WINDOW, TreePart.BLD_CORBEL, TreePart.BLD_FLOOR,
-                    TreePart.BLD_ROOF, TreePart.BLD_ROOF_2, TreePart.BLD_ROOF_3, TreePart.BLD_EAVE, TreePart.BLD_VERGE, TreePart.BLD_RIDGE, TreePart.BLD_HIP,
-                    TreePart.BLD_CHIMNEY, TreePart.BLD_RAIL, TreePart.BLD_FINIAL));
+            TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW, TreePart.TRUNK, TreePart.LEAF));
 
     private final String label;
     private final Material icon;

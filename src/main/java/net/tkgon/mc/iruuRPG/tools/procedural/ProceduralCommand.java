@@ -36,7 +36,7 @@ final class ProceduralCommand implements TabExecutor {
             case "kind" -> {
                 ProcKind kind = args.length > 1 ? ProcKind.byId(args[1]) : null;
                 if (kind == null) {
-                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web|house|lobby|building>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
+                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web|house|lobby>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
                 } else {
                     session.settings.setKind(kind);
                     tool.limit(session.settings);
@@ -147,7 +147,7 @@ final class ProceduralCommand implements TabExecutor {
 
     /**
      * (t295) {@code /proceduraltool build <preset> [x y z] [seed]}: puts the saved preset with its front toward the player: at {@code x y z} (the block it stands
-     * in, {@code ~} for the player's own), else on the block in sight, else where the player stands; with the seed the same building again (else a new one).
+     * in, {@code ~} for the player's own), else on the block in sight, else where the player stands; with the seed the same one again (else a new one).
      */
     private void build(Player player, TreeSession session, String[] args) {
         String name = args.length > 1 ? TreeSettings.safeName(args[1]) : null;
@@ -278,7 +278,7 @@ final class ProceduralCommand implements TabExecutor {
             player.sendMessage("  " + key.id() + " = " + (key.toggle() ? (settings.on(key) ? "1 (オン)" : "0 (オフ)") : key.whole() ? Integer.toString(settings.getInt(key)) : Double.toString(settings.get(key)))
                     + (key.toggle() ? "" : "  (" + key.min() + " 〜 " + key.max() + ")") + " " + key.label());
         }
-        if (BuildingShape.houseLike(settings)) {
+        if (settings.kind() == ProcKind.HOUSE) {
             player.sendMessage("  house-roof-steps = " + String.join(" ", settings.roofSteps().stream().map(String::valueOf).toList()) + " 屋根の段 (軒 → 棟)");
             player.sendMessage("  追加パーツ " + settings.modules().size() + " 個" + (settings.designSeed() > 0L ? " / おまかせ生成の seed " + settings.designSeed() : ""));
         }

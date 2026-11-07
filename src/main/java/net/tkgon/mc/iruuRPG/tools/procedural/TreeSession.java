@@ -51,9 +51,6 @@ final class TreeSession {
     record HouseView(World world, int x, int y, int z, HouseShape.Placement placement, int raise, Map<Long, Integer> owners) {
     }
 
-    /** (t295) What the checks and the score said of the building made last (the preview's or the one put), for the menu; null before any. */
-    String buildingReport;
-
     // ---- the preview (see TreePreview) ----------------------------------------------------------------------------------
     /** The preview is on. */
     boolean preview;

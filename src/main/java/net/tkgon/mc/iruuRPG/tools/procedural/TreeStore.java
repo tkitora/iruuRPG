@@ -46,7 +46,10 @@ final class TreeStore {
         }
     }
 
-    /** The settings saved as {@code name}, or null when there are none (or the file is broken). */
+    /**
+     * The settings saved as {@code name}, or null when there are none (or the file is broken, or (t305) it is of a kind the tool no longer has: the building of
+     * t295, taken out. Such a file is left in the folder as it is).
+     */
     public TreeSettings load(String name) {
         File file = file(name);
         if (!file.isFile()) return null;
@@ -54,6 +57,7 @@ final class TreeStore {
         ConfigurationSection section = yaml.getConfigurationSection("settings");
         if (section == null) return null;
         Map<String, Object> map = new LinkedHashMap<>(section.getValues(false));
+        if (map.get("kind") instanceof String kind && ProcKind.byId(kind) == null) return null;
         return TreeSettings.fromMap(map, name);
     }
 
@@ -120,20 +124,23 @@ final class TreeStore {
         Long time = infoTimes.get(name);
         if (time != null && time == file.lastModified() && infos.containsKey(name)) return infos.get(name);
         TreeSettings settings = load(name);
-        if (settings == null) return null;
-        Info info = new Info(settings.kind(), settings.algorithm(), settings.getInt(TreeSettings.Key.ORN_STYLE), settings.block(TreePart.TRUNK));
+        // (t305: one that cannot be read is kept as null too, not read again every time the presets are listed)
+        Info info = settings == null ? null : new Info(settings.kind(), settings.algorithm(), settings.getInt(TreeSettings.Key.ORN_STYLE), settings.block(TreePart.TRUNK));
         infos.put(name, info);
         infoTimes.put(name, file.lastModified());
         return info;
     }
 
-    /** The names saved, in alphabetical order. */
+    /** The names saved, in alphabetical order ((t305) not those that cannot be read: of a kind the tool no longer has, or broken). */
     public List<String> list() {
         File[] files = folder().listFiles((dir, fileName) -> fileName.endsWith(".yml"));
         List<String> names = new ArrayList<>();
         if (files == null) return names;
         Arrays.sort(files, Comparator.comparing(File::getName));
-        for (File file : files) names.add(file.getName().substring(0, file.getName().length() - 4));
+        for (File file : files) {
+            String name = file.getName().substring(0, file.getName().length() - 4);
+            if (info(name) != null) names.add(name);
+        }
         return names;
     }
 }

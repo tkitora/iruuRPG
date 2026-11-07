@@ -167,8 +167,7 @@ final class TreePreview {
         TreeGround terrain = ground;
         org.bukkit.util.Vector aim = session.aim == null ? null : session.aim.clone();
         // (t246: a house shows the part being edited in glass, and keeps which part each block is of, for the wand)
-        boolean house = BuildingShape.houseLike(settings);
-        boolean building = settings.kind() == ProcKind.BUILDING;
+        boolean house = settings.kind() == ProcKind.HOUSE;
         int highlight = house ? module.highlight(player, session) : -1;
         Map<Long, Integer> owners = house ? new HashMap<>() : null;
         session.computing = true;
@@ -176,9 +175,7 @@ final class TreePreview {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<Long, TreePart> blocks = null;
             try {
-                // (t302: the building of the house base's numbers shows its parts the same way, the one being edited in glass)
-                blocks = building ? BuildingShape.build(settings, seed, terrain, aim, highlight, owners)
-                        : house ? ProceduralShapes.house(settings, terrain, aim, highlight, owners) : TreeGenerator.build(settings, seed, terrain, aim, webInput);
+                blocks = house ? ProceduralShapes.house(settings, terrain, aim, highlight, owners) : TreeGenerator.build(settings, seed, terrain, aim, webInput);
             } catch (RuntimeException exception) {
                 if (!(exception instanceof TreeVoxelizer.TooBig)) plugin.getLogger().warning("tree preview failed: " + exception);
             }
@@ -188,7 +185,6 @@ final class TreePreview {
                     session.computing = false;
                     if (result == null || !session.preview || job != session.job || !player.isOnline()) return;
                     session.highlighted = highlight;
-                    if (result instanceof BuildingShape.Blocks made) session.buildingReport = BuildingShape.report(made);
                     session.view = house ? new TreeSession.HouseView(base.getWorld(), base.getBlockX(), base.getBlockY(), base.getBlockZ(),
                             HouseShape.Placement.of(aim, settings.getInt(TreeSettings.Key.HOUSE_ROTATION), settings.getInt(TreeSettings.Key.HOUSE_WIDTH),
                                     settings.getInt(TreeSettings.Key.HOUSE_DEPTH)), settings.getInt(TreeSettings.Key.HOUSE_RAISE), owners) : null;
