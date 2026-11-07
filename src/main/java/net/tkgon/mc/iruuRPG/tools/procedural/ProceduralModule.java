@@ -997,12 +997,95 @@ public final class ProceduralModule implements Listener {
                 session.busy = false;
                 StringBuilder text = new StringBuilder(PREFIX + "できました (" + count + "ブロック, seed " + seed + "): ");
                 for (TreePart part : kindParts) {
+                    if (counts.getOrDefault(part, 0) == 0 && settings.kind() == ProcKind.BUILDING) continue;
                     text.append(part.label()).append(' ').append(counts.getOrDefault(part, 0)).append("  ");
                 }
                 player.sendMessage(text.toString().trim());
+                // (t295: what the checks and the score said of the building)
+                if (blocks instanceof BuildingShape.Blocks building) {
+                    session.buildingReport = BuildingShape.report(building);
+                    player.sendMessage(PREFIX + session.buildingReport);
+                }
                 player.sendMessage(PREFIX + (undoable ? "気に入らなければ //undo (やり直しは //redo)。" : "WorldEdit がないので戻せません。") + "seed を固定すると同じ木になります。");
             }
         }.runTaskTimer(plugin, 0L, 1L);
+    }
+
+    /**
+     * (t295) Writes what the player's settings make (its seed fixed by the preview, else the settings', else a new one; its front toward the player as the
+     * place they chose says) as a Sponge schematic into WorldEdit's schematics folder ({@code //schem load <name>}, then {@code //paste} puts it where you stand as
+     * the tool would), else into {@code plugins/iruuRPG/schematics/}. Made off the main thread; the blocks' states read on it.
+     */
+    void exportSchematic(Player player, String name) {
+        TreeSession session = session(player);
+        TreeSettings settings = session.settings.copy();
+        if (settings.kind().web()) {
+            player.sendMessage(PREFIX + "クモの巣は .schem にできません。");
+            return;
+        }
+        limit(settings);
+        long seed = settings.seed() != 0L ? settings.seed() : new Random().nextLong() & Long.MAX_VALUE;
+        TreeGround ground = null;
+        if (session.base != null && session.base.getWorld() != null && (!settings.kind().tree() || OrnateTree.readsGround(settings))) {
+            try {
+                ground = TreeGround.sample(session.base, TreeGenerator.groundRadius(settings));
+            } catch (RuntimeException exception) {
+                ground = null;
+            }
+        }
+        TreeGround terrain = ground;
+        org.bukkit.util.Vector aim = session.aim == null ? null : session.aim.clone();
+        java.io.File folder = schematicFolder();
+        player.sendMessage(PREFIX + "書き出しています… (" + settings.kind().label() + ", seed " + seed + ")");
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            Map<Long, TreePart> blocks;
+            try {
+                blocks = TreeGenerator.build(settings, seed, terrain, aim, null);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("schematic generation failed: " + exception);
+                Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(PREFIX + "作れませんでした (ログを見てください)。"));
+                return;
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                Map<TreePart, BlockData> materials = new EnumMap<>(TreePart.class);
+                for (TreePart part : TreePart.values()) materials.put(part, blockData(part, settings));
+                if (blocks instanceof OrnateTree.Blocks ornate) ornate.useParts(materials);
+                Map<Long, String> states = new HashMap<>();
+                for (Map.Entry<Long, TreePart> entry : blocks.entrySet()) {
+                    long key = entry.getKey();
+                    BlockData data = ThinTree.shape(materials.get(entry.getValue()), entry.getValue(), blocks, TreeVoxelizer.unpackX(key), TreeVoxelizer.unpackY(key),
+                            TreeVoxelizer.unpackZ(key));
+                    states.put(key, data.getAsString());
+                }
+                String report = blocks instanceof BuildingShape.Blocks building ? BuildingShape.report(building) : null;
+                Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+                    java.io.File file = new java.io.File(folder, name + ".schem");
+                    String done;
+                    try {
+                        if (!folder.isDirectory() && !folder.mkdirs()) throw new java.io.IOException("no folder " + folder);
+                        java.nio.file.Files.write(file.toPath(), SchematicWriter.write(states));
+                        done = "書き出しました: " + file.getPath() + " (" + states.size() + " ブロック, seed " + seed + ")。//schem load " + name + " → //paste で、立っている所に置けます";
+                    } catch (java.io.IOException | RuntimeException exception) {
+                        plugin.getLogger().warning("schematic not written: " + exception);
+                        done = "書き出せませんでした (ログを見てください)。";
+                    }
+                    String message = done;
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        player.sendMessage(PREFIX + message);
+                        if (report != null) player.sendMessage(PREFIX + report);
+                    });
+                });
+            });
+        });
+    }
+
+    /** WorldEdit's schematics folder (FastAsyncWorldEdit's or WorldEdit's), else the plugin's own. */
+    private java.io.File schematicFolder() {
+        for (String name : new String[]{"FastAsyncWorldEdit", "WorldEdit"}) {
+            org.bukkit.plugin.Plugin other = plugin.getServer().getPluginManager().getPlugin(name);
+            if (other != null) return new java.io.File(other.getDataFolder(), "schematics");
+        }
+        return new java.io.File(plugin.getDataFolder(), "schematics");
     }
 
     static boolean replaceable(Block block, boolean replaceSolid) {

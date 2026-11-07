@@ -71,7 +71,29 @@ enum TreePart {
     TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_WOOD),
     /** (t282) the ornate tree: trapdoors (the level tips of thin branches, the streaks of bark) and open fence gates (level tips). */
     BRANCH_TRAPDOOR("branch-trapdoor", "枝先・樹皮 (トラップドア)", 3, Material.OAK_TRAPDOOR),
-    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE);
+    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE),
+    /**
+     * (t295) The roles of a building (one block each: its stairs, slabs, walls, fences and logs are the same block's, see {@code BuildingShape}): the podium, the
+     * frame's posts and beams, the wall, the glass, the corbels, the floors, the roof and its stripes, the eaves' edge, the verges, the ridge, the hips, the chimney,
+     * the rails, the finial.
+     */
+    BLD_PLINTH("bld-plinth", "基壇 (plinth)", 0, Material.STONE_BRICKS),
+    BLD_POST("bld-post", "柱 (frame_post)", 0, Material.SPRUCE_LOG),
+    BLD_BEAM("bld-beam", "梁・幕板・まぐさ (frame_beam)", 0, Material.DARK_OAK_LOG),
+    BLD_INFILL("bld-infill", "壁 (infill)", 0, Material.SMOOTH_SANDSTONE),
+    BLD_WINDOW("bld-window", "窓 (window)", 0, Material.LIGHT_BLUE_STAINED_GLASS),
+    BLD_CORBEL("bld-corbel", "持ち送り (corbel)", 0, Material.SPRUCE_PLANKS),
+    BLD_FLOOR("bld-floor", "床 (floor)", 0, Material.SPRUCE_PLANKS),
+    BLD_ROOF("bld-roof", "屋根 (roof_band_0)", 0, Material.DEEPSLATE_TILES),
+    BLD_ROOF_2("bld-roof-2", "屋根の縞 2 (roof_band_1)", 0, Material.POLISHED_DEEPSLATE),
+    BLD_ROOF_3("bld-roof-3", "屋根の縞 3 (roof_band_2)", 0, Material.COBBLED_DEEPSLATE),
+    BLD_EAVE("bld-eave", "軒先 (eave)", 0, Material.DARK_OAK_PLANKS),
+    BLD_VERGE("bld-verge", "破風 (verge)", 0, Material.SPRUCE_PLANKS),
+    BLD_RIDGE("bld-ridge", "棟 (ridge)", 0, Material.POLISHED_BLACKSTONE_BRICKS),
+    BLD_HIP("bld-hip", "隅棟 (hip)", 0, Material.DEEPSLATE_BRICKS),
+    BLD_CHIMNEY("bld-chimney", "煙突 (chimney)", 0, Material.BRICKS),
+    BLD_RAIL("bld-rail", "手すり (rail)", 0, Material.DARK_OAK_PLANKS),
+    BLD_FINIAL("bld-finial", "頂華 (finial)", 0, Material.POLISHED_BLACKSTONE_BRICKS);
 
     /** (t258) The part whose block this one is put in (a stair's other ways and a slab's top half are their first part's block). */
     TreePart blockOf() {

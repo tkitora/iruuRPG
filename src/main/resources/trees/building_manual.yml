@@ -1,0 +1,13 @@
+# 見本の建物: 手動 (1棟)。長方形 2×2 柱間、2階、石の基壇、2:1 の切妻、ドーマー・煙突・ポーチは確率で。t295 (プロシージャルツールの読み込み、または /proceduraltool load building_manual)
+settings:
+  kind: building
+  bld-pattern: 0
+  bld-footprint: 0
+  bld-bays-wide: 3
+  bld-bays-deep: 2
+  bld-floors: 2
+  bld-storey: 6
+  bld-jetty: 1
+  bld-roof: 0
+  bld-pitch: 2
+  seed: 0

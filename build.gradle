@@ -43,6 +43,11 @@ test {
     systemProperty 'house.samples.seeds', (project.findProperty('houseSampleSeeds') ?: '4')
     systemProperty 'house.samples.shape', (project.findProperty('houseSampleShape') ?: '')
     systemProperty 'house.samples.set', (project.findProperty('houseSampleSet') ?: '')
+    // (t295) -PbuildingSamples=<a folder>: BuildingSamplesTest draws buildings of the building tool there as PNGs (-PbuildingSamplePatterns=1,2; -PbuildingSampleSeeds=3; -PbuildingSampleSet=roofType=1,pitch=2)
+    systemProperty 'building.samples', (project.findProperty('buildingSamples') ?: '')
+    systemProperty 'building.samples.patterns', (project.findProperty('buildingSamplePatterns') ?: '')
+    systemProperty 'building.samples.seeds', (project.findProperty('buildingSampleSeeds') ?: '3')
+    systemProperty 'building.samples.set', (project.findProperty('buildingSampleSet') ?: '')
 }
 
 tasks.register('itemPatchTest', Test) {
