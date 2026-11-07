@@ -66,6 +66,10 @@ final class ProceduralShapes {
                 LobbyShape.build(blocks, s, seed, ground);
                 return blocks.map;
             }
+            case PLOT -> {
+                // (t313: a building of lots, its front toward the player; its blocks carry their shapes)
+                return PlotShape.build(s, seed, ground, aim);
+            }
             default -> {
             }
         }

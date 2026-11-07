@@ -109,7 +109,17 @@ final class ProceduralMenu implements Listener {
                 TreeSettings.Key.HOUSE_GEN_SHAPE, TreeSettings.Key.HOUSE_GEN_ROOF, TreeSettings.Key.HOUSE_GEN_LOOK}),
         /** (t190) the walls of a house: stone, timber, the depth of the walls and the windows. */
         WALLS(7, Material.STRIPPED_SPRUCE_LOG, "壁", new TreeSettings.Key[]{TreeSettings.Key.HOUSE_STONE, TreeSettings.Key.HOUSE_PLINTH, TreeSettings.Key.HOUSE_TIMBER,
-                TreeSettings.Key.HOUSE_RECESS, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_GLASS});
+                TreeSettings.Key.HOUSE_RECESS, TreeSettings.Key.HOUSE_WINDOWS, TreeSettings.Key.HOUSE_GLASS}),
+        /** (t313) a building of lots: the site and the rules of the buildings made by themselves, the lots, the storeys, the buildings made, the blocks, the kit. */
+        P_SITE(3, Material.GRASS_BLOCK, "敷地", new TreeSettings.Key[]{TreeSettings.Key.PLOT_SITE_W, TreeSettings.Key.PLOT_SITE_D, TreeSettings.Key.PLOT_MODULE,
+                TreeSettings.Key.PLOT_ROTATION, TreeSettings.Key.PLOT_MODE, TreeSettings.Key.PLOT_PATTERN, TreeSettings.Key.PLOT_CANDIDATES, TreeSettings.Key.PLOT_RETRIES,
+                TreeSettings.Key.PLOT_STILTS, TreeSettings.Key.PLOT_DETAIL, TreeSettings.Key.PLOT_STEEP, TreeSettings.Key.PLOT_ROOF_LOOK, TreeSettings.Key.PLOT_SHAPES,
+                TreeSettings.Key.PLOT_PALETTE}),
+        P_LOTS(4, Material.MAP, "区画", new TreeSettings.Key[]{}),
+        P_FLOORS(5, Material.LADDER, "階", new TreeSettings.Key[]{}),
+        P_AUTO(6, Material.NETHER_STAR, "おまかせ生成", new TreeSettings.Key[]{}),
+        P_BLOCKS(7, Material.WHITE_WOOL, "ブロック", new TreeSettings.Key[]{}),
+        P_KIT(8, Material.CRAFTING_TABLE, "部品キット", new TreeSettings.Key[]{});
 
         final int tab;
         final Material icon;
@@ -128,8 +138,9 @@ final class ProceduralMenu implements Listener {
             ProcKind kind = settings.kind();
             return switch (this) {
                 case BASIC -> true;
-                case SHAPE -> !kind.tree();
+                case SHAPE -> !kind.tree() && kind != ProcKind.PLOT;
                 case ROOF, MODULES, DESIGN, WALLS -> kind == ProcKind.HOUSE;
+                case P_SITE, P_LOTS, P_FLOORS, P_AUTO, P_BLOCKS, P_KIT -> kind == ProcKind.PLOT;
                 case BRANCH -> kind.tree() && !settings.grows("palm") && !settings.grows("silhouette");
                 case SHADE -> kind.tree() && settings.grows("ornate");
                 default -> kind.tree();
@@ -140,7 +151,7 @@ final class ProceduralMenu implements Listener {
         TreeSettings.Key[] keysFor(TreeSettings settings) {
             ProcKind kind = settings.kind();
             // (a web has no height and width: the points decide how big it is; a tree is as big as its own numbers make it)
-            if (this == BASIC && (kind.web() || kind.tree() || kind == ProcKind.HOUSE || kind == ProcKind.LOBBY)) return new TreeSettings.Key[]{};
+            if (this == BASIC && (kind.web() || kind.tree() || kind == ProcKind.HOUSE || kind == ProcKind.LOBBY || kind == ProcKind.PLOT)) return new TreeSettings.Key[]{};
             if (kind.tree() && this != BASIC) return treeKeys(settings.algorithm(), this);
             // (a roof of steps has one more: how its steps fit the house)
             if (this == ROOF && stepped(settings)) {
@@ -397,11 +408,11 @@ final class ProceduralMenu implements Listener {
         player.openInventory(inventory);
     }
 
-    private static Component text(String text, NamedTextColor color) {
+    static Component text(String text, NamedTextColor color) {
         return Component.text(text, color).decoration(TextDecoration.ITALIC, false);
     }
 
-    private static ItemStack item(Material material, String name, NamedTextColor color, List<Component> lore) {
+    static ItemStack item(Material material, String name, NamedTextColor color, List<Component> lore) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
@@ -421,8 +432,16 @@ final class ProceduralMenu implements Listener {
         };
     }
 
+    /** (t313) The next (or the one before) of a setting of names, going round from the last to the first. */
+    private static int cycle(TreeSettings.Key key, int value, boolean forward) {
+        int min = (int) key.min();
+        int count = (int) key.max() - min + 1;
+        return min + Math.floorMod(value - min + (forward ? 1 : -1), count);
+    }
+
     /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
     private static boolean named(TreeSettings.Key key) {
+        if (PlotShape.named(key)) return true;
         return switch (key) {
             case SIL_SHAPE, ORN_STYLE, ORN_CROWN, HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
             default -> false;
@@ -436,7 +455,9 @@ final class ProceduralMenu implements Listener {
         if (key == TreeSettings.Key.ORN_STYLE) return OrnateTree.styleName((int) Math.round(value));
         if (key == TreeSettings.Key.ORN_CROWN) return OrnateTree.crownName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_RIDGE) return HouseShape.ridgeName((int) Math.round(value));
-        if (key == TreeSettings.Key.HOUSE_ROTATION) return (int) Math.round(value) + "°";
+        if (key == TreeSettings.Key.HOUSE_ROTATION || key == TreeSettings.Key.PLOT_ROTATION) return (int) Math.round(value) + "°";
+        String plot = PlotShape.valueName(key, value);
+        if (plot != null) return plot;
         int whole = (int) Math.round(value);
         if (key == TreeSettings.Key.HOUSE_GEN_PATTERN) return HouseDesigner.Pattern.of(whole).label;
         if (key == TreeSettings.Key.HOUSE_GEN_SIZE) return HouseDesigner.sizeName(whole);
@@ -480,6 +501,11 @@ final class ProceduralMenu implements Listener {
         if (page == Page.BASIC) renderBasic(player, inventory, session, settings);
         else if (page == Page.MODULES) renderModules(inventory, session, settings);
         else if (page == Page.DESIGN) renderDesign(inventory, session, settings);
+        else if (page == Page.P_LOTS) PlotMenu.renderLots(inventory, session, settings);
+        else if (page == Page.P_FLOORS) PlotMenu.renderFloors(inventory, session, settings);
+        else if (page == Page.P_AUTO) PlotMenu.renderAuto(inventory, session, settings);
+        else if (page == Page.P_BLOCKS) PlotMenu.renderBlocks(inventory, settings, holder.picking, tool);
+        else if (page == Page.P_KIT) PlotMenu.renderKit(inventory, session);
         else inventory.setItem(INFO, item(page.icon, page.label + "の設定", NamedTextColor.GOLD, List.of(
                 text("左クリック: 増やす / 右クリック: 減らす", NamedTextColor.GRAY),
                 text("Shift を押しながらで、大きく動かす", NamedTextColor.GRAY),
@@ -718,13 +744,13 @@ final class ProceduralMenu implements Listener {
     }
 
     /** The item that shows a block in the menu: the block itself, or something near it for a block that is no item (a potted plant shows the pot). */
-    private static Material icon(Material block) {
+    static Material icon(Material block) {
         if (block.isItem() && !block.isAir()) return block;
         if (block.name().startsWith("POTTED_")) return Material.FLOWER_POT;
         return Material.PAPER;
     }
 
-    private static ItemStack glint(ItemStack item, boolean on) {
+    static ItemStack glint(ItemStack item, boolean on) {
         if (!on) return item;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return item;
@@ -769,9 +795,15 @@ final class ProceduralMenu implements Listener {
             if (GRID[index] != slot) continue;
             TreeSettings.Key key = pageKeys[index];
             if (key.toggle()) settings.set(key, settings.on(key) ? 0 : 1);
+            else if (PlotShape.named(key)) settings.set(key, cycle(key, settings.getInt(key), left));
             else settings.adjust(key, (left ? 1 : -1) * (big ? key.bigStep() : key.step()));
             // (t286: another style of the ornate tree starts from its own shape numbers)
             if (key == TreeSettings.Key.ORN_STYLE) OrnateTree.applyStyle(settings, settings.getInt(key));
+            // (t313: a palette chosen sets the blocks of every role, then goes back to "as they are")
+            if (key == TreeSettings.Key.PLOT_PALETTE) {
+                PlotShape.applyPalette(settings, settings.getInt(key));
+                settings.set(key, 0);
+            }
             tool.limit(settings);
             tool.changed(player);
             render(player, holder);
@@ -783,6 +815,31 @@ final class ProceduralMenu implements Listener {
                 return;
             }
             if (moduleClick(session, settings, slot, left, big)) {
+                tool.changed(player);
+                render(player, holder);
+                return;
+            }
+        }
+        // (t313: the pages of a building of lots)
+        boolean shiftRight = click == ClickType.SHIFT_RIGHT;
+        if (holder.page == Page.P_LOTS && PlotMenu.clickLots(session, settings, slot, left, big, shiftRight)
+                || holder.page == Page.P_FLOORS && PlotMenu.clickFloors(session, settings, slot, left, big, shiftRight)) {
+            tool.changed(player);
+            render(player, holder);
+            return;
+        }
+        if (holder.page == Page.P_KIT && slot != CLOSE && slot != PREVIEW && slot != GENERATE && slot != UNDO && slot != REDO) {
+            if (PlotMenu.clickKit(player, session, slot, left)) render(player, holder);
+            return;
+        }
+        if (holder.page == Page.P_AUTO) {
+            if (slot == PlotMenu.AUTO_NEW) {
+                // (the building comes a moment later, off the main thread: the menu is shown again then)
+                tool.designPlot(player);
+                return;
+            }
+            if (slot == PlotMenu.AUTO_MODE) {
+                settings.set(TreeSettings.Key.PLOT_MODE, settings.getInt(TreeSettings.Key.PLOT_MODE) == 1 ? 0 : 1);
                 tool.changed(player);
                 render(player, holder);
                 return;
@@ -1282,6 +1339,15 @@ final class ProceduralMenu implements Listener {
                     render(player, holder);
                     return true;
                 }
+                target = "part:" + part.name();
+                if (!left) {
+                    settings.setBlock(part, null);
+                    tool.changed(player);
+                }
+            }
+        } else if (holder.page == Page.P_BLOCKS) {
+            TreePart part = PlotMenu.blockPart(slot);
+            if (part != null) {
                 target = "part:" + part.name();
                 if (!left) {
                     settings.setBlock(part, null);

@@ -185,6 +185,8 @@ final class TreePreview {
                     session.computing = false;
                     if (result == null || !session.preview || job != session.job || !player.isOnline()) return;
                     session.highlighted = highlight;
+                    // (t313: what the checks and the score said of the building of lots shown)
+                    if (result instanceof PlotShape.Blocks plot) session.plotReport = PlotShape.report(plot);
                     session.view = house ? new TreeSession.HouseView(base.getWorld(), base.getBlockX(), base.getBlockY(), base.getBlockZ(),
                             HouseShape.Placement.of(aim, settings.getInt(TreeSettings.Key.HOUSE_ROTATION), settings.getInt(TreeSettings.Key.HOUSE_WIDTH),
                                     settings.getInt(TreeSettings.Key.HOUSE_DEPTH)), settings.getInt(TreeSettings.Key.HOUSE_RAISE), owners) : null;

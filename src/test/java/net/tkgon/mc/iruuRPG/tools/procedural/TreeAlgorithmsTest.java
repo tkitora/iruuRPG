@@ -145,6 +145,15 @@ class TreeAlgorithmsTest {
             YamlConfiguration yaml = YamlConfiguration.loadConfiguration(new File(folder, name + ".yml"));
             assertNotNull(yaml.getConfigurationSection("settings"), name);
             TreeSettings settings = TreeSettings.fromMap(new LinkedHashMap<>(yaml.getConfigurationSection("settings").getValues(false)), name);
+            if (settings.kind() == ProcKind.PLOT) {
+                // (t313: the sample buildings of lots: a building every seed, inside the preview's limit, their checks passed)
+                for (long seed = 1; seed <= 3; seed++) {
+                    Map<Long, TreePart> blocks = TreeGenerator.build(settings, seed, null);
+                    assertTrue(blocks.size() > 500 && blocks.size() < 40000, name + " seed " + seed + ": " + blocks.size());
+                    if (settings.getInt(TreeSettings.Key.PLOT_MODE) == 0) assertTrue(((PlotShape.Blocks) blocks).problems.isEmpty(), name + " " + ((PlotShape.Blocks) blocks).problems);
+                }
+                continue;
+            }
             assertTrue(settings.kind().tree(), name);
             assertEquals(yaml.getString("settings.algorithm"), settings.algorithm(), name);
             for (TreePart part : TreePart.values()) {

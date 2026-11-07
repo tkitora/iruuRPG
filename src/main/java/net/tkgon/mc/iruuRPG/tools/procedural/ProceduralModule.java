@@ -50,6 +50,7 @@ public final class ProceduralModule implements Listener {
     private final NamespacedKey toolKey;
     /** (t246) The mark of the part wand. */
     private final NamespacedKey wandKey;
+    private final KitStore kits;
     private final TreeStore store;
     private final ProceduralMenu menu;
     /** (t286) The list of presets (loading, and choosing the placing tool's). */
@@ -87,6 +88,9 @@ public final class ProceduralModule implements Listener {
         this.wandKey = new NamespacedKey(plugin, "house_wand");
         this.store = new TreeStore(plugin);
         store.installSamples();
+        // (t313: the parts of the buildings of lots, from the folder)
+        this.kits = new KitStore(plugin);
+        kits.start();
         this.menu = new ProceduralMenu(this);
         this.presets = new PresetMenu(this);
         this.scatterKey = new NamespacedKey(plugin, "scatter_tool");
@@ -106,6 +110,10 @@ public final class ProceduralModule implements Listener {
 
     JavaPlugin plugin() {
         return plugin;
+    }
+
+    KitStore kits() {
+        return kits;
     }
 
     TreeStore store() {
@@ -825,6 +833,51 @@ public final class ProceduralModule implements Listener {
         });
     }
 
+    /**
+     * (t313) A new building of lots made by itself (the settings' pattern, a new seed each time), written into the lots so it can be changed by hand; the
+     * settings before it stay in the list to go back to.
+     */
+    void designPlot(Player player) {
+        TreeSession session = session(player);
+        if (session.settings.kind() != ProcKind.PLOT) return;
+        if (session.designing) {
+            player.sendMessage(PREFIX + "前の建物をまだ作っています。");
+            return;
+        }
+        TreeSettings from = session.settings.copy();
+        long used = 1L + new Random().nextInt(999_999);
+        session.designing = true;
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            net.tkgon.mc.iruuRPG.tools.procedural.plot.Patterns.Design design;
+            try {
+                design = PlotShape.design(from, used);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("plot design failed: " + exception);
+                Bukkit.getScheduler().runTask(plugin, () -> {
+                    session.designing = false;
+                    player.sendMessage(PREFIX + "建物を作れませんでした (ログを見てください)。");
+                });
+                return;
+            }
+            Bukkit.getScheduler().runTask(plugin, () -> {
+                session.designing = false;
+                if (!player.isOnline() || design == null) return;
+                TreeSettings made = session.settings.copy();
+                PlotShape.take(made, design.plan());
+                made.set(TreeSettings.Key.PLOT_MODE, 0);
+                keepDesign(session, made);
+                session.plotLot = 0;
+                session.plotFloor = 0;
+                changed(player);
+                menu.refresh(player);
+                player.sendMessage(PREFIX + "建物 " + (session.design + 1) + " / " + session.designs.size() + ": " + design.pattern().label + "、区画 " + design.plan().lots.size()
+                        + "、点 " + String.format(java.util.Locale.ROOT, "%.2f", design.result().score()) + "、試した数 " + design.tries()
+                        + (design.result().problems().isEmpty() ? "、検証 OK" : "、検証: " + String.join(" / ", design.result().problems()))
+                        + (session.preview ? "" : "  (プレビューで見られます)"));
+            });
+        });
+    }
+
     /** The new house becomes the settings; the settings as they were (with what was changed by hand since) stay in the list to go back to. */
     private static void keepDesign(TreeSession session, TreeSettings made) {
         if (session.designs.isEmpty()) session.designs.add(session.settings.copy());
@@ -1000,6 +1053,11 @@ public final class ProceduralModule implements Listener {
                     text.append(part.label()).append(' ').append(counts.getOrDefault(part, 0)).append("  ");
                 }
                 player.sendMessage(text.toString().trim());
+                // (t313: what the checks and the score said of the building of lots)
+                if (blocks instanceof PlotShape.Blocks plot) {
+                    session.plotReport = PlotShape.report(plot);
+                    player.sendMessage(PREFIX + session.plotReport);
+                }
                 player.sendMessage(PREFIX + (undoable ? "気に入らなければ //undo (やり直しは //redo)。" : "WorldEdit がないので戻せません。") + "seed を固定すると同じ木になります。");
             }
         }.runTaskTimer(plugin, 0L, 1L);

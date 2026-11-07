@@ -16,7 +16,7 @@ final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
     private static final List<String> SUBS = List.of("kind", "give", "wand", "presets", "scatter", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
-            "random", "build", "schem");
+            "random", "build", "schem", "lot", "kit");
 
     private final ProceduralModule tool;
 
@@ -36,7 +36,7 @@ final class ProceduralCommand implements TabExecutor {
             case "kind" -> {
                 ProcKind kind = args.length > 1 ? ProcKind.byId(args[1]) : null;
                 if (kind == null) {
-                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web|house|lobby>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
+                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web|house|lobby|plot>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
                 } else {
                     session.settings.setKind(kind);
                     tool.limit(session.settings);
@@ -99,6 +99,9 @@ final class ProceduralCommand implements TabExecutor {
             }
             case "block" -> block(player, session.settings, args);
             case "random" -> random(player, session, args);
+            // (t313) the lots of a building of lots, the parts of its kit
+            case "lot" -> PlotCommand.lot(player, session, tool, args);
+            case "kit" -> PlotCommand.kit(player, session, tool, args);
             // (t295) a preset put at a place by command, the same with the same seed; what the settings make written as a .schem
             case "build" -> build(player, session, args);
             case "schem" -> {
@@ -115,7 +118,7 @@ final class ProceduralCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|presets|scatter|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]|build <設定名> [x y z] [seed]|schem [名前]]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|presets|scatter|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]|build <設定名> [x y z] [seed]|schem [名前]|lot ...|kit ...]");
         }
         return true;
     }
@@ -396,6 +399,8 @@ final class ProceduralCommand implements TabExecutor {
                 options.add((head + material.name()).toLowerCase(Locale.ROOT));
                 found++;
             }
+        } else if (args.length >= 2 && (args[0].equalsIgnoreCase("lot") || args[0].equalsIgnoreCase("kit"))) {
+            if (sender instanceof Player player) options.addAll(PlotCommand.complete(tool.session(player), args));
         } else if (args.length >= 2 && args[0].equalsIgnoreCase("random")) {
             for (HouseDesigner.Pattern pattern : HouseDesigner.Pattern.values()) options.add(pattern.id);
             options.add("parts");

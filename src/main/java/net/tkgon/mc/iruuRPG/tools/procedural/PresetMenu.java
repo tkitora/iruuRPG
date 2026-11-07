@@ -37,8 +37,9 @@ final class PresetMenu implements Listener {
 
     private static final int SIZE = 54;
     private static final int BACK = 0;
-    private static final int[] TABS = {1, 2, 3, 4, 5, 6, 7};
-    private static final int MODE = 8;
+    private static final int[] TABS = {1, 2, 3, 4, 5, 6, 7, 8};
+    /** (t313: the tabs took its slot when the building of lots came) */
+    private static final int MODE = 52;
     private static final int FIRST = 9;
     private static final int PER_PAGE = 36;
     private static final int PREV = 45;

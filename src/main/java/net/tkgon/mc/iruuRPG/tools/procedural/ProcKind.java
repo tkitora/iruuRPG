@@ -22,7 +22,16 @@ enum ProcKind {
     /** (t190) a plaza with houses round it, as the lobbies (central spawns) of servers are built. */
     LOBBY("ロビー (街並み)", Material.BELL, "中央の広場 (床の模様・噴水か台座・花壇) のまわりに、おまかせ生成の家を、広場を向けて高さ・大きさ・角度を少しずつ変えて並べる。家への道、すきまの木、地形へのなじませも", List.of(
             TreePart.LOBBY_PAVE, TreePart.LOBBY_PATH, TreePart.LOBBY_BED, TreePart.LOBBY_SOIL, TreePart.LOBBY_WATER, TreePart.HOUSE_PILLAR, TreePart.HOUSE_WALL,
-            TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW, TreePart.TRUNK, TreePart.LEAF));
+            TreePart.HOUSE_FLOOR, TreePart.HOUSE_ROOF, TreePart.HOUSE_STONE, TreePart.HOUSE_BEAM, TreePart.HOUSE_WINDOW, TreePart.TRUNK, TreePart.LEAF)),
+    /**
+     * (t313) A building of lots (nekorozv's spec 1/6 to 6/6): rectangles, circles and octagons, each with its own foundation, storeys and roof; walls of the
+     * kit's panels, roofs joined or stopped by the lots beside them, parts on them; made by hand lot by lot, or by itself from a pattern.
+     */
+    PLOT("建物 (区画)", Material.SPRUCE_PLANKS, "長方形・円・八角形の区画の集まり。区画ごとに基礎・階・屋根を決め、壁は部品キットのパネルで割り付け、屋根は隣の区画に合わせて結合・壁当て。ドーマー・煙突・外階段・ポーチ・高床も。生成パターンから毎回ちがう建物も", List.of(
+            TreePart.PLOT_FRAME, TreePart.PLOT_BEAM, TreePart.PLOT_BRACE, TreePart.PLOT_PLINTH, TreePart.PLOT_STONE, TreePart.PLOT_INFILL, TreePart.PLOT_INFILL_2,
+            TreePart.PLOT_INFILL_3, TreePart.PLOT_WINDOW, TreePart.PLOT_DOOR, TreePart.PLOT_FLOOR, TreePart.PLOT_CORBEL, TreePart.PLOT_ROOF, TreePart.PLOT_EAVE,
+            TreePart.PLOT_RIDGE, TreePart.PLOT_FLASHING, TreePart.PLOT_CHIMNEY, TreePart.PLOT_RAIL, TreePart.PLOT_STAIR, TreePart.PLOT_FINIAL, TreePart.PLOT_SAIL,
+            TreePart.PLOT_BELL));
 
     private final String label;
     private final Material icon;
@@ -93,6 +102,10 @@ enum ProcKind {
                 s.set(TreeSettings.Key.CRYSTAL_FACETS, 6);
                 s.set(TreeSettings.Key.CRYSTAL_THICK, 1.0);
                 s.set(TreeSettings.Key.CRYSTAL_VARIANCE, 0.5);
+            }
+            case PLOT -> {
+                // (a building of lots starts with one main block, its door at the front, when it has none)
+                if (s.lots().isEmpty()) s.lots().add(PlotShape.starter());
             }
             case WEB -> {
                 s.set(TreeSettings.Key.WEB_RINGS, 8);
