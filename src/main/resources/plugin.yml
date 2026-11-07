@@ -131,3 +131,6 @@ permissions:
   iruurpg.admin:
     description: Allows iruuRPG admin commands
     default: op
+  iruurpg.uitest:
+    description: Sees the menus' own looks that are marked testers-only (ui/*.yml, t291)
+    default: op

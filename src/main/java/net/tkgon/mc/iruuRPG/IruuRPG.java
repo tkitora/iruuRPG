@@ -175,6 +175,7 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.balance.BalanceService balanceService;
     /** The looks of the travel and dungeon menus (menus/*.yml of the yml repository, t220). */
     private net.tkgon.mc.iruuRPG.gui.MenuLooks menuLooks;
+    private net.tkgon.mc.iruuRPG.gui.skin.MenuSkins menuSkins;
 
     @Override
     public void onEnable() {
@@ -222,6 +223,8 @@ public final class IruuRPG extends JavaPlugin {
         this.itemFactory.setCustomModelData(itemPackService::numberOf);
         // the pack of the ground marks' font (drawn off the main thread; sent again to the players online when it changed)
         net.tkgon.mc.iruuRPG.markpack.MarkPackService.rebuild(this, pack -> { if (resourcePackService != null) resourcePackService.resend(pack); });
+        // (t291, trial) the menus' own looks (ui/*.yml) and their pack
+        menuSkins().reload();
         this.skillRegistry = new net.tkgon.mc.iruuRPG.skill.SkillRegistry(this);
         this.skillRegistry.reload();
         this.classSkillRegistry.setGeneralSkills(skillRegistry);
@@ -350,6 +353,7 @@ public final class IruuRPG extends JavaPlugin {
         this.craftService.setCompleteHook(questlineService::onCrafted);
         this.craftMenu = new CraftMenu(this, craftService, itemRegistry, itemFactory);
         this.mainMenu = new MainMenu(equipmentService, levelService, statsMenu, skillTreeMenu, classService, classSelectMenu);
+        this.mainMenu.setSkins(menuSkins());
         this.mainMenu.setCraftMenu(craftMenu);
         this.mainMenu.setQuestBoardMenu(questBoardMenu);
         var questLogMenu = new net.tkgon.mc.iruuRPG.gui.QuestLogMenu(questlineService);
@@ -896,6 +900,12 @@ public final class IruuRPG extends JavaPlugin {
         return ids;
     }
 
+    /** (t291, trial) The menus' own looks, made the first time they are asked for. */
+    private net.tkgon.mc.iruuRPG.gui.skin.MenuSkins menuSkins() {
+        if (menuSkins == null) menuSkins = new net.tkgon.mc.iruuRPG.gui.skin.MenuSkins(getDataFolder(), problem -> getLogger().warning(problem));
+        return menuSkins;
+    }
+
     private net.tkgon.mc.iruuRPG.gui.MenuLooks menuLooks() {
         if (menuLooks == null) {
             menuLooks = new net.tkgon.mc.iruuRPG.gui.MenuLooks(getDataFolder(), problem -> getLogger().warning(problem));
@@ -937,6 +947,7 @@ public final class IruuRPG extends JavaPlugin {
         reloadConfig();
         applyBalance();
         menuLooks().reload();
+        if (menuSkins().reload() && resourcePackService != null) resourcePackService.resend("ui");
         net.tkgon.mc.iruuRPG.combat.Sfx.configure(getConfig().getConfigurationSection("sound-design"), problem -> getLogger().warning(problem));
         itemSkillRegistry.reload();
         skillRegistry.reload();
