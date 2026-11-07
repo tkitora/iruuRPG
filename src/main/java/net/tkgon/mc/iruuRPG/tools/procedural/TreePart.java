@@ -9,10 +9,10 @@ import org.bukkit.Material;
  */
 enum TreePart {
 
-    TRUNK("trunk", "幹", 0, Material.OAK_LOG),
-    ROOT("root", "根", 1, Material.OAK_LOG),
-    BRANCH("branch", "枝", 2, Material.OAK_LOG),
-    TWIG("twig", "細い枝", 3, Material.OAK_LOG),
+    TRUNK("trunk", "幹", 0, Material.OAK_WOOD),
+    ROOT("root", "根", 1, Material.OAK_WOOD),
+    BRANCH("branch", "枝", 2, Material.OAK_WOOD),
+    TWIG("twig", "細い枝", 3, Material.OAK_WOOD),
     LEAF("leaf", "葉", 4, Material.OAK_LEAVES),
     /** The snow on the leaves of a tiered tree. */
     SNOW("snow", "雪", 3, Material.SNOW_BLOCK),
@@ -67,8 +67,8 @@ enum TreePart {
     BRANCH_STAIR_TOP_EAST("branch-stair-top-east", "幹・枝の階段 (上付き・東)", 1, Material.OAK_STAIRS),
     BRANCH_STAIR_TOP_SOUTH("branch-stair-top-south", "幹・枝の階段 (上付き・南)", 1, Material.OAK_STAIRS),
     BRANCH_STAIR_TOP_WEST("branch-stair-top-west", "幹・枝の階段 (上付き・西)", 1, Material.OAK_STAIRS),
-    TRUNK_X("trunk-x", "幹 (東西に寝た丸太)", 0, Material.OAK_LOG),
-    TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_LOG),
+    TRUNK_X("trunk-x", "幹 (東西に寝た丸太)", 0, Material.OAK_WOOD),
+    TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_WOOD),
     /** (t282) the ornate tree: trapdoors (the level tips of thin branches, the streaks of bark) and open fence gates (level tips). */
     BRANCH_TRAPDOOR("branch-trapdoor", "枝先・樹皮 (トラップドア)", 3, Material.OAK_TRAPDOOR),
     BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE);

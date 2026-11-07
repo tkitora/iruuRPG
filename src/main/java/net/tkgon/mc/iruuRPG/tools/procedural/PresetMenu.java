@@ -26,7 +26,8 @@ import java.util.Map;
 /**
  * (t286) The list of saved presets, by what they make (a tab for trees, rocks, spikes, crystals, webs, houses, lobbies), a page of 36 at a time. Two uses: loading a
  * preset into the settings (a click loads it and goes back to the settings), and choosing the presets of the placing tool with their weights (left click more,
- * right click less; the tool then puts one of them, by weight, where it is clicked, with a seed of chance).
+ * right click less; the tool then puts one of them, by weight, where it is clicked, with a seed of chance). (t288) In the list for loading, a shift click deletes a
+ * preset after a screen that asks first (the file goes to {@code trees/trash/}).
  */
 final class PresetMenu implements Listener {
 
@@ -68,8 +69,13 @@ final class PresetMenu implements Listener {
     }
 
     void open(Player player, Mode mode) {
+        open(player, mode, 0);
+    }
+
+    private void open(Player player, Mode mode, int page) {
         Holder holder = new Holder();
         holder.mode = mode;
+        holder.page = page;
         TreeSession session = tool.session(player);
         holder.kind = session.presetKind != null ? session.presetKind : mode == Mode.SCATTER ? ProcKind.TREE : session.settings.kind();
         Inventory inventory = Bukkit.createInventory(holder, SIZE, Component.text(mode == Mode.LOAD ? "プリセットの読み込み" : "配置ツールのプリセット"));
@@ -173,6 +179,7 @@ final class PresetMenu implements Listener {
             boolean current = name.equals(session.settings.name());
             if (current) lore.add(text("▶ いま読み込んでいるもの", NamedTextColor.GOLD));
             lore.add(text("クリック: 読み込んで設定画面へ", NamedTextColor.YELLOW));
+            lore.add(text("Shift+クリック: 削除 (確かめる画面のあと)", NamedTextColor.RED));
             chosen = current;
         } else if (holder.kind.web()) {
             lore.add(text("クモの巣は点を選んで張るので、配置ツールでは使えません", NamedTextColor.RED));
@@ -237,6 +244,11 @@ final class PresetMenu implements Listener {
                 int index = slot - FIRST;
                 if (index < 0 || index >= holder.shown.size()) return;
                 String name = holder.shown.get(index);
+                if (holder.mode == Mode.LOAD && big) {
+                    int page = holder.page;
+                    later(player, () -> confirm(player, name, page));
+                    return;
+                }
                 if (holder.mode == Mode.LOAD) {
                     load(player, session, name);
                     return;
@@ -266,6 +278,56 @@ final class PresetMenu implements Listener {
         else player.closeInventory();
     }
 
+    // ---- (t288) deleting a preset, after asking ----------------------------------------------------------------------------------------
+
+    private static final int YES = 11;
+    private static final int WHAT = 13;
+    private static final int NO = 15;
+
+    /** The screen that asks before a preset is deleted: the preset, and the list's page to go back to. */
+    private static final class Confirm implements MenuHolder {
+        private Inventory inventory;
+        private String name;
+        private int page;
+
+        @Override
+        public @NotNull Inventory getInventory() {
+            return inventory;
+        }
+    }
+
+    private void confirm(Player player, String name, int page) {
+        Confirm holder = new Confirm();
+        holder.name = name;
+        holder.page = page;
+        Inventory inventory = Bukkit.createInventory(holder, 27, Component.text("削除の確認: " + name));
+        holder.inventory = inventory;
+        ItemStack frame = item(Material.GRAY_STAINED_GLASS_PANE, " ", NamedTextColor.DARK_GRAY, List.of(), false);
+        for (int slot = 0; slot < 27; slot++) inventory.setItem(slot, frame);
+        inventory.setItem(YES, item(Material.RED_CONCRETE, "削除する", NamedTextColor.RED, List.of(
+                text("プリセット「" + name + "」を一覧から消す", NamedTextColor.GRAY),
+                text("(ファイルは trees/trash/ へ移す。戻すときは、手で trees/ へ戻す)", NamedTextColor.GRAY)), false));
+        inventory.setItem(WHAT, item(Material.PAPER, name, NamedTextColor.WHITE, List.of(), false));
+        inventory.setItem(NO, item(Material.LIME_CONCRETE, "やめる", NamedTextColor.GREEN, List.of(text("消さずに一覧へ戻る", NamedTextColor.GRAY)), false));
+        player.openInventory(inventory);
+    }
+
+    @EventHandler
+    public void onConfirm(InventoryClickEvent event) {
+        if (!(event.getView().getTopInventory().getHolder() instanceof Confirm holder)) return;
+        event.setCancelled(true);
+        if (!(event.getWhoClicked() instanceof Player player) || event.getClickedInventory() != holder.inventory) return;
+        int slot = event.getSlot();
+        if (slot != YES && slot != NO) return;
+        if (slot == YES) {
+            boolean deleted = tool.store().delete(holder.name);
+            if (deleted) tool.session(player).scatter.remove(holder.name);
+            player.sendMessage(ProceduralModule.PREFIX + (deleted ? "消しました: " + holder.name + " (trees/trash/ に移しました)" : "消せませんでした: " + holder.name));
+        }
+        int page = holder.page;
+        later(player, () -> open(player, Mode.LOAD, page));
+    }
+
     /** Another screen, opened on the next tick (not inside the click). */
     private void later(Player player, Runnable open) {
         Bukkit.getScheduler().runTask(tool.plugin(), () -> {
@@ -275,6 +337,6 @@ final class PresetMenu implements Listener {
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
-        if (event.getView().getTopInventory().getHolder() instanceof Holder) event.setCancelled(true);
+        if (event.getView().getTopInventory().getHolder() instanceof Holder || event.getView().getTopInventory().getHolder() instanceof Confirm) event.setCancelled(true);
     }
 }

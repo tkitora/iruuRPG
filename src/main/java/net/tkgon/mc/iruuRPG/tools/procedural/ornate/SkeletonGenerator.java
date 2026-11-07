@@ -8,12 +8,21 @@ import java.util.Random;
  * Grows the bones of an ornate tree by its style (t282, t286): 0 the oak (the ornate fantasy tree: the canopy tree's fractal of forks, with swirling limbs and tips
  * that curl up into a scroll), 1 spreading (a bonsai or a pine), 2 a spruce, 3 a birch, 4 a willow, 5 a cherry, 6 an acacia. The roots are grown the same way, down
  * and out from the foot, and can be laid on the ground. Then the radii by the pipe model ({@link Skeleton#pipe}).
+ *
+ * <p>(t288) The first branch's height, when it is given, is where the branches start: an oak's lower limbs, a bonsai's lowest tier, a spruce's lowest whorl, a
+ * birch's lowest branch (the trunk grows at least two blocks over it); a willow, a cherry and an acacia fork there (it is their trunk's height).
  */
 public final class SkeletonGenerator {
 
-    /** The numbers the bones are grown by. */
+    /** The numbers the bones are grown by; {@code branchStart} (t288): how high the first branch leaves the trunk (0: where the style puts it). */
     public record Params(int style, double height, double trunk, double curl, int roots, double rootReach, int branches, int depth, double length, double spread,
-                         double droop, double tipCurl, double pipe) {
+                         double droop, double tipCurl, double pipe, double branchStart) {
+
+        /** The same with the first branch where the style puts it. */
+        public Params(int style, double height, double trunk, double curl, int roots, double rootReach, int branches, int depth, double length, double spread,
+                      double droop, double tipCurl, double pipe) {
+            this(style, height, trunk, curl, roots, rootReach, branches, depth, length, spread, droop, tipCurl, pipe, 0.0);
+        }
     }
 
     /**
@@ -107,9 +116,15 @@ public final class SkeletonGenerator {
         }
     }
 
-    /** The oak (the ornate fantasy tree): a swirling trunk that forks into limbs at the top, a limb or two lower on it, forks {@code depth} times, tips curling up. */
+    /**
+     * The oak (the ornate fantasy tree): a swirling trunk that forks into limbs at the top, a limb or two lower on it, forks {@code depth} times, tips curling up. With
+     * the first branch's height (t288) the lower limbs leave from there up (a trunk shorter than that grows to it and forks there, with no lower limbs).
+     */
     private void oak(int base) {
-        int top = trunk(base, p.height(), 0.08 + p.curl() * 0.12, p.curl() * 0.18);
+        double start = p.branchStart();
+        double lean = 0.08 + p.curl() * 0.12;
+        double height = start > 0.0 && start >= p.height() ? climb(start, lean) : p.height();
+        int top = trunk(base, height, lean, p.curl() * 0.18);
         Deque<Grow> stack = new ArrayDeque<>();
         double[] topWay = way(top);
         double roll = random.nextDouble() * Math.PI * 2.0;
@@ -119,9 +134,13 @@ public final class SkeletonGenerator {
             stack.push(new Grow(top, way, p.length() * (0.9 + 0.2 * random.nextDouble()), p.depth() - 1, s.newLimb()));
         }
         // limbs lower on the trunk (an ornate tree is not a broom)
-        int sides = p.depth() >= 3 && p.height() >= 5 ? 1 + (p.branches() >= 3 ? 1 : 0) : 0;
+        int sides = p.depth() >= 3 && height >= 5 ? 1 + (p.branches() >= 3 ? 1 : 0) : 0;
+        double high = s.y(top) * 0.85;
+        if (start > 0.0) sides = start < high && p.depth() >= 2 ? Math.max(1, sides) : 0;
         for (int side = 0; side < sides; side++) {
-            int at = trunkNodeAt(base, top, (sides == 1 ? 0.62 : 0.5 + 0.3 * side / (sides - 1.0)) + 0.05 * random.nextDouble());
+            double share = start > 0.0 ? shareOf(base, top, start + (high - start) * 0.5 * side)
+                    : (sides == 1 ? 0.62 : 0.5 + 0.3 * side / (sides - 1.0)) + 0.05 * random.nextDouble();
+            int at = trunkNodeAt(base, top, share);
             double angle = roll + Math.PI / forks + side * SPIRAL * 2.0;
             double[] way = normal(new double[]{Math.cos(angle), 0.55 + 0.3 * random.nextDouble(), Math.sin(angle)});
             stack.push(new Grow(at, way, p.length() * 0.7, p.depth() - 2, s.newLimb()));
@@ -131,14 +150,20 @@ public final class SkeletonGenerator {
         forks(stack, bend, last, p.spread(), 0.72);
     }
 
-    /** A bonsai or a pine: a leaning S trunk, tiers of nearly level branches from a third of the way up (longer below), their twigs spread level, a short top. */
+    /**
+     * A bonsai or a pine: a leaning S trunk, tiers of nearly level branches from a third of the way up (or from the first branch's height, t288; longer below), their
+     * twigs spread level, a short top.
+     */
     private void spreading(int base) {
-        int top = trunk(base, p.height(), 0.35 + p.curl() * 0.35, p.curl() * 0.22);
+        double lean = 0.35 + p.curl() * 0.35;
+        double height = p.branchStart() > 0.0 ? Math.max(p.height(), climb(p.branchStart() + 2.0, lean)) : p.height();
+        int top = trunk(base, height, lean, p.curl() * 0.22);
         int tiers = Math.max(2, p.branches() * 2);
+        double first = p.branchStart() > 0.0 ? Math.min(0.95, shareOf(base, top, p.branchStart())) : 0.35;
         double angle = random.nextDouble() * Math.PI * 2.0;
         Deque<Grow> stack = new ArrayDeque<>();
         for (int tier = 0; tier < tiers; tier++) {
-            double share = 0.35 + 0.6 * tier / (tiers - 1.0);
+            double share = first + (0.95 - first) * tier / (tiers - 1.0);
             int at = trunkNodeAt(base, top, share);
             angle += SPIRAL * 2.0 + (random.nextDouble() - 0.5) * 0.4;
             double[] way = normal(new double[]{Math.cos(angle), -0.05 + 0.1 * random.nextDouble(), Math.sin(angle)});
@@ -169,8 +194,9 @@ public final class SkeletonGenerator {
      * long and shorter up to the top (a cone), going out a little down and turning up at the tips; their twigs ({@code depth - 1}) spread level.
      */
     private void spruce(int base) {
-        int top = trunk(base, p.height(), 0.03, p.curl() * 0.04);
-        double low = Math.max(2.0, p.height() * 0.2);
+        double height = p.branchStart() > 0.0 ? Math.max(p.height(), p.branchStart() + 2.0) : p.height();
+        int top = trunk(base, height, 0.03, p.curl() * 0.04);
+        double low = p.branchStart() > 0.0 ? p.branchStart() : Math.max(2.0, height * 0.2);
         double angle = random.nextDouble() * Math.PI * 2.0;
         int count = Math.max(3, p.branches() + 1);
         Deque<Grow> stack = new ArrayDeque<>();
@@ -207,14 +233,16 @@ public final class SkeletonGenerator {
      * longest a third of the way up the crown (an egg), forking {@code depth - 1} times.
      */
     private void birch(int base) {
-        int top = trunk(base, p.height(), 0.05 + p.curl() * 0.08, p.curl() * 0.08);
-        double from = p.height() * 0.35;
+        double height = p.branchStart() > 0.0 ? Math.max(p.height(), p.branchStart() + 2.0) : p.height();
+        int top = trunk(base, height, 0.05 + p.curl() * 0.08, p.curl() * 0.08);
+        double from = p.branchStart() > 0.0 ? p.branchStart() : height * 0.35;
         int count = Math.max(4, p.branches() * 3);
         double angle = random.nextDouble() * Math.PI * 2.0;
         Deque<Grow> stack = new ArrayDeque<>();
         for (int n = 0; n < count; n++) {
             double share = (n + 0.5) / count;
-            int at = trunkNodeAt(base, top, (from + (p.height() - from) * share * 0.95) / Math.max(1.0, p.height()));
+            int at = trunkNodeAt(base, top, p.branchStart() > 0.0 ? shareOf(base, top, from + (s.y(top) - from) * share * 0.95)
+                    : (from + (height - from) * share * 0.95) / Math.max(1.0, height));
             angle += SPIRAL + (random.nextDouble() - 0.5) * 0.3;
             double reach = p.length() * 2.4 * (0.25 + 0.75 * share) * (1.0 - share) * (0.8 + 0.4 * random.nextDouble());
             if (reach < 1.0) continue;
@@ -231,7 +259,7 @@ public final class SkeletonGenerator {
      * {@code droop} weighs them more the farther out they are).
      */
     private void willow(int base) {
-        int top = trunk(base, p.height(), 0.1 + p.curl() * 0.15, p.curl() * 0.15);
+        int top = trunk(base, forkHeight(0.1 + p.curl() * 0.15), 0.1 + p.curl() * 0.15, p.curl() * 0.15);
         Deque<Grow> stack = new ArrayDeque<>();
         double roll = random.nextDouble() * Math.PI * 2.0;
         int limbs = Math.max(3, p.branches());
@@ -262,7 +290,7 @@ public final class SkeletonGenerator {
 
     /** A cherry: a short leaning trunk that soon forks into wide, nearly level limbs; their branches spread out and turn up at the tips (a wide umbrella). */
     private void cherry(int base) {
-        int top = trunk(base, p.height(), 0.2 + p.curl() * 0.25, p.curl() * 0.2);
+        int top = trunk(base, forkHeight(0.2 + p.curl() * 0.25), 0.2 + p.curl() * 0.25, p.curl() * 0.2);
         Deque<Grow> stack = new ArrayDeque<>();
         double roll = random.nextDouble() * Math.PI * 2.0;
         int limbs = Math.max(2, p.branches());
@@ -280,7 +308,7 @@ public final class SkeletonGenerator {
      * near the top into short twigs under the flat crown.
      */
     private void acacia(int base) {
-        int top = trunk(base, p.height(), 0.15 + p.curl() * 0.2, p.curl() * 0.1);
+        int top = trunk(base, forkHeight(0.15 + p.curl() * 0.2), 0.15 + p.curl() * 0.2, p.curl() * 0.1);
         double roll = random.nextDouble() * Math.PI * 2.0;
         int limbs = Math.max(2, p.branches());
         Deque<Grow> stack = new ArrayDeque<>();
@@ -404,6 +432,24 @@ public final class SkeletonGenerator {
             at = s.add(nx, ny, nz, at, kind, limb);
         }
         return at;
+    }
+
+    /**
+     * (t288) The length of a trunk that forks into its limbs at the top (a willow, a cherry, an acacia): its height, or the length that leaning {@code lean} rises to
+     * the first branch's height when it is given.
+     */
+    private double forkHeight(double lean) {
+        return p.branchStart() > 0.0 ? climb(p.branchStart(), lean) : p.height();
+    }
+
+    /** (t288) How long a trunk leaning {@code lean} (sideways to up) grows to rise {@code rise}. */
+    private static double climb(double rise, double lean) {
+        return rise * Math.sqrt(1.0 + lean * lean);
+    }
+
+    /** (t288) The share of the way from {@code base} up to {@code top} that height {@code y} is (for {@link #trunkNodeAt}). */
+    private double shareOf(int base, int top, double y) {
+        return (y - s.y(base)) / Math.max(1.0, s.y(top) - s.y(base));
     }
 
     /** The trunk node about {@code share} of the way from {@code base} up to {@code top}. */

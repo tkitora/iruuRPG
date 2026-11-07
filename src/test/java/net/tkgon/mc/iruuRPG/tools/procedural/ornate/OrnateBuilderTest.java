@@ -10,11 +10,12 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * t282, t286: the bones by the pipe model, the shape field, and the blocks of the ornate tree (no gaps, no thickening, the decoration's limits, the shading), the roots on
- * the ground, the runs of stairs broken, the hanging strands.
+ * t282, t286, t288: the bones by the pipe model, the shape field, and the blocks of the ornate tree (no gaps, no thickening, the decoration's limits, the shading), the
+ * roots on the ground, the runs of stairs broken, the hanging strands, the first branch's height, no stairs stacked the same way, the kinds of crown.
  */
 class OrnateBuilderTest {
 
@@ -252,6 +253,154 @@ class OrnateBuilderTest {
         }
         // and none without the setting
         assertTrue(OrnateBuilder.build(params(SkeletonGenerator.WILLOW), new Random(6)).hang().isEmpty());
+    }
+
+    static OrnateBuilder.Params crown(int style, int crown) {
+        return new OrnateBuilder.Params(bones(style), 1.5, 0.5, 0.6, 0.3, 0.6, 135.0, 2.5, 0.3, 85.0, 0.8, 0.0, 0.0, null, false, crown);
+    }
+
+    @Test
+    void stairsFacingTheSameWayAreNeverStackedStraightUp() {
+        int without = 0;
+        for (int style = 0; style < SkeletonGenerator.STYLES; style++) {
+            for (long seed = 1; seed <= 2; seed++) {
+                Map<Long, OrnateBuilder.Wood> wood = OrnateBuilder.build(crown(style, OrnateBuilder.CROWN_STYLE), new Random(seed)).wood();
+                for (Map.Entry<Long, OrnateBuilder.Wood> entry : wood.entrySet()) {
+                    long key = entry.getKey();
+                    OrnateBuilder.Wood above = wood.get(OrnateBuilder.pack(OrnateBuilder.unpackX(key), OrnateBuilder.unpackY(key) + 1, OrnateBuilder.unpackZ(key)));
+                    if (above == null || entry.getValue().shape().kind != BlockShapes.Kind.STAIRS || above.shape().kind != BlockShapes.Kind.STAIRS) continue;
+                    assertNotEquals(OrnateBuilder.facingOf(entry.getValue().shape()), OrnateBuilder.facingOf(above.shape()), "style " + style + " seed " + seed);
+                }
+            }
+            // (without the stair setting such columns are made: the check is not empty)
+            OrnateBuilder.Params plain = new OrnateBuilder.Params(bones(style), 1.5, 0.5, 0.6, 0.3, 0.6, 135.0, 2.5, 0.3, 85.0, 0.0, 0.0, 0.0, null, false, 0);
+            Map<Long, OrnateBuilder.Wood> wood = OrnateBuilder.build(plain, new Random(1)).wood();
+            for (Map.Entry<Long, OrnateBuilder.Wood> entry : wood.entrySet()) {
+                long key = entry.getKey();
+                OrnateBuilder.Wood above = wood.get(OrnateBuilder.pack(OrnateBuilder.unpackX(key), OrnateBuilder.unpackY(key) + 1, OrnateBuilder.unpackZ(key)));
+                if (above != null && entry.getValue().shape().kind == BlockShapes.Kind.STAIRS && above.shape().kind == BlockShapes.Kind.STAIRS
+                        && OrnateBuilder.facingOf(entry.getValue().shape()).equals(OrnateBuilder.facingOf(above.shape()))) without++;
+            }
+        }
+        assertTrue(without > 0);
+    }
+
+    @Test
+    void theFirstBranchLeavesTheTrunkAtTheHeightAsked() {
+        for (int style = 0; style < SkeletonGenerator.STYLES; style++) {
+            for (double start : new double[]{4.0, 7.0, 14.0}) {
+                SkeletonGenerator.Params params = new SkeletonGenerator.Params(style, 9.0, 2.0, 0.5, 5, 6.0, 3, 4, 8.0, 40.0, 0.0, 0.5, 2.3, start);
+                Skeleton s = SkeletonGenerator.grow(params, new Random(3));
+                double lowest = Double.MAX_VALUE;
+                for (int node = 1; node < s.size(); node++) {
+                    if (s.kind(node) == Skeleton.BRANCH && s.kind(s.parent(node)) == Skeleton.TRUNK) lowest = Math.min(lowest, s.y(s.parent(node)));
+                }
+                assertEquals(start, lowest, 1.0, "style " + style + " start " + start);
+            }
+        }
+        // 0: where the style puts it (the same tree as without the setting)
+        Skeleton style = SkeletonGenerator.grow(bones(0), new Random(3));
+        Skeleton zero = SkeletonGenerator.grow(new SkeletonGenerator.Params(0, 9.0, 2.0, 0.5, 5, 6.0, 3, 4, 8.0, 40.0, 0.0, 0.5, 2.3, 0.0), new Random(3));
+        assertEquals(style.size(), zero.size());
+        for (int node = 0; node < style.size(); node++) assertEquals(style.y(node), zero.y(node), 1.0e-12);
+    }
+
+    @Test
+    void everyKindOfCrownHasLeavesOffTheWood() {
+        for (int kind = 0; kind < OrnateBuilder.CROWNS; kind++) {
+            for (int style : new int[]{SkeletonGenerator.OAK, SkeletonGenerator.SPRUCE, SkeletonGenerator.WILLOW}) {
+                OrnateBuilder.Result result = OrnateBuilder.build(crown(style, kind), new Random(2));
+                assertTrue(result.leaves().size() > 50, "crown " + kind + " style " + style);
+                for (long key : result.leaves().keySet()) {
+                    assertFalse(result.wood().containsKey(key));
+                    assertTrue(OrnateBuilder.unpackY(key) >= 0);
+                    double height = result.leaves().get(key);
+                    assertTrue(height >= 0.0 && height <= 1.0);
+                }
+            }
+        }
+        // the style's own crown is the leaves as they were (t286's numbers)
+        OrnateBuilder.Params old = new OrnateBuilder.Params(bones(0), 1.5, 0.5, 0.6, 0.3, 0.6, 135.0, 2.5, 0.3, 85.0, 0.8, 0.0, 0.0, null, false);
+        assertEquals(OrnateBuilder.build(old, new Random(4)).leaves(), OrnateBuilder.build(crown(0, OrnateBuilder.CROWN_STYLE), new Random(4)).leaves());
+    }
+
+    /** The middle of the leaves seen from above: {x, z}. */
+    private static double[] middle(Map<Long, Double> leaves) {
+        double sx = 0.0;
+        double sz = 0.0;
+        for (long key : leaves.keySet()) {
+            sx += OrnateBuilder.unpackX(key) + 0.5;
+            sz += OrnateBuilder.unpackZ(key) + 0.5;
+        }
+        return new double[]{sx / leaves.size(), sz / leaves.size()};
+    }
+
+    /** The widest the leaves go out from their middle at each height, by height (the bottom first). */
+    private static Map<Integer, Double> widths(Map<Long, Double> leaves) {
+        double[] c = middle(leaves);
+        Map<Integer, Double> out = new java.util.TreeMap<>();
+        for (long key : leaves.keySet()) out.merge(OrnateBuilder.unpackY(key), Math.hypot(OrnateBuilder.unpackX(key) + 0.5 - c[0], OrnateBuilder.unpackZ(key) + 0.5 - c[1]), Math::max);
+        return out;
+    }
+
+    /** The share of the leaves with leaves under them all the way 3 blocks down. */
+    private static double thickShare(Map<Long, Double> leaves) {
+        int thick = 0;
+        for (long key : leaves.keySet()) {
+            boolean column = true;
+            for (int down = 1; down <= 3 && column; down++) column = leaves.containsKey(OrnateBuilder.pack(OrnateBuilder.unpackX(key), OrnateBuilder.unpackY(key) - down, OrnateBuilder.unpackZ(key)));
+            if (column) thick++;
+        }
+        return thick / (double) Math.max(1, leaves.size());
+    }
+
+    @Test
+    void theCrownsHaveTheirShapes() {
+        // a cone narrows to its top: the top quarter is narrower than the bottom quarter; a brush is narrow for its height
+        for (int kind : new int[]{OrnateBuilder.CROWN_CONE, OrnateBuilder.CROWN_BRUSH}) {
+            OrnateBuilder.Result result = OrnateBuilder.build(crown(SkeletonGenerator.OAK, kind), new Random(5));
+            List<Double> widths = List.copyOf(widths(result.leaves()).values());
+            int n = widths.size();
+            double low = widths.subList(0, n / 4).stream().mapToDouble(Double::doubleValue).max().orElse(0);
+            double high = widths.subList(n - n / 4, n).stream().mapToDouble(Double::doubleValue).max().orElse(0);
+            if (kind == OrnateBuilder.CROWN_CONE) assertTrue(high < low * 0.6, low + " " + high);
+            double widest = widths.stream().mapToDouble(Double::doubleValue).max().orElse(0);
+            if (kind == OrnateBuilder.CROWN_BRUSH) assertTrue(widest * 2.0 < n, "a brush " + widest + " wide and " + n + " tall");
+            // and the branches were brought inside it: over its bottom quarter (where the limbs leave the trunk, as thick as they are), no branch farther out than
+            // the leaves at its height (give or take a block and a half)
+            Map<Integer, Double> at = widths(result.leaves());
+            double[] c = middle(result.leaves());
+            int bottom = ((java.util.TreeMap<Integer, Double>) at).firstKey() + n / 4;
+            for (long key : result.wood().keySet()) {
+                OrnateBuilder.Wood wood = result.wood().get(key);
+                Double room = at.get(OrnateBuilder.unpackY(key));
+                if (wood.part() != Skeleton.BRANCH || room == null || OrnateBuilder.unpackY(key) < bottom) continue;
+                double out = Math.hypot(OrnateBuilder.unpackX(key) + 0.5 - c[0], OrnateBuilder.unpackZ(key) + 0.5 - c[1]);
+                assertTrue(out <= room + 1.5, "crown " + kind + ": a branch " + out + " out where the leaves are " + room + " at " + OrnateBuilder.unpackY(key));
+            }
+        }
+        // layers: level tiers with heights of no leaves between them
+        OrnateBuilder.Result layered = OrnateBuilder.build(crown(SkeletonGenerator.OAK, OrnateBuilder.CROWN_LAYERS), new Random(5));
+        Set<Integer> levels = new HashSet<>();
+        for (long key : layered.leaves().keySet()) levels.add(OrnateBuilder.unpackY(key));
+        int lowest = levels.stream().mapToInt(Integer::intValue).min().orElse(0);
+        int highest = levels.stream().mapToInt(Integer::intValue).max().orElse(0);
+        assertTrue(levels.size() < (highest - lowest + 1) * 0.6, levels.size() + " of " + (highest - lowest + 1));
+        // pads: thin level shelves: few leaves have leaves under them all the way 3 blocks down (fewer than in the style's clumps)
+        double padded = thickShare(OrnateBuilder.build(crown(SkeletonGenerator.OAK, OrnateBuilder.CROWN_PADS), new Random(5)).leaves());
+        double clumped = thickShare(OrnateBuilder.build(crown(SkeletonGenerator.OAK, OrnateBuilder.CROWN_STYLE), new Random(5)).leaves());
+        assertTrue(padded < 0.15 && padded < clumped * 0.7, padded + " " + clumped);
+        // weeping: curtains, columns of leaves 4 high or more
+        OrnateBuilder.Result weeping = OrnateBuilder.build(crown(SkeletonGenerator.OAK, OrnateBuilder.CROWN_WEEPING), new Random(5));
+        int curtains = 0;
+        for (long key : weeping.leaves().keySet()) {
+            boolean column = true;
+            for (int down = 1; down <= 4 && column; down++) {
+                column = weeping.leaves().containsKey(OrnateBuilder.pack(OrnateBuilder.unpackX(key), OrnateBuilder.unpackY(key) - down, OrnateBuilder.unpackZ(key)));
+            }
+            if (column) curtains++;
+        }
+        assertTrue(curtains > 30, "curtains " + curtains);
     }
 
     @Test
