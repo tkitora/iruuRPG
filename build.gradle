@@ -43,6 +43,10 @@ test {
     systemProperty 'house.samples.seeds', (project.findProperty('houseSampleSeeds') ?: '4')
     systemProperty 'house.samples.shape', (project.findProperty('houseSampleShape') ?: '')
     systemProperty 'house.samples.set', (project.findProperty('houseSampleSet') ?: '')
+    // (t313) -PplotSamples=<a folder>: PlotSamplesTest draws buildings of lots there as PNGs (-PplotSamplePatterns=1,3; -PplotSampleSeeds=3)
+    systemProperty 'plot.samples', (project.findProperty('plotSamples') ?: '')
+    systemProperty 'plot.samples.patterns', (project.findProperty('plotSamplePatterns') ?: '')
+    systemProperty 'plot.samples.seeds', (project.findProperty('plotSampleSeeds') ?: '3')
 }
 
 tasks.register('itemPatchTest', Test) {

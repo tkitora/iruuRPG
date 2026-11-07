@@ -51,6 +51,20 @@ final class TreeSession {
     record HouseView(World world, int x, int y, int z, HouseShape.Placement placement, int raise, Map<Long, Integer> owners) {
     }
 
+    // ---- a building of lots (t313, see PlotMenu) --------------------------------------------------------------------------
+    /** The lot chosen on the lots page, and the storey of it on the storeys page. */
+    int plotLot;
+    int plotFloor;
+    /** What the checks and the score said of the building shown or put last. */
+    String plotReport = "";
+    /** The page of the kit's parts shown, and the category they are filtered by (-1: all). */
+    int kitPage;
+    int kitCategory = -1;
+    /** The two corners of a part to register ({@code /proceduraltool kit pos1|pos2}), in the world {@link #kitWorld}. */
+    int[] kitFrom;
+    int[] kitTo;
+    World kitWorld;
+
     // ---- the preview (see TreePreview) ----------------------------------------------------------------------------------
     /** The preview is on. */
     boolean preview;

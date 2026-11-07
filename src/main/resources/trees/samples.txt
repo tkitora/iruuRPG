@@ -26,3 +26,12 @@ ornate_birch
 ornate_willow
 ornate_cherry
 ornate_acacia
+plot_cottage
+plot_farmhouse
+plot_manor
+plot_tower_house
+plot_stilt_house
+plot_pagoda
+plot_terrace
+plot_windmill
+plot_random

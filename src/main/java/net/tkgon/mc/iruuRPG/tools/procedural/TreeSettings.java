@@ -218,7 +218,22 @@ final class TreeSettings {
         ORN_ROOT_SNAP("orn-root-snap", "根を地面に沿わせる", true, "オン: 根を、まわりの地面の高さに沿わせる (坂や段差でも浮かない・埋まらない) / オフ: 平らな地面と見て伸ばす"),
         ORN_STAIR_MIX("orn-stair-mix", "階段の並びを崩す", 0.0, 1.0, 0.8, 0.05, 0.25, "同じ向き・形の階段が積み重なったり 45 度に並んだりする所を、丸太・ハーフ・角の階段などに置き換える割合。縦にまっすぐ重なった同じ向きの階段は、割合によらず、いちばん上以外をフルブロックにする (0 でどちらもしない)"),
         ORN_HANG("orn-hang", "垂れる房", 0.0, 1.0, 0.0, 0.05, 0.25, "葉の塊の下 (柳は垂れた枝先) から垂れる房の多さ。ブロックは「葉」のページの下の段 (草・花なども選べる)"),
-        ORN_HANG_LENGTH("orn-hang-length", "房の長さ", 1, 16, 5, 1, 3, "垂れる房のいちばん長いもの (ブロック。短いものも混ざる)");
+        ORN_HANG_LENGTH("orn-hang-length", "房の長さ", 1, 16, 5, 1, 3, "垂れる房のいちばん長いもの (ブロック。短いものも混ざる)"),
+        // ---- (t313) a building of lots (建物 (区画), tools/procedural/plot): the site, the module and the palette are the building's; the rest is each lot's ----
+        PLOT_SITE_W("plot-site-width", "敷地の幅", 9, 81, 29, 1, 4, "敷地の正面の幅 (ブロック)。区画はこの中に収める"),
+        PLOT_SITE_D("plot-site-depth", "敷地の奥行き", 9, 81, 25, 1, 4, "敷地の奥行き (ブロック)"),
+        PLOT_MODULE("plot-module", "モジュール", 3, 6, 4, 1, 1, "壁パネル 1 枚と柱 1 本の幅 (ブロック)。区画の幅・奥行きは、この倍数 + 1 にそろう (角に柱が来る)"),
+        PLOT_ROTATION("plot-rotation", "回転", 0, 359, 0, 1, 5, "正面をこちらに向けたあと、さらに時計回りに回す角度 (度)。90 の倍数以外は斜めに並ぶ"),
+        PLOT_MODE("plot-mode", "作り方", 0, 1, 0, 1, 1, "0 区画どおり (区画のページの区画で作る) / 1 毎回おまかせ (生成パターンから、シードごとにちがう建物を作る。シードがランダムなら、生成するたびにちがう建物)"),
+        PLOT_PATTERN("plot-pattern", "生成パターン", 0, 8, 0, 1, 1, "おまかせ生成のパターン: 0 どれか / 1 単棟 / 2 本棟 + 下屋 / 3 L字・T字の交差 / 4 塔付き / 5 高床・桟橋 / 6 多層の塔 / 7 段状 / 8 風車"),
+        PLOT_CANDIDATES("plot-candidates", "候補の数", 1, 8, 4, 1, 2, "おまかせ生成で作って比べる候補の数 (いちばん点の高いものを使う)"),
+        PLOT_RETRIES("plot-retries", "作り直し", 0, 6, 3, 1, 1, "制約や検証に合わないとき、1 つだけ変えて作り直す回数の上限"),
+        PLOT_STILTS("plot-stilts", "高床の確率", 0.0, 1.0, 0.1, 0.05, 0.25, "おまかせ生成で、区画を高床にする確率"),
+        PLOT_DETAIL("plot-detail", "部品の多さ", 0, 3, 2, 1, 1, "おまかせ生成で付ける部品 (ドーマー・煙突・ポーチ・バルコニー・外階段) の多さ"),
+        PLOT_STEEP("plot-steep", "勾配の上限", 0, 4, 2, 1, 1, "おまかせ生成で使う、いちばん急な勾配: 0 1:2 / 1 1:1 / 2 2:1 / 3 3:1 / 4 4:1 (塔はこれより 1 段急でもよい)"),
+        PLOT_ROOF_LOOK("plot-roof-look", "屋根の見た目", 0, 1, 0, 1, 1, "0 階段・ハーフ (勾配のとおりの形) / 1 フルブロック (段々)"),
+        PLOT_SHAPES("plot-shapes", "ほかの形", 0, 1, 1, 1, 1, "持ち送り・基礎の縁・手すりなど: 0 フルブロックだけ / 1 階段・ハーフ・フェンス・トラップドアも"),
+        PLOT_PALETTE("plot-palette", "パレット", 0, 3, 0, 1, 1, "役割ごとのブロックをまとめて変える: 0 いまのまま / 1 羊毛 (役割ごとの色) / 2 木組みと漆喰 / 3 石の館");
 
         private final String id;
         private final String label;
@@ -319,6 +334,8 @@ final class TreeSettings {
     private final List<String> hangBlocks = new ArrayList<>();
     /** The parts added on the house base (t181), in the order they are built (a later one goes over an earlier one). */
     private final List<HouseModule> modules = new ArrayList<>();
+    /** (t313) The lots of a building of lots, in order (the first is the main block). */
+    private final List<net.tkgon.mc.iruuRPG.tools.procedural.plot.Plan.Lot> lots = new ArrayList<>();
 
     /** How many parts a house can have. */
     static final int MAX_MODULES = 12;
@@ -346,6 +363,7 @@ final class TreeSettings {
         copy.hangBlocks.addAll(hangBlocks);
         // (the generation reads the copy off the main thread while the menu may change the parts: each is copied)
         for (HouseModule module : modules) copy.modules.add(module.copy());
+        for (net.tkgon.mc.iruuRPG.tools.procedural.plot.Plan.Lot lot : lots) copy.lots.add(lot.copy());
         copy.roofSteps.clear();
         copy.roofSteps.addAll(roofSteps);
         copy.designSeed = designSeed;
@@ -408,6 +426,11 @@ final class TreeSettings {
     /** The parts added on the house, the list itself (the menu changes it in place). */
     List<HouseModule> modules() {
         return modules;
+    }
+
+    /** (t313) The lots of a building of lots, the list itself (the menu and the command change it in place). */
+    List<net.tkgon.mc.iruuRPG.tools.procedural.plot.Plan.Lot> lots() {
+        return lots;
     }
 
     List<String> leafGradient() {
@@ -625,6 +648,11 @@ final class TreeSettings {
         map.put("house-modules", parts);
         map.put("house-roof-steps", new ArrayList<>(roofSteps));
         map.put("house-design-seed", designSeed);
+        if (!lots.isEmpty() || kind == ProcKind.PLOT) {
+            List<Map<String, Object>> list = new ArrayList<>();
+            for (net.tkgon.mc.iruuRPG.tools.procedural.plot.Plan.Lot lot : lots) list.add(lot.toMap());
+            map.put("plot-lots", list);
+        }
         return map;
     }
 
@@ -673,6 +701,7 @@ final class TreeSettings {
             settings.setRoofSteps(steps);
         }
         if (map.get("house-design-seed") instanceof Number number) settings.setDesignSeed(number.longValue());
+        if (map.get("plot-lots") instanceof List<?> list) settings.lots.addAll(net.tkgon.mc.iruuRPG.tools.procedural.plot.Plan.lotsFromList(list));
         return settings;
     }
 }

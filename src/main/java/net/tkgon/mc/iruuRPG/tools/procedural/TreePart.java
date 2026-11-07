@@ -71,7 +71,33 @@ enum TreePart {
     TRUNK_Z("trunk-z", "幹 (南北に寝た丸太)", 0, Material.OAK_WOOD),
     /** (t282) the ornate tree: trapdoors (the level tips of thin branches, the streaks of bark) and open fence gates (level tips). */
     BRANCH_TRAPDOOR("branch-trapdoor", "枝先・樹皮 (トラップドア)", 3, Material.OAK_TRAPDOOR),
-    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE);
+    BRANCH_GATE("branch-gate", "枝先 (フェンスゲート)", 3, Material.OAK_FENCE_GATE),
+    /**
+     * (t313) The roles of a building of lots (建物 (区画)), each its own block, in wool by default (the shapes, a stair or a slab, of the wool's colour nearest
+     * it). The door and the bell are their own blocks.
+     */
+    PLOT_FRAME("plot-frame", "柱", 0, Material.BROWN_WOOL),
+    PLOT_BEAM("plot-beam", "梁", 0, Material.ORANGE_WOOL),
+    PLOT_BRACE("plot-brace", "筋交い・模様材", 1, Material.YELLOW_WOOL),
+    PLOT_PLINTH("plot-plinth", "基礎の石", 0, Material.GRAY_WOOL),
+    PLOT_STONE("plot-stone", "石の壁", 1, Material.CYAN_WOOL),
+    PLOT_INFILL("plot-infill", "漆喰", 3, Material.WHITE_WOOL),
+    PLOT_INFILL_2("plot-infill-2", "漆喰 2", 3, Material.PINK_WOOL),
+    PLOT_INFILL_3("plot-infill-3", "漆喰 3", 3, Material.GREEN_WOOL),
+    PLOT_WINDOW("plot-window", "窓", 4, Material.LIGHT_BLUE_WOOL),
+    PLOT_DOOR("plot-door", "扉", 2, Material.SPRUCE_DOOR),
+    PLOT_FLOOR("plot-floor", "床", 2, Material.LIGHT_GRAY_WOOL),
+    PLOT_CORBEL("plot-corbel", "持ち送り", 1, Material.PURPLE_WOOL),
+    PLOT_ROOF("plot-roof", "屋根", 2, Material.RED_WOOL),
+    PLOT_EAVE("plot-eave", "軒先・けらば", 1, Material.BLACK_WOOL),
+    PLOT_RIDGE("plot-ridge", "棟・隅棟", 1, Material.MAGENTA_WOOL),
+    PLOT_FLASHING("plot-flashing", "水切り", 2, Material.BLUE_WOOL),
+    PLOT_CHIMNEY("plot-chimney", "煙突", 0, Material.GRAY_WOOL),
+    PLOT_RAIL("plot-rail", "手すり", 3, Material.LIME_WOOL),
+    PLOT_STAIR("plot-stair", "外階段", 2, Material.LIGHT_GRAY_WOOL),
+    PLOT_FINIAL("plot-finial", "頂華・風見", 1, Material.YELLOW_WOOL),
+    PLOT_SAIL("plot-sail", "風車の羽根", 3, Material.WHITE_WOOL),
+    PLOT_BELL("plot-bell", "鐘", 0, Material.BELL);
 
     /** (t258) The part whose block this one is put in (a stair's other ways and a slab's top half are their first part's block). */
     TreePart blockOf() {
