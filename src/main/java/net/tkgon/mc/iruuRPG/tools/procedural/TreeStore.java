@@ -57,9 +57,22 @@ final class TreeStore {
         return TreeSettings.fromMap(map, name);
     }
 
+    /**
+     * Deletes the preset {@code name}: (t288) its file is moved into {@code trees/trash/} with the time in its name (put it back in {@code trees/} by hand to
+     * restore it). False when there is none or it cannot be moved.
+     */
     public boolean delete(String name) {
         File file = file(name);
-        return file.isFile() && file.delete();
+        if (!file.isFile()) return false;
+        File trash = new File(folder(), "trash");
+        if (!trash.isDirectory() && !trash.mkdirs()) return false;
+        String stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss"));
+        boolean moved = file.renameTo(new File(trash, name + "-" + stamp + ".yml"));
+        if (moved) {
+            infos.remove(name);
+            infoTimes.remove(name);
+        }
+        return moved;
     }
 
     /**

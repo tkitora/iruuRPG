@@ -85,7 +85,14 @@ public final class Skeleton {
 
     /** Moves a node up or down (the roots laid on the ground, after the bones and their radii are made). */
     public void moveY(int node, double py) {
+        move(node, x[node], py, z[node]);
+    }
+
+    /** (t288) Moves a node (the branches pulled into the shape of the crown, after the bones and their radii are made; a parent before its children). */
+    public void move(int node, double px, double py, double pz) {
+        x[node] = px;
         y[node] = py;
+        z[node] = pz;
         path[node] = parent[node] < 0 ? 0.0 : path[parent[node]] + length(node);
         toTip = null;
     }

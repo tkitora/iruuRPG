@@ -38,6 +38,20 @@ final class OrnateTree {
         };
     }
 
+    /** (t288) The name of a kind of crown (the leaves' shape). */
+    static String crownName(int index) {
+        return switch (index) {
+            case OrnateBuilder.CROWN_GLOBE -> "球状";
+            case OrnateBuilder.CROWN_CLUMPS -> "塊状";
+            case OrnateBuilder.CROWN_PADS -> "棚状";
+            case OrnateBuilder.CROWN_LAYERS -> "層状";
+            case OrnateBuilder.CROWN_CONE -> "円錐状";
+            case OrnateBuilder.CROWN_BRUSH -> "筆状";
+            case OrnateBuilder.CROWN_WEEPING -> "下垂状";
+            default -> "様式どおり";
+        };
+    }
+
     /**
      * (t286) The shape numbers a style starts from (the menu sets them when the style is changed; the blocks, the shading and the roots' snap are left as they are):
      * height, trunk, curl, roots, root reach, branches, depth, length, spread, droop, tip curl, leaf, leaf flatness, hang, hang length.
@@ -72,7 +86,7 @@ final class OrnateTree {
         SkeletonGenerator.Params bones = new SkeletonGenerator.Params(s.getInt(TreeSettings.Key.ORN_STYLE), s.get(TreeSettings.Key.ORN_HEIGHT),
                 s.get(TreeSettings.Key.ORN_TRUNK), s.get(TreeSettings.Key.ORN_CURL), s.getInt(TreeSettings.Key.ORN_ROOTS), s.get(TreeSettings.Key.ORN_ROOT_REACH),
                 s.getInt(TreeSettings.Key.ORN_BRANCHES), s.getInt(TreeSettings.Key.ORN_DEPTH), s.get(TreeSettings.Key.ORN_LENGTH), s.get(TreeSettings.Key.ORN_SPREAD),
-                s.get(TreeSettings.Key.ORN_DROOP), s.get(TreeSettings.Key.ORN_TIP_CURL), s.get(TreeSettings.Key.ORN_PIPE));
+                s.get(TreeSettings.Key.ORN_DROOP), s.get(TreeSettings.Key.ORN_TIP_CURL), s.get(TreeSettings.Key.ORN_PIPE), s.get(TreeSettings.Key.ORN_BRANCH_START));
         net.tkgon.mc.iruuRPG.tools.procedural.ornate.Ground terrain = ground == null ? null : (x, z) -> {
             int top = ground.top(x, z);
             return top == TreeGround.NONE ? net.tkgon.mc.iruuRPG.tools.procedural.ornate.Ground.NONE : top;
@@ -80,12 +94,19 @@ final class OrnateTree {
         return new OrnateBuilder.Params(bones, s.get(TreeSettings.Key.ORN_FLARE), s.get(TreeSettings.Key.ORN_DECOR), s.get(TreeSettings.Key.ORN_AO),
                 s.get(TreeSettings.Key.ORN_CURVATURE), s.get(TreeSettings.Key.ORN_LIGHT), s.get(TreeSettings.Key.ORN_LIGHT_DIR), s.get(TreeSettings.Key.ORN_LEAF),
                 s.get(TreeSettings.Key.ORN_LEAF_FLAT), s.get(TreeSettings.Key.ORN_LEAF_DENSITY), s.get(TreeSettings.Key.ORN_STAIR_MIX), s.get(TreeSettings.Key.ORN_HANG),
-                s.get(TreeSettings.Key.ORN_HANG_LENGTH), terrain, s.on(TreeSettings.Key.ORN_ROOT_SNAP));
+                s.get(TreeSettings.Key.ORN_HANG_LENGTH), terrain, s.on(TreeSettings.Key.ORN_ROOT_SNAP), s.getInt(TreeSettings.Key.ORN_CROWN));
     }
 
-    /** Whether the tree needs the terrain read round its foot: its roots are laid on the ground, or strands hang down to it. */
+    /** Whether the tree needs the terrain read round its foot: its roots are laid on the ground, or strands or (t288) weeping curtains hang down to it. */
     static boolean readsGround(TreeSettings s) {
-        return s.kind().tree() && s.grows("ornate") && (s.on(TreeSettings.Key.ORN_ROOT_SNAP) || s.get(TreeSettings.Key.ORN_HANG) > 0.0);
+        return s.kind().tree() && s.grows("ornate") && (s.on(TreeSettings.Key.ORN_ROOT_SNAP) || s.get(TreeSettings.Key.ORN_HANG) > 0.0
+                || s.getInt(TreeSettings.Key.ORN_CROWN) == OrnateBuilder.CROWN_WEEPING);
+    }
+
+    /** (t288) How far round the foot the terrain is read: as far as the roots reach (24 at least, 48 at most). */
+    static int groundRadius(TreeSettings s) {
+        double reach = s.get(TreeSettings.Key.ORN_TRUNK) * 0.35 + s.get(TreeSettings.Key.ORN_ROOT_REACH) * 1.35 + 3.0;
+        return Math.max(24, Math.min(48, (int) Math.ceil(reach)));
     }
 
     static Blocks build(TreeSettings s, Random random) {

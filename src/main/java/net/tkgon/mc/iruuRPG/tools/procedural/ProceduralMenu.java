@@ -199,9 +199,9 @@ final class ProceduralMenu implements Listener {
                 case TRUNK -> new TreeSettings.Key[]{TreeSettings.Key.ORN_STYLE, TreeSettings.Key.ORN_HEIGHT, TreeSettings.Key.ORN_TRUNK, TreeSettings.Key.ORN_CURL,
                         TreeSettings.Key.ORN_ROOTS, TreeSettings.Key.ORN_ROOT_REACH, TreeSettings.Key.ORN_ROOT_SNAP, TreeSettings.Key.ORN_FLARE, TreeSettings.Key.ORN_DECOR,
                         TreeSettings.Key.ORN_STAIR_MIX};
-                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.ORN_BRANCHES, TreeSettings.Key.ORN_DEPTH, TreeSettings.Key.ORN_LENGTH, TreeSettings.Key.ORN_SPREAD,
+                case BRANCH -> new TreeSettings.Key[]{TreeSettings.Key.ORN_BRANCH_START, TreeSettings.Key.ORN_BRANCHES, TreeSettings.Key.ORN_DEPTH, TreeSettings.Key.ORN_LENGTH, TreeSettings.Key.ORN_SPREAD,
                         TreeSettings.Key.ORN_DROOP, TreeSettings.Key.ORN_TIP_CURL, TreeSettings.Key.ORN_PIPE};
-                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.ORN_LEAF, TreeSettings.Key.ORN_LEAF_FLAT, TreeSettings.Key.ORN_LEAF_DENSITY, TreeSettings.Key.ORN_HANG,
+                case LEAF -> new TreeSettings.Key[]{TreeSettings.Key.ORN_CROWN, TreeSettings.Key.ORN_LEAF, TreeSettings.Key.ORN_LEAF_FLAT, TreeSettings.Key.ORN_LEAF_DENSITY, TreeSettings.Key.ORN_HANG,
                         TreeSettings.Key.ORN_HANG_LENGTH};
                 case SHADE -> new TreeSettings.Key[]{TreeSettings.Key.ORN_MATCH, TreeSettings.Key.ORN_SHADE_STEP, TreeSettings.Key.ORN_AO, TreeSettings.Key.ORN_CURVATURE,
                         TreeSettings.Key.ORN_LIGHT, TreeSettings.Key.ORN_LIGHT_DIR};
@@ -305,6 +305,8 @@ final class ProceduralMenu implements Listener {
         ICONS.put(TreeSettings.Key.CANOPY_LEVEL_DIST, Material.CHAIN);
         ICONS.put(TreeSettings.Key.CANOPY_UPPER_SCALE, Material.BIRCH_SAPLING);
         ICONS.put(TreeSettings.Key.CANOPY_RADIUS, Material.OAK_LOG);
+        ICONS.put(TreeSettings.Key.ORN_BRANCH_START, Material.LADDER);
+        ICONS.put(TreeSettings.Key.ORN_CROWN, Material.AZALEA_LEAVES);
         ICONS.put(TreeSettings.Key.CANOPY_RADIUS_MULT, Material.STRIPPED_OAK_LOG);
         ICONS.put(TreeSettings.Key.CANOPY_DEPTH, Material.FERN);
         ICONS.put(TreeSettings.Key.CANOPY_BRANCHES, Material.OAK_FENCE);
@@ -422,7 +424,7 @@ final class ProceduralMenu implements Listener {
     /** A setting whose numbers stand for names (the shape of the roof, the way of the ridge, the rules of the random houses). */
     private static boolean named(TreeSettings.Key key) {
         return switch (key) {
-            case SIL_SHAPE, ORN_STYLE, HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
+            case SIL_SHAPE, ORN_STYLE, ORN_CROWN, HOUSE_ROOF, HOUSE_RIDGE, HOUSE_GEN_PATTERN, HOUSE_GEN_SIZE, HOUSE_GEN_SYMMETRY, HOUSE_GEN_TOWERS, HOUSE_GEN_PLAN, HOUSE_GEN_OVERLAP, LOBBY_SHAPE, LOBBY_CENTER -> true;
             default -> false;
         };
     }
@@ -432,6 +434,7 @@ final class ProceduralMenu implements Listener {
         if (key == TreeSettings.Key.HOUSE_ROOF) return HouseShape.roofName((int) Math.round(value));
         if (key == TreeSettings.Key.SIL_SHAPE) return SilhouetteTree.shapeName((int) Math.round(value));
         if (key == TreeSettings.Key.ORN_STYLE) return OrnateTree.styleName((int) Math.round(value));
+        if (key == TreeSettings.Key.ORN_CROWN) return OrnateTree.crownName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_RIDGE) return HouseShape.ridgeName((int) Math.round(value));
         if (key == TreeSettings.Key.HOUSE_ROTATION) return (int) Math.round(value) + "°";
         int whole = (int) Math.round(value);

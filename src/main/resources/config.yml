@@ -1104,11 +1104,12 @@ treetool:
   web-max-points: 16
   web-max-volume: 400000
   # 部位ごとのブロックの初期値 (画面の部位のアイコン、または /proceduraltool block で、プレイヤーごとに選び直せる。選んだブロックは設定と一緒に保存される)
+  # (t288) 幹・根・枝は、どの面も樹皮の木 (wood)。丸太 (log) の年輪が横向きの枝の先に見えない
   materials:
-    trunk: OAK_LOG
-    root: OAK_LOG
-    branch: OAK_LOG
-    twig: OAK_LOG
+    trunk: OAK_WOOD
+    root: OAK_WOOD
+    branch: OAK_WOOD
+    twig: OAK_WOOD
     leaf: OAK_LEAVES
     snow: SNOW_BLOCK
     # (t252) 細い木の枝: 幹に近い縦の枝 (壁) / 先の縦の枝 (フェンス) / 横の枝 (ハーフ。下半分・上半分は形から決まる)

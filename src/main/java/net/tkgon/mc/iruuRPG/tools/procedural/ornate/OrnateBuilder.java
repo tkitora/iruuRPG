@@ -25,7 +25,8 @@ import java.util.Set;
  *     <li>the decoration, only on the trunk and the roots (radius 1.5 or more, 3 blocks or more from a tip, not in the inner angle of a fork): open trapdoors as
  *     streaks of bark, stairs in the hollows, fences under the roots near the foot. It may not change a block by more than half a block of volume, and a limb whose
  *     outline (seen from the side, the front and above) or whose way (its main axis) changes too much gets none;</li>
- *     <li>the leaves by the style (clumps at the tips, flat pads, a spruce's layers along its branches, a willow's twigs), and strands hanging from them (t286);</li>
+ *     <li>the leaves by the style (clumps at the tips, flat pads, a spruce's layers along its branches, a willow's twigs), or by the kind of crown chosen (t288: a
+ *     globe, clumps, pads, layers, a cone, a brush, weeping curtains), and strands hanging from them (t286);</li>
  *     <li>the shading: a light value from the ambient occlusion, the curvature and a point light (with shadows), turned into 5 levels (-2 dark .. 2 light):
  *     dithered on the thick wood, smoothed along the branches with a hysteresis on the thin wood. The blocks of each level are chosen when the tree is put, by the
  *     lightness of the blocks.</li>
@@ -37,17 +38,34 @@ public final class OrnateBuilder {
     /**
      * The numbers of the tree: the bones, the smoothing at the foot, the decoration, the weights of the shading, the light's way, the leaves, how often a stair
      * like the one next to it is made another block ({@code stairMix}, t286), the hanging strands under the leaves (how many, how long), the ground (null: not
-     * known; the strands stop at it) and whether the roots are laid on it ({@code snap}).
+     * known; the strands stop at it), whether the roots are laid on it ({@code snap}) and the kind of crown ({@code crown}, t288: {@link #CROWN_STYLE} ..).
      */
     public record Params(SkeletonGenerator.Params bones, double flare, double decor, double ao, double curvature, double light, double lightDir,
-                         double leaf, double leafFlat, double leafDensity, double stairMix, double hang, double hangLength, Ground ground, boolean snap) {
+                         double leaf, double leafFlat, double leafDensity, double stairMix, double hang, double hangLength, Ground ground, boolean snap, int crown) {
+
+        /** The same with the leaves by the style (t286's numbers). */
+        public Params(SkeletonGenerator.Params bones, double flare, double decor, double ao, double curvature, double light, double lightDir, double leaf,
+                      double leafFlat, double leafDensity, double stairMix, double hang, double hangLength, Ground ground, boolean snap) {
+            this(bones, flare, decor, ao, curvature, light, lightDir, leaf, leafFlat, leafDensity, stairMix, hang, hangLength, ground, snap, CROWN_STYLE);
+        }
 
         /** The same without stair mixing, strands or ground (t282's numbers). */
         public Params(SkeletonGenerator.Params bones, double flare, double decor, double ao, double curvature, double light, double lightDir, double leaf,
                       double leafFlat, double leafDensity) {
-            this(bones, flare, decor, ao, curvature, light, lightDir, leaf, leafFlat, leafDensity, 0.0, 0.0, 0.0, null, false);
+            this(bones, flare, decor, ao, curvature, light, lightDir, leaf, leafFlat, leafDensity, 0.0, 0.0, 0.0, null, false, CROWN_STYLE);
         }
     }
+
+    /** (t288) The kinds of crown, in the order of the setting: the style's own leaves, then the shapes that are the same for every style. */
+    public static final int CROWN_STYLE = 0;
+    public static final int CROWN_GLOBE = 1;
+    public static final int CROWN_CLUMPS = 2;
+    public static final int CROWN_PADS = 3;
+    public static final int CROWN_LAYERS = 4;
+    public static final int CROWN_CONE = 5;
+    public static final int CROWN_BRUSH = 6;
+    public static final int CROWN_WEEPING = 7;
+    public static final int CROWNS = 8;
 
     /**
      * A block of wood: its shape, its block states beyond the shape's own (the axis of a log, the arms of a fence or a wall), its light level (-2..2), what it is part
@@ -129,6 +147,8 @@ public final class OrnateBuilder {
     private int knots;
     private int gaps;
     private int reverted;
+    /** (t288) Where the crown is, measured on the bones as they grew (before they are pulled into the crown's shape). */
+    private Crown crown;
 
     private OrnateBuilder(Params p, Random random) {
         this.p = p;
@@ -141,6 +161,8 @@ public final class OrnateBuilder {
 
     private Result run() {
         bones = SkeletonGenerator.grow(p.bones(), random, p.snap() ? p.ground() : null);
+        crown = measure();
+        if (p.leaf() > 0.0 && (p.crown() == CROWN_CONE || p.crown() == CROWN_BRUSH)) pullIn();
         field = new Field(bones, THICK, p.flare());
         thick();
         if (p.stairMix() > 0.0) breakRuns();
@@ -148,6 +170,7 @@ public final class OrnateBuilder {
         choose();
         cleanup();
         if (p.decor() > 0.0) decorate();
+        if (p.stairMix() > 0.0) unstack();
         if (p.leaf() > 0.0) leaves();
         if (p.hang() > 0.0 && p.hangLength() > 0.0) hang();
         Map<Long, Wood> wood = shade();
@@ -308,6 +331,34 @@ public final class OrnateBuilder {
             if (roll <= 0.0) return choices.get(index);
         }
         return choices.get(choices.size() - 1);
+    }
+
+    /**
+     * (t288) Stairs stacked straight up that face the same way look like a ladder from the side: in every such column (two or more), all but the top one are made
+     * full blocks, in the thick and the thin wood and the decoration alike. Every one is judged first (by the block over it), then made.
+     */
+    private void unstack() {
+        List<Long> stacked = new ArrayList<>();
+        Set<Long> stairs = new HashSet<>();
+        for (Map.Entry<Long, Thick> entry : thick.entrySet()) if (entry.getValue().shape().kind == BlockShapes.Kind.STAIRS) stairs.add(entry.getKey());
+        for (Thin v : thin.values()) if (v.shape != null && v.shape.kind == BlockShapes.Kind.STAIRS) stairs.add(v.key);
+        for (Map.Entry<Long, BlockShapes.Shape> entry : decorations.entrySet()) if (entry.getValue().kind == BlockShapes.Kind.STAIRS) stairs.add(entry.getKey());
+        for (long key : stairs) {
+            BlockShapes.Shape over = shapeAt(step(key, 3));
+            if (over != null && over.kind == BlockShapes.Kind.STAIRS && facingOf(over).equals(facingOf(shapeAt(key)))) stacked.add(key);
+        }
+        for (long key : stacked) {
+            Thick block = thick.get(key);
+            Thin line = thin.get(key);
+            if (block != null) thick.put(key, new Thick(BlockShapes.FULL, block.node(), block.mask()));
+            else if (line != null) line.shape = BlockShapes.FULL;
+            else decorations.put(key, BlockShapes.FULL);
+        }
+    }
+
+    /** The way a stair faces ({@code facing=north}). */
+    static String facingOf(BlockShapes.Shape stair) {
+        return stair.props.substring(0, stair.props.indexOf(','));
     }
 
     // ---- 2. the thin wood ----------------------------------------------------------------------------------------------------------------
@@ -813,11 +864,24 @@ public final class OrnateBuilder {
 
     // ---- 6. the leaves -------------------------------------------------------------------------------------------------------------------
 
+    /** The leaves: by the style, or (t288) by the kind of crown chosen. */
+    private void leaves() {
+        switch (p.crown()) {
+            case CROWN_GLOBE, CROWN_CONE, CROWN_BRUSH -> fill();
+            case CROWN_CLUMPS -> clouds();
+            case CROWN_PADS -> pads();
+            case CROWN_LAYERS -> layers();
+            case CROWN_WEEPING -> weeping();
+            default -> styleLeaves();
+        }
+        limit();
+    }
+
     /**
      * The leaves by the style: clumps at the tips (the oak, the birch, the cherry wider and flatter); flat pads over the tips of a bonsai and an acacia; a spruce's
      * small clumps all along its branches (a cone of layers); a willow's small clumps along its hanging twigs.
      */
-    private void leaves() {
+    private void styleLeaves() {
         int style = p.bones().style();
         double flat = p.leafFlat();
         boolean[] hanging = style == SkeletonGenerator.WILLOW ? hangingTwigs() : null;
@@ -890,6 +954,294 @@ public final class OrnateBuilder {
                 }
             }
         }
+    }
+
+    // ---- 6b. the kinds of crown (t288) ---------------------------------------------------------------------------------------------------
+
+    /** Where the crown is: from its lowest branch ({@code low}) to the top of the wood ({@code top}), round the middle of the tips ({@code ax}, {@code az}), out to {@code radius}. */
+    private record Crown(double low, double top, double ax, double az, double radius) {
+    }
+
+    /** The crown of the bones: the branches (a tree with none: the top of its trunk) and the trunk over the lowest of them. */
+    private Crown measure() {
+        double low = Double.MAX_VALUE;
+        double top = -Double.MAX_VALUE;
+        double sx = 0.0;
+        double sz = 0.0;
+        int tips = 0;
+        for (int node = 1; node < bones.size(); node++) {
+            if (bones.kind(node) == Skeleton.ROOT) continue;
+            top = Math.max(top, bones.y(node));
+            if (bones.kind(node) == Skeleton.BRANCH) low = Math.min(low, Math.min(bones.y(node), bones.y(bones.parent(node))));
+            if (bones.tip(node)) {
+                sx += bones.x(node);
+                sz += bones.z(node);
+                tips++;
+            }
+        }
+        if (top == -Double.MAX_VALUE) top = 1.0;
+        if (low == Double.MAX_VALUE) low = top * 0.7;
+        double ax = tips > 0 ? sx / tips : bones.x(0);
+        double az = tips > 0 ? sz / tips : bones.z(0);
+        double radius = 1.0;
+        for (int node = 1; node < bones.size(); node++) {
+            if (bones.kind(node) == Skeleton.ROOT || bones.y(node) < low - 0.5) continue;
+            radius = Math.max(radius, Math.hypot(bones.x(node) - ax, bones.z(node) - az));
+        }
+        return new Crown(low, Math.max(top, low + 1.0), ax, az, radius);
+    }
+
+    /** The heights a globe, a cone or a brush crown takes: {bottom, top}. */
+    private double[] span() {
+        double leaf = p.leaf();
+        return switch (p.crown()) {
+            case CROWN_GLOBE -> new double[]{crown.low() - leaf * 0.6, crown.top() + leaf * 0.6};
+            case CROWN_CONE -> new double[]{crown.low() - leaf * 0.4, crown.top() + leaf * 1.5};
+            default -> new double[]{crown.low() - leaf * 0.6, crown.top() + leaf * 2.0};
+        };
+    }
+
+    /**
+     * How far out a globe, a cone or a brush crown is at height {@code y} (negative: not at that height). A globe: an ellipsoid round the crown. A cone: widest at
+     * the bottom, to a point over the top. A brush: round below, widest at two fifths of the way up, drawn out to a point (a writing brush, a flame).
+     */
+    private double envelope(double y) {
+        double[] span = span();
+        double t = (y - span[0]) / Math.max(1.0, span[1] - span[0]);
+        if (t < 0.0 || t > 1.0) return -1.0;
+        return switch (p.crown()) {
+            case CROWN_GLOBE -> (crown.radius() + p.leaf() * 0.6) * Math.sqrt(Math.max(0.0, 1.0 - Math.pow(2.0 * t - 1.0, 2.0)));
+            case CROWN_CONE -> Math.max(crown.radius() * 1.1, (span[1] - span[0]) * 0.35) * (1.0 - t);
+            default -> Math.max(1.5, Math.min(crown.radius(), (span[1] - span[0]) * 0.2)) * Math.pow(Math.sin(Math.PI * Math.pow(t, 0.75)), 0.8);
+        };
+    }
+
+    /**
+     * A cone or a brush is narrower than the branches: before the wood is made, every branch node out past the crown's radius at its height (less a little) is
+     * brought in to it, a parent before its children, so the branches bend up inside the shape (as a clipped tree's do).
+     */
+    private void pullIn() {
+        for (int node = 1; node < bones.size(); node++) {
+            if (bones.kind(node) != Skeleton.BRANCH) continue;
+            double dx = bones.x(node) - crown.ax();
+            double dz = bones.z(node) - crown.az();
+            double out = Math.hypot(dx, dz);
+            double room = Math.max(0.5, envelope(bones.y(node)) - Math.max(1.0, p.leaf() * 0.5));
+            if (out <= room) continue;
+            bones.move(node, crown.ax() + dx * room / out, bones.y(node), crown.az() + dz * room / out);
+        }
+    }
+
+    /** A globe, a cone or a brush: the blocks inside the crown's shape (a rough and a little lumpy edge), not every one filled. */
+    private void fill() {
+        double density = p.leafDensity() / 100.0;
+        double[] span = span();
+        for (int y = Math.max(0, (int) Math.floor(span[0])); y <= (int) Math.ceil(span[1]); y++) {
+            double radius = envelope(y + 0.5);
+            if (radius <= 0.0) continue;
+            int reach = (int) Math.ceil(radius + 1.0);
+            double height = (y + 0.5 - span[0]) / Math.max(1.0, span[1] - span[0]);
+            for (int x = (int) Math.floor(crown.ax()) - reach; x <= (int) Math.floor(crown.ax()) + reach; x++) {
+                for (int z = (int) Math.floor(crown.az()) - reach; z <= (int) Math.floor(crown.az()) + reach; z++) {
+                    double out = Math.hypot(x + 0.5 - crown.ax(), z + 0.5 - crown.az());
+                    double edge = radius * (1.0 + (noise(x, y, z, 3.5, 47) - 0.5) * 0.35) + (hash(x, y, z, 23) - 0.5) * 0.9;
+                    if (out > edge) continue;
+                    leaf(x, y, z, height, density);
+                }
+            }
+        }
+    }
+
+    /**
+     * Clumps (a cloud-pruned crown): the tips gathered into a few groups by k-means (a group to five tips, 2 to 9), each one big lumpy clump round its tips,
+     * flattened by the flatness, with air between the groups.
+     */
+    private void clouds() {
+        List<Integer> tips = new ArrayList<>();
+        for (int node = 1; node < bones.size(); node++) if (bones.kind(node) != Skeleton.ROOT && bones.tip(node)) tips.add(node);
+        if (tips.isEmpty()) return;
+        int groups = Math.min(tips.size(), Math.max(2, Math.min(9, (int) Math.round(tips.size() / 5.0))));
+        double[][] centres = new double[groups][];
+        for (int group = 0; group < groups; group++) {
+            int node = tips.get(group * tips.size() / groups);
+            centres[group] = new double[]{bones.x(node), bones.y(node), bones.z(node)};
+        }
+        int[] of = new int[tips.size()];
+        for (int round = 0; round < 10; round++) {
+            double[][] sums = new double[groups][4];
+            for (int index = 0; index < tips.size(); index++) {
+                int node = tips.get(index);
+                double best = Double.MAX_VALUE;
+                for (int group = 0; group < groups; group++) {
+                    double d = sq(bones.x(node) - centres[group][0]) + sq(bones.y(node) - centres[group][1]) + sq(bones.z(node) - centres[group][2]);
+                    if (d < best) {
+                        best = d;
+                        of[index] = group;
+                    }
+                }
+                sums[of[index]][0] += bones.x(node);
+                sums[of[index]][1] += bones.y(node);
+                sums[of[index]][2] += bones.z(node);
+                sums[of[index]][3]++;
+            }
+            for (int group = 0; group < groups; group++) {
+                if (sums[group][3] > 0) centres[group] = new double[]{sums[group][0] / sums[group][3], sums[group][1] / sums[group][3], sums[group][2] / sums[group][3]};
+            }
+        }
+        double[] spread = new double[groups];
+        for (int index = 0; index < tips.size(); index++) {
+            int node = tips.get(index);
+            double[] c = centres[of[index]];
+            spread[of[index]] = Math.max(spread[of[index]], Math.sqrt(sq(bones.x(node) - c[0]) + sq(bones.y(node) - c[1]) + sq(bones.z(node) - c[2])));
+        }
+        for (int group = 0; group < groups; group++) {
+            double size = spread[group] * 0.7 + p.leaf() * 1.25;
+            blob(centres[group][0], centres[group][1] + size * 0.25, centres[group][2], size, Math.max(0.3, p.leafFlat()), 0.45, 53 + group);
+        }
+    }
+
+    /** Pads (shelves): over every tip a flat, level shelf, wide and thin: a layer at the tip and a smaller one on it (a third for big leaves). */
+    private void pads() {
+        double density = Math.max(0.8, p.leafDensity() / 100.0);
+        for (int node = 1; node < bones.size(); node++) {
+            if (bones.kind(node) == Skeleton.ROOT || !bones.tip(node)) continue;
+            double size = p.leaf() * (1.25 + 0.3 * random.nextDouble());
+            int floor = (int) Math.floor(bones.y(node));
+            int layers = size >= 4.0 ? 3 : 2;
+            for (int layer = 0; layer < layers; layer++) {
+                double radius = size * (1.0 - 0.38 * layer);
+                if (radius < 0.7) break;
+                disc(bones.x(node), floor + layer, bones.z(node), radius, layer / (double) Math.max(1, layers - 1), density);
+            }
+        }
+    }
+
+    /**
+     * Layers (tiers): level tiers round the crown a few blocks apart, from its lowest branch to over its top; each as wide as the wood at its height and the leaves'
+     * size more, its upper block smaller (a little dome).
+     */
+    private void layers() {
+        double leaf = p.leaf();
+        int period = Math.max(3, (int) Math.round(leaf * 1.6 + 1.5));
+        int thick = Math.max(1, Math.min(period - 1, (int) Math.round(leaf * 0.6)));
+        double density = p.leafDensity() / 100.0;
+        int bottom = Math.max(0, (int) Math.floor(crown.low()));
+        for (int y = bottom; y <= (int) Math.ceil(crown.top() + 1.0); y++) {
+            int phase = (y - bottom) % period;
+            if (phase >= thick) continue;
+            double reach = -1.0;
+            for (int node = 1; node < bones.size(); node++) {
+                if (bones.kind(node) == Skeleton.ROOT || Math.abs(bones.y(node) - (y + 0.5)) > period * 0.5) continue;
+                reach = Math.max(reach, Math.hypot(bones.x(node) - crown.ax(), bones.z(node) - crown.az()));
+            }
+            if (reach < 0.0) continue;
+            double radius = (reach + leaf * 0.8) * (thick > 1 && phase == thick - 1 ? 0.8 : 1.0);
+            disc(crown.ax(), y, crown.az(), radius, (y + 0.5 - bottom) / Math.max(1.0, crown.top() + 1.0 - bottom), density);
+        }
+    }
+
+    /**
+     * Weeping: a thin cover of leaves along the branches (a little more at the outer ones), and from its underside curtains of leaves hanging straight down, the
+     * longer the higher they start (two fifths to four fifths of the way to the ground), through the air only.
+     */
+    private void weeping() {
+        double leaf = p.leaf();
+        double outer = 0.0;
+        for (int node = 1; node < bones.size(); node++) if (bones.kind(node) == Skeleton.BRANCH) outer = Math.max(outer, bones.toTip(node));
+        for (int node = 1; node < bones.size(); node++) {
+            if (bones.kind(node) == Skeleton.ROOT || (bones.kind(node) == Skeleton.TRUNK && !bones.tip(node))) continue;
+            double size = bones.tip(node) ? 0.75 : bones.toTip(node) <= outer * 0.55 ? 0.5 : 0.4;
+            clump(node, leaf * size, 0.5, 0.2);
+        }
+        List<Long> starts = new ArrayList<>();
+        for (long key : leaves.keySet()) if (!leaves.containsKey(step(key, 2)) && shapeAt(step(key, 2)) == null) starts.add(key);
+        starts.sort(Long::compare);
+        double density = p.leafDensity() / 100.0;
+        for (long start : starts) {
+            int x = unpackX(start);
+            int top = unpackY(start);
+            int z = unpackZ(start);
+            if (hash(x, top, z, 59) >= 0.35 + 0.5 * density) continue;
+            int floor = p.ground() == null || p.ground().top(x, z) == Ground.NONE ? 0 : p.ground().top(x, z) + 1;
+            int length = (int) Math.round((top - Math.max(0, floor)) * (0.4 + 0.4 * hash(x, top, z, 61)));
+            for (int down = 1; down <= length; down++) {
+                int y = top - down;
+                long key = pack(x, y, z);
+                if (y < Math.max(0, floor) || shapeAt(key) != null || leaves.containsKey(key)) break;
+                leaves.put(key, Math.max(0.0, 0.3 * (1.0 - down / (double) length)));
+            }
+        }
+    }
+
+    /** A level disc of leaves at height {@code y} round (cx, cz), {@code radius} round with a rough edge; {@code height} is its height in the crown (0..1). */
+    private void disc(double cx, int y, double cz, double radius, double height, double density) {
+        if (y < 0) return;
+        int reach = (int) Math.ceil(radius + 1.0);
+        for (int x = (int) Math.floor(cx) - reach; x <= (int) Math.floor(cx) + reach; x++) {
+            for (int z = (int) Math.floor(cz) - reach; z <= (int) Math.floor(cz) + reach; z++) {
+                double out = Math.hypot(x + 0.5 - cx, z + 0.5 - cz) + (hash(x, y, z, 23) - 0.5) * 0.9;
+                if (out <= radius) leaf(x, y, z, height, density);
+            }
+        }
+    }
+
+    /** A lumpy clump of leaves round (cx, cy, cz): {@code size} round, flattened by {@code flat}, its edge moved in and out by {@code rough} of its size. */
+    private void blob(double cx, double cy, double cz, double size, double flat, double rough, int salt) {
+        double squash = 1.0 - 0.65 * flat;
+        double density = p.leafDensity() / 100.0;
+        double tall = size * squash;
+        int reach = (int) Math.ceil(size * (1.0 + rough * 0.5) + 1);
+        int up = (int) Math.ceil(tall * (1.0 + rough * 0.5) + 1);
+        for (int x = (int) Math.floor(cx) - reach; x <= (int) Math.floor(cx) + reach; x++) {
+            for (int y = Math.max(0, (int) Math.floor(cy) - up); y <= (int) Math.floor(cy) + up; y++) {
+                for (int z = (int) Math.floor(cz) - reach; z <= (int) Math.floor(cz) + reach; z++) {
+                    double dx = x + 0.5 - cx;
+                    double dy = (y + 0.5 - cy) / Math.max(0.2, squash);
+                    double dz = z + 0.5 - cz;
+                    double edge = size * (1.0 + (noise(x, y, z, 2.5, salt) - 0.5) * rough) + (hash(x, y, z, 23) - 0.5) * 0.9;
+                    if (Math.sqrt(dx * dx + dy * dy + dz * dz) > edge) continue;
+                    leaf(x, y, z, (y + 0.5 - (cy - tall)) / Math.max(0.5, 2.0 * tall), density);
+                }
+            }
+        }
+    }
+
+    /** A leaf at (x, y, z), {@code height} up its clump (0..1), unless wood is there or the chance of {@code density} says no. */
+    private void leaf(int x, int y, int z, double height, double density) {
+        if (y < 0) return;
+        long key = pack(x, y, z);
+        if (shapeAt(key) != null || hash(x, y, z, 29) >= density) return;
+        leaves.merge(key, Math.max(0.0, Math.min(1.0, height)), Math::max);
+    }
+
+    /** Smooth noise in 0..1 (the hashes of a lattice {@code scale} blocks apart, blended), the same for the same place. */
+    static double noise(double x, double y, double z, double scale, int salt) {
+        double fx = x / scale;
+        double fy = y / scale;
+        double fz = z / scale;
+        int ix = (int) Math.floor(fx);
+        int iy = (int) Math.floor(fy);
+        int iz = (int) Math.floor(fz);
+        double tx = smooth(fx - ix);
+        double ty = smooth(fy - iy);
+        double tz = smooth(fz - iz);
+        double out = 0.0;
+        for (int corner = 0; corner < 8; corner++) {
+            int cx = corner & 1;
+            int cy = (corner >> 1) & 1;
+            int cz = (corner >> 2) & 1;
+            double weight = (cx == 1 ? tx : 1.0 - tx) * (cy == 1 ? ty : 1.0 - ty) * (cz == 1 ? tz : 1.0 - tz);
+            out += weight * hash(ix + cx, iy + cy, iz + cz, salt);
+        }
+        return out;
+    }
+
+    private static double smooth(double t) {
+        return t * t * (3.0 - 2.0 * t);
+    }
+
+    private static double sq(double value) {
+        return value * value;
     }
 
     /**
