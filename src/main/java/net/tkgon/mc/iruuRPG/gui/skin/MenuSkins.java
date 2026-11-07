@@ -37,6 +37,7 @@ import java.util.function.Consumer;
  * enabled: true               # false: as before
  * testers-only: true          # only operators (and iruurpg.uitest) see it
  * background: main/back.png   # behind the window, from its top left (176 wide; 222 high for a menu of 6 rows)
+ * background-origin: [6, 20]   # (t292) where in the picture the window's top left is: the picture reaches that far out on the left and over the top
  * title: ""                   # the title over it ("" none; left out: the menu's own)
  * title-color: "#404040"
  * hide-frame: true            # the menu's glass panes outside the parts are taken away
@@ -45,6 +46,7 @@ import java.util.function.Consumer;
  *     slots: 23-24            # numbers and ranges (a list too)
  *     picture: main/travel.png  # 18 pixels a slot over the rectangle of the slots
  *     button: 24              # the menu's button they all are (its name and lore on each; left out: the first slot)
+ *     overflow: [0, 4, 0, 0]  # (t292) how far the picture reaches out of the slots on the left, the top, the right, the bottom (one number: all four; 15 at most)
  * </pre>
  * Every problem is a warning, and the part (or the file) is left out. The pictures' names are kept to {@code a-z 0-9 _ - . /}.
  */
@@ -106,6 +108,15 @@ public final class MenuSkins {
             warn.accept(where + ": the background is at most 256 x 256; left out");
             background = null;
         }
+        int[] origin = {0, 0};
+        if (background != null && yaml.contains("background-origin")) {
+            int[] read = numbers(yaml.get("background-origin"), 2);
+            if (read == null || read[0] < 0 || read[1] < 0 || read[0] >= background.getWidth() || read[1] + UiPackBuilder.ASCENT > background.getHeight()) {
+                warn.accept(where + ": background-origin " + yaml.get("background-origin") + " is not [x, y] inside the picture (y at most its height - 13); the top left is used");
+            } else {
+                origin = read;
+            }
+        }
         TextColor color = TextColor.color(0x404040);
         String colorText = yaml.getString("title-color");
         if (colorText != null) {
@@ -135,9 +146,19 @@ public final class MenuSkins {
                 }
                 BufferedImage picture = picture(folder, part.getString("picture"), at);
                 if (picture == null) continue;
-                List<BufferedImage> tiles = MenuSkin.cut(picture, slots);
+                int[] overflow = new int[4];
+                if (part.contains("overflow")) {
+                    Object value = part.get("overflow");
+                    int[] read = value instanceof Number number ? new int[]{number.intValue(), number.intValue(), number.intValue(), number.intValue()} : numbers(value, 4);
+                    if (read == null || java.util.Arrays.stream(read).anyMatch(n -> n < 0 || n > MenuSkin.MAX_OVERFLOW)) {
+                        warn.accept(at + ": overflow " + value + " is not 0 - " + MenuSkin.MAX_OVERFLOW + " (one number, or [left, top, right, bottom]); none is used");
+                    } else {
+                        overflow = read;
+                    }
+                }
+                List<MenuSkin.Piece> tiles = MenuSkin.cut(picture, slots, overflow);
                 if (tiles == null) {
-                    warn.accept(at + ": the picture is not 18 pixels a slot over the rectangle of its slots; left out");
+                    warn.accept(at + ": the picture is not 18 pixels a slot over the rectangle of its slots (and its overflow); left out");
                     continue;
                 }
                 int button = part.getInt("button", slots.get(0));
@@ -150,7 +171,18 @@ public final class MenuSkins {
             }
         }
         String title = yaml.isString("title") ? yaml.getString("title") : null;
-        return new MenuSkin(id, background, title, color, yaml.getBoolean("hide-frame", true), yaml.getBoolean("testers-only", false), parts);
+        return new MenuSkin(id, background, origin[0], origin[1], title, color, yaml.getBoolean("hide-frame", true), yaml.getBoolean("testers-only", false), parts);
+    }
+
+    /** {@code count} whole numbers of a list, or null. */
+    private static int[] numbers(Object value, int count) {
+        if (!(value instanceof List<?> list) || list.size() != count) return null;
+        int[] out = new int[count];
+        for (int index = 0; index < count; index++) {
+            if (!(list.get(index) instanceof Number number)) return null;
+            out[index] = number.intValue();
+        }
+        return out;
     }
 
     private BufferedImage picture(File folder, String name, String where) {
@@ -205,8 +237,9 @@ public final class MenuSkins {
         Character glyph = made.backgrounds().get(menu);
         if (glyph == null) return text;
         int width = made.widths().get(menu);
+        int left = made.lefts().getOrDefault(menu, 0);
         return Component.empty()
-                .append(Component.text(UiPackBuilder.move(-UiPackBuilder.TITLE_X) + glyph + UiPackBuilder.move(UiPackBuilder.TITLE_X - (width + 1)))
+                .append(Component.text(UiPackBuilder.move(-UiPackBuilder.TITLE_X - left) + glyph + UiPackBuilder.move(UiPackBuilder.TITLE_X + left - (width + 1)))
                         .font(UiPackBuilder.FONT).color(NamedTextColor.WHITE))
                 .append(text);
     }

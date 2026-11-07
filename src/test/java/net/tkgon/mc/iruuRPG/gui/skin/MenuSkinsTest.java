@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-/** t291 (trial): the menus' own looks: their slots, the pieces of a picture over them, the pack, the title that puts the background in place. */
+/** t291 (trial), t292: the menus' own looks: their slots, the pieces of a picture over them (and out of them), the pack, the title that puts the background in place. */
 class MenuSkinsTest {
 
     @TempDir
@@ -53,14 +53,14 @@ class MenuSkinsTest {
     void aPictureIsCutIntoTheSlotsOfItsRectangle() {
         // slots 19, 20, 28, 29: two by two, 36 x 36 pixels
         List<Integer> slots = List.of(19, 20, 28, 29);
-        List<BufferedImage> tiles = MenuSkin.cut(grid(36, 36), slots);
+        List<MenuSkin.Piece> tiles = MenuSkin.cut(grid(36, 36), slots);
         assertNotNull(tiles);
         assertEquals(4, tiles.size());
         // slot 29 is the lower right: its top left pixel is (18, 18) of the picture
-        assertEquals(0xFF000000 | (18 << 16) | (18 << 8), tiles.get(3).getRGB(0, 0));
-        assertEquals(0xFF000000 | (35 << 16) | (35 << 8), tiles.get(3).getRGB(17, 17));
+        assertEquals(0xFF000000 | (18 << 16) | (18 << 8), tiles.get(3).image().getRGB(0, 0));
+        assertEquals(0xFF000000 | (35 << 16) | (35 << 8), tiles.get(3).image().getRGB(17, 17));
         // slot 20 the upper right
-        assertEquals(0xFF000000 | (18 << 16), tiles.get(1).getRGB(0, 0));
+        assertEquals(0xFF000000 | (18 << 16), tiles.get(1).image().getRGB(0, 0));
         // a picture of another size is none
         assertNull(MenuSkin.cut(grid(32, 32), slots));
         assertNull(MenuSkin.cut(grid(36, 18), slots));
@@ -68,7 +68,7 @@ class MenuSkinsTest {
 
     static MenuSkin skin(String id, BufferedImage background) {
         List<Integer> slots = List.of(23, 24);
-        return new MenuSkin(id, background, null, TextColor.color(0x404040), true, false,
+        return new MenuSkin(id, background, 0, 0, null, TextColor.color(0x404040), true, false,
                 List.of(new MenuSkin.Part("travel", slots, 24, MenuSkin.cut(grid(36, 18), slots))));
     }
 
@@ -89,6 +89,7 @@ class MenuSkinsTest {
         assertEquals(UiPackBuilder.FIRST + 1, built.numbers().get("main").get(24));
         assertEquals(UiPackBuilder.FIRST + 2, built.numbers().get("stats").get(23));
         BufferedImage tile = ImageIO.read(new ByteArrayInputStream(built.files().get("assets/iruurpg/textures/item/ui/main/travel_1.png")));
+        assertEquals(18, tile.getHeight());
         assertEquals(18, tile.getWidth());
         assertEquals(0xFF000000 | (18 << 16), tile.getRGB(0, 0), "slot 24 is the right half");
         JsonObject model = JsonParser.parseString(new String(built.files().get("assets/iruurpg/models/item/ui/main/travel_1.json"), StandardCharsets.UTF_8)).getAsJsonObject();
@@ -113,6 +114,62 @@ class MenuSkinsTest {
         for (String name : built.files().keySet()) assertArrayEquals(built.files().get(name), again.files().get(name), name);
         // every file of the pack is named in lower case (a capital makes the client drop the font)
         for (String name : built.files().keySet()) assertTrue(name.matches("[a-z0-9/._-]+"), name);
+    }
+
+    @Test
+    void aPictureCanReachOutOfItsSlots() throws IOException {
+        // two slots side by side, 3 pixels out on the left, 5 over the top, none on the right, 2 under the bottom: 39 x 25
+        List<Integer> slots = List.of(19, 20);
+        List<MenuSkin.Piece> pieces = MenuSkin.cut(grid(39, 25), slots, new int[]{3, 5, 0, 2});
+        assertNotNull(pieces);
+        MenuSkin.Piece left = pieces.get(0);
+        MenuSkin.Piece right = pieces.get(1);
+        assertEquals(List.of(3, 5, 0, 2), List.of(left.left(), left.top(), left.right(), left.bottom()));
+        assertEquals(List.of(0, 5, 0, 2), List.of(right.left(), right.top(), right.right(), right.bottom()));
+        assertEquals(21, left.image().getWidth());
+        assertEquals(25, left.image().getHeight());
+        // the right piece starts where the left one's slot ends: x 3 + 18 of the picture
+        assertEquals(0xFF000000 | (21 << 16), right.image().getRGB(0, 0));
+        // the picture must be that big
+        assertNull(MenuSkin.cut(grid(36, 18), slots, new int[]{3, 5, 0, 2}));
+        // the model reaches as far: the left piece's square from -4 (left) and -3 (bottom: model y goes up) to 17 and 22 (top)
+        UiPackBuilder.Built built = UiPackBuilder.build(List.of(new MenuSkin("main", null, 0, 0, null, TextColor.color(0x404040), true, false,
+                List.of(new MenuSkin.Part("tab", slots, 19, pieces)))));
+        JsonObject model = JsonParser.parseString(new String(built.files().get("assets/iruurpg/models/item/ui/main/tab_0.json"), StandardCharsets.UTF_8)).getAsJsonObject();
+        JsonObject element = model.getAsJsonArray("elements").get(0).getAsJsonObject();
+        assertEquals("[-4,-3,8]", element.get("from").toString());
+        assertEquals("[17,22,8]", element.get("to").toString());
+        // (a model's square is from -16 to 32: 15 out of a slot at most)
+        assertEquals(15, MenuSkin.MAX_OVERFLOW);
+    }
+
+    @Test
+    void aBackgroundCanReachOutOfTheWindow() throws IOException {
+        File ui = new File(folder, "ui");
+        assertTrue(ui.mkdirs());
+        // the window's top left is 6 in and 20 down the picture: a tab over the window
+        ImageIO.write(grid(182, 145), "png", new File(ui, "back.png"));
+        Files.writeString(new File(ui, "main.yml").toPath(), "background: back.png\nbackground-origin: [6, 20]\ntitle: \"\"\n");
+        List<String> warnings = new ArrayList<>();
+        MenuSkins skins = new MenuSkins(folder, warnings::add);
+        skins.reload();
+        assertEquals(List.of(), warnings);
+        Component title = skins.title("main", null, Component.text("own"));
+        String text = ((TextComponent) title.children().get(0)).content();
+        int glyph = text.indexOf('\uE000');
+        // 8 and 6 more to the left, then back to where the title is drawn
+        assertEquals(-UiPackBuilder.TITLE_X - 6, UiPackBuilder.advance(text.substring(0, glyph)));
+        assertEquals(0, UiPackBuilder.advance(text.substring(0, glyph)) + 182 + 1 + UiPackBuilder.advance(text.substring(glyph + 1)));
+        assertEquals("", ((TextComponent) title.children().get(1)).content());
+        // and it stands 20 higher
+        try (java.util.zip.ZipFile zip = new java.util.zip.ZipFile(new File(folder, "resourcepacks/" + MenuSkins.PACK_FILE))) {
+            JsonObject font = JsonParser.parseString(new String(zip.getInputStream(zip.getEntry("assets/iruurpg/font/ui.json")).readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+            assertEquals(13 + 20, font.getAsJsonArray("providers").get(0).getAsJsonObject().get("ascent").getAsInt());
+        }
+        // an origin outside the picture is told, and the top left is used
+        Files.writeString(new File(ui, "main.yml").toPath(), "background: back.png\nbackground-origin: [6, 140]\n");
+        skins.reload();
+        assertEquals(1, warnings.size(), warnings.toString());
     }
 
     @Test
