@@ -29,7 +29,7 @@ import java.util.Map;
  * U+E231 ({@code hud/highlight.png}), the rim of a skill whose re-activation is open U+E232 ({@code hud/recast.png}, white: its color is the
  * text's; t157); shade k (1 - 16 rows of 16 covered) U+E200 + k; digit d U+E220 + d; the charges left d at the icon's lower right U+E250 + d; the
  * gauge of the next charge's refill, k of 16 pixels, in the row under the icon U+E260 + k (0 - 16); the key labels ({@link #KEY_LABELS}) U+E240 on;
- * the spaces U+E2F0 on. The pictures are the texture tree's (16 x 16) when
+ * the veil over the whole screen U+E2E0 (t291); the spaces U+E2F0 on. The pictures are the texture tree's (16 x 16) when
  * there are some: {@code hud/small_<class>_<kind>.png} ({@code medium_}, {@code large_}, {@code util_}); else, for the class's favorite weapon
  * (and for every kind of a class with no moves of its own), {@code hud/small_<class>.png} ...; else the picture of the skill of t138 it throws
  * with that kind of weapon ({@code hud/heavy_<class>_<n>.png}, {@link net.tkgon.mc.iruuRPG.combat.SlotMoves}); else a placeholder (the
@@ -164,6 +164,23 @@ public final class HudGlyphs {
         int index = KEY_LABELS.indexOf(keys);
         if (index < 0) throw new IllegalArgumentException("no key label " + keys);
         return (char) (0xE240 + index);
+    }
+
+    /**
+     * (t291) The height of the veil in font pixels: a black square drawn {@link #VEIL_ASCENT} over the line and the rest under it. Put in a title (drawn 4 times as
+     * big, 10 font pixels over the middle of the screen) it covers 512 pixels of the screen's interface over and under the middle.
+     */
+    public static final int VEIL = 256;
+    static final int VEIL_ASCENT = 125;
+
+    /** (t291) The veil over the whole screen: a black square {@link #VEIL} font pixels on a side (a death's screen going black, then fading back). */
+    public static char veil() {
+        return (char) 0xE2E0;
+    }
+
+    /** (t291) Three veils side by side, overlapping by a pixel (no seam): 768 font pixels wide, more than any screen in a title. */
+    public static String veils() {
+        return veil() + move(-2) + veil() + move(-2) + veil();
     }
 
     /** A space of +-2^i pixels ({@code negative}: to the left). */
@@ -591,6 +608,21 @@ public final class HudGlyphs {
             // (a file of a resource pack is named in lower case only: a capital makes the whole font unreadable for a vanilla client)
             bitmap(providers, files, "key_" + keys, keyLabel(keys), picture(ICON, PICTURE + KEY_RAISE, keyImage(keys), 0));
         }
+        // (t291) the veil: a small black picture drawn VEIL high
+        JsonObject veil = new JsonObject();
+        veil.addProperty("type", "bitmap");
+        veil.addProperty("file", "iruurpg:font/hud/veil.png");
+        veil.addProperty("ascent", VEIL_ASCENT);
+        veil.addProperty("height", VEIL);
+        JsonArray veilChars = new JsonArray();
+        veilChars.add(String.valueOf(veil()));
+        veil.add("chars", veilChars);
+        providers.add(veil);
+        BufferedImage black = new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB);
+        for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++) black.setRGB(x, y, 0xFF000000);
+        ByteArrayOutputStream veilPng = new ByteArrayOutputStream();
+        ImageIO.write(black, "png", veilPng);
+        files.put("assets/iruurpg/textures/font/hud/veil.png", veilPng.toByteArray());
         JsonObject space = new JsonObject();
         space.addProperty("type", "space");
         JsonObject advances = new JsonObject();

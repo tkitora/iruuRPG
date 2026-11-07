@@ -1045,6 +1045,17 @@ attack-sounds:
 #     BLADE: ["ITEM_TRIDENT_THROW 0.45 1.7", "ENTITY_PHANTOM_FLAP 0.25 2.0"]
 sound-design: {}
 
+# (t291) 死んだときの演出 (すぐに復活するので、死亡画面はない)
+#   倒れた所: 魂が抜ける (煙・上る魂の炎・地面の青い輪) と音 DEATH (まわりの人にも)
+#   自分の画面: すぐ真っ暗になり、dark-ticks のあと fade-ticks かけて明ける (HUD フォントの黒い幕のタイトル)。下に title の文字。音 DEATH_SELF (自分だけ)
+#   明けてくるころ、戻った所: 足元の金の輪・上る金のらせん・トーテムの粒と音 REVIVE (まわりの人にも)
+#   (ダンジョンで倒れて観戦になったときは、倒れた所の演出だけ。音は sound-design の DEATH / DEATH_SELF / REVIVE で変えられる)
+death-effects:
+  enabled: true
+  title: "力尽きた…"
+  dark-ticks: 8
+  fade-ticks: 30
+
 # 敵の追尾。見えるプレイヤーだけに気づく (壁の向こうは気づかない)
 mob-ai:
   # この距離以内で、遮るものがなく見えるプレイヤーに気づく
