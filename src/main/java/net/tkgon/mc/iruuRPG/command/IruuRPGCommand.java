@@ -53,6 +53,13 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
 
     private java.util.function.Supplier<net.tkgon.mc.iruuRPG.gui.DictionaryMenu> dictionary = () -> null;
 
+    private java.util.function.Supplier<net.tkgon.mc.iruuRPG.tools.sea.SeaView> sea = () -> null;
+
+    /** (t302) The sea only the player sees (/iruurpg sea; looked up when the command runs). */
+    public void setSea(java.util.function.Supplier<net.tkgon.mc.iruuRPG.tools.sea.SeaView> sea) {
+        this.sea = sea;
+    }
+
     /** (t254) The admins' dictionary (/iruurpg dictionary, /iruurpg dic; looked up when the command runs). */
     public void setDictionary(java.util.function.Supplier<net.tkgon.mc.iruuRPG.gui.DictionaryMenu> dictionary) {
         this.dictionary = dictionary;
@@ -110,8 +117,9 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
             case "dummy", "target" -> spawnDummy(sender);
             case "skilltest" -> skillTest(sender, args);
             case "dictionary", "dic" -> openDictionary(sender);
+            case "sea" -> sea(sender, args);
             default -> {
-                sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy|dictionary>");
+                sender.sendMessage("Usage: /iruurpg <status|stats|class|level|reload|sync|item|mob|dummy|dictionary|sea>");
                 yield true;
             }
         };
@@ -120,8 +128,10 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
     @Override
     public @Nullable List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String label, String[] args) {
         if (args.length == 1) {
-            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack", "skilltest", "dictionary", "dic"), args[0]);
+            return startsWith(List.of("status", "stats", "stat", "profile", "class", "classes", "skilltree", "tree", "level", "lv", "xp", "levelup", "setlevel", "reset", "resetlevel", "addxp", "reload", "sync", "item", "mob", "enemy", "dummy", "target", "btdebug", "pack", "skilltest", "dictionary", "dic", "sea"), args[0]);
         }
+
+        if (args[0].equalsIgnoreCase("sea") && args.length == 2) return startsWith(List.of("true", "false", "62", "~"), args[1]);
 
         if (args[0].equalsIgnoreCase("skilltest")) {
             if (args.length == 2) return startsWith(List.of("small", "medium", "large", "util", "off"), args[1]);
@@ -514,6 +524,42 @@ public final class IruuRPGCommand implements CommandExecutor, TabCompleter {
 
         LivingEntity target = debugTargetService.spawn(player);
         sender.sendMessage("Spawned debug target: " + target.getUniqueId());
+        return true;
+    }
+
+    /**
+     * (t302) {@code /iruurpg sea [y|true|false]}: a sea at height y only the player sees (water in the air blocks of that height round them, following them);
+     * true / false shows or hides it; nothing: what it is now.
+     */
+    private boolean sea(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player player)) {
+            sender.sendMessage("Players only.");
+            return true;
+        }
+        if (!requireAdmin(sender)) return true;
+        net.tkgon.mc.iruuRPG.tools.sea.SeaView view = sea.get();
+        if (view == null) {
+            sender.sendMessage("The sea view is not ready.");
+            return true;
+        }
+        if (args.length < 2) {
+            sender.sendMessage(view.status(player));
+            return true;
+        }
+        String value = args[1].toLowerCase(java.util.Locale.ROOT);
+        switch (value) {
+            case "true", "on", "show" -> sender.sendMessage(view.show(player, true));
+            case "false", "off", "hide" -> sender.sendMessage(view.show(player, false));
+            default -> {
+                try {
+                    int y = value.startsWith("~") ? player.getLocation().getBlockY() + (value.length() == 1 ? 0 : Integer.parseInt(value.substring(1)))
+                            : Integer.parseInt(value);
+                    sender.sendMessage(view.setHeight(player, y));
+                } catch (NumberFormatException exception) {
+                    sender.sendMessage("/iruurpg sea <y座標|~|true|false>");
+                }
+            }
+        }
         return true;
     }
 

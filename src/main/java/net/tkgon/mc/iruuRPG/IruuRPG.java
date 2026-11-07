@@ -145,6 +145,8 @@ public final class IruuRPG extends JavaPlugin {
     private net.tkgon.mc.iruuRPG.combat.RangerMoves rangerMoves;
     private net.tkgon.mc.iruuRPG.tools.brush.BrushModule brushModule;
     private net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule proceduralModule;
+    /** (t302) The sea only one player sees (/iruurpg sea). */
+    private net.tkgon.mc.iruuRPG.tools.sea.SeaView seaView;
     private net.tkgon.mc.iruuRPG.pack.ResourcePackService resourcePackService;
     private net.tkgon.mc.iruuRPG.itempack.ItemPackService itemPackService;
     private net.tkgon.mc.iruuRPG.model.ModelModule modelModule;
@@ -478,6 +480,7 @@ public final class IruuRPG extends JavaPlugin {
         }
         if (brushModule != null) brushModule.stop();
         if (proceduralModule != null) proceduralModule.stop();
+        if (seaView != null) seaView.stop();
         if (bgmModule != null) bgmModule.stop();
         if (resourcePackService != null) resourcePackService.stop();
         if (modelModule != null) modelModule.stop();
@@ -578,6 +581,7 @@ public final class IruuRPG extends JavaPlugin {
 
         // the procedural tool for builders (trees, rocks, spikes, ...): it lives in tools/procedural (like the brush) and nothing else knows about it
         this.proceduralModule = net.tkgon.mc.iruuRPG.tools.procedural.ProceduralModule.start(this);
+        this.seaView = net.tkgon.mc.iruuRPG.tools.sea.SeaView.start(this);
         this.resourcePackService = net.tkgon.mc.iruuRPG.pack.ResourcePackService.start(this);
         this.modelModule = net.tkgon.mc.iruuRPG.model.ModelModule.start(this);
         mobService.setModels(modelModule);
@@ -717,6 +721,7 @@ public final class IruuRPG extends JavaPlugin {
         executor.setPackService(() -> resourcePackService);
         executor.setSkillSlots(() -> skillSlots);
         executor.setDictionary(() -> dictionaryMenu);
+        executor.setSea(() -> seaView);
         command.setExecutor(executor);
         command.setTabCompleter(executor);
 
