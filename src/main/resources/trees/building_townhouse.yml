@@ -1,0 +1,18 @@
+# 見本の建物: パターン A 塔付きタウンハウス (本棟の切妻・八角形か円の塔・アーチ通路の翼棟)。シード 0 = 毎回ちがう建物 (プレビュー中は固定)。t295 (プロシージャルツールの読み込み、または /proceduraltool load building_townhouse)
+settings:
+  kind: building
+  bld-pattern: 1
+  bld-gen-floors-min: 2
+  bld-gen-floors-max: 3
+  bld-gen-module: 0
+  bld-gen-pitch: 6
+  bld-gen-overhang-min: 1
+  bld-gen-overhang-max: 2
+  bld-gen-jetty: 0
+  bld-chimney: 0.6
+  bld-dormer: 0.0
+  bld-bay-window: 0.3
+  bld-balcony: 0.4
+  bld-turret: 0.0
+  bld-porch: 0.5
+  seed: 0

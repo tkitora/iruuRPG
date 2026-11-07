@@ -1,0 +1,18 @@
+# 見本の建物: パターン C 十字切妻の複合 (L・T字の交差する切妻・小塔・差し掛け)。シード 0 = 毎回ちがう建物 (プレビュー中は固定)。t295 (プロシージャルツールの読み込み、または /proceduraltool load building_crossed)
+settings:
+  kind: building
+  bld-pattern: 3
+  bld-gen-floors-min: 2
+  bld-gen-floors-max: 3
+  bld-gen-module: 1
+  bld-gen-pitch: 6
+  bld-gen-overhang-min: 1
+  bld-gen-overhang-max: 2
+  bld-gen-jetty: 0
+  bld-chimney: 0.5
+  bld-dormer: 0.3
+  bld-bay-window: 0.3
+  bld-balcony: 0.3
+  bld-turret: 1.0
+  bld-porch: 0.5
+  seed: 0

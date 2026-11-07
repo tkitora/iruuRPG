@@ -38,6 +38,7 @@ final class TreeGenerator {
         // (a house: its own size and its parts, for the foundation)
         if (settings.kind() == ProcKind.HOUSE) return HouseShape.reach(settings);
         if (settings.kind() == ProcKind.LOBBY) return LobbyShape.reach(settings);
+        if (settings.kind() == ProcKind.BUILDING) return BuildingShape.reach(settings);
         // (t286: an ornate tree lays its roots on the ground and hangs its strands down to it)
         if (OrnateTree.readsGround(settings)) return OrnateTree.groundRadius(settings);
         return Math.min(24, (int) Math.ceil(settings.width() / 2.0) + 3);

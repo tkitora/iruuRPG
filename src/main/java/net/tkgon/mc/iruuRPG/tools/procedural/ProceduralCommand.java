@@ -16,7 +16,7 @@ final class ProceduralCommand implements TabExecutor {
 
     private static final String PREFIX = "[木] ";
     private static final List<String> SUBS = List.of("kind", "give", "wand", "presets", "scatter", "off", "menu", "set", "info", "save", "load", "list", "delete", "undo", "redo", "preview", "generate", "point", "block",
-            "random");
+            "random", "build", "schem");
 
     private final ProceduralModule tool;
 
@@ -36,7 +36,7 @@ final class ProceduralCommand implements TabExecutor {
             case "kind" -> {
                 ProcKind kind = args.length > 1 ? ProcKind.byId(args[1]) : null;
                 if (kind == null) {
-                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web|house|lobby>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
+                    player.sendMessage(PREFIX + "/proceduraltool kind <tree|rock|spike|crystal|web|house|lobby|building>  (いま: " + session.settings.kind().name().toLowerCase(Locale.ROOT) + ")");
                 } else {
                     session.settings.setKind(kind);
                     tool.limit(session.settings);
@@ -99,6 +99,13 @@ final class ProceduralCommand implements TabExecutor {
             }
             case "block" -> block(player, session.settings, args);
             case "random" -> random(player, session, args);
+            // (t295) a preset put at a place by command, the same with the same seed; what the settings make written as a .schem
+            case "build" -> build(player, session, args);
+            case "schem" -> {
+                String name = args.length > 1 ? TreeSettings.safeName(args[1]) : TreeSettings.safeName(session.settings.name());
+                if (name == null) player.sendMessage(PREFIX + "/proceduraltool schem <名前> (英数字・-・_)");
+                else tool.exportSchematic(player, name);
+            }
             case "list" -> {
                 List<String> names = tool.store().list();
                 player.sendMessage(PREFIX + "保存した設定 (" + names.size() + "): " + (names.isEmpty() ? "なし" : String.join(", ", names)));
@@ -108,7 +115,7 @@ final class ProceduralCommand implements TabExecutor {
                 if (name == null) player.sendMessage(PREFIX + "/proceduraltool delete <名前>");
                 else player.sendMessage(PREFIX + (tool.store().delete(name) ? "消しました: " + name : "そんな名前はありません: " + name));
             }
-            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|presets|scatter|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]]");
+            default -> player.sendMessage(PREFIX + "/proceduraltool [give|wand|presets|scatter|off|menu|set <項目> <値>|info|save <名前>|load <名前>|list|delete <名前>|undo|redo|preview|generate|block <部位> <ブロック>|random [パターン|parts] [seed]|build <設定名> [x y z] [seed]|schem [名前]]");
         }
         return true;
     }
@@ -136,6 +143,61 @@ final class ProceduralCommand implements TabExecutor {
             }
         }
         tool.design(player, parts, seed);
+    }
+
+    /**
+     * (t295) {@code /proceduraltool build <preset> [x y z] [seed]}: puts the saved preset with its front toward the player: at {@code x y z} (the block it stands
+     * in, {@code ~} for the player's own), else on the block in sight, else where the player stands; with the seed the same building again (else a new one).
+     */
+    private void build(Player player, TreeSession session, String[] args) {
+        String name = args.length > 1 ? TreeSettings.safeName(args[1]) : null;
+        TreeSettings settings = name == null ? null : tool.store().load(name);
+        if (settings == null) {
+            player.sendMessage(PREFIX + "/proceduraltool build <設定名> [x y z] [seed]  (設定名は /proceduraltool list)" + (name == null ? "" : "  見つかりません: " + name));
+            return;
+        }
+        if (settings.kind().web()) {
+            player.sendMessage(PREFIX + "クモの巣は build では置けません: " + name);
+            return;
+        }
+        org.bukkit.Location base = null;
+        int next = 2;
+        if (args.length >= 5) {
+            try {
+                org.bukkit.Location at = player.getLocation();
+                base = new org.bukkit.Location(player.getWorld(), coordinate(args[2], at.getBlockX()), coordinate(args[3], at.getBlockY()), coordinate(args[4], at.getBlockZ()));
+                next = 5;
+            } catch (NumberFormatException exception) {
+                player.sendMessage(PREFIX + "座標は整数 (~ で自分の位置、~3 で自分から 3)");
+                return;
+            }
+        }
+        if (base == null) {
+            HousePointer.Hit hit = tool.sight(player, session, false);
+            base = hit == null ? player.getLocation().getBlock().getLocation() : new org.bukkit.Location(player.getWorld(), hit.x(), hit.y() + 1, hit.z());
+        }
+        long seed;
+        try {
+            seed = args.length > next ? Long.parseLong(args[next]) : settings.seed() != 0L ? settings.seed() : new java.util.Random().nextLong() & Long.MAX_VALUE;
+        } catch (NumberFormatException exception) {
+            player.sendMessage(PREFIX + "seed は整数");
+            return;
+        }
+        if (session.busy) {
+            player.sendMessage(PREFIX + "前のものをまだ作っています。終わるまで待ってください。");
+            return;
+        }
+        tool.limit(settings);
+        org.bukkit.util.Vector toEye = player.getEyeLocation().toVector().subtract(base.toVector().add(new org.bukkit.util.Vector(0.5, 0.5, 0.5)));
+        org.bukkit.util.Vector aim = toEye.lengthSquared() < 1.0E-6 ? null : toEye.normalize();
+        player.sendMessage(PREFIX + "build: " + name + " (" + settings.kind().label() + ") at " + base.getBlockX() + ", " + base.getBlockY() + ", " + base.getBlockZ() + " seed " + seed);
+        tool.build(player, session, settings, base, aim, seed, null);
+    }
+
+    /** A coordinate of the command: a number, or {@code ~} / {@code ~n} from the player's own. */
+    static int coordinate(String text, int own) {
+        if (text.startsWith("~")) return own + (text.length() == 1 ? 0 : Integer.parseInt(text.substring(1)));
+        return Integer.parseInt(text);
     }
 
     /**
@@ -341,7 +403,7 @@ final class ProceduralCommand implements TabExecutor {
             for (ProcKind kind : ProcKind.values()) options.add(kind.name().toLowerCase(Locale.ROOT));
         } else if (args.length == 3 && args[0].equalsIgnoreCase("set")) {
             if (args[1].equalsIgnoreCase("algorithm")) options.addAll(TreeSettings.ALGORITHMS);
-        } else if (args.length == 2 && (args[0].equalsIgnoreCase("load") || args[0].equalsIgnoreCase("delete"))) {
+        } else if (args.length == 2 && (args[0].equalsIgnoreCase("load") || args[0].equalsIgnoreCase("delete") || args[0].equalsIgnoreCase("build"))) {
             options.addAll(tool.store().list());
         }
         List<String> result = new ArrayList<>();

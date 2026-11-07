@@ -1,0 +1,18 @@
+# 見本の建物: パターン B 多層せり出し (各階 +1 のせり出し・急勾配の切妻・高い基壇・ドーマー)。シード 0 = 毎回ちがう建物 (プレビュー中は固定)。t295 (プロシージャルツールの読み込み、または /proceduraltool load building_jettied)
+settings:
+  kind: building
+  bld-pattern: 2
+  bld-gen-floors-min: 3
+  bld-gen-floors-max: 4
+  bld-gen-module: 0
+  bld-gen-pitch: 4
+  bld-gen-overhang-min: 1
+  bld-gen-overhang-max: 1
+  bld-gen-jetty: 7
+  bld-chimney: 0.6
+  bld-dormer: 0.8
+  bld-bay-window: 0.0
+  bld-balcony: 0.0
+  bld-turret: 0.0
+  bld-porch: 0.5
+  seed: 0
